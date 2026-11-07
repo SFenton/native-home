@@ -460,6 +460,21 @@ jobs:
           key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Warm the ${{ matrix.family }} simulator (first boot of a runtime on a fresh VM can exceed the 120 s health check)
+        continue-on-error: true
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          case "$FAMILY" in
+            iphone) name="${FENTON_SIM_IPHONE:-iPhone 17}" ;;
+            duo) name="${FENTON_SIM_DUO:-iPhone Duo}" ;;
+            ipad) name="${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
+          esac
+          udid="$(xcrun simctl list devices available -j | jq -r --arg n "$name" '[.devices[][] | select(.name == $n)][0].udid // empty')"
+          [ -n "$udid" ] || { echo "no simulator named $name"; xcrun simctl list devices; exit 1; }
+          xcrun simctl boot "$udid" || true
+          time xcrun simctl bootstatus "$udid" -b
+          xcrun simctl io "$udid" screenshot --type=png "$RUNNER_TEMP/warm.png" && echo "screenshot ok"
       - name: Smoke plan on ${{ matrix.family }}
         run: tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force
       - name: Journeys the diff reaches on ${{ matrix.family }}
@@ -471,6 +486,13 @@ jobs:
         with:
           path: ${{ runner.temp }}/dd
           key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+      - name: Simulator diagnostics
+        if: failure()
+        continue-on-error: true
+        run: |
+          xcrun simctl list devices
+          df -h / | tail -1
+          log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
       - name: Keep the results
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
