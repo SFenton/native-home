@@ -331,7 +331,7 @@ class OwnerGuardDenyTests(Base):
 
 class WorkTests(Base):
     def done_status(self, **extra):
-        status = {"state": "done", "pr": "https://github.com/SFenton/Fenton-HASS-Native/pull/50", "tests_passed": True,
+        status = {"state": "done", "pr": "https://github.com/SFenton/native-home/pull/50", "tests_passed": True,
                   "summary": "Fixed it.", "root_cause": "A race.", "resolution": "Ordered it.", "tests": ["swift test"],
                   "screenshots": [{"file": "a.png", "url": "https://github.com/user-attachments/assets/z", "kind": "image",
                                    "caption": "After"}]}
@@ -340,15 +340,15 @@ class WorkTests(Base):
 
     def test_done_with_open_pr_labels_it_for_merge_then_finishes_when_merged(self):
         gh = FakeGitHub([issue(10, labels=["Bug"])])
-        gh.pulls["https://github.com/SFenton/Fenton-HASS-Native/pull/50"] = {"state": "OPEN", "labels": []}
+        gh.pulls["https://github.com/SFenton/native-home/pull/50"] = {"state": "OPEN", "labels": []}
         runner = self.runner(gh, self.done_status())
         self.assertEqual(runner.work(10), "merging")
-        self.assertIn(("label_pull", "https://github.com/SFenton/Fenton-HASS-Native/pull/50", "Ready to Merge", "Merge Failed"), gh.calls)
+        self.assertIn(("label_pull", "https://github.com/SFenton/native-home/pull/50", "Ready to Merge", "Merge Failed"), gh.calls)
         self.assertIn("Merging", ht.label_names(gh.issues[10]))
         self.assertIn("10", runner.state.data["merging"])
         self.assertTrue(any("worktree" in c and "add" in c for c in self.commands))
-        gh.pulls["https://github.com/SFenton/Fenton-HASS-Native/pull/50"] = {"state": "MERGED", "labels": [],
-                                                                            "url": "https://github.com/SFenton/Fenton-HASS-Native/pull/50"}
+        gh.pulls["https://github.com/SFenton/native-home/pull/50"] = {"state": "MERGED", "labels": [],
+                                                                            "url": "https://github.com/SFenton/native-home/pull/50"}
         runner.check_merging()
         self.assertEqual(gh.issues[10]["state"], "CLOSED")
         self.assertIn("Done", ht.label_names(gh.issues[10]))
@@ -359,7 +359,7 @@ class WorkTests(Base):
 
     def test_done_without_tests_or_pr_blocks(self):
         gh = FakeGitHub([issue(11)])
-        gh.pulls["https://github.com/SFenton/Fenton-HASS-Native/pull/50"] = {"state": "OPEN", "labels": []}
+        gh.pulls["https://github.com/SFenton/native-home/pull/50"] = {"state": "OPEN", "labels": []}
         self.assertEqual(self.runner(gh, self.done_status(tests_passed=False)).work(11), "blocked")
         gh = FakeGitHub([issue(12)])
         self.assertEqual(self.runner(gh, self.done_status(pr="https://evil.example/pull/1")).work(12), "blocked")
@@ -554,9 +554,9 @@ class InstallTests(Base):
             self.assertEqual(ht.main(["status", "--json"], home=self.home), 0)
             self.assertEqual(json.loads(out.getvalue())["queue"][0]["number"], 80)
             self.assertEqual(ht.main(["init-labels"], home=self.home), 0)
-        self.assertIn(("label", "SFenton/Fenton-HASS-Native", "Ready to Merge"), fake.calls)
+        self.assertIn(("label", "SFenton/native-home", "Ready to Merge"), fake.calls)
         for name in ("Needs Decision", "Workflow"):
-            self.assertIn(("label", "SFenton/Fenton-HASS-Native", name), fake.calls)
+            self.assertIn(("label", "SFenton/native-home", name), fake.calls)
 
     def test_deny_list_blocks_merging_and_pushing_to_main(self):
         agent = ht.load_config(self.home)["agent"]
@@ -585,7 +585,7 @@ class InstallTests(Base):
 class NightlyIntakeTests(Base):
     """`Nightly Fix` issues on the product repository: same worker and landing, separate state, never closed by the agent."""
 
-    PR = "https://github.com/SFenton/Fenton-HASS-Native/pull/60"
+    PR = "https://github.com/SFenton/native-home/pull/60"
 
     def nightly_runner(self, gh, status=None, code=0):
         paths = ht.Paths(self.cfg, self.home, "nightly-")
@@ -708,7 +708,7 @@ class NightlyIntakeTests(Base):
             self.assertIn((self.cfg["product_repo"], name), made)
 
 
-PRODUCT_PR = "https://github.com/SFenton/Fenton-HASS-Native/pull/70"
+PRODUCT_PR = "https://github.com/SFenton/native-home/pull/70"
 
 
 class LabelRetryTests(Base):
@@ -729,7 +729,7 @@ class LabelRetryTests(Base):
 
     def test_missing_label_is_created_then_the_edit_retried(self):
         gh = self.Flaky(ht.label_table(self.cfg))
-        gh.edit_labels("SFenton/Fenton-HASS-Native", 5, add=["In Progress"])
+        gh.edit_labels("SFenton/native-home", 5, add=["In Progress"])
         kinds = [a[:2] for a in gh.log]
         self.assertEqual(kinds, [["issue", "edit"], ["label", "create"], ["issue", "edit"]])
         self.assertIn("--force", gh.log[1])
@@ -757,15 +757,15 @@ class LabelRetryTests(Base):
         gh._write = boom  # type: ignore[assignment]
         gh.label_pull(PRODUCT_PR, "Needs Decision")
         self.assertEqual(gh.log[1][:3], ["label", "create", "Needs Decision"])
-        self.assertIn("SFenton/Fenton-HASS-Native", gh.log[1])
+        self.assertIn("SFenton/native-home", gh.log[1])
 
     def test_absent_label_removal_is_idempotent_through_rest(self):
         """The 'In Progress not found' storm: removing a label gh cannot find must not raise, must not loop."""
         gh = self.Flaky(ht.label_table(self.cfg))
-        gh.edit_labels("SFenton/Fenton-HASS-Native", 239, add=["Blocked"], remove=["In Progress"])
+        gh.edit_labels("SFenton/native-home", 239, add=["Blocked"], remove=["In Progress"])
         kinds = [a[:2] for a in gh.log]
         self.assertEqual(kinds, [["issue", "edit"], ["api", "-X"], ["issue", "edit"]])
-        self.assertIn("repos/SFenton/Fenton-HASS-Native/issues/239/labels/In%20Progress", gh.log[1])
+        self.assertIn("repos/SFenton/native-home/issues/239/labels/In%20Progress", gh.log[1])
         self.assertNotIn("--remove-label", gh.log[2])
         self.assertIn("Blocked", gh.log[2])
 
@@ -794,7 +794,7 @@ class LabelRetryTests(Base):
 
         gh._write = boom  # type: ignore[assignment]
         gh.label_pull(PRODUCT_PR, "Ready to Merge", remove="Merge Failed")
-        self.assertIn("repos/SFenton/Fenton-HASS-Native/issues/70/labels/Merge%20Failed", gh.log[1])
+        self.assertIn("repos/SFenton/native-home/issues/70/labels/Merge%20Failed", gh.log[1])
 
     def test_label_table_has_everything_the_runner_applies(self):
         table = ht.label_table(self.cfg)
@@ -1779,7 +1779,7 @@ class ArchiveEveryEndingTests(Base):
 
     def test_done_merging(self):
         gh = FakeGitHub([issue(26)])
-        pr = "https://github.com/SFenton/Fenton-HASS-Native/pull/50"
+        pr = "https://github.com/SFenton/native-home/pull/50"
         gh.pulls[pr] = {"state": "OPEN", "labels": []}
         self.check(26, gh, {"state": "done", "pr": pr, "tests_passed": True, "summary": "ok"}, outcome="merging")
 

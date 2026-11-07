@@ -218,7 +218,7 @@ class DispatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             proc, calls = self.run_script(tmp)
             self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn("caffeinate -i gh workflow run nightly.yml --repo SFenton/Fenton-HASS-Native --ref main", calls)
+            self.assertIn("caffeinate -i gh workflow run nightly.yml --repo SFenton/native-home --ref main", calls)
 
     def test_kill_file_stops_it(self):
         with tempfile.TemporaryDirectory() as tmp:

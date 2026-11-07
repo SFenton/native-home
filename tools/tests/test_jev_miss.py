@@ -199,7 +199,7 @@ class JevMissTests(unittest.TestCase):
         self.record([{"severity": "major", "rule": "tests", "detail": "missing"}])
         ledger = self.root / "build" / "tasks"
         ledger.mkdir(parents=True)
-        (ledger / "T-3.json").write_text(json.dumps({"id": "T-3", "evidence": "https://github.com/SFenton/Fenton-HASS-Native/pull/7 and https://github.com/o/r/pull/8"}))
+        (ledger / "T-3.json").write_text(json.dumps({"id": "T-3", "evidence": "https://github.com/SFenton/native-home/pull/7 and https://github.com/o/r/pull/8"}))
         self.assertEqual(jev_miss.Outcomes(self.root).pr_numbers("T-3"), ["7"])
         counts = jev_miss.run(self.root, task="T-3", since="1000000d", runner=self.runner())
         self.assertEqual(counts["rows"], 2)
