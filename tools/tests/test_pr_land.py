@@ -220,7 +220,7 @@ class LandTests(unittest.TestCase):
         """A bare origin whose ``main`` holds ``tools/lane_land.py`` (the trusted copy the gate runs), added as ``origin``."""
         bare = Path(self.tmp.name) / "origin.git"
         seed = Path(self.tmp.name) / "seed"
-        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
         subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], cwd=self.tmp.name, env=ENV, check=True)
         (seed / "tools").mkdir()
         (seed / "tools" / "lane_land.py").write_text(lane_land_text or (TOOLS / "lane_land.py").read_text())
@@ -470,7 +470,7 @@ class LandTests(unittest.TestCase):
         for exit_code, expected in ((1, 1), (0, 0)):
             with self.subTest(exit_code=exit_code), TemporaryDirectory() as tmp:
                 bare = Path(tmp) / "b.git"
-                subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+                subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
                 seed = Path(tmp) / "seed"
                 subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], env=ENV, check=True)
                 (seed / "tools").mkdir()
