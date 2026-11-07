@@ -390,12 +390,13 @@ jobs:
     env:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
-      DERIVED: ${{ runner.temp }}/dd
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Derived data path (runner context is not allowed in job env)
+        run: echo "DERIVED=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
         run: tools/ci_hosted_setup.sh
       - name: Selected Xcode (cache key)
@@ -438,13 +439,14 @@ jobs:
     env:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
-      FENTON_DERIVED_DATA: ${{ runner.temp }}/dd
       FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Derived data path (runner context is not allowed in job env)
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
         run: tools/ci_hosted_setup.sh
       - name: Selected Xcode (cache key)
