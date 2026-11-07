@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Camera controls · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function one(ctx, label, o, w) { return MLC.sw(ctx, 'sheet', label, MLC.camControls(ctx, o), { dark: true, flex: '1 1 ' + (w || 300) + 'px' }); }
+
+  Mock.mount({
+    kind: 'component', id: 'camera-controls', title: 'Camera controls (Snapshot, Sound, Record)', area: 'cameras', status: 'shipped', frame: false, alwaysDark: true,
+    summary: 'Three circles under the camera video, each with its label below: Snapshot, Sound and Record. The glyph tints while on over the sheet\'s cell circle; always dark because the viewer is.',
+    source: ['apple/Sources/HassUI/Features/Cameras/CameraViewer.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/camera-streams.md', '.agents/design/motion-components.md'],
+    patterns: ['camera-streams'], hig: ['Buttons', 'HomeKit cameras', 'Playing haptics'], entities: ['input_boolean.demo_front_door_recording_1', 'script.demo_front_door_recording_1'],
+    kitComponents: ['SheetCloseItem'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'idle': { title: 'Idle: muted, not recording', note: 'a Record control exists only for cameras with a recording script (all four today)', render: function (ctx) { return MLC.grid([one(ctx, 'horizontal row', {})]); } },
+      'snapshot': { title: 'Snapshot: saving, saved, not saved', note: 'saving pulses and disables; saved shows a check for 2 s with a success haptic; not saved shows a warning with an error haptic', render: function (ctx) { return MLC.grid([one(ctx, 'saving', { snap: 'saving' }), one(ctx, 'saved', { snap: 'saved' }), one(ctx, 'not saved', { snap: 'failed' })]); } },
+      'sound': { title: 'Sound: muted and on', note: 'cameras reopen muted every time (the viewer mutes as it goes)', render: function (ctx) { return MLC.grid([one(ctx, 'muted', {}), one(ctx, 'sound on', { muted: false })]); } },
+      'record': { title: 'Record: off and recording', note: 'optimistic until Home Assistant reports (rolled back after 6 s if it does not); medium haptic on change', render: function (ctx) { return MLC.grid([one(ctx, 'off', {}), one(ctx, 'recording (pulses)', { recording: true })]); } },
+      'vertical': { title: 'Stacked vertically (split layout, AX sizes)', note: 'beside the video on iPad and Duo landscape, and at accessibility sizes (three across break labels mid-word)', render: function (ctx) { return MLC.grid([one(ctx, 'vertical', { axis: 'v' }, 200)]); } },
+      'no-record': { title: 'No recording script', note: 'two controls: Snapshot and Sound', render: function (ctx) { return MLC.grid([one(ctx, 'two controls', { noRecord: true })]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'stacked, circles 88 pt (scaled)', render: function (ctx) { return MLC.grid([one(ctx, 'stacked', { recording: true, snap: 'saved' }, 360)]); } },
+    },
+    motion: [
+      { id: 'saving', what: 'Snapshot saving: the glyph pulses; on success it swaps to a check and the circle tints', token: 'symbolEffect(.pulse) repeating while saving; .replace on the glyph; tint overlay on state 0.6 s', source: 'CameraViewer.swift CameraControlButton; motion-components.md CameraControlButton (done)', reduce: 'no pulse and no replace; tint cross-fades at 0.2 s', state: 'idle',
+        note: 'The repeating pulse marks a live pending state, the one repeat motion.md allows besides spinners.',
+        play: function (stage) { var ctx = Mock.current, c = stage.querySelector('.mlc-ctls'), cur = c; function swap(s) { var n = MLC.camControls(ctx, { snap: s }); cur.replaceWith(n); cur = n; } swap('saving'); return Mock.sleep(1300).then(function () { swap('saved'); return Mock.sleep(Mock.anim.ms.state() + 1000); }).then(function () { swap('idle'); }); } },
+      { id: 'record', what: 'Record: the glyph pulses red while recording', token: 'repeating pulse (live state); tint overlay on state 0.6 s', source: 'CameraControlButton(pulses: recording)', reduce: 'no pulse; static tint', state: 'idle',
+        play: function (stage) { var ctx = Mock.current, c = stage.querySelector('.mlc-ctls'), n = MLC.camControls(ctx, { recording: true }); c.replaceWith(n); return Mock.sleep(2400).then(function () { n.replaceWith(MLC.camControls(ctx, {})); }); } },
+    ],
+    a11y: [
+      { rule: 'Group', note: '"<camera> camera controls"; Snapshot, Sound, Record in order.' },
+      { rule: 'Snapshot', note: 'Label "Snapshot"; value Saving, "Saved to Photos" or "Couldn\'t save the snapshot", announced when the save ends; disabled while saving.' },
+      { rule: 'Sound and Record', note: 'Toggles: Sound value Off or On; Record value "Not recording" or "Recording". Input labels accept both the label and the visible title.' },
+      { rule: 'Targets and type', note: 'Circles 56 pt scaled (44 minimum, 88 at AX); labels wrap rather than truncate.' },
+      { rule: 'Not colour alone', note: 'Each state changes the glyph (muted speaker vs waves, record ring), the title (Muted, Sound On, Recording) and the tint.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Buttons: labels under icons, 44 pt targets', verdict: 'pass', note: 'Circle is max(scaled 56 pt, 44) over a footnote title; the whole column is the hit area (CameraViewer.swift:249-277).' },
+        { by: 'apple-hig skill', rule: 'Color: state is glyph and title as well as tint', verdict: 'pass', note: 'Sound swaps speaker.slash and speaker.wave, Record reads Recording, Snapshot swaps to a check or a warning triangle (lines 111-129, 216-222).' },
+        { by: 'apple-hig skill', rule: 'Playing haptics: outcomes confirmed', verdict: 'pass', note: 'Success, error and a medium impact on Record use sensoryFeedback (lines 130-141).' },
+        { by: 'apple-hig skill', rule: 'Feedback: an error stays long enough to read', verdict: 'pass', note: 'Fixed in CameraViewer.swift (CameraControls.runSnapshot): "Not Saved" now stays until the next snapshot or the viewer closes; only "Saved" settles after 2 s. A failed record command shows a FailureCaption.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Reduce Motion for repeating effects', verdict: 'pass', note: 'symbolEffect(.pulse, options: .repeating, isActive: pulses && !reduceMotion) and an identity content transition (lines 257-258).' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Voice Control names', verdict: 'pass', note: 'accessibilityInputLabels accepts both the label and the visible title (line 281); Sound and Record carry the toggle trait.' },
+        { by: 'swiftui-pro skill', rule: 'swift.md: structured work instead of a free Task', verdict: 'pass', note: 'runSnapshot is driven by .task(id: snapshot) so leaving the viewer cancels it (CameraViewer.swift:182)' },
+      ],
+    },
+    notes: ['The circles are always on the dark sheet (the viewer is always dark); the page swatch is not shown because the controls never appear on a page.', 'Promote to kit: MLC.camControl and MLC.camControls.'],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

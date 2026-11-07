@@ -1,0 +1,18 @@
+{
+  "id": "route-nightly-is-l0-coder",
+  "source": "Rule: nightly runs are always a Coder at L0, whatever the labels.",
+  "recorded": "2026-11-02",
+  "kind": "route",
+  "input": {
+    "labels": [
+      "Feature"
+    ],
+    "nightly": true,
+    "title": "[Feature] Nightly sweep",
+    "body": "x"
+  },
+  "expect": {
+    "route": "coder",
+    "level": "L0"
+  }
+}

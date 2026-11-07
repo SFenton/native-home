@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function page(ctx, o) { return MLC.mediaPage(ctx, o || {}); }
+  function tileEl(stage, title) { return stage.querySelector('.ui-tile[aria-label^="' + title + '"]'); }
+  function homePage(ctx) { return Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home(), frame: { x: 0, w: ctx.contentW } })] }); }
+  function remoteOpts(ctx) { var r = MLC.remotes['living-room-shield']; return { title: r.title, subtitle: r.sub, detent: 'large', size: 'page', trailing: 'close', content: MLC.remoteBody(ctx, r, {}), tabs: MLC.remoteTabs(ctx, r, 'controls') }; }
+
+  Mock.mount({
+    kind: 'page', id: 'media', title: 'Media', area: 'media', status: 'shipped',
+    summary: 'Every TV and media source in the house, one section per room: the room\'s TV leads on its own row and opens its remote; sources and quick launches run in place. Pushed under Home from Quick Links; dark page on the house photo.',
+    source: ['apple/Sources/HassUI/Features/Media/MediaScreen.swift', 'apple/Sources/HassCore/Config/MediaPageConfig.swift', 'apple/Sources/HassUI/Features/Home/HomeRoute.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift'],
+    spec: ['.agents/pages/media/spec.md', '.agents/pages/media/ios.md'],
+    patterns: ['entity-tile', 'media-remote', 'dynamic-grid', 'page-backdrop', 'header-edge-fade'],
+    hig: ['Layout', 'Buttons', 'Toolbars', 'Color', 'Dynamic Type'],
+    entities: ['media_player.demo_living_room_2', 'media_player.demo_media_room_1', 'sensor.demo_media_room_2', 'media_player.demo_media_player_2', 'input_boolean.demo_switch_1', 'input_boolean.demo_input_boolean_11'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip', 'ChipRail'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Living Room playing, Studio on, projector on', note: 'section columns follow the width: one on iPhone and the folded Duo, two on iPad portrait and the unfolded Duo (even), three on iPad landscape', render: function (c) { return page(c); } },
+      'duo-part-fold': { title: 'Duo partly folded: one room per side (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Living Room and Media Room lead, Studio trails; each side stacks', render: function (c) { return page(c); } },
+      'loading': { title: 'First sign-in, nothing saved', note: 'names at once and a soft pulsing bar where each value goes (GlassTile pending); the page reads EntityStore, so there is no spinner', render: function (c) { return page(c, { mode: 'pending' }); } },
+      'refreshing': { title: 'Saved snapshot, fresh values swap in', note: 'identical to default by design: nothing re-fades (owner 2026-10-17)', render: function (c) { return page(c); } },
+      'error': { title: 'Every entity unavailable', note: 'subtitles read Unavailable; source and script tiles dim their glyph and cannot be tapped; lead tiles still open their remote (its Power key is how the TV turns on)', render: function (c) { return page(c, { mode: 'unavailable' }); } },
+      'offline': { title: 'No network', note: 'values stay on their last state; offline chip under the header; cloud badge on Profile', render: function (c) { return page(c, { connection: 'offline' }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: function (c) { return page(c, { connection: 'reconnecting' }); } },
+      'all-off': { title: 'Everything off', note: 'the Living Room lead swaps to the television-off glyph; no tile fills', render: function (c) { return page(c, { mode: 'alloff' }); } },
+      'xbox-source': { title: 'Game Console is the Studio source', note: 'rollout R: selection tiles (option C): the chosen source fills with a white check disc and reads "On the TV"; the others stay dark with an empty ring and no state line. Tapping the chosen tile turns the TV off (VoiceOver: "Turn Off TV").', render: function (c) { return page(c, { mode: 'Game Console' }); } },
+      'fortnite-source': { title: 'Game is the Studio source', note: 'rollout R: Game Console and Game both read selected (MediaPageConfig lists Game among Game Console\'s active sources). Tapping Game relaunches it; tapping Game Console turns the TV off.', render: function (c) { return page(c, { mode: 'Game' }); } },
+      'switch-flight': { title: 'Handheld Console: turning on', note: 'rollout R: an action tile with a tracked power disc. The arc spinner shows while the script runs, until input_boolean.demo_switch_1 reports; then the disc animates to the filled power glyph. A failure reads "Didn\'t Respond".', render: function (c) { return page(c, { mode: 'switch-flight' }); } },
+      'long-text': { title: 'Long tile titles at Large', note: 'titles wrap to a second line; tiles in a row share the tallest height', render: function (c) {
+        var secs = MLC.mediaSections('default'); secs[1].cards[3].t = 'Computer in the Studio Closet'; secs[2].cards[1].t = 'Handheld Console OLED Docked Console';
+        return Mock.page(c, { title: 'Media', section: 'home', back: 'Home', badge: 3, choresBadge: 2, body: [K.TileGrid({ items: secs.map(function (s) { var rest = s.cards.slice(1).map(function (x) { return MLC.mediaTile(x); }); return h('div.ui-section', { style: { gap: '12px', minWidth: 0 } }, K.PageSectionHeader({ title: s.title }), MLC.mediaTile(s.cards[0]), rest.length ? K.TileGrid({ items: rest, min: MLC.fitMin(c, 140, 64), max: 4 }) : null); }), min: MLC.fitMin(c, 340), max: 3, gap: 24, equal: false })] }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'tiles stack glyph over text; sections and tiles go to one column', render: function (c) { return page(c); } },
+      'closed': { title: 'Remote sheet open behind (presenter)', note: 'the page a remote presents from', render: function (c) { return page(c); } },
+    },
+
+    motion: [
+      { id: 'source-tile', what: 'A source tile turns on in place (Game Console): the colour fills and the subtitle reads On, optimistically', token: 'state 0.6 s ease-in-out, colour only (stateColorTransition on GlassTileFace)', state: 'default',
+        source: 'MediaScreen.swift MediaCardTile; MediaRemoteController.tap (optimistic intents revert after 20 to 120 s); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = tileEl(stage, 'Game Console'); return MLC.flip(t, true, 'On').then(function () { return Mock.sleep(500); }).then(function () { return MLC.flip(t, false, 'Off'); }); } },
+      { id: 'lead-fill', what: 'The Living Room Streaming Box starts playing: its lead tile fills media pink', token: 'state 0.6 s ease-in-out (a house-caused change)', state: 'all-off',
+        source: 'GlassTileFace via MediaCardTile; motion-components.md GlassTile', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var t = tileEl(stage, 'Living Room Streaming Box'); return MLC.flip(t, true, 'Playing').then(function () { return Mock.sleep(500); }).then(function () { return MLC.flip(t, false, 'Off'); }); } },
+      { id: 'pending-pulse', what: 'First sign-in: a soft bar pulses where each tile\'s state will go', token: 'opacity 0.35 to 1 over 1.4 s, repeats until live data lands', state: 'loading',
+        source: 'HassDesign/PendingValue.swift; motion.md section 5', reduce: 'static at 65% opacity', play: function () { return Mock.sleep(2800); } },
+    ],
+
+    transitions: [
+      { from: 'Quick Links sheet', to: 'Media page', kind: 'push', state: 'default', note: 'Quick Links closes and the page pushes under Home (HomeRoute.media): the system push, interactive back swipe, Back circle leading. Content is present on arrival.',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = homePage(ctx), parent = a.parentNode; b.style.zIndex = 0; parent.insertBefore(b, a); a.style.zIndex = 1;
+          a.hidden = true; return Mock.anim.push(b, (a.hidden = false, a)).then(function () { return Mock.sleep(500); }).then(function () { b.remove(); a.style.zIndex = ''; });
+        } },
+      { from: 'Lead tile', to: 'Remote sheet', kind: 'sheet', state: 'closed', note: 'Living Room Streaming Box, Studio Remote and Media Room open their remote (page sheet at full height). The tile is not a zoom: motion.md lists zoom only for tiles that are the thing they open, and no zoom is wired on this page.',
+        play: function (stage) { return Mock.presentDemo(stage, remoteOpts(Mock.current), { hold: 1300 }); } },
+      { from: 'Source tile', to: 'In place', kind: 'cut', state: 'default', note: 'Game Console, Server, Computer, Game, Handheld Console and Media Room Streaming Box run their command and change colour; nothing navigates.', play: function (stage) { return Mock.sleep(300); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, Quick Links, Profile; the page title; then each room: its heading, the lead tile, the source tiles; the tab bar last. Each section is a container with an identifier (media.section.<room>).' },
+      { rule: 'Section headings', note: 'Living Room, Studio and Media Room are heading elements (RoomSectionHeader), so the rotor jumps between rooms.' },
+      { rule: 'Lead tiles', note: 'Buttons named by the device with its state as the value ("Living Room Streaming Box, Playing"); a chevron marks that they open a remote. They are never disabled.' },
+      { rule: 'Source and script tiles', note: 'Switches (value On or Off, from the source labels); disabled while their entity is unavailable, which VoiceOver reads as dimmed. State is words and glyph, not only the pink fill.' },
+      { rule: 'Targets', note: 'Tiles are 72 pt tall at Large (60 pt minimum is the app rule), far over 44 pt; tiles in a row share the tallest height.' },
+      { rule: 'Dynamic Type', note: 'Section width (340 pt) and tile width (140 pt) scale with type; AX5 gives one column, stacked tiles; titles wrap, never truncate.' },
+      { rule: 'Reduce Transparency', note: 'Tiles take the solid finish (opaque fills), the wallpaper becomes the plain base colour.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Color: never the only differentiator', verdict: 'pass', note: 'Source and script tiles read On or Off in words and glyph as well as the pink fill; GlassTile.accessibilityValue speaks the same (GlassTile.swift:173-181), and a first sign-in with nothing saved speaks "Loading" (line 175).' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt minimum target, one named control per tile', verdict: 'pass', note: 'Tiles are 60 pt or taller in an equal-height grid (MediaScreen.swift:79-84); each tile is one Button named by the device with its state as the value.' },
+        { by: 'apple-hig skill', rule: 'Layout: adaptive grid, iPhone Duo and iPad', verdict: 'pass', note: 'DynamicGridLayout (340 pt sections, up to three columns, MediaScreen.swift:40) is a grid, not a split, so no hinge case is needed: one column on iPhone and the folded Duo, even columns on the unfolded Duo, three on iPad landscape.' },
+        { by: 'apple-hig skill', rule: 'Navigation: Quick Links as a header button, page pushed under Home', verdict: 'departure', note: 'Owner decision 2026-10-16 (direction-g.md Navigation); HomeRoute.media pushes onto the Home stack so Back returns to Home.' },
+        { by: 'apple-hig skill', rule: 'Loading: show content at once, no blocking spinner', verdict: 'pass', note: 'The page reads EntityStore, so names draw at once with soft pending bars; there is no spinner and nothing re-fades on reopen (AGENTS.md invariant).' },
+        { by: 'apple-hig skill', rule: 'Playing haptics: confirm an action the person triggered', verdict: 'pass', note: 'Already fixed: the source and script tiles are GlassTile kind .selection or .command, which plays TapFeedback.tap (GlassTileKind.playsTapFeedback, #161).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: traits match the control (switch versus selected choice)', verdict: 'pass', note: 'MediaCardTile.look maps .selection to GlassTile.Kind.selection, so the Studio source tiles read as selected.' },
+        { by: 'swiftui-pro skill', rule: 'design.md: scaled metrics, no fixed widths', verdict: 'pass', note: 'Section and tile widths are @ScaledMetric (MediaScreen.swift:19, 70); spacing comes from HassTokens.' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: nothing written per frame while scrolling', verdict: 'pass', note: 'Only scrollTelemetry runs on the ScrollView (line 48); each tile receives its own card and the page owns one shared controller.' },
+        { by: 'swiftui-pro skill', rule: 'navigation.md: sheet(item:) for an optional value', verdict: 'pass', note: '$remote drives sheet(item:) (line 51) and the Studio remote reuses the page controller, so an optimistic source change shows in both.' },
+      ],
+    },
+
+    notes: [
+      'Partly folded Duo (claude/section-sides, section-sides.md): fold columns by configured order, Living Room and Media Room lead, Studio trails, stacked per side at every text size (was: the 340 pt grid, row-major, which fell back to one track across the band above Large); every other pose unchanged.',
+      "Built on claude/action-nav-tiles: remote lead tiles are navigation tiles with actions: off shows Power beside the chevron; playing shows previous, play/pause, next below the text and the volume slider (writes on release), full-row tile only. Source and script tiles are unchanged.",
+      'empty: this page has no empty state; the sections come from MediaPageConfig and every card always draws (an unavailable entity shows in the error state).',
+      'The Bedroom 1 Streamer is not on this page (web parity, spec.md); it opens from the Bedroom 1 room page. The brief\'s statesHint lists it; it is drawn in the media-remote-sheet mockup.',
+      'Code versus docs: ios.md says the page is "pushed from the Quick Links sheet"; the code pushes HomeRoute.media onto the Home stack (Back leads to Home), drawn here.',
+      'Game shows the controller glyph: its artwork lives in the web bundle, not on the server (ios.md). It is a Quick App Launch tile on this page, a toggle tile whose entity is the Studio active source.',
+      'Game Console\'s tile says On only while the active source is Game Console or Game (MediaPageConfig); the Devices row in the Studio remote uses a different resolver (cloud state or the Sync Box path), so the two can disagree.',
+      'Sample states are the gallery fixtures. Wallpaper and glyphs are kit stand-ins.',
+    ],
+    changelog: [{ date: '2026-11-04', note: 'Lying flat in landscape, the final room section with nothing beside it spans both section columns (four tile tracks); partly folded it keeps its side. Remote app tiles never fill.' }, { date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; state duo-part-fold.' }, { date: '2026-10-23', note: 'First pass: three rooms, every tile state, six devices, AX5, offline and reconnecting.' }, { date: '2026-10-27', note: "Action tiles (claude/action-nav-tiles): remote lead tiles are navigation tiles with actions: off shows Power beside the chevron; playing shows previous, play/pause, next below the text and the volume slider (writes on release), full-row til" }],
+  });
+})();
+</script></body></html>

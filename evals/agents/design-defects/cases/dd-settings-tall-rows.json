@@ -1,0 +1,17 @@
+{
+  "id": "dd-settings-tall-rows",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Very tall rows in Settings sometimes",
+  "surface": "settings-link-row",
+  "poses": [
+    "duo-unfolded-landscape",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "sizing",
+  "pre_fix_ref": "6449e9a8",
+  "fix_ref": "2cfc1f86",
+  "fix_confidence": "medium",
+  "expected": "After a deep link to iOS Settings and back, row heights are unchanged; capture before and after and compare row frames."
+}

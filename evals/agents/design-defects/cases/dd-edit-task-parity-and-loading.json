@@ -1,0 +1,17 @@
+{
+  "id": "dd-edit-task-parity-and-loading",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "\"Edit Task\" UX needs parity with SwiftUI, and also unfolded portrait needs to open to pre-determined size, fade in arc spinner",
+  "surface": "donetick-task-sheet",
+  "poses": [
+    "iphone",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "5a03c468",
+  "fix_confidence": "high",
+  "expected": "The task sheet opens at its fixed size, shows the arc spinner, then fades the content in; flag a sheet that resizes when content arrives or skips the spinner."
+}

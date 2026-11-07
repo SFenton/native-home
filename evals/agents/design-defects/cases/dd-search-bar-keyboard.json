@@ -1,0 +1,17 @@
+{
+  "id": "dd-search-bar-keyboard",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "When searching in food spaces page, search bar does not reposition to over keyboard, at least in unfolded portrait",
+  "surface": "inventory-space",
+  "poses": [
+    "iphone",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "bda3e4ba",
+  "fix_confidence": "high",
+  "expected": "With the keyboard up the pinned search bar rides directly above it; flag a bar hidden behind the keyboard or left at the screen bottom."
+}

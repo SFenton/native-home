@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motion Timings</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
+@media(prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;color-scheme:dark}}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui);margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px}h2{font-size:22px;margin:48px 0 6px}h3{font-size:16px;margin:0 0 6px}
+p{margin:0 0 12px;max-width:70ch}code{font:.88em var(--mono);background:var(--code);padding:1px 5px;border-radius:4px}
+.lede{font-size:18px;color:var(--fg2)}.fg2{color:var(--fg2)}.small{font-size:14px}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:14px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.tag{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}.tag.o{color:var(--fg2)}
+.stage{margin:10px 0;border-radius:18px;overflow:hidden;height:210px;background:radial-gradient(120% 140% at 20% 0%,#2c4256,#16222f 55%,#0b1118);color:#fff;position:relative}
+button.play{font:600 14px var(--ui);padding:10px 16px;min-height:44px;border-radius:10px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line)}th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+.mark{position:absolute;left:50%;top:50px;width:64px;height:64px;margin-left:-32px;border-radius:16px;background:#ff9f0a;display:grid;place-items:center;font-size:32px}
+.ttl{position:absolute;left:0;right:0;top:130px;text-align:center;font-weight:700;font-size:22px}
+.row{position:absolute;left:16px;right:16px;border-radius:12px;background:rgba(255,255,255,.14);padding:12px;font-size:15px}
+.badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:#ff453a;font-size:12px;text-align:center}
+.ground{position:absolute;inset:0}
+@media(prefers-reduced-motion:reduce){.stage *{transition-duration:.01s!important}}
+</style></head><body><div class="wrap">
+<p class="small"><b>Decided (2026-10-24):</b> built 1-A (the login mark's rise is seen), 2 (profile badge fades in, <code>quick</code>), 3 (the insert only animates with <code>standard</code>; the ringing alarm is not pinned) and 4 (<code>standard</code> for the keyboard form and chores tab). 5 is not built: it needs a frame capture of the session-expired fade, which has not been taken, so it stays an open finding. Intro delays stay declarative on one timeline.</p>
+<p class="small fg2">Proposal · 2026-10-23 · bucket "Motion &amp; transitions" · branch <code>claude/hig-motion-1ec6c6</code></p>
+<h1>Motion timings the owner will feel</h1>
+<p class="lede">Six motion findings from the atlas review change what a person sees or feels, so they wait for a pick. Each shows today (left) beside the proposal (right); press Play. The no-visible-change fixes (tokens for the segment glide and panel fade, completion chaining of the arrival, the duplicate reset, the app tile ring cross-fade, the spring spelling) are already built and tested on this branch.</p>
+
+<h2>1 · The login mark's rise is hidden behind the header</h2>
+<p><b>Cause.</b> <code>LoginView</code> applies <code>.opacity(stage.title)</code> to the whole header (0 until 0.46 s), so the mark's 0.86→1.03 spring (0.15–0.43 s) plays at opacity 0 and only the settle shows. motion.md board 1 says "glow → mark springs in → title → form". Same cause on cold launch signed out and on the session-expired welcome-back.</p>
+<div class="pair">
+ <div class="card"><div class="tag o">Original (today)</div><div class="stage" id="s1o"><div class="mark" id="m1o">🏠</div><div class="ttl" id="t1o" style="opacity:0">Welcome</div></div></div>
+ <div class="card"><div class="tag">Proposed A · mark has its own fade</div><div class="stage" id="s1p"><div class="mark" id="m1p" style="opacity:0">🏠</div><div class="ttl" id="t1p" style="opacity:0">Welcome</div></div></div>
+</div>
+<button class="play" onclick="p1()">Play intro</button>
+<p class="small fg2">Proposed A: same timings (mark 0.15 s, title 0.46 s, form 0.71 s, ≈1.2 s total); the mark fades up over its rise, the title keeps its own fade. Option B: keep today's look and delete the unseen rise (nothing visibly changes; the spring's first half goes). Reduce Motion is unchanged (one 0.35 s cross-fade).</p>
+
+<h2>2 · Profile badge appears with no transition</h2>
+<p><b>Cause.</b> <code>ShellHeader</code> inserts the count badge instantly; <code>patterns/motion.md</code> lists the 0.2 s fade as not done.</p>
+<div class="pair">
+ <div class="card"><div class="tag o">Original</div><div class="stage" id="s2o"><div class="row" style="top:80px">Profile <span class="badge" id="b2o" style="visibility:hidden">3</span></div></div></div>
+ <div class="card"><div class="tag">Proposed · fade, <code>quick</code> 0.2 s</div><div class="stage" id="s2p"><div class="row" style="top:80px">Profile <span class="badge" id="b2p" style="opacity:0">3</span></div></div></div>
+</div>
+<button class="play" onclick="p2()">A chore is assigned</button>
+
+<h2>3 · Content the person caused appears or swaps with no animation</h2>
+<p><b>Cause.</b> Custom lights (manual control inserts the mode row and eight tiles), vacation mode (checklist ↔ dates swap, range error) and the bedside alarm section (inserted at the top of the hero, pushing the tabs down). motion.md §6: rows the person adds animate with <code>standard</code>.</p>
+<div class="pair">
+ <div class="card"><div class="tag o">Original · cut</div><div class="stage" id="s3o"><div class="row" style="top:20px">Manual control &nbsp;●</div><div class="row" id="r3o" style="top:70px;visibility:hidden">Mode · 8 tiles</div></div></div>
+ <div class="card"><div class="tag">Proposed · <code>standard</code> smooth 0.3 s, fade + settle</div><div class="stage" id="s3p"><div class="row" style="top:20px">Manual control &nbsp;●</div><div class="row" id="r3p" style="top:70px;opacity:0;transform:translateY(-6px)">Mode · 8 tiles</div></div></div>
+</div>
+<button class="play" onclick="p3()">Turn manual on</button>
+<p class="small fg2"><b>Bedside alarm</b> needs an owner answer: an alarm ringing must not push Stop off screen at large text. Options: (a) animate the insert only; (b) pin the ringing section as a bar above the tab content so nothing below moves, Stop always visible (recommended; the only choice that fixes the AX5 reach problem). Both honour Reduce Motion (fade only).</p>
+
+<h2>4 · <code>.default</code> animations instead of tokens</h2>
+<p><b>Cause.</b> The media remote keyboard form (<code>MediaRemoteControls.swift:335</code>) and the chores tab (<code>SummaryChoresTab.swift:58</code>) use <code>.default</code>, SwiftUI's 0.35 s ease-in-out. The token for layout the person caused is <code>standard</code> (smooth 0.3 s, no overshoot), so the move is 50 ms quicker with a softer start.</p>
+<div class="pair">
+ <div class="card"><div class="tag o">Original · .default</div><div class="stage" id="s4o"><div class="row" id="r4o" style="top:20px;transition:transform .35s ease-in-out">Keyboard form</div></div></div>
+ <div class="card"><div class="tag">Proposed · standard</div><div class="stage" id="s4p"><div class="row" id="r4p" style="top:20px;transition:transform .3s cubic-bezier(.25,.8,.3,1)">Keyboard form</div></div></div>
+</div>
+<button class="play" onclick="p4()">Play</button>
+
+<h2>5 · Possible flash between layers on session expiry</h2>
+<p><b>Cause (from code, not confirmed on a device).</b> <code>MainTabView</code> leaves with <code>.transition(.identity)</code> while the sign-in layer fades in over a root with no ground of its own (<code>RootView.swift:140–158</code>). Proposed: the root paints the launch ground, so the fade is dark→sign-in, never white. Needs a frame capture before it is called a bug; I would build it only if the capture shows a flash.</p>
+
+<h2>Comparison</h2>
+<table><tr><th>#</th><th>Rule (motion.md / HIG Motion)</th><th>Today</th><th>Proposed</th></tr>
+<tr><td>1</td><td>Moments: do not animate what cannot be seen; board 1 sequence</td><td>Rise unseen</td><td>A: rise seen, ≈1.2 s total unchanged</td></tr>
+<tr><td>2</td><td>Animate change, with a token</td><td>Snaps in</td><td>0.2 s fade (<code>quick</code>)</td></tr>
+<tr><td>3</td><td>User-caused layout animates with <code>standard</code>; live updates never move layout</td><td>Cuts; alarm pushes layout</td><td>0.3 s; alarm pinned</td></tr>
+<tr><td>4</td><td>One set of timings</td><td>0.35 s literal default</td><td>0.3 s <code>standard</code></td></tr>
+<tr><td>5</td><td>No flash of the wrong colour</td><td>Unconfirmed</td><td>Ground under the fade</td></tr></table>
+
+<h2>Recommendation</h2>
+<p>Build 1-A, 2, 3 (with the pinned alarm), 4, and 5 only if a capture confirms it. Each ships with a signpost, an XCTest perf metric and a devcap runner (motion work rule), plus a UX and accessibility test on iPhone, Duo and iPad. Files: <code>LoginView.swift</code>, <code>LoginHeader.swift</code>, <code>ShellHeader.swift</code>, <code>CustomLightsScreen.swift</code>, <code>VacationModeScreen.swift</code>, <code>BedSide*</code>, <code>MediaRemoteControls.swift</code>, <code>SummaryChoresTab.swift</code>.</p>
+<h2>Open questions</h2>
+<ul><li>1: A (show the rise) or B (drop it)?</li><li>3: pin the ringing alarm above the tabs, or only animate the insert?</li><li>Intro delays (0.15/0.46/0.71) stay declarative on one timeline: chaining title after the mark's completion would shift it 0.03 s and the form 0.25 s+ later. Leave as is?</li><li>Out of this bucket: the Live Activity job card ignores Always-On dimming (<code>ActivityRing.swift</code>); left for the accessibility bucket.</li></ul>
+</div>
+<script>
+function rm(){return matchMedia('(prefers-reduced-motion: reduce)').matches}
+function set(el,css,t,d){el.style.transition='none';Object.assign(el.style,css.from);el.offsetHeight;el.style.transition=t;setTimeout(function(){Object.assign(el.style,css.to)},d||20)}
+function p1(){
+ var m=document.getElementById('m1o'),t=document.getElementById('t1o'),h=function(el,s){el.style.transition='none';el.style.opacity=s;el.offsetHeight};
+ // original: whole header (mark + title) opacity 0 until 0.46 s
+ var hdr=[m,t];hdr.forEach(function(e){e.style.transition='none';e.style.opacity=0;e.style.transform='scale(.86)'});t.style.transform='none';t.offsetHeight;
+ setTimeout(function(){m.style.transition='transform .28s ease-out';m.style.transform='scale(1.03)'},150);
+ setTimeout(function(){m.style.transition='transform .5s cubic-bezier(.3,1.4,.5,1),opacity .4s ease-out';t.style.transition='opacity .4s ease-out';m.style.opacity=1;t.style.opacity=1;m.style.transform='scale(1)'},460);
+ var mp=document.getElementById('m1p'),tp=document.getElementById('t1p');
+ [mp,tp].forEach(function(e){e.style.transition='none';e.style.opacity=0});mp.style.transform='scale(.86)';tp.style.transform='none';mp.offsetHeight;
+ setTimeout(function(){mp.style.transition='transform .28s ease-out,opacity .28s ease-out';mp.style.opacity=1;mp.style.transform='scale(1.03)'},150);
+ setTimeout(function(){mp.style.transition='transform .5s cubic-bezier(.3,1.4,.5,1)';mp.style.transform='scale(1)'},430);
+ setTimeout(function(){tp.style.transition='opacity .4s ease-out';tp.style.opacity=1},460);
+}
+function p2(){var o=document.getElementById('b2o'),p=document.getElementById('b2p');o.style.visibility='hidden';p.style.transition='none';p.style.opacity=0;p.offsetHeight;setTimeout(function(){o.style.visibility='visible';p.style.transition='opacity .2s ease-out';p.style.opacity=1},300)}
+function p3(){var o=document.getElementById('r3o'),p=document.getElementById('r3p');o.style.visibility='hidden';p.style.transition='none';p.style.opacity=0;p.style.transform='translateY(-6px)';p.offsetHeight;setTimeout(function(){o.style.visibility='visible';p.style.transition='opacity .3s ease-out,transform .3s cubic-bezier(.25,.8,.3,1)';p.style.opacity=1;p.style.transform='none'},300)}
+function p4(){['r4o','r4p'].forEach(function(i){var e=document.getElementById(i),t=e.style.transition;e.style.transition='none';e.style.transform='translateY(0)';e.offsetHeight;e.style.transition=t;setTimeout(function(){e.style.transform='translateY(120px)'},20)})}
+</script></body></html>

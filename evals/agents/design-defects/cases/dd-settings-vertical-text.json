@@ -1,0 +1,16 @@
+{
+  "id": "dd-settings-vertical-text",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Some settings (App Icon, Home Assistant Settings) have massive vertical text for some reason, like the horizontal size is very small",
+  "surface": "settings",
+  "poses": [
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "sizing",
+  "pre_fix_ref": "fe65a6db",
+  "fix_ref": "f480b37f",
+  "fix_confidence": "high",
+  "expected": "A row's title must not wrap one letter per line: flag any label narrower than a word, or a row height far above its siblings."
+}

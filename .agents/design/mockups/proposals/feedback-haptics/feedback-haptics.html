@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Feedback haptics</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--tile:#e9ecf1;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;--tile:#2a2f38}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1100px;margin:0 auto;padding:40px 16px 72px}h1{font-size:clamp(28px,4vw,36px);line-height:1.1;margin:0 0 12px}h2{font-size:22px;margin:40px 0 10px}
+p{margin:0 0 12px;max-width:74ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}.lede{font-size:18px;color:var(--fg2)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2)}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 16px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.row{display:flex;flex-wrap:wrap;gap:24px;margin:16px 0}figure{margin:0;width:260px}figcaption{font-size:13px;color:var(--fg2);margin-top:8px}figcaption b{display:block;color:var(--fg);font-size:15px}
+.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.tile{background:var(--tile);border-radius:22px;min-height:84px;padding:12px;display:flex;flex-direction:column;justify-content:center;font-size:15px}
+.tile small{color:var(--fg2);font-size:13px}.tile.err{outline:2px solid var(--bad)}.tile.err small{color:var(--bad)}
+.track{height:10px;border-radius:5px;background:var(--line);position:relative}.track i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--accent)}
+.msg{font-size:13px;color:var(--bad)}.ax{font-size:21px}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:var(--code)}
+</style></head><body><div class="wrap"><p class="eyebrow">Proposal &middot; 2026-10-23 &middot; bucket: Feedback, haptics &amp; failure</p>
+<p class="lede" style="color:var(--ok)"><b>Decided (2026-10-24): option A, one shared .tapFeedback(_:) modifier in HassDesign used everywhere. No special heavy impact for unlock or door. Tap feedback on tap, .error when the call fails, no late success haptic for slow devices. Built; see .agents/patterns/tap-feedback.md.</b></p>
+
+<h1>Haptics for taps that change the house</h1>
+<p class="lede">Only the thermostat dial, brightness tile, camera viewer and the media pad tick today. Every toggle, lock, garage door, alarm mode, transport key and chore check is silent to touch. HIG <em>Playing haptics</em>: use feedback to confirm an action, and keep it consistent between like controls.</p>
+<h2>Cause</h2>
+<p>14 review findings across 15 atlas mockups share one cause: <code>GlassTile</code> (toggle and command tiles), <code>LockTile</code>, <code>GarageDoorTile</code>, <code>AlarmModeButton</code>, the media transport row and volume keys, the 5%-step slider, chore rows, vacuum action buttons, the sign-in failure and the scan sheet have no <code>sensoryFeedback</code>. Existing uses: <code>BrightnessTile.swift:123</code> (.selection per step), <code>ThermostatDial.swift:90</code> (.selection), <code>MediaRemoteControls.swift:231</code> (.impact light, pad only), <code>CameraViewer.swift:130-140</code> (.impact medium, success/error).</p>
+<h2>What it feels like (proposed)</h2>
+<table><tr><th>Interaction</th><th>Today</th><th>Proposed <code>sensoryFeedback</code></th><th>Why</th></tr>
+<tr><td>Toggle tile (<code>GlassTile</code>, kind .toggle), incl. Power Recovery one-tap</td><td>none</td><td><code>.impact(weight: .light)</code> on tap</td><td>Matches the media pad; a physical-switch click</td></tr>
+<tr><td>Navigation tiles (chevron)</td><td>none</td><td>none</td><td>They open a page; the transition is the feedback</td></tr>
+<tr><td>Lock, Garage door tile</td><td>none</td><td><code>.impact(.medium)</code> on tap; <code>.success</code> when HA confirms; <code>.error</code> on failure</td><td>The action opens a door; heavier than a light toggle</td></tr>
+<tr><td>Alarm mode button (arm/disarm)</td><td>none</td><td>same as lock</td><td>Camera viewer already does medium + success/error</td></tr>
+<tr><td>Transport keys, mute, volume</td><td>pad only</td><td><code>.impact(.light)</code> via the pad's <code>presses</code> trigger</td><td>One feel for the whole remote</td></tr>
+<tr><td>5% slider (e.g. fan speed)</td><td>none</td><td><code>.selection</code> per step while dragging</td><td>Same as BrightnessTile</td></tr>
+<tr><td>Chore check-off / delete, rollback</td><td>none</td><td><code>.success</code> on check; <code>.impact(.medium)</code> on delete; <code>.error</code> on rollback</td><td>Completion deserves the success pattern</td></tr>
+<tr><td>Vacuum Clean, Pause, Stop, Dock, Locate</td><td>none</td><td><code>.impact(.light)</code></td><td>Robot state lags; the tap needs an immediate acknowledgement</td></tr>
+<tr><td>Wrong password</td><td>text + announcement</td><td><code>.error</code></td><td>Notification haptic</td></tr>
+<tr><td>Barcode or date read in ScanItemSheet</td><td>none</td><td><code>.success</code></td><td>The camera feed cannot be felt or watched</td></tr></table>
+<h2>Reduce haptics behaviour</h2>
+<p>iOS has no per-app Reduce Haptics switch. <code>sensoryFeedback</code> is silenced by the system when Settings &rarr; Sounds &amp; Haptics &rarr; System Haptics is off, and on devices without a Taptic Engine (iPad, most Duo). So no new in-app setting is proposed. Haptics never carry information alone: every outcome keeps its colour, text and VoiceOver announcement.</p>
+<h2>Options</h2>
+<div class="row"><figure class="ok"><div class="card"><div class="tile">Towel Rack<small>On</small></div></div><figcaption><b>A. Per-family feel (recommended)</b>Table above: light for switches, medium for doors/alarm, selection for sliders, notification types for outcomes.</figcaption></figure>
+<figure><div class="card"><div class="tile">Towel Rack<small>On</small></div></div><figcaption><b>B. Outcomes only</b>No tap haptic; only success/error when HA confirms or fails. Quieter, but silent for the 100&ndash;800 ms before confirmation.</figcaption></figure>
+<figure class="bad"><div class="card"><div class="tile">Towel Rack<small>On</small></div></div><figcaption><b>C. Keep silent</b>Rely on the 0.6 s colour cross-fade. Fails the HIG finding and sighted-only feedback.</figcaption></figure></div>
+<h2>Comparison</h2>
+<table><tr><th></th><th>HIG Playing haptics</th><th>Owner rules</th><th>Cost</th></tr>
+<tr><td>A</td><td>Consistent per control family; confirms action and outcome</td><td>Colour + shape still carry state; HA stays source of truth (success fires on HA confirm only)</td><td>Edits <code>GlassTile</code> (shared with Dynamic Type, Colour, VoiceOver sessions: one-line modifier), 6 other views, tests per trigger</td></tr>
+<tr><td>B</td><td>Partial</td><td>Same</td><td>Smaller, needs a confirm signal on every tile</td></tr>
+<tr><td>C</td><td>Misses it</td><td>&mdash;</td><td>None</td></tr></table>
+<h2>Recommendation</h2>
+<p><b>Option A.</b> Add one shared modifier in HassDesign (<code>.tapFeedback(_:)</code> wrapping <code>sensoryFeedback</code> with a trigger counter) so every consumer uses one implementation (pattern first). Tests: trigger counter increments per tap and not for navigation tiles; the success/error triggers follow the call result; no UX change for VoiceOver or text size, so the existing 44 pt and AX5 journeys stand.</p>
+<h2>Open questions</h2>
+<p>1. Should unlock/door-open use <code>.impact(.heavy)</code>? 2. Success on HA confirm can arrive seconds later (vacuum, garage); fine to fire late, or tap-only for slow devices?</p>
+</div></body></html>

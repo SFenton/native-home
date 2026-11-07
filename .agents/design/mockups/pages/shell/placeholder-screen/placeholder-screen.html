@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Placeholder screen · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  /* PlaceholderScreen(title:symbol:) = ContentUnavailableView(title, systemImage: symbol, description: "Can't open this page right now. Check your connection and try again.", Try Again) with navigationTitle(title).
+     HomeRouteDestination builds it for a pushed Home route when the app has no connection (the debug gallery): .vacuums, .media, .customLights, .sprinklers
+     and .groceryList. It is pushed with .pageChrome(), so the wallpaper, the Back circle, Quick Links and Profile are all there; the tab bar stays. */
+  var ROUTES = {
+    sprinklers: { title: 'Sprinklers', symbol: 'sprinkler.and.droplets' },
+    vacuums: { title: 'Vacuums', symbol: 'robotic.vacuum' },
+    media: { title: 'Media', symbol: 'tv' },                       /* the app's symbol is appletvremote.gen4; not in the kit map, tv is the stand-in */
+    'custom-lights': { title: 'Custom Lights', symbol: 'lightbulb.2' },
+    'grocery-list': { title: 'Grocery List', symbol: 'cart' },
+  };
+  function page(ctx, route, o) {
+    var r = ROUTES[route || 'sprinklers'];
+    return Mock.page(ctx, Object.assign({ title: r.title, back: 'Home', section: 'home', badge: 3, choresBadge: 2,
+      body: [SN.contentUnavailable({ title: 'Not Available Yet', symbol: r.symbol, description: 'Can’t open this page right now. Check your connection and try again.', action: 'Try Again' })] }, o));
+  }
+  var R = function (route, o) { return function (ctx) { return page(ctx, route, o); }; };
+
+  Mock.mount({
+    kind: 'page', id: 'placeholder-screen', title: 'Placeholder screen (coming in a later update)', area: 'shell', status: 'shipped',
+    summary: 'The fallback a pushed Home route shows when there is no connection: a symbol, "Not Available Yet", the cause and a Try Again button No shipped path reaches it while signed in; it exists for the debug galleries and previews.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/UKScreens.swift', 'apple/Sources/HassUI/Features/Home/HomeRoute.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/design/apple/duo.md'],
+    patterns: ['page-backdrop', 'header-edge-fade'],
+    hig: ['Toolbars', 'Tab bars', 'Writing', 'Dynamic Type'],
+    kitComponents: ['TabBar', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Sprinklers, pushed on Home', note: 'ContentUnavailableView: symbol, "Not Available Yet", the cause, Try Again; the page title is also the large navigation title', render: R('sprinklers') },
+      'vacuums': { title: 'Vacuums', render: R('vacuums') },
+      'media': { title: 'Media', render: R('media') },
+      'custom-lights': { title: 'Custom Lights', render: R('custom-lights') },
+      'grocery-list': { title: 'Grocery List (from Kitchen Groceries)', render: R('grocery-list') },
+      'long-text': { title: 'Longest route title at xxxLarge', note: 'titles come from HomeRoute.title; none is long enough to truncate, the large title wraps instead', override: { ts: 'xxxl' }, render: R('custom-lights') },
+      'offline': { title: 'No network', note: 'the page chrome is shared: offline chip under the header, cloud badge on Profile', render: R('sprinklers', { connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links, drawn by the header on every page', render: R('sprinklers', { connection: 'reconnecting' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: R('sprinklers') },
+    },
+
+    motion: [],
+    transitions: [
+      { from: 'Home', to: 'Placeholder page', kind: 'push', state: 'default', note: 'A plain system push (motion.md section 4.2): the new page slides in from the trailing edge, Home shifts left about 30% and dims. Its content (symbol and text) is present in the first frame; nothing fades in. Reduce Motion cross-fades.',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = page(ctx, 'sprinklers');
+          a.parentNode.insertBefore(b, a.nextSibling);
+          return Mock.anim.push(a, b).then(function () { return Mock.sleep(600); }).then(function () { Mock.anim.reset(stage); b.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back (labelled with the previous title), the reconnecting arc when present, Quick Links, Profile; then the title as a heading, then the ContentUnavailableView group (symbol hidden, title, description); the tab bar last.' },
+      { rule: 'Name, role, state', note: 'The title is announced twice: once as the large navigation title and once inside ContentUnavailableView. The symbol is decorative.' },
+      { rule: 'Targets', note: 'Back, Quick Links and Profile are 44 pt circles; the page has no other control.' },
+      { rule: 'Dynamic Type', note: 'ContentUnavailableView scales with the system styles; at AX5 the symbol, title and description stack and the page scrolls. Nothing truncates.' },
+      { rule: 'Reduce Motion', note: 'Nothing on this page moves; only the system push, which becomes a cross-fade.' },
+      { rule: 'Reduce Transparency', note: 'The wallpaper becomes the plain base colour; the tab bar and header circles go opaque.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Writing: say what is happening and what to do next', verdict: 'pass', note: 'PlaceholderScreen shows "Not Available Yet", "Cannot open this page right now. Check your connection and try again." and a Try Again (AlertCopy.tryAgain) that asks the connection to reconnect.', by: 'apple-hig skill' },
+        { rule: 'Loading / Empty states: a clear, standard state for a page with nothing to show', verdict: 'pass', note: 'A symbol, a title and a description in the system ContentUnavailableView (PlaceholderScreen.swift:10).', by: 'apple-hig skill' },
+        { rule: 'Toolbars: system Back leading, shell buttons trailing', verdict: 'pass', note: 'Pushed with navigationDestination, so the system Back and back swipe apply; pageChrome() adds Quick Links and Profile (MainTabView.swift:249).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: keep the bar on a pushed page', verdict: 'pass', note: 'The bar is hidden only in flyout style (MainTabView.swift:254); this page has no bottom toolbar.', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: respect the system appearance', verdict: 'departure', note: 'Pages are always dark, owner 2026-10-15 (direction-g.md Layers; MainTabView.swift:76); sheets follow the system.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Use ContentUnavailableView for missing data', verdict: 'pass', note: 'System view with system type styles; no fixed font or frame, so Dynamic Type and AX5 reflow by default.', by: 'swiftui-pro skill' },
+        { rule: 'Do not give a screen two headings', verdict: 'pass', note: 'PlaceholderScreen shows a glyph and the line under the navigation title only.', by: 'swiftui-pro skill' },
+        { rule: 'One navigationDestination(for:) registration per stack', verdict: 'pass', note: 'HomeRoute is registered once per section stack (MainTabView.swift:153) and builds this view through HomeRouteDestination.', by: 'swiftui-pro skill' },
+        { rule: 'Keep a view small, in its own file', verdict: 'pass', note: 'Thirteen lines, one type.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'status: shipped code, but a placeholder: HomeRouteDestination only builds it when the app has no HassConnection (debug galleries, previews). Signed in, every route has its real page.',
+      'loading: not applicable (the page reads nothing). refreshing: not applicable. empty: this page is the empty state. error: not applicable; the nearest states are offline and reconnecting, which only the shared header and chip draw.',
+      'Docs versus code: no document under .agents describes PlaceholderScreen. The catalog lists Rooms among its users. Code check (review R2): RoomScreen.swift:30 also builds PlaceholderScreen(title: page.title, symbol: "house") for a configured room when there is no connection, so a room reaches it too in the debug galleries; this mockup draws the five HomeRouteDestination routes only.',
+      'The Media symbol in the app is appletvremote.gen4 (SymbolMap), missing from the kit map; the mockup draws tv. Promote to kit: add appletvremote.gen4 and list.clipboard.fill to lib/symbols.js.',
+      'The Duo folded draws the title inline-large in the header row (no hamburger); a pushed page there keeps the Back circle leading, as Mock.page draws it. The unfolded portrait pose was not run on a simulator (design/apple/duo.md).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit (iPhone, Duo, iPad; five routes; connection states).' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Assistant web page · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_settings-account.js"></script>
+<script src="../_settings-page.js"></script>
+<script src="../../../modals/settings/_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  var W = function (o) { return function (ctx) { return SA.webCover(ctx, o); }; };
+
+  Mock.mount({
+    kind: 'page', id: 'ha-web-page', title: 'Home Assistant web page (pushed in the settings cover)', area: 'settings', status: 'shipped', alwaysDark: true,
+    summary: 'Home Assistant’s own Settings (/config) or Profile (/profile) page, signed in as you in a WKWebView, pushed inside the Home Assistant settings cover. The app’s only web UI; the page is a stand-in because live pages stay out of the repo.',
+    source: ['apple/Sources/HassUI/Features/Settings/HomeAssistantWebPage.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift'],
+    spec: ['.agents/pages/settings/ios.md', '.agents/platforms/apple/auth.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Modality', 'Toolbars', 'Loading', 'Web views', 'Dark Mode'],
+    entities: [],
+    kitComponents: ['HassModal', 'ArcProgress', 'BackButton', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Settings page loaded', note: 'signed in through FrontendSession: no login form', render: W({ page: 'settings', phase: 'loaded' }) },
+      'profile': { title: 'Profile page loaded', note: 'Profile is the only page a non-administrator can open', render: W({ page: 'profile', phase: 'loaded' }) },
+      'loading': { title: 'The web view is loading', note: 'ProgressView("Loading Settings…") with the arc style over the page; Reload is enabled', render: W({ page: 'settings', phase: 'loading' }) },
+      'refreshing': { title: 'Reload tapped', note: 'webView.reload(): the page stays up and the arc returns over it', render: W({ page: 'settings', phase: 'reloading' }) },
+      'preparing': { title: 'Tokens being prepared', note: 'before the sign-in hand-off finishes there is no web view yet; the same label shows alone and Reload is disabled', render: W({ page: 'settings', phase: 'preparing' }) },
+      'error': { title: 'Can’t open Settings', note: 'ContentUnavailableView with Try Again; the tokens failed to refresh or the page failed to load; Reload is disabled', render: W({ page: 'settings', phase: 'failed' }) },
+      'offline': { title: 'Home Assistant unreachable', note: 'offline looks like error: the same unavailable view; there is no separate offline UI', render: W({ page: 'profile', phase: 'failed' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the unavailable view at the largest size; the web content is the site’s own', render: W({ page: 'settings', phase: 'failed' }) },
+    },
+
+    motion: [
+      { id: 'web-progress', what: 'The arc appears while the web view navigates and goes when it finishes', token: 'system WKWebView navigation callbacks; the arc turns every 0.82 s (ArcSpinner)',
+        source: 'HomeAssistantWebPage.swift HassWebView.Coordinator (isLoading), ArcProgressViewStyle', reduce: 'the arc keeps turning at half speed (a still arc reads as frozen, motion.md section 8)', state: 'loading',
+        play: function (stage) { return Mock.sleep(2400); } },
+    ],
+    transitions: [
+      { from: 'Home Assistant settings', to: 'Settings / Profile web page', kind: 'push', note: 'A NavigationLink value on the cover\'s own stack: the system push (about 0.35 s); Back (glass circle, or the edge swipe) returns to the form. Reduce Motion cross-fades.',
+        play: function (stage) {
+          var ctx = Mock.current, a = SA.haCover(ctx, { account: 'loaded' }), b = SA.webCover(ctx, { page: 'settings', phase: 'loaded' });
+          stage.appendChild(a); stage.appendChild(b);
+          var sa = a.querySelector('.ui-sheet'), sb = b.querySelector('.ui-sheet'); a.style.zIndex = 1; b.style.zIndex = 2; b.style.pointerEvents = 'none';
+          return Mock.sleep(500).then(function () { return Mock.anim.push(sa, sb); }).then(function () { return Mock.sleep(800); }).then(function () { return Mock.anim.push(sb, sa, { back: true }); }).then(function () { Mock.anim.reset(stage); a.remove(); b.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, then the inline title ("Settings" or "Profile"), then Reload (primary action, trailing), then the web content, which is the site’s own accessibility tree (identifier haWeb.settings or haWeb.profile).' },
+      { rule: 'Reload', note: 'Labelled "Reload" (haWeb.reload), 44 pt glass circle; disabled (not hidden) until the sign-in hand-off has produced a frontend session.' },
+      { rule: 'Loading and error', note: 'The arc is announced as "Loading Settings…". The error view is one group: title "Can’t open Settings", description, and the Try Again button (haWeb.retry), which re-runs the hand-off.' },
+      { rule: 'Dynamic Type', note: 'The app draws only the title bar and the unavailable view, both of which scale; the page inside the web view follows the site and the system text setting as WebKit does.' },
+      { rule: 'Links off the server', note: 'Anything off the server opens in the browser (UIApplication.open) and the navigation is cancelled, so there is no way to browse away inside the cover.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Loading: show progress for content that takes time', verdict: 'pass', note: 'ProgressView("Loading Settings…") with the arc style over the page while isLoading, and alone before the sign-in hand-off (HomeAssistantWebPage.swift:58, :64).', by: 'apple-hig skill' },
+        { rule: 'Offering help / Feedback: say what failed and how to recover', verdict: 'pass', note: 'ContentUnavailableView "Can\'t open Settings" with a Try Again action (:46-53); offline and token failure share it.', by: 'apple-hig skill' },
+        { rule: 'Modality: a modal with its own navigation can be closed from any depth', verdict: 'pass', note: 'HomeAssistantWebPage takes close and shows SheetCloseItem after Reload, so the settings modal closes from the pushed page (owner 2026-10-24, sheet-stacking-close).', by: 'apple-hig skill' },
+        { rule: 'Gestures: do not redefine the system edge swipe', verdict: 'pass', note: 'HassWebView sets allowsBackForwardNavigationGestures = false; HomeAssistantWebPage shows a Back toolbar button when canGoBack and handles accessibilityAction(.escape) by going back.', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: follow the system appearance', verdict: 'departure', note: 'The pushed page sits in the dark cover (shell scheme, owner 2026-10-15) and the web view\'s own background is .systemBackground with isOpaque false (:105); the site\'s theme follows its own profile setting, so a light page can show inside the dark cover.', by: 'apple-hig skill' },
+        { rule: 'Privacy: keep credentials off disk', verdict: 'pass', note: 'Tokens go through FrontendSession into WKWebsiteDataStore.nonPersistent() (:94), gone when the page closes; off-server links open in the browser (:131-134).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: Dynamic Type and VoiceOver for content', verdict: 'departure', note: 'Home Assistant\'s own pages are the one web UI the app allows (AGENTS.md invariant "Native only", in-app HA settings modal); text size, contrast and VoiceOver there are the site\'s, not the app\'s.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'WebView: native WebView on iOS 26+, wrapper otherwise', verdict: 'pass', note: 'HassWebView wraps WKWebView in UIViewRepresentable (:83-117); correct for the iOS 17 target, move to the native WebView when the target moves.', by: 'swiftui-pro skill' },
+        { rule: 'Concurrency: .task and async work', verdict: 'pass', note: '.task { await prepare() } with the refresh in a static async helper (:40, :75-78).', by: 'swiftui-pro skill' },
+        { rule: 'Toolbar: semantic placement and a text label for icon buttons', verdict: 'pass', note: 'ToolbarItem(.primaryAction) with Label("Reload", systemImage:), so VoiceOver reads the word and the Duo vertical bar sorts it by role (:34-36).', by: 'swiftui-pro skill' },
+        { rule: 'Safe areas: name the edges you ignore', verdict: 'pass', note: '.ignoresSafeArea(edges: .bottom) only (:57); the top stays under the bar.', by: 'swiftui-pro skill' },
+        { rule: 'Hygiene: UIKit and legacy platform branches', verdict: 'pass', note: 'Fixed: the coordinator opens links through the Environment openURL (HassWebView.openURL), no UIApplication; the macOS stub is legacy and left.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'refreshing is the Reload tap. empty and long-text: the page has no list or text of its own beyond the title. reconnecting: the page does not observe the connection after the sign-in hand-off, so only a fresh Try Again would show an error.',
+      'The web content is a labelled stand-in (skeleton blocks): the real page is Home Assistant’s Settings dashboard, which lists repairs, updates and integrations, so screenshots stay out of the repo (ios.md).',
+      'The cover has no Close on a pushed page: the leading Back replaces the form’s Close, and Reload takes the trailing slot (drawn as one glass circle each).',
+      'Ground colours of the cover (#000 ground, #1C1C1E cells) are the base-elevation system values and are unverified here.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: loaded settings and profile, loading, reloading, preparing, failed and AX5.' }],
+  });
+})();
+</script></body></html>

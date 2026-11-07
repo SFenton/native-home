@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Humidifier · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_devices-vacuums.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv;
+
+  /* HumidifierSheet = RoomDeviceSheetChrome(title = config.title, subtitle = controller.subtitle) { GeometryReader { one scrolling column, or two columns
+     (hero | tab) where SplitPolicy allows and the sheet is at least 640 pt wide } .modalTabBar(Controls, Schedules, Info) }, hassSheet(.page, height: .full). */
+  function content(ctx, tab, H, sch) {
+    var hero = dv.humHero(H);
+    var col = tab === 'controls' ? dv.humControls(H, { ctx: ctx }) : tab === 'schedules' ? dv.humSchedules(sch) : dv.humInfo(H);
+    if (ctx.canSplit) return h('div.dv-two', { style: { margin: '0 -16px' } }, h('div', hero), h('div', col));   // HumidifierLayout.usesTwoColumns
+    return h('div.dv-col', { style: { maxWidth: '640px' } }, h('div.dv-stack', hero, col));
+  }
+  function sheet(ctx, o) {
+    o = o || {}; var H = dv.H(o.H), tab = o.tab || 'controls';
+    return dv.sheet(ctx, { kind: 'humidifier', title: 'Bedroom 1 Humidifier', subtitle: dv.Hsub(H), size: 'page', detent: o.detent || 'large', content: content(ctx, tab, H, o.sch), tabs: dv.humTabs(tab, ctx), connection: o.connection });
+  }
+  var S = function (o) { return function (c) { return sheet(c, o); }; };
+  var NIGHT_RUN = [{ id: 'night', label: 'Night', days: 'Sun, Mon, Tue, Wed, Thu', time: '10:00 PM–7:00 AM', summary: 'Sleep', running: false }, { id: 'evening', label: 'Evening', days: 'Every day', time: '6:00 PM–9:30 PM', summary: 'Auto 45% • Mist 6', running: true }];
+
+  Mock.mount({
+    kind: 'modal', id: 'humidifier-sheet', title: 'Humidifier sheet', area: 'room-devices', status: 'shipped',
+    summary: 'Opened from the Humidifier tile on the Bedroom 1 page. A mist dial with power, then Controls, Schedules and Info in the bottom section bar. A full-height page sheet; two columns (dial beside the section) where a split is allowed.',
+    source: ['apple/Sources/HassUI/Features/RoomDevices/HumidifierSheet.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierDials.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierSchedulesTab.swift', 'apple/Sources/HassUI/Features/RoomDevices/RoomDeviceSheetChrome.swift',
+      'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/Common/ModalTabSymbols.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift', 'apple/Sources/HassCore/RoomDevices/HumidifierController.swift', 'apple/Sources/HassCore/RoomDevices/HumidifierScheduleController.swift', 'apple/Sources/HassCore/Config/RoomDeviceConfig.swift'],
+    spec: ['.agents/patterns/room-device-sheets.md', '.agents/patterns/thermostat-dial.md'],
+    patterns: ['room-device-sheets', 'thermostat-dial', 'modal-sheet', 'status-pill', 'dynamic-grid'],
+    hig: ['Sheets', 'Segmented controls', 'Steppers', 'Toggles', 'Dynamic Type', 'Color'],
+    entities: ['switch.demo_power_1', 'select.demo_mode_4', 'number.demo_level_2', 'number.demo_humidity_1', 'number.demo_level_1', 'number.demo_timer_1',
+      'sensor.demo_humidity_1', 'binary_sensor.demo_binary_sensor_10', 'binary_sensor.demo_binary_sensor_11', 'schedule.demo_bedroom_1_1', 'input_boolean.demo_bedroom_1_schedule_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ModalTabBar', 'SegmentedChoice', 'Toggle', 'InlineAlert', 'PrimaryButton', 'PageSectionHeader', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Controls, Auto Humidity, humidifying', note: 'two columns on iPad and Duo landscape; one column elsewhere', render: S({}) },
+      'controls-manual': { title: 'Controls, Manual', note: 'no Target Humidity section in Manual', render: S({ H: { mode: 'Manual', mist: 8, currentMist: 8 } }) },
+      'controls-sleep': { title: 'Controls, Sleep', note: 'the dial reads "Sleep" and is read only; presets, warm mist and display lock', render: S({ H: { mode: 'Sleep', mist: 4, currentMist: 3 } }) },
+      'controls-off': { title: 'Controls, off', note: 'the dial reads "Off"; Turn On; no timer or display sections', render: S({ H: { power: false, humidifying: false } }) },
+      'target-high': { title: 'Target above 60%', note: 'an inline warning replaces the comfort-range hint', render: S({ H: { target: 70 } }) },
+      'fault-tank': { title: 'Tank removed', note: 'controls disabled, inline alert, Turn Off stays available while on', render: S({ H: { fault: 'tank', humidifying: false } }) },
+      'fault-water': { title: 'Water low', render: S({ H: { fault: 'water', humidifying: false } }) },
+      'error': { title: 'Unavailable', note: 'power unavailable: everything is disabled and the subtitle reads Unavailable', render: S({ H: { unavailable: true, power: false, humidifying: false, humidity: '--' } }) },
+      'offline': { title: 'Over an offline room page', note: 'no offline UI of its own: the last known values stay; the page behind carries the offline chip', render: S({ connection: 'offline' }) },
+      'loading': { title: 'Schedules tab loading', note: 'the only loading state: the activities list shows an arc and "Loading scheduled activities…" until schedule/list returns', render: S({ tab: 'schedules', sch: { loading: true, rules: [], enabled: true, sub: 'Loading…' } }) },
+      'schedules': { title: 'Schedules, two activities', render: S({ tab: 'schedules' }) },
+      'schedules-running': { title: 'Schedules, one running now', note: 'the running row has a water-blue outline and "• Active now"', render: S({ tab: 'schedules', sch: { rules: NIGHT_RUN, sub: 'Activity running now' } }) },
+      'schedules-empty': { title: 'Schedules, none yet', render: S({ tab: 'schedules', sch: { rules: [], enabled: false, title: 'Scheduling Paused', sub: 'Add an activity to enable scheduling', toggleDisabled: true } }) },
+      'schedules-vacation': { title: 'Schedules, paused for vacation', render: S({ tab: 'schedules', sch: { title: 'Paused for Vacation', sub: 'Vacation mode disables scheduled runs', toggleDisabled: true } }) },
+      'schedules-nonadmin': { title: 'Schedules, not an administrator', note: 'rows are disabled and Add is replaced by a note', render: S({ tab: 'schedules', sch: { canEdit: false } }) },
+      'schedules-error': { title: 'Schedules, save failed', render: S({ tab: 'schedules', sch: { error: 'Could not save scheduled activities.' } }) },
+      'info': { title: 'Info', render: S({ tab: 'info' }) },
+      'info-fault': { title: 'Info, tank removed', render: S({ tab: 'info', H: { fault: 'tank', humidifying: false } }) },
+      'large': { title: 'Large detent (shipped, full height)', render: S({ detent: 'large' }) },
+      'closed': { title: 'Before presenting / after dismissing', render: function (c) { return dv.presenter('humidifier', c, 'live'); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'segmented controls become menus, the section bar a menu button, pills one column', render: S({}) },
+      'ax5-info': { title: 'AX5, Info', override: { ts: 'ax5' }, render: S({ tab: 'info' }) },
+    },
+
+    motion: [
+      { id: 'dial-follow', what: 'The mist dial\'s handle slides to a new level when a preset is chosen or Home Assistant echoes the value', token: 'quick 0.2 s easeOut (none while dragging); the readout number changes with it', state: 'default',
+        source: 'HassDesign/ThermostatDial/ThermostatDial.swift .animation(MotionTokens.quick, value: displayed); motion.md section 7', reduce: 'no animation: the handle jumps',
+        play: function (stage) {
+          var dial = stage.querySelector('.dv-dial'), big = dial.querySelector('.big'); if (!dial) return Promise.resolve();
+          return Mock.sleep(300).then(function () { big.textContent = '8'; return dv.moveHandle(dial, 0, 9, 5, 8); }).then(function () { return Mock.sleep(700); });
+        } },
+      { id: 'pill-tone', what: 'An Info pill\'s glyph changes colour with its tone (Output goes from Idle grey-green to the water blue when it starts humidifying)', token: 'state 0.6 s ease-in-out, colour only', state: 'info',
+        source: 'HassUI/Features/RoomDevices/HumidifierSheet.swift DeviceStatusPill.stateForeground / stateColorTransition; motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var p = stage.querySelector('.dv-pill .ico'); p.style.setProperty('--pt', 'var(--ink-sheet-2)'); return Mock.sleep(400).then(function () { p.style.setProperty('--pt', 'var(--fam-water-glyph)'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Bedroom 1 page', to: 'Humidifier sheet', kind: 'sheet', state: 'closed', note: 'The Humidifier tile opens a full-height page sheet (page size on iPad); the room page scales back. Content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, { title: 'Bedroom 1 Humidifier', subtitle: 'Humidifying • 41%', detent: 'large', size: 'page', content: content(c, 'controls', dv.H()), tabs: dv.humTabs('controls', c) }, { hold: 1300 }); } },
+      { from: 'Humidifier sheet', to: 'Bedroom 1 page', kind: 'sheet', state: 'default', note: 'Circle x Close (device.sheet.done) or a swipe down.',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Controls', to: 'Schedules', kind: 'cut', state: 'default', note: 'A section switch in the bottom bar is a cut (no cross-fade: the humidifier does not use SmoothContentSwap, unlike the vacuum sheet). The dial and power column stay put.',
+        play: function (stage) {
+          var ctx = Mock.current, wrap = stage.querySelector('.ui-sheet .dv-stack, .ui-sheet .dv-two'); if (!wrap) return Promise.resolve();
+          var cols = stage.querySelector('.dv-two'), target = cols ? cols.lastChild : wrap.lastChild;
+          var next = ctx.canSplit ? dv.humSchedules({}) : dv.humSchedules({});
+          return Mock.sleep(600).then(function () { target.replaceWith(next); return Mock.sleep(1200); });
+        } },
+      { from: 'Activity row', to: 'Add / edit activity', kind: 'push', state: 'schedules', note: 'A row or Add Scheduled Activity pushes the editor onto the sheet\'s navigation stack (see humidifier-activity-editor). The system push; Back returns.',
+        play: function (stage) {
+          var sh = stage.querySelector('.ui-sheet'); var body = sh && sh.querySelector('.ui-modal'); if (!body) return Promise.resolve();
+          var host = body.parentNode, ctx = Mock.current;
+          var pushed = Mock.sheet(ctx, { title: 'Add Activity', detent: 'large', size: 'page', leading: 'back', trailing: dv.saveButton({}), content: dv.activityEditor({ isNew: true, ctx: ctx }) }).querySelector('.ui-modal');
+          pushed.style.position = 'absolute'; pushed.style.inset = '0'; pushed.style.background = 'var(--sheet-ground)'; host.appendChild(pushed);
+          return Mock.anim.push(body, pushed).then(function () { return Mock.sleep(700); }).then(function () { pushed.remove(); body.style.transform = ''; body.style.filter = ''; });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Bedroom 1 Humidifier" with its state as subtitle; the mist dial; Turn On / Turn Off; the hint and any fault alert; the two readings; then the selected section (Controls: Mode, Mist Output, Target Humidity, Warm Mist, Device Timer, Display); the section bar ("Humidifier sections": Controls, Schedules, Info) last before Close.' },
+      { rule: 'Dial', note: 'One adjustable element for the handle ("Mist level", value "5", identifier humidifier.mistDial); the readout is a separate element: "Humidifier mist level 5, output level 5"; in Sleep or with a fault the dial is not adjustable. The comfort (40 to 50%) and condensation (60 to 80%) bands are colour AND spoken: the target dial says "Target humidity 50 percent, 41% current", and above 60% an inline warning says it in words.' },
+      { rule: 'Controls', note: 'Mode, Mist Output and Warm Mist are segmented controls (menus at AX sizes); Device Timer is a Stepper (adjustable: "Turn Off In", value "1h") in 30 minute steps; Display is a switch with a label. Cancel Timer is a destructive button with the time left in its label.' },
+      { rule: 'Schedules', note: 'The scheduling switch reads "Scheduling On, 2 activities configured" and is disabled with a reason while vacation mode is on or there is nothing to schedule. Each activity row is one element ("Night, Sun, Mon, Tue, Wed, Thu, 10:00 PM to 7:00 AM, Sleep"); the running one adds "Active now" in words as well as the blue outline. A non-administrator hears that only administrators can edit.' },
+      { rule: 'Info pills', note: 'Each pill is one element (label, value; identifier humidifier.info.<title>); the glyph tone is decorative because the value says it ("Tank Removed", "Water Low"). At AX sizes the glyph sits above the text and pills are one column.' },
+      { rule: 'Targets', note: 'Dial handle hit area 64 pt; segments, the bordered power button, rows and pills are at least 44 pt tall.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the section bar is a menu button, segmented controls are menus, the dial readout scales inside its ring (minimum scale 0.4) and the sheet scrolls; two columns never apply at AX sizes because they need a split-capable window.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: page sizing for dials and two columns', verdict: 'pass', note: '.hassSheet(.page, height: .full); the hero sits beside the tab only when SplitPolicy allows it and the container is at least 640 pt (HumidifierLayout).' },
+        { rule: 'Segmented controls: closely related views', verdict: 'departure', note: 'ModalTabBar is a glass segmented control with icons only on compact width and a menu at AX sizes (owner 2026-10-16, ModalTabBar.swift); HIG prefers text or images, not a mix, and about 5 on iPhone.' },
+        { rule: 'Steppers: show the value beside the control', verdict: 'pass', note: 'Turn Off In reads its value in the label; steps are 30 minutes.' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Dial bands pair with spoken values and a warning sentence above 60%; pills carry words.' },
+        { rule: 'Typography: no text below the legible floor', verdict: 'pass', note: 'DeviceStatusPill titles are .footnote (HumidifierSheet.swift).' },
+        { rule: 'Feedback: dial drag haptics', verdict: 'pass', note: 'ThermostatDial plays .selection while a handle is dragged (ThermostatDial.swift:90).' },
+      ],
+      swiftui: [
+        { rule: 'Resizability: adapt to the window, not the idiom', verdict: 'pass', note: 'Two-column choice reads WindowMetrics and SplitPolicy (size class and geometry), never a device name; AX sizes cannot split.' },
+        { rule: 'Views: size-dependent layout with AnyLayout', verdict: 'pass', note: 'DeviceStatusPill swaps HStack/VStack at accessibility sizes through AnyLayout.' },
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Already fixed: the Device Timer is ControllerStepper, the Display and scheduling switches ControllerToggle/ActionToggle (HumidifierSheet.swift, HumidifierSchedulesTab.swift).' },
+        { rule: 'Design: GeometryReader sparingly', verdict: 'departure', note: 'One GeometryReader measures the container for the 640 pt rule beside WindowMetricsReader; no per-frame state is written.' },
+        { rule: 'Motion: Reduce Motion', verdict: 'pass', note: 'The dial handle animates on MotionTokens.quick and is nil under Reduce Motion or while dragging.' },
+      ],
+    },
+
+    notes: [
+      'medium and fitted: this sheet has neither: it is hassSheet(.page, height: .full), so it only opens large (the full state). The detent list therefore shows large only.',
+      'The Schedules transition shows a cut: HumidifierSheet switches its tab column with a plain switch statement and no SmoothContentSwap (the vacuum sheet does fade).',
+      'docs versus code: patterns/schedule-date-fields.md is the shared date component; the activity editor does not use it, it uses plain DatePicker rows for Start and End (see humidifier-activity-editor).',
+      'presents: the delete confirmation (schedule-delete-dialog in the catalog) is drawn in humidifier-activity-editor, where its call site is.',
+      'Temperature reads "70°F" (the entity\'s unit_of_measurement is appended as-is); humidity reads "41%".',
+      'Presenter is a trimmed Bedroom 1 room page with a Humidifier navigate tile.',
+      'The two-column layout appears on iPad landscape and Duo unfolded landscape; the 640 pt width rule is on the sheet container, so portrait iPad (704 pt sheet but SplitPolicy portrait) stays one column.',
+      'Promote to kit: dv.dial (single-value dial with bands), dv.statusPill, dv.stepper, dv.bordered (modals/room-devices/_devices-vacuums.js).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: three sections, dial states, faults, schedules states, two-column layout, AX5; light and dark.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,16 @@
+{
+  "id": "dd-midpoint-gap-in-rows",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "in unfolded landscape, can see the \"midpoint gap\" in rows of the same element (e.g. doors on Security page) which is not desired",
+  "surface": "security-door-tiles",
+  "poses": [
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "5038a159",
+  "fix_ref": "06892198",
+  "fix_confidence": "high",
+  "expected": "Flat Duo grids use even tracks with no gap at the midpoint; flag a gap between two tiles of one row that appears only at the page centre."
+}

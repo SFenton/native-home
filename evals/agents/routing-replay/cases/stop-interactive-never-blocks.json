@@ -1,0 +1,33 @@
+{
+  "id": "stop-interactive-never-blocks",
+  "source": "Rule: outside a headless session the hook allows immediately (the notification wakes the agent).",
+  "recorded": "2026-11-02",
+  "kind": "stop_hook",
+  "input": {
+    "headless": false,
+    "items": [
+      {
+        "type": "user",
+        "message": {
+          "role": "user",
+          "content": "go"
+        }
+      },
+      {
+        "type": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I'll wait for the build."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "blocked": false
+  }
+}

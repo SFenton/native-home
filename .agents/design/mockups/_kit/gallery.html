@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kit gallery · every component</title>
+<link rel="stylesheet" href="kit.css">
+<script src="kit.js"></script>
+</head><body>
+<script>
+/* Every shared component, its variants and states, on a page and in a sheet. A development aid for the kit (not a mockup): open it after
+   changing kit.css or a component. Controls: sheet appearance, text size, Reduce Motion, Reduce Transparency, device size class. */
+(function () {
+  var h = Mock.h, root = h('div.k-wrap'), S = { appearance: 'dark', ts: 'default', rm: false, rt: false, device: 'iphone', only: '' };
+  document.body.appendChild(root);
+  function sel(label, opts, key) {
+    var s = h('select.k-select', opts.map(function (o) { return h('option', { value: o[0], selected: S[key] === o[0] }, o[1]); }));
+    s.addEventListener('change', function () { S[key] = s.value; build(); });
+    return h('label.k-ctl', h('span', label), s);
+  }
+  function sw(label, key) {
+    var b = h('button.k-switch', { type: 'button', role: 'switch', 'aria-checked': String(S[key]) }, h('i'), label);
+    b.addEventListener('click', function () { S[key] = !S[key]; b.setAttribute('aria-checked', String(S[key])); build(); });
+    return b;
+  }
+  var listEl = h('div');
+  function build() {
+    var ctx = Mock.ctx(S.device, { appearance: S.appearance, ts: S.ts, reduceMotion: S.rm, reduceTransparency: S.rt });
+    Mock.current = ctx; Mock.settings.reduceMotion = S.rm; Mock.settings.reduceTransparency = S.rt;
+    var cls = 'ui-root g-dark ' + (Mock.textSizes[S.ts].cls || '') + (S.rm ? ' k-reduce-motion' : '') + (S.rt ? ' k-reduce-transparency' : '');
+    listEl.innerHTML = '';
+    var names = Object.keys(Mock.components).sort().filter(function (n) { return !S.only || n.toLowerCase().indexOf(S.only.toLowerCase()) >= 0; });
+    var holder = h('div', { class: cls });
+    names.forEach(function (n) {
+      var comp = Mock.components[n], items = [].concat(comp.variants || [], comp.states || []);
+      var sec = h('section', { id: n }, h('h2', n), h('p', { style: { color: 'var(--k-fg2)', fontSize: '14px' } }, h('code', comp.source || '(alias or helper)')));
+      if (!items.length) items = [{ id: 'default', label: 'default (no variants listed)', props: {} }];
+      ['page', 'sheet'].forEach(function (surface) {
+        var grid = h('div.k-swatch-grid');
+        items.forEach(function (v) {
+          var box = h('div.k-swatch.' + (surface === 'page' ? 'page.g-dark' : 'sheet.in-sheet.' + (S.appearance === 'dark' ? 'g-dark' : 'g-light')), { style: { flex: '1 1 270px', maxWidth: '100%', minWidth: 0 } }, h('div.k-cap', surface + ' · ' + (v.label || v.id)));
+          var inner = h('div.in');
+          try { inner.appendChild(comp(Object.assign({ ctx: ctx }, v.props))); } catch (e) { inner.appendChild(h('pre', { style: { color: '#ff6961', whiteSpace: 'pre-wrap' } }, n + ' ' + v.id + ': ' + e.message)); if (window.console) console.error(n, v.id, e); }
+          box.appendChild(inner); grid.appendChild(box);
+        });
+        sec.appendChild(grid);
+      });
+      holder.appendChild(sec);
+    });
+    listEl.appendChild(holder);
+  }
+  root.append(h('p.k-eyebrow', 'S+H mockup kit'), h('h1', 'Component gallery'), h('p', 'Every Mock.components.<Name> with its listed variants and states, on the page surface (always dark) and the sheet surface (follows Sheet appearance). Missing icons: ', h('code', { id: 'missing' }, '')),
+    h('div.k-controls', sel('Sheet appearance', [['dark', 'Dark'], ['light', 'Light']], 'appearance'), sel('Text size', Object.keys(Mock.textSizes).map(function (k) { return [k, Mock.textSizes[k].label]; }), 'ts'),
+      sel('Size class (device)', [['iphone', 'iPhone (compact)'], ['ipad-landscape', 'iPad (regular)'], ['duo-unfolded-landscape', 'Duo unfolded (hinge)']], 'device'), sw('Reduce Motion', 'rm'), sw('Reduce Transparency', 'rt'),
+      h('label.k-ctl', h('span', 'Filter'), (function () { var i = h('input.k-select', { type: 'search', placeholder: 'GlassTile…' }); i.addEventListener('input', function () { S.only = i.value; build(); }); return i; })())), listEl);
+  build();
+  document.getElementById('missing').textContent = Object.keys(Mock.missingIcons).join(', ') || 'none';
+})();
+</script></body></html>

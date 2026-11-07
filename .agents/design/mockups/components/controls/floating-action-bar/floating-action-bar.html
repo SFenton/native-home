@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FloatingActionBar · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+  var base = Mock.componentConfig('FloatingActionBar', { surfaces: ['page'] });
+
+  /* ---- the expanded search field: a glass capsule that takes the bar's full width and hides the other actions */
+  function expandedBar(text) {
+    var cap = h('div.ui-glass.hf-fab-open', { style: { flex: 1, display: 'flex', alignItems: 'center', gap: '8px', minHeight: '52px', borderRadius: '999px', paddingLeft: '18px', color: '#fff', font: '400 var(--fs-body)/1.25 var(--font)' } },
+      h('span', { style: { opacity: .7, display: 'inline-flex' }, html: I('magnifyingglass') }), h('span', { style: { flex: 1 } }, text || 'Search recipes'),
+      h('button', { type: 'button', 'aria-label': 'Close Search', style: { minWidth: '44px', minHeight: '44px', border: 0, background: 'none', color: 'rgba(255,255,255,.7)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }, html: I('xmark.circle.fill') }));
+    return h('div.ui-fab', { role: 'toolbar' }, cap);
+  }
+  function recipesBar(ctx, active) {
+    return K.FloatingActionBar({ ctx: ctx, search: { prompt: 'Search recipes' }, actions: [{ id: 'sort', title: 'Sort', symbol: 'arrow.up.arrow.down', showsTitle: false }, { id: 'filter', title: 'Filter', symbol: 'line.3.horizontal.decrease', showsTitle: false, active: active !== false }] });
+  }
+
+  /* ---- real usages in context: the page, its rows and the bar over them */
+  var CHORES = [{ title: 'Replace the furnace filter', subtitle: 'Overdue · 3 days', symbol: 'exclamationmark.circle', glyph: 'var(--g-red)', subtitleInk: 'var(--g-red)' }, { title: 'Water the planters', subtitle: 'Today', symbol: 'drop', glyph: 'var(--fam-water-glyph)' },
+    { title: 'Wipe down the stove', subtitle: 'Tomorrow', symbol: 'flame', glyph: 'var(--fam-cooking-glyph)' }, { title: 'Take out the recycling', subtitle: 'Friday', symbol: 'trash', glyph: 'var(--fam-neutral-glyph)' }, { title: 'Vacuum the stairs', subtitle: 'Saturday', symbol: 'robotic.vacuum', glyph: 'var(--fam-cleaning-glyph)' }];
+  function page(ctx, o) { return h('div.hf-plain-frame', Mock.frame(ctx, Mock.page(ctx, Object.assign({ section: 'chores', choresBadge: 2, badge: 3 }, o)))); }
+  function choresRows() { return K.ModuleList({ rows: CHORES, density: 'thin' }); }
+  function recipeCards() { return K.TileGrid({ min: 150, max: 2, equal: false, items: [K.ImageCard({ title: 'Lemon Herb Roast Chicken', subtitle: '8 of 9 Ingredients', scene: 'recipe' }), K.ImageCard({ title: 'Tomato Soup', subtitle: '5 of 5 Ingredients', scene: 'recipe' }), K.ImageCard({ title: 'Mushroom Risotto', subtitle: '6 of 8 Ingredients', scene: 'recipe' }), K.ImageCard({ title: 'Banana Bread', subtitle: '7 of 7 Ingredients', scene: 'recipe' })] }); }
+  function pantryRows() { return K.ModuleList({ rows: [{ title: 'Whole Milk', subtitle: 'Expires Oct 26 · In the Fridge', symbol: 'refrigerator', glyph: 'var(--fam-water-glyph)' }, { title: 'Penne', subtitle: 'Expires Mar 3, 2027 · In the Pantry', symbol: 'cabinet', glyph: 'var(--fam-cooking-glyph)' }, { title: 'Frozen Peas', subtitle: 'Expires Jun 9, 2027 · In the Freezer', symbol: 'snowflake', glyph: 'var(--fam-cooling-glyph)' }, { title: 'Greek Yogurt', subtitle: 'Expires Oct 29 · In the Fridge', symbol: 'refrigerator', glyph: 'var(--fam-water-glyph)' }], density: 'thin' }); }
+
+  Mock.mount(Object.assign(base, {
+    kind: 'component', id: 'floating-action-bar', title: 'FloatingActionBar (actions, search)', area: 'design', status: 'shipped',
+    summary: 'A page\'s bottom toolbar of floating Liquid Glass buttons: the page\'s one primary labelled action (a #0071E3-tinted capsule: Add Task, Add Groceries), a secondary labelled capsule (Scan Item on an empty pantry), 52 pt icon circles (Sort, Filter, Scan) that fill #F2F2F7 while applied, and a search capsule that fills the leading space. Swatches below, then each real usage on its page.',
+    source: ['apple/Sources/HassDesign/FloatingActionBar.swift', 'apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift'],
+    spec: ['.agents/patterns/floating-actions.md', '.agents/design/direction-g.md'],
+    patterns: ['floating-actions', 'motion'],
+    hig: ['Materials (Liquid Glass)', 'Buttons', 'Toolbars', 'Dynamic Type', 'Search fields', 'Scroll views (scroll edge effects)'],
+    entities: [],
+    kitComponents: ['FloatingActionBar', 'ModuleList', 'ImageCard', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: Object.assign({}, base.states, {
+      'chores-add': { title: 'Chores: Add Task over the list', note: 'TodoPageView; the title is Add Groceries on a grocery list (addTitle). Rows scroll up under the glass and show through', render: function (ctx) { return page(ctx, { title: 'Chores', body: [choresRows()], floating: K.FloatingActionBar({ ctx: ctx, actions: [{ id: 'add', title: 'Add Task', symbol: 'plus' }] }) }); } },
+      'recipes': { title: 'Recipes: search, Sort and Filter (filter applied)', note: 'the prompt is "Search recipes" in code (the pattern record says "Search Recipes")', render: function (ctx) { return page(ctx, { title: 'Recipes', section: 'home', back: 'Food', body: [recipeCards()], floating: recipesBar(ctx, true) }); } },
+      'recipes-idle': { title: 'Recipes: nothing applied', render: function (ctx) { return page(ctx, { title: 'Recipes', section: 'home', back: 'Food', body: [recipeCards()], floating: recipesBar(ctx, false) }); } },
+      'search-open': { title: 'Search open: the field takes the whole bar', note: 'the other actions hide; the close button clears the text and collapses', render: function (ctx) { return page(ctx, { title: 'Recipes', section: 'home', back: 'Food', body: [recipeCards()], floating: expandedBar('Chicken') }); } },
+      'inventory': { title: 'Inventory: Sort, Filter (applied), Scan as circles', note: 'Scan is an untinted glass circle (isProminent false) beside the other two', render: function (ctx) { return page(ctx, { title: 'Pantry', section: 'home', back: 'Food', body: [pantryRows()], floating: K.FloatingActionBar({ ctx: ctx, actions: [{ id: 'sort', title: 'Sort', symbol: 'arrow.up.arrow.down', showsTitle: false }, { id: 'filter', title: 'Filter', symbol: 'line.3.horizontal.decrease', showsTitle: false, active: true }, { id: 'scan', title: 'Scan Item', symbol: 'barcode.viewfinder', showsTitle: false, prominent: false }] }) }); } },
+      'inventory-empty': { title: 'Inventory, empty: Scan Item as a labelled secondary capsule', note: 'untinted glass: not the page\'s primary action colour (n6-inventory-empty)', render: function (ctx) { return page(ctx, { title: 'Pantry', section: 'home', back: 'Food', body: [HF.contentUnavailable({ symbol: 'basket', title: 'No Items Found', description: 'Scan an item to add it to your pantry.', stack: true })], floating: K.FloatingActionBar({ ctx: ctx, actions: [{ id: 'scan', title: 'Scan Item', symbol: 'barcode.viewfinder', prominent: false }] }) }); } },
+      'ax5': { title: 'Accessibility 5: the bar reflows to two rows', override: { ts: 'ax5' }, note: 'labelled actions take a full-width row (the title wraps by word); the magnifier and circles sit in a trailing row beneath, each at least 44 pt', render: function (ctx) { return h('div', HF.surfaces(ctx, [{ label: 'Add Task', node: function () { return K.FloatingActionBar({ ctx: ctx, actions: [{ id: 'add', title: 'Add Task', symbol: 'plus' }] }); } }, { label: 'Search, Sort, Filter', node: function () { return recipesBar(ctx, true); } }], { surfaces: ['page'], basis: 320 })); } },
+    }),
+
+    motion: [
+      { id: 'search-expand', what: 'Tapping the search capsule opens the field: it takes the bar\'s full width and the other actions leave; closing reverses it', token: 'standard 0.3 s smooth (MotionTokens.standard) on the search state', state: 'recipes',
+        source: 'HassDesign/FloatingActionBar.swift .motionSafeAnimation(MotionTokens.standard, value: search.isExpanded)', reduce: 'the capsule swaps in place with no spring',
+        play: function (stage) {
+          var bar = stage.querySelector('.ui-fab'); if (!bar) return Promise.resolve();
+          var orig = bar.cloneNode(true), exp = expandedBar('Chicken'), rm = Mock.settings.reduceMotion;
+          bar.replaceWith(exp);
+          var cap = exp.firstChild;
+          var a = (rm || !cap.animate) ? Promise.resolve() : cap.animate([{ transform: 'scaleX(.45)', transformOrigin: 'left center', opacity: .4 }, { transform: 'none', transformOrigin: 'left center', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.4,0,.2,1)' }).finished.catch(function () {});
+          return a.then(function () { return Mock.sleep(900); }).then(function () {
+            var back = (rm || !cap.animate) ? Promise.resolve() : cap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150 }).finished.catch(function () {});
+            return back; }).then(function () { exp.replaceWith(orig); });
+        } },
+      { id: 'filter-applied', what: 'A sort or filter becomes applied: the glass circle fills #F2F2F7 and its glyph turns black', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'recipes-idle',
+        source: 'HassDesign/FloatingActionBar.swift BarGlass .stateColorTransition("FloatingActionBar", value: tint) and circleButton stateForeground', reduce: 'still cross-fades, shortened to 0.2 s',
+        play: function (stage) {
+          var c = stage.querySelectorAll('.ui-fab .circ')[1]; if (!c) return Promise.resolve();
+          c.style.transition = 'background-color var(--t-state) var(--ease-state), color var(--t-state) var(--ease-state)';
+          c.classList.add('active'); return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { c.classList.remove('active'); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Toolbar order', note: 'Search first (it fills the leading space), then Sort, Filter, Scan, in that order; a primary labelled action stands alone. The bar sits after the page content in the reading order.' },
+      { rule: 'Names', note: 'Labelled capsules are named by their title ("Add Task"); icon-only circles keep their title as the label ("Sort", "Filter", "Scan Item"); search is "Search recipes" with the query as its value. Identifiers fab.<id>.' },
+      { rule: 'Applied state', note: 'An applied sort or filter adds the selected trait and fills the circle #F2F2F7 with a black glyph; the open search field adds a Close Search button (44 pt).' },
+      { rule: 'Targets', note: 'Every button is at least 52 pt (the circle) and grows with the text up to 1.5 times (@ScaledMetric); at AX5 each stays at least 44 pt and none overlaps another (FloatingActionsJourneyTests.testBarReflowsAtTheLargestTextSize).' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes one row cannot hold the field, the circles and a capsule: labelled actions take a full-width row where the title wraps by word; the magnifier and circles sit in a trailing row beneath. An open search field still takes the full width alone.' },
+      { rule: 'Content stays reachable', note: 'The bar is a safeAreaBar (iOS 26) with a soft bottom scroll-edge effect: the last row scrolls clear of it and rows under the glass show through; before iOS 26 a safeAreaInset.' },
+      { rule: 'Contrast', note: 'White label and glyph on #0071E3 glass is 4.6:1; on the untinted glass the page shows through, so labels stay white over the dimmed wallpaper (FloatingActionBarTests.tintsKeepTextReadable).' },
+      { rule: 'Reduce Motion / Transparency', note: 'The search swap loses its spring; colour changes shorten to 0.2 s; below iOS 26 or with Reduce Transparency the glass is a thin material with the tint laid over it at 88%.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Materials: Liquid Glass for controls floating above content; let content scroll beneath", verdict: "pass", note: "BarGlass uses glassEffect on iOS 26 inside a safeAreaBar with a soft bottom scroll-edge effect; below iOS 26 or with the perf switch off it is a thin material with the tint at 88%.", by: "apple-hig skill" },
+
+        { rule: "Materials and Color: tint sparingly, reserve it for the primary action", verdict: "pass", note: "Only the one labelled primary action is blue-tinted glass (#0071E3, white label 4.6:1); secondary capsules and circles are clear glass, and an applied sort or filter is a light fill with a black glyph, so state is also a shape-and-value change, not only hue.", by: "apple-hig skill" },
+
+        { rule: "Buttons: 44 pt minimum target; keep targets large", verdict: "pass", note: "Circles are 52 pt (@ScaledMetric relative to title3, capped at 1.5 times) and the Close Search button is a 44 pt frame; every capsule has minHeight buttonSize.", by: "apple-hig skill" },
+
+        { rule: "Dynamic Type: reflow rather than truncate", verdict: "pass", note: "At accessibility sizes accessibilityLayout gives labelled actions a full-width row and moves the circles and magnifier beneath; an expanded search field stays alone on one row (FloatingActionsJourneyTests covers AX5).", by: "apple-hig skill" },
+
+        { rule: "Search fields: prefer the standard search affordance", verdict: "departure", note: "Search is a custom glass capsule that expands into a TextField (no .searchable, no system Cancel or scope), to match the web's floating search FAB (floating-actions.md); the field has a submitLabel(.search), a 44 pt Close Search and a spoken query value.", by: "apple-hig skill" },
+
+        { rule: "Accessibility: icon-only buttons keep a text label; Reduce Motion", verdict: "pass", note: "Icon circles carry accessibilityLabel(title) (Sort, Filter, Scan Item); applied state adds the selected trait; the search swap uses motionSafeAnimation, so it drops the spring under Reduce Motion.", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "Liquid Glass: group neighbouring glass in a GlassEffectContainer", verdict: "pass", note: "Already done: FloatingBarGlassGroup wraps the bar in GlassEffectContainer on iOS 26; FloatingActionsJourneyTests pass on iPhone.", by: "swiftui-pro skill" },
+
+        { rule: "API: safeAreaBar and scrollEdgeEffectStyle on iOS 26, safeAreaInset before", verdict: "pass", note: "floatingActionBar picks safeAreaBar(edge: .bottom) with .scrollEdgeEffectStyle(.soft) under #available(iOS 26) and falls back to safeAreaInset, so the last row scrolls clear on both.", by: "swiftui-pro skill" },
+
+        { rule: "Views: extract helpers into View structs instead of computed some View members", verdict: "pass", note: "Fixed: FloatingBarStandardLayout, FloatingBarAccessibilityLayout, FloatingBarCapsuleButton, FloatingBarCircleButton and FloatingSearchField in FloatingBarParts.swift.", by: "swiftui-pro skill" },
+
+        { rule: "API: prefer the system glass button styles", verdict: "pass", note: "Not applicable: the buttons keep their own glyph colour, active tint and size handling through BarGlass; .glass would change the press response, padding and sizes the owner approved.", by: "swiftui-pro skill" },
+
+        { rule: "Accessibility: label, selected trait and identifier on the Button itself", verdict: "pass", note: "Each Button sets accessibilityLabel, an isSelected trait for an applied or searched state, and a fab.<id> identifier; decorative magnifiers are hidden.", by: "swiftui-pro skill" },
+
+        { rule: "Hygiene: avoid platform branches and magic colours in a shared view", verdict: "pass", note: "Fixed: activeTint is HassTokens.Palette.activeControlFill; the watchOS and macOS branches are legacy and left per AGENTS.md.", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'Swatches (Variants, States) use the kit\'s FloatingActionBar on the page surface; the states below draw each real usage on a device frame nested in the page (the Device control picks the window).',
+      'Glass is a stand-in (blur and rim); the real material is Liquid Glass on iOS 26 and a thin material below.',
+      'Docs versus code: patterns/floating-actions.md calls the recipe prompt "Search Recipes"; RecipesScreen passes "Search recipes". The recipe filter icon is line.3.horizontal.decrease in code; the gallery fixtures use slider.horizontal.3.',
+      'On an empty pantry only Scan Item shows, as a labelled secondary capsule; once rows or a search exist it becomes the third circle (InventoryScreen.floatingActions).',
+      'The bar hides while an iPad form sheet is up beside it (InventoryScreen) so it does not float over the sheet\'s edge.',
+      'Rows in the in-context states are fixture rows (chores, recipes, pantry), not real data.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: primary, secondary, search, expanded search, Sort/Filter applied, Scan, AX5 reflow; usages in Chores, Recipes and Inventory.' }],
+  }));
+})();
+</script></body></html>

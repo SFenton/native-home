@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin To-Do · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: edit is the secondary action, no destructive swipe", verdict: "pass", note: "ChoresConfig.adminTodo has deletesItems false, so TodoRowActions gives only Complete (leading) and Edit (trailing); the list is synced from GitHub issues.", by: "apple-hig skill" },
+        { rule: "Undo and redo: completing an admin item runs a script and the row vanishes", verdict: "pass", note: "The Admin To-Do row stays 5 s with Undo after the script runs; TodoListController.undo calls todo.update_item with needs_action directly (no reopen script). Test: undoAfterAScriptCompletionCallsUpdateItem.", by: "apple-hig skill" },
+        { rule: "Privacy: say where entered text goes", verdict: "pass", note: "The Add and Rename sheets state the repository is public (TodoItemSheets.swift lines 96 and 247), and this page is hidden from Sam.", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: keep content clear of the fold", verdict: "pass", note: "Fixed: TodoPageView lays the list in HingedPanes with the edit form in the trailing pane (todo.pane) where the window splits; the list ends at the hinge.", by: "apple-hig skill" },
+        { rule: "Accessibility: Edit offered once", verdict: "pass", note: "TodoRowActions no longer adds an \"Edit\" custom action; Edit is the \"Edit {title}\" button beside the row.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Navigation: opened from a Settings row with its own ChoresModelHost", verdict: "pass", note: "AdminTodoScreen wraps TodoPageScreen in ChoresModelHost (ChoresScreen.swift lines 53-59), so it shares nothing with the Chores tab stack and back returns to Settings.", by: "swiftui-pro skill" },
+        { rule: "Views: hideListHeaders page uses the first list as page lead", verdict: "pass", note: "leadsPage is passed when no header view exists (TodoPageView.swift line 50), so the first row sits at the right distance from the title.", by: "swiftui-pro skill" },
+        { rule: "Sheets: sheet(item:) with an Identifiable item", verdict: "pass", note: "TodoPageView.swift lines 78-81 presents TodoSheet by sheet(item:) and routes create or rename in one switch.", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.pageConfig('admin-todo', {
+    title: 'Admin To-Do',
+    summary: 'Opened from a Settings row (Alex only, hidden from Sam): the admin to-do list with no list header, Edit (rename) on each row, no delete. Checking an item off runs a script; Add Task can attach up to four images. Fixture items.',
+    source: ['apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsEntry.swift', 'apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift'],
+    docs: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md', '.agents/pages/settings/ios.md'],
+    entities: ['todo.demo_todo_1', 'script.demo_script_1'],
+    defaultTitle: 'Two admin to-dos, no list header',
+    a11y: [{ rule: 'Reading order', note: 'Back (Settings), Quick Links, Profile; the title "To-Do" (heading); the rows (no list heading on this page); Add Task; tab bar. Each row has the toggle and "Edit {title}".' }],
+    notes: [
+      'items with images: rows carry no image indicator. Images are only sent when an admin to-do is created (multipart POST to the dashboard integration, which files them on the GitHub issue); see add-admin-todo-sheet.',
+      'The page has no section header (hideListHeaders) and a different list entity (todo.demo_todo_1, the admin list; the real grocery list is todo.demo_todo_1). Check-off calls script.demo_script_1 with the item name; the row leaves and returns on failure like every list.',
+      'No Delete anywhere (swipe, context menu, VoiceOver): the list is synced from GitHub issues. Edit renames. Hidden entirely from Sam (ChoresConfig.showsAdminTodo); Settings shows the row as "To-Do / An admin panel for to-do tasks.".',
+      'The tab and flyout selection stay on Settings, the back label is "Settings".',
+    ],
+  }));
+
+})();
+</script></body></html>

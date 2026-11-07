@@ -1,0 +1,28 @@
+{
+  "id": "check.tests",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Shift-left review: would the reviewer flag a missing or weak test? Shadow only: asked and logged, never shown or acted on.",
+  "instructions": "A coding agent prepared this pull request for an independent review. Using the repository's test rules and the list of changed files, is a required test missing or too weak to prove the change? A UI change needs a UX test and an accessibility test per affected device family; logic needs a unit test.",
+  "criteria": {
+    "true": "At least one required unit, UX or accessibility test is missing, not registered, or its assertions do not prove the change",
+    "false": "Every changed area has a test that proves the change, or the change is legitimately exempt (docs, tooling, copy only)"
+  },
+  "state": {
+    "fields": [
+      "pr_title",
+      "files",
+      "test_rules"
+    ],
+    "max_chars": 8000
+  },
+  "accept": {
+    "min_confidence": 0.85
+  },
+  "target": {
+    "precision": 0.8
+  },
+  "output": "Shadow log only (build/jev/shadow.jsonl, written by `jev_hints.py review`): measured against reviewer findings; never printed or shown.",
+  "evidence": "Unmeasured. Shadow only (asked and logged, never shown): the FestivalNativeApps measurement of the same question found no usable signal (AUC 0.45 to 0.72, never confident)."
+}

@@ -1,0 +1,78 @@
+name: version-bump
+# The one entry point of the TestFlight flow (owner, 2026-10-29): merge to main -> pr-checks green for that commit ->
+# THIS workflow tags the next `ios/v<YYMM.DD.NN>` (tools/release/versioning.py bump) -> ios-release-build.yml uploads
+# it to TestFlight. It starts only when `pr-checks` finished successfully on a push to main (workflow_run) and runs the
+# bump against exactly that commit (`head_sha`); a failed or cancelled pr-checks run bumps nothing. "Run workflow"
+# (workflow_dispatch) bumps the commit it is run on. Tags are the version ledger: nothing is committed to main.
+# Off until the repository variable HASS_VERSION_BUMP_ENABLED is `true`. A tag pushed with GITHUB_TOKEN triggers no
+# workflow, so the bump dispatches ios-release-build.yml (TestFlight) for each new tag, only when HASS_TESTFLIGHT_ENABLED
+# is `true`. It no longer dispatches ios-release.yml (owner, 2026-10-29: it held the one Mac runner ~20 min per bump and
+# stops BLOCKED without keychain signing); that workflow still runs by hand or on a manually pushed `ios/v*` tag.
+# Nothing is lost when GitHub drops a pending run (a concurrency group keeps one pending run): bumping is a function of
+# the commit, "the app changed since the previous tag", so the newest CI-passed head always covers every merge before it,
+# and an older head that runs late is skipped as `behind_previous_tag`.
+# Runs on the MacBook runner (self-hosted, macOS, hass) while the repo is private and on ubuntu-24.04 once it is public (nothing here needs
+# a Mac or the Keychain; hosted CI, ci.md). It is never started by a pull request, only by pr-checks on main or by dispatch. Documentation: .agents/workflow/versioning.md, ci.md.
+on:
+  workflow_run:
+    workflows: [pr-checks]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Bump even without app changes since the previous tag
+        type: boolean
+        default: false
+permissions:
+  contents: write   # push version tags
+  actions: write    # dispatch the release workflows
+concurrency:
+  # One bump at a time, never cancelled. GitHub keeps only one *pending* run per group, so a queued run can be replaced
+  # by a newer one; that is safe here (see above) and the release queue is rebuilt from the tags, not from this list.
+  group: version-bump
+  cancel-in-progress: false
+jobs:
+  version-bump:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (vars.HASS_VERSION_BUMP_ENABLED == 'true' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","macOS","hass"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          clean: false   # keep apple/.build and other build caches on the shared runner
+      - name: Bump
+        env:
+          FORCE: ${{ inputs.force }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          TESTFLIGHT: ${{ vars.HASS_TESTFLIGHT_ENABLED }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          args=(bump --head "$HEAD_SHA" --push)
+          if [ "${FORCE:-false}" = "true" ]; then args+=(--force); fi
+          python3 tools/release/versioning.py "${args[@]}" | tee "$RUNNER_TEMP/bump.json"
+          for tag in $(python3 -c 'import json,sys; print(" ".join(p["tag"] for p in json.load(open(sys.argv[1])).get("bumped", [])))' "$RUNNER_TEMP/bump.json"); do
+            if [ "$TESTFLIGHT" = "true" ]; then
+              # The release run uploads every version not yet on TestFlight, oldest first; the tag only wakes it.
+              gh workflow run ios-release-build.yml --ref main -f version_tag="$tag"
+            fi
+          done
+          python3 - "$RUNNER_TEMP/bump.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          doc = json.load(open(sys.argv[1]))
+          print("### version-bump")
+          for plan in doc.get("bumped", []):
+              print("- **%s** → `%s` (%s)" % (plan["platform"], plan["tag"], plan["reason"]))
+          for plan in doc.get("skipped", []):
+              print("- %s: skipped (%s)" % (plan["platform"], plan["reason"]))
+          PY

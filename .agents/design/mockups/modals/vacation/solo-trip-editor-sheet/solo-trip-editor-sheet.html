@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Schedule Solo Trip · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/vacation/_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.VS.V, C = V.copy;
+  function st(o) { return function (ctx) { return V.editorSheet(ctx, o || {}); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'solo-trip-editor-sheet', title: 'Solo Trip schedule editor sheet', area: 'vacation', status: 'shipped',
+    summary: 'Opened by turning Solo Trip on with a traveler chosen. A fitted form sheet: a description, Departs and Returns date-and-time pickers (default now to three days on), editor alerts and the prominent Schedule Solo Trip button. It cannot be dismissed while the schedule waits for Home Assistant. Follows the system appearance; the States gallery shows both.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKScheduleDateFields.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripController.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripCopy.swift'],
+    spec: ['.agents/pages/vacation/spec.md', '.agents/pages/vacation/ios.md', '.agents/patterns/schedule-date-fields.md'],
+    patterns: ['schedule-date-fields', 'modal-sheet', 'header-edge-fade', 'optimistic-actions', 'motion'],
+    hig: ['Sheets', 'Date pickers', 'Buttons', 'Toolbars', 'Dark Mode', 'Dynamic Type'],
+    entities: ['sensor.demo_away_2', 'script.demo_script_2'],
+    kitComponents: ['HassModal', 'SheetCancelItem', 'ScheduleDateFields', 'InlineAlert', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Alex chosen, now to three days on', render: st() },
+      'return-before-departure': { title: 'Return not after departure', note: 'the alert shows and Schedule Solo Trip is disabled', render: st({ end: 'Oct 22, 2026 · 9:41 AM', alerts: [C.endAfterStart], disabled: true }) },
+      'no-traveler': { title: 'No traveler selected', note: 'cannot happen from the page (the toggle needs a traveler) but the alert exists for a cleared selection', render: st({ alerts: [C.travelerRequired], disabled: true }) },
+      'scheduling': { title: 'Schedule sent, waiting for the echo', note: 'the pickers and Schedule are disabled, Cancel is disabled and the sheet cannot be swiped away (interactiveDismissDisabled); there is no spinner. It closes when the snapshot echoes the same traveler and times', render: st({ scheduling: true }) },
+      'loading': { title: 'Schedule sent (same as scheduling)', note: 'no separate loading UI: the scheduling state is the wait', render: st({ scheduling: true }) },
+      'error': { title: 'Home Assistant could not apply it', note: 'the command failed: the alert replaces nothing else, the button stays enabled to retry', render: st({ alerts: [C.commandFailed] }) },
+      'setup-required': { title: 'Household Away setup required', note: 'shown in place of a command error (setup error wins)', render: st({ alerts: [C.setupRequired] }) },
+      'vacation-engaged': { title: 'Vacation Mode already engaged', render: st({ alerts: [C.vacationConflict] }) },
+      'offline': { title: 'Over an offline page', note: 'no offline UI of its own; the command would fail and the error state is what appears', render: st({ connection: 'offline' }) },
+      'medium': { title: 'Medium detent', note: 'what the sheet opens at until its content is measured', render: st({ detent: 'medium' }) },
+      'large': { title: 'Large detent', note: 'only when the content is taller than the window (AX sizes)', render: st({ detent: 'large' }) },
+      'fitted': { title: 'Fitted detent (shipped)', render: st({ detent: 'fitted' }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Solo Trip page the sheet scales back', render: function (ctx) { return V.soloPage(ctx, { selected: 'alex' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the fitted height reaches the large cap and the content scrolls; labels sit above the pickers', render: st({ alerts: [C.commandFailed] }) },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Solo Trip toggle', to: 'Schedule Solo Trip sheet', kind: 'sheet', state: 'closed', note: 'Turning the toggle on presents the form sheet at its fitted height; the page scales back and dims. Content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Schedule Solo Trip', detent: 'fitted', size: 'form', leading: 'cancel', trailing: 'none', content: h('div.vs-stack', h('p', { style: { margin: 0, fontSize: 'var(--fs-sub)', color: 'var(--ink-sheet-2)' } }, C.editorDescription), K.ScheduleDateFields({ fields: [{ label: 'Departs', value: V.when.now }, { label: 'Returns', value: V.when.plus3 }] }), V.actionButton('Schedule Solo Trip', { prominent: true })) }, { hold: 1200 }); } },
+      { from: 'Schedule Solo Trip sheet', to: 'Solo Trip', kind: 'sheet', state: 'default', note: 'Cancel (circle x) or a swipe down drops the draft; the sheet also closes by itself once Home Assistant echoes the scheduled trip, and then the toggle reads On.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Schedule Solo Trip", then Cancel in the bar, the description, Departs, Returns, any alerts and Schedule Solo Trip last. Escape and the two-finger scrub cancel unless a schedule is in flight.' },
+      { rule: 'Cancel', note: 'The circle x leading, labelled "Cancel" (identifier soloTrip.editor.cancel); disabled with the sheet while scheduling or while the household controller is busy.' },
+      { rule: 'Pickers', note: 'Two labelled compact pickers, "Departs" and "Returns", 44 pt minimum, label-hidden pickers named for VoiceOver (identifiers soloTrip.editor.start and .end); disabled while scheduling.' },
+      { rule: 'Alerts', note: 'Each message is an inline error read as an error: select a traveler, return after departure, setup required or Vacation engaged (the setup message replaces the command error), command failed.' },
+      { rule: 'Schedule Solo Trip', note: 'The one primary button (#0071E3, white text), identifier soloTrip.editor.confirm; disabled while the draft is invalid, a command is pending or scheduling.' },
+      { rule: 'Dynamic Type', note: 'Fitted height is capped at large at AX5; labels wrap above the pickers; no truncation. Checked at AX5 below.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Sheets: confirm before discarding a draft", verdict: "pass", note: "Selection-only sheet: one tap redoes it, so no discard guard (owner 2026-10-24, sheet-discard-guard: guard the form sheets, not selection-only sheets).", by: "apple-hig skill" },
+        { rule: "Loading: progress where the person pressed", verdict: "pass", note: "SoloTripEditorSheet confirm is AwayActionButton(isBusy: controller.isScheduling, busyTitle: \"Scheduling\") over PrimaryButton's busy state: inline arc until Home Assistant echoes the schedule.", by: "apple-hig skill" },
+        { rule: "Date pickers: invalid ranges prevented or explained", verdict: "pass", note: "editorAlerts lists the traveler, range and setup problems inline and editorConfirmDisabled gates the button (lines 168-172).", by: "apple-hig skill" },
+        { rule: "Buttons: a content button as the single primary action", verdict: "departure", note: "direction-g.md Sheets and ios.md 2026-10-13: Schedule Solo Trip is a PrimaryButtonStyle capsule in the content with Cancel as the toolbar circle x, not the SheetConfirmItem check used by create sheets.", by: "apple-hig skill" },
+        { rule: "Sheets: a size that fits and a grabber", verdict: "pass", note: "hassSheet(.form) fitted (line 186), interactiveDismissDisabled while scheduling (line 185).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Data flow: draft edited through the controller", verdict: "pass", note: "ScheduleDateFields write controller.scheduleDraft directly (lines 159-166), so cancel and reopen start from makeDefault (SoloTripController lines 232-238).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: error order and labels", verdict: "pass", note: "ForEach(controller.editorAlerts) draws each InlineAlert(.error) before the button (line 168), read as errors.", by: "swiftui-pro skill" },
+        { rule: "Navigation: sheet(isPresented:) with a custom Binding", verdict: "pass", note: "Fixed: SoloTripController.Presentation and presentation property drive sheet(item: $controller.presentation); the Binding computed property is gone.", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading is the scheduling state: there is no spinner (see the review fix). medium, large and fitted are the three detents; only fitted ships.',
+      'The editor alerts are drawn as the app does, red text with a circle glyph and no wash; the order is traveler, range, setup or command error.',
+      'Departure and return default to now and three days on (SoloTripDraft.makeDefault). Dates are fixtures; the stage clock is Fri Oct 23, 9:41.',
+      'Duo unfolded: the form sheet is centred in the window and crosses the hinge band here; the system decides placement on the Duo (the unfolded pose was only run for pages). Check on a device.',
+      'Docs vs code: spec.md names Departure Date, Departure Time, Return Date and Return Time fields; code has one Departs and one Returns picker (ios.md, owner 2026-10-13). The sheet "stays open (busy) until the snapshot echoes the same wall-clock start and end" matches.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: default, alerts, scheduling, three detents, AX5, light and dark.' }],
+  });
+})();
+</script></body></html>

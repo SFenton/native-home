@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Security · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/climate/_security-climate.js"></script>
+<script src="../../../components/house-config/_house-config-states.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+
+  function page(ctx, o) { return SC.securityPage(ctx, o); }
+  var CAMS_SNAP = ['snapshot', 'snapshot', 'snapshot', 'snapshot'];
+  var UNAVAIL_CHIPS = [Object.assign(Mock.chips.unavailable('Security', 'shield'), { summary: 'Unavailable' }), Mock.chips.unavailable('Contact Sensors', 'door.left.hand.closed')];
+
+  function tileEl(stage, title) { var t = Array.prototype.slice.call(stage.querySelectorAll('.ui-tile')).filter(function (x) { return x.querySelector('.ti').textContent === title; })[0]; return t; }
+  function setTile(t, o) {
+    var tiles = Mock.components.GlassTile(o); // a fresh face: swap in place so the colour slots cross-fade
+    t.className = tiles.className; t.dataset.face = tiles.dataset.face; t.setAttribute('style', tiles.getAttribute('style') || ''); t.innerHTML = tiles.innerHTML; t.setAttribute('aria-label', tiles.getAttribute('aria-label'));
+  }
+  function secSheetOpts() { return { title: 'Security System', detent: 'fitted', size: 'page', trailing: 'close', content: h('div', { style: { maxWidth: '560px', margin: '0 auto' } }, K.AlarmPanel({ state: 'armed_home' })) }; }
+
+  Mock.mount({
+    kind: 'page', id: 'security', title: 'Security', area: 'security', status: 'shipped',
+    summary: 'The Security tab: the Security and Contact Sensors chips, the alarm card on a module, Doors as tiles (a lock and two garage doors), guests while a toggle is on, cameras, and the hidden Mach-E section. Sample data is the debug gallery fixture.',
+    source: ['apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift', 'apple/Sources/HassUI/Features/Security/SecurityTiles.swift',
+      'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift',
+      'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift'],
+    spec: ['.agents/pages/security/spec.md', '.agents/pages/security/ios.md', '.agents/design/direction-g.md'],
+    patterns: ['status-rail', 'dynamic-grid', 'camera-streams', 'entity-tile', 'optimistic-actions', 'motion'],
+    hig: ['Tab bars', 'Alerts', 'Color', 'Dynamic Type', 'HomeKit: cameras'],
+    entities: ['alarm_control_panel.demo_alarm_control_panel_1', 'lock.demo_lock_2', 'cover.demo_garage_door_2', 'cover.demo_garage_door_1', 'binary_sensor.demo_contact_2', 'lock.demo_lock_1'],
+    kitComponents: ['ChipRail', 'StatusChip', 'AlarmPanel', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'CameraTile', 'TabBar', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Armed Home, doors locked and closed', render: function (c) { return page(c, {}); } },
+      'loading': { title: 'First sign-in, nothing saved', note: 'door tiles keep their names with a soft pulsing bar where the state goes; the alarm card has no pending look and reads Unavailable; the chips read Unavailable (the rail has no pending mode)', render: function (c) {
+        return page(c, { alarm: 'unavailable', unavailable: true, pending: true, chips: UNAVAIL_CHIPS, cams: ['connecting', 'connecting', 'connecting', 'connecting'] }); } },
+      'no-layout-skeleton': { title: 'No house layout yet: the skeleton', note: 'house-config-states rule 11: no saved layout and the store is idle or loading: the generic skeleton (a section bar and four tiles, a bar and two) pulses like the pending bars; one VoiceOver element "Getting your home from Home Assistant"', render: function (c) {
+        return Mock.page(c, { title: 'Security', section: 'security', badge: 0, choresBadge: 0, body: Mock.HC.skeletonPage(c), connection: 'reconnecting' }); } },
+      'no-layout-admin': { title: 'No house layout: not set up yet, administrator', note: 'rule 12: a state message in place of the page, the shell kept; the action opens the S+H Home Integration page in the Home Assistant modal', render: function (c) {
+        return Mock.page(c, { title: 'Security', section: 'security', badge: 0, choresBadge: 0, body: Mock.HC.message(c, 'notConfigured', 'admin') }); } },
+      'no-layout-member': { title: 'No house layout: member', note: 'the same message with the ask-someone text and no action', render: function (c) {
+        return Mock.page(c, { title: 'Security', section: 'security', badge: 0, choresBadge: 0, body: Mock.HC.message(c, 'notConfigured', 'member') }); } },
+      'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design: no spinner, nothing re-fades (owner 2026-10-17)', render: function (c) { return page(c, {}); } },
+      'error': { title: 'Everything unavailable', note: 'Home Assistant reports unavailable: the alarm modes disable and dim their glyphs, tiles read "Unavailable" (FENTON_GALLERY_SCENARIO=unavailable)', render: function (c) {
+        return page(c, { alarm: 'unavailable', unavailable: true, chips: UNAVAIL_CHIPS, cams: CAMS_SNAP }); } },
+      'offline': { title: 'No network', note: 'values stay; offline chip under the header and the cloud badge on Profile; a garage tap fails at once (see garage-error)', render: function (c) { return page(c, { cams: CAMS_SNAP, page: { connection: 'offline' } }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'the arc left of Quick Links', render: function (c) { return page(c, { cams: ['snapshot', 'connecting', 'snapshot', 'snapshot'], page: { connection: 'reconnecting' } }); } },
+      'long-text': { title: 'Alarm triggered, three sensors open, a jam and a moving door', note: 'chip summaries, the red-washed card and the longest tile states at once', render: function (c) {
+        return page(c, { alarm: 'triggered', contacts: ['armed', 3], front: { state: 'jammed' }, left: { state: 'closing', phase: 'sending', opens: false }, right: { state: 'opening', phase: 'idle' }, guests: true }); } },
+      'disarmed': { title: 'Disarmed', render: function (c) { return page(c, { alarm: 'disarmed', since: 'Oct 14' }); } },
+      'armed-away': { title: 'Armed Away', render: function (c) { return page(c, { alarm: 'armed_away', since: '7:48 AM' }); } },
+      'armed-night': { title: 'Armed Night', render: function (c) { return page(c, { alarm: 'armed_night', since: '10:30 PM' }); } },
+      'triggered': { title: 'Alarm triggered (FENTON_GALLERY_SCENARIO=triggered)', note: 'the module takes the dense ground washed #D70015 at 42% (60% with Reduce Transparency); it holds steady and never pulses', render: function (c) { return page(c, { alarm: 'triggered', contacts: ['armed', 1] }); } },
+      'doors-open': { title: 'Doors open and unlocked (FENTON_GALLERY_SCENARIO=openAway)', note: 'a filled tile means open, unlocked or moving; the Contact Sensors chip reads the house (open while away)', render: function (c) {
+        return page(c, { alarm: 'armed_away', contacts: ['away', 2], front: { state: 'unlocked' }, left: { state: 'open' }, right: { state: 'closed' } }); } },
+      'garage-sending': { title: 'Garage: Sending Open…', note: 'the tile fills at once with the optimistic Opening glyph and says Sending Open… for 1 s, taps ignored for 2 s, then Opening until Home Assistant reports', render: function (c) {
+        return page(c, { left: { state: 'opening', phase: 'sending', opens: true } }); } },
+      'garage-error': { title: 'Garage: Error (call failed, offline or no response)', note: 'the red error face for 8 s, then the tile follows Home Assistant again; offline fails at once (canSend false)', render: function (c) {
+        return page(c, { left: { state: 'closed', phase: 'error', opens: true }, page: { connection: 'offline' }, cams: CAMS_SNAP }); } },
+      'guests': { title: 'Guests staying over', note: 'the section shows only while a guest toggle is on', render: function (c) { return page(c, { guests: true }); } },
+      'mach-e': { title: 'Mach-E section (hidden in the app)', note: 'not shipped: SecurityConfig.showsVehicleSection is false (the web hides it); the debug gallery shows it so the tile stays tested', status: 'gallery only', render: function (c) { return page(c, { mach: true }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'chips scroll or wrap, the alarm modes wrap to fewer columns, door tiles go to one column; cameras and guest tiles keep their unscaled minimums (two and three columns)', render: function (c) { return page(c, { guests: true }); } },
+      'duo-part-fold': { title: 'Duo partly folded: each section on one side (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'fold columns (section-sides.md): the rail spans the top; the alarm card (four modes in one row), Doors lead; Cameras sit top right, level with the alarm card, then Guests (rule 11, owner 2026-11-03: "Cameras top right like home page"). Nothing crosses the band. The debug gallery has no cameras (showsCameras false), so its capture shows Guests top right; the app shows Cameras.', render: function (c) { return page(c, { guests: true }); } },
+      'duo-flat': { title: 'Duo lying flat: unchanged (compare)', override: { device: 'duo-unfolded-landscape', posture: 'open' }, note: 'no band, so no fold columns: one column, the alarm card full width, Doors and Cameras on even tracks with no middle gap (hinge-avoidance.md, owner 2026-11-01)', render: function (c) { return page(c, { guests: true }); } },
+      'duo-part-fold-ax5': { title: 'Duo partly folded at AX5', override: { device: 'duo-unfolded-landscape', posture: 'part', ts: 'ax5' }, note: 'still two columns: the band is physical, so text size never sends a section back across it; tiles go to one track inside each side. The rail wraps and stops short of the fold, so it heads the leading column and Cameras stays top right, level with it (rule 11); a chip narrower than its text (Contact Sensors) wraps its title inside the capsule, never past it (section-sides.md, Verdict round 1, V1)', render: function (c) { return page(c, { guests: true }); } },
+    },
+
+    motion: [
+      { id: 'alarm-mode', what: 'The panel reports a new mode: the badge, title and the chosen mode button cross-fade to the new colour', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'SecuritySystemSheet.swift AlarmPanel and AlarmModeButton .stateColorTransition; motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) {
+          function set(state, title, fam) { var panel = stage.querySelector('.ui-alarm'), badge = panel.querySelector('.badge'); stage.querySelectorAll('.ui-mode').forEach(function (b) { b.classList.toggle('sel', b.dataset.mode === state); }); badge.style.setProperty('--bfill', 'var(--fam-' + fam + '-fill)'); panel.querySelector('.ti').textContent = title; }
+          set('armed_away', 'Armed Away', 'sec-away'); return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { set('armed_home', 'Armed Home', 'sec-home'); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+      { id: 'triggered-wash', what: 'The alarm triggers: the card ground takes the red wash', token: 'state 0.6 s ease-in-out; steady, never a pulse', state: 'default',
+        source: 'AlarmPanel.ground, stateColorTransition("AlarmPanel"); direction-g.md Controls', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var p = stage.querySelector('.ui-alarm'); p.classList.add('triggered'); return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { p.classList.remove('triggered'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'door-tile', what: 'A lock turns: the tile fills with the Doors and windows colour and the padlock swaps open', token: 'state 0.6 s ease-in-out for colour; the glyph swaps with a symbol replace (identity under Reduce Motion)', state: 'default',
+        source: 'GlassTile (GlassTileFace) .stateColorTransition("GlassTile"), glyph .contentTransition(.symbolEffect(.replace)); motion.md section 6', reduce: 'colour cross-fades at 0.2 s, the glyph swaps with no effect',
+        play: function (stage) {
+          var t = tileEl(stage, 'Front Door'); setTile(t, { title: 'Front Door', subtitle: 'Unlocking', symbol: 'lock.open', family: 'contact', isActive: true, kind: 'command' });
+          return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { setTile(t, { title: 'Front Door', subtitle: 'Unlocked', symbol: 'lock.open', family: 'contact', isActive: true, kind: 'command' }); return Mock.sleep(700); })
+            .then(function () { setTile(t, { title: 'Front Door', subtitle: 'Locked', symbol: 'lock', family: 'contact', isActive: false, kind: 'command' }); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+      { id: 'garage-sequence', what: 'A garage door tap: Sending Open… for 1 s, Opening until the door reports, then Open; a failure shows Error in red for 8 s', token: 'state 0.6 s for the fill; feedback timings from GarageDoorController.Timing (1 s, 2 s, 10 s, 45 s, 8 s)', state: 'default',
+        source: 'HassCore/Security/GarageDoorController.swift, SecurityTiles.swift GarageDoorTile; spec.md Garage door command', reduce: 'colour cross-fades at 0.2 s; the VoiceOver announcement is unchanged',
+        play: function (stage) {
+          var t = tileEl(stage, 'Left Door');
+          function door(sub, o) { setTile(t, Object.assign({ title: 'Left Door', subtitle: sub, symbol: 'door.garage.open', family: 'contact', isActive: true, kind: 'command' }, o)); }
+          door('Sending Open…'); return Mock.sleep(1100).then(function () { door('Opening'); return Mock.sleep(1500); }).then(function () { door('Open'); return Mock.sleep(1200); })
+            .then(function () { setTile(t, { title: 'Left Door', subtitle: 'Error', symbol: 'door.garage.closed', family: 'contact', isError: true, kind: 'command' }); return Mock.sleep(Mock.anim.ms.state() + 900); })
+            .then(function () { setTile(t, { title: 'Left Door', subtitle: 'Closed', symbol: 'door.garage.closed', family: 'contact', isActive: false, kind: 'command' }); return Mock.sleep(Mock.anim.ms.state() + 200); });
+        } },
+      { id: 'chip-colour', what: 'The Contact Sensors chip changes with the house when a door opens (closed, open at home, open away, open while armed)', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'StatusRail.swift StatusChipStyle; direction-g.md Contact Sensors reads the house', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) {
+          var c = stage.querySelector('.ui-chip[data-chip="Contact Sensors"]'), seq = [['home', '2 Open'], ['away', '2 Open'], ['armed', '2 Open'], ['closed', 'All Closed']];
+          return seq.reduce(function (p, s) { return p.then(function () { c.style.setProperty('--cf', 'var(--chip-contact-' + s[0] + '-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-' + s[0] + '-glyph)'); c.querySelector('.su').textContent = s[1]; return Mock.sleep(Mock.anim.ms.state() + 450); }); }, Promise.resolve());
+        } },
+    ],
+
+    transitions: [
+      { from: 'Security chip', to: 'Security System sheet', kind: 'sheet', note: 'The Security chip presents the alarm card in a fitted page sheet (hassSheet(.page)). The page scales back and dims; content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, secSheetOpts(), { hold: 1100 }); } },
+      { from: 'Contact Sensors chip', to: 'Contact Sensors overview sheet', kind: 'sheet', note: 'The shared chip overview opens at large (hassSheet(.page, height: .full)) because it navigates to a room group.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Contact Sensors', detent: 'large', size: 'page', trailing: 'close', content: h('div', { style: { padding: '24px 16px', font: '15px var(--font)' } }, 'Room overview sheet: see room-overview-contacts') }, { hold: 1000 }); } },
+      { from: 'Camera tile', to: 'Camera viewer sheet', kind: 'sheet', note: 'A camera card presents the viewer: a sheet, dark by design, not a zoom (patterns/motion.md Departures).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Front Door', detent: 'fitted', size: 'page', appearance: 'dark', content: h('div', { style: { aspectRatio: '16 / 9', borderRadius: '20px', background: Mock.scene('front-door') } }) }, { hold: 1000 }); } },
+      { from: 'Disarm button on the card', to: 'Disarm alert', kind: 'fade', note: 'On this page the alert belongs to the card itself and appears over the page (the sheet case is in disarm-confirm-alert). Arming sends at once.', state: 'default',
+        play: function (stage) {
+          var scrim = h('div.ui-alert-scrim.g-dark', K.Alert({ title: 'Disarm the Security System?', message: 'Doors and motion stop triggering the alarm.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Disarm' }] }));
+          stage.appendChild(scrim); return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1100); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+      { from: 'Security', to: 'Climate tab', kind: 'cut', note: 'A tab switch is a cut (motion.md section 4.1); each tab keeps its stack and scroll position.',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = Mock.page(ctx, { title: 'Climate', section: 'climate', body: [h('div', { style: { height: '200px' } })] });
+          a.hidden = true; a.parentNode.insertBefore(b, a); return Mock.sleep(800).then(function () { b.remove(); a.hidden = false; });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Open Navigation (iPhone, iPad), the reconnecting arc when present, Quick Links, Profile; the page title; the status chips (Security, Contact Sensors); the alarm card (header, then Disarm, Home, Away, Night); "Doors" (heading) and its tiles; Guests Staying Over; Cameras; the tab bar last.' },
+      { rule: 'Alarm card', note: 'The header is one element: label "Security System", value "Armed Home, Since 6:12 PM" (security.system.state). Each mode is a button named Disarm, Home, Away or Night with the selected trait on the current one; hints "Sets the security system to Home" and "Disarms the security system". Disarm always confirms with an alert (Cancel kept).' },
+      { rule: 'Door tiles', note: 'A tile is one button: label the door, value its state ("Front Door, Locked"), hint what a tap does ("Unlocks", "Opens the door", "Closes the door"). Garage feedback is announced without moving focus ("Left Door, Sending Open…"). Unavailable tiles are disabled and dim only the glyph; text keeps 4.5:1.' },
+      { rule: 'State is not colour alone', note: 'Every door state has words (Locked, Unlocked, Jammed, Opening, Error) and its own glyph (padlock, open padlock, open or closed garage); the red error face adds to the word "Error". Alarm modes have their own glyphs and titles.' },
+      { rule: 'Targets', note: 'Chips 48 pt, mode buttons 64 pt, tiles 72 pt or more, camera tiles far larger, header circles 44 pt.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the mode buttons fall to one column once 64 pt (scaled) no longer fits four across, door tiles stack glyph over text in one column, the cameras (160 pt) and guest tiles (110 pt) keep unscaled minimums and stay two and three columns wide; section headers stack.' },
+      { rule: 'Reduce Motion and Transparency', note: 'Colour cross-fades shorten to 0.2 s; the triggered wash goes to 60% over a solid ground; modules and tiles use the solid finish.' },
+      { rule: 'Privacy', note: 'FENTON_REDACT_PRIVATE=1 hides the alarm mode (card header and selection) and the Security chip text for shared screenshots.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Designing for iPhone Duo: reserved regions; use reserved-region APIs when a custom component is not moved by the system", verdict: 'pass', note: "Fixed: the alarm card uses avoidsHinge() and the grids are band-aware (DynamicGridMetrics band), so the fold crosses no card, door tile or camera. Single full-width blocks move to the leading region only when crossed.", by: 'apple-hig skill' },
+        { rule: "Layout: respect readable width on large screens", verdict: 'pass', note: "Fixed: SecurityPage caps AlarmPanel at SecurityPage.alarmWidth (560 pt), as the sheet does.", by: 'apple-hig skill' },
+        { rule: "Alerts: avoid alerts for common, undoable actions", verdict: 'departure', note: "Disarm always confirms although it can be undone by arming again; .agents/pages/security/spec.md records it as a native departure (HIG: Alerts) because disarming opens the house. Arming never asks.", by: 'apple-hig skill' },
+        { rule: "Feedback and Playing haptics: combine colour, text and haptics for a significant command", verdict: 'pass', note: "Fixed: LockTile, GarageDoorTile (via GlassTile) and AlarmModeButton play TapFeedback.tap; failures show the failed face or the alarm error line with the error haptic.", by: 'apple-hig skill' },
+        { rule: "Accessibility: state not by colour alone", verdict: 'pass', note: "Door states carry words (Locked, Unlocked, Jammed, Opening, Error) and a padlock or garage glyph that opens; the error face adds the word Error (SecurityTiles.swift:79-83, SecurityDoorTile.swift:76); modes have their own glyphs and titles.", by: 'apple-hig skill' },
+        { rule: "HomeKit: avoid covering camera views", verdict: 'pass', note: "Same CameraTile change: the shared camera grid moves the name below the picture at accessibility sizes.", by: 'apple-hig skill' },
+        { rule: "Accessibility: 44 pt minimum controls and about 12 pt between bezelled elements", verdict: 'pass', note: "AlarmPanel.modeSpacing is 12 pt between the four mode buttons.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "ScaledMetric for fixed sizes", verdict: 'pass', note: "minTileWidth 140 relative to .subheadline (SecurityScreen.swift:56), mode width 64 and badge 44 are scaled (SecuritySystemSheet.swift:55-56), so doors go to one column and modes to fewer columns at AX5.", by: 'swiftui-pro skill' },
+        { rule: "Never hard-code white or black", verdict: 'departure', note: "The page is always dark over a dimmed wallpaper, so the card and tiles use fixed white inks there (Surface.secondaryOnModule, GlassTile.swift:510); the same card in a sheet uses adaptive inks (direction-g.md Layers).", by: 'swiftui-pro skill' },
+        { rule: "Optimistic state rolls back on failure, one state path", verdict: 'pass', note: "OptimisticActions with .liveChange rules for the alarm and locks (SecuritySystemSheet.swift:185-189, SecurityDoorTile.swift:23-26); GarageDoorController owns its timers; rendered states sending, error and garage-error.", by: 'swiftui-pro skill' },
+        { rule: "Reduce Transparency and Increase Contrast", verdict: 'pass', note: "The triggered wash goes to 60% over the dense module under Reduce Transparency (SecuritySystemSheet.swift:165) and tiles take the solid finish (GlassTile.swift:306-308).", by: 'swiftui-pro skill' },
+        { rule: "Dynamic Type at accessibility sizes: avoid a fixed grid that clips", verdict: 'pass', note: "ControlTileGrid (guest tiles) and CameraGrid scale their minimums with @ScaledMetric.", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Partly folded Duo (claude/section-sides, section-sides.md, owner 2026-11-03): fold columns; the alarm card leads with its four modes in one row (lying flat it takes the full width with its modes 2 + 2 around the band, the 2026-10-30 rule), Doors and Mach-E lead, Cameras (top right, rule 11) then Guests trail; at accessibility sizes the wrapped rail heads the leading column; every other pose unchanged. Reading order partly folded: the rail, the alarm card, Doors, Mach-E, then Cameras and Guests.',
+      "Built on claude/action-nav-tiles: the Doors tiles are action tiles (text . disc, no leading glyph; the lock or garage disc carries the state glyph and the body does what it shows). Lock isOn = unlocked (white disc on the filled tile); jammed offers Lock; the garage disc morphs and never shows Stop. A tap shows the lock's own transitional state (\"Unlocking\u2026\") until any live change. The Mach-E tile (hidden) drops its car glyph for the lock disc. Disc ids security.tile.<entity>.action.lock|door.",
+      'Splits: fold columns (UKFoldColumns) while partly folded: the alarm card, Doors and Mach-E lead, Cameras and Guests trail, and the status rail spans the top (at accessibility sizes it heads the leading column). In every other pose Security is one full-width column (split-view.md); on the unfolded Duo landscape and iPad landscape the alarm card stretches the full width because AlarmPanel on the page has no maximum width (the sheet caps it at 560 pt). Hinge-aware even columns apply to the Doors and camera grids. Not run on a device; check before relying on it.',
+      'empty: Security has no empty state: the card, three doors and four cameras always exist; guests appear only while a toggle is on (state guests).',
+      'loading: AlarmPanel and the chips ignore valuesPending (only GlassTile reads it), so first sign-in shows "Unavailable" on the card and chips while the door tiles show soft pending bars. Worth a design decision; not changed here.',
+      'Docs versus code: spec.md lists the alarm as a tile in a "Security" section that opens the sheet; the native page draws the card inline above a "Doors" grid, and the web\'s "Vehicle" section is the hidden "Mach-E".',
+      'Docs versus code: ios.md says the Security System sheet is opened by the Security chip and the card; on this page the Disarm alert is attached to the card on the page itself (no sheet underneath).',
+      'Door tile glyphs: LockTile uses "lock" and "lock.open", the vehicle tile "car"; garage tiles use door.garage.closed or .open from SymbolMap. Kit stand-ins are drawn.',
+      'Promote to kit: SecClimate.doorTile (LockTile, GarageDoorTile), the Security page body, and the missing symbols (car, circle and others, registered in components/climate/_security-climate.js).',
+      'Kit gap found: the atlas rule `.k-wrap h2` leaks into the app header `.ui-hdr h2` (adds a 44 pt top margin); worked around locally in _security-climate.js.',
+      'Cameras are the four shared go2rtc streams (CameraGrid, idPrefix security.camera); pictures are stand-ins.',
+
+      "Corrected 2026-10-23 (skill review): the guest tiles (min 110) and cameras (min 160) are not @ScaledMetric in the app (GuestPresenceSection.swift:50, CameraGrid.swift:19), so at AX5 they stay three and two columns wide; the mockup had drawn one column (kit TileGrid scales every minimum). _security-climate.js now passes appMin() for these two grids.",
+
+    ],
+    changelog: [{ date: '2026-11-04', note: "Doors' three tiles share one row in equal thirds; where two fit, Right Door fills the second row; Cameras never fill." }, { date: '2026-11-04', note: 'Section-sides verdict round 1 (V1): in a wrapped rail a chip wraps its title and state inside the capsule (kit .ui-rail-chips.wrap); seen at AX5 partly folded.' }, { date: '2026-11-03', note: 'Cameras top right (section-sides.md rule 11, owner: "Cameras top right like home page"): partly folded, Cameras is the first trailing section, level with the alarm card; at AX5 the wrapped rail heads the leading column so Cameras stays top right.' }, { date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo puts each section wholly on one side (fold columns); states duo-part-fold, duo-flat, duo-part-fold-ax5.' }, { date: '2026-10-23', note: 'First pass: 21 states, five devices, alarm modes, door and garage sequences, guests, cameras, Mach-E (gallery only).' }, { date: '2026-10-27', note: "Action tiles (claude/action-nav-tiles): the Doors tiles are action tiles (text . disc, no leading glyph; the lock or garage disc carries the state glyph and the body does what it shows). Lock isOn = unlocked (white disc on the filled tile);" }],
+  });
+})();
+</script></body></html>

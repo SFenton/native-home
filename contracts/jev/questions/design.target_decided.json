@@ -1,0 +1,28 @@
+{
+  "id": "design.target_decided",
+  "version": 1,
+  "type": "noul",
+  "mode": "active",
+  "description": "Gate question 3: is the visible result already chosen (named by the owner, or fixed by a pattern, decision, parity or guideline)? A hint only: it may suggest an L1 Designer spec instead of L2 options, and the orchestrator decides.",
+  "instructions": "An agent has researched a change to a native iOS app that alters what is drawn, worded, animated or navigated, and summarised the owner's request and its plan. Is the visible result already settled, so a designer only needs to apply it rather than explore options? It is settled when the owner's request names the look, wording or motion they want (for example by pointing at another screen or layout that already does it), or when an existing pattern, recorded owner decision, web-dashboard behaviour or Apple guideline fixes it.",
+  "criteria": {
+    "true": "The look, wording or motion to build is already named or fixed; only how to build it, or a scope or rule exception, may remain",
+    "false": "What it should look, read or move like is still open: the options differ in what a person would see"
+  },
+  "state": {
+    "fields": [
+      "plan"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.5,
+    "no_below": 0.3
+  },
+  "target": {
+    "precision": 0.95
+  },
+  "output": "Hint line from tools/jev_gate.py at the post-research gate, asked only when design.user_visible says visible: with the other two answers it names the next step (route table in agent-roster.md). A yes can suggest moving L2 design to an L1 spec, which is a move down: it is never acted on without the orchestrator's own reading.",
+  "evidence": "contracts/jev/derived/measurements.md, target-decided corpus 2026-11-02: test AUC 0.937, p>=0.5 precision 33/33, recall 0.58; plan text must state the owner's named target first"
+}

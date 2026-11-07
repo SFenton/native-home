@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Header items · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+
+  function root(c, sec, o) { return SN.rootPage(c, sec || 'home', o); }
+  function scrolled(c) { var p = root(c, 'home'); return SN.collapse(p, 'Home'); }
+  /* Before iOS 26 the bar draws no glass: each button draws its own 44 pt material circle (headerCircle()); Profile keeps a 32 pt disc inside its circle. */
+  function material(symbol, label) { return h('button', { type: 'button', 'aria-label': label, title: label, style: { width: '44px', height: '44px', borderRadius: '50%', border: '.5px solid rgba(255,255,255,.18)', background: 'rgba(60,60,64,.55)', color: '#fff', display: 'grid', placeItems: 'center', padding: 0 }, html: I(symbol, { size: 20 }) }); }
+  function preGlass() {
+    var disc = h('span.ui-monogram', { 'aria-hidden': 'true', style: { width: '32px', height: '32px', fontSize: '13px' } }, 'AD');
+    var ring = h('button', { type: 'button', 'aria-label': 'Profile, Alex Morgan', style: { width: '44px', height: '44px', borderRadius: '50%', border: '.5px solid rgba(255,255,255,.18)', background: 'rgba(60,60,64,.55)', display: 'grid', placeItems: 'center', padding: 0, position: 'relative' } }, disc);
+    ring.appendChild(h('span.ui-badge', { 'aria-hidden': 'true', style: { top: '-2px', right: '-4px' } }, '3'));
+    return ring;
+  }
+  function table(head, rows) { return h('div.k-table-wrap', { style: { color: 'var(--k-fg)' } }, h('table', h('thead', h('tr', head.map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); })))); }
+
+  var states = {
+    'iphone': { title: 'iPhone: menu leading, Quick Links and Profile trailing', note: 'two separate circles 12 pt apart; large title below the bar (the unfolded Duo in portrait draws the same header)', render: function (ctx) {
+      return h('div', SN.board(ctx, [{ key: 'iphone', zoom: .82, caption: 'Open Navigation (nav.open) leads; Quick Links (quickLinks.open) then Profile (nav.profile) trail. The title is the standard large title below the bar.', build: function (c) { return root(c, 'home'); } }]),
+        h('div.sn-row', { style: { marginTop: '12px' } }, SN.stripSwatch({ leading: 'menu', badge: 3 }, 'header strip, iPhone', 'Quick Links glass circle 44 pt, then ToolbarSpacer(.fixed) = 12 pt, then the 44 pt disc (measured iPhone 17 Pro, iOS 27).'), SN.stripSwatch({ leading: 'back', badge: 3 }, 'pushed page', 'A pushed page swaps the menu for a glass Back circle; the two trailing buttons stay.'))); } },
+    'duo-vertical-rail-one-glass-group': { title: 'Duo: the vertical rail, one glass group', note: 'no menu button; Quick Links and the person symbol share one glass shape, no spacer', render: function (ctx) {
+      return SN.board(ctx, [
+        { key: 'duo-folded', zoom: .82, caption: 'Folded Duo: the tab bar and the header group are in the trailing vertical bar (about 83 pt). The title shares the header row (inline-large) because nothing else leads.', build: function (c) { return root(c, 'home'); } },
+        { key: 'duo-unfolded-landscape', zoom: .6, caption: 'Unfolded landscape: the vertical bar like the folded Duo, with no menu button; the title stays in the bar at a fixed 24 pt.', build: function (c) { return root(c, 'home'); } },
+      ]); } },
+    'ipad-with-menu': { title: 'iPad: menu leading, two circles trailing', note: 'regular width; the title stays below the bar because the menu leads the row', render: function (ctx) {
+      return SN.board(ctx, [{ key: 'ipad-portrait', zoom: .5, caption: 'Portrait: the same header circles as the iPhone; no tab bar (the flyout).', build: function (c) { return root(c, 'security'); } },
+        { key: 'ipad-landscape', zoom: .4, caption: 'Landscape: same header; the page may split at the midpoint.', build: function (c) { return root(c, 'security'); } }]); } },
+    'pre-ios26-material-circles': { title: 'Before iOS 26: material circles', note: 'the bar draws no glass; no spacer is added', render: function (ctx) {
+      return h('div.sn-row', h('div', h('div.k-swatch.page', { style: { width: '300px' } }, h('div.k-cap', 'iOS 17 to 25'), h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' } }, material('square.grid.2x2', 'Quick Links'), preGlass())),
+        SN.cap('headerCircle()', 'frame 44, navigationGlass(in: Circle()) = thin material, circular hit area. Quick Links is the symbol at .body medium; Profile keeps today\'s 32 pt disc in the 44 pt circle so both stay one size (FestivalNativeApps draws a 30 pt outlined disc).')),
+        h('div', h('div.k-swatch.page', { style: { width: '300px' } }, h('div.k-cap', 'iOS 26 and later (for comparison)'), h('div', { style: { display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center' } }, K.QuickLinksButton(), K.ProfileButton({ badge: 3 }))),
+          SN.cap('Liquid Glass bar', 'the bar draws the 44 pt glass circle per item; ToolbarSpacer(.fixed) gives the 12 pt gap; the disc hides its shared glass.'))); } },
+    'title-styles': { title: 'Title styles: large, collapsed inline, inline-large', note: 'HeaderTitleStyle follows ShellChrome.titleInHeader', render: function (ctx) {
+      return SN.board(ctx, [
+        { key: 'iphone', zoom: .66, title: 'Large at the top (iPhone)', caption: '.automatic: the standard large title below the bar, 34 pt bold.', build: function (c) { return root(c, 'home'); } },
+        { key: 'iphone', zoom: .66, title: 'Collapsed inline (iPhone, scrolled)', caption: 'The title becomes a centred inline title between the buttons; content fades out under the header (header-edge-fade).', build: scrolled },
+        { key: 'duo-unfolded-portrait', zoom: .5, title: 'Large at the top (unfolded Duo portrait)', caption: 'Horizontal bars, so the iPhone treatment at regular width: menu button leading, the system large title below the bar that collapses beside the menu button on scroll (PageChromeTitle; header-edge-fade R7).', build: function (c) { return root(c, 'home'); } },
+        { key: 'duo-folded', zoom: .66, title: 'Inline-large (folded Duo)', caption: '.inlineLarge: the title shares the header row, leading, because no menu button leads; collapses to inline on scroll.', build: function (c) { return root(c, 'home'); } },
+      ]); } },
+    'grouping': { title: 'How the two buttons group', note: 'ShellHeaderGrouping.resolve(inVerticalBar:)', render: function (ctx) {
+      return table(['Window', 'inVerticalBar', 'Grouping', 'Spacer', 'Profile shows'], [
+        ['iPhone, iPad, unfolded Duo in portrait (horizontal bar)', 'false', 'twoCircles', 'ToolbarSpacer(.fixed), 12 pt', 'monogram disc (44 pt), or the person symbol until the name is known'],
+        ['Folded Duo, unfolded Duo in landscape (vertical rail)', 'true (toolbarVerticalEdge, iOS 27.1)', 'oneGroup', 'none (HIG Designing for iPhone Duo)', 'the person symbol, in the shared glass'],
+        ['Before iOS 26', 'n/a', 'two material circles', 'none', 'a 32 pt disc in a 44 pt circle'],
+      ]); } },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the circles do not scale; the title and page do', render: function (ctx) {
+      return SN.board(ctx, [{ key: 'iphone', ts: 'ax5', zoom: .82, caption: 'Bar items keep 44 pt; the large title is 44 pt bold and wraps to two lines when long (it is a system large title); press and hold shows the Large Content Viewer.', build: function (c) { return root(c, 'home'); } }]); } },
+  };
+
+  var cfg = Mock.componentConfig('NavigationGlass', { surfaces: ['page'] });
+  states['swatches'] = cfg.states.variants;
+
+  Mock.mount(Object.assign(cfg, {
+    id: 'shell-header-items', title: 'Header: menu button, Quick Links and Profile', area: 'shell', status: 'shipped',
+    summary: 'The shell\'s header buttons on every page: Open Navigation leading where the flyout shows, Quick Links and Profile trailing, and what changes per window: two glass circles 12 pt apart, one shared glass group on the Duo\'s vertical rail, material circles before iOS 26.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/App/Shell/ShellHeaderGrouping.swift', 'apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlass.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/design/apple/duo.md', '.agents/design/apple/ipados.md'],
+    patterns: ['header-edge-fade'],
+    hig: ['Toolbars', 'Navigation bars', 'Buttons', 'Designing for iPhone Duo', 'Large content viewer'],
+    kitComponents: ['NavigationGlass', 'HamburgerButton', 'QuickLinksButton', 'ProfileButton', 'BackButton', 'RailGroup'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'title-collapse', what: 'The large title collapses into a centred inline title as the page scrolls, and grows back at the top', token: 'system: UINavigationBar, interactive with the scroll; no MotionTokens value', state: 'title-styles',
+        source: 'HassUI/App/MainTabView.swift PageChrome toolbarTitleDisplayMode (.automatic, or .inlineLarge without the menu); direction-g.md Navigation', reduce: 'the system keeps it (it follows the finger); nothing added by the app',
+        play: function (stage) {
+          var fig = SN.stageRoot().querySelector('.sn-fig'); var page = fig.querySelector('.ui-page'), wrap = page.querySelector('.ui-title-wrap'), bar = page.querySelector('.ui-bar');
+          var t = h('div.inline-title', 'Home'); bar.appendChild(t);
+          return Promise.all([wrap.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-14px)' }], { duration: 350, fill: 'forwards', easing: 'ease-out' }).finished, t.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 350, fill: 'forwards', easing: 'ease-out' }).finished]).then(function () { return Mock.sleep(500); });
+        } },
+    ],
+    transitions: [
+      { from: 'Menu button', to: 'Navigation flyout', kind: 'overlay', state: 'iphone', note: 'Open Navigation asks ShellNavigator.openFlyout(); the drawer slides in on standard 0.3 s (see component navigation-flyout). Focus returns to the button when the drawer closes without a destination.',
+        play: function (stage) { var screen = SN.screen('iphone'), c = Mock.current, page = screen.querySelector('.ui-page'), fly = K.NavigationFlyout({ selected: 'home', badges: { chores: 2 } }); page.appendChild(fly); return Mock.anim.flyout(screen, true).then(function () { return Mock.sleep(600); }).then(function () { return Mock.anim.flyout(screen, false); }).then(function () { fly.remove(); }); } },
+      { from: 'Quick Links button', to: 'Quick Links sheet', kind: 'sheet', state: 'iphone', note: 'A large page sheet (hassSheet(.page, height: .full)) over the current section; pages it chooses push after it has gone (flow quick-links-to-page).',
+        play: function (stage) { return SN.present(stage, 'iphone', function (c) { return { title: 'Quick Links', detent: 'large', size: 'page', trailing: 'close', content: h('div', { style: { padding: '8px 16px 24px' } }, SN.quickLinkTiles()) }; }, 1000); } },
+      { from: 'Profile button', to: 'Your Summary sheet', kind: 'sheet', state: 'iphone', note: 'The Account sheet opens at the large detent over the current section (hassSheet(.form, height: .full)).',
+        play: function (stage) { return SN.present(stage, 'iphone', SN.accountSheet, 1000); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Open Navigation (leading, iPhone and iPad), then the reconnecting arc when present, Quick Links, Profile; then the title (heading) and the page. On the Duo rail the group is one glass shape but still two buttons: Quick Links, then Profile.' },
+      { rule: 'Names and hints', note: 'Open Navigation, hint "Opens the navigation menu" (nav.open); Quick Links (quickLinks.open); Profile with a value (nav.profile). Back is labelled with the previous title by the system.' },
+      { rule: 'Targets', note: '44 pt circles, 12 pt apart (the tests assert 12 +/- 1.5, never over 14); the Duo group is two 44 pt buttons in one shape.' },
+      { rule: 'Dynamic Type / AX5', note: 'Bar items do not grow (system toolbar); each has a Large Content Viewer (accessibilityShowsLargeContentViewer). The title is the part that scales.' },
+      { rule: 'Focus', note: 'Closing the flyout without a destination returns focus to Open Navigation (focusReturnToken, accessibilityFocused).' },
+      { rule: 'Reduce Transparency', note: 'Glass circles become opaque grey; the monogram disc is already opaque.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Toolbars: navigation leading, important items trailing, group related items', verdict: 'pass', note: 'Menu leading; Quick Links and Profile trailing; one group on the Duo\'s rail (ShellHeader.swift:104-120).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: system spacing adapts, so add no fixed spacing in a vertical bar', verdict: 'pass', note: 'ToolbarSpacer(.fixed) is skipped when shellInVerticalBar is true (ShellHeaderGrouping.swift; DeviceSignals.swift:24-30).', by: 'apple-hig skill' },
+        { rule: 'Buttons: 44 pt targets and a label for every icon', verdict: 'pass', note: 'Quick Links is labelled and has a Large Content Viewer; the menu button is a Label (ShellHeader.swift:36; QuickLinksSheet.swift:25-28).', by: 'apple-hig skill' },
+        { rule: 'Navigation: a bar button, not a tab, for Quick Links', verdict: 'departure', note: 'Owner 2026-10-16, reversing the Phase 2 rule (direction-g.md Navigation; ShellHeader.swift:51-52).', by: 'apple-hig skill' },
+        { rule: 'Gestures: leave the back-swipe edge to the system', verdict: 'pass', note: 'The flyout edge swipe is enabled only while the section is at its root (ShellNavigator.swift:85-90).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Choose layout from size classes and geometry, not device idiom', verdict: 'pass', note: 'Fixed: ShellChrome.resolve no longer takes isPhone; the menu button shows wherever the tab bar style resolves (any compact window, not on the Duo rail); MainTabView.isPhone removed (ShellHamburgerTests).', by: 'swiftui-pro skill' },
+        { rule: 'Image-only buttons carry a text label', verdict: 'pass', note: 'Not applicable: QuickLinksButton already carries accessibilityLabel(QuickLinks.title) plus accessibilityShowsLargeContentViewer with a Label; the spoken and large-content text are the same as Button(title, systemImage:).', by: 'swiftui-pro skill' },
+        { rule: 'Use semantic toolbar placements', verdict: 'pass', note: '.primaryAction for both buttons so the Duo sorts them by role; .topBarLeading only for the menu (ShellHeader.swift:20-25, 108, 113).', by: 'swiftui-pro skill' },
+        { rule: 'Avoid hand-built Binding(get:set:) for presentation', verdict: 'pass', note: 'Fixed: ShellNavigator.sheet(in:) hands one ShellSheet item (quickLinks, account) to a single sheet(item:) in ShellSheets; no Binding in the body.', by: 'swiftui-pro skill' },
+        { rule: 'Branch on #available, not device', verdict: 'pass', note: 'iOS 26 versus earlier, the Duo through toolbarVerticalEdge (ShellHeader.swift:105-119; DeviceSignals.swift:24).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: none; direction-g.md 2026-10-20 and iphone.md match ShellChrome.resolve (menu on iPhone and regular width, not on a compact iPad window, not on the Duo rail). The edge-swipe sentence in direction-g.md ("stays off on iPhone") is stale after #140 (see navigation-flyout).',
+      'Compact iPad windows (Split View, Stage Manager) are not drawn: ShellChrome gives them no menu button and an inline-large title like the folded Duo; no simulator pose covers it.',
+      'The Duo vertical bar and the glass shapes are system-drawn; the kit stands in with CSS. Measurements (44, 12, about 83) are from the simulator notes in direction-g.md and duo.md.',
+      'Owner reference (not read in full): the owner\'s "Header buttons" gallery on claude.ai was readable only as a canvas file listing; the mockup follows the code and docs instead.',
+      'Promote to kit: SN.strip (the header bar as a swatch) and SN.collapse (collapsed inline title) in components/navigation/_shell-navigation.js; the kit has no collapsed-title state in Mock.page.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: iPhone, Duo rail group, iPad, pre-iOS 26, title styles, grouping table, AX5.' }],
+  }));
+})();
+</script></body></html>

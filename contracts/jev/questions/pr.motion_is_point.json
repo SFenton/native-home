@@ -1,0 +1,33 @@
+{
+  "id": "pr.motion_is_point",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "For one candidate transition on one device class: does the person need to see the movement, or are the before and after pictures enough?",
+  "instructions": "This change is about the screens below. Would watching the move from one pose to the other, on the device class in `device_class`, show the person something the two still pictures do not: a jump, a flash, content passing under the hinge, things sliding to new places, a sheet resizing, or a smoother or slower move? If what changed is only where things end up, the pictures are enough.",
+  "criteria": {
+    "true": "The movement itself is new, fixed, or what the request is about",
+    "false": "Only the end positions differ; still pictures of the changed pose show it all"
+  },
+  "state": {
+    "fields": [
+      "request",
+      "what_changed",
+      "edge",
+      "changed_poses",
+      "transition_files",
+      "device_class"
+    ],
+    "max_chars": 4000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.65,
+    "no_below": 0.3
+  },
+  "output": "pr_visual select: recorded per candidate edge under jev_shadow (clip vs pair, K.2 rule 4). Shadow: the transition-code rule decides today.",
+  "target": {
+    "precision": 0.95
+  },
+  "evidence": "unmeasured"
+}

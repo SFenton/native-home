@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bed side sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom;
+  function S(opts) { return function (ctx) { return B.bedSheet(ctx, opts); }; }
+  function bed(o, side) { return B.bed(side || 'left', o); }
+
+  /* stage helpers for the Play buttons */
+  function tabHost(stage) { return stage.querySelector('.bd-col') ? stage.querySelector('.bd-col') : stage.querySelector('.bd-two > div:last-child'); }
+  function selectTab(stage, tab, m) {
+    var host = tabHost(stage), body = host.lastElementChild; host.replaceChild(B.tabBody(tab, m), body);
+    stage.querySelectorAll('.ui-modaltabs button').forEach(function (b, i) { b.classList.toggle('sel', B.TABS[i].id === tab); b.setAttribute('aria-selected', B.TABS[i].id === tab ? 'true' : 'false'); });
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'bed-side-sheet', title: 'Bed side sheet', area: 'bedroom', status: 'shipped',
+    summary: 'One Bed side (Alex\'s Bed or Sam\'s Bed), opened from its tile on the Bedroom 1 page or from the Wake-Light sheet\'s "Open Linked-Device Alarm Editor". A large page sheet: the level dial, power, hint and any ringing alarm (the hero), and four bottom tabs. The hero sits beside the tab only in landscape on iPad and the unfolded Duo.',
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedDial.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedSideSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift', 'apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/Common/ModalTabSymbols.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift', 'apple/Sources/HassCore/Bedroom/BedSideController.swift', 'apple/Sources/HassCore/Bedroom/SleepypodSchedule.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/thermostat-dial.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['bedroom-devices', 'thermostat-dial', 'modal-sheet', 'entity-tile', 'motion'],
+    hig: ['Sheets', 'Segmented controls', 'Action sheets', 'Dynamic Type', 'Accessibility: adjustable controls', 'Color'],
+    entities: ['climate.demo_climate_2', 'climate.demo_climate_3', 'sensor.demo_bedroom_1_5'],
+    kitComponents: ['HassModal', 'ModalTabBar', 'GlassTile', 'TileGrid', 'Toggle', 'PrimaryButton', 'SheetCloseItem'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Alex\'s Bed, heating +3, Temperature tab', note: 'large detent (hassSheet(.page, height: .full)); on landscape iPad and Duo the hero and the tab sit side by side', render: S({}) },
+      'cooling': { title: 'Sam\'s Bed, cooling -3 (outside the schedule)', render: S({ side: 'right' }) },
+      'off': { title: 'Side off', note: 'dial dimmed to 45% and grey, OFF in the numeral, the power capsule reads Turn On', render: S({ bed: { on: false } }) },
+      'special-modes': { title: 'Special Modes tab', render: S({ tab: 'special-modes' }) },
+      'hot-flash': { title: 'Hot Flash Mode running', note: 'the dial shows -10 and Hot Flash, the handle is gone; the Hot Flash Mode action tile (text . stop disc) reads the countdown and a tap on the running tile cancels (rollout R; the separate cancel x is gone)', render: S({ tab: 'special-modes', bed: { hotFlash: true } }) },
+      'alarms': { title: 'Alarms tab', render: S({ tab: 'alarms' }) },
+      'alarms-empty': { title: 'Alarms tab, none yet', render: S({ tab: 'alarms', bed: { alarms: [] } }) },
+      'alarms-unavailable': { title: 'Alarm schedule unavailable', render: S({ tab: 'alarms', bed: { alarms: [], alarmsAvailable: false } }) },
+      'status': { title: 'Status tab', render: S({ tab: 'status' }) },
+      'ringing': { title: 'Alarm ringing (Snooze, Stop Alarm)', note: 'the Alarm Active card is the last item of the hero', render: S({ bed: { alarmState: 'ringing' } }) },
+      'snoozed': { title: 'Alarm snoozed (4:12 Remaining)', render: S({ bed: { alarmState: 'snoozed' } }) },
+      'unavailable': { title: 'Side unavailable', note: 'readout "Unavailable" and --, no handle, no marker; steppers, tile and Add Alarm dim', render: S({ bed: { available: false } }) },
+      'solo-trip': { title: 'Solo Trip, home resident (Whole Bed)', note: 'Alex\'s side controls the whole bed while Sam is away; the title gains "· Whole Bed"', render: S({ bed: { scope: 'whole' } }) },
+      'solo-trip-traveler': { title: 'Solo Trip, traveler\'s side (read only)', note: 'no power capsule, hint "Away · Read Only", every control disabled', render: S({ side: 'right', bed: { scope: 'traveler' } }) },
+      'error': { title: 'Refused Solo Trip command', note: 'the only error the sheet draws itself: the command outcome, in an error notice above the dial', render: S({ bed: { scope: 'whole', error: 'Home Assistant could not apply the Solo Trip change. Try again.' } }) },
+      'offline': { title: 'Over an offline Bedroom 1 page', note: 'the sheet has no offline UI: it shows the last values; the page behind carries the offline chip. Bed entities keep their last state for 10 s of unavailability, then read Unavailable', render: S({ connection: 'offline' }) },
+      'power-confirm': { title: 'Turn off asks first', note: 'confirmationDialog: an action sheet on iPhone, a popover on iPad', render: S({ power: true }) },
+      'large': { title: 'Large detent (the only one)', note: 'full-height page sheet, identical to default', render: S({}) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'tabs become a menu, the dial readout shrinks inside its ring, rows grow and the sheet scrolls', render: S({ tab: 'alarms' }) },
+    },
+
+    motion: [
+      { id: 'dial-target', what: 'The target changes (dragged, a stage stepped, or Home Assistant confirms): the handle, the current-level marker colour and the readout follow', token: 'quick 0.2 s easeOut (no animation while dragging)', state: 'default',
+        source: 'HassDesign/ThermostatDial/ThermostatDial.swift .animation(reduceMotion || activeHandle != nil ? nil : MotionTokens.quick, value: displayed); motion.md section 6 and 7', reduce: 'no animation: the handle jumps (the dial reads accessibilityReduceMotion)',
+        play: function (stage) { var d = stage.querySelector('.bd-dial'); B.dialTo(d, -2); return Mock.sleep(900).then(function () { B.dialTo(d, 3); return Mock.sleep(600); }); } },
+      { id: 'tab-cut', what: 'Switching the sheet\'s tab (Temperature to Alarms to Status): a cut, no slide and no fade', token: 'none: modalTabBar switch is a cut (motion.md section 4.4)', state: 'default',
+        source: 'HassUI/Common/ModalTabBar.swift; BedSideSheet.tabs; motion.md section 4.4', reduce: 'the same cut',
+        play: function (stage) { var m = B.bed('left'); selectTab(stage, 'alarms', m); return Mock.sleep(700).then(function () { selectTab(stage, 'status', m); return Mock.sleep(700); }).then(function () { selectTab(stage, 'temperature', m); }); } },
+      { id: 'hot-flash-tile', what: 'Hot Flash Mode starts: the tile fills with the cooling family colour (ground, ink and glyph together)', token: 'state 0.6 s easeInOut, colour only (0.2 s reduced)', state: 'special-modes',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile", TileColorKey); motion-components.md', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-sheet .ui-tile'); if (!t) return Promise.resolve(); return Mock.anim.toggleState(t, ['on'], ['off']).then(function () { return Mock.sleep(600); }).then(function () { return Mock.anim.toggleState(t, ['off'], ['on']); }); } },
+      { id: 'alarm-switch', what: 'An alarm switch flips: the knob slides and the track fills green', token: 'knob standard 0.3 s smooth, track state 0.6 s (system Toggle; 0.2 s reduced)', state: 'alarms',
+        source: 'BedAlarmToggle (system Toggle)', reduce: 'track cross-fades at 0.2 s; the knob is the system\'s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-toggle')[0]; if (!t) return Promise.resolve(); t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 200); }); } },
+      { id: 'alarm-appears', what: 'The alarm starts ringing: the Alarm Active card is inserted at the end of the hero with no animation (it is presence, not change)', token: 'none (code adds no transition); see the review note on layout', state: 'default',
+        source: 'BedSideSheet.hero ActiveBedAlarmSection (if state.isActive)', reduce: 'the same instant insert',
+        play: function (stage) {
+          var m = B.bed('left', { alarmState: 'ringing' }), card = B.activeAlarm(m), hero = stage.querySelector('.bd-stack'); if (hero) hero.appendChild(card);
+          return Mock.sleep(1100).then(function () { card.remove(); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Bedroom 1 tile', to: 'Bed side sheet', kind: 'sheet', state: 'default', note: 'The bed tile presents the sheet at the large detent (page size, 704 pt on iPad and the unfolded Duo). Content is present on arrival; no entrance animation inside.',
+        play: function (stage) { var ctx = Mock.current; return Mock.presentDemo(stage, { title: B.bed('left').sheetTitle, detent: 'large', size: 'page', content: B.bedContent(ctx, B.bed('left'), 'temperature'), tabs: B.bedTabs(ctx, 'temperature') }, { hold: 1000 }); } },
+      { from: 'Bed side sheet', to: 'Bedroom 1', kind: 'sheet', state: 'default', note: 'Dismiss: the circle x Close, or a swipe down (system, interactive).',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Alarms tab row', to: 'Bed alarm day page', kind: 'push', state: 'alarms', note: 'A plain push inside the sheet\'s NavigationStack: the page slides in, the title becomes "Monday Alarms" and a Back circle replaces the empty leading slot. The tab bar belongs to the root, so it leaves with the old page.',
+        play: function (stage) {
+          var sheet = stage.querySelector('.ui-sheet'), out = sheet.querySelector('.ui-modal'), m = B.bed('left');
+          var layer = h('div', { style: { position: 'absolute', inset: 0, background: 'var(--sheet-ground)', display: 'flex', flexDirection: 'column', zIndex: 6 } }, K.HassModal({ title: 'Monday Alarms', leading: 'back', trailing: 'none', content: B.dayPage(m, 'monday') }));
+          sheet.appendChild(layer);
+          return Mock.anim.push(out, layer).then(function () { return Mock.sleep(700); });
+        } },
+      { from: 'Target changed during a stage', to: 'Tonight or All Nights? sheet', kind: 'sheet', state: 'default', note: 'A second, fitted form sheet presents over the bed sheet when the dial is released during a schedule stage (BedTemperatureScopeSheet).',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), parent = host.parentNode, next = host.nextSibling, m = B.bed('left');
+          var nested = B.sheet(ctx, { title: 'Set Bed Temperature', detent: 'fitted', size: 'form', content: B.scopeContent(m, 'Asleep', '+4'), presenter: host });
+          parent.insertBefore(nested, next);
+          return Mock.anim.sheet(nested, 'in').then(function () { return Mock.sleep(1000); }).then(function () { return Mock.anim.sheet(nested, 'out'); }).then(function () { host.style.transform = ''; parent.insertBefore(host, nested); nested.remove(); });
+        } },
+      { from: 'Turn Off tap', to: 'Turn off Alex\'s Bed? dialog', kind: 'overlay', state: 'default', note: 'The confirmation dialog fades and scales in (system), Turn Off in red, Cancel always present.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), B.actionSheet(ctx, 'Turn off Alex\'s Bed?', [{ title: 'Turn Off', role: 'destructive' }]));
+          if (!ctx.regular) scrim.style.placeItems = 'end center'; host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1000); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal. Focus lands on the title (the bed name), then the subtitle ("Heating • +3"), any notice, the dial readout, the dial handle, Turn Off, the hint, the Alarm Active card, the tab content top to bottom, the tab bar, and Close last in the bar. In two columns the left column (hero) reads before the right.' },
+      { rule: 'The dial', note: 'Readout is one element: "Alex\'s Bed, Heating, target +3, currently 86.5°F". The handle is its own adjustable element "Alex\'s Bed target level", value "+3": swipe up or down moves one step (1 level) and commits on release. Ring, trail and marker are hidden. Handle hit target is 64 pt.' },
+      { rule: 'Targets', note: 'Every control is at least 44 pt: the Turn Off capsule (50 pt, 160 pt wide), the stage steppers (44 pt circles), rows (44 pt), Add Alarm (50 pt).' },
+      { rule: 'Stage rows', note: 'Each Bedtime, Asleep and Dawn row is one adjustable element: "Bedtime level", value "+4", with increment and decrement actions; the minus and plus buttons keep their own labels ("Lower Bedtime", "Raise Bedtime") for Switch Control.' },
+      { rule: 'Tabs', note: 'Bottom segmented bar: icons on compact widths (each named by its title: Temperature, Special Modes, Alarms, Status), titles on regular widths, a menu at accessibility sizes. Selected tab carries the selected trait.' },
+      { rule: 'State is not colour alone', note: 'Heating and cooling are named in words ("Heating", "Cooling") beside the orange or teal handle; the Alarm Active card says "Ringing" or "Snoozing"; Hot Flash Mode reads "Active" and a countdown.' },
+      { rule: 'Contrast', note: 'The accent blue fails as text on the cards, so links use primary ink; Stop and Delete are a deep red (#C21F1F) with white label, about 6:1 (system red gives 3.6:1). Snooze and the power button are grey capsules with primary ink.' },
+      { rule: 'Dynamic Type', note: 'At AX5 rows wrap their text, the dial readout shrinks inside its ring (minimum scale 0.4), the tab bar becomes a menu and the status grid becomes one column. The nav title stays on one line, so the bed name (not the room) is the title.' },
+      { rule: 'Confirmation', note: 'Turning a side off asks first ("Turn off Alex\'s Bed?", Turn Off destructive, Cancel); there is no confirmation for Snooze or Stop Alarm (reversible, time critical).' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: stable height for a sheet with sections', verdict: 'pass', note: '.hassSheet(.page, height: .full): height never changes with a tab or a pushed page (SheetFit.full).' },
+        { rule: 'Sheets: display one sheet at a time', verdict: 'pass', note: 'The Tonight / All Nights question is a confirmationDialog on the bed dial (BedSideSheet, BedScopeCopy), not a second sheet (owner 2026-10-24, sheet-stacking-close).' },
+        { rule: 'Alerts and motion: live changes must not move layout', verdict: 'pass', note: 'Decided (motion-timings 3): the alarm insert animates only (ActiveBedAlarmSection, MotionTokens.standard, Reduce Motion none), no pinning; measured by measuresMotion("Bedside.alarm").' },
+        { rule: 'Segmented controls: tab bar inside a sheet', verdict: 'departure', note: 'ModalTabBar is a bottom glass segmented control, icons only on compact width (owner 2026-10-16); the four sections are named for VoiceOver.' },
+        { rule: 'Accessibility: adjustable dial and stage rows', verdict: 'pass', note: 'Dial handle and each stage row are adjustable with increment/decrement; the +/- buttons keep labels for Switch Control.' },
+        { rule: 'Accessibility: nested controls', verdict: 'pass', note: 'BedroomRow split in the Alarms tab and day page: text Button plus sibling BedAlarmToggle.' },
+        { rule: 'Designing for iPhone Duo: split only where geometry allows', verdict: 'pass', note: 'Hero and tab sit side by side only when MediaRemoteLayout.usesTwoColumns says so (landscape, regular width); unfolded portrait stays single column.' },
+      ],
+      swiftui: [
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Fixed in part: BedAlarmToggle uses ControllerToggle and ClockTimeField uses Binding.projected. The scope sheet keeps its lazy Binding(get:set:): it reads the controller when SwiftUI presents, and a value captured in the body failed the hosted scope-question test.' },
+        { rule: 'Navigation: typed NavigationStack path', verdict: 'pass', note: 'Route enum, navigationDestination(for:) registered once, Save clears path with removeAll().' },
+        { rule: 'Accessibility: icon-only buttons have labels', verdict: 'pass', note: 'Hot Flash is an action tile (HotFlashActions): its disc reads "Start Hot Flash Mode" / "Cancel Hot Flash Mode" (the tile is one element, identifier bed.hotFlash); stage steppers carry "Lower/Raise <phase>".' },
+        { rule: 'Motion: dial animation honours Reduce Motion', verdict: 'pass', note: 'ThermostatDial animates on MotionTokens.quick, nil under Reduce Motion or while dragging.' },
+      ],
+    },
+
+    notes: [
+      'loading: no loading state. The sheet reads EntityStore (always ready from the disk snapshot); the nearest states are "unavailable" (the side stops answering) and the 10 s hold of the last value before that.',
+      'medium and fitted: the sheet only has the large detent (hassSheet(.page, height: .full)); the second sheet "Tonight or All Nights?" is fitted (its own mockup).',
+      'error: the sheet draws no network error; the one error notice is a refused Solo Trip command (InlineAlert, .error). Other failures roll the control back silently ([optimistic-actions](../../../patterns/optimistic-actions.md)).',
+      'Docs versus code: the bed tile (shown on the page behind) is filled for idle and heating and cooling alike (ThermostatTileFace.bedSide returns isActive true for idle); direction-g and the doc comment say idle keeps the dark face. The code is drawn.',
+      'Docs versus code: the catalog says the tile changes while the alarm rings; the code does not (BedSideTile subtitle ignores alarmState). Only the sheet shows the alarm.',
+      'Nav titles on the pushed editors ("Add Alex\'s Bed Monday Alarm") are long; check them at AX5 on a device (the wake-light sheet already dropped the room name for this reason).',
+      'The dial is a local stand-in for the single-handle signed-level ThermostatDial (the kit\'s ThermostatDial draws a temperature numeral and a range). Promote to kit: Mock.bedroom.dial, ActionSheet, Bedroom controls, the missing symbols (alarm, sunrise, zzz, stop.circle, lungs, waveform.path.ecg, arrow.triangle.2.circlepath, arrow.up.forward.app, gauge needle).',
+      'The room page behind is a trimmed Bedroom 1 (title, three tiles); the rooms batch owns the real page. Fixtures are the BedroomGallery scenarios; the Solo Trip states use the gallery\'s solo-trip scenario (Sam traveling).',
+      'Duo unfolded: the page sheet is centred and crosses the hinge band (system placement; only pages were run unfolded). On the unfolded portrait Duo the window may not split, so the sheet is single column.',
+    ],
+    changelog: [{ date: '2026-11-04', note: "Status's short last row fills in whole tracks on the lines above (7 cards in 3 tracks: 3, 3, then HRV across; in 4 tracks 4 + 1, 1, 2)." }, { date: '2026-10-23', note: 'First pass: four tabs, hero states, Solo Trip, hot flash, alarm ringing and snoozed, two-column landscape, dialog and second sheet.' }],
+  });
+})();
+</script></body></html>

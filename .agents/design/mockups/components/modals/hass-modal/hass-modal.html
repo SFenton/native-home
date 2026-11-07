@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HassModal · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food, I = Mock.icon;
+  function sw(ctx, items, o) { return F.swatches(ctx, items, Object.assign({ surfaces: ['sheet'], min: 320 }, o)); }
+  var cfg = Mock.componentConfig('HassModal', { surfaces: ['sheet'] });
+
+  /* AppIconPickerSheet is the one HassModal user: eight icons in an adaptive grid with their names (drawn stand-ins, not the app icons). */
+  var ICONS = [['Navy + Sky', '#0B1F4B', '#7EC8FF', true], ['Teal + Mint', '#0E5A5A', '#9CF2C8'], ['Plum + Lilac', '#4B1F5E', '#CDA8F0'], ['Forest + Green', '#12391F', '#6FCB7A'],
+    ['Burgundy + Rose', '#5C1424', '#F09AAE'], ['Indigo + Periwinkle', '#23236B', '#9AA8F2'], ['Espresso + Amber', '#2B1B12', '#F2B04A'], ['Midnight + Gold', '#0A0F24', '#E8C45B']];
+  function appIcons(ctx, cols) {
+    var grid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(' + cols + ',minmax(0,1fr))', gap: '24px 16px', padding: '8px 0 16px' } }, ICONS.map(function (ic, i) {
+      var sel = i === 0, side = Math.round(88 * (ctx.axSize ? 1.6 : 1));
+      return h('button', { type: 'button', 'aria-label': ic[0].replace(' + ', ' and ') + (ic[3] ? ', default' : ''), style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', background: 'none', border: 0, color: 'var(--ink)', font: 'inherit', minHeight: '44px', padding: 0, cursor: 'pointer' } },
+        h('span', { style: { display: 'block', padding: '5px', borderRadius: (side * .2237 + 5) + 'px', boxShadow: sel ? 'inset 0 0 0 3px var(--ink-action)' : 'none' } }, h('span', { style: { display: 'block', width: side + 'px', height: side + 'px', borderRadius: (side * .2237) + 'px', background: 'linear-gradient(145deg,' + ic[1] + ',' + ic[2] + ')' } })),
+        h('span', { style: { display: 'flex', gap: '4px', alignItems: 'center', font: '600 var(--fs-sub)/1.2 var(--font)', textAlign: 'center' } }, sel ? h('span', { style: { color: 'var(--ink-action)' }, html: I('checkmark.circle.fill', { fill: true }) }) : null, ic[0]),
+        ic[3] ? h('span', { style: { font: 'var(--fs-c1)/1.2 var(--font)', color: 'var(--ink-sheet-2)' } }, 'Default') : null);
+    }));
+    return h('div', grid, h('div', { style: { fontSize: 'var(--fs-foot)', color: 'var(--ink-sheet-2)', paddingBottom: '8px' } }, 'iOS shows its own notice when the icon changes. Every icon also has dark and tinted Home Screen versions.'));
+  }
+  function settings(c) { return Mock.page(c, { title: 'Settings', section: 'settings', badge: 3, choresBadge: 2, body: [] }); }
+  function hub(c) { return F.hubPage(c, {}); }
+  function appIconSheet(c2) { return Mock.sheet(c2, { title: 'App Icon', detent: 'fitted', size: 'form', trailing: 'close', content: appIcons(c2, c2.regular ? 3 : 2), presenter: settings(c2) }); }
+  function recipeSheet(c2) { return Mock.sheet(c2, Object.assign(F.detailOpts(c2, { tab: 'general' }), { presenter: hub(c2) })); }
+  function cameraSheet(c2) {
+    return Mock.sheet(c2, { title: 'Front Door', detent: 'large', size: 'page', appearance: 'dark', trailing: 'close', presenter: Mock.page(c2, { title: 'Home', section: 'home', badge: 3, body: [K.CameraTile({ title: 'Front Door', scene: 'front-door' })] }),
+      content: h('div', { style: { aspectRatio: '16 / 9', borderRadius: '20px', background: Mock.scene('front-door') } }) });
+  }
+
+  Mock.mount(Object.assign(cfg, {
+    id: 'hass-modal', title: 'HassModal, SheetCloseItem and hassSheet sizing', area: 'design', status: 'shipped',
+    summary: 'The container every sheet is built from: a NavigationStack with an inline title, the circle x Close (or Cancel and a confirm check), content that fades out under the header with no material band, and hassSheet for the detent (fitted to the content or full), the iPad size (form 540 pt or page 704 pt), the grabber and the appearance. Only the App Icon picker calls HassModal itself; the other sheets assemble the same parts.',
+    source: ['apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailView.swift', 'apple/Sources/HassUI/Features/Cameras/CameraViewer.swift'],
+    spec: ['.agents/patterns/modal-sheet.md', '.agents/design/direction-g.md (Sheets)', '.agents/design/apple/split-view.md'],
+    patterns: ['modal-sheet', 'header-edge-fade', 'motion'],
+    hig: ['Sheets', 'Toolbars', 'Materials', 'Dark Mode', 'Dynamic Type'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'SheetCancelItem', 'SheetConfirmItem', 'ModalTabBar', 'BackButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'header-states': { title: 'Header states: viewing, edit, pushed', render: cfg.states.states.render },
+      'sizing': { title: 'Sizing: fitted, full, form, page', note: 'a fitted sheet is as tall as its content (capped at large); full is the large detent; on iPad form is 540 pt and page 704 pt', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'iPhone, fitted (hassSheet(.form)): App Icon', width: 285, render: function () { return F.miniDevice(ctx, 'iphone', appIconSheet, .62); } },
+          { label: 'iPhone, full (hassSheet(.page, height: .full)): Recipe detail', width: 285, render: function () { return F.miniDevice(ctx, 'iphone', recipeSheet, .62); } },
+          { label: 'iPad portrait, form sheet 540 pt, fitted: App Icon', width: 400, render: function () { return F.miniDevice(ctx, 'ipad-portrait', appIconSheet, .4); } },
+          { label: 'iPad portrait, page sheet 704 pt, full: Recipe detail', width: 400, render: function () { return F.miniDevice(ctx, 'ipad-portrait', recipeSheet, .4); } },
+        ], { surfaces: ['sheet'] }); } },
+      'dark-by-design': { title: 'Always dark: hassSheet(appearance: .dark)', note: 'a sheet over a photo, live video or a condition gradient (camera viewer, Weather) stays dark in both system appearances', render: function (ctx) {
+        return sw(ctx, [{ label: 'camera viewer, dark in light and dark', width: 285, render: function () { return F.miniDevice(ctx, 'iphone', cameraSheet, .62); } }], { surfaces: ['sheet'] }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the bar holds one inline title line; icons grow with the text and the picker goes to one column', render: function (ctx) {
+        return sw(ctx, [{ label: 'HassModal with the App Icon grid at AX5', width: 440, render: function () { return K.HassModal({ title: 'App Icon', trailing: 'close', content: appIcons(ctx, 1) }); } }]); } },
+    },
+
+    motion: [
+      { id: 'present', what: 'A sheet slides up to its detent while the presenter scales back and dims; it dismisses the same way, interactively', token: 'system sheet (not a MotionToken): content is present on arrival, no entrance animation inside (motion.md 4.4)', state: 'sizing',
+        source: 'HassDesign/HassModal.swift hassSheet; patterns/motion.md', reduce: 'the system cross-fades the sheet and does not scale the presenter',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); if (!host) return Promise.resolve(); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(300); }).then(function () { return Mock.anim.sheet(host, 'in'); }).then(function () { return Mock.sleep(500); }); } },
+      { id: 'fit', what: 'A fitted sheet resizes only when its content height changes by 2 pt or more (Dynamic Type, a section appearing)', token: 'the system detent animation; the sheet opens at .medium until measured, then at the remembered height', state: 'sizing',
+        source: 'HassDesign/SheetFit.swift SheetFitModel, SheetFit.detent', reduce: 'the system handles it', play: function () { return Mock.sleep(300); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The inline title is announced first (VoiceOver reads the navigation title), then the content, then the Close button at the trailing edge of the bar; the grabber is the system\'s.' },
+      { rule: 'Close', note: 'Button(role: .close) on iOS 26 (a glass circle x) and an icon-only xmark label before; VoiceOver says "Close"; at least 44 pt; the caller\'s identifier (sheet.close by default). A viewing sheet never says "Done".' },
+      { rule: 'Edit sheets', note: 'Cancel leading ("Cancel") and a confirm trailing named for what it does ("Save", "Add", "Apply"), dimmed until there is a change; the check never hides.' },
+      { rule: 'Header contrast', note: 'No translucent band: content fades out under the title (header-edge-fade) over the grouped ground, so the title sits on one flat colour; the opaque ground holds at every detent, so a page\'s coloured tiles never show through.' },
+      { rule: 'Dynamic Type', note: 'The title is one inline line (the kit caps its size near xxxLarge, as the system\'s bars do); everything below wraps and scrolls; a fitted sheet remeasures and grows to the large cap.' },
+      { rule: 'Light and dark', note: 'The system appearance (the shell forces dark for pages, so a sheet states the user\'s appearance explicitly); a sheet over a photo or video stays dark.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Sheets (iOS): Cancel or Close on the top toolbar's leading edge, Done trailing", verdict: "departure", note: "The Close is a circle-x at the trailing edge (owner 2026-10-13: 'circle X close button like FestivalNativeApps'); a viewing sheet never says Done, and editing sheets keep Cancel leading with a named confirm trailing (sheet-edit-toolbar).", by: "apple-hig skill" },
+
+        { rule: "Sheets: resizable with detents and a grabber; prefer page or form sheet on iPad", verdict: "pass", note: "hassSheet shows presentationDragIndicator(.visible), fits the detent to measured content capped at large (owner 2026-10-16), and names .form (540 pt) or .page for iPad via presentationSizing.", by: "apple-hig skill" },
+
+        { rule: "Sheets and Materials: partial-height sheets stay legible over the page", verdict: "pass", note: "presentationBackground(systemGroupedBackground) gives an opaque ground at every detent, so a page's coloured tiles never show through the iOS 26 glass sheet; the title sits on one flat ground with content fading beneath (header-edge-fade).", by: "apple-hig skill" },
+
+        { rule: "Modality: obvious dismissal, a title that identifies the task", verdict: "pass", note: "Inline navigation title plus a Close button in the bar and swipe down; the title is announced first by VoiceOver.", by: "apple-hig skill" },
+
+        { rule: "Dark Mode: a sheet over a photo or video keeps its own appearance", verdict: "pass", note: "HassSheetAppearance.dark pins the colour scheme for Weather and camera sheets; the default follows the system appearance while the pages behind stay dark (SystemAppearance).", by: "apple-hig skill" },
+
+        { rule: "Sheets: a sheet should not change height while people use it", verdict: "pass", note: "Reduced: SheetFitMemory persists each call site's measured height in UserDefaults under build, window height and text size, so a sheet opens at its final height from the second open ever; only the first open on a device still measures after it appears (a sheet cannot be measured before it is presented).", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "Navigation: semantic toolbar placements so each device sorts items by role (iPhone Duo's vertical bar)", verdict: "pass", note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: "swiftui-pro skill" },
+
+        { rule: "Design: never rely on UIScreen or the first window for available space", verdict: "pass", note: "LargeDetent.height() reads the foreground-active scene's key window first (hig-sheets), so a second scene cannot set the cap; the detent stays a measured .height capped at it.", by: "swiftui-pro skill" },
+
+        { rule: "API: current Close button and sheet modifiers", verdict: "pass", note: "Button(role: .close) on iOS 26 with an icon-only xmark fallback, presentationSizing guarded by #available(iOS 18), explicit label 'Close' and identifier; no deprecated placements.", by: "swiftui-pro skill" },
+
+        { rule: "Views: one sheet container used everywhere", verdict: "pass", note: "Fixed: HassModal and HassPathModal (page: closure for tab bars, subtitles, destinations, toolbars; showsClose, closeEnabled, appearance) now build every sheet except Weather (own photo backdrop and header fade, no modalChrome) and pushed pages.", by: "swiftui-pro skill" },
+
+        { rule: "Design: avoid UIKit colours in SwiftUI", verdict: "pass", note: "SheetGroundModifier and ModalBackground read HassTokens.Surface.systemGround, the one place the UIKit colour is named (HassModal.swift:257, HassTokens.swift)" },
+
+        { rule: "Appearance: environment override rather than preferredColorScheme for a view subtree", verdict: "departure", note: "The always-dark sheet uses preferredColorScheme(.dark), which affects the whole presented screen, deliberately: the sheet is one dark photo or gradient screen (Weather, camera).", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'medium and fitted: a fitted sheet opens at .medium only until its first measurement; the kit\'s Mock.sheet draws detent medium (about half the window), large and fitted. The sizing panel shows fitted and full.',
+      'Docs vs code (1): modal-sheet.md says new modals use HassModal(title, closeIdentifier:) { content }; only the App Icon picker does (grep HassModal( in Sources). Most sheets use SheetCloseItem inside their own NavigationStack.',
+      'Docs vs code (2): AUTHORING.md\'s kit HassModal draws the header only; Mock.sheet adds the detent panel. The App Icon icons here are drawn gradient stand-ins, not the app\'s assets.',
+      'The close circle is the kit\'s glass stand-in for Button(role: .close) (iOS 26). Before iOS 26 the app draws an icon-only xmark button (Label("Close", systemImage: "xmark")).',
+      'The camera viewer panel draws the shipped sheet on main (hassSheet(.page, .full, appearance: .dark)); its fitted-detent rework is uncommitted work elsewhere (inventory notes) and is not drawn here.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: header states, sizing (fitted, full, form, page), always-dark, AX5; light and dark with the Sheet appearance control.' }],
+  }));
+})();
+</script></body></html>

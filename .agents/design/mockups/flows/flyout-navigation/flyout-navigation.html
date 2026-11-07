@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flyout navigation · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  function root(c, sec, o) { return SN.rootPage(c, sec || 'home', o); }
+  function opened(c, o) { return root(c, 'home', Object.assign({ flyoutOpen: true }, o)); }
+  /* a drawer part-way: the panel at `pct` of its way in, the scrim at the same opacity (the two animate together) */
+  function partway(c, pct) {
+    var p = opened(c), fly = p.querySelector('.ui-flyout'), scrim = p.querySelector('.ui-flyout-scrim');
+    fly.style.transform = 'translateX(' + (-(1 - pct) * 100) + '%)'; scrim.style.opacity = pct; return p;
+  }
+  function focusRing(el) { el.style.outline = '3px solid #fff'; el.style.outlineOffset = '3px'; el.style.borderRadius = '50%'; }
+
+  Mock.mount({
+    kind: 'flow', id: 'flyout-navigation', title: 'Flyout navigation (iPad, iPhone and unfolded Duo portrait menu button)', area: 'shell', status: 'shipped',
+    summary: 'Opening the full-height drawer from the Open Navigation button or a leading-edge swipe, choosing a section or dismissing it, and where VoiceOver focus goes. The drawer overlays the content; it never resizes it. Full height, dimmed top safe area and the iPhone edge swipe are on main (#140).',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift', 'apple/Sources/HassUI/App/Shell/ShellNavigator.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift'],
+    spec: ['.agents/design/apple/ipados.md', '.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/design/motion.md'],
+    patterns: ['motion'],
+    hig: ['Sidebars', 'Modality', 'Gestures', 'Accessibility'],
+    kitComponents: ['NavigationFlyout', 'HamburgerButton', 'NavigationGlass'],
+    devices: ['iphone', 'ipad-portrait', 'ipad-landscape', 'duo-unfolded-portrait'],
+    states: {
+      'closed': { title: '1. Closed: the section root with Open Navigation', note: 'iPhone, iPad and the unfolded Duo in portrait lead with the menu button (horizontal bars)', render: function (c) { return root(c, 'home'); } },
+      'edge-swipe': { title: '2a. Leading-edge swipe', note: 'a screen-edge pan that starts within 20 pt of the edge and travels 60 pt or more, mostly horizontal; the drawer opens when the swipe ends, it does not follow the finger', render: function (c) { var p = root(c, 'home'); SN.finger(p, { x: 10, y: c.h * .42 }, { label: 'swipe 60+ pt', drag: { x: 86, y: c.h * .42 } }); return p; } },
+      'tap-menu': { title: '2b. Tap Open Navigation', note: 'nav.open; focus will move to the heading', render: function (c) { var p = root(c, 'home'); SN.finger(p, 'button[aria-label="Open Navigation"]', { label: 'tap' }); return p; } },
+      'opening': { title: '3. Opening (half way)', note: 'panel slides from the leading edge, the scrim fades with it: standard 0.3 s smooth', render: function (c) { return partway(c, .5); } },
+      'open': { title: '4. Open: the full-height drawer', note: 'blur under the status bar and home indicator, dim over the whole window, rows inside the safe area; focus on the "Navigation" heading', render: function (c) { return opened(c); } },
+      'scrim-tap-closes': { title: '5a. Tap beside the panel: close', note: 'the Close Navigation target (nav.flyout.scrim) covers only the area beside the panel', render: function (c) { var p = opened(c); SN.finger(p, { x: Math.min(c.contentW - 40, 300 + 80), y: c.h * .5 }, { label: 'tap the scrim' }); return p; } },
+      'voiceover-focus-return': { title: '5b. Closed without a destination: focus returns to Open Navigation', note: 'focusReturnToken bumps; Open Navigation takes VoiceOver focus (drawn as a white ring)', render: function (c) { var p = root(c, 'home'); var b = p.querySelector('button[aria-label="Open Navigation"]'); if (b) focusRing(b); return p; } },
+      'destination-chosen': { title: '6. A row chosen: Chores', note: 'the tab is selected (a cut) and the drawer closes at once; choosing the current row pops to the root, then scrolls to the top', render: function (c) { return root(c, 'chores', { section: 'chores' }); } },
+      'chores-badge': { title: 'Chores row with its overdue count', note: 'spoken "Chores, 2 overdue"', render: function (c) { var p = opened(c, { section: 'chores', choresBadge: 2 }); SN.finger(p, '.ui-flyout button[aria-label^="Chores"]', { label: 'tap' }); return p; } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'rows and heading grow, the panel scrolls, full height kept', render: function (c) { return opened(c, { choresBadge: 2 }); } },
+    },
+    motion: [
+      { id: 'flyout-slide', what: 'The panel slides in from the leading edge and the scrim fades with it; the same in reverse on close', token: 'standard 0.3 s smooth (.move(edge: .leading), scrim .opacity)', state: 'open',
+        source: 'HassUI/App/Shell/NavigationFlyout.swift motionSafeAnimation(MotionTokens.standard, reduced: MotionTokens.quick); motion.md section 7', reduce: 'quick 0.2 s cross-fade of panel and scrim, no slide',
+        play: function (stage) { return Mock.anim.flyout(stage, false).then(function () { return Mock.sleep(300); }).then(function () { return Mock.anim.flyout(stage, true); }).then(function () { return Mock.sleep(700); }); } },
+      { id: 'edge-swipe-open', what: 'A leading-edge swipe opens the drawer when it ends', token: 'UIScreenEdgePanGestureRecognizer (iOS 18): 20 pt edge, 60 pt travel, then the standard 0.3 s open', state: 'edge-swipe',
+        source: 'NavigationFlyout.swift FlyoutEdgeSwipe, NavigationFlyoutMetrics.edgeSwipeOpens; ShellNavigator.edgeSwipeEnded', reduce: 'the open becomes the quick cross-fade',
+        play: function (stage) {
+          var page = stage.querySelector('.ui-page'), dot = page.querySelector('div[style*="border-radius: 50%"]'), fly = K.NavigationFlyout({ selected: 'home', badges: { chores: 2 } });
+          var x0 = parseFloat(dot && dot.style.left) || 10, steps = 8, i = 0;
+          return new Promise(function (res) { (function step() { if (dot) dot.style.left = (x0 + (76 * i / steps)) + 'px'; if (++i <= steps) setTimeout(step, 40); else res(); })(); })
+            .then(function () { page.appendChild(fly); return Mock.anim.flyout(stage, true); }).then(function () { return Mock.sleep(600); }).then(function () { return Mock.anim.flyout(stage, false); }).then(function () { fly.remove(); });
+        } },
+      { id: 'focus-handoff', what: 'VoiceOver focus: the heading when it opens, Open Navigation when it closes without a destination', token: 'no animation: accessibilityFocused', state: 'open',
+        source: 'NavigationFlyout.swift headingFocused; ShellHeader.swift SectionRootChrome buttonFocused', reduce: 'unchanged',
+        play: function (stage) {
+          var head = stage.querySelector('.ui-flyout h2'); head.style.outline = '3px solid #fff'; head.style.outlineOffset = '4px';
+          return Mock.sleep(900).then(function () { head.style.outline = ''; return Mock.anim.flyout(stage, false); }).then(function () { var b = stage.querySelector('button[aria-label="Open Navigation"]'); if (b) focusRing(b); return Mock.sleep(900); });
+        } },
+    ],
+    transitions: [
+      { from: 'Section root', to: 'Flyout open', kind: 'overlay', state: 'closed', note: 'Open Navigation or the edge swipe. The drawer overlays at the leading edge over a 32% black scrim that covers the whole window; the page underneath neither moves nor resizes, and is hidden from VoiceOver.',
+        play: function (stage) { var page = stage.querySelector('.ui-page'), fly = K.NavigationFlyout({ selected: 'home', badges: { chores: 2 } }); page.appendChild(fly); return Mock.anim.flyout(stage, true).then(function () { return Mock.sleep(800); }).then(function () { return Mock.anim.flyout(stage, false); }).then(function () { fly.remove(); }); } },
+      { from: 'Flyout open', to: 'Section root (scrim tap)', kind: 'overlay', state: 'open', note: 'Scrim tap, Escape or the VoiceOver escape gesture closes it; the drawer slides back out while the scrim fades.',
+        play: function (stage) { return Mock.sleep(500).then(function () { return Mock.anim.flyout(stage, false); }).then(function () { return Mock.sleep(500); }); } },
+      { from: 'Flyout open', to: 'Chosen section', kind: 'cut', state: 'open', note: 'A row selects the tab (a cut) and closes the drawer. The content under the closing drawer is already the new section.',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = root(ctx, 'chores', { section: 'chores' }); return Mock.sleep(400).then(function () { a.parentNode.insertBefore(b, a); a.hidden = true; return Mock.anim.flyout(stage, false); }).then(function () { return Mock.sleep(500); }).then(function () { b.remove(); a.hidden = false; }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Open Navigation is first in the header. Once open, the panel is modal: focus goes to the "Navigation" heading, then the five rows; the Close Navigation scrim target is reached last. The page behind is hidden from VoiceOver on three layers.' },
+      { rule: 'Dismissal', note: 'Scrim tap, Escape (.cancelAction), the VoiceOver two-finger scrub (escape action) or a destination. Closing without one returns focus to Open Navigation.' },
+      { rule: 'Name, role, state', note: 'Rows are buttons named by section ("Chores, 2 overdue"); the current row has the selected trait. Hint on Open Navigation: "Opens the navigation menu".' },
+      { rule: 'Targets', note: 'Open Navigation 44 pt; rows 48 pt minimum, growing with Dynamic Type; the edge swipe is an extra route, never the only one.' },
+      { rule: 'Reduce Motion', note: 'The drawer and scrim cross-fade on quick 0.2 s instead of sliding; the edge swipe still opens it.' },
+      { rule: 'AX5', note: 'Panel scrolls; heading wraps; rows keep full width.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Navigation: do not hide navigation behind a gesture alone', verdict: 'pass', note: 'The Open Navigation button is always there; the edge swipe is an addition (ShellHeader.swift:28-46; NavigationFlyout.swift:164-170).', by: 'apple-hig skill' },
+        { rule: 'Gestures: do not take the system back-swipe edge', verdict: 'pass', note: 'edgeSwipeEnded returns unless the selected section is at its root (ShellNavigator.swift:85-90).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: choosing the current item pops to the root, then scrolls to the top', verdict: 'pass', note: 'select(_:) calls tabTapped, so the current row does the same as a second tab tap, then closes the drawer (ShellNavigator.swift:135-158).', by: 'apple-hig skill' },
+        { rule: 'Sidebars: persistent on a wide window', verdict: 'departure', note: 'An overlay drawer, never a pushed sidebar: owner 2026-10-10 (ipados.md); the menu button also shows on iPhone, owner 2026-10-20 (ShellChrome.resolve, AppSection.swift:132-146).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: adapt as the window changes', verdict: 'pass', note: 'The drawer closes itself if the window stops showing the menu button, for example a fold (MainTabView.swift:91-93).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'iOS 17 fallback behaves like the iOS 18 recogniser', verdict: 'pass', note: 'Not a defect: the file header documents the iOS 17 DragGesture path and ShellNavigator.edgeSwipeEnded only opens the flyout at a section root, where NavigationFlyoutMetrics.edgeSwipeOpens gates the start edge and direction, so a camera under the finger is not opened; the iOS 18 recogniser is the same rule.', by: 'swiftui-pro skill' },
+        { rule: 'Animate with tokens, Reduce Motion variant', verdict: 'pass', note: 'MotionTokens.standard, reduced quick (NavigationFlyout.swift:26).', by: 'swiftui-pro skill' },
+        { rule: 'A close target must not cover the panel', verdict: 'pass', note: 'The scrim button is padded past the panel width and sorted last for VoiceOver (NavigationFlyout.swift:45-58).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Shipped: the full-height drawer, dimmed top safe area and iPhone edge swipe are already on main (#140, 137fae4c); the mockup draws the shipped state.',
+      'Docs versus code: direction-g.md (2026-10-20) still says the flyout edge swipe "stays off on iPhone"; the code enables it wherever the menu button shows (ShellChrome.edgeSwipe) and ipados.md says so. The mockup follows the code.',
+      'The folded Duo and the unfolded Duo in landscape have no drawer and no menu button (ShellChrome.resolve with inVerticalBar: the system moves the bars to the vertical edge); they are not in the device list. A compact iPad window has no menu button either (not drawn).',
+      'The edge swipe opens on release (the recogniser reports on .ended only); the drawer does not track the finger. The state shows the gesture, the play steps the finger then opens.',
+      'Unfolded Duo portrait has horizontal bars, so it draws the iPhone chrome at regular width (menu button leading, floating tab bar, single page; ShellNavigationStyle.resolve and ShellChrome.resolve in AppSection.swift). It is drawn from the code and the owner\'s 2026-10-30 call, not from a simulator run (design/apple/duo.md).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: closed, edge swipe, open, scrim tap, focus return, destination chosen, AX5.' }],
+  });
+})();
+</script></body></html>

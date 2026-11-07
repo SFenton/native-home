@@ -1,0 +1,30 @@
+{
+  "id": "pr.needs_stills",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Would the owner understand this change faster by seeing before/after screenshots of a screen?",
+  "instructions": "Would a person using the app be able to see this change in a still picture of a screen: a different layout, size, colour, icon, wording, order, state, or a new or removed control? Motion alone, speed, tests, tooling, docs and wrong-value fixes with no new look are not it.",
+  "criteria": {
+    "true": "A static screen looks different afterwards on at least one device",
+    "false": "No screen looks different in a still picture; only motion, timing, speed, reliability, tests, tooling or docs change"
+  },
+  "state": {
+    "fields": [
+      "title",
+      "body",
+      "files"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.65,
+    "no_below": 0.3
+  },
+  "output": "pr_visual select: recorded under jev_shadow; unsure asks the Orchestrator once measured.",
+  "target": {
+    "precision": 0.95
+  },
+  "evidence": "unmeasured"
+}

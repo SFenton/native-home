@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bathroom fan room tile · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../modals/room-devices/_devices-vacuums.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv;
+  function tile(o) { return dv.fanActionTile(o); }
+  function rail(o) { return h('div', { style: { padding: '12px', borderRadius: '22px', background: o.lit ? '#006E62' : '#1c1c1e', display: 'inline-block' } }, dv.fanRail(o)); }
+  function grid(items, ctx) { return dv.fitGrid(K.TileGrid({ items: items, min: 150, max: 2 })); }
+  /* the tile inside a room page section: a phone gives the lead row the full width; regular width joins the two-column grid (RoomSectionView.leadJoinsGrid) */
+  function inRoom(ctx) {
+    var lead = tile({ title: 'Bathroom Fan', on: true, locked: true, status: 'Off in 12:34' });
+    var rest = [{ title: 'Vanity Light', subtitle: 'Off', symbol: 'lightbulb', family: 'lights' }, { title: 'Towel Rack', subtitle: 'On', symbol: 'bolt.fill', family: 'power', isActive: true }];
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, K.PageSectionHeader({ title: 'Devices' }), ctx.regular ? grid([lead].concat(rest)) : [lead, grid(rest)]);
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'bathroom-fan-room-tile', title: 'Bathroom fan room tile and action discs', area: 'room-devices', status: 'shipped', frame: false,
+    summary: 'The fan\'s tile on a bathroom room page: an air-family navigate tile whose body opens the fan sheet, with Lock and Power as 44 pt action discs (TileActionButtonStyle, placed by TileActionStrip) left of the chevron, ids room.card.Fan.action.lock|power. Built on claude/action-nav-tiles; this was the FanRailButton rail.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomCards.swift', 'apple/Sources/HassDesign/TileActions/TileActionStrip.swift', 'apple/Sources/HassDesign/TileActions/TileActionButtonStyle.swift', 'apple/Sources/HassCore/TileActions/FanRailActions.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassCore/RoomDevices/BathroomFanController.swift'],
+    spec: ['.agents/patterns/entity-tile.md', '.agents/patterns/room-device-sheets.md'],
+    patterns: ['entity-tile', 'room-device-sheets', 'dynamic-grid'],
+    hig: ['Buttons', 'Color', 'Dynamic Type', 'Layout'],
+    entities: ['switch.demo_bathroom_1_fan_1', 'input_boolean.demo_bathroom_1_fan_1', 'input_boolean.demo_bathroom_1_fan_2', 'input_datetime.demo_bathroom_1_fan_1'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'variants': { title: 'Off, on, timer, locked, unavailable', render: function (ctx) {
+        return dv.swatches(ctx, [
+          { label: 'Off', w: 330, build: function () { return tile({ on: false, locked: false, status: 'Off' }); }, note: 'translucent white 12% circles on the dark off tile' },
+          { label: 'On', w: 330, build: function () { return tile({ on: true, locked: false, status: 'On' }); }, note: 'Power is a solid white circle with the glyph in the tile\'s dark teal #006E62' },
+          { label: 'On, timer running', w: 330, build: function () { return tile({ on: true, locked: false, status: 'Off in 12:34' }); }, note: 'the status line counts down each second (TimelineView), never carries the lock' },
+          { label: 'On, locked', w: 330, build: function () { return tile({ on: true, locked: true, status: 'On' }); }, note: 'Lock draws lock.fill on white; unlocked draws lock.open' },
+          { label: 'Off, locked', w: 330, build: function () { return tile({ on: false, locked: true, status: 'Off' }); } },
+          { label: 'Unavailable', w: 330, build: function () { return tile({ unavailable: true }); }, note: 'the rail is absent while the fan is unavailable' },
+        ], ['page']); } },
+      'in-room': { title: 'In a room page section', note: 'phone: full-width lead row above the grid; regular width: joins the two-column grid', render: function (ctx) { return dv.swatches(ctx, [{ label: 'Room page section (' + (ctx.regular ? 'regular width' : 'compact width') + ')', w: ctx.regular ? 560 : 380, build: inRoom }], ['page']); } },
+      'rail': { title: 'Action discs (TileActionButtonStyle): resting 16%, was the FanRailButton rail', render: function (ctx) {
+        return dv.swatches(ctx, [
+          { label: 'Inactive on the dark off tile', w: 220, build: function () { return rail({ on: false, locked: false }); } },
+          { label: 'Inactive on the lit teal tile', w: 220, build: function () { return rail({ on: false, locked: false, lit: true }); }, note: 'black 18% so the white glyph keeps contrast on teal' },
+          { label: 'Active (locked, fan on)', w: 220, build: function () { return rail({ on: true, locked: true, lit: true }); } },
+        ], ['page']); } },
+      'sheet-tiles': { title: 'The sheet\'s Power and Lock tiles', note: 'the same entities as full tiles in the fan sheet (sheet surface follows the appearance control)', render: function (ctx) {
+        return dv.swatches(ctx, [
+          { label: 'Power on, Lock locked', w: 380, build: function () { return dv.tileGrid([K.GlassTile({ title: 'Power', subtitle: 'On', symbol: 'power', family: 'air', isActive: true }), K.GlassTile({ title: 'Lock', subtitle: 'Locked', symbol: 'lock.fill', family: 'sec-home', isActive: true })], 2); } },
+          { label: 'Power off, Lock unlocked', w: 380, build: function () { return dv.tileGrid([K.GlassTile({ title: 'Power', subtitle: 'Off', symbol: 'power', family: 'air' }), K.GlassTile({ title: 'Lock', subtitle: 'Unlocked', symbol: 'lock.open', family: 'sec-home' })], 2); } },
+          { label: 'Unavailable', w: 380, build: function () { return dv.tileGrid([K.GlassTile({ title: 'Power', subtitle: 'Unavailable', symbol: 'power', family: 'air', isUnavailable: true }), K.GlassTile({ title: 'Lock', subtitle: 'Unavailable', symbol: 'lock.open', family: 'sec-home', isUnavailable: true })], 2); } },
+        ], ['sheet']); } },
+      'long-text': { title: 'Long countdown', note: 'one line, shrinking to 85% before it truncates', render: function (ctx) { return dv.swatches(ctx, [{ label: 'Off in 1:00:00', w: 330, build: function () { return tile({ title: 'Guest Bathroom Fan', on: true, locked: true, status: 'Off in 1:00:00' }); } }], ['page']); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the rail drops to the bottom-leading corner under the text; the circles grow 1.5x at most and stay circles', render: function (ctx) { return dv.swatches(ctx, [{ label: 'On, locked, timer', w: 380, build: function () { return tile({ on: true, locked: true, status: 'Off in 12:34' }); } }, { label: 'Off', w: 380, build: function () { return tile({ on: false, status: 'Off' }); } }], ['page']); } },
+    },
+
+    motion: [
+      { id: 'rail-fill', what: 'Power fills white (and the tile fills teal) when the fan comes on; the Lock circle fills white when locked', token: 'state 0.6 s ease-in-out, colour only (the tile stateColorTransition and the rail\'s fill)', state: 'variants',
+        source: 'HassDesign/GlassTile.swift; HassUI/Features/Rooms/FanRailButton.swift; motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) {
+          var t = stage.querySelector('.ui-tile'); dv.setTile(t, true, 'On'); t.querySelectorAll('.disc').forEach(function (b) { b.classList.add('on'); });
+          return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { dv.setTile(t, false, 'Off'); t.querySelectorAll('.disc').forEach(function (b) { b.classList.remove('on'); }); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+      { id: 'countdown', what: 'The tile\'s status line counts down once a second while a timer runs', token: 'TimelineView(.periodic, by: 1) only while showsCountdown, hourly otherwise; no animation', state: 'variants',
+        source: 'HassUI/Features/Rooms/BathroomFanRoomTile.swift', reduce: 'unchanged (nothing animates)',
+        play: function (stage) { var tiles = stage.querySelectorAll('.ui-tile'), st = tiles[2].querySelector('.st'), n = 754; return new Promise(function (res) { var i = 0, id = setInterval(function () { n--; var m = Math.floor(n / 60), s = n % 60; st.textContent = 'Off in ' + m + ':' + (s < 10 ? '0' : '') + s; if (++i >= 4) { clearInterval(id); res(); } }, 1000); }); } },
+    ],
+
+    a11y: [
+      { rule: 'One tile, two buttons', note: 'The tile is a button named "Bathroom Fan" with the value "on, off in 12 minutes, locked" and the hint of its destination (identifier room.card.<title>); Lock and Power are separate toggle buttons inside it ("Lock", value On/Off; "Power", value On/Off). The tile identifier is set with tileIdentifier so it does not hide the rail\'s ids.' },
+      { rule: 'Value text', note: 'The eye reads "Off in 12:34"; VoiceOver is given "on, off in 12 minutes, locked" (rounded to whole minutes so the value does not change every second); the lock is never in the visible text.' },
+      { rule: 'Targets', note: 'Rail circles are 44 pt (scaling up to 66 pt with Dynamic Type); the tile is far larger.' },
+      { rule: 'Not colour alone', note: 'Lock draws lock.fill or lock.open; Power draws the power glyph; the words On, Off and the countdown are in the text.' },
+      { rule: 'Contrast', note: 'White glyph on the translucent circle over dark teal; teal glyph #006E62 on white. At AX5 the rail moves under the text so the text never squeezes into a sliver.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Buttons: 44 pt minimum target', verdict: 'pass', note: 'Rail circles are 44 pt scaled up to 66 pt (FanRailButton.swift:19-30).' },
+        { rule: 'Layout: do not stack controls over a control', verdict: 'departure', note: 'Two buttons sit inside a navigating tile (owner 2026-10-17, entity-tile.md Accessory rail): the tile body navigates, the rail acts, and the rail is placed one chevron slot in so they never overlap.' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Lock swaps lock.fill/lock.open; Power fills white; the status line says On, Off or the countdown.' },
+        { rule: 'Accessibility: state values', verdict: 'pass', note: 'Rail buttons are toggles with On/Off values; the tile speaks "on, off in 12 minutes, locked", rounded so it does not change each second.' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'At AX sizes the rail drops under the text and the circles stay circles.' },
+      ],
+      swiftui: [
+        { rule: 'Performance: TimelineView only while counting', verdict: 'pass', note: 'by: showsCountdown ? 1 : 3600 keeps the tile identity stable.' },
+        { rule: 'Design: ScaledMetric for sizes tied to text', verdict: 'pass', note: 'Diameter and glyph are @ScaledMetric; glyph held under 45% of the circle.' },
+        { rule: 'Accessibility: tileIdentifier on accessory tiles', verdict: 'pass', note: 'Prevents the tile identifier overwriting the rail ids.' },
+        { rule: 'Views: fontWeight and fixed glyph size', verdict: 'pass', note: 'FanRailButton\'s glyph is a @ScaledMetric size clamped to 45% of its scaled circle (FanRailButton.glyphSize), the owner-approved recipe for a glyph in a fixed circle; it scales with text and cannot outgrow it.' },
+      ],
+    },
+
+    notes: [
+      'Built state: the tile is the kit GlassTile with `behavior: navigate` and two `actions` (dv.fanActionTile); the discs sit left of the chevron\'s 20 pt reserve and the old accessory rail is gone. dv.fanTile and dv.fanRail remain only as the proposal\'s "today" column.',
+      'iPad: a lead-row fan joins the two-column grid (RoomSectionView.leadJoinsGrid); phones keep the full-width lead row (entity-tile.md). The "in-room" state shows both through the Device control.',
+      'The lock disc dims in place when its entity is unavailable (build default, replaces hiding it); an unavailable fan hides both discs. The resting disc is 16% (was 12%) and the labels read "Unlock Fan" / "Turn On Fan".',
+      'Promoted: action discs and their placement now live in the kit GlassTile (actions, behavior).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: six tile states, room-page placement, rail buttons, AX5.' }],
+  });
+})();
+</script></body></html>

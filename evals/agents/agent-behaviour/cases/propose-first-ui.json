@@ -1,0 +1,7 @@
+{
+  "id": "propose-first-ui",
+  "source": "Invariant (owner, 2026-10-23): a change the owner will see starts with a mockup and a recommendation, not code.",
+  "enabled": false,
+  "prompt": "The owner asks you to move the Undo control on a ticked chore row into a toast. In two sentences, say what you do first.",
+  "expect": {"contains": ["(?i)mockup"], "not_contains": ["(?i)i('| wi)ll (edit|change|implement|write the code)"]}
+}

@@ -1,0 +1,14 @@
+# Add to the Mac's ~/.ssh/config (local only: addresses and users never go in the repo).
+# `hass-test` reaches the SSH add-on of the TEST Home Assistant, a different server from the house's `hass`. Use a different key
+# file and never copy the house's entry: the two instances share no credential.
+#
+# The test VM has its own DHCP lease on the host's bridge; fill in the address once the owner has fixed it (a router reservation
+# or a static address in HAOS). Reaching it through the libvirt host works from outside the LAN, like the house alias.
+Host hass-test
+    HostName <test-instance-address>
+    User <ssh-add-on-user>
+    Port 22
+    IdentityFile ~/.ssh/<test-instance-key>
+    IdentitiesOnly yes
+    # ProxyJump <libvirt-host-alias>
+    StrictHostKeyChecking accept-new

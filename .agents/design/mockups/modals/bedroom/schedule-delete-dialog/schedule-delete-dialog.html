@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delete alarm or activity dialogs · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom;
+  var DAYS = B.DAYS;
+  /* The humidifier's activity editor is another batch's page: a trimmed copy so the dialog has its real context (name, days, time, Delete Activity). */
+  function humidifierEditor() {
+    var days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    var chips = days.map(function (d) { return h('button.bd-choice.cap.sel', { type: 'button', 'aria-pressed': 'true', 'aria-label': B.dayLabel(d) }, B.dayShort(d)); });
+    return h('div.bd-col', B.field('Name', h('input.bd-text', { type: 'text', value: 'Evening', 'aria-label': 'Name' })), B.field('Days', K.TileGrid({ items: chips, min: 64, max: 7, equal: false })),
+      B.field('Time', h('div.bd-stack.s', B.clockField('Start', '6:00 PM'), B.clockField('End', '9:30 PM'))),
+      h('p.bd-note', 'The rest of the editor (mode, mist, target humidity) is the Humidifier mockup\'s.'),
+      h('button.bd-cap', { type: 'button', style: { width: '100%', color: 'var(--ink-danger)', background: 'color-mix(in srgb, var(--ink-danger) 14%, transparent)', minHeight: '50px' } }, h('span', { html: Mock.icon('trash') }), h('span', 'Delete Activity')));
+  }
+  function D(kind) {
+    return function (ctx) {
+      if (kind === 'wake') {
+        var w = B.wake();
+        return B.sheet(ctx, { title: 'Weekday Wake', leading: 'back', trailing: 'none', content: B.wakeEditor({ w: w, alarm: w.alarms[0], name: 'Weekday Wake', days: B.WORKDAYS, time: '06:45', ramp: 30, pristine: true }), alert: B.actionSheet(ctx, 'Delete alarm set for 6:45 AM on Weekdays?', [{ title: 'Delete Alarm', role: 'destructive' }]) });
+      }
+      if (kind === 'bed') {
+        var m = B.bed('left');
+        return B.sheet(ctx, { title: m.title + ' Monday Alarm', leading: 'back', trailing: 'none', content: B.bedEditor({ m: m, editing: true, day: 'monday', time: '06:30', enabled: true, wake: true }), presenterBed: m, alert: B.actionSheet(ctx, 'Delete alarm set for 6:30 AM on Monday?', [{ title: 'Delete Alarm', role: 'destructive' }]) });
+      }
+      var save = h('button.ui-glass', { type: 'button', style: { borderRadius: '999px', minHeight: '44px', padding: '0 16px', font: '600 var(--fs-body) var(--font)', cursor: 'pointer' } }, 'Save');
+      var host = B.sheet(ctx, { title: 'Evening', leading: 'back', trailing: save, content: humidifierEditor(), presenter: Mock.page(ctx, { title: 'Bedroom 1', back: 'Rooms', section: 'home', body: [h('p.bd-note', { style: { color: '#fff' } }, 'Humidifier sheet presents from the room page (room-devices batch).')] }),
+        alert: B.actionSheet(ctx, 'Delete Evening?', [{ title: 'Delete Activity', role: 'destructive' }]) });
+      return host;
+    };
+  }
+  function showDialog(stage, title, label) {
+    var ctx = Mock.current, host = stage.querySelector('.ui-host'), old = host.querySelector('.ui-alert-scrim'); if (old) old.remove();
+    var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), B.actionSheet(ctx, title, [{ title: label, role: 'destructive' }]));
+    if (!ctx.regular) scrim.style.placeItems = 'end center'; host.appendChild(scrim);
+    return Mock.anim.fade(scrim, { ms: 300 }).then(function () { return Mock.sleep(1000); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+  }
+  Mock.mount({
+    kind: 'modal', id: 'schedule-delete-dialog', title: 'Delete alarm or activity? (confirmation dialogs)', area: 'bedroom', status: 'shipped',
+    summary: 'One pattern, three call sites: a confirmation dialog with a visible title and one red destructive button (Cancel is added by the system when not written): "Delete alarm set for 6:45 AM on Weekdays?" (wake editor), "Delete alarm set for 6:30 AM on Monday?" (bed editor) and "Delete Evening?" (humidifier activity). An action sheet on iPhone, a popover on iPad.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierSchedulesTab.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/room-device-sheets.md', '.agents/design/direction-g.md'],
+    patterns: ['bedroom-devices', 'room-device-sheets', 'modal-sheet'],
+    hig: ['Action sheets', 'Alerts', 'Popovers'],
+    entities: [],
+    kitComponents: ['HassModal', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Wake alarm: Delete alarm set for 6:45 AM on Weekdays?', note: 'buttons Delete Alarm (red) and Cancel', render: D('wake') },
+      'bed': { title: 'Bed alarm: Delete alarm set for 6:30 AM on Monday?', note: 'buttons Delete Alarm (red) and Cancel; the bed editor builds the day from its first draft day', render: D('bed') },
+      'humidifier': { title: 'Humidifier activity: Delete Evening?', note: 'one written button, Delete Activity; the system adds Cancel. The editor behind is trimmed (another batch)', render: D('humidifier') },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: D('wake') },
+    },
+    motion: [
+      { id: 'dialog-in', what: 'The Delete button is tapped: the dialog fades and settles in over the dimmed editor', token: 'system confirmationDialog (about 0.3 s); no app token', state: 'default',
+        source: 'WakeLightEditor / BedAlarmEditor / HumidifierActivityEditor .confirmationDialog', reduce: 'a plain cross-fade (system)',
+        play: function (stage) { return showDialog(stage, 'Delete alarm set for 6:45 AM on Weekdays?', 'Delete Alarm'); } },
+    ],
+    transitions: [
+      { from: 'Delete tap', to: 'Delete dialog', kind: 'overlay', state: 'default', note: 'Appears over the pushed editor; the editor stays in place. A tap outside, Cancel or Escape dismisses it.', play: function (stage) { return showDialog(stage, 'Delete alarm set for 6:45 AM on Weekdays?', 'Delete Alarm'); } },
+      { from: 'Delete Alarm', to: 'Alarms list', kind: 'push', state: 'default', note: 'Confirming deletes through the controller, then clears the stack (path.removeAll()) back to the root page; the row is gone from the list. A refused delete keeps the editor open.', play: function (stage) { var s = stage.querySelector('.ui-alert-scrim'); return Mock.anim.fade(s, { from: 1, to: 0, ms: 200 }).then(function () { s.remove(); }); } },
+    ],
+    a11y: [
+      { rule: 'Focus and order', note: 'VoiceOver moves into the dialog: the title, the destructive button, Cancel. The editor behind is not reachable; Escape cancels.' },
+      { rule: 'Roles', note: 'Delete Alarm and Delete Activity are .destructive; Cancel is .cancel (written for the alarm editors, added by the system for the activity).' },
+      { rule: 'Wording', note: 'The question names the thing and when: "alarm set for 6:45 AM on Weekdays" (the wake editor passes the schedule label; the bed editor the first draft day), and the activity\'s own name.' },
+      { rule: 'Dynamic Type', note: 'The system lays the dialog out at AX sizes: the title wraps and the buttons stack.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Action sheets: destructive in red with a Cancel', verdict: 'pass', note: 'One .destructive action per dialog; Cancel is written (alarm editors) or added by the system (humidifier).' },
+        { rule: 'Alerts: consistent wording for the same action', verdict: 'pass', note: 'AlertCopy.delete(noun): Delete Alarm (WakeLightSheet, BedAlarmEditor), Delete Activity (HumidifierSchedulesTab) with an explicit Cancel on all three.' },
+        { rule: 'Alerts: name the thing being deleted', verdict: 'pass', note: 'BedAlarmEditor.deletePrompt(time:day:) ends after the time when no day exists; no dangling "on".' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: attach the dialog to its triggering control', verdict: 'pass', note: 'Fixed on claude/hig-alerts: the presenter now sits on the triggering button (or a sibling). Wake and bed editors attach confirmationDialog to the ScrollView (WakeLightEditor.swift, BedAlarmsTab.swift); the humidifier editor attaches it to the Delete button (HumidifierSchedulesTab.swift:174). Only the last anchors the iPad popover correctly.' },
+        { rule: 'Navigation: item-based presentation', verdict: 'pass', note: 'Each editor owns one Bool for one dialog on its own Delete button, and the pending alarm is the editor\'s own draft; no item to unwrap.' },
+      ],
+    },
+    notes: [
+      'loading, error, offline, medium, large and fitted do not apply to a system confirmation dialog; the dialog sits over the large sheet\'s pushed editor. Each state here is one call site, plus AX5.',
+      'Docs versus code: the catalog title says "alarm or activity"; all three are one pattern, differing in title and the written buttons.',
+      'The bed editor\'s prompt uses `draft.days.first?.label` (a bed alarm edit has exactly one day).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: three call sites.' }],
+  });
+})();
+</script></body></html>

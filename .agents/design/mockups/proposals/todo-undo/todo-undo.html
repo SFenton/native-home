@@ -1,0 +1,65 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Undo for completed todo items</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--cell:#fff;--ground:#f2f2f7;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;--cell:#2c2c2e;--ground:#1c1c1e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}h3{font-size:17px;margin:26px 0 6px}
+p{margin:0 0 12px;max-width:72ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+.lede{font-size:18px;color:var(--fg2)}.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin-top:16px}
+figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:300px}figcaption b{display:block;color:var(--fg);font-size:15px}
+.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+.dev{border:2px solid #000;background:var(--ground);overflow:hidden;position:relative;border-radius:22px;font-size:13px;color:var(--fg)}
+.phone{width:240px;height:420px}.duo{width:170px;height:420px}.ipad{width:420px;height:300px;border-radius:14px}
+.ax{font-size:19px}
+.hd{padding:10px 12px 4px;font-weight:700;font-size:1.25em}.sub{padding:0 12px;color:var(--fg2);font-size:.9em}
+.grp{margin:8px 10px;background:var(--cell);border-radius:12px;overflow:hidden}
+.r{padding:9px 12px;min-height:44px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}.r:last-child{border:0}
+.r .sp{flex:1}.dim{color:var(--fg2)}.chk{width:20px;height:20px;border-radius:50%;border:2px solid var(--fg2);flex:none}.chk.on{background:var(--ok);border-color:var(--ok)}
+.done{text-decoration:line-through;color:var(--fg2)}.btn{color:var(--accent);font-weight:600}
+.toast{position:absolute;left:10px;right:10px;bottom:12px;background:#323236;color:#fff;border-radius:14px;padding:10px 12px;display:flex;gap:8px;align-items:center}.toast .btn{color:#6cb6ff}
+.sec{padding:10px 14px 2px;color:var(--fg2);font-size:.8em;text-transform:uppercase;letter-spacing:.04em}
+.foot{padding:2px 14px 6px;color:var(--fg2);font-size:.8em}
+.field{margin-left:auto;color:var(--fg2)}.ph{color:#8e8e93}
+.tb{display:flex;justify-content:space-between;padding:8px 12px;font-weight:600}.circ{width:30px;height:30px;border-radius:50%;background:rgba(128,128,128,.25);display:grid;place-items:center}
+.kb{position:absolute;left:0;right:0;bottom:0;height:110px;background:#d1d3d9;color:#000;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px}.kb i{background:#fff;border-radius:5px;text-align:center;font-style:normal;padding:3px}
+.kbbar{position:absolute;left:0;right:0;bottom:110px;background:rgba(240,240,245,.96);color:var(--accent);text-align:right;padding:8px 14px;font-weight:600;border-top:1px solid var(--line)}
+.day{display:inline-block;min-width:34px;text-align:center;padding:5px 7px;border-radius:9px;background:rgba(128,128,128,.2);margin:2px}.day.on{background:var(--accent);color:#fff}.day.on:before{content:"✓ "}.day.on.plain:before{content:""}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.rec{border:2px solid var(--ok);border-radius:12px;padding:12px 16px;background:var(--surface);max-width:80ch}
+</style></head><body><div class="wrap">
+<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px">Proposal · 2026-10-23 · Decided (2026-10-24): B, the row lingers 5 s with Undo; Admin To-Do Undo calls todo.update_item with needs_action; Undo also covers unassigned chores. Built on claude/enf-l-forms.</p>
+<h1>Undo for completed todo items</h1>
+<p class="lede">Completing a grocery or chore removes it with no way back. Three ways to make the tick reversible.</p>
+
+<h2>Cause</h2>
+<p>Ticking an item off (tap or full leading swipe) calls <code>todo.update_item</code> (or <code>script.demo_script_1</code> on Admin To-Do) and the row leaves at once, because every todo list sets <code>hideCompleted = true</code> (<code>ChoresConfig.swift:56</code>, <code>TodoListSection.swift:22,48-50,74</code>). The "Mark Not Done" row action exists (<code>TodoRowActions.swift:25</code>) but is unreachable: the completed row is never on screen. A stray tap while shopping, or a swipe on a chore assigned to someone else, cannot be reversed from the page. HIG Undo and redo: let people reverse an easy action that removes content. Affects Groceries, Chores, Resident Chores, Unassigned Chores, Admin To-Do and the todo list section component.</p>
+<h2>Options (Groceries; same list section everywhere)</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="hd">Groceries</div><div class="grp"><div class="r"><span class="chk"></span><span class="sp">Milk</span></div><div class="r"><span class="chk"></span><span class="sp">Eggs</span></div><div class="r"><span class="chk"></span><span class="sp">Bananas</span></div></div></div><figcaption><b>Today</b>Sourdough bread vanishes. Nothing says it happened or how to bring it back.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="hd">Groceries</div><div class="grp"><div class="r"><span class="chk"></span><span class="sp">Milk</span></div><div class="r"><span class="chk"></span><span class="sp">Eggs</span></div><div class="r"><span class="chk"></span><span class="sp">Bananas</span></div></div><div class="toast"><span class="sp" style="flex:1">Sourdough bread completed</span><span class="btn">Undo</span></div></div><figcaption><b>A. Undo bar</b>A bottom bar names the item and offers Undo for 5 s; the row leaves immediately. Only the latest completion is undoable.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="hd">Groceries</div><div class="grp"><div class="r"><span class="chk"></span><span class="sp">Milk</span></div><div class="r"><span class="chk on"></span><span class="sp done">Sourdough bread</span><span class="btn">Undo</span></div><div class="r"><span class="chk"></span><span class="sp">Eggs</span></div><div class="r"><span class="chk"></span><span class="sp">Bananas</span></div></div></div><figcaption><b>B. Row lingers with Undo</b>The row turns to its done look (check, strikethrough) with an Undo button for 5 s, then collapses. Each row has its own timer.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="hd">Groceries</div><div class="grp"><div class="r"><span class="chk"></span><span class="sp">Milk</span></div><div class="r"><span class="chk"></span><span class="sp">Eggs</span></div><div class="r"><span class="chk"></span><span class="sp">Bananas</span></div></div><div class="sec">Completed · 1</div><div class="grp"><div class="r"><span class="chk on"></span><span class="sp done">Sourdough bread</span><span class="btn">Not done</span></div></div></div><figcaption><b>C. Completed section</b>Completed items drop into a "Completed" group at the bottom with Mark Not Done, until the page is left.</figcaption></figure>
+</div>
+<h3>Accessibility size (AX5) and other devices</h3>
+<div class="row">
+<figure class="ok"><div class="dev phone ax"><div class="hd">Groceries</div><div class="grp"><div class="r" style="flex-wrap:wrap"><span class="chk on"></span><span class="sp done">Sourdough bread</span><span class="btn" style="flex-basis:100%;padding-left:28px">Undo</span></div><div class="r"><span class="chk"></span><span class="sp">Eggs</span></div></div></div><figcaption><b>B at AX5</b>Undo wraps below the name; row grows; 44 pt target kept.</figcaption></figure>
+<figure class="ok"><div class="dev duo"><div class="hd">Groceries</div><div class="grp"><div class="r"><span class="chk"></span><span class="sp">Milk</span></div><div class="r"><span class="chk on"></span><span class="sp done">Sourdough bread</span><span class="btn">Undo</span></div><div class="r"><span class="chk"></span><span class="sp">Eggs</span></div></div></div><figcaption><b>B on Duo (folded)</b>Single page, same row; no split ever applies to todo pages.</figcaption></figure>
+<figure class="ok"><div class="dev ipad"><div class="hd">Groceries</div><div class="grp"><div class="r"><span class="chk"></span><span class="sp">Milk</span></div><div class="r"><span class="chk on"></span><span class="sp done">Sourdough bread</span><span class="btn">Undo</span></div><div class="r"><span class="chk"></span><span class="sp">Eggs</span></div><div class="r"><span class="chk"></span><span class="sp">Bananas</span></div></div></div><figcaption><b>B on iPad</b>Same list in the readable column; Undo stays at the trailing edge.</figcaption></figure>
+</div>
+<p>VoiceOver (all options): on completion post "Sourdough bread completed. Undo available" and expose Undo as a custom action on the row for B (and for A the bar is a focusable button announced on appear). Reduce Motion: no collapse animation, the row simply disappears after the grace period.</p>
+<h2>Comparison</h2>
+<table><tr><th></th><th>A. Undo bar</th><th>B. Row lingers</th><th>C. Completed section</th></tr>
+<tr><td>Recoverable how long</td><td>5 s, last item only</td><td>5 s, every item</td><td>Until the page is left</td></tr>
+<tr><td>Rapid ticking (shopping)</td><td>Earlier items lose Undo</td><td>Each keeps its own</td><td>All kept</td></tr>
+<tr><td>Where the eye is</td><td>Bottom, away from the row</td><td>In place, with feedback that the tick registered</td><td>Below the fold on long lists</td></tr>
+<tr><td>New chrome</td><td>New overlay (a shared pattern, collides with tab bar and Duo hinge)</td><td>None; reuses the done look</td><td>New section and header</td></tr>
+<tr><td>Matches web parity</td><td>No</td><td>No</td><td>Web hides completed too</td></tr>
+<tr><td>Cost</td><td>New component</td><td>Per-row state in <code>TodoListSection</code></td><td>Flip <code>hideCompleted</code> into a split</td></tr></table>
+<h2>Recommendation</h2>
+<div class="rec"><p><b>B.</b> It gives the missing confirmation that the tick worked, keeps the user where they are, handles rapid ticking, and needs no overlay. Implementation: <code>TodoListController</code> already tracks pending check-offs; add a short "recently completed" set (5 s) that <code>visibleItems</code> keeps, rendered with the done look and an Undo button calling the existing reopen path (<code>todo.update_item</code> <code>needs_action</code>). Files: <code>TodoListController.swift</code>, <code>TodoListSection.swift</code>, <code>TodoRowActions.swift</code>. Tests: controller unit tests (grace period, undo, rapid ticks), UX and accessibility tests on iPhone, Duo, iPad. Docs: the todo pattern record and the six mockups.</p></div>
+<h2>Open questions</h2>
+<p>1. Does the Admin To-Do script have a reopen? It only completes; Undo there would call <code>todo.update_item</code> with <code>needs_action</code> directly. Fine for you? 2. Is 5 s the right grace period? 3. Unassigned chores vanish from every resident's list when completed; should Undo also cover that (it would, via the same service call)?</p>
+
+</div></body></html>

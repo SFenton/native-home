@@ -1,0 +1,126 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sheet Bottom Gap</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--gap:#d9480f;
+--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;--gap:#ff9f6b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 72px max(16px,env(safe-area-inset-left))}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}h3{font-size:16px;margin:26px 0 0;color:var(--fg2)}
+p{margin:0 0 12px;max-width:72ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+.lede{font-size:18px;color:var(--fg2)}.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-end;margin-top:14px}
+figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:232px}
+figcaption b{display:block;color:var(--fg);font-size:15px}.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+/* devices drawn at 0.5 pt/px (--k). Heights in the figures are page points. */
+.dev{--k:.5;position:relative;overflow:hidden;border:2px solid #000;background:#2a2f3a}
+.dev .wall{position:absolute;inset:0;background:linear-gradient(160deg,#27405f,#14202f)}
+.dev .dim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;background:#1c1c1e;color:#fff;overflow:hidden}
+.sheet.light{background:#f2f2f7;color:#000}
+.hd{position:relative;display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(10px*var(--k));font-size:calc(17px*var(--k)*1.7);font-weight:600}
+.hd .g{position:absolute;top:calc(8px*var(--k));left:50%;width:calc(36px*var(--k));margin-left:calc(-18px*var(--k));height:calc(5px*var(--k));border-radius:9px;background:#8e8e93}
+.hd .x{position:absolute;right:calc(14px*var(--k));bottom:calc(8px*var(--k));width:calc(32px*var(--k));height:calc(32px*var(--k));border-radius:50%;background:rgba(255,255,255,.16)}
+.light .hd .x{background:rgba(0,0,0,.08)}
+.ct{position:relative}
+.video{position:absolute;left:calc(16px*var(--k));right:calc(16px*var(--k));top:0;border-radius:calc(20px*var(--k));background:linear-gradient(135deg,#5b6d57,#2f3a33 60%,#1b2220)}
+.ctl{position:absolute;left:calc(16px*var(--k));right:calc(16px*var(--k));bottom:0;display:flex;justify-content:space-around;align-items:center;height:calc(136px*var(--k))}
+.c{width:calc(56px*var(--k));height:calc(56px*var(--k));border-radius:50%;background:#3a3a3c}
+.card{position:absolute;left:calc(16px*var(--k));right:calc(16px*var(--k));top:calc(8px*var(--k));bottom:calc(16px*var(--k));border-radius:calc(20px*var(--k));background:#fff;display:grid;grid-template-columns:repeat(4,1fr);gap:calc(8px*var(--k));padding:calc(16px*var(--k))}
+.card i{align-self:end;height:calc(70px*var(--k));border-radius:calc(14px*var(--k));background:#e3e3e8}
+.gap{position:relative;background:repeating-linear-gradient(45deg,rgba(255,159,107,.55),rgba(255,159,107,.55) 3px,rgba(255,159,107,.18) 3px,rgba(255,159,107,.18) 6px);border-top:1px solid #ff9f6b;border-bottom:1px solid #ff9f6b}
+.gap.none{background:none;border-top:1px solid #30d158;border-bottom:0;height:0 !important}
+.gap b{position:absolute;left:calc(8px*var(--k)*2);top:50%;transform:translateY(-50%);font:600 10px/1 var(--ui);color:#fff;background:#d9480f;padding:2px 4px;border-radius:4px;white-space:nowrap}
+.gap.none b{background:#1e7b34;top:-6px;transform:none}
+.home{position:relative;border-top:1px dashed #8e8e93;display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(8px*var(--k))}
+.home s{width:calc(134px*var(--k));height:calc(5px*var(--k));border-radius:9px;background:#fff;opacity:.85;text-decoration:none}
+.light .home s{background:#000}
+.tag{position:absolute;right:3px;font:9px/1 var(--ui);color:#8e8e93}
+table{border-collapse:collapse;width:100%;font-size:14px;max-width:880px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.rec td{background:color-mix(in srgb,var(--ok) 14%,transparent)}.pick td:first-child{white-space:nowrap}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--fg2);margin:6px 0 0}.legend span:before{content:"";display:inline-block;width:12px;height:12px;margin-right:6px;vertical-align:-2px;border-radius:2px}
+.legend .l1:before{background:repeating-linear-gradient(45deg,#ff9f6b,#ff9f6b 3px,#ffd8c2 3px,#ffd8c2 6px)}.legend .l2:before{border:1px dashed #8e8e93}
+</style></head><body><div class="wrap">
+<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px">Proposal · 2026-10-26 · hig-sheets · Decided (2026-10-28): option B, fit to content; built on fix/sheet-bottom-gap, see .agents/design/sheet-bottom-gap.md</p>
+<h1>The gap under every fitted sheet</h1>
+<p class="lede">Every content-fitted sheet sits 34 pt taller than its content. The extra is an empty band between the last control and the home-indicator area. Should the fit stop asking for it?</p>
+
+<h2>Cause</h2>
+<p><code>hassSheet()</code> fitted (<code>modal-sheet.md</code>, Height) asks the system for a custom detent of <em>content + header + bottom safe area</em>. iOS measures a custom detent up from the bottom safe area and adds that inset itself, so the safe area is counted twice. The sheet is <code>detent + 34</code> tall, the page area is the detent, and 34 pt of ground sits under the content. This is the "34 pt of empty ground" flagged to the owner earlier and left unchanged; this proposal asks what to do about it.</p>
+<p><b>Measured 2026-10-26</b> with the Debug sheet probe (<code>FENTON_SHEETFIT_PROBE=1</code>):</p>
+<table>
+<tr><th>Device</th><th>Sheet</th><th>Reading</th></tr>
+<tr><td>Folded Duo 466 × 678, iOS 27.1</td><td>Upper Deck camera viewer</td><td>detent 479, page area 450 × 479, header 74 + content 371 = 445, so <b>34 pt under the content</b>; hosting view 513 tall (479 + 34 home-indicator area). Not scaled; page 8 pt inset a side.</td></tr>
+<tr><td>iPhone 17 Pro 402 × 874, iOS 26.5</td><td>Front Door camera viewer</td><td>detent 517 = 70 header + 413 content + 34; sheet frame 529 tall, drawn at 0.96 scale (551 pt in page units).</td></tr>
+<tr><td>iPad form and page sheets</td><td>any fitted sheet</td><td><b>Not established.</b> The iPad sheet is sized with <code>presentationSizing(.form.fitted(...))</code>, not a custom detent, so the double count may not apply. To be measured before building.</td></tr>
+</table>
+<p style="margin-top:12px">The same 34 pt sits under every fitted sheet on iPhone and the folded Duo: Security System, Climate, the purifier, Quick Links and the rest. The camera viewer only shows it because its video and dark ground make the band obvious.</p>
+
+<h2>Options</h2>
+<p>Figures are page points at 0.5 pt per px; the iPhone really draws at 0.96. Orange hatching is the empty band, the dashed strip is the home-indicator area the system adds. Camera heights are the measured ones; the Security System card is illustrative (about 300 pt of content, not a probe reading).</p>
+<div class="legend"><span class="l1">Empty band under the last control</span><span class="l2">Home-indicator area (34 pt, system)</span></div>
+<p style="margin-top:10px"><b>A · Today.</b> The band is 34 pt. <b>B · Fit to content.</b> The detent stops counting the bottom safe area; the last control sits at its normal content-bottom padding above the home-indicator area. <b>C · Deliberate margin.</b> Half the safe area (17 pt) stays as a little ground under the controls.</p>
+
+<h3>Camera viewer · iPhone 17 Pro</h3>
+<div class="row" id="r-phone-fd"></div>
+<div class="row" id="r-phone-dw"></div>
+<h3>Camera viewer · iPhone Duo, folded</h3>
+<div class="row" id="r-duo-ud"></div>
+<div class="row" id="r-duo-dw"></div>
+<p style="margin-top:10px;font-size:14px;color:var(--fg2)">Front Door on the folded Duo asks 565 today, which the system pins at the 554 pt large detent (header 82), so it is cut short. Under B it asks about 531 (derived, not measured), so it would fit uncut. To be confirmed with the probe.</p>
+<h3>Security System sheet · iPhone 17 Pro and folded Duo</h3>
+<div class="row" id="r-phone-sec"></div>
+<div class="row" id="r-duo-sec"></div>
+
+<h2>Comparison</h2>
+<table class="pick"><tr><th></th><th>HIG Sheets: smallest detent that shows the content</th><th>HIG Layout: safe areas</th><th>Looks like</th><th>Cost</th></tr>
+<tr><td>A today</td><td>no: 34 pt larger than needed</td><td>safe area counted twice, so the home indicator has 34 pt of ground and 34 pt of its own</td><td>controls float; every fitted sheet looks bottom-heavy</td><td>none</td></tr>
+<tr class="rec"><td>B fit to content</td><td>yes: exactly the content and the header</td><td>yes: content stays clear of the home indicator through the safe area itself</td><td>last control at the usual content padding above the home indicator; every fitted sheet is 34 pt shorter</td><td>one rule in <code>SheetFit</code>; fitted-sheet journeys' expected heights drop 34 pt; <b>app-wide</b></td></tr>
+<tr><td>C 17 pt margin</td><td>mostly: 17 pt over</td><td>yes</td><td>a little breathing room under controls; heights drop 17 pt</td><td>same as B plus one tuned constant to defend (why 17?)</td></tr></table>
+
+<h2>Recommendation</h2>
+<p><b>B.</b> HIG Sheets asks for the smallest detent that shows the content, and HIG Layout keeps content clear of the home indicator through the safe area, not through extra ground. The 34 pt is a side effect of how iOS measures a custom detent, not a design choice anyone made, and the content already carries its own bottom padding (the camera controls row is 136 pt including it). It also helps the Duo: the folded Front Door viewer stops being pinned at the large detent.</p>
+<p><b>What it asks of the app.</b> One change in <code>SheetFit</code> / <code>SheetFitModel</code>: the wanted height stops adding the bottom inset (and the chrome prediction in <code>SheetChromeMemory</code> follows). <b>Every fitted sheet changes</b>, so this is app-wide: all <code>hassSheet()</code> fitted sheets get 34 pt shorter on iPhone and the folded Duo. The fitted-sheet journeys (<code>CameraViewerFitJourneyTests</code> and the others that assert a height) update their expected heights by 34 pt, <code>modal-sheet.md</code> loses its "flagged, unchanged" note, and the atlas mockups of fitted sheets are redrawn. Risks to settle with the probe first: that the page does not re-add its own bottom inset once the detent shrinks, and that <code>isCutShort</code> and <code>maxSheetHeight</code> (page area measure) still agree.</p>
+<p><b>iPad:</b> to be measured before building. Its form and page sheets are sized by <code>presentationSizing</code>, so B may not apply there, or may need a different rule; this proposal does not change iPad until the probe says.</p>
+
+<h2>Open questions</h2>
+<p>1. B (no extra ground) or C (keep about 17 pt)? 2. Is a first build limited to iPhone and the folded Duo acceptable, with iPad following once measured?</p>
+</div>
+<script>
+(function(){
+var HOME=34;
+function el(t,c,s,h){var e=document.createElement(t);if(c)e.className=c;if(s)e.setAttribute('style',s);if(h!=null)e.innerHTML=h;return e;}
+/* dev: {w,h,header,inset(side),floor(sheet float above window bottom),r}; sub: {kind:'cam'|'sec',ratio,content,title,light} */
+function fig(dev,sub,gap,cls,cap,sub2){
+  var k=.5,head=dev.header,contentH=sub.kind==='cam'?Math.floor((dev.w-dev.inset*2-32)*sub.ratio+136):sub.content;
+  var total=head+contentH+gap+HOME;
+  var f=el('figure',cls);
+  var d=el('div','dev','--k:'+k+';width:'+(dev.w*k)+'px;height:'+(dev.h*k)+'px;border-radius:'+(dev.r*k)+'px');
+  d.appendChild(el('div','wall'));d.appendChild(el('div','dim'));
+  var s=el('div','sheet'+(sub.light?' light':''),'left:'+(dev.inset*k)+'px;right:'+(dev.inset*k)+'px;bottom:'+(dev.floor*k)+'px;height:'+(total*k)+'px;border-radius:'+(34*k)+'px '+(34*k)+'px '+(dev.floor?34*k:0)+'px '+(dev.floor?34*k:0)+'px');
+  s.appendChild(el('div','hd','height:'+(head*k)+'px','<span class="g"></span>'+sub.title+'<span class="x"></span>'));
+  var ct=el('div','ct','height:'+(contentH*k)+'px');
+  if(sub.kind==='cam'){ct.appendChild(el('div','video','height:'+((dev.w-dev.inset*2-32)*sub.ratio*k)+'px'));ct.appendChild(el('div','ctl',null,'<span class="c"></span><span class="c"></span><span class="c"></span>'));}
+  else{ct.appendChild(el('div','card',null,'<i></i><i></i><i></i><i></i>'));}
+  s.appendChild(ct);
+  var g=el('div','gap'+(gap?'':' none'),'height:'+(gap*k)+'px',gap?'<b>'+gap+' pt empty</b>':'<b>0 pt</b>');
+  s.appendChild(g);
+  s.appendChild(el('div','home','height:'+(HOME*k)+'px','<s></s>'));
+  d.appendChild(s);f.appendChild(d);
+  f.appendChild(el('figcaption',null,null,'<b>'+cap+'</b>'+sub2.replace('{T}',total).replace('{D}',total-HOME)));
+  return f;
+}
+var PH={w:402,h:874,header:70,inset:0,floor:0,r:55},DUO={w:466,h:678,header:74,inset:8,floor:8,r:30};
+function trio(id,dev,sub,note){
+  var r=document.getElementById(id);
+  r.appendChild(fig(dev,sub,34,'bad','A · Today',note+'Sheet {T} pt (detent {D}), 34 pt empty band.'));
+  r.appendChild(fig(dev,sub,0,'ok','B · Fit to content',note+'Sheet {T} pt (detent {D}). 34 pt shorter.'));
+  r.appendChild(fig(dev,sub,17,'','C · 17 pt margin',note+'Sheet {T} pt (detent {D}). 17 pt shorter.'));
+}
+trio('r-phone-fd',PH,{kind:'cam',ratio:3/4,title:'Front Door'},'Front Door, 4:3. ');
+trio('r-phone-dw',PH,{kind:'cam',ratio:.3,title:'Driveway'},'Driveway, 10:3. ');
+trio('r-duo-ud',DUO,{kind:'cam',ratio:9/16,title:'Upper Deck'},'Upper Deck, 16:9 (measured 479 / 513). ');
+trio('r-duo-dw',DUO,{kind:'cam',ratio:.3,title:'Driveway'},'Driveway, 10:3 (measured 369). ');
+trio('r-phone-sec',PH,{kind:'sec',content:300,title:'Security System',light:true},'Illustrative 300 pt of content. ');
+trio('r-duo-sec',DUO,{kind:'sec',content:300,title:'Security System',light:true},'Illustrative 300 pt of content. ');
+})();
+</script></body></html>

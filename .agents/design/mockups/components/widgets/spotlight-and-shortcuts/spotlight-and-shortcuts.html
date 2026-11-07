@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spotlight results and App Shortcuts · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../live-activity/_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  var SECTIONS = [['Home', 'Rooms, lights and everything in the house', 'house.fill', ['rooms', 'lights', 'house', 'dashboard', 'overview']],
+    ['Security', 'Cameras, locks, doors and alarms', 'shield.fill', ['cameras', 'locks', 'doors', 'alarm', 'garage']],
+    ['Climate', 'Thermostat, humidity and air quality', 'thermometer.medium', ['thermostat', 'temperature', 'heat', 'cooling', 'humidity', 'air quality']],
+    ['Chores', 'Tasks, groceries and what is overdue', 'checklist', ['tasks', 'to do', 'groceries', 'overdue']],
+    ['Settings', 'Profile, household settings and feedback', 'gearshape.fill', ['preferences', 'account', 'feedback', 'profile']]];
+  var ROOMS = ['Living Room', 'Guest Room', 'Bedroom 1', 'Gym', 'Hallway', 'Office', 'Kitchen', 'Dining Room', 'Back Deck', 'Studio', 'Media Room', 'Downstairs Hallway', 'Garage', 'Guest Bathroom', 'Bathroom 1', 'Entryway'];
+  var TERMS = ['S+H', 'S and H', 'Home', 'Home Assistant', 'HASS', 'Fenton', 'Fenton Home', 'Smart Home'];
+  var SHORTCUTS = [
+    ['Open Home', 'house.fill', ['Open S+H', 'Open Home in S+H', 'Show my house in S+H']],
+    ['Open Security', 'shield.fill', ['Open Security in S+H', 'Show cameras in S+H', 'Check the locks in S+H']],
+    ['Open Climate', 'thermometer.medium', ['Open Climate in S+H', 'Show the thermostat in S+H']],
+    ['Open Chores', 'checklist', ['Open Chores in S+H', 'Show my chores in S+H']],
+  ];
+
+  function thumb(symbol, size) {
+    return h('span', { 'aria-hidden': 'true', style: { width: size + 'px', height: size + 'px', borderRadius: Math.round(size * 26 / 120) + 'px', background: '#0A84FF', display: 'inline-grid', placeItems: 'center', color: '#fff', flex: 'none' } },
+      h('span', { style: { width: size * .5 + 'px', height: size * .5 + 'px', display: 'block' }, html: Mock.icon(symbol, { fill: true, size: size * .5 + 'px' }) }));
+  }
+  function result(title, sub, icon, appIcon) {
+    return h('button', { type: 'button', style: { all: 'unset', boxSizing: 'border-box', display: 'flex', gap: '12px', alignItems: 'center', minHeight: '56px', padding: '8px 14px', width: '100%', cursor: 'pointer', borderTop: '.5px solid rgba(255,255,255,.12)' } },
+      appIcon ? LA.appIcon(40) : thumb(icon, 40), h('span', { style: { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 } }, h('span', { style: { fontWeight: 600, fontSize: 'var(--fs-sub)' } }, title), sub ? h('span', { style: { color: 'rgba(255,255,255,.62)', fontSize: 'var(--fs-foot)' } }, sub) : null));
+  }
+  function section(title, rows) {
+    return h('div', { style: { margin: '10px 12px 0' } }, h('div', { style: { font: '600 12px var(--font)', color: 'rgba(255,255,255,.55)', padding: '0 6px 6px', textTransform: 'none' } }, title),
+      h('div', { style: { borderRadius: '20px', background: 'rgba(44,44,48,.82)', overflow: 'hidden', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.12)' } }, rows.map(function (r, i) { if (i === 0) r.style.borderTop = '0'; return r; })));
+  }
+  function spotlight(ctx, query, sections) {
+    var field = h('div', { style: { margin: '0 12px', height: '44px', borderRadius: '22px', background: 'rgba(60,60,64,.8)', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 14px', fontSize: '17px', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)' }, role: 'search' },
+      h('span', { 'aria-hidden': 'true', style: { width: '18px', height: '18px', opacity: .6 }, html: Mock.icon('magnifyingglass') }), h('span', { style: { flex: 1 } }, query), h('span', { style: { color: '#409cff', fontSize: '15px' } }, 'Cancel'));
+    var panel = h('div', { style: { position: 'absolute', inset: 0, paddingTop: (ctx.device.safeTop + 14) + 'px', background: 'rgba(0,0,0,.42)', backdropFilter: 'blur(22px)', WebkitBackdropFilter: 'blur(22px)', color: '#fff', overflow: 'hidden', zIndex: 5 } }, field, sections);
+    return Mock.frame(ctx, h('div.la-lock', h('div.ui-wall'), panel));
+  }
+  function pages(list) { return list.map(function (s) { return result(s[0], 'S+H · ' + s[1], s[2]); }); }
+  function shortcutRows() { return SHORTCUTS.map(function (s) { return result(s[0], 'S+H', s[1]); }); }
+
+  function table(head, rows) {
+    return h('div', { style: { background: '#14161c', borderRadius: '16px', padding: '14px', overflowX: 'auto' } }, h('table.la-tbl', h('thead', h('tr', head.map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); }))));
+  }
+  function shortcutsTable() {
+    return table(['Shortcut', 'Symbol', 'Phrases (Siri and Spotlight)', 'Opens'], SHORTCUTS.map(function (s, i) { return [s[0], h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px' } }, thumb(s[1], 22), h('code', ['house.fill', 'shield.fill', 'thermometer.medium', 'list.clipboard.fill'][i])), h('div', s[2].map(function (p) { return h('div', '“' + p + '”'); })), ['Home', 'Security', 'Climate', 'Chores'][i]]; }));
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'spotlight-and-shortcuts', title: 'Spotlight results and App Shortcuts', area: 'widgets', status: 'shipped', frame: false,
+    summary: 'System UI. S+H puts its five pages and sixteen rooms into Spotlight, and four Open … shortcuts into Siri, Spotlight and the Shortcuts app. This records titles, symbols and phrases only.',
+    source: ['apple/Apps/iOS/SHShortcuts.swift', 'apple/Apps/iOS/OpenPageIntent.swift', 'apple/Apps/iOS/AppPageOption.swift', 'apple/Sources/HassUI/App/Spotlight/CoreSpotlightIndexer.swift', 'apple/Sources/HassCore/Spotlight/SpotlightCatalog.swift', 'apple/Sources/HassCore/Spotlight/AppBranding.swift'],
+    spec: ['.agents/platforms/apple/app-name.md'],
+    patterns: [],
+    hig: ['App Shortcuts', 'Siri', 'Search'],
+    devices: ['iphone', 'duo-folded'],
+    states: {
+      'default': { title: 'Spotlight: "S+H"', note: 'the app icon (matched by display name), the five pages, the shortcuts', render: function (ctx) {
+        return spotlight(ctx, 'S+H', h('div', section('Top Hit', [result('S+H', 'App', null, true)]), section('S+H', pages(SECTIONS.slice(0, 3))), section('Shortcuts', shortcutRows().slice(0, 2)))); } },
+      ha: { title: 'Spotlight: "Home Assistant"', note: 'pages and shortcuts, not the icon (iOS matches an installed app\'s icon only by its display name)', render: function (ctx) {
+        return spotlight(ctx, 'Home Assistant', h('div', section('S+H', pages(SECTIONS)), section('Shortcuts', shortcutRows().slice(0, 1)))); } },
+      room: { title: 'Spotlight: a room', note: 'the sixteen rooms are indexed with "S+H · <room> lights, climate and devices"', render: function (ctx) {
+        return spotlight(ctx, 'kitchen', h('div', section('S+H', [result('Kitchen', 'S+H · Kitchen lights, climate and devices', 'house.fill'), result('Guest Bathroom', 'S+H · Guest Bathroom lights, climate and devices', 'house.fill')]))); } },
+      shortcuts: { title: 'Shortcuts: the four tiles', render: function (ctx) {
+        return LA.stage([h('p.la-note', 'Shown in the Shortcuts app and Spotlight as soon as the app is installed (AppShortcutsProvider). Every phrase contains the application name; Siri also accepts the alternative names (Home Assistant, HASS, Fenton Home). Apple\'s limit is ten shortcuts per app; four are used.')]
+          .concat(SHORTCUTS.map(function (s) { return LA.fig(h('div', { role: 'button', tabindex: 0, 'aria-label': s[0], style: { width: '170px', height: '104px', borderRadius: '22px', background: '#1a6ee0', padding: '14px', boxSizing: 'border-box', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontFamily: 'var(--font)' } }, h('span', { style: { width: '26px', height: '26px', display: 'block' }, html: Mock.icon(s[1], { fill: true, size: '26px' }) }), h('span', { style: { fontWeight: 600, fontSize: '17px' } }, s[0])), s[0], 'shortTitle'); }))); } },
+      phrases: { title: 'Siri phrases', render: function () { return shortcutsTable(); } },
+      intent: { title: 'The Open a Page intent', render: function () {
+        return table(['Part', 'Value'], [['Title', 'Open a Page'], ['Description', 'Opens a page of S+H: Home, Security, Climate, Chores or Settings.'], ['Category', 'Navigation'], ['Search keywords', 'Home Assistant, HASS, Fenton Home, Smart Home, thermostat, cameras, tasks'],
+          ['Parameter "Page"', 'Home (house.fill), Security (shield.fill), Climate (thermometer.medium), Chores (list.clipboard.fill), Settings (gearshape.fill)'], ['Runs', 'in the app\'s own process (openAppWhenRun); routes through AppShortcutRouter like a notification link'],
+          ['Shortcuts provided', 'Home, Security, Climate and Chores; Settings is a choosable page in a custom shortcut but has no phrase']]); } },
+      catalog: { title: 'What is indexed (21 pages)', render: function () {
+        var rows = SECTIONS.map(function (s) { return ['section.' + s[0].toLowerCase(), s[0], 'S+H · ' + s[1], s[3].join(', ') + ' + brand terms']; }).concat(ROOMS.map(function (r) { return ['room.' + r.toLowerCase().replace(/ /g, '-'), r, 'S+H · ' + r + ' lights, climate and devices', r + ', room + brand terms']; }));
+        return h('div', table(['Identifier', 'Title', 'Description', 'Keywords'], rows), h('p.la-note', { style: { marginTop: '10px' } }, 'Brand terms on every item: ' + TERMS.join(', ') + '. The thumbnail is the page\'s symbol in white on system blue (a 120 pt tile, 26 pt radius). The set is replaced at every session start and removed at sign-out.')); } },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'system UI: text scales with the system, S+H supplies strings only', render: function (ctx) {
+        return spotlight(ctx, 'S+H', h('div', section('S+H', pages(SECTIONS.slice(0, 2))))); } },
+    },
+    motion: [],
+    transitions: [
+      { from: 'Spotlight result', to: 'S+H page', kind: 'cut', note: 'CSSearchableItemActionType arrives at RootView.onContinueUserActivity, which hands the identifier to PushCoordinator.open(spotlightUserInfo:); it opens the page like a notification link, including a launch the tap caused.' },
+      { from: 'App Shortcut or Siri phrase', to: 'S+H page', kind: 'cut', note: 'OpenPageIntent opens the app (openAppWhenRun) and AppShortcutRouter routes to the page.' },
+    ],
+    a11y: [
+      { rule: 'System-drawn', note: 'Spotlight and Siri present and read the strings; S+H controls the title, the description ("S+H · …"), the keywords and the thumbnail.' },
+      { rule: 'Spoken name', note: 'The app is spoken "S and H" (CFBundleSpokenName); phrases use the application name, so Siri hears "Open Climate in S and H".' },
+      { rule: 'Alternative names', note: 'Siri accepts Home Assistant, HASS and Fenton Home (INAlternativeAppNames), at most three.' },
+      { rule: 'Thumbnails', note: 'The blue tile with a white symbol is decorative; the title and description carry the meaning.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'App Shortcuts: every phrase includes the app name', verdict: 'pass', note: 'All ten phrases contain \\(.applicationName) and the short titles are verbs with a symbol (SHShortcuts.swift:9-47); four shortcuts is under the limit of ten.' },
+        { by: 'apple-hig skill', rule: 'Siri: a phrase should do what it says', verdict: 'pass', note: 'Fixed (owner pick): SHShortcuts drops Check the locks and renames the thermostat phrase to Open; phrases no longer promise an answer.' },
+        { by: 'apple-hig skill', rule: 'Spoken name: symbols in names', verdict: 'pass', note: 'AppBranding.spokenName makes Siri hear "S and H" (CFBundleSpokenName); Home Assistant, HASS and Fenton Home are search keywords (OpenPageIntent.swift:9-12) and Siri alternative names (comment, SHShortcuts.swift:5).' },
+        { by: 'apple-hig skill', rule: 'Privacy: search index holds no sensitive data', verdict: 'pass', note: 'Page and room names only (SpotlightCatalog); removed on sign-out.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'swift.md: keep intents small and main-actor safe', verdict: 'pass', note: 'OpenPageIntent.perform is @MainActor and only routes through AppShortcutRouter (lines 23-27); openAppWhenRun is true.' },
+        { by: 'swiftui-pro skill', rule: 'swift.md: localized resources', verdict: 'pass', note: 'Titles use LocalizedStringResource and IntentDescription (OpenPageIntent.swift:7-12); AppPageOption cases are an AppEnum (AppPageOption.swift:5-16).' },
+      ],
+    },
+    notes: [
+      'System UI: the Spotlight and Shortcuts layouts are drawn as approximations of iOS around S+H\'s real strings. Nothing here is S+H-drawn except titles, descriptions, symbols, thumbnails and phrases.',
+      'Doc versus code: app-name.md says the Core Spotlight set is 21 pages (five sections and sixteen rooms), which matches SpotlightCatalog. It also says the home-screen icon is found by display name only; a state here shows that.',
+      'Not verified on a device in this pass: the order Spotlight shows pages and shortcuts in is the system\'s.',
+      'Devices: iPhone and iPhone Duo (system UI only). The symbol list.clipboard.fill is drawn with the kit\'s checklist stand-in. Promote to kit: list.clipboard.fill.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

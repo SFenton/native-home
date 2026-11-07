@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign-in to Home arrival · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, LL = Mock.LL, A = Mock.anim;
+  var REVIEW_DATE = '2026-10-23';
+  /* The stage holds Home (built under the layer, held back) and the sign-in layer above it. A frame samples the arrival timeline at t (ms). */
+  function stack(ctx, o) {
+    o = o || {};
+    var home = LL.homePage(ctx, { pending: o.pending, cams: o.pending ? ['connecting', 'connecting', 'connecting', 'connecting'] : null });
+    var layer = LL.screen(ctx, { username: 'alex', password: 10, working: o.working !== false });
+    Mock.whenAttached(home, function () { LL.arrivalAt(home.parentNode, o.t == null ? 0 : o.t, ctx.reduceMotion, o.only); });
+    return [home, layer];
+  }
+  function F(t, o) { return function (ctx) { return stack(ctx, Object.assign({ t: t }, o)); }; }
+  function playOnly(only) { return function (stage) { return Mock.sleep(80).then(function () { return LL.run(LL.ARRIVAL_MS, function (t) { LL.arrivalAt(stage, t, Mock.settings.reduceMotion, only); }); }); }; }
+
+  Mock.mount({
+    kind: 'flow', id: 'sign-in-to-home-arrival', title: 'Sign-in to Home arrival', area: 'shell', status: 'shipped',
+    summary: 'Sign In succeeds: Home is built behind the sign-in layer, held back, then the layer lifts away while the house backdrop settles, the header fades up, the chips slide in, the cards rise one after another and the tab bar rises. About 0.9 s, once per session (and again after a sign-out).',
+    source: ['apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/App/Motion/HomeArrival.swift', 'apple/Sources/HassUI/UIKitPort/App/Motion/UKArrivalMotion.swift', 'apple/Sources/HassUI/App/Motion/ArrivalKind.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKArrivalChrome.swift', 'apple/Sources/HassUI/Common/HouseBackdrop.swift', 'apple/Sources/HassDesign/Motion/MotionTokens.swift'],
+    spec: ['.agents/design/motion.md', '.agents/design/direction-g.md', '.agents/platforms/apple/auth.md'],
+    patterns: ['motion', 'content-gate'],
+    hig: ['Motion', 'Launching', 'Loading'],
+    kitComponents: ['ChipRail', 'WeatherCard', 'CameraTile', 'TabBar', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'sign-in': { title: '0 s · Signing in; Home is held back underneath', note: 'AppSession.didSignIn starts the connection under the layer; HomeArrival.begin() hides every arriving element, so only the dark ground shows through', render: F(0) },
+      'sign-in-lifts': { title: '0.15 s · The layer lifts', note: '-18 pt, scale 0.97, fading (easeOut 0.4 s); the backdrop starts fading in and settling; the header starts at 0.1 s', render: F(150) },
+      'backdrop-settles': { title: '0.3 s · Backdrop settling, chips sliding in', note: 'house photo 1.06 to 1 over 0.6 s; chips slide 30 pt from 0.12 s; the header is fading up 10 pt', render: F(300) },
+      'tiles-rise-staggered': { title: '0.45 s · Cards rising, tab bar on its way', note: 'weather from 0.2 s, then each camera 0.06 s after the one before (index capped at 5); 16 pt each over 0.3 s; the tab bar rises 48 pt from 0.22 s', render: F(450) },
+      'late': { title: '0.65 s · Last cameras landing', render: F(650) },
+      'arrived': { title: '0.9 s · Arrived', note: 'a plain Home; nothing animates after this', render: F(900) },
+      'first-run': { title: 'First sign-in: names at once, soft bars where values go', note: 'no snapshot yet: tiles show names immediately with pulsing PendingValueBar until live data lands', render: function (ctx) { return LL.homePage(ctx, { pending: true, cams: ['connecting', 'connecting', 'connecting', 'connecting'] }); } },
+      'reduce-motion': { title: 'Reduce Motion · 0.17 s into the cross-fade', note: 'the layer, backdrop and every piece cross-fade together over 0.35 s: nothing rises, slides, lifts or staggers', override: { reduceMotion: true }, render: F(175) },
+      'ax5': { title: 'Accessibility 5 text size (arrived)', override: { ts: 'ax5' }, render: F(900) },
+    },
+
+    motion: [
+      { id: 'arrival', what: 'The whole arrival (about 0.9 s)', token: 'layer easeOut 0.4 s · backdrop easeOut 0.6 s · bar 0.4 s from 0.1 s · chips standard 0.3 s from 0.12 s · cards standard 0.3 s from 0.2 s + 0.06 s each · tab bar 0.4 s from 0.22 s (MotionTokens.Arrival, arrivalStagger)', state: 'sign-in',
+        source: 'HassUI/App/RootView.swift signedIn(_:_:); HomeArrival.swift; motion.md section 3 row "Sign in to Home"', reduce: 'one 0.35 s cross-fade of the layer, backdrop and every piece; no lift, scale, rise, slide or stagger',
+        note: 'Plays once per session: MotionPolicy.markPlayed(.signInArrival) after didSignIn; a second sign-in in the same session (no sign-out between) only swaps the screens.',
+        play: playOnly(null) },
+      { id: 'layer-lift', what: 'The sign-in layer lifts away', token: 'Arrival.lift easeOut 0.4 s: offset -18 pt, scale 0.97, opacity to 0; the layer stays in the tree 0.4 s after', state: 'sign-in', source: 'RootView.swift (signInLeaves)', reduce: 'cross-fade 0.35 s, no offset or scale', play: playOnly('layer') },
+      { id: 'backdrop-settle', what: 'The house photo settles', token: 'Arrival.backdrop easeOut 0.6 s: scale 1.06 to 1 and opacity 0 to 1', state: 'sign-in', source: 'HassUI/Common/HouseBackdrop.swift (arrived)', reduce: 'cross-fade 0.35 s, no scale', play: playOnly('wall') },
+      { id: 'header-up', what: 'The navigation bar (large title and header buttons) fades up', token: 'UIView.animate 0.4 s easeOut, delay 0.1 s, +10 pt (ArrivalChromeProbe; SwiftUI cannot reach UIKit\'s bar)', state: 'sign-in', source: 'HassUI/App/Shell/ArrivalChrome.swift', reduce: 'fade 0.35 s with no offset', play: playOnly('bar') },
+      { id: 'chips-slide', what: 'The status chips slide in from the right', token: 'standard .smooth 0.3 s, delay 0.12 s, +30 pt (ArrivalKind.slideIn)', state: 'sign-in', source: 'HassUI/App/Motion/ArrivalMotion.swift; HomeScreen.swift', reduce: 'cross-fade 0.35 s, no slide', play: playOnly('chips') },
+      { id: 'cards-rise', what: 'The weather card and the cameras rise one after another', token: 'standard 0.3 s, +16 pt, delay 0.2 s + 0.06 s x index (weather 0, cameras 1 to 4; index capped at 5)', state: 'sign-in', source: 'ArrivalMotion.swift; CameraGrid.swift .arrivalMotion(index:)', reduce: 'cross-fade 0.35 s, no rise, no stagger',
+        note: 'Code vs docs: motion.md section 7 and MotionTokens.arrivalRise / arrivalStaggerCap say 8 pt and a cap of 8; the call sites use Arrival.riseDistance 16 pt and Arrival.staggerLimit 5. Drawn per the call sites.', play: playOnly('cams') },
+      { id: 'tabbar-rise', what: 'The tab bar rises from the bottom', token: 'UIView.animate 0.4 s easeOut, delay 0.22 s, +48 pt (ArrivalChromeProbe)', state: 'sign-in', source: 'HassUI/App/Shell/ArrivalChrome.swift', reduce: 'fade 0.35 s with no offset', play: playOnly('tabs') },
+      { id: 'arrival-reduced', what: 'The arrival under Reduce Motion', token: 'crossFade easeInOut 0.35 s', state: 'sign-in', source: 'RootView.swift (reduceMotion ? crossFade : lift); ArrivalMotion.swift', reduce: 'this is the Reduce Motion path',
+        play: function (stage) { return Mock.sleep(80).then(function () { return LL.run(350, function (t) { LL.arrivalAt(stage, t, true); }); }); } },
+    ],
+
+    transitions: [
+      { from: 'Sign In pressed', to: 'Home', kind: 'overlay', state: 'sign-in', note: 'The layer that was the screen becomes an overlay that leaves; Home never "navigates": it was always the screen underneath. Sign In stays solid ("Signing In…") until the layer lifts.',
+        play: playOnly(null) },
+      { from: 'Home (arrived)', to: 'Tab switch', kind: 'cut', state: 'arrived', note: 'After the arrival every tab switch is a cut, as everywhere (motion.md section 4.1); the arrival never replays on a tab or a reconnect.',
+        play: function () { return Mock.sleep(500); } },
+    ],
+
+    a11y: [
+      { rule: 'Layer hidden once signed in', note: 'RootView sets accessibilityHidden(session.isSignedIn) and allowsHitTesting(false) on the lifting layer, so VoiceOver moves straight to Home and no tap lands on the sign-in layer while it fades.' },
+      { rule: 'Content is present throughout', note: 'The arrival only changes opacity and offset; Home\'s elements are in the accessibility tree while they rise, so focus does not wait for the 0.9 s.' },
+      { rule: 'Reduce Motion', note: 'One 0.35 s cross-fade: no lift, scale, rise, slide or stagger (MotionTokens.reducedMoment).' },
+      { rule: 'Once per session', note: 'A moment never repeats; a tab switch, a reconnect or a relaunch while signed in animates nothing (presence, not change).' },
+      { rule: 'Header and tab bar', note: 'UIKit\'s bars are alpha-and-transform animated by the probe; a probe that goes away puts the bars back, so a hold can never strand them hidden.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Motion: purposeful, brief, optional, not repeated', verdict: 'pass', note: 'About 0.9 s once per session; a saved sign-in marks it played (HomeArrival.swift:24; AppSession.swift:114-118).', by: 'apple-hig skill' },
+        { rule: 'Motion: Reduce Motion drops movement, keeps the fade', verdict: 'pass', note: 'ArrivalEffect uses no offset and a cross-fade; the bars get no translation (ArrivalMotion.swift:16, 31; ArrivalChrome.swift:53-56; RootView.swift:150-151, 204).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: move focus to the new screen', verdict: 'pass', note: 'RootView.signedIn posts Announcer.screenChanged(announcing: "Signed in. Home") when Home arrives (also on the no-arrival path).', by: 'apple-hig skill' },
+        { rule: 'Loading: content usable as it arrives', verdict: 'pass', note: 'Views exist from the first frame and only opacity and offset are held (HomeArrival.swift:29-37); held bars are alpha 0 and release with .allowUserInteraction (ArrivalChrome.swift:76-83).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Chain with completion, not sleeps', verdict: 'pass', note: 'Fixed on claude/hig-motion-1ec6c6: RootView.signedIn chains the layer removal on the lift completion. Was: signedIn sequences the lift with Task.sleep(.milliseconds(60/400)) and HomeArrival.duration - 460 ms (RootView.swift:201-209); withAnimation completion would not drift from the animation. Low.', by: 'swiftui-pro skill' },
+        { rule: 'Tokens agree with use', verdict: 'pass', note: 'Fixed on claude/hig-motion-1ec6c6: unused arrivalRise, arrivalStaggerCap and arrivalDelay removed from MotionTokens.swift. Was: MotionTokens.arrivalRise (8) and arrivalStaggerCap (8) are unused; the arrival reads Arrival.riseDistance (16) and staggerLimit (5) (MotionTokens.swift:25-27, 87-92). Low.', by: 'swiftui-pro skill' },
+        { rule: 'Hold content with state, not by delaying creation', verdict: 'pass', note: 'begin() holds, reveal() animates (HomeArrival.swift:30-37).', by: 'swiftui-pro skill' },
+        { rule: 'Document the one place UIKit is animated, and fail safe', verdict: 'pass', note: 'ArrivalChromeProbe explains why, and a probe that leaves restores the bars (ArrivalChrome.swift:6-10, 63-66).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'refreshing, loading, error, offline: the arrival has none of its own. A sign-in that fails never reaches it (pages/login). First-run placeholders are the loading look and are drawn as the first-run state.',
+      'Stagger: drawn from the call sites (HomeArrival.riseDelay: 0.2 s + 0.06 s x min(index, 5)); the catalog says "rise 8 pt, cap 8", which are the unused MotionTokens constants (see the cards-rise item).',
+      'The kit\'s Mock.anim.arrival is an older approximation (400 ms everything, tab bar 40 pt); this flow samples the real tokens with Mock.LL.arrivalAt (promote to kit).',
+      'On the Duo and iPad the tab bar is the rail or the flyout: the rise is drawn on the rail tabs where there are some; iPad has none (the flyout), so it has nothing to rise (the probe finds no tab bar).',
+      'Telemetry: Telemetry.Name.arrival runs from the sign-in tap to the end of the 0.9 s; the build of Home behind the layer is measured separately as arrival-build (LaunchCostProbe).',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: six frames sampled from the real tokens, first run, Reduce Motion, AX5, each piece playable alone.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resident chores (Alex's, Sam's) · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* One template, two instances: Alex's Chores and Sam's Chores (ChoresConfig.resident1Chores / resident2Chores). This mockup draws Alex's; the
+     states "sam-page" and "viewer-sam" draw the other combinations. Both pages read the *_with_unassigned lists (owner 2026-10-16). */
+  var cfg = C.pageConfig('alexs-chores', {
+    title: "Resident chores (Alex's, Sam's)",
+    summary: 'Past Due, Due Today, Upcoming and No Due Date for one resident, including tasks nobody is assigned to, as inset lists on the dimmed house photo. One template for Alex\'s Chores and Sam\'s Chores; the Chores tab Quick Links open them. Fixture tasks.',
+    source: ['apple/Sources/HassUI/Features/Chores/DonetickTaskSheet.swift', 'apple/Sources/HassCore/Todo/DonetickTaskForm.swift'],
+    entities: ['todo.demo_todo_10', 'todo.demo_todo_16', 'todo.demo_todo_17', 'todo.demo_todo_12', 'todo.demo_todo_17', 'todo.demo_todo_20', 'input_boolean.demo_mode_4'],
+    defaultTitle: "Alex's page, signed in as Alex",
+    extraStates: {
+      'sam-page': { title: "Sam's Chores, signed in as Alex", note: 'the other instance: her two lists; "Sam has no chores due" copy when empty', render: function (d) { return C.page(d, 'sams-chores'); } },
+      'sam-page-as-sam': { title: "Sam's Chores, signed in as Sam", render: function (d) { return C.page(d, 'sams-chores', { viewer: 'sam' }); } },
+      'sam-page-empty-as-sam': { title: "Sam's own empty page", note: 'only here does the copy say "You have no chores due. Nice job!"', render: function (d) { return C.page(d, 'sams-chores', { viewer: 'sam', mode: 'empty' }); } },
+    },
+    a11y: [{ rule: 'Reading order', note: 'Back (Chores), Quick Links, Profile; the title (heading); then each list heading ("Past Due" first) and its rows; Add Task; tab bar.' }],
+    notes: [
+      'Resident pages are one template for two instances: the title, the Add Task default assignee (1 for Alex, 2 for Sam; "You" in the picker on your own page) and the empty copy follow ChoresConfig.Resident. States sam-page, sam-page-as-sam and sam-page-empty-as-sam draw Sam\'s instance.',
+      'The catalog hint says the viewer\'s title is "Your Tasks"; the code titles the page page.title ("Alex\'s Chores") for everyone and only the Quick Link tile reads "Your Chores" for the viewer. The web used "Your Tasks".',
+      'Lists drop out while empty: Alex\'s four lists show here, Sam\'s page shows two. These pages read the _with_unassigned views, so unassigned chores (a humidifier filter here) appear on both the resident page and the Chores tab (owner 2026-10-16, a departure from the web, spec.md).',
+      'The Chores tab badge, Profile badge and Your Summary read the same Past Due list, so the 3 overdue here equals the badge (see overdue-chores-badge).',
+    ],
+  });
+  cfg.id = 'resident-chores';
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: swipe order and a confirmed delete", verdict: "pass", note: "Complete leading; Delete then Edit trailing; Delete asks first (TodoRowActions.swift, TodoPageView.swift lines 190-204).", by: "apple-hig skill" },
+        { rule: "Undo and redo: completing from the resident page", verdict: "pass", note: "A tap or full swipe now lists the row 5 s with Undo (TodoListSection.undo, TodoListController.undo) so a mis-tap on another resident's task can be reversed.", by: "apple-hig skill" },
+        { rule: "Color: overdue is not colour alone", verdict: "pass", note: "Orange or red due text always has the clock glyph and \"n days overdue\" wording; the module turns dense for 4.5:1 (TodoListSection.swift lines 38-41).", by: "apple-hig skill" },
+        { rule: "Feedback: state who the page is about", verdict: "pass", note: "The title and empty copy swap by viewer (\"Your Chores\" or the name, ChoresConfig.swift lines 116-119).", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: keep content clear of the fold", verdict: "pass", note: "Fixed: TodoPageView lays the list in HingedPanes with the task form in the trailing pane where the window splits; the list ends at the hinge.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Sheets: Choreapp form opens from the edit glyph or Edit swipe", verdict: "pass", note: "DonetickEditTarget(item:) only for rows whose uid carries a task id (TodoPageView.swift lines 99-103), so a non-Choreapp row has no Edit.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: Edit offered once", verdict: "pass", note: "TodoRowActions: Edit offered once, as the button.", by: "swiftui-pro skill" },
+        { rule: "Performance: every visible list loads, drawn or not", verdict: "pass", note: "A hidden Color.clear task per visible list keyed by entity state and reloadVersion (TodoPageView.swift lines 62-72), cancelled with the view.", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(cfg);
+
+})();
+</script></body></html>

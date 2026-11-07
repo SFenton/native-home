@@ -1,0 +1,23 @@
+{
+  "id": "tests.pick",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "For a changed file `tools/affected_tests.py` cannot place: would this test suite catch a regression in it? Asked per candidate suite.",
+  "instructions": "Does {item}, a test suite, exercise the behavior implemented in the changed file described in `file`, so that running it would catch a regression there?",
+  "per_item": true,
+  "item_state": true,
+  "state": {
+    "fields": [
+      "file"
+    ],
+    "max_chars": 3000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.65,
+    "no_below": 0.3
+  },
+  "output": "Hint line under affected_tests.py's NEEDS A PICK list: the suites most likely to cover the file. The orchestrator still adds the rule to contracts/test-map.json.",
+  "evidence": "unmeasured"
+}

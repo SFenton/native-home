@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AlarmPanel · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+
+  function panel(state, surface, o) { o = o || {}; return K.AlarmPanel({ state: state, since: o.since, surface: surface === 'page' ? 'page' : 'sheet' }); }
+  /** FENTON_REDACT_PRIVATE: the card says Hidden, no mode is selected and the badge is the neutral grey. */
+  function hidden(surface) {
+    var el = panel('arming', surface, { since: null });
+    el.querySelector('.ti').textContent = 'Hidden';
+    el.setAttribute('aria-label', 'Security System, Hidden');
+    return el;
+  }
+  function items(list, o) { return list.map(function (x) { return { label: x[1], note: x[2], width: '372px', build: function (surface) { return x[3] ? x[3](surface) : panel(x[0], surface, o); } }; }); }
+  function setMode(el, state, title, fam) {
+    el.querySelectorAll('.ui-mode').forEach(function (b) { b.classList.toggle('sel', b.dataset.mode === state); b.classList.toggle('on-alarm', state === 'triggered'); });
+    el.querySelector('.badge').style.setProperty('--bfill', 'var(--fam-' + fam + '-fill)'); el.classList.toggle('triggered', state === 'triggered'); el.querySelector('.ti').textContent = title;
+  }
+  function S(title, list, min) { return SC.swatchState(title, { min: min || 340, items: items(list) }); }
+
+  Mock.mount({
+    kind: 'component', id: 'alarm-panel', title: 'AlarmPanel and AlarmModeButton', area: 'security', status: 'shipped', frame: false,
+    summary: 'The security system card: a badge in the mode\'s colour, the mode as a fact with when it began, and four mode buttons (Disarm, Home, Away, Night). It sits on a module on the Security page and on the sheet\'s cell colour in the Security System sheet and the Quick Links detail.',
+    source: ['apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassDesign/ColorFamily.swift'],
+    spec: ['.agents/pages/security/ios.md', '.agents/design/direction-g.md', '.agents/patterns/optimistic-actions.md'],
+    patterns: ['optimistic-actions', 'entity-tile', 'motion'],
+    hig: ['Alerts', 'Color', 'Dark Mode', 'Buttons'],
+    entities: ['alarm_control_panel.demo_alarm_control_panel_1'],
+    kitComponents: ['AlarmPanel', 'AlarmModeButton', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': S('Armed Home, on the page module and in a sheet', [['armed_home', 'Armed Home · since 6:12 PM']]),
+      'modes': S('Every mode selected in turn', [['disarmed', 'Disarmed', 'green #2A732E'], ['armed_home', 'Armed Home', 'blue #1565C0'], ['armed_away', 'Armed Away', 'red #C62828'], ['armed_night', 'Armed Night', 'purple #7B1FA2']]),
+      'triggered': S('Alarm triggered', [['triggered', 'Alarm Triggered', '#D70015 at 42% on the page and in a dark sheet, 16% in a light sheet; unselected modes at 14% label colour; steady, no pulse']]),
+      'arming': S('Arming (the panel reports "arming")', [['arming', 'Arming', 'slate badge #636366, no mode selected; there is no spinner']]),
+      'unavailable': S('Unavailable', [['unavailable', 'Unavailable', 'glyphs dim to 50%, text keeps full strength, all four modes disabled']]),
+      'hidden': S('Hidden (FENTON_REDACT_PRIVATE=1)', [['hidden', 'Hidden', 'screenshots only: no mode selected, neutral badge', hidden]]),
+      'since': S('The time line', [['armed_away', 'Today: Since 7:48 AM', null, function (s) { return panel('armed_away', s, { since: '7:48 AM' }); }], ['disarmed', 'Before today: Since Oct 14', null, function (s) { return panel('disarmed', s, { since: 'Oct 14' }); }], ['armed_home', 'No time from Home Assistant (a snapshot or fixture)', null, function (s) { return panel('armed_home', s, { since: null }); }]]),
+      'optimistic': S('A tapped mode shows at once', [['armed_away', 'Tapped Away while the panel still reports Armed Home since 6:12 PM', 'the tapped mode is the selected one and the title follows; the time stays the live one until Home Assistant reports; rolled back if the call fails', function (s) { return panel('armed_away', s, { since: '6:12 PM' }); }]]),
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: function (ctx) { return SC.swatches(ctx, { min: 340, items: items([['armed_home', 'Armed Home'], ['triggered', 'Triggered']]) }); } },
+    },
+
+    motion: [
+      { id: 'mode-fill', what: 'A new mode lands: the old mode empties, the new one fills in its colour with the tinted-glass sheen, and the badge and title follow', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'AlarmModeButton .stateColorTransition("AlarmModeButton"), AlarmPanel .stateColorTransition("AlarmPanel"); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var p = stage.querySelector('.ui-alarm'); setMode(p, 'armed_away', 'Armed Away', 'sec-away'); return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { setMode(p, 'armed_night', 'Armed Night', 'sec-night'); return Mock.sleep(Mock.anim.ms.state() + 300); }).then(function () { setMode(p, 'armed_home', 'Armed Home', 'sec-home'); return Mock.sleep(Mock.anim.ms.state() + 200); }); } },
+      { id: 'triggered-wash', what: 'The alarm triggers: the card takes the red wash and the unselected modes lighten', token: 'state 0.6 s ease-in-out; holds steady, never a pulse', state: 'default',
+        source: 'AlarmPanel.ground, motion-components.md Security row', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var p = stage.querySelector('.ui-alarm'); setMode(p, 'triggered', 'Alarm Triggered', 'sec-triggered'); return Mock.sleep(Mock.anim.ms.state() + 900).then(function () { setMode(p, 'disarmed', 'Disarmed', 'sec-disarmed'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'press', what: 'A mode button dims while pressed', token: 'no animation (an opacity 0.75 style while pressed)', state: 'default',
+        source: 'SecuritySystemSheet.swift ModePressStyle', reduce: 'unchanged (no motion)', play: function (stage) { var b = stage.querySelector('.ui-mode[data-mode="armed_away"]'); b.style.opacity = .75; return Mock.sleep(500).then(function () { b.style.opacity = ''; }); } },
+    ],
+
+    a11y: [
+      { rule: 'Header element', note: 'One element: label "Security System", value "Armed Home, Since 6:12 PM" (security.system.state); "Hidden" while redacting. The badge glyph is decorative.' },
+      { rule: 'Mode buttons', note: 'Buttons labelled Disarm, Home, Away, Night; the current one carries the selected trait; hints "Sets the security system to Home" and, for Disarm, "Disarms the security system" (none on the selected mode). Disabled when unavailable.' },
+      { rule: 'Disarm asks first', note: 'Disarm raises the alert "Disarm the Security System?" (Cancel kept); tapping the selected mode does nothing; arming sends at once.' },
+      { rule: 'Targets', note: 'Mode buttons are at least 64 pt tall (scaled), equal heights; the badge is 44 pt (scaled).' },
+      { rule: 'State is not colour alone', note: 'Each mode has a glyph (shield with a slash, house, walking figure, moon), the title states the mode, and triggered adds the exclamation shield and "Alarm Triggered".' },
+      { rule: 'Contrast', note: 'White on the mode fills (all at least 4.5:1); the subtitle uses the sheet\'s secondary ink, a stronger one over a light sheet\'s red wash; unknown or hidden uses #636366 under a white glyph (6:1).' },
+      { rule: 'Dynamic Type', note: 'Badge, title and glyphs scale; the four-column grid falls to fewer columns once 64 pt (scaled) no longer fits four across; the fitted sheet scrolls.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Buttons: a clear selected state and 44 pt targets", verdict: 'pass', note: "Mode buttons are 64 pt tall at the least, the chosen one fills with its family colour, a filled glyph variant and the isSelected trait (SecuritySystemSheet.swift:218, 232, 253).", by: 'apple-hig skill' },
+        { rule: "Alerts: confirm Disarm", verdict: 'departure', note: "Disarm raises an alert although arming does not (SecuritySystemSheet.swift:84-90); .agents/pages/security/spec.md native departure (HIG: Alerts).", by: 'apple-hig skill' },
+        { rule: "Accessibility: bezelled elements need about 12 pt around them", verdict: 'pass', note: "AlarmPanel.modeSpacing is 12 pt (Spacing.m) between the mode buttons.", by: 'apple-hig skill' },
+        { rule: "Feedback: more than one channel", verdict: 'pass', note: "Fixed in SecuritySystemSheet.swift: AlarmModeButton plays TapFeedback.tap; a failed mode change rolls back and AlarmPanel shows an InlineAlert error line (AlarmPanel.failureMessage) with the error haptic and a VoiceOver announcement.", by: 'apple-hig skill' },
+        { rule: "Layout: readable width", verdict: 'pass', note: "Fixed: SecurityPage caps the AlarmPanel at SecurityPage.alarmWidth (560 pt), the same as SecurityControls, centred and moved off the hinge by avoidsHinge().", by: 'apple-hig skill' },
+        { rule: "Color: contrast on a triggered wash", verdict: 'pass', note: "The red wash is fainter on a light cell and the subtitle ink strengthens over it (SecuritySystemSheet.swift:138-143, 155-160); it steadies, never pulses.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "ScaledMetric for fixed sizes", verdict: 'pass', note: "Badge 44 and glyph 24 scale; the modes grid takes fewer columns as text grows (SecuritySystemSheet.swift:55-56, 66, 210).", by: 'swiftui-pro skill' },
+        { rule: "VoiceOver: header as one element", verdict: 'pass', note: "Label 'Security System', value 'Armed Home, Since 6:12 PM' (lines 129-132).", by: 'swiftui-pro skill' },
+        { rule: "Respect Reduce Transparency", verdict: 'pass', note: "The wash reaches 60% over a dense module (line 165).", by: 'swiftui-pro skill' },
+        { rule: "Closure bindings and state in body", verdict: 'pass', note: "The alert uses @State; optimistic actions are created lazily (lines 52-53, 185-189).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Surfaces: page (dense or thin module over the wallpaper, always dark) and sheet (the sheet\'s cell colour, follows the system appearance); switch Sheet appearance above.',
+      'The card also appears inside Quick Links > Security System (SecurityControls); it is the same view.',
+      'Docs versus code: the catalog mentions a "redacted Hidden" state: it exists only for shared screenshots (ScreenshotPrivacy), drawn here as the neutral badge with no mode selected.',
+      'The kit\'s AlarmPanel has no hidden state; it is derived locally from "arming". Promote to kit: an AlarmPanel `hidden` prop.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: seven modes, hidden, optimistic and time-line variants on both surfaces.' }],
+  });
+})();
+</script></body></html>

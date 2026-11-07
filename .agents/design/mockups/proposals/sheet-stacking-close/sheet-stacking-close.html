@@ -1,0 +1,67 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sheet stacking and Close at every depth</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;
+--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 72px max(16px,env(safe-area-inset-left))}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}
+p{margin:0 0 12px;max-width:72ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+.lede{font-size:18px;color:var(--fg2)}.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;margin-top:20px}
+figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:300px}
+figcaption b{display:block;color:var(--fg);font-size:15px}.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+/* iPhone 402x874 pt at 0.42 */
+.phone{--k:.42;width:calc(402px*var(--k));height:calc(874px*var(--k));border-radius:calc(55px*var(--k));border:2px solid #000;background:#2a2f3a;position:relative;overflow:hidden}
+.phone .wall{position:absolute;inset:0;background:linear-gradient(160deg,#27405f,#14202f)}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1c1c1e;color:#fff;border-radius:calc(38px*var(--k)) calc(38px*var(--k)) 0 0;overflow:hidden}
+.sheet.light{background:#f2f2f7;color:#000}
+.grab{width:calc(36px*var(--k));height:calc(5px*var(--k));border-radius:9px;background:#8e8e93;margin:calc(6px*var(--k)) auto 0}
+.bar{height:calc(48px*var(--k));display:flex;align-items:center;justify-content:center;font-size:calc(17px*var(--k)*1.05);font-weight:600;position:relative}
+.x{position:absolute;right:calc(14px*var(--k));width:calc(32px*var(--k));height:calc(32px*var(--k));border-radius:50%;background:rgba(255,255,255,.16)}
+.light .x{background:rgba(0,0,0,.08)}
+.video{margin:calc(16px*var(--k));height:calc(208px*var(--k));border-radius:calc(20px*var(--k));background:linear-gradient(135deg,#5b6d57,#2f3a33 60%,#1b2220);position:relative}
+.video:after{content:"LIVE";position:absolute;left:calc(10px*var(--k));top:calc(10px*var(--k));font-size:calc(11px*var(--k)*1.3);background:rgba(0,0,0,.5);padding:1px 5px;border-radius:6px}
+.ctl{display:flex;justify-content:space-around;padding:0 calc(16px*var(--k))}
+.c{width:calc(56px*var(--k));height:calc(56px*var(--k));border-radius:50%;background:#2c2c2e}
+.home{height:calc(34px*var(--k))}
+.empty{background:repeating-linear-gradient(45deg,#1c1c1e,#1c1c1e 6px,#232326 6px,#232326 12px);display:grid;place-items:center;color:#8e8e93;font-size:11px;text-align:center}
+.ipad{width:min(560px,calc(100vw - 32px));height:392px;border:2px solid #000;border-radius:18px;position:relative;overflow:hidden}
+.ipad .sheet{left:15%;right:15%;border-radius:18px 18px 0 0}
+.split{display:flex;gap:12px;padding:12px}.split .video{margin:0;flex:1;height:150px}.split .col{flex:1;display:flex;gap:10px;flex-direction:column}
+.split .c{width:34px;height:34px}
+table{border-collapse:collapse;width:100%;font-size:14px;max-width:760px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+
+.phone .dim{background:rgba(0,0,0,.35)}.duo{width:calc(466px*.42);height:calc(678px*.42);border:2px solid #000;border-radius:14px;position:relative;overflow:hidden;background:linear-gradient(160deg,#27405f,#14202f)}
+.rail{position:absolute;right:0;top:0;bottom:0;width:calc(83px*.42);background:rgba(255,255,255,.12);display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:calc(60px*.42)}
+.rail i{width:calc(40px*.42);height:calc(40px*.42);border-radius:50%;background:rgba(255,255,255,.3)}.rail i.p{background:#0a84ff}
+.back{position:absolute;left:calc(14px*.42);width:calc(32px*.42);height:calc(32px*.42);border-radius:50%;background:rgba(255,255,255,.16)}
+.x.l{right:auto;left:calc(14px*.42)}.dlg{position:absolute;left:8%;right:8%;bottom:6%;background:#2c2c2e;border-radius:14px;padding:8px;font-size:9px;text-align:center;color:#fff}
+.dlg b{display:block;padding:5px;color:#ff453a}.dlg span{display:block;padding:5px;color:#0a84ff;border-top:1px solid #444}
+.pick td:first-child{white-space:nowrap}tr.rec td{background:color-mix(in srgb,var(--ok) 14%,transparent)}
+</style></head><body><div class="wrap">
+<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px">Proposal · 2026-10-23 · hig-sheets · Decided (2026-10-24): Close on every pushed page, a dialog for temperature scope, push for Share Location and Edit Task</p>
+<h1>Sheet stacking and Close at every depth</h1><p class="lede">Pushed pages in Quick Links lose Close, and a few flows present sheets on sheets.</p>
+<h2>Cause</h2>
+<p>9 findings. (1) Quick Links pushes Rooms and Security System but only the root has Close (<code>QuickLinksSheet.swift:63</code>), so pushed pages show Back and no Close. The HA web page also lacks it. (2) <code>BedTemperatureScopeSheet</code> is a second sheet over the bed sheet for a two-choice question. (3) Share Location opens a second sheet over Your Summary, and Edit task a third. HIG Sheets: avoid stacking sheets.</p>
+<h2>Options</h2>
+<div class="row">
+<figure class="bad"><div class="phone"><div class="wall"></div><div class="dim"></div><div class="sheet " style="height:calc(700px*.42)"><div class="grab"></div><div class="bar">Rooms<span class="back"></span></div></div></div><figcaption><b>Quick Links today, pushed Rooms</b>Back only; no Close.</figcaption></figure>
+<figure class="ok"><div class="phone"><div class="wall"></div><div class="dim"></div><div class="sheet " style="height:calc(700px*.42)"><div class="grab"></div><div class="bar">Rooms<span class="back"></span><span class="x"></span></div></div></div><figcaption><b>Close at every depth</b>Back leading, Close trailing, as the household sheets already do (<code>AdminSettingsContent</code>). Applies to Quick Links (Rooms, Security), HA web page.</figcaption></figure>
+<figure class="bad"><div class="phone"><div class="wall"></div><div class="dim"></div><div class="sheet " style="height:calc(700px*.42)"><div class="grab"></div><div class="bar">Bed<span class="x "></span></div><div style="height:calc(60px*.42)"></div></div></div><figcaption><b>Temperature scope today</b>A second fitted sheet for "Tonight / All Nights".</figcaption></figure>
+<figure class="ok"><div class="phone"><div class="wall"></div><div class="dim"></div><div class="sheet " style="height:calc(700px*.42)"><div class="grab"></div><div class="bar">Bed<span class="x "></span></div><div class="dlg"><b style="color:#0a84ff">Tonight</b><span>All Nights</span><span>Cancel</span></div></div></div><figcaption><b>Proposed</b>A <code>confirmationDialog</code>; the web dashboard used a dialog too. No second sheet.</figcaption></figure>
+</div>
+<h3>Share Location and Edit task over Your Summary</h3>
+<table class="pick"><tr><th>Option</th><th>Behaviour</th><th>Cost</th></tr>
+<tr class="rec"><td>X. Hand off</td><td>Dismiss Your Summary, then present the destination (same as the wake-light hand-off). Reopening the summary is manual.</td><td>small; loses context</td></tr>
+<tr><td>Y. Push</td><td>Edit task and Share Location become pushed pages in Your Summary's stack.</td><td>medium; keeps context, matches Quick Links</td></tr>
+<tr><td>Z. Keep stacked</td><td>Findings were rated Low: both sheets are short and single-task.</td><td>none; departure to record</td></tr></table>
+<h2>Comparison</h2>
+<table class="pick"><tr><th></th><th>HIG Sheets</th><th>Context kept</th><th>Cost</th></tr>
+<tr class="rec"><td>Close at every depth + dialog for scope</td><td>matches</td><td>yes</td><td>few lines per sheet; journey asserting Close on pushed pages</td></tr>
+<tr><td>Y for Share Location / Edit task</td><td>matches</td><td>yes</td><td>navigation change in two flows</td></tr></table>
+<h2>Recommendation</h2>
+<p>Close on every pushed page (Quick Links, HA web page), the dialog for temperature scope, and <b>Y</b> (push) for Share Location and Edit task because they return to the summary. If you prefer small effort, Z with a recorded departure.</p>
+<h2>Open questions</h2>
+<p>1. Push (Y), hand off (X) or leave stacked (Z) for Your Summary?<br>2. Camera viewer sizing is already covered by <a href="../camera-viewer-fit/camera-viewer-fit.html">camera-viewer-fit</a>; the 704 pt location permission sheet's hinge placement needs a Duo device run.</p></div></body></html>

@@ -1,0 +1,16 @@
+{
+  "id": "dd-security-chips-left-align",
+  "date": "2026-10-17",
+  "source": "b2164581",
+  "owner_report": "Security chips are not left-aligned- even if all chips fit on screen, they still need to be left aligned",
+  "surface": "chip-rail",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "alignment",
+  "pre_fix_ref": "aabd72ab",
+  "fix_ref": "c52c7b6c",
+  "fix_confidence": "high",
+  "expected": "Chips are leading-aligned even when they all fit; flag a centred or spread rail."
+}

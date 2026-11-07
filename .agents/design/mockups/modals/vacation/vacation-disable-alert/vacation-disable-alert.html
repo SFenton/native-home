@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Turn Off Vacation Mode? · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/vacation/_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.VS.V;
+
+  Mock.mount({
+    kind: 'modal', id: 'vacation-disable-alert', title: 'Turn Off Vacation Mode? (alert)', area: 'vacation', status: 'shipped', alwaysDark: true,
+    summary: 'Tapping an engaged Vacation Mode card (or its power disc) asks first: the title "Turn Off Vacation Mode?" with a plain Turn Off and Cancel. Turning off also turns off the invalid-dates flag and resets the checklist. Presented from the always-dark page, so the alert is dark in both system appearances.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassCore/Config/VacationConfig.swift', 'apple/Sources/HassCore/HouseholdAway/VacationModeController.swift'],
+    spec: ['.agents/pages/vacation/ios.md', '.agents/pages/vacation/spec.md'],
+    patterns: ['optimistic-actions', 'motion'],
+    hig: ['Alerts', 'Dark Mode', 'Dynamic Type'],
+    entities: ['input_boolean.demo_mode_4', 'input_boolean.demo_mode_3'],
+    kitComponents: ['Alert', 'GlassTile'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Over Vacation Mode, on', note: 'Turn Off is plain (the bold default); Cancel keeps the vacation on', render: function (ctx) { return V.disableAlert(ctx); } },
+      'offline': { title: 'Over an offline page', note: 'no change to the alert; the page behind carries the offline chip', render: function (ctx) { return V.disableAlert(ctx, { connection: 'offline' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the system stacks the two buttons vertically and scrolls a long title', render: function (ctx) { return V.disableAlert(ctx); } },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the page with the card On', render: function (ctx) { return V.modePage(ctx, { on: true }); } },
+    },
+
+    motion: [
+      { id: 'alert-in', what: 'The alert appears over the page and goes away on a button', token: 'system alert presentation (scale and fade); nothing custom', state: 'closed',
+        source: 'SwiftUI .alert in VacationModeScreen.swift; motion.md section 2 (system presentations are kept as they are)', reduce: 'the system cross-fades the alert',
+        play: function (stage) {
+          var scrim = h('div.ui-alert-scrim.g-dark', K.Alert({ title: V.copy.disableTitle, message: V.copy.disableMessage, buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Turn Off' }] }));
+          stage.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Vacation Mode card (on)', to: 'Alert', kind: 'fade', state: 'closed', note: 'Tapping the card sets isConfirmingDisable; the system alert fades in over the dimmed page. No sheet is involved.',
+        play: function (stage) {
+          var scrim = h('div.ui-alert-scrim.g-dark', K.Alert({ title: V.copy.disableTitle, message: V.copy.disableMessage, buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Turn Off' }] }));
+          stage.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1000); }).then(function () { scrim.remove(); });
+        } },
+      { from: 'Alert', to: 'Vacation Mode (off)', kind: 'fade', state: 'default', note: 'Turn Off shows the page off at once (optimistic) and the card cross-fades to Off in 0.6 s (0.2 s reduced); the page stays on Vacation Mode (lastEngaged) rather than returning to the chooser. Cancel only dismisses the alert.',
+        play: function (stage) {
+          var scrim = stage.querySelector('.ui-alert-scrim'), tile = stage.querySelector('.ui-tile');
+          return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }).then(function () { scrim.remove(); return Mock.anim.toggleState(tile, ['off'], ['tinted']); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Alert', note: 'A system alert: VoiceOver reads the title, then the buttons. Focus is trapped; the first button read is Cancel, the cancel role. Escape and the two-finger scrub press Cancel.' },
+      { rule: 'Buttons', note: 'Turn Off (destructive, red, identifier vacation.modeCard.confirm) and Cancel (identifier vacation.modeCard.cancel; rollout M, 2026-10-28: the action tile's confirmation, the same for a tap on the tile or on its power disc); the owner chose a verb over "Yes" (2026-10-13; HIG Alerts: confirm destructive actions with a verb).' },
+      { rule: 'Dynamic Type', note: 'The system alert scales with Dynamic Type, stacks the buttons at accessibility sizes and scrolls a long title. Checked at AX5 below.' },
+      { rule: 'Hint', note: 'The card that opens it says "Asks before turning Vacation Mode off." while the mode is on.' },
+      { rule: 'Contrast', note: 'The system draws the alert; red on its material is the system destructive tint.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Alerts: a succinct title that says what will happen", verdict: "pass", note: "AlertCopy.turnOffVacation: \"Turn Off Vacation Mode?\" (Vacation.Copy.disableAlert* removed).", by: "apple-hig skill" },
+        { rule: "Alerts: buttons are verbs, Cancel is present", verdict: "pass", note: "\"Turn Off\" and \"Cancel\" (VacationConfig.swift lines 62-63), not Yes or No.", by: "apple-hig skill" },
+        { rule: "Alerts: destructive style only for an undeliberate loss", verdict: "pass", note: "Turn Off is plain and the bold default.", by: "apple-hig skill" },
+        { rule: "Alerts: use sparingly for common, undoable actions", verdict: "departure", note: "Owner 2026-10-13 (ios.md): turning vacation off clears the checklist and the invalid-dates flag, so one extra step is wanted; the alert is the one shipped confirmation on this feature.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Navigation: alert tied to controller state", verdict: "pass", note: "alert(_:isPresented:) with a Binding whose setter runs cancelDisable (lines 39-44, 104-106).", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading, error, medium, large and fitted: an alert has none of these; it is a system presentation with no detents, no network UI and no loading state (the optimistic turn off happens after the button).',
+      'Appearance: the page is always dark (shell preferredColorScheme(.dark)), so the alert is drawn dark here, not in the light and dark pair a sheet gets. Derived, not seen on a device.',
+      'The catalog title "Turn Off Vacation Mode?" is shorter than the shipped title "Are you sure you want to turn off Vacation Mode?"; the code is drawn. spec.md does not describe this alert (added 2026-10-13, ios.md).',
+      'Turn Off also sets the invalid-dates flag off and turns every checklist item off (Vacation.disableCalls), so the page returns to the empty checklist.',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Rollout M: confirmation of the Vacation Mode action tile; ids vacation.modeCard.confirm/.cancel.' }, { date: '2026-10-23', note: 'First pass: the alert over Vacation Mode, offline, AX5, fade transitions.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,17 @@
+{
+  "id": "dd-new-task-edit-task-placement",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "\"New Task\" should use same modal positioning as Edit Task (or vice versa)",
+  "surface": "donetick-task-sheet",
+  "poses": [
+    "duo-unfolded-portrait",
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "89668a82",
+  "fix_ref": "c5e8b074",
+  "fix_confidence": "medium",
+  "expected": "New Task and Edit Task read one shared form-sheet size and placement; flag differing frames for the same form."
+}

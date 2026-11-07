@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Turn off bed side dialog · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, B = Mock.bedroom;
+  function D(o) { o = o || {}; return function (ctx) { return B.bedSheet(ctx, Object.assign({ power: true }, o)); }; }
+  Mock.mount({
+    kind: 'modal', id: 'bed-power-off-dialog', title: 'Turn off bed side? (confirmation dialog)', area: 'bedroom', status: 'shipped',
+    summary: 'The question after Turn Off on the bed sheet\'s power capsule: "Turn off Alex\'s Bed?", Turn Off in red and Cancel. A SwiftUI confirmationDialog with a visible title: an action sheet on iPhone, a popover anchored to the capsule on iPad. Turning a side on needs no question.',
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/design/direction-g.md'],
+    patterns: ['bedroom-devices', 'modal-sheet'],
+    hig: ['Action sheets', 'Alerts', 'Popovers'],
+    entities: ['climate.demo_climate_2'],
+    kitComponents: ['HassModal', 'ModalTabBar', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Turn off Alex\'s Bed?', note: 'iPhone: bottom action sheet; iPad and the unfolded Duo: a popover next to the Turn Off capsule (drawn centred here, the system anchors it)', render: D() },
+      'sam': { title: 'Turn off Sam\'s Bed?', render: D({ side: 'right' }) },
+      'whole-bed': { title: 'Solo Trip: Alex\'s Bed controls the whole bed', note: 'the question names the side only ("Turn off Alex\'s Bed?"); the power effect covers both sides (set_power on the household-away script)', render: D({ bed: { scope: 'whole' } }) },
+      'closed': { title: 'Before the question (the sheet at rest)', render: function (ctx) { return B.bedSheet(ctx, {}); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the dialog title and buttons grow and the dialog scrolls', render: D() },
+    },
+    motion: [
+      { id: 'dialog-in', what: 'Turn Off is tapped: the dialog fades and settles in over the dimmed sheet', token: 'system confirmationDialog (about 0.3 s); no app token', state: 'closed',
+        source: 'BedSideSheet.powerButton .confirmationDialog', reduce: 'a plain cross-fade (system)',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), B.actionSheet(ctx, 'Turn off Alex\'s Bed?', [{ title: 'Turn Off', role: 'destructive' }]));
+          if (!ctx.regular) scrim.style.placeItems = 'end center'; host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 300 }).then(function () { return Mock.sleep(900); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+    transitions: [
+      { from: 'Turn Off capsule', to: 'Turn off? dialog', kind: 'overlay', state: 'closed', note: 'Opens over the large sheet; the sheet stays where it is and dims.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), B.actionSheet(ctx, 'Turn off Alex\'s Bed?', [{ title: 'Turn Off', role: 'destructive' }]));
+          if (!ctx.regular) scrim.style.placeItems = 'end center'; host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 300 }).then(function () { return Mock.sleep(800); });
+        } },
+      { from: 'Turn Off (red)', to: 'Bed sheet, side off', kind: 'fade', state: 'default', note: 'Confirming dismisses the dialog and the side goes off: the dial dims to 45% grey, the numeral reads OFF and the capsule becomes Turn On. The change is optimistic and holds 30 s until Home Assistant confirms.',
+        play: function (stage) {
+          var scrim = stage.querySelector('.ui-alert-scrim'), d = stage.querySelector('.bd-dial'), host = stage.querySelector('.ui-host');
+          return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }).then(function () { scrim.remove(); d.classList.add('inactive'); d.querySelector('.act').textContent = 'Off'; d.querySelector('.big').textContent = 'OFF'; var cap = host.querySelector('.bd-cap'); if (cap) cap.lastChild.textContent = 'Turn On'; return Mock.sleep(900); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Focus and order', note: 'VoiceOver moves into the dialog: the title ("Turn off Alex\'s Bed?"), Turn Off (destructive), Cancel. The sheet behind is not reachable; Escape and the two-finger scrub cancel.' },
+      { rule: 'Roles', note: 'Turn Off is .destructive, Cancel is .cancel; a popover on iPad keeps both, and a tap outside cancels.' },
+      { rule: 'Dynamic Type', note: 'The system lays the dialog out at AX sizes: buttons stack and the title wraps.' },
+      { rule: 'Reversibility', note: 'Only turning off asks; turning on, Snooze and Stop do not (reversible or time critical).' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Action sheets: destructive in red, Cancel present', verdict: 'pass', note: 'One .destructive Turn Off and a .cancel Cancel; title visible.' },
+        { rule: 'Alerts: do not over-confirm', verdict: 'departure', note: 'Turning a side off asks although it is reversible, because heating takes minutes to recover (direction-g.md Alerts: hard-to-undo actions); the destructive role colours a non-destructive action red.' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: confirmationDialog attached to the triggering control', verdict: 'pass', note: 'Hangs off the power Button inside powerButton, which keeps the Liquid Glass morph source correct.' },
+        { rule: 'Navigation: item-based presentation', verdict: 'pass', note: 'A payload-free yes/no on its own button: the Bool is the right state; an item adds nothing.' },
+      ],
+    },
+    notes: [
+      'loading, error, offline, medium, large and fitted do not apply to a system confirmation dialog (it draws no content of its own and sits over the large bed sheet); the states here are the question for each side, the Solo Trip wording, the sheet at rest and AX5.',
+      'The Turn Off button label inside the dialog is just "Turn Off"; the title carries the side. On iOS 26 the iPhone dialog is a floating glass action sheet with Cancel in its own capsule (drawn that way).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

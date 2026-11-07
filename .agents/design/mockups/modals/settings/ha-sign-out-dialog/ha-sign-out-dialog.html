@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign out of Home Assistant? · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var K = Mock.components;
+  var C = function (o) { return function (ctx) { return SA.haCover(ctx, Object.assign({ account: 'loaded' }, o)); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'ha-sign-out-dialog', title: 'Sign Out of Home Assistant? (alert on the Home Assistant cover)', area: 'settings', status: 'shipped', alwaysDark: true,
+    summary: 'The alert behind the Home Assistant cover’s Sign Out button, the same alert as the Account sheet (decided 2026-10-24): "Sign Out of Home Assistant?", a message, Cancel and a red Sign Out.',
+    source: ['apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift'],
+    spec: ['.agents/pages/settings/ios.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Action sheets', 'Alerts', 'Popovers', 'Modality'],
+    entities: [],
+    kitComponents: ['Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Alert', note: 'Cancel and a red Sign Out, the same alert as the Account sheet', render: C({ confirm: 'alert' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the system stacks the two buttons; the form behind scrolls to Sign Out', render: C({ confirm: 'alert' }) },
+    },
+    motion: [],
+    transitions: [
+      { from: 'Sign Out', to: 'Confirmation', kind: 'overlay', note: 'The system presents the popover (a short scale and fade anchored to the button) or the action sheet (slides up from the bottom). Nothing custom; Reduce Motion fades.', state: 'default',
+        play: function (stage) {
+          var scrim = stage.querySelector('.ui-alert-scrim'); scrim.style.opacity = 0;
+          return Mock.sleep(150).then(function () { return Mock.anim.fade(scrim, { ms: 200 }); }).then(function () { scrim.style.opacity = ''; return Mock.sleep(900); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The alert is modal: the title "Sign Out of Home Assistant?", the message, then Cancel and Sign Out (haSettings.signOut.confirm).' },
+      { rule: 'Destructive role', note: 'Sign Out carries the destructive role, so VoiceOver says "Sign Out, destructive"; the red is the system’s, never the only cue.' },
+      { rule: 'Dynamic Type', note: 'The system scales the alert; at AX5 the buttons stack and the alert scrolls if taller than the window.' },
+      { rule: 'Focus', note: 'Focus returns to the Sign Out button when the dialog closes without signing out.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Action sheets: destructive choice prominent, message only if needed', verdict: 'pass', note: 'Title "Sign out of Home Assistant?", one-line message, red Sign Out and a Cancel role (HomeAssistantSettingsView.swift:120-130); SwiftUI supplies Cancel except in the iOS 26 popover.', by: 'apple-hig skill' },
+        { rule: 'Alerts and sheets: use one confirmation style for one action', verdict: 'pass', note: 'The Home Assistant cover now raises the same AlertCopy.signOut alert as the Account sheet.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: confirmationDialog(isPresented:titleVisibility:) on the trigger', verdict: 'pass', note: 'Presented from the Sign Out button with titleVisibility .visible so the question shows (:120-124).', by: 'swiftui-pro skill' },
+        { rule: 'Navigation: alert and dialog share a presenter', verdict: 'pass', note: 'Fixed on claude/hig-alerts: the presenter now sits on the triggering button (or a sibling). Same button also owns the failure alert (:117), and the iOS 27 audit finds a duplicate nested Sign Out; split the presenters.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading, error and offline: not applicable; a dialog has no data to load. medium, large and fitted: no detents; the popover and action sheet size themselves. The dialog sits over the Home Assistant cover (modals/settings/ha-settings), scrolled to Sign Out.',
+      'Docs and code: ios.md calls the Sign Out confirmation an action sheet; the Account sheet’s is an alert (modals/shell/sign-out-alert). Message copy matches: "You’ll need your username and password to sign in again."',
+      'Popover geometry is the system’s: drawn above the button at 270 pt wide; the real one measures the label and may open below when there is no room above.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: anchored popover, action sheet and AX5.' }],
+  });
+})();
+</script></body></html>

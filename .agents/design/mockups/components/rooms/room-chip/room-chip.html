@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Room status rail and chip · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/rooms/_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms, Ch = R.chip;
+
+  /* Real rails in context: RoomStatusRail on a page (scrolls on compact width, wraps on regular, stops 24 pt short of a hinge). */
+  function rail(label, id, st) {
+    return function (ctx) {
+      var room = R.build(id, st || {});
+      return h('div.k-swatch.page.g-dark', { style: { padding: '14px 0', flex: '1 1 100%' } }, h('div.k-cap', { style: { padding: '0 14px' } }, label), R.rail(ctx, R.byPath[id].title, room.chips));
+    };
+  }
+  function stack(list) { return function (ctx) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '18px' } }, list.map(function (f) { return f(ctx); })); }; }
+  function chip(stage, title) { return stage.querySelector('.ui-chip[data-chip="' + title + '"]'); }
+
+  var cfg = Mock.componentConfig('RoomChip', { surfaces: ['page'] });
+  cfg.states['in-context'] = { title: 'In context: real rails', note: 'Living Room (five chips), Garage (the fewest: one), Back Deck (an inert chip), Living Room unavailable', render: stack([
+    rail('Living Room · evening', 'living-room', { window: 'home' }), rail('Garage · one chip', 'garage'), rail('Back Deck · Occupancy has no sheet (inert)', 'back-deck'), rail('Living Room · every entity unavailable', 'living-room', { u: true })]) };
+  cfg.states.ax5 = { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'chips keep one line each and scroll sideways on compact width, wrap on regular', render: rail('Living Room', 'living-room') };
+
+  Mock.mount(Object.assign(cfg, {
+    states: cfg.states,
+    id: 'room-chip', title: 'Room status rail and chip', area: 'rooms', status: 'shipped',
+    summary: 'The chips under a room page\'s title: Lights, Climate, Occupancy, Window or Door and Air Quality, each a capsule of glyph, name and one-line state in the colour the web gives it. A chip with a sheet opens it; a chip without one is inert. Pages only (the chip ground is always dark).',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Home/StatusChipAppearance.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift',
+      'apple/Sources/HassDesign/ChipTint.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift', 'apple/Sources/HassCore/Chips/ContactChipState.swift'],
+    spec: ['.agents/patterns/status-rail.md', '.agents/pages/rooms/spec.md', '.agents/design/direction-g.md'],
+    patterns: ['status-rail', 'entity-tile', 'motion'],
+    hig: ['Color', 'Typography', 'Dynamic Type', 'Buttons', 'Accessibility', 'Motion'],
+    entities: ['light.demo_living_room_item_1', 'input_text.demo_living_room_2', 'binary_sensor.demo_living_room_1', 'binary_sensor.demo_living_room_contact_1', 'sensor.demo_living_room_3', 'binary_sensor.demo_upper_deck_camera_1'],
+    kitComponents: ['StatusChip', 'ChipRail'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    motion: [
+      { id: 'chip-colour', what: 'A chip follows the house: the Window chip goes from Closed (soft green) to Open at home (amber) and its glyph swaps', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only; glyph swap is the system symbol replace', state: 'variants',
+        source: 'HassUI/Features/Home/StatusRail.swift StatusChipStyle.colorAnimation, stateForeground("StatusChip"); motion.md section 6', reduce: 'still cross-fades at 0.2 s; the glyph swap is an identity change',
+        play: function (stage) { var c = chip(stage, 'Window'); if (!c) return Promise.resolve(); c.style.setProperty('--cf', 'var(--chip-contact-home-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-home-glyph)'); c.querySelector('.su').textContent = 'Open'; c.querySelector('.g').innerHTML = Mock.icon('door.left.hand.open', { fill: true }); return Mock.sleep(Mock.anim.ms.state() + 300); } },
+      { id: 'lights-off', what: 'The Lights chip goes neutral when the last light turns off', token: 'state 0.6 s ease-in-out (0.2 s reduced)', state: 'variants', source: 'StatusRail.swift; motion.md section 6', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) { var c = chip(stage, 'Lights'); if (!c) return Promise.resolve(); c.classList.remove('filled'); c.style.setProperty('--cf', 'rgba(28,28,30,.66)'); c.style.setProperty('--cg', 'var(--g-secondary-on-module)'); c.querySelector('.su').textContent = 'Off'; return Mock.sleep(Mock.anim.ms.state() + 300); } },
+    ],
+    a11y: [
+      { rule: 'Name and role', note: 'A chip with a sheet is a button labelled "<title>, <summary>" ("Window, Closed") with the hint "Opens <title>"; the identifier is room.chip.<title>. An inert chip (no sheet) is one element with the same label and no button role or hint. The rail is a group labelled "<Room> status".' },
+      { rule: 'State is not colour alone', note: 'The state is the words (On, Detected, Open, All Closed, a range, "38 • 6 µg/m³"), the glyph (outline person while clear, filled while detected; closed or open door; triangle when open while armed) and the fill.' },
+      { rule: 'Targets', note: '48 pt tall at the default size, growing with text; chips keep their own widths so live values never shift neighbours.' },
+      { rule: 'Contrast', note: 'White text passes 4.5:1 on every fill, as rendered (journey testLivingRoomChipsReadOnTheirColours): temperature and AQI colours are darkened until white reads; the glyph colour is lifted to 3:1.' },
+      { rule: 'Dynamic Type', note: 'Title 15 semibold and state 12 scale with the text; at AX5 each chip is tall and the compact rail scrolls sideways (the regular rail wraps). The state never truncates.' },
+      { rule: 'Layout', note: 'Compact width (iPhone, folded Duo): one scrolling row from the leading margin. Regular width: wraps. On the unfolded Duo the rail stops 24 pt short of the hinge.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Words (On, Detected, All Closed), glyph (filled/outline, door open) and fill; armed-open adds a triangle.' },
+        { rule: 'Buttons: an inert control does not look or act tappable', verdict: 'pass', note: 'A chip without a sheet is not a Button and has no hint (StatusChipButton).' },
+        { rule: 'Typography: no text below the legible floor', verdict: 'pass', note: 'StatusChipButton state line is .subheadline (StatusRail.swift), option B.' },
+        { rule: 'Layout: chips and the hinge', verdict: 'pass', note: 'ChipRail scrolls on compact width, wraps on regular and stops short of a hinge via the windowHinge environment.' },
+        { rule: 'Color: status colours follow the web', verdict: 'departure', note: 'Temperature and AQI colours are the web\'s, darkened until white holds 4.5:1 (direction-g.md Status chips follow the web).' },
+      ],
+      swiftui: [
+        { rule: 'One shared component', verdict: 'pass', note: 'StatusChipButton and StatusChipAppearance serve Home, Security and room rails; RoomChip only resolves a card.' },
+        { rule: 'Accessibility: label and hint', verdict: 'pass', note: '"Window, Closed" with hint "Opens Window"; rail labelled "<Room> status".' },
+        { rule: 'Views: UIKit-hosted scrolling', verdict: 'departure', note: 'HostedHorizontalScroll hosts a UIScrollView on compact width (status-rail.md 2026-10-16: a SwiftUI ScrollView cost main-thread time every frame); swiftui-pro prefers no UIKit, but the measurement is recorded.' },
+        { rule: 'Motion: colour with the app token, Reduce Motion', verdict: 'pass', note: 'stateForeground / stateColorTransition("StatusChip"), 0.2 s reduced.' },
+      ],
+    },
+    notes: [
+      'Chip rules per kind (StatusChipAppearance.room): Lights, Light and other kinds fill with their family while active (amber for lights); Occupancy keeps one person glyph that fills while detected; contact chips take the house state (closed green, open at home amber, open with the household away orange-red, open while armed red with a triangle) and show a DOOR glyph even for a window; Climate and Air Quality always fill (temperature gradient, AQI colour), "Unavailable" included.',
+      'A contact chip whose title ends in "s" ("Doors", "Windows") reads "All Closed" while closed and "Open" while any is open; a singular one reads "Closed" / "Open".',
+      'Air Quality reads "<AQI> • <PM2.5 with unit>" ("38 • 6 µg/m³") on a room rail; Home\'s chip reads "AQI x · PM2.5 y" from range helpers.',
+      'The room rail\'s Lights chip sheet and the others are the room card sheet; Air Quality opens the air purifier sheet (room-devices batch).',
+      'Promote to kit: nothing beyond the notes in pages/rooms/_rooms.js; Mock.rooms.chip.* wraps Mock.chips.* with the room rules (titles, door glyphs, plural summaries, inert).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: each chip kind and state, inert, unavailable, real rails.' }],
+  }));
+})();
+</script></body></html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solo Trip · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.VS.V;
+  function page(o) { return function (ctx) { return V.soloPage(ctx, o); }; }
+
+  Mock.mount({
+    kind: 'page', id: 'solo-trip', title: 'Solo Trip', area: 'vacation', status: 'shipped',
+    summary: 'Settings > Vacation > Solo Trip: the Solo Trip action tile (power disc) beside the traveler choice (Alex, Sam). Turning it on opens the schedule editor; a running trip shows its notice, the return time and anything that needs attention. Sample data is fixture data.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/Features/Vacation/VacationComponents.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKScheduleDateFields.swift', 'apple/Sources/HassDesign/InfoBox.swift',
+      'apple/Sources/HassCore/HouseholdAway/SoloTripController.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripStatus.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripCopy.swift'],
+    spec: ['.agents/pages/vacation/spec.md', '.agents/pages/vacation/ios.md', '.agents/patterns/schedule-date-fields.md'],
+    patterns: ['schedule-date-fields', 'entity-tile', 'info-box', 'settings-section', 'optimistic-actions', 'motion'],
+    hig: ['Toggles', 'Selection', 'Date pickers', 'Layout', 'Color', 'Dynamic Type', 'Sheets'],
+    entities: ['sensor.demo_away_2', 'script.demo_script_2', 'input_boolean.demo_mode_4'],
+    kitComponents: ['GlassTile', 'TileGrid', 'ScheduleDateFields', 'InlineAlert', 'InfoBox', 'PageSectionHeader', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Off, no traveler chosen', note: 'the power disc is dimmed until someone is chosen: subtitle "Select the user that will be away from home first."', render: page({}) },
+      'traveler-selected': { title: 'Off, traveler chosen', note: 'tapping the tile or its disc opens the Schedule Solo Trip sheet (hint "Asks for the departure and return times.")', render: page({ selected: 'alex' }) },
+      'end-alert': { title: 'Turning it off asks "End Solo Trip?"', note: 'rollout M: the tile and its disc take the same path; End Solo Trip is plain, Cancel keeps the trip', render: function (ctx) { return V.endSoloAlert(ctx); } },
+      'scheduled': { title: 'Scheduled, not started', note: 'toggle On; selection locked; the traveler shows Away and the other Home; return time editable; no notice until the trip starts', render: page({ engaged: 'scheduled' }) },
+      'running': { title: 'Running (all effects confirmed)', note: 'success notice for the traveler\'s own view ("you are away"); the viewer is Alex, shown as You', render: page({ engaged: 'active' }) },
+      'running-other': { title: 'Running, seen by the home resident', note: 'the viewer is Sam (You is the other tile); the notice reads for the traveler by name', render: page({ engaged: 'active', viewer: 'sam' }) },
+      'return-error': { title: 'Return time moved before departure', note: 'inline error under the field; nothing is sent while invalid', render: page({ engaged: 'active', ret: { value: 'Oct 22, 2026 · 9:00 AM', error: V.copy.endInFuture } }) },
+      'needs-attention': { title: 'Needs attention', note: 'restore_required: the toggle is disabled; Keep Current Schedule and Restore Saved Schedule resolve it', render: page({ engaged: 'restore' }) },
+      'degraded': { title: 'Degraded', note: 'some effects unconfirmed; retries continue; neutral notice with no description', render: page({ engaged: 'degraded' }) },
+      'error': { title: 'A command failed', note: 'the status section shows only the alert: "Home Assistant could not apply the Solo Trip change. Try again."', render: page({ engaged: 'error' }) },
+      'setup-required': { title: 'Household Away setup required', note: 'after 5 s of continuous command_available: false; toggle subtitle becomes the setup text', render: page({ setup: true, selected: 'alex' }) },
+      'vacation-engaged': { title: 'Vacation Mode is engaged', note: 'the toggle is disabled and tiles are muted; the page says to turn Vacation off first', render: page({ vacation: true, selected: 'alex' }) },
+      'offline': { title: 'No network', note: 'values stay; offline chip under the header; commands would fail', render: page({ engaged: 'active', connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: page({ engaged: 'active', connection: 'reconnecting' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'sections stack in one column; the two traveler tiles stay side by side on an iPhone (minCellWidth 140 is a literal, not scaled), the tiles take their stacked layout; the return picker drops below its label', render: page({ engaged: 'active' }) },
+    },
+
+    motion: [
+      { id: 'toggle-colour', what: 'The Solo Trip card turns on (or off): the blue tint cross-fades in and the disc turns white', token: 'state 0.6 s ease-in-out, colour only', state: 'traveler-selected',
+        source: 'HassUI/Features/Vacation/SoloTripScreen.swift SoloTripToggleTile; HassDesign/GlassTile.swift stateColorTransition("GlassTile"); motion.md section 6', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) {
+          var tile = stage.querySelectorAll('.ui-tile')[0], st = tile.querySelector('.st');
+          var disc = tile.querySelector('.disc');
+          return Mock.anim.toggleState(tile, ['tinted'], ['off']).then(function () { st.textContent = 'On'; disc.classList.add('on'); return Mock.sleep(700); })
+            .then(function () { disc.classList.remove('on'); return Mock.anim.toggleState(tile, ['off'], ['tinted']).then(function () { st.textContent = 'Off'; }); });
+        } },
+      { id: 'traveler-select', what: 'Choosing a traveler: the tile fills in the Solo Trip blue and its ring becomes a white check disc', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'HassUI/Features/Vacation/SoloTripScreen.swift TravelerTileView (selection tile, SelectionActions.single); motion.md section 6', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) {
+          var tiles = stage.querySelectorAll('.ui-tile'), t = tiles[1];
+          var ring = t.querySelector('.sl-c');
+          return Mock.anim.toggleState(t, ['on'], ['off']).then(function () { ring.classList.add('on'); return Mock.sleep(800); })
+            .then(function () { ring.classList.remove('on'); return Mock.anim.toggleState(t, ['off'], ['on']); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Solo Trip card (traveler chosen)', to: 'Schedule Solo Trip sheet', kind: 'sheet', state: 'traveler-selected', note: 'Turning the toggle on presents the form sheet (hassSheet(.form), fitted). The sheet cannot be swiped away while the schedule waits for Home Assistant\'s echo (interactiveDismissDisabled).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Schedule Solo Trip', detent: 'fitted', size: 'form', leading: 'cancel', trailing: 'none', content: h('div.vs-stack', h('p', { style: { margin: 0, fontSize: 'var(--fs-sub)', color: 'var(--ink-sheet-2)' } }, V.copy.editorDescription), K.ScheduleDateFields({ fields: [{ label: 'Departs', value: V.when.now }, { label: 'Returns', value: V.when.plus3 }] }), V.actionButton('Schedule Solo Trip', { prominent: true })) }, { hold: 1200 }); } },
+      { from: 'Vacation', to: 'Solo Trip', kind: 'push', state: 'default', note: 'The chooser row pushes the page (or the chooser is skipped when a trip is engaged). System push; the interactive back swipe pops.',
+        play: function (stage) {
+          var ctx = Mock.current, cur = stage.querySelector('.ui-page'), root = V.chooserPage(ctx, {});
+          cur.parentNode.insertBefore(root, cur);
+          return Mock.anim.push(root, cur).then(function () { return Mock.sleep(500); }).then(function () { root.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back ("Settings"), the title "Solo Trip", the notice (when away), the description, the Solo Trip card, any setup error; then "Away From Home" (heading), its description, the two traveler tiles, the return picker, the error, and the status section.' },
+      { rule: 'Toggle card', note: 'Rollout M (2026-10-28): an action tile, text and one power disc (no leading glyph). Label "Solo Trip", value "On", "Off" or the explanatory subtitle; hint "Asks for the departure and return times." while off; turning it off asks "End Solo Trip?" first. Identifier soloTrip.toggle. Disabled states keep full-contrast text; only the disc dims.' },
+      { rule: 'Traveler tiles', note: 'Each is a button with the selected trait when chosen; value "Away", "Home" or "Selected"; hint "Selects the traveler." or "Clears the traveler." (none while locked). The viewer\'s own tile is titled "You". State is the filled blue plus the white check disc (an empty ring when not chosen) plus the value word; the disc dims while the tiles are locked.' },
+      { rule: 'Return picker', note: 'A compact date-and-time picker labelled "Returns"; disabled while a command is pending or the trip cannot be edited; its error is an inline alert below.' },
+      { rule: 'Status section', note: 'Title is a heading; the description reads after it; the two restore actions are buttons (bordered, 50 pt); the End Solo Trip Now button is destructive red.' },
+      { rule: 'Dynamic Type', note: 'Section grid minimum 340 pt and tile minimum 140 pt, neither scaled: one section column on an iPhone at AX5, but the two traveler tiles stay side by side at about 181 pt each. Descriptions wrap (fixedSize vertical). Checked at AX5 below.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Alerts and Action sheets: confirm ending a running trip", verdict: "pass", note: "The toggle tile (AwayTileActions confirmation) and End Solo Trip Now ask AlertCopy.endSoloTrip first.", by: "apple-hig skill" },
+        { rule: "Typography: Dynamic Type through AX5", verdict: "pass", note: "SoloTripScreen.minTravelerWidth is @ScaledMetric(relativeTo: .subheadline) 140.", by: "apple-hig skill" },
+        { rule: "Toggles and Selection: selected state is not colour alone", verdict: "pass", note: "TravelerTileView is a selection tile (SelectionActions.single): VoiceOver reads selected and a value (\"Away\", \"Home\", \"Selected\"), never switch; the check disc against an empty ring says it without colour.", by: "apple-hig skill" },
+        { rule: "Writing: say it once", verdict: "pass", note: "SoloTripStatus.make returns no section title when the active notice shows; the notice box carries \"<Traveler> Away\" once (departure from web parity, recorded in .agents/pages/vacation/ios.md).", by: "apple-hig skill" },
+        { rule: "Date pickers: a live return time", verdict: "pass", note: "One compact date-and-time \"Returns\" picker writes after 0.9 s and shows its error inline (lines 69-76).", by: "apple-hig skill" },
+        { rule: "Color: tile tint contrast", verdict: "pass", note: "AwayTint values were checked at 4.5:1 for text (VacationComponents.swift lines 7-17).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Views: Task { await controller.toggle() } in an action closure", verdict: "pass", note: "Actions delegate to the @Observable controller; the view holds no business logic (lines 53, 65, 71, 79-85).", by: "swiftui-pro skill" },
+        { rule: "Data flow: @State controller created in init", verdict: "pass", note: "@State private var controller = SoloTripController(household:) built once (lines 9-15); viewer is pushed in through onAppear and onChange (lines 26, 30).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: errors belong to the page", verdict: "pass", note: "onDisappear clears the shared household error so Vacation Mode never shows a Solo Trip error (lines 27-29).", by: "swiftui-pro skill" },
+        { rule: "Dynamic Type: AwayActionButton minimum height", verdict: "pass", note: "AwayActionButton drops the minTarget - 16 label height; .controlSize(.large) draws the bordered capsule 50 pt tall (VacationComponents.swift).", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'Corrected 2026-10-23 by the skill review: the traveler tiles were drawn one column at AX5 (a scaled 140 pt minimum); SoloTripScreen.swift line 63 passes a literal 140, so two tiles stay side by side. Redrawn from the code; the section grid minimum 340 is also literal in the drawing now.',
+      'loading, refreshing, empty and long-text: none apply. State comes from EntityStore (saved snapshot first); the copy is fixed text; AX5 covers wrapping. An engaged trip that ends shows the off page at once (optimistic end) rather than a loading state.',
+      'error is the household command failure shown in the status section (not the blocked-toggle alerts, which are the setup-required and vacation-engaged states).',
+      'Traveler names (Alex, Sam) come from HouseholdResident; the viewer mapping (You) comes from the signed-in Home Assistant user. Fixture dates are made up.',
+      'Tile dimming (rollout M): a locked tile keeps its face and text; only its disc dims, in place. The exact dimming on a device was not checked.',
+      'ios.md says the Solo Trip page is a Settings detail pushed in every pose until the Settings split lands; spec.md says a right pane in Duo unfolded landscape and iPad landscape. The code pushes. Drawn as a push.',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Rollout M: the toggle is an action tile with a power disc; travelers are selection tiles; End Solo Trip? alert state added.' }, { date: '2026-10-23', note: 'First pass: off, chosen, scheduled, running (two viewers), return error, needs attention, degraded, error, setup, Vacation engaged, offline, AX5, motion.' }],
+  });
+})();
+</script></body></html>

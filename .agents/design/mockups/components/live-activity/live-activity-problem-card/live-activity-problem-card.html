@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Activity problem card · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function slug(code) { return 'problem-' + code.replace(/\./g, '-'); }
+  function card(name, ctx, o) { return LA.lockCard(LA.fx(name), Object.assign({ ctx: ctx }, o)); }
+  function rows(ctx, filter, flip) {
+    return LA.stage(LA.PROBLEMS.filter(filter).map(function (r) {
+      var n = slug(r.code) + (flip ? (r.task ? '-nodone' : '-done') : '');
+      return LA.fig(card(n, ctx), n, (r.device ? r.device + ' · ' : '') + (flip ? (r.task ? 'Done taken off' : 'Done added') : (r.task ? 'has Done' : 'no Done')));
+    }));
+  }
+  function table() {
+    var head = ['Code', 'Severity', 'Glyph', 'Problem line', 'Buttons', 'Done', 'Compact word'];
+    var body = LA.PROBLEMS.map(function (r) {
+      var c = LA.card(LA.fx(slug(r.code)));
+      return [h('code', r.code), h('span', { style: { color: LA.SEV[r.sev].light } }, r.sev), h('span', { style: { display: 'inline-flex', gap: '6px', alignItems: 'center' } }, LA.sev(r.icon, r.sev, 20), r.icon),
+        r.problem, r.buttons.map(function (b) { return b[1]; }).join(', ') || 'none', r.task ? 'yes (task 1042)' : 'no', c.compactTrailing.word];
+    });
+    return h('div', { style: { padding: '14px', borderRadius: '16px', background: '#14161c', overflowX: 'auto' } },
+      h('table.la-tbl', h('thead', h('tr', head.map(function (t) { return h('th', t); }))), h('tbody', body.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); }))));
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'live-activity-problem-card', title: 'Live Activity problem card (critical red, warning amber)', area: 'live-activity', status: 'shipped', frame: false,
+    summary: 'When a device needs help the same activity becomes a problem card: a severity shape (octagon stopped, triangle carries on), the problem led by a two-word state, an instruction, up to three buttons. Red stopped and needs you; amber carries on.',
+    source: ['apple/Sources/FentonActivityViews/ProblemCardView.swift', 'apple/Sources/FentonActivityViews/SeverityCircle.swift', 'apple/Sources/FentonActivityViews/ActivityStyle.swift', 'apple/Sources/FentonActivityModel/ActivityProblem.swift',
+      'apple/Sources/FentonActivityModel/HomeActivityFixtures.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: [],
+    hig: ['Live Activities', 'Color', 'Buttons'],
+    entities: ['fenton_home problem content-state (spec section 5 table)'],
+    devices: ['iphone', 'duo-folded'],
+    states: {
+      'default': { title: 'Critical on the Lock Screen', note: 'Main Floor Vacuum, "Stuck in Kitchen" (red)', render: function (ctx) { return LA.lockScreen(ctx, [card('problem-navigation-stuck', ctx)]); } },
+      warning: { title: 'Warning on the Lock Screen', note: 'Clean water tank empty (amber)', render: function (ctx) { return LA.lockScreen(ctx, [card('problem-mop-clean_water_empty', ctx), card('washer', ctx)]); } },
+      banner: { title: 'Banner (alerting update)', note: 'critical updates alert with sound; warnings are silent (the engine sets it)', render: function (ctx) {
+        return LA.homeScreen(ctx, LA.bannerAt(ctx, card('problem-navigation-stuck', ctx), ctx.device.safeTop + 12)); } },
+      critical: { title: 'Every critical row', render: function (ctx) { return rows(ctx, function (r) { return r.sev === 'critical'; }); } },
+      warnings: { title: 'Every warning row', render: function (ctx) { return rows(ctx, function (r) { return r.sev === 'warning'; }); } },
+      flipped: { title: 'Done flipped', render: function (ctx) { return rows(ctx, function (r) { return ['navigation.stuck', 'power.critical_battery', 'dock.cover_open', 'dishwasher.error'].indexOf(r.code) >= 0; }, true); } },
+      chips: { title: 'Unknown errors and chips', note: 'a chip rides on the leading side of the button row; never for a known code', render: function (ctx) { return rows(ctx, function (r) { return /vendor|unmapped/.test(r.code); }); } },
+      pending: { title: 'Done pending', note: '"Completing…" replaces the buttons until the task closes', render: function (ctx) { return LA.stage([LA.fig(card('problem-completing', ctx), 'problem-completing')]); } },
+      standby: { title: 'StandBy (no corner mark)', render: function (ctx) { return h('div', { style: { padding: '8px 4px' } }, LA.fig(LA.standby(ctx, LA.fx('problem-navigation-stuck'), { scale: 1.45 }), 'problem-navigation-stuck', 'corner mark dropped, scale illustrative')); } },
+      table: { title: 'The section 5 table', note: 'wording, glyph and compact word per code', render: function () { return table(); } },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'lines wrap instead of truncating; the buttons stack under them', render: function (ctx) { return LA.stage([card('problem-navigation-stuck', ctx), card('problem-vendor-unknown_error_88', ctx)].map(function (n, i) { return LA.fig(n, ['problem-navigation-stuck', 'problem-vendor-unknown_error_88'][i]); })); } },
+    },
+    motion: [
+      { id: 'done-pending', what: 'Done swaps the buttons for "Completing…"; the card then ends when the Choreapp task closes', token: 'system content update (ActivityKit default)', source: 'apple/Sources/FentonActivityViews/ActivityButtons.swift',
+        reduce: 'No app animation; the system update transition applies.', note: 'State is the red critical card with Resume, Dock and Done.',
+        play: function (stage) { return Mock.sleep(400).then(function () { LA.swapFirst(stage, LA.fx('problem-completing')); return Mock.sleep(1500); }); } },
+    ],
+    transitions: [
+      { from: 'Problem card', to: 'S+H (Vacuums page)', kind: 'cut', note: 'A tap on the card opens fentonhome://liveactivity?url=/sfenton-react-dash/home?path=vacuums. Buttons run App Intents in the app process and leave the app closed.' },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'One phrase for the whole text block, "Main Floor Vacuum, needs help: Stuck in Kitchen. Move it somewhere flat, then tap Resume." (a chip is read after it), then the buttons. The circle, glyph and mark are hidden.' },
+      { rule: 'Severity is not colour alone', note: 'The phrase says "needs help" or "needs attention"; the shape is an octagon (stopped) or a triangle (carries on), the same two words lead the problem line, and the shape carries a glyph (alert, door, battery, water ...) and the problem line names the issue.' },
+      { rule: 'Buttons', note: 'Up to three pills, Done last, each a 44 pt target named for its device ("Resume Main Floor Vacuum").' },
+      { rule: 'Contrast', note: 'The severity light tints (#FFB4AE red, #FFD59A amber) and the 82% white message are checked at 4.5:1 or better on the gradient ground (ActivityStyleTests).' },
+      { rule: 'Dynamic Type', note: 'The device line takes up to three lines at accessibility sizes, the problem line four, the instruction no limit; the buttons stack and nothing runs past the screen (journey test at AX5).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Live Activities: critical information is glanceable', verdict: 'pass', note: 'Device, problem, one instruction and up to three buttons (ProblemCardView.swift:19-41).' },
+        { by: 'apple-hig skill', rule: 'Color: severity is more than red versus amber', verdict: 'pass', note: 'SeverityCircle draws an octagon (critical) or a triangle (warning) via SeverityShape, and ProblemCardView leads the problem line with the two-word ActivityProblem.Severity.stateLabel (Needs help, Needs attention).' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets that stack at accessibility sizes', verdict: 'pass', note: 'At AX sizes the status and pills stack in a trailing VStack (ActivityButtons.swift:33-38); pills keep a 44 pt frame.' },
+        { by: 'apple-hig skill', rule: 'Color: contrast on a gradient ground', verdict: 'pass', note: 'Severity light tints and 82% white text are tested at 4.5:1 on the gradient (ActivityStyle.swift:60-87; ProblemCardView.swift:59).' },
+        { by: 'apple-hig skill', rule: 'Notifications: alert only when it matters', verdict: 'pass', note: 'The client passes alertConfiguration nil for local updates (SystemLiveActivityClient.swift:34); critical alerts come from the relay\'s push.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Dynamic Type reflows, never truncates', verdict: 'pass', note: 'lineLimit widens at accessibility sizes and the instruction has no limit (ProblemCardView.swift:50, 54, 60).' },
+        { by: 'swiftui-pro skill', rule: 'views.md: container-relative shapes', verdict: 'pass', note: 'The hairline is a ContainerRelativeShape stroke so it follows the system corner (line 36).' },
+        { by: 'swiftui-pro skill', rule: 'design.md: semantic colors', verdict: 'departure', note: 'Severity reds and ambers and 82% white are fixed values contrast-tested on a dark card (ActivityStyle.Severity).' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: avoid AnyView', verdict: 'departure', note: 'The buttons come through ActivityActions (AnyView) from the extension (ActivityActions.swift:11).' },
+      ],
+    },
+    notes: [
+      'One design for every device: the problem card does not vary by kind of device or by size class; only the glyph, wording and buttons differ per code.',
+      'Doc versus code: spec section 8 says the mark is 40 pt on every card; section 8a made it 24 pt on job cards. The problem card keeps 40 pt (ActivityStyle.problemMarkSize); the mockup draws 40 pt.',
+      'The doc table names "Dock" a button on stuck rows; the app draws Resume, Dock and Done as pills (a vacuum job card uses round icons, a vacuum problem card does not).',
+      'Devices: 370 pt card on a phone; iPhone Duo not run with a Live Activity (drawn with the same width). No iPad presentation is designed.',
+      'The wallpaper, clock and flashlight are kit stand-ins. Glyphs (alert, door, dock, edge, brush, battery, water, waste, mop, bag, question) are stand-ins for the SF Symbols in ActivityGlyphImage.swift. Promote to kit: glyph set and LA.problemCard in components/live-activity/_widgets-liveactivity.js.',
+      'Not on the card: loading, empty, offline. A problem exists only while the engine reports one; the state is the card itself.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: all 19 rows of the section 5 table, Done flipped, chips, banner, StandBy, AX5.' }],
+  });
+})();
+</script></body></html>

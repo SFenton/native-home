@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tab bar · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  var base = Mock.componentConfig('TabBar', { surfaces: ['page'] });
+
+  /* The bar in its windows: the glass floating capsule on iPhone and the unfolded Duo in portrait, the trailing vertical bar on the folded Duo and the unfolded Duo in landscape (owner 2026-10-26), nothing on iPad (the flyout replaces it). */
+  function context(ctx, ts) {
+    return SN.board(ctx, [
+      { key: 'iphone', ts: ts, caption: 'Floating glass capsule, five tabs, Settings last. Chores carries the overdue count (2).', build: function (c) { return SN.rootPage(c, 'home'); } },
+      { key: 'duo-folded', ts: ts, caption: 'The system moves the bar into the trailing vertical bar (about 83 pt wide) with the header group above it.', build: function (c) { return SN.rootPage(c, 'security'); } },
+      { key: 'duo-unfolded-portrait', ts: ts, zoom: .5, title: 'Unfolded Duo portrait', caption: 'Horizontal bars, so the same floating capsule as the iPhone across the bottom of the 669 pt window; the hinge band stays horizontal.', build: function (c) { return SN.rootPage(c, 'home'); } },
+      { key: 'ipad-portrait', ts: ts, zoom: .45, title: 'iPad', caption: 'No tab bar: regular width without a hinge hides it (toolbar(.hidden, for: .tabBar)) and navigates through the flyout.', build: function (c) { return SN.rootPage(c, 'climate'); } },
+    ]);
+  }
+  var states = {
+    'in-context': { title: 'In the window, per device', note: 'iPhone, folded Duo, unfolded Duo portrait, iPad', render: function (ctx) { return context(ctx); } },
+  };
+  Object.keys(base.states).forEach(function (k) { states[k] = base.states[k]; });
+  states['chores-with-badge'] = { title: 'Chores with the overdue badge, on iPhone and 9+', render: function (ctx) {
+    var out = h('div.sn-row');
+    [[3, 'Badge 3 overdue'], [12, 'Badge 12, shown as 9+']].forEach(function (x) {
+      var box = h('div.k-swatch.page', { style: { width: '380px', maxWidth: '100%', position: 'relative', height: '110px', padding: 0, overflow: 'hidden' } },
+        K.TabBar({ selected: 'chores', badges: { chores: x[0] } }));
+      out.appendChild(h('div', box, SN.cap(x[1], 'ShellNavigator.overdueChores through OverdueChoresBadge; zero or a non-resident viewer shows no badge.')));
+    });
+    return out; } };
+  states['ax5'] = { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'a tab bar keeps its size; labels do not grow. Press and hold shows the Large Content Viewer', render: function (ctx) { return context(ctx, 'ax5'); } };
+
+  function stageFig(stage, key) { return SN.fig(key); }
+
+  Mock.mount(Object.assign(base, {
+    id: 'tab-bar', title: 'Floating tab bar (five tabs, Chores badge)', area: 'shell', status: 'shipped',
+    summary: 'The root TabView: Home, Security, Climate, Chores and Settings. A glass floating capsule on iPhone and the unfolded Duo in portrait, the trailing vertical bar on the folded Duo and the unfolded Duo in landscape, hidden only on iPad where the flyout takes over. A tab switch is a cut.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift', 'apple/Sources/HassUI/App/Shell/ShellNavigator.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/design/apple/duo.md', '.agents/design/motion.md'],
+    patterns: ['motion'],
+    hig: ['Tab bars', 'Materials', 'Badging'],
+    kitComponents: ['TabBar', 'NavigationFlyout', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'tab-cut', what: 'Choosing another tab swaps the whole page with no transition', token: 'none: a cut (motion.md section 4.1); .transaction(value: selection) { $0.animation = nil }', state: 'in-context',
+        source: 'HassUI/App/MainTabView.swift tabs, tabSelection', reduce: 'unchanged: there is nothing to reduce',
+        play: function (stage) {
+          var fig = stageFig(stage, 'iphone'), a = fig.querySelector('.ui-page'), c = SN.ctxFor('iphone', Mock.current);
+          var prev = Mock.current; Mock.current = c; var b = SN.rootPage(c, 'security', { section: 'security' }); Mock.current = prev;
+          a.parentNode.insertBefore(b, a); a.hidden = true;
+          return Mock.sleep(900).then(function () { b.remove(); a.hidden = false; });
+        } },
+      { id: 'badge-update', what: 'The Chores badge changes count when a chore becomes overdue', token: 'system badge: no token; Chores is the only badged tab', state: 'in-context',
+        source: 'HassUI/Features/Chores/OverdueChoresBadge.swift', reduce: 'unchanged: the system draws the badge',
+        play: function (stage) { var b = stageFig(stage, 'iphone').querySelector('.ui-tabbar .ui-badge'); if (b) b.textContent = '3'; return Mock.sleep(800).then(function () { if (b) b.textContent = '2'; }); } },
+    ],
+    transitions: [
+      { from: 'Home tab', to: 'Security tab', kind: 'cut', state: 'in-context', note: 'No slide and no fade. Each tab keeps its own NavigationStack path and scroll position; returning shows exactly what was there. Re-tapping the selected tab pops to the root, a second tap scrolls to the top (see flow tab-navigation).',
+        play: function (stage) {
+          var fig = stageFig(stage, 'duo-folded'), a = fig.querySelector('.ui-page'), c = SN.ctxFor('duo-folded', Mock.current);
+          var prev = Mock.current; Mock.current = c; var b = SN.rootPage(c, 'chores', { section: 'chores' }); Mock.current = prev;
+          a.parentNode.insertBefore(b, a); a.hidden = true;
+          return Mock.sleep(900).then(function () { b.remove(); a.hidden = false; });
+        } },
+    ],
+    a11y: [
+      { rule: 'Name, role, state', note: 'The system tab bar: each item is a tab named by its title ("Home", "Security", "Climate", "Chores", "Settings"); the selected one carries the selected trait ("selected, tab, 1 of 5"). The Chores badge is the system badge and is spoken after the name; the "Chores, N overdue" wording belongs to the flyout row (NavigationMenu.accessibilityLabel).' },
+      { rule: 'Reading order', note: 'The tab bar is last in the page; on the folded Duo it sits in the trailing vertical bar, after the header group. With the flyout open the whole TabView is hidden from VoiceOver.' },
+      { rule: 'Targets', note: 'Items are 44 pt or more in both orientations (vertical items about 56 pt).' },
+      { rule: 'Dynamic Type / AX5', note: 'The bar does not scale its labels; the system offers the Large Content Viewer on press and hold. Labels are single short nouns, so nothing truncates.' },
+      { rule: 'State is not colour alone', note: 'The selected tab is a filled symbol and a lighter capsule as well as the accent colour.' },
+      { rule: 'Reduce Transparency', note: 'The glass capsule becomes an opaque grey bar.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Tab bars: few tabs, SF Symbols, short labels', verdict: 'pass', note: 'Five sections, titles and SymbolMap symbols (AppSection.swift:11-39).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: badge only what needs attention', verdict: 'pass', note: 'Only Chores is badged, with the viewer\'s overdue count (MainTabView.swift:115; AppSection.swift:82-85).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: use the same navigation on every size', verdict: 'departure', note: 'Regular width hides the bar for an overlay flyout: owner 2026-10-10, FestivalNativeApps verdict (ipados.md); the style follows the size class only (AppSection.swift:97-108).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: let the system relocate the bar', verdict: 'pass', note: 'One system TabView: the bar moves to the trailing vertical bar on the folded Duo, and the unfolded Duo keeps it (floating along the bottom in portrait, in the vertical bar in landscape), and only iPad swaps it for the flyout.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: hide what a scrim covers', verdict: 'pass', note: 'accessibilityHidden(while:) plus a UIKit hider for the tab controller (MainTabView.swift:50, 255, 293-314).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Use the Tab API instead of tabItem()', verdict: 'pass', note: 'Not applicable: Tab(_:value:) is iOS 18 and the target is 17; swiftui-pro.md says leave tabItem until the target moves.', by: 'swiftui-pro skill' },
+        { rule: 'Use toolbarVisibility instead of toolbar(_:for:)', verdict: 'pass', note: 'Fixed: MainTabView.tabBarHidden uses toolbarVisibility on iOS 18 and toolbar(_:for:) before.', by: 'swiftui-pro skill' },
+        { rule: 'Bind TabView selection to an enum', verdict: 'pass', note: 'AppSection with a Binding whose setter also sees a tap on the selected tab (MainTabView.swift:124-132).', by: 'swiftui-pro skill' },
+        { rule: 'A tab change carries no animation', verdict: 'pass', note: '.transaction(value: navigator.selection) { $0.animation = nil } is scoped to the selection (MainTabView.swift:120).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: none found; iphone.md, duo.md and direction-g.md match MainTabView (one TabView, five sections, Settings last).',
+      'Wallpaper behind the bar, the Security, Climate and Chores page bodies on the boards are trimmed stand-ins; their full pages belong to their own mockups.',
+      'The vertical bar on the Duo is system-drawn; its width (about 83 pt) is measured (ipados.md, duo.md). The unfolded Duo keeps the bar (a window with a hinge; ShellNavigationStyle.resolve(isRegularWidth:hasHinge:)); on the simulator in landscape the system drew icons only in the trailing vertical bar, no hamburger; in portrait the bars are horizontal, so the floating capsule and the menu button show as on the iPhone (drawn from the code, not run on a simulator).',
+      'Promote to kit: nothing; SN.board (several framed devices on a component stage) is local to components/navigation/_shell-navigation.js.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: swatches, per-device context, badge, AX5, cut.' }],
+  }));
+})();
+</script></body></html>

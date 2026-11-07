@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dynamic Island expanded · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function ex(name, ctx, o) { return LA.islandExpanded(LA.fx(name), Object.assign({ ctx: ctx }, o)); }
+  function figs(ctx, items, note) {
+    return LA.stage([note ? h('p.la-note', note) : null].concat(items.map(function (it) { return LA.fig(ex(it[0], ctx, it[2]), it[0], it[1]); })));
+  }
+  function slug(code) { return 'problem-' + code.replace(/\./g, '-'); }
+
+  Mock.mount({
+    kind: 'component', id: 'dynamic-island-expanded', title: 'Dynamic Island expanded', area: 'live-activity', status: 'shipped', frame: false,
+    summary: 'Long press or an alerting update: the glyph and corner mark beside the camera, the title over the value with up to two buttons below, a bar when there is progress. No fixed frames, so it fits every camera width.',
+    source: ['apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift', 'apple/Sources/FentonActivityViews/HomeActivityIslandPreview.swift', 'apple/Sources/FentonActivityViews/ActivityButtons.swift',
+      'apple/Sources/FentonActivityViews/ActivityValueLine.swift', 'apple/Apps/Widgets/HomeLiveActivity.swift', 'apple/Sources/FentonActivityViews/CornerMark.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: [],
+    hig: ['Live Activities', 'Dynamic Island'],
+    entities: ['fenton_home job engine content-state v2'],
+    devices: ['iphone'],
+    states: {
+      'default': { title: 'Expanded over the Home Screen', note: 'Guest Bath Fan on iPhone 17 Pro (402 pt screen, 126 pt camera)', render: function (ctx) { return LA.homeScreen(ctx, LA.islandAt(ex('fan', ctx))); } },
+      widths: { title: 'Three camera widths', render: function (ctx) {
+        return LA.stage([h('p.la-note', 'The system sizes the two regions beside the camera, (island width − 36 − camera) / 2 each, so nothing in the code measures a phone. The long fan (1:04:42, a title that wraps) must not clip on the narrowest region.')]
+          .concat([['older-pro', 393, 126], ['narrow-camera', 402, 104], ['pro-max', 440, 126]].map(function (s) {
+            return LA.fig(ex('fan-long', ctx, { screen: s[1], camera: s[2] }), 'fan-long · ' + s[0], s[1] + ' pt screen, ' + s[2] + ' pt camera, regions ' + (((s[1] - 22) - 36 - s[2]) / 2) + ' pt'); }))); } },
+      jobs: { title: 'Jobs', render: function (ctx) {
+        return figs(ctx, [['dishwasher', 'countdown + bar'], ['dishwasher-percent', 'percent + bar'], ['dryer', 'count-up, no bar'], ['washer', 'count-up'], ['hotflash-alex-bysam', 'detail joins the title'], ['hotflash-cooling', 'text value + 45% bar'],
+          ['dishwasher-waiting', 'no buttons'], ['dishwasher-complete', 'Complete, full bar, no buttons']], 'Title 16 pt semibold (two lines at most) over the value, white; the value is 32 pt monospaced, or a card with no value shows its headline at 24 pt. Up to two buttons sit on the right in line with that block; the bar is 5 pt in the job\'s tint.'); } },
+      buttons: { title: 'Buttons: Stop, Pause, Resume, Dock', render: function (ctx) {
+        return figs(ctx, [['fan', 'Stop (white pill)'], ['dishwasher-paused', 'Resume + Stop'], ['vacuum', 'Pause + Dock (round, 44 pt)'], ['vacuum-paused', 'Resume (play) + Dock'], ['vacuum-long', 'two-line headline']], 'A vacuum\'s Pause, Resume and Dock are 44 pt round icon buttons; everything else is a pill. The island draws the first two controls only (islandButtons).'); } },
+      pending: { title: 'Pending and notice', render: function (ctx) { return figs(ctx, [['fan-pending', '"Stopping…" in place of the buttons'], ['fan-pending-stale', 'stale: buttons back with "Not confirmed"'], ['fan-notice', 'notice in place of the figure']]); } },
+      problem: { title: 'Problems', render: function (ctx) {
+        return figs(ctx, [['problem-navigation-stuck', 'critical, three controls: the island draws two'], ['problem-power-low_battery', 'warning, no buttons'], ['problem-mop-clean_water_empty', 'warning, Resume + Done'], ['problem-vendor-unknown_error_88', 'chip is not drawn in the island'], ['problem-dishwasher-rinse_aid', 'dishwasher']],
+          'A problem puts a 28 pt severity circle where the glyph was; the bottom block is the device, the problem line in the severity tint, and the first two buttons. The one-word "Needs help" label that used to sit beside the camera is gone (a word there cannot grow with text size).'); } },
+      ax5: { title: 'Accessibility 5 (island capped)', override: { ts: 'ax5' }, note: 'identical to the default: the island is capped at xxxLarge', render: function (ctx) { return figs(ctx, [['fan', ''], ['vacuum-long', '']], 'The island and its regions are the system\'s size, so its text does not grow past xxxLarge (.dynamicTypeSize(...xxxLarge) on every region); the Lock Screen card does.'); } },
+    },
+    motion: [
+      { id: 'expand', what: 'The compact island morphs into the expanded island', token: 'system island morph (SpringBoard spring), not an app MotionToken', state: 'default',
+        source: 'apple/Apps/Widgets/HomeLiveActivity.swift', reduce: 'The app adds nothing; the system cross-fades the island under Reduce Motion. The mockup does the same (0.25 s).',
+        note: 'Illustrative curve and duration (0.5 s on the sheet curve): the system draws this, the app only supplies the regions.',
+        play: function (stage) {
+          var isl = stage.querySelector('.la-island-x'); if (!isl) return Promise.resolve();
+          var full = isl.getBoundingClientRect(), W = isl.offsetWidth, H = isl.offsetHeight, rm = Mock.settings.reduceMotion;
+          if (rm) return isl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, fill: 'both' }).finished.catch(function () {});
+          isl.style.overflow = 'hidden';
+          var a = isl.animate([{ width: '240px', height: '37px', borderRadius: '20px' }, { width: W + 'px', height: H + 'px', borderRadius: '42px' }], { duration: 500, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'both' });
+          var kids = Array.prototype.slice.call(isl.children).map(function (k) { return k.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 160, fill: 'both' }); });
+          return Promise.all([a.finished].concat(kids.map(function (k) { return k.finished; }))).catch(function () {}).then(function () { isl.style.overflow = ''; }); } },
+      LA.motionTick('apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift'),
+    ],
+    transitions: [
+      { from: 'Compact island', to: 'Expanded island', kind: 'overlay', note: 'Long press on the compact island, or an alerting update (a critical problem). The system presents it; a tap on the expanded body opens fentonhome://liveactivity?url=… at the job\'s page. A button runs its App Intent without opening the app.' },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Leading glyph (hidden), trailing mark (hidden), then the bottom block: the title ("Guest Bath Fan, time left"), the live value, the buttons. A problem block reads as one combined element, then the buttons.' },
+      { rule: 'Targets', note: 'Buttons are 44 pt hit areas with the same labels as the Lock Screen ("Stop Guest Bath Fan"); the system owns the island itself.' },
+      { rule: 'Dynamic Type', note: 'Capped at xxxLarge (accessibility audit would otherwise fail on the regions the system sizes); the 16 pt title is a fixed size.' },
+      { rule: 'Colour', note: 'Title and value are white on black; the value is not tinted (paused is the word and the Resume button); only the glyph, bar and Complete use the family accent.' },
+      { rule: 'Contrast', note: 'Problem lines use the severity light tints on black, at least 4.5:1.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Dynamic Island: use the system regions, centre empty', verdict: 'pass', note: 'Leading glyph, trailing mark and a full-width bottom block; the centre stays empty (HomeLiveActivity.swift:33-40).' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets', verdict: 'pass', note: 'Pills are 36 pt inside a 44 pt frame and the vacuum icons are 44 pt circles (ActivityButtons.swift:92, 104-107).' },
+        { by: 'apple-hig skill', rule: 'Dynamic Type: system-sized island', verdict: 'departure', note: 'Each region is capped at xxxLarge (HomeLiveActivity.swift:34-38) and the title is a fixed 16 pt (HomeActivityIslandViews.swift:192); per-job spec section 8a.' },
+        { by: 'apple-hig skill', rule: 'Layout: critical text never hides', verdict: 'pass', note: 'HomeActivityIsland problemBlock device and problem lines are lineLimit(2).' },
+        { by: 'apple-hig skill', rule: 'Color: white on black, severity tints', verdict: 'pass', note: 'Title and value are white; the problem line takes the severity light tint (lines 191-197, 218-220).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'performance.md: avoid AnyView', verdict: 'departure', note: 'ActivityActions wraps the intent button in AnyView (ActivityActions.swift:11, 20) because the intent type lives in the extension.' },
+        { by: 'swiftui-pro skill', rule: 'resizability.md: let regions size themselves', verdict: 'pass', note: 'No fixed frames; buttons take fixedSize(horizontal:) and the title block takes the rest (lines 189-205).' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Reduce Motion', verdict: 'pass', note: 'The views add no animation; the system owns the expand and collapse.' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: pending and stale states in words', verdict: 'pass', note: 'ActivityButtons swaps the pills for "Stopping..." while pending and adds "Not confirmed" when stale (ActivityButtons.swift:21-31, 51-59).' },
+      ],
+    },
+    notes: [
+      'Devices: iPhones with a Dynamic Island only; iPhone Duo has no island, iPad has no Live Activity presentation here.',
+      'Doc versus code: spec section 8 lists a 34 pt ring and a trailing value beside the camera and "Needs help" text; section 8a (E2c) and the code put a 24 pt glyph left and the 24 pt corner mark right, with the title and value below. The mockup draws the code.',
+      'The expanded island height is content-driven (about 120 to 160 pt); the stand-in is the app\'s HomeActivityIslandPreview, a black rounded rectangle with the real regions inside.',
+      'The camera is drawn as a dark pill at its measured width; the 104 pt narrow-camera case is the owner\'s canvas board 7 (an older Pro has 126 pt).',
+      'Promote to kit: LA.islandExpanded in components/live-activity/_widgets-liveactivity.js.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: camera widths, jobs, buttons, pending, problems, AX5, expand morph.' }],
+  });
+})();
+</script></body></html>

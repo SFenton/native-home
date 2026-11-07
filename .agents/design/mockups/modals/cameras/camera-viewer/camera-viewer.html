@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Camera viewer · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  /* CameraViewer = NavigationStack { ScrollView { stacked or split video + CameraControls } }.
+     Shipped (fix/camera-viewer-fitted, 2026-10-24): .hassSheet(.page, appearance: .dark), fitted. Before: .hassSheet(.page, height: .full, appearance: .dark). */
+  function sheet(ctx, o) { return MLC.viewerSheet(ctx, o || {}); }
+  var S = function (o) { return function (c) { return sheet(c, o); }; };
+  function bodyOpts(ctx, o) { var cam = MLC.cams[(o && o.cam) || 0]; return { title: cam[0], detent: 'fitted', size: 'page', trailing: 'close', appearance: 'dark', content: MLC.viewerBody(ctx, o || {}) }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'camera-viewer', title: 'Camera viewer', area: 'cameras', status: 'shipped', alwaysDark: true,
+    summary: 'The camera\'s shared live stream with Snapshot, Sound and Record under it. Always dark. A fitted page sheet that is only as tall as the video and its controls (it used to open at the large detent: state was-full). Measured in the simulator: iPhone Front Door about 500 pt of 874; iPad portrait about 740 pt of 1194; iPad landscape 426 pt (64 header + 362 content, video beside controls); folded iPhone Duo stays at large because its large detent is only about 426 pt, so the controls are a scroll away. Video beside controls on iPad and unfolded Duo landscape.',
+    source: ['apple/Sources/HassUI/Features/Cameras/CameraViewer.swift', 'apple/Sources/HassUI/Features/Cameras/CameraLiveView.swift', 'apple/Sources/HassUI/Features/Cameras/CameraLiveModel.swift', 'apple/Sources/HassUI/Features/Cameras/CameraStreamPool.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassCore/Config/HomeConfig.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/patterns/camera-streams.md', '.agents/pages/home/ios.md', '.agents/design/direction-g.md', '.agents/patterns/modal-sheet.md', '.agents/design/mockups/proposals/camera-viewer-fit/camera-viewer-fit.html'],
+    patterns: ['camera-streams', 'modal-sheet', 'image-cache', 'content-gate'],
+    hig: ['Sheets', 'Playing video', 'HomeKit cameras', 'Buttons', 'Dark Mode'],
+    entities: ['camera.demo_front_door_camera_item_1', 'camera.demo_garage_camera_item_1', 'camera.demo_upper_deck_camera_1', 'camera.demo_lower_deck_camera_item_1', 'input_boolean.demo_front_door_recording_1', 'script.demo_front_door_recording_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ArcSpinner', 'CameraTile', 'TileGrid', 'ChipRail', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Live (WebRTC), muted, fitted', note: 'the sheet is as tall as the video and one row of controls (about half the screen on iPhone)', render: S({ phase: 'live' }) },
+      'loading': { title: 'Connecting: snapshot and "Connecting"', note: 'the last snapshot stays fully visible with an arc and "Connecting"; the tile it opened from shows the same snapshot', render: S({ phase: 'connecting' }) },
+      'error': { title: 'Failed: snapshot and Retry Live Video', note: 'every mode failed: pill "Snapshot", and Retry Live Video centred at the bottom (also retried by itself after 2, 4, 8, 16, 32 s while the viewer is open)', render: S({ phase: 'failed' }) },
+      'offline': { title: 'Over an offline Home: stalled', note: 'no offline UI: with the socket down the stream stalls; the snapshot stays with "Last live 6:51 PM" (when frames stopped); the page behind carries the offline chip', render: S({ phase: 'stalled', connection: 'offline' }) },
+      'live-delayed': { title: 'Live over HLS (delayed)', note: 'WebRTC failed, HLS plays a few seconds behind: red dot and "Live · Delayed"', render: S({ phase: 'delayed' }) },
+      'stalled': { title: 'Stalled: "Last live 6:51 PM"', note: 'frame watchdog (8 s without a new frame) took the stream down; it restarts with backoff; no blank, no re-fade', render: S({ phase: 'stalled' }) },
+      'recording': { title: 'Recording (Record pulses red)', note: 'optimistic until the input_boolean reports; the glyph pulses while on', render: S({ recording: true }) },
+      'sound-on': { title: 'Sound on', note: 'cameras reopen muted every time; Sound On tints the circle blue', render: S({ muted: false }) },
+      'snap-saving': { title: 'Snapshot saving', note: 'the Snapshot glyph pulses while the save runs; the button is disabled', render: S({ snap: 'saving' }) },
+      'snap-saved': { title: 'Snapshot saved', note: 'a check and "Saved" for 2 s, announced "Saved to Photos"; then back to idle', render: S({ snap: 'saved' }) },
+      'snap-failed': { title: 'Snapshot not saved', note: 'warning glyph and "Not Saved" for 2 s; a Photos denial opens the alert instead (camera-photos-denied-alert)', render: S({ snap: 'failed' }) },
+      'driveway': { title: 'Driveway (10:3)', note: 'each camera keeps its own aspect ratio: the Driveway\'s sheet is about 100 pt shorter than Front Door\'s', render: S({ cam: 1 }) },
+      'upper-deck': { title: 'Upper Deck (16:9)', render: S({ cam: 2 }) },
+      'lower-deck': { title: 'Lower Deck (16:9, no sound control change)', render: S({ cam: 3 }) },
+      'was-full': { title: 'WAS (before 2026-10-24): large detent', note: 'it was hassSheet(.page, height: .full, appearance: .dark): video at the top and about half the sheet empty on iPhone', render: S({ detent: 'large' }) },
+      'medium': { title: 'Medium detent (provisional)', note: 'what a fitted sheet opens at until its content is measured; the viewer is never meant to rest here', render: S({ detent: 'medium' }) },
+      'large': { title: 'Large detent', note: 'only when the content is taller than the window (AX sizes); the page then scrolls', render: S({ detent: 'large' }) },
+      'fitted': { title: 'Fitted detent (shipped)', render: S({ detent: 'fitted' }) },
+      'closed': { title: 'Before presenting / after dismissing (Home behind)', render: function (c) { return MLC.homePresenter(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'controls stack vertically (three across break their labels mid-word); the fitted height reaches the large cap and the page scrolls', render: S({}) },
+    },
+
+    motion: [
+      { id: 'phase-fade', what: 'The stream shows its first frame: the snapshot cross-fades out and the pill goes from "Connecting" to "Live"', token: 'quick 0.2 s easeOut on the phase (motionSafeAnimation(quick, value: phase))', state: 'loading',
+        source: 'CameraLiveView.swift body; patterns/camera-streams.md "Never blank, never re-fade"; motion-components.md CameraLiveView', reduce: 'opacity only, unchanged',
+        play: function (stage) {
+          var v = stage.querySelector('.mlc-video'), badge = v.querySelector('.mlc-badge'); badge.style.transition = 'opacity .2s'; badge.style.opacity = 0;
+          return Mock.sleep(1000).then(function () { v.setAttribute('data-live', ''); badge.replaceWith(MLC.badge('live')); return Mock.sleep(Mock.anim.ms.quick() + 600); }).then(function () { v.removeAttribute('data-live'); v.querySelector('.mlc-badge').replaceWith(MLC.badge('connecting')); });
+        } },
+      { id: 'snapshot-save', what: 'Snapshot: the glyph pulses while saving, then a check, "Saved" and the tint, then back after 2 s', token: 'glyph .symbolEffect(.replace) and a repeating .pulse while saving; the tint overlay on state 0.6 s; success haptic', state: 'default',
+        source: 'CameraViewer.swift CameraControlButton; motion-components.md CameraControlButton (done)', reduce: 'no pulse or symbol replace; the tint still cross-fades at 0.2 s',
+        note: 'The repeating pulse is allowed because it marks a live pending state (motion.md section 7 "Never": only spinners and pending pulses).',
+        play: function (stage) {
+          var ctx = Mock.current, ctl = stage.querySelector('.mlc-ctls'), mk = function (s) { return MLC.camControls(ctx, { snap: s, camera: 'Front Door' }); };
+          var cur = ctl; function swap(s) { var n = mk(s); cur.replaceWith(n); cur = n; }
+          swap('saving'); return Mock.sleep(1200).then(function () { swap('saved'); return Mock.sleep(Mock.anim.ms.state() + 1200); }).then(function () { swap('idle'); });
+        } },
+      { id: 'record-pulse', what: 'Recording: the Record glyph pulses while on', token: 'repeating .pulse (a live state); tint overlay on state 0.6 s', state: 'default',
+        source: 'CameraControlButton(pulses: recording); motion.md section 7', reduce: 'no pulse; static tint',
+        play: function (stage) {
+          var ctx = Mock.current, ctl = stage.querySelector('.mlc-ctls'), n = MLC.camControls(ctx, { recording: true, camera: 'Front Door' }); ctl.replaceWith(n);
+          return Mock.sleep(2600).then(function () { n.replaceWith(MLC.camControls(ctx, { camera: 'Front Door' })); });
+        } },
+      { id: 'sheet-fit', what: 'The sheet opens at its fitted height: no jump to large', token: 'system sheet; custom .height detent from SheetFit, remembered per call site', state: 'closed',
+        source: 'HassDesign/SheetFit.swift; modal-sheet.md Camera viewer (owner 2026-10-23)', reduce: 'the system cross-fades the sheet', play: function (stage) { return Mock.presentDemo(stage, bodyOpts(Mock.current, {}), { hold: 1400 }); } },
+    ],
+
+    transitions: [
+      { from: 'Camera tile (Home, Security)', to: 'Camera viewer', kind: 'sheet', state: 'closed', note: 'The tile presents the viewer fitted (target; main: large). A sheet, not a zoom: motion.md 4.3 lists the camera as a zoom candidate but the code presents a sheet (patterns/motion.md Departures). The viewer shows the stream the tile already has.',
+        play: function (stage) { return Mock.presentDemo(stage, bodyOpts(Mock.current, {}), { hold: 1400 }); } },
+      { from: 'Camera viewer', to: 'Home', kind: 'sheet', state: 'default', note: 'Close (circle x) or swipe down. The viewer mutes the camera as it goes (onDisappear), so the next open is silent.',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Snapshot (Photos denied)', to: 'Allow Photos Access alert', kind: 'fade', state: 'default', note: 'The system alert scales and fades in over the sheet; see camera-photos-denied-alert.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'), sc = h('div.ui-alert-scrim.g-dark', MLC.photosAlert()); host.appendChild(sc); return Mock.anim.fade(sc, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(sc, { from: 1, to: 0, ms: 200 }); }).then(function () { sc.remove(); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The title (camera name), the video element, then Snapshot, Sound and Record, then Close. The layout container is "camera.layout.stacked" or "camera.layout.split".' },
+      { rule: 'Video', note: 'One element "<name> camera" with a value that is the stream\'s state: "Live", "Live, a few seconds behind", "Connecting to live video", or "Live video unavailable, showing the latest snapshot". The badge and live dot are decorative (read as the value). The element is a clear overlay so VoiceOver\'s outline matches the picture, not the fill-scaled snapshot.' },
+      { rule: 'Controls', note: 'A group "<name> camera controls". Snapshot has value Saving, "Saved to Photos" or "Couldn\'t save the snapshot" (announced when it ends); Sound and Record are toggles (Off or On, Recording or Not recording). Voice Control accepts the label or the visible title.' },
+      { rule: 'Retry Live Video', note: 'A prominent button, 44 pt minimum, only in the failed phase.' },
+      { rule: 'Targets and Dynamic Type', note: 'Circles are 56 pt (scaled, 44 minimum); labels are footnote semibold and wrap. At AX sizes the three controls stack so no label breaks mid-word.' },
+      { rule: 'Always dark', note: 'Dark in either system appearance because it frames live video; text is white or the sheet ink on #2C2C2E cells, 4.5:1 or better.' },
+      { rule: 'Reduce Motion', note: 'No pulse on Snapshot saving or Record, no symbol replace; the snapshot to live cross-fade is opacity and stays.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Sheets: as tall as the content', verdict: 'pass', note: 'The viewer used to open with .hassSheet(.page, height: .full, appearance: .dark), leaving about half of the iPhone sheet empty; it is now fitted (CameraViewerFitJourneyTests on iPhone, Duo and iPad).' },
+        { by: 'apple-hig skill', rule: 'Playing video: show live state; muted on reopen', verdict: 'pass', note: 'The pill reads Live, Live · Delayed, Connecting or Last live h:mm (CameraLiveView.swift:107-155) and the viewer mutes on disappear (CameraViewer.swift:71).' },
+        { by: 'apple-hig skill', rule: 'Layout: controls clear of the picture; split only where allowed', verdict: 'pass', note: 'Controls sit under the video (lines 49-52); the split needs SplitPolicy.allowsSplit and a 640 pt sheet (lines 329-336), so folded Duo and portrait iPad stay stacked; hinge crossing on the unfolded Duo not run on a device.' },
+        { by: 'apple-hig skill', rule: 'Dark Mode: support both appearances', verdict: 'departure', note: 'Always dark because it frames live video (appearance: .dark, line 69; direction-g.md Layers: Sheets).' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets with labels under icons', verdict: 'pass', note: 'CameraControlButton circles are max(scaled 56 pt, 44) with a footnote title (lines 249-277); at accessibility sizes the row stacks (line 106).' },
+        { by: 'apple-hig skill', rule: 'Accessibility: the video is one element that speaks its state', verdict: 'pass', note: 'A clear overlay named "<camera> camera" whose value is Live, Connecting or the snapshot message (CameraLiveView.swift:169-196).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'api.md: AccessibilityNotification instead of UIAccessibility.post', verdict: 'pass', note: 'Fixed: CameraViewer.takeSnapshot posts AccessibilityNotification.Announcement.' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Reduce Motion for repeating effects', verdict: 'pass', note: 'The pulse and symbol replace are off under Reduce Motion (lines 257-258); the pulse marks only saving and recording.' },
+        { by: 'swiftui-pro skill', rule: 'api.md: sensoryFeedback for haptics', verdict: 'pass', note: 'Success and error on Snapshot (lines 135-141) and a medium impact on Record (line 130) use sensoryFeedback.' },
+        { by: 'swiftui-pro skill', rule: 'views.md: helper views stay small', verdict: 'pass', note: 'CameraViewer keeps two small private helpers (video, controls) and the control button is its own struct; CameraControls swaps layout with one AnyLayout (line 106), so only one set of buttons is in the accessibility tree.' },
+      ],
+    },
+
+    notes: [
+      'Fitted height (owner, 2026-10-28, option B of proposals/sheet-bottom-gap): the detent no longer counts the bottom safe area, which the system measures a custom detent up from and adds itself. The mock sheet already drew one bottom band (the home-indicator area); the app used to draw two, so the controls floated 34 pt above it (20 pt on an iPad). Measured after: iPhone 17 Pro Front Door 483 (was 517), Driveway 317 (351); folded Duo Front Door 523 (was 565, pinned at 554 and cut short), Driveway 335 (369); iPad portrait Driveway 416 (436), Front Door 741 (760). iPad landscape has no band (page safe area 0).',
+      'Shipped 2026-10-24 on fix/camera-viewer-fitted. HassSheetSizing keeps one view structure through the first measurement: an iPad page sheet does not resize after it opens, and the viewer\'s split row once measured 468 pt at the full window width (against 362 pt settled), leaving 106 pt of empty ground (see .agents/patterns/modal-sheet.md).',
+      'Code versus docs: split-view.md and iphone.md call the viewer a full-screen modal or a .large detent; main is hassSheet(.page, .full, .dark), the target is fitted (primary checkout docs already say so).',
+      'The fitted height on iPhone is about the video plus controls plus the grabber and header: Front Door (4:3, 370 pt wide) is the tallest; the Driveway (10:3) about 100 pt shorter; the mock sheet draws that natural height.',
+      'The video is a stand-in photo (kit wallpaper scenes); live and snapshot differ only by saturation so the cross-fade is visible. No real names or frames.',
+      'Split: the video leads and the controls stack when the window may split (iPad, unfolded Duo in landscape) and the sheet is at least 640 pt; the unfolded Duo\'s centred page sheet crosses the hinge band (not run on a device).',
+      'Reopens muted (CameraViewer.onDisappear): not an animation; the Sound control reads Muted every time.',
+      'Promote to kit: MLC.video, MLC.badge, MLC.camControls, MLC.viewerBody (components/media/_media-lights-cameras.js); the kit CameraTile draws a "Last live" pill the app\'s tile does not.',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Fitted height no longer carries a second bottom band (proposals/sheet-bottom-gap, option B); measured heights and the in-flight status.' }, { date: '2026-10-24', note: 'Shipped: fitted viewer measured on iPhone, iPad portrait and landscape (426 pt) and folded Duo (large); status shipped.' }, { date: '2026-10-23', note: 'First pass: in-flight fitted viewer, was-full comparison, five phases, controls states, four cameras, split, AX5.' }],
+  });
+})();
+</script></body></html>

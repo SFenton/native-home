@@ -1,0 +1,41 @@
+{
+  "id": "route.complexity",
+  "version": 1,
+  "type": "score",
+  "mode": "active",
+  "description": "Routing: how much engineering effort one task needs. The score maps to a lane: below 1.5 haiku, below 3.0 sonnet, else opus. Advisory only.",
+  "instructions": "How much engineering effort will an autonomous coding agent need to complete this change in a native SwiftUI app, including tests and docs?",
+  "criteria": [
+    "Trivial: a one-line, copy or doc change",
+    "Small: a local change in one component with a simple test",
+    "Moderate: several files or a new journey test, some investigation",
+    "Large: cross-cutting change, several components or a tricky root cause",
+    "Very large: new architecture, data or service work, or many surfaces"
+  ],
+  "lanes": {
+    "thresholds": [
+      1.5,
+      3.0
+    ],
+    "names": [
+      "haiku",
+      "sonnet",
+      "opus"
+    ]
+  },
+  "state": {
+    "fields": [
+      "title",
+      "body"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.6
+  },
+  "target": {
+    "precision": 0.85
+  },
+  "output": "Pre-read hint line: an advisory Haiku, Sonnet or Opus lane; the owner's routing and the orchestrator win.",
+  "evidence": "Last 50 merged PRs: Spearman 0.74 with lines changed, 0.79 with files changed, from the PR text (a post-hoc description; an issue report may carry less signal). Advisory lane hint only; never routes by itself."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "dd-overflow-menu-icons-only",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "\"...\" menu when it shows buttons isn't showing text for those buttons when opened, just icons",
+  "surface": "shell-header-items",
+  "poses": [
+    "duo-folded"
+  ],
+  "app": "uikit",
+  "category": "a11y",
+  "pre_fix_ref": "50995add",
+  "fix_ref": "a753fd7c",
+  "fix_confidence": "high",
+  "expected": "Every bar item that can fold into the overflow menu carries a title (Your Summary, Quick Links); open the menu and read its rows from the accessibility tree."
+}

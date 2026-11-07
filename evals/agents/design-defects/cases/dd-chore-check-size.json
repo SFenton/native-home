@@ -1,0 +1,16 @@
+{
+  "id": "dd-chore-check-size",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "Chore checkmark circle should be same size as text, it's bigger",
+  "surface": "todo-list-section",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "sizing",
+  "pre_fix_ref": "1121995f",
+  "fix_ref": "2914f1f8",
+  "fix_confidence": "medium",
+  "expected": "The check circle scales with the row text and does not exceed the line height, at default and AX5."
+}

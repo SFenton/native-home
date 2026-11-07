@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cold launch, signed in · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, LL = Mock.LL, A = Mock.anim;
+  var REVIEW_DATE = '2026-10-23';
+  var SNAP = ['snapshot', 'snapshot', 'snapshot', 'snapshot'];
+  /* Home as the saved snapshot shows it: the same layout as live, and cameras on their last snapshot (no stream yet). */
+  function home(ctx, o) { return LL.homePage(ctx, Object.assign({ cams: SNAP }, o)); }
+  function withGround(ctx, o, opacity) {
+    var g = LL.launchGround(); g.style.opacity = opacity == null ? 1 : opacity;
+    return [home(ctx, o), g];
+  }
+
+  Mock.mount({
+    kind: 'flow', id: 'launch-cold-signed-in', title: 'Cold launch, signed in (snapshot, no intro)', area: 'shell', status: 'shipped',
+    summary: 'A signed-in phone is opened from nothing: the plain ground the launch screen shows, then a 0.2 s cross-fade onto the saved Home from the disk snapshot. No intro, no spinner; live values land in place and nothing re-fades.',
+    source: ['apple/Sources/HassUI/App/Shell/OfflineOverlay.swift', 'apple/Sources/HassUI/App/Shell/ReconnectingArc.swift', 'apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/App/AppSession.swift'],
+    spec: ['.agents/platforms/apple/connection-lifecycle.md', '.agents/design/motion.md', '.agents/design/direction-g.md'],
+    patterns: ['resume-lifecycle', 'content-gate', 'motion'],
+    hig: ['Launching', 'Loading', 'Motion'],
+    kitComponents: ['ChipRail', 'WeatherCard', 'CameraTile', 'TabBar', 'OfflineChip', 'ReconnectingArc'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'launch-ground': { title: '1 · Launch ground (first frame)', note: 'LaunchBackground #121722, held by RootView over everything; AppSession.init has already resumed the saved sign-in synchronously, so the saved screen is built underneath', render: function (ctx) { return withGround(ctx); } },
+      'ground-fading': { title: '2 · Ground fading (0.1 s in)', note: 'half way through the 0.2 s quick fade', render: function (ctx) { return withGround(ctx, null, .5); } },
+      'snapshot-shown': { title: '3 · Saved screen from the snapshot', note: 'chips, weather, cameras on their last snapshot; no spinner, no pill', render: function (ctx) { return home(ctx); } },
+      'values-pending': { title: 'First run: no snapshot yet', note: 'only after a first sign-in, before any snapshot exists: names at once, soft pulsing bars where values go (PendingValueBar, 0.35 to 1 over 1.4 s)', render: function (ctx) { return home(ctx, { pending: true, cams: ['connecting', 'connecting', 'connecting', 'connecting'] }); } },
+      'reconnecting-after-2s': { title: '4 · Still connecting after 2 s: the arc', note: 'a 20 pt white arc left of Quick Links; values stay', render: function (ctx) { return home(ctx, { connection: 'reconnecting' }); } },
+      'offline': { title: 'Launched with no network', note: 'offline shows at once (nothing to wait out): the offline chip, a cloud badge on Profile, last known values', render: function (ctx) { return home(ctx, { connection: 'offline' }); } },
+      'live': { title: '5 · Live: values update in place', note: 'cameras go live; nothing re-fades, reorders or blanks', render: function (ctx) { return LL.homePage(ctx); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: function (ctx) { return home(ctx); } },
+    },
+
+    motion: [
+      { id: 'ground-fade', what: 'The launch ground cross-fades onto the saved screen', token: 'quick easeOut 0.2 s (withAnimation(MotionTokens.quick) { showsLaunchGround = false })', state: 'launch-ground',
+        source: 'HassUI/App/RootView.swift firstFrame; motion.md section 3 row "Launch, signed in"', reduce: 'unchanged: it is a fade, not movement',
+        note: 'After it, nothing animates: live values update in place (presence, not change).',
+        play: function (stage) { var g = stage.querySelector('.ll-launch'); return Mock.sleep(500).then(function () { return A.fade(g, { from: 1, to: 0, ms: A.ms.quick() }); }); } },
+      { id: 'reconnecting-arc', what: 'Connection still down after 2 s: the header arc fades in', token: 'crossFade 0.35 s, only once down 2 s (ReconnectingPolicy.delay); fades out 0.35 s when live', state: 'reconnecting-after-2s',
+        source: 'HassUI/App/Shell/ReconnectingArc.swift', reduce: 'unchanged: opacity is not motion; the arc itself turns at half speed',
+        play: function (stage) { var slot = stage.querySelector('.ui-slot'); slot.classList.remove('on'); return Mock.sleep(300).then(function () { return A.arc(slot, true); }).then(function () { return Mock.sleep(900); }).then(function () { return A.arc(slot, false); }); } },
+      { id: 'pending-pulse', what: 'First run: the soft bar where a value goes pulses', token: 'opacity 0.35 to 1, 1.4 s ease-in-out, repeating (the one repeating exception, motion.md section 5)', state: 'values-pending', source: 'HassDesign/Loading PendingValueBar; motion.md sections 5 and 8', reduce: 'the pulse stops: the bar holds at 65% (static)',
+        play: function () { return Mock.sleep(3000); } },
+    ],
+
+    transitions: [
+      { from: 'Launch ground', to: 'Saved screen', kind: 'fade', state: 'launch-ground', note: 'The ground fades out over 0.2 s; the screen under it was already built from the snapshot, so nothing else moves.',
+        play: function (stage) { var g = stage.querySelector('.ll-launch'); return Mock.sleep(400).then(function () { return A.fade(g, { from: 1, to: 0, ms: A.ms.quick() }); }); } },
+      { from: 'Saved screen', to: 'Live', kind: 'cut', state: 'snapshot-shown', note: 'Live values replace the saved ones in place: numbers roll, colours cross-fade (state 0.6 s), a stalled camera goes live; no layout moves.',
+        play: function (stage) {
+          var pills = [].slice.call(stage.querySelectorAll('.ui-cam .state'));
+          return Mock.sleep(400).then(function () { return Promise.all(pills.map(function (p) { return A.fade(p, { from: 1, to: 0, ms: A.ms.quick() }); })); }).then(function () { return Mock.sleep(300); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Nothing to announce', note: 'The ground is hidden from assistive technologies and gone in 0.2 s; VoiceOver lands on the saved screen as it would any time. There is no loading announcement because there is no loading state.' },
+      { rule: 'Reconnecting', note: 'The arc is one element, "Reconnecting to Home Assistant" (updatesFrequently, no action). The offline chip reads "Offline. Showing last known values." and the Profile badge carries the cloud glyph.' },
+      { rule: 'Values stay put', note: 'Live updates never reorder or resize (motion.md section 6), so the VoiceOver cursor does not jump when the snapshot is replaced.' },
+      { rule: 'First run', note: 'Pending bars are decorative; each tile is still named and, when the value lands, the tile\'s value updates in place.' },
+      { rule: 'Reduce Motion', note: 'The ground fade is opacity, kept; the pending pulse becomes a static 65% bar.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Launching: match the launch screen, no splash', verdict: 'pass', note: 'A plain ground in the launch screen\'s colour fades in 0.2 s onto the saved screen (RootView.swift:92-101, 164-171).', by: 'apple-hig skill' },
+        { rule: 'Launching: restore the previous state', verdict: 'pass', note: 'Decided 2026-10-24 (navigation-flows 2 A): MainTabView stores each section\'s pushed routes (ShellRoute, RouteRestore) in SceneStorage and puts them back on a cold launch within 30 minutes; rooms, sheets and scroll offsets are not restored.', by: 'apple-hig skill' },
+        { rule: 'Loading: show content at once, indicate only real waits', verdict: 'pass', note: 'AppSession restores synchronously so the first frame has the disk snapshot (AppSession.swift:63-65, 114-118).', by: 'apple-hig skill' },
+        { rule: 'Feedback: say when content may be stale', verdict: 'pass', note: 'Arc after 2 s, offline chip at once, cloud badge on Profile (ReconnectingArc.swift; OfflineOverlay.swift; ShellHeader.swift).', by: 'apple-hig skill' },
+        { rule: 'Motion: animate change, not presence', verdict: 'pass', note: 'Nothing but the ground\'s fade moves on a signed-in launch; the arrival is marked played (AppSession.swift:116).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'No reload on reopen: update boxes in place', verdict: 'pass', note: 'Views bind to EntityStore boxes; a relaunch draws the snapshot and ends the snapshot-shown interval on first appear (MainTabView.swift:77-81).', by: 'swiftui-pro skill' },
+        { rule: 'Keep per-launch work out of body', verdict: 'pass', note: 'Profile name is cached in UserDefaults and refreshed in .task(id: isConnected) (ShellNavigator.swift:28-30; MainTabView.swift:95).', by: 'swiftui-pro skill' },
+        { rule: 'Reduce Motion', verdict: 'pass', note: 'The offline chip transition falls back to opacity (OfflineOverlay.swift).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'refreshing / repeat visits: a warm resume (background to foreground) does none of this; ConnectionLifecycle reconnects without touching the screen (connection-lifecycle.md).',
+      'The first-run pending state belongs to a first sign-in (no snapshot yet), which cold launch signed in never is after that; it is here because the catalog lists it. See flows/sign-in-to-home-arrival.',
+      'The saved screen stands in with the trimmed Home of the kit (chips, weather, cameras); wallpaper and cameras are stand-ins.',
+      'direction-g.md (first-sign-in spinner) vs motion.md section 5 (soft bars): motion.md is shown, as on the Home page mockup.',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: ground, fade, snapshot, first run, reconnecting (arc), offline, live, AX5.' }],
+  });
+})();
+</script></body></html>

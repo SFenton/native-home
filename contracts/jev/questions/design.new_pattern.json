@@ -1,0 +1,24 @@
+{
+  "id": "design.new_pattern",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Does the change introduce a layout, control, motion or navigation behavior no known pattern covers? May only raise an autonomy level.",
+  "instructions": "Does the change described in `title`, `body` and `files` introduce a layout, control, motion or navigation behavior that none of the patterns listed in `known_patterns` covers?",
+  "state": {
+    "fields": [
+      "title",
+      "body",
+      "files",
+      "known_patterns"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.6,
+    "no_below": 0.25
+  },
+  "output": "Router decision: a yes can raise a task to L2 (propose first, item parks as Needs Decision); it never lowers a level.",
+  "evidence": "unmeasured"
+}

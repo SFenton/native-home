@@ -1,0 +1,12 @@
+{
+  "thresholds": {
+    "logic": 95,
+    "ux": 95
+  },
+  "swift": {
+    "sourceRoots": ["apple/Sources/**/*.swift"],
+    "logic": ["apple/Sources/HassCore/**/*.swift", "apple/Sources/HassTelemetry/**/*.swift", "apple/Sources/FentonActivityModel/**/*.swift"],
+    "ux": ["apple/Sources/HassDesign/**/*.swift", "apple/Sources/HassUI/**/*.swift", "apple/Sources/FentonActivityViews/**/*.swift"],
+    "exclude": []
+  }
+}

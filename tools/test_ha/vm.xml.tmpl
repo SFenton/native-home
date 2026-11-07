@@ -1,0 +1,90 @@
+<!--
+  The test Home Assistant VM (libvirt domain XML), matching the live domain on the Linux host (read back with
+  `virsh dumpxml`, 2026-11-06). rebuild.sh fills the @-delimited placeholders below at define time and refuses to run if one is
+  left; the MAC comes from a git-ignored local file so the DHCP reservation survives a rebuild.
+  Sizing from the plan (build/research/test-ha-instance.md section 5.1): 2 vCPU, cputune shares 256 (the house VM has 2048, so
+  this VM yields first on a loaded host), 3 GiB, a 32 GiB thin qcow2 on the root volume (never /mnt/storage), UEFI without
+  secure boot, virtio NIC bridged on nm-bridge, and NO libvirt autostart (the host orchestrator is the one start/stop
+  mechanism; see orchestrator.patch). Machine type i440fx, a TPM, USB controllers and PS/2 input mirror the live domain.
+  The nvram file is created by libvirt in /var/lib/libvirt/qemu/nvram from the OVMF vars template.
+-->
+<domain type="kvm">
+  <name>@NAME@</name>
+  <uuid>@UUID@</uuid>
+  <memory unit="KiB">3145728</memory>
+  <currentMemory unit="KiB">3145728</currentMemory>
+  <vcpu placement="static">2</vcpu>
+  <cputune>
+    <shares>256</shares>
+  </cputune>
+  <os firmware="efi">
+    <type arch="x86_64" machine="pc-i440fx-noble-v2">hvm</type>
+    <firmware>
+      <feature enabled="no" name="enrolled-keys"/>
+      <feature enabled="no" name="secure-boot"/>
+    </firmware>
+    <loader readonly="yes" type="pflash">/usr/share/OVMF/OVMF_CODE_4M.fd</loader>
+    <nvram template="/usr/share/OVMF/OVMF_VARS_4M.fd">/var/lib/libvirt/qemu/nvram/@NAME@_VARS.fd</nvram>
+    <boot dev="hd"/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
+  <cpu mode="host-passthrough" check="none" migratable="on"/>
+  <clock offset="utc">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+  </clock>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <pm>
+    <suspend-to-mem enabled="no"/>
+    <suspend-to-disk enabled="no"/>
+  </pm>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2"/>
+      <source file="@DISK@"/>
+      <target dev="vda" bus="virtio"/>
+    </disk>
+    <controller type="usb" index="0" model="ich9-ehci1"/>
+    <controller type="usb" index="0" model="ich9-uhci1">
+      <master startport="0"/>
+    </controller>
+    <controller type="usb" index="0" model="ich9-uhci2">
+      <master startport="2"/>
+    </controller>
+    <controller type="usb" index="0" model="ich9-uhci3">
+      <master startport="4"/>
+    </controller>
+    <controller type="pci" index="0" model="pci-root"/>
+    <controller type="virtio-serial" index="0"/>
+    <interface type="bridge">
+      <mac address="@MAC@"/>
+      <source bridge="nm-bridge"/>
+      <model type="virtio"/>
+    </interface>
+    <serial type="pty">
+      <target type="isa-serial" port="0">
+        <model name="isa-serial"/>
+      </target>
+    </serial>
+    <console type="pty">
+      <target type="serial" port="0"/>
+    </console>
+    <channel type="unix">
+      <target type="virtio" name="org.qemu.guest_agent.0"/>
+    </channel>
+    <input type="mouse" bus="ps2"/>
+    <input type="keyboard" bus="ps2"/>
+    <tpm model="tpm-crb">
+      <backend type="emulator" version="2.0"/>
+    </tpm>
+    <audio id="1" type="none"/>
+    <memballoon model="virtio"/>
+  </devices>
+</domain>

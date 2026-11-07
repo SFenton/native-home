@@ -1,0 +1,16 @@
+{
+  "id": "dd-dynamic-island-timer-cut-off",
+  "date": "2026-10-17",
+  "source": "b2164581",
+  "owner_report": "When expanding the dynamic island, the timer in the top right gets cut off.",
+  "surface": "dynamic-island-expanded",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "sizing",
+  "pre_fix_ref": "1750fac0",
+  "fix_ref": "9906cd23",
+  "fix_confidence": "high",
+  "expected": "The expanded island's trailing timer is fully visible with a long title; flag clipping at the trailing edge."
+}

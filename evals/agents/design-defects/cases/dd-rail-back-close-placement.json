@@ -1,0 +1,16 @@
+{
+  "id": "dd-rail-back-close-placement",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "back, profile, and quick links would still be in the system rail. Back would be separate from profile/quick links.",
+  "surface": "shell-header-items",
+  "poses": [
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "64249220",
+  "fix_ref": "f1bbf733",
+  "fix_confidence": "high",
+  "expected": "Back/Close sit in a rail group apart from Quick Links and Profile; the settings header blur spans the whole width."
+}

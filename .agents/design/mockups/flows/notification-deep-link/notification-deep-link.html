@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notification, Spotlight and Live Activity deep links · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  function root(c, sec, o) { return SN.rootPage(c, sec, o); }
+  function kitchen(c) { return SN.pushedPage(c, { title: 'Kitchen' }); }
+  function vacuums(c) { return SN.pushedPage(c, { title: 'Vacuums', body: [h('div.ui-section', K.PageSectionHeader({ title: 'Robot Vacuums' }), K.TileGrid({ min: 150, max: 2, items: [{ title: 'Main Floor Vacuum', subtitle: 'Cleaning · Kitchen', symbol: 'robotic.vacuum', family: 'cleaning', isActive: true, progress: .4 }, { title: 'Upstairs Vacuum', subtitle: 'Docked', symbol: 'robotic.vacuum', family: 'cleaning', isActive: false }] }))] }); }
+  function sheetOver(c, page) { return Mock.sheet(c, { title: 'Kitchen', subtitle: 'Main Floor Vacuum', detent: 'large', size: 'page', trailing: 'close', content: h('div', { style: { padding: '8px 16px 24px', maxWidth: '560px', margin: '0 auto' } }, K.TileGrid({ min: 150, max: 2, items: [{ title: 'Main Floor Vacuum', subtitle: 'Cleaning · Kitchen', symbol: 'robotic.vacuum', family: 'cleaning', isActive: true, progress: .4 }, { title: 'Kitchen Lights', subtitle: 'On at 70%', symbol: 'lightbulb', family: 'lights', isActive: true, progress: .7 }] })), presenter: page }); }
+  function table(head, rows) { return h('div.k-table-wrap', { style: { color: 'var(--k-fg)' } }, h('table', h('thead', h('tr', head.map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', typeof c === 'string' ? c : c); })); })))); }
+  function code(t) { return h('code', t); }
+
+  function sys(c, label, kids) { return SN.systemScreen(c, label, kids); }
+
+  Mock.mount({
+    kind: 'flow', id: 'notification-deep-link', title: 'Notification, Spotlight and Live Activity deep links', area: 'shell', status: 'shipped',
+    summary: 'Five ways into a specific page from outside the app: a notification tap or button, a Spotlight result, an App Shortcut, and a Live Activity tap. Each ends in the same path: PushCoordinator.open builds a request, MainTabView hands it to ShellNavigator.open, and the page lands as a normal tab selection or push. Home Assistant stays the source of truth: buttons fire an event and the automation decides.',
+    source: ['apple/Sources/HassUI/App/Push/PushCoordinator.swift', 'apple/Sources/HassUI/App/Push/PushNavigationRequest.swift', 'apple/Sources/HassUI/App/Spotlight/AppShortcutRouter.swift', 'apple/Apps/iOS/OpenPageIntent.swift', 'apple/Apps/iOS/SHShortcuts.swift', 'apple/Sources/HassCore/Push/PushLink.swift', 'apple/Sources/HassCore/Push/PushDestination.swift', 'apple/Sources/HassCore/Spotlight/SpotlightCatalog.swift', 'apple/Sources/FentonActivityModel/ActivityDeepLink.swift', 'apple/Sources/HassUI/App/Shell/ShellNavigator.swift'],
+    spec: ['.agents/platforms/apple/push.md', '.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/app-name.md', '.agents/design/motion.md'],
+    patterns: ['motion'],
+    hig: ['Notifications', 'App Shortcuts', 'Live Activities', 'Navigation and search'],
+    kitComponents: ['TabBar', 'NavigationFlyout', 'HassModal', 'GlassTile'],
+    devices: ['iphone', 'duo-folded', 'ipad-portrait', 'duo-unfolded-landscape'],
+    states: {
+      'push-tap-section': { title: '1a. Push: a notification about Security', note: 'system UI stand-in; the payload carries url: /sfenton-react-dash/home?path=security#security-system', render: function (c) {
+        return sys(c, 'NOTIFICATION', [SN.notification({ title: 'Front Door Opened', body: 'The front door opened while the system is armed.' })]); } },
+      'lands-section': { title: '1b. Lands on the section root (a cut)', note: 'section links open at the root of the section with its stack cleared; an anchor on a section is ignored (not scrolled to yet)', render: function (c) { return root(c, 'security', { section: 'security' }); } },
+      'push-tap-page+anchor-sheet': { title: '2a. Push: a link to a room card', note: 'url: /sfenton-react-dash/home?path=kitchen#vacuum', render: function (c) {
+        return sys(c, 'NOTIFICATION', [SN.notification({ title: 'Main Floor Vacuum Stuck', body: 'It stopped in Kitchen. Move it somewhere flat, then tap Resume.' })]); } },
+      'lands-page': { title: '2b. Lands on the page, pushed on Home', note: 'a Home page (a room, Food, Groceries, Vacuums, Media) is pushed on Home\'s root and Home is selected', render: function (c) { return kitchen(c); } },
+      'lands-anchor-sheet': { title: '2c. The room\'s card sheet opens once the page is on screen', note: 'ShellNavigator.pendingSheet is taken by RoomScreen.openLinkedSheet; only room links carry an anchor sheet', render: function (c) { return sheetOver(c, kitchen(c)); } },
+      'spotlight-result': { title: '3a. Spotlight result', note: '21 items: the five sections and the sixteen rooms; every one carries the S+H search words ("Home Assistant", "HASS", "Fenton Home" ...)', render: function (c) {
+        return sys(c, 'SPOTLIGHT', [h('div', { style: { color: 'rgba(255,255,255,.85)', font: '600 var(--fs-sub) var(--font)', margin: '4px 6px' } }, 'S+H'), SN.spotlightRow({ title: 'Security', summary: 'S+H · Cameras, locks, doors and alarms' }), SN.spotlightRow({ title: 'Kitchen', summary: 'S+H · Kitchen lights, climate and devices' })]); } },
+      'app-shortcut-open-page': { title: '4a. App Shortcut: Open Security', note: 'four shortcuts (Home, Security, Climate, Chores) on one OpenPageIntent; Settings is reachable through the intent\'s page parameter only', render: function (c) {
+        return sys(c, 'SHORTCUTS, SIRI', [h('div', { style: { display: 'flex', gap: '12px', flexWrap: 'wrap' } }, [['Open Home', 'house.fill'], ['Open Security', 'shield.fill'], ['Open Climate', 'thermometer.medium'], ['Open Chores', 'checklist']].map(function (x) { return SN.shortcutTile({ title: x[0], symbol: x[1] }); })), h('div', { style: { color: 'rgba(255,255,255,.8)', font: 'var(--fs-sub) var(--font)', margin: '4px 6px' } }, '"Open Security in S and H" (Siri says the spoken name)')]); } },
+      'live-activity-tap-job-page': { title: '5a. Live Activity: tap the vacuum job', note: 'fentonhome://liveactivity?url=/sfenton-react-dash/home?path=vacuums', render: function (c) {
+        return sys(c, 'LIVE ACTIVITY (LOCK SCREEN)', [SN.liveActivity({ title: 'Main Floor Vacuum', status: 'Cleaning · Kitchen', value: '40%' })]); } },
+      'lands-job-page': { title: '5b. Lands on the job\'s page', note: 'the Vacuums page is pushed on Home', render: function (c) { return vacuums(c); } },
+      'unknown-page': { title: 'A route the app has no page for', note: 'opens Home (and drops the link): PushDestination.homePage with no HomeRoute leaves Home\'s stack empty', render: function (c) { return root(c, 'home'); } },
+      'link-mapping': { title: 'How a link maps to a page', note: 'PushLink then PushDestination(dashboardPath:)', render: function (c) {
+        return h('div', { style: { position: 'absolute', inset: 0, background: '#111723', overflow: 'auto', padding: (c.device.barTop + 60) + 'px 16px 40px', color: '#fff' } },
+          h('div', { style: { font: '600 var(--fs-sub) var(--font)', marginBottom: '8px' } }, 'Link ' + String.fromCharCode(8594) + ' destination'),
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', font: 'var(--fs-foot)/1.3 var(--font)' } }, [
+            ['path=overview, home, none', 'Home root'], ['path=security', 'Security root'], ['path=thermostat, climate', 'Climate root'], ['path=chores, groceries, *-chores', 'Chores root'],
+            ['path=settings, admin, vacation, solo-trip, to-do, mach-e', 'Settings root'], ['path=kitchen, media, vacuums, sprinklers, custom-lights', 'pushed on Home (+ anchor sheet for a room)'],
+            ['path=food, recipes, pantry, fridge, freezer', 'Food hub, pushed on Home'], ['a path the app has no page for', 'Home'], ['a Home Assistant path (/config/...)', 'opens in the browser'], ['another site', 'opens in the browser']
+          ].map(function (r) { return h('div', { style: { display: 'flex', gap: '10px', padding: '8px 10px', background: 'rgba(28,28,30,.66)', borderRadius: '12px' } }, h('code', { style: { flex: '1 1 52%', font: '12px var(--mono)', color: '#cfd6e4' } }, r[0]), h('span', { style: { flex: '1 1 48%' } }, r[1])); }))); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the landing page at AX5', render: function (c) { return kitchen(c); } },
+    },
+    motion: [
+      { id: 'lands-as-nav', what: 'The page arrives as an ordinary tab selection or push; nothing special animates', token: 'none of its own: tab cut or system push; vacuum anchor sheets present once the page is on screen (system sheet)', state: 'lands-section',
+        source: 'ShellNavigator.open(_:anchor:); MainTabView .onChange(of: push?.pendingRequest, initial: true)', reduce: 'the system push becomes a cross-fade; the cut is unchanged',
+        play: function (stage) { var c = Mock.current, a = stage.querySelector('.ui-page'), b = root(c, 'home'); a.parentNode.insertBefore(b, a); a.hidden = true; return Mock.sleep(800).then(function () { b.remove(); a.hidden = false; }); } },
+      { id: 'anchor-sheet', what: 'After the page is pushed, its linked card sheet opens', token: 'system sheet after the push has settled', state: 'lands-page',
+        source: 'RoomScreen.openLinkedSheet via ShellNavigator.takeSheet(forPage:)', reduce: 'cross-fade',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, { title: 'Kitchen', subtitle: 'Main Floor Vacuum', detent: 'large', size: 'page', trailing: 'close', content: h('div', { style: { padding: '24px 16px', font: 'var(--fs-body) var(--font)' } }, 'Card sheet') }, { hold: 900 }); } },
+    ],
+    transitions: [
+      { from: 'Notification tap', to: 'Security tab', kind: 'cut', state: 'push-tap-section', note: 'The app is foreground or cold-launched (pendingRequest is read on appear). The tab changes as a cut and the section\'s stack clears to its root.',
+        play: function (stage) { var c = Mock.current, a = stage.querySelector('.ui-page'), b = root(c, 'security', { section: 'security' }); a.parentNode.insertBefore(b, a); a.hidden = true; return Mock.sleep(1000).then(function () { b.remove(); a.hidden = false; }); } },
+      { from: 'Notification tap', to: 'Kitchen, pushed on Home', kind: 'push', state: 'push-tap-page+anchor-sheet', note: 'Home is selected and its path becomes [room]; the page pushes with the system push. With an anchor, the room\'s card sheet then opens.',
+        play: function (stage) { var c = Mock.current, a = stage.querySelector('.ui-page'), b = kitchen(c); a.parentNode.insertBefore(b, a.nextSibling); return Mock.anim.push(a, b).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); b.remove(); }); } },
+      { from: 'Spotlight result', to: 'Page', kind: 'cut', state: 'spotlight-result', note: 'CSSearchableItemActionType: RootView.onContinueUserActivity hands the identifier to PushCoordinator.open(spotlightUserInfo:); sections cut, rooms push.',
+        play: function (stage) { var c = Mock.current, a = stage.querySelector('.ui-page'), b = root(c, 'security', { section: 'security' }); a.parentNode.insertBefore(b, a); a.hidden = true; return Mock.sleep(900).then(function () { b.remove(); a.hidden = false; }); } },
+      { from: 'App Shortcut', to: 'Page', kind: 'cut', state: 'app-shortcut-open-page', note: 'OpenPageIntent (openAppWhenRun) calls AppShortcutRouter.route; a shortcut that runs before launch finishes waits for the handler.',
+        play: function (stage) { var c = Mock.current, a = stage.querySelector('.ui-page'), b = root(c, 'security', { section: 'security' }); a.parentNode.insertBefore(b, a); a.hidden = true; return Mock.sleep(900).then(function () { b.remove(); a.hidden = false; }); } },
+      { from: 'Live Activity tap', to: 'Vacuums page', kind: 'push', state: 'live-activity-tap-job-page', note: 'fentonhome://liveactivity?url=... : ActivityDeepLink.link(from:) returns the dashboard link, handled like a notification\'s.',
+        play: function (stage) { var c = Mock.current, a = stage.querySelector('.ui-page'), b = vacuums(c); a.parentNode.insertBefore(b, a.nextSibling); return Mock.anim.push(a, b).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); b.remove(); }); } },
+    ],
+    a11y: [
+      { rule: 'Notification', note: 'A system banner: VoiceOver reads the title and body; buttons carry the payload\'s titles; "authenticationRequired" and "destructive" actions follow the system rules. The app never acts on a button itself; it fires mobile_app_notification_action and Home Assistant decides.' },
+      { rule: 'Landing', note: 'After the app opens, VoiceOver is told the screen changed; the landing page is announced as a normal tab selection or push, with focus on its first element.' },
+      { rule: 'Spotlight and Shortcuts', note: 'Titles are plain words ("Security", "Open Security"); the spoken app name is "S and H" (CFBundleSpokenName), so Siri phrases use it.' },
+      { rule: 'Live Activity', note: 'The lock screen card is one element: "<job>, <status>". A tap opens the job\'s page; VoiceOver users double-tap.' },
+      { rule: 'Dynamic Type / AX5', note: 'The landing pages are ordinary pages; system surfaces follow the system\'s own scaling.' },
+      { rule: 'Reduce Motion', note: 'The push becomes a cross-fade; sheets cross-fade; the cut is unchanged.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Notifications: open the content the notification is about', verdict: 'pass', note: 'A section is selected on a cleared path, a Home page is pushed, an unknown route opens Home (ShellNavigator.swift:99-116).', by: 'apple-hig skill' },
+        { rule: 'Navigation: a link must land where the person can see it', verdict: 'pass', note: 'Fixed: ShellNavigator.swift open(_:) now clears quickLinksSection and accountSection.', by: 'apple-hig skill' },
+        { rule: 'App Shortcuts: phrases carry the app name, at most ten', verdict: 'pass', note: 'Four shortcuts, each phrase includes \\(.applicationName) (SHShortcuts.swift).', by: 'apple-hig skill' },
+        { rule: 'App Shortcuts: cover the app\'s destinations', verdict: 'pass', note: 'Fixed (owner pick): SHShortcuts adds an Open Settings in S+H phrase.' },
+        { rule: 'Privacy: nothing of a signed-out person in the index', verdict: 'pass', note: 'spotlight.removeAll() runs in signOut (AppSession.swift:186).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'One path for every entry point', verdict: 'pass', note: 'PushCoordinator.open sets pendingRequest; MainTabView calls ShellNavigator.open (PushCoordinator.swift:129-132; MainTabView.swift:86-90).', by: 'swiftui-pro skill' },
+        { rule: 'Read a request on appear too', verdict: 'pass', note: '.onChange(of: push?.pendingRequest, initial: true) covers the launching tap (MainTabView.swift:86).', by: 'swiftui-pro skill' },
+        { rule: 'A request made before the handler exists must wait', verdict: 'pass', note: 'AppShortcutRouter stores the pending destination until install(_:) (AppShortcutRouter.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Stamp requests so the same destination twice still opens', verdict: 'pass', note: 'PushNavigationRequest carries an increasing id (PushNavigationRequest.swift:8-10).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: push.md says "Anchors are not scrolled to yet", but ShellNavigator.open stores an anchor sheet for a room link (pendingSheet) and RoomScreen opens the matching card sheet; the live-activities doc says a vacuum job links to path=vacuums (no anchor), so the catalog hint "vacuum anchors open the room\'s sheet" applies to a room link with a #vacuum-style anchor, not to the Live Activity. The mockup draws both separately.',
+      'System UI is a stand-in (notification banner, Spotlight, Shortcuts tile, lock-screen card): iOS draws these, not the app. Their wording is real: titles, summaries and shortcut names come from SpotlightCatalog and SHShortcuts; the notification texts are fixture copy.',
+      'In flight: none. The camera notification\'s expanded view (NotificationContent) is another batch (widgets-liveactivity).',
+      'Spotlight descriptions start with "S+H" (app-name.md); the mockup shows that prefix. Settings has no shortcut of its own (four shortcuts; AppPageOption has five pages).',
+      'The notification and Live Activity states are not tied to a device name: they use the selected device\'s window only for size.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: push to section and to page with an anchor sheet, Spotlight, App Shortcut, Live Activity, link mapping.' }],
+  });
+})();
+</script></body></html>

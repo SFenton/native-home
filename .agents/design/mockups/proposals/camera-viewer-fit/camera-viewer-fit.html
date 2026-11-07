@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Camera Viewer Fit</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;
+--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 72px max(16px,env(safe-area-inset-left))}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}
+p{margin:0 0 12px;max-width:72ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+.lede{font-size:18px;color:var(--fg2)}.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;margin-top:20px}
+figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:300px}
+figcaption b{display:block;color:var(--fg);font-size:15px}.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+/* iPhone 402x874 pt at 0.42 */
+.phone{--k:.42;width:calc(402px*var(--k));height:calc(874px*var(--k));border-radius:calc(55px*var(--k));border:2px solid #000;background:#2a2f3a;position:relative;overflow:hidden}
+.phone .wall{position:absolute;inset:0;background:linear-gradient(160deg,#27405f,#14202f)}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1c1c1e;color:#fff;border-radius:calc(38px*var(--k)) calc(38px*var(--k)) 0 0;overflow:hidden}
+.sheet.light{background:#f2f2f7;color:#000}
+.grab{width:calc(36px*var(--k));height:calc(5px*var(--k));border-radius:9px;background:#8e8e93;margin:calc(6px*var(--k)) auto 0}
+.bar{height:calc(48px*var(--k));display:flex;align-items:center;justify-content:center;font-size:calc(17px*var(--k)*1.05);font-weight:600;position:relative}
+.x{position:absolute;right:calc(14px*var(--k));width:calc(32px*var(--k));height:calc(32px*var(--k));border-radius:50%;background:rgba(255,255,255,.16)}
+.light .x{background:rgba(0,0,0,.08)}
+.video{margin:calc(16px*var(--k));height:calc(208px*var(--k));border-radius:calc(20px*var(--k));background:linear-gradient(135deg,#5b6d57,#2f3a33 60%,#1b2220);position:relative}
+.video:after{content:"LIVE";position:absolute;left:calc(10px*var(--k));top:calc(10px*var(--k));font-size:calc(11px*var(--k)*1.3);background:rgba(0,0,0,.5);padding:1px 5px;border-radius:6px}
+.ctl{display:flex;justify-content:space-around;padding:0 calc(16px*var(--k))}
+.c{width:calc(56px*var(--k));height:calc(56px*var(--k));border-radius:50%;background:#2c2c2e}
+.home{height:calc(34px*var(--k))}
+.empty{background:repeating-linear-gradient(45deg,#1c1c1e,#1c1c1e 6px,#232326 6px,#232326 12px);display:grid;place-items:center;color:#8e8e93;font-size:11px;text-align:center}
+.ipad{width:min(560px,calc(100vw - 32px));height:392px;border:2px solid #000;border-radius:18px;position:relative;overflow:hidden}
+.ipad .sheet{left:15%;right:15%;border-radius:18px 18px 0 0}
+.split{display:flex;gap:12px;padding:12px}.split .video{margin:0;flex:1;height:150px}.split .col{flex:1;display:flex;gap:10px;flex-direction:column}
+.split .c{width:34px;height:34px}
+table{border-collapse:collapse;width:100%;font-size:14px;max-width:760px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+</style></head><body><div class="wrap">
+<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px">Proposal · 2026-10-23</p>
+<h1>Camera viewer opens at its own height</h1>
+<p class="lede">The camera viewer is the only single-page sheet still forced to the large detent. Security System opens fitted: just its content plus the safe area. The viewer should do the same.</p>
+
+<h2>Cause</h2>
+<p><code>CameraViewer</code> called <code>.hassSheet(.page, height: .full, appearance: .dark)</code> with the comment "Live video". <code>.full</code> is for sheets whose height must not change while open: tab bars, pushed pages, remotes. The viewer has none of those. Its content is a video and one row of controls, so the large detent leaves about half the sheet empty.</p>
+
+<h2>iPhone (402 × 874 pt)</h2>
+<div class="row">
+ <figure class="bad"><div class="phone"><div class="wall"></div><div class="dim"></div>
+  <div class="sheet" style="top:calc(60px*.42)"><div class="grab"></div><div class="bar">Front Door<span class="x"></span></div><div class="video"></div><div class="ctl"><span class="c"></span><span class="c"></span><span class="c"></span></div>
+  <div class="empty" style="position:absolute;left:0;right:0;top:calc(400px*.42);bottom:0">empty ground<br>≈ 350 pt</div></div></div>
+  <figcaption><b>Today: large detent</b>Opens to the top, video and controls at the top of the sheet, the rest blank.</figcaption></figure>
+ <figure class="ok"><div class="phone"><div class="wall"></div><div class="dim"></div>
+  <div class="sheet" style="height:calc(432px*.42)"><div class="grab"></div><div class="bar">Front Door<span class="x"></span></div><div class="video"></div><div class="ctl"><span class="c"></span><span class="c"></span><span class="c"></span></div><div class="home"></div></div></div>
+  <figcaption><b>Proposed: fitted, ≈ 432 pt</b>Bar 54 + video 208 (16:9 at 370 wide) + controls 80 + padding 32 + 34 pt home-indicator safe area, with the wallpaper still visible above.</figcaption></figure>
+ <figure><div class="phone"><div class="wall"></div><div class="dim"></div>
+  <div class="sheet light" style="height:calc(470px*.42)"><div class="grab"></div><div class="bar">Security System<span class="x"></span></div><div style="margin:calc(16px*.42);height:calc(300px*.42);border-radius:calc(16px*.42);background:#fff"></div><div class="home"></div></div></div>
+  <figcaption><b>Reference: Security System</b>Already fitted. The viewer follows the same rule, in the dark appearance.</figcaption></figure>
+</div>
+
+<h2>iPad landscape (video beside controls)</h2>
+<div class="row"><figure class="ok"><div class="ipad" style="background:linear-gradient(160deg,#27405f,#14202f)"><div class="dim"></div>
+ <div class="sheet" style="height:230px"><div class="grab"></div><div class="bar">Front Door<span class="x"></span></div><div class="split"><div class="video"></div><div class="col"><div style="display:flex;gap:10px"><span class="c"></span><span class="c"></span><span class="c"></span></div></div></div></div></div>
+ <figcaption><b>Proposed</b>The split layout moves inside the page scroller so the sheet measures it too. Sheet height is the video's height (half width at 16:9) plus chrome.</figcaption></figure></div>
+
+<h2>What changes in code</h2>
+<table><tr><th>File</th><th>Change</th></tr>
+<tr><td><code>CameraViewer.swift</code></td><td><code>.hassSheet(.page, height: .full, appearance: .dark)</code> becomes <code>.hassSheet(.page, appearance: .dark)</code>. Both layouts go in one <code>ScrollView</code> (the split one had none, so there was nothing for <code>SheetFit</code> to measure).</td></tr>
+<tr><td><code>CameraJourneyTests</code></td><td>The layout journey asserts the video is not in the top third of the window on iPhone.</td></tr>
+<tr><td>Docs</td><td><code>modal-sheet.md</code>, <code>direction-g.md</code>, <code>split-view.md</code>: camera viewer is fitted, no longer "full for live video".</td></tr></table>
+<h2>Open points for review</h2>
+<p>1. Dark fitted sheets skip <code>SheetGroundModifier</code>'s opaque ground (only system appearance gets it). The page's own background should cover the sheet, but I have not checked it on iOS 26 glass yet.<br>2. The camera's own aspect ratio sets the height (Driveway is 10:3, so its sheet is about 100 pt shorter).</p>
+</div></body></html>

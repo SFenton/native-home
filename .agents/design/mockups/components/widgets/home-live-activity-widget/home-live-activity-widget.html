@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Live Activity widget configuration · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../live-activity/_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function keyline(node, fx) {
+    var c = LA.card(fx), color = c.problem ? LA.SEV[c.problem.severity].circle : LA.accent(c.a.tint);
+    node.style.boxShadow = '0 0 0 1.5px ' + color; return node;
+  }
+  function row(label, nodes, file) {
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 } }, h('div', { style: { font: '600 12px var(--mono)', color: 'rgba(255,255,255,.75)' } }, label), h('div', { style: { display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' } }, nodes),
+      h('div', { style: { font: '11px var(--mono)', color: 'rgba(255,255,255,.5)' } }, file));
+  }
+  function map(ctx, name) {
+    var fx = LA.fx(name), o = { ctx: ctx };
+    return LA.stage([
+      row('ActivityConfiguration { context in … }: Lock Screen and banner', [LA.lockCard(fx, o)], 'HomeLiveActivity.swift · HomeActivityFamilyView → HomeActivityLockScreenView (JobCardView or ProblemCardView)'),
+      row('Same view, StandBy (isActivityFullscreen)', [LA.standby(ctx, fx, { scale: 1.1 })], 'corner mark dropped; the system scales the card'),
+      row('DynamicIsland { … }: compactLeading, compactTrailing', [keyline(LA.islandCompact(fx, o), fx)], 'HomeActivityIsland.CompactLeading / CompactTrailing (IslandCompactTrailing adds the iOS 27 limited-width check)'),
+      row('minimal', [LA.islandMinimal(fx, o)], 'HomeActivityIsland.Minimal'),
+      row('DynamicIslandExpandedRegion(.leading), (.trailing), (.bottom); centre empty', [keyline(LA.islandExpanded(fx, o), fx)], 'ExpandedLeading, ExpandedTrailing, ExpandedBottom, each .dynamicTypeSize(...xxxLarge); .keylineTint on the island'),
+      row('supplementalActivityFamilies([.small]) (iOS 18): Smart Stack and CarPlay', [h('div', { style: { padding: '12px 14px', borderRadius: '18px', background: 'rgba(23,24,30,.92)', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)', width: '210px', boxSizing: 'border-box' } }, LA.small(fx, o))], 'FamilyAwareView → HomeActivitySmallView; no controls'),
+    ]);
+  }
+  function chrome() {
+    function sw(label, css, note) { return [h('div.la-sw', h('i', { style: { background: css, width: '28px', height: '18px' } }), label), note]; }
+    var rows = [
+      ['Job card', 'activityBackgroundTint', 'cardFill rgba(23, 24, 30, .78)', h('div.la-sw', h('i', { style: { background: 'rgba(23,24,30,.78)', width: '28px', height: '18px' } }), '#17181E 78%')],
+      ['Critical problem', 'activityBackgroundTint', 'severity.ground #3E1614 at 92%', h('div.la-sw', h('i', { style: { background: 'rgba(62,22,20,.92)', width: '28px', height: '18px' } }), '#3E1614 92%')],
+      ['Warning problem', 'activityBackgroundTint', 'severity.ground #3A2808 at 92%', h('div.la-sw', h('i', { style: { background: 'rgba(58,40,8,.92)', width: '28px', height: '18px' } }), '#3A2808 92%')],
+      ['Every card', 'activitySystemActionForegroundColor', 'white (the system\'s own "Open app" and dismiss controls on the Lock Screen)', h('div.la-sw', h('i', { style: { background: '#fff', width: '28px', height: '18px' } }), '#FFFFFF')],
+      ['Job island', 'keylineTint', 'the family accent: air #2FD3C1, cleaning #C88CFA, water #4CC9F0, cooling #3FC6D2', h('div.la-sw', ['air', 'cleaning', 'water', 'cooling'].map(function (t) { return h('i', { style: { background: LA.accent(t), width: '18px', height: '18px' } }); }))],
+      ['Problem island', 'keylineTint', 'the severity circle: critical #FF453A, warning #FF9F0A', h('div.la-sw', h('i', { style: { background: '#FF453A', width: '18px', height: '18px' } }), h('i', { style: { background: '#FF9F0A', width: '18px', height: '18px' } }))],
+    ];
+    return h('div', { style: { background: '#14161c', borderRadius: '16px', padding: '14px', overflowX: 'auto' } }, h('table.la-tbl', h('thead', h('tr', ['Card', 'Modifier', 'Value', 'Colour'].map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); }))));
+  }
+  function links() {
+    var items = [['fan', '/sfenton-react-dash/home?path=guest-bathroom'], ['dishwasher', '/sfenton-react-dash/home?path=kitchen'], ['washer / dryer', '/sfenton-react-dash/home?path=laundry'], ['hot flash', '/sfenton-react-dash/home?path=master-bedroom'], ['vacuum and every vacuum problem', '/sfenton-react-dash/home?path=vacuums']];
+    var body = items.map(function (i) { return [i[0], h('code', i[1]), h('code', 'fentonhome://liveactivity?url=' + encodeURIComponent(i[1]))]; });
+    return h('div', { style: { background: '#14161c', borderRadius: '16px', padding: '14px', overflowX: 'auto' } },
+      h('p.la-note', { style: { marginBottom: '10px' } }, 'widgetURL on the Lock Screen view and on the island. A card with no url just opens the app. The app reads it like a notification link (PushLink). The buttons are App Intents (JobControlIntent, a LiveActivityIntent) that run in the app\'s own process; nothing runs in the extension.'),
+      h('table.la-tbl', h('thead', h('tr', ['Job', 'url in the content-state', 'widgetURL'].map(function (t) { return h('th', t); }))), h('tbody', body.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); }))));
+  }
+  function bundle() {
+    return h('div', { style: { background: '#14161c', borderRadius: '16px', padding: '16px', color: '#fff', maxWidth: '640px' } },
+      h('div', { style: { font: '600 15px var(--font)', marginBottom: '8px' } }, 'FentonHomeWidgets (WidgetBundle)'),
+      h('pre', { style: { margin: 0, font: '12px/1.5 var(--mono)', color: 'rgba(255,255,255,.85)', whiteSpace: 'pre-wrap' } }, '@main struct FentonHomeWidgets: WidgetBundle {\n    var body: some Widget {\n        HomeLiveActivity()\n    }\n}'),
+      h('div', { style: { display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '14px' } },
+        [['Home Screen widgets', 'none'], ['Lock Screen widgets', 'none'], ['Controls (Control Center)', 'none'], ['Live Activity', 'HomeLiveActivity (one per job)']].map(function (r) {
+          return h('div', { style: { flex: '1 1 150px', padding: '12px', borderRadius: '14px', background: r[1] === 'none' ? 'rgba(255,255,255,.05)' : 'rgba(76,201,240,.16)', boxShadow: 'inset 0 0 0 1px ' + (r[1] === 'none' ? 'rgba(255,255,255,.1)' : 'rgba(76,201,240,.5)') } }, h('div', { style: { font: '12px var(--font)', color: 'rgba(255,255,255,.65)' } }, r[0]), h('div', { style: { font: '600 14px var(--font)', marginTop: '4px' } }, r[1])); })),
+      h('p.la-note', { style: { marginTop: '12px' } }, 'The widget gallery therefore lists no S+H widget. Home Screen widgets and Controls can join this bundle later without a new extension (live-activities.md section 9).'));
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'home-live-activity-widget', title: 'Home Live Activity widget configuration', area: 'widgets', status: 'shipped', frame: false,
+    summary: 'The widget extension holds one thing: the Live Activity. This is its configuration, drawn: which view each presentation uses, the system chrome it sets, and what a tap or a button does.',
+    source: ['apple/Apps/Widgets/HomeLiveActivity.swift', 'apple/Apps/Widgets/FentonHomeWidgets.swift', 'apple/Apps/Shared/LiveActivityIntents.swift', 'apple/Sources/FentonActivityViews/HomeActivityLockScreenView.swift',
+      'apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift', 'apple/Sources/FentonActivityViews/HomeActivitySmallView.swift', 'apple/Sources/FentonActivityModel/ActivityDeepLink.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: [],
+    hig: ['Live Activities', 'Widgets'],
+    entities: ['fenton_home job engine content-state v2'],
+    devices: ['iphone'],
+    states: {
+      'default': { title: 'Every presentation of one job', note: 'Guest Bath Fan', render: function (ctx) { return map(ctx, 'fan'); } },
+      vacuum: { title: 'A vacuum (no time, round buttons)', render: function (ctx) { return map(ctx, 'vacuum'); } },
+      problem: { title: 'A problem (red)', note: 'critical: keyline, tint and card all take the severity colour', render: function (ctx) { return map(ctx, 'problem-navigation-stuck'); } },
+      chrome: { title: 'System chrome', note: 'tints, action colour, keyline', render: chrome },
+      links: { title: 'Taps and buttons', render: links },
+      bundle: { title: 'The widget bundle', note: 'only the Live Activity', render: bundle },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'Lock Screen card and small family scale; the island stays at xxxLarge', render: function (ctx) { return map(ctx, 'dishwasher'); } },
+    },
+    motion: [LA.motionTick('apple/Apps/Widgets/HomeLiveActivity.swift')],
+    transitions: [
+      { from: 'Lock Screen card, island or tile', to: 'S+H', kind: 'cut', note: 'widgetURL = fentonhome://liveactivity?url=<dashboard path>; the app routes it like a push link (PushLink).' },
+      { from: 'A card button', to: 'Home Assistant service', kind: 'cut', note: 'Button(intent: JobControlIntent(tag, control)): the system launches the app in the background; the card shows "Stopping…" until Home confirms.' },
+    ],
+    a11y: [
+      { rule: 'One activity, one set of labels', note: 'Every presentation reuses the same views, so the labels match: title and value elements on the card, one combined phrase in the island and small family, buttons named for the device.' },
+      { rule: 'System-owned controls', note: 'activitySystemActionForegroundColor(.white) keeps the system\'s own controls on the card readable on the dark tint.' },
+      { rule: 'Dynamic Type', note: 'The Lock Screen and small family follow the person\'s size; every island region is capped at xxxLarge (.dynamicTypeSize(...xxxLarge)).' },
+      { rule: 'Reduce Motion / Always-On', note: 'No app animation; isLuminanceReduced removes the ring track. The system owns the island morph and the card update transition.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Live Activities: support every presentation', verdict: 'pass', note: 'Lock Screen and banner, StandBy, compact, minimal, expanded and the iOS 18 .small family are all configured (HomeLiveActivity.swift:17-50).' },
+        { by: 'apple-hig skill', rule: 'Privacy: Lock Screen content is visible when locked', verdict: 'pass', note: 'Fixed: device titles, problem lines and the job header are .privacySensitive() (JobCardView, ProblemCardView, HomeActivitySmallView), so a locked Lock Screen redacts them.' },
+        { by: 'apple-hig skill', rule: 'App Intents: actions from a locked device', verdict: 'pass', note: 'Fixed: JobControlIntent declares authenticationPolicy .alwaysAllowed and perform() refuses any control id outside ActivityControl.lockScreenSafeIDs (LiveActivityIntents.swift).' },
+        { by: 'apple-hig skill', rule: 'Dynamic Type: system-sized regions', verdict: 'departure', note: 'Every island region is capped with .dynamicTypeSize(...xxxLarge) (HomeLiveActivity.swift:34-44) because the system sizes the island; per-job spec section 8a and the accessibility audit. The Lock Screen card still scales fully.' },
+        { by: 'apple-hig skill', rule: 'Materials: system background on the Lock Screen', verdict: 'departure', note: 'The card sets its own dark tint with activityBackgroundTint (line 28) so family accents keep 3:1 on any wallpaper (direction-g.md colour families).' },
+        { by: 'apple-hig skill', rule: 'Widgets: ship only surfaces the app needs', verdict: 'pass', note: 'The bundle holds the Live Activity only (FentonHomeWidgets.swift:7-10).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'api.md: availability checks for new API', verdict: 'pass', note: 'supplementalActivityFamilies([.small]) and activityFamily sit behind #available(iOS 18) (lines 17, 92); isDynamicIslandLimitedInWidth behind iOS 27 (lines 67-82).' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: avoid AnyView', verdict: 'departure', note: 'ActivityActions.intents wraps Button(intent:) in AnyView (lines 116-121) because the intent type compiles into the app and extension, not into FentonActivityViews.' },
+        { by: 'swiftui-pro skill', rule: 'navigation.md: deep link on tap', verdict: 'pass', note: 'widgetURL(ActivityDeepLink.url(for:)) on both the card and the island (lines 30, 48).' },
+      ],
+    },
+    notes: [
+      'Devices: iPhone (island on Dynamic Island phones only). The Watch Smart Stack and CarPlay use the .small family; no iPad presentation exists.',
+      'Doc versus code: spec section 8 says the island trailing value and problem word sit beside the camera in the expanded island; the code (E2c) puts the corner mark there and moves the text into the bottom block.',
+      'Not built: Home Screen widgets, Lock Screen widgets and Controls (live-activities.md section 9 lists them as later phases). The engine and relay lane (spec section 9) is not built either, so the activity runs from fixtures and the relay test content.',
+      'The keyline outline is drawn here as a 1.5 pt ring; the system draws its own width and glow.',
+      'Promote to kit: nothing here beyond the helper (components/live-activity/_widgets-liveactivity.js).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

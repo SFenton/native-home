@@ -1,0 +1,32 @@
+{
+  "id": "stop-plain-finish-allowed",
+  "source": "Rule: a real finish is allowed.",
+  "recorded": "2026-11-02",
+  "kind": "stop_hook",
+  "input": {
+    "items": [
+      {
+        "type": "user",
+        "message": {
+          "role": "user",
+          "content": "go"
+        }
+      },
+      {
+        "type": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done. The lane is pushed and the tests pass."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "blocked": false
+  }
+}

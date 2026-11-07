@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, LL = Mock.LL, A = Mock.anim;
+
+  /* The sign-in layer is a root layer under RootView, not a page: no header, no tab bar, no rail. LL.screen draws it on every device. */
+  function screen(ctx, o) { return LL.screen(ctx, o); }
+  var FILLED = { username: 'alex', password: 10 };
+  function S(o) { return function (ctx) { return screen(ctx, Object.assign({}, o)); }; }
+  function frameAt(t) { return function (ctx) { return screen(ctx, { intro: t }); }; }
+  function root(stage) { return stage.querySelector('.ll-root'); }
+
+  /* One staged form swaps in the working and failure looks for the Play buttons (LoginModel.submit: isWorking, then failure). */
+  function toWorking(stage) {
+    var r = root(stage), mod = r.querySelector('.ll-module'), btn = r.querySelector('.ll-btn');
+    return Mock.sleep(120).then(function () {
+      var b = btn.firstChild; b.classList.add('pressed'); return Mock.sleep(120).then(function () { b.classList.remove('pressed'); });
+    }).then(function () {
+      mod.classList.add('dim');
+      var nb = LL.signInButton({ title: LL.copy.busy, working: true }); btn.replaceWith(nb);
+      return Mock.sleep(A.ms.quick() + 900);
+    });
+  }
+  function showFailure(stage, kind) {
+    var r = root(stage), form = r.querySelector('.ll-form'), mod = r.querySelector('.ll-module'), btn = r.querySelector('.ll-btn'), c = LL.copy, added = [];
+    if (kind === 'wrong') {
+      var rows = mod.querySelectorAll('.ll-row'), pw = rows[rows.length - 1], line = h('span.ll-redline', { 'aria-hidden': 'true' }); pw.appendChild(line);
+      var err = LL.inlineError(c.wrong); form.insertBefore(err, btn); added = [line, err];
+      pw.querySelector('.fd').textContent = '';
+    } else {
+      var card = LL.failureCard({ title: c.unreachableTitle, message: c.unreachableBody, detail: 'HTTP 502: Bad Gateway' }); form.insertBefore(card, mod); added = [card];
+      btn.querySelector('.ui-primary').lastChild.textContent = c.retry;
+    }
+    return Promise.all(added.map(function (e) { return A.fade(e, { ms: A.ms.quick() }); })).then(function () { return Mock.sleep(1200); });
+  }
+
+  var REVIEW_DATE = '2026-10-23';
+
+  Mock.mount({
+    kind: 'page', id: 'login', title: 'Sign in (fresh and welcome back)', area: 'login', status: 'shipped',
+    summary: 'The root layer a signed-out phone shows: a bare house-and-heart mark, the name, one line, a glass module with Server, Username and Password, the Sign In capsule and a footnote. A session that ended shows Welcome back instead. Always dark; on iPad and the unfolded Duo the form is a column of at most 460 pt.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/Features/Login/LoginModel.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift', 'apple/Sources/HassUI/Features/Login/LoginCopy.swift', 'apple/Sources/HassUI/Features/Login/SignInStyle.swift',
+      'apple/Sources/HassDesign/HouseHeartShape.swift', 'apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift'],
+    spec: ['.agents/platforms/apple/auth.md', '.agents/design/direction-g.md', '.agents/design/motion.md'],
+    patterns: ['motion'],
+    hig: ['Entering data', 'Text fields', 'Buttons', 'Dark Mode', 'Dynamic Type', 'Motion', 'Privacy'],
+    entities: [],
+    kitComponents: ['PrimaryButton', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Fresh sign-in, nothing typed', note: 'Server shows its placeholder (homeassistant.local:8123); Sign In is disabled (40%) until all three fields have text; no field takes focus by itself', render: S({ server: '', username: '', password: 0 }) },
+      'server-prefilled': { title: 'Fresh sign-in, server prefilled', note: 'the last server signed in to, else the build\'s HASS_DEFAULT_SERVER (debug builds: FENTON_HASS_SERVER first); Sign In still waits for the username and password', render: S({ server: 'http://homeassistant.local:8123', username: '', password: 0 }) },
+      'server-typing': { title: 'Typing the server', note: 'URL keyboard, no autocapitalisation, correction or smart punctuation, Return reads Next, a Clear button while editing; when editing ends the text becomes the normalised address (https:// added, or http:// for a .local, localhost, single-label or private-range host; path dropped)', render: S({ server: 'homeassistant.local:8123', focus: 'server', username: '', password: 0 }) },
+      'filled': { title: 'Fresh sign-in, all three fields filled', note: 'the password manager can fill the username and password; the server and the username are remembered from the last sign-in', render: S(FILLED) },
+      'username-remembered': { title: 'After a deliberate sign-out', note: 'the form opens with the last username in, password empty (RememberedAccountStore); a sign-out is not a welcome back', render: S({ username: 'alex', password: 0, focus: 'password' }) },
+      'loading': { title: 'Working: request in flight', note: 'fields dim to 50% and go off, the capsule stays solid and reads "Signing In…" with an inline arc; VoiceOver value "Signing In"', render: S(Object.assign({ working: true }, FILLED)) },
+      'welcome-back': { title: 'Welcome back (session ended)', note: 'monogram, server and account read-only (one element each: "Server, <host>"), password only, Use a Different Account (keeps the server, clears the username)', render: S({ mode: 'welcome', username: 'alex', password: 0, focus: 'password' }) },
+      'welcome-back-filled': { title: 'Welcome back, password typed', render: S({ mode: 'welcome', username: 'alex', password: 9 }) },
+      'error': { title: 'Wrong username or password', note: 'red line with a glyph under the module, red hairline round the password row, password cleared and focused, username kept; VoiceOver announces it', render: S({ username: 'alex', password: 0, focus: 'password', failure: { kind: 'wrong' } }) },
+      'bad-address': { title: 'Server address does not parse', note: 'red hairline round the Server row (top corners follow the module) and the red line under the module; the text is kept, focus returns to Server, VoiceOver announces it; nothing is sent. Also http:// to a host that is not local', render: S({ server: 'http://ha.example.com', focus: 'server', username: 'alex', password: 10, failure: { kind: 'badaddress' } }) },
+      'not-home-assistant': { title: 'Something answers, but not Home Assistant', note: 'POST /auth/login_flow answered 404, a web page, or JSON without a flow_id: the same look as a bad address, other words; focus returns to Server', render: S(Object.assign({ server: 'https://www.example.com', focus: 'server', failure: { kind: 'nothomeassistant' } }, FILLED)) },
+      'welcome-back-long-server': { title: 'Welcome back, long server', note: 'the read-only row truncates in the middle, so both ends of the host stay readable', render: S({ mode: 'welcome', server: 'https://home-assistant-for-the-fenton-household.example-hosting.com:8123', username: 'alex', password: 0, focus: 'password' }) },
+      'offline': { title: 'Server unreachable (card, Details collapsed)', note: 'no answer (DNS, TLS, timeout, offline, gateway error): red-tinted card above the module, "Can\'t reach Home Assistant", no hairline on Server because the address may be right; fields keep their values, the button reads Try Again', render: S(Object.assign({ failure: { kind: 'unreachable' } }, FILLED)) },
+      'unreachable-details': { title: 'Server unreachable, Details expanded', note: 'the raw reason in monospace, selectable', render: S(Object.assign({ failure: { kind: 'unreachable', expanded: true } }, FILLED)) },
+      'failed': { title: 'Anything else failed', note: 'same card, "Sign-in didn\'t work"', render: S(Object.assign({ failure: { kind: 'failed', expanded: true } }, FILLED)) },
+      'two-step': { title: 'Account asks for a second step', note: 'the app has no code field (owner 2026-10-17): the red line says to turn it off in Home Assistant', render: S(Object.assign({ failure: { kind: 'twostep' } }, FILLED)) },
+      'welcome-back-error': { title: 'Welcome back, wrong password', render: S({ mode: 'welcome', username: 'alex', password: 0, focus: 'password', failure: { kind: 'wrong' } }) },
+      'intro-start': { title: 'Intro at 0 s: plain launch ground', note: 'the ground is #121722, the launch screen\'s colour, so the first frame matches it', render: frameAt(0) },
+      'intro-mid': { title: 'Intro at 0.6 s', note: 'glow up, header fading in and rising, form still held back', render: frameAt(600) },
+      'intro-late': { title: 'Intro at 0.9 s', note: 'header settled, form rising 28 pt', render: frameAt(900) },
+      'long-text': { title: 'Long first name and long username', render: S({ mode: 'welcome', first: 'Bartholomew-Alexander', name: 'Bartholomew-Alexander Fenton-Whitaker', username: 'bartholomew.alexander.fenton-whitaker@example.com', password: 6 }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'labels sit above the fields, the form scrolls, the button stays reachable at the end of the scroll', render: S({ username: 'alex', password: 10, failure: { kind: 'wrong' } }) },
+    },
+
+    motion: [
+      { id: 'intro', what: 'Launch intro: the glow fades up, the header rises, the form rises (about 1.2 s, once per session)', token: 'glow easeOut 0.5 s · mark easeOut 0.28 s from 0.15 s then emphasized spring · header easeOut 0.4 s from 0.46 s, +10 pt · form easeOut 0.45 s from 0.71 s, +28 pt (MotionTokens.Intro)', state: 'intro-start',
+        source: 'HassUI/Features/Login/LoginView.swift playIntro; HassDesign/Motion/MotionTokens.swift Intro; motion.md section 3', reduce: 'one 0.35 s cross-fade of glow, header and form together (crossFade); no rise, no scale, no spring',
+        note: 'Drawn as the code runs it: the mark sits inside the header, whose opacity waits for the title (0.46 s), so the mark\'s own rise (0.15 to 0.43 s) is hidden behind it and you see it fade in while it settles. See notes.',
+        play: function (stage) { return LL.run(LL.INTRO_MS, function (t) { LL.introAt(root(stage), t, Mock.settings.reduceMotion); }); } },
+      { id: 'intro-reduced', what: 'The same intro under Reduce Motion', token: 'crossFade 0.35 s easeInOut (MotionTokens.reducedMoment)', state: 'intro-start', source: 'LoginView.swift playIntro (reduceMotion branch)', reduce: 'this is the Reduce Motion path: a single cross-fade, Telemetry.intro ends in its completion',
+        play: function (stage) { return LL.run(350, function (t) { LL.introAt(root(stage), t, true); }); } },
+      { id: 'press-working', what: 'Sign In pressed: the capsule scales to 0.96, fields dim to 50%, the label becomes "Signing In…" with an arc', token: 'press easeOut 0.12 s · fields quick easeOut 0.2 s · ArcSpinner 0.82 s a turn', state: 'filled',
+        source: 'LoginView.swift signInButton (PrimaryButtonStyle pressedScale 0.96); LoginFields.swift animation(quick, isWorking)', reduce: 'unchanged: a press and a dim are not movement; the arc keeps turning at half speed (it carries meaning)',
+        play: function (stage) { return toWorking(stage); } },
+      { id: 'wrong-appears', what: 'A refused password: the red hairline and the red line fade in, the password clears', token: 'quick easeOut 0.2 s (animation(quick, value: model.failure))', state: 'filled', source: 'LoginView.swift form (animation on failure); LoginFields.swift passwordRow overlay', reduce: 'unchanged (opacity only)',
+        play: function (stage) { return showFailure(stage, 'wrong'); } },
+      { id: 'card-appears', what: 'Server unreachable: the failure card fades in above the module, the button becomes Try Again', token: 'quick easeOut 0.2 s', state: 'filled', source: 'LoginView.swift form; LoginFailureCard.swift', reduce: 'unchanged (opacity only)',
+        play: function (stage) { return showFailure(stage, 'unreachable'); } },
+      { id: 'details-chevron', what: 'Details: the chevron turns 90 degrees and the raw reason appears', token: 'quick easeOut 0.2 s (toggleDetail)', state: 'offline', source: 'LoginFailureCard.swift toggleDetail', reduce: 'no reduced path in the code: the 90 degree turn still runs at 0.2 s (small, but it is movement)',
+        play: function (stage) { var b = stage.querySelector('.dt'); b.click(); return Mock.sleep(A.ms.quick() + 600).then(function () { b.click(); return Mock.sleep(A.ms.quick() + 200); }); } },
+    ],
+
+    transitions: [
+      { from: 'Launch ground', to: 'Sign-in intro', kind: 'fade', state: 'intro-start', note: 'RootView holds the plain ground over the first frame and fades it out in 0.2 s (quick) while the intro starts underneath.',
+        play: function (stage) {
+          var g = LL.launchGround(); stage.insertBefore(g, stage.querySelector('.k-status'));
+          LL.run(LL.INTRO_MS, function (t) { LL.introAt(root(stage), t, Mock.settings.reduceMotion); });
+          return Mock.sleep(300).then(function () { return A.fade(g, { from: 1, to: 0, ms: A.ms.quick() }); }).then(function () { g.remove(); return Mock.sleep(LL.INTRO_MS - 500); });
+        } },
+      { from: 'Sign In succeeds', to: 'Home arrival', kind: 'overlay', state: 'loading', note: 'The sign-in layer lifts 18 pt, scales to 0.97 and fades while Home builds under it (about 0.9 s). See flows/sign-in-to-home-arrival.',
+        play: function (stage) {
+          var ctx = Mock.current, home = LL.homePage(ctx); stage.insertBefore(home, root(stage)); LL.arrivalAt(stage, 0, Mock.settings.reduceMotion);
+          return Mock.sleep(60).then(function () { return LL.run(LL.ARRIVAL_MS, function (t) { LL.arrivalAt(stage, t, Mock.settings.reduceMotion); }); });
+        } },
+      { from: 'Welcome back', to: 'Fresh sign-in', kind: 'fade', state: 'welcome-back', note: 'Use a Different Account forgets the remembered account; the monogram, title and username row change inside withAnimation(quick), so the changed pieces cross-fade.',
+        play: function (stage) {
+          var parts = [].slice.call(root(stage).querySelectorAll('.ll-titlewrap, .ll-module, .ll-link'));
+          return Promise.all(parts.map(function (e) { return A.fade(e, { from: 1, to: 0, ms: A.ms.quick() }); })).then(function () { return Promise.all(parts.map(function (e) { return A.fade(e, { from: 0, to: 1, ms: A.ms.quick() }); })); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Group and reading order', note: 'The layer is one container labelled "Sign in" (accessibilityElement .contain). Order: the title "S+H" (spoken "S and H", a heading), the line, the failure card (when there is one), Username, Password, the inline error, Sign In, Use a Different Account (welcome back only), the footnote. The mark, ground, glow and monogram are hidden.' },
+      { rule: 'Fields', note: 'Labelled "Server address", "Username" and "Password" (Server: URL keyboard and content type, no autocapitalisation, autocorrection, spell checking or smart punctuation, Return Next, Clear while editing; read-only rows read "Server, <host>" and "Username, <name>" as one element each) (the visible labels are hidden from VoiceOver so they are not read twice); .username and .password content types so a password manager offers its entry; Return moves to Password, then submits (Next, then Go). Welcome back: one read-only element, "Username, alex".' },
+      { rule: 'Errors announced', note: 'Every failure posts an announcement (the sentence, or the card title and body). The inline error has a warning glyph so it does not rest on colour; the failure card title is a heading; Details is a button whose value reads Collapsed or Expanded.' },
+      { rule: 'Busy', note: 'The arc is silent and hidden; the button\'s value says "Signing In". The model ignores a second press.' },
+      { rule: '44 pt targets', note: 'Rows 52 pt (scaled), the capsule 50 pt, Use a Different Account and the Details row 44 pt minimum.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the row labels sit above the fields, the monogram and every text scale, the screen scrolls (bounce only when it overflows) and the button stays at the end of the content. The 96 pt mark is fixed.' },
+      { rule: 'Contrast', note: 'Error red #FF6961 is 5.9:1 on #121722; the text link #8AC4FF was lifted from #409CFF (3.8:1 over the glow\'s middle) to 4.5:1; secondary lines use secondaryOnWallpaper (white 85%).' },
+      { rule: 'Keyboard', note: 'None comes up by itself (not in the intro either); a wrong password moves focus to the password field; scrolling dismisses it interactively. The mockup draws no keyboard.' },
+      { rule: 'Reduce Motion and Transparency', note: 'The intro becomes one 0.35 s cross-fade. Reduce Transparency turns the 66% module solid (#1C1C1E).' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Managing accounts: explain why an account is needed; identify the method', verdict: 'pass', note: 'One line says "Sign in to your Home Assistant" and a footnote says the password only goes to Home Assistant and only a key is kept in the Keychain (LoginCopy.swift:9-13); the button is plain "Sign In".', by: 'apple-hig skill' },
+        { rule: 'Managing accounts: two-factor authentication', verdict: 'departure', note: 'The screen has no code field; an mfa step shows "Two-step sign-in isn\'t supported" (owner 2026-10-17, auth.md; LoginModel.swift:163-165), so an account with 2FA cannot sign in until it is turned off on the server.', by: 'apple-hig skill' },
+        { rule: 'Text fields: content types, return key flow, Password AutoFill', verdict: 'pass', note: 'username and password content types, Next then Go return keys, SecureField (LoginFields.swift:44-77); fields are not disabled until a request is out.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: announce errors and busy state', verdict: 'pass', note: 'AccessibilityNotification.Announcement on each failure (LoginView.swift:88-90) and the button\'s accessibilityValue "Signing In" while the arc is hidden (:162).', by: 'apple-hig skill' },
+        { rule: 'Layout: reachable actions on the short outer display and across the fold', verdict: 'pass', note: 'Fixed: RootView applies readsWindowHinge() to the whole root (tabs and sign-in) and LoginView\'s column uses .avoidsHinge(): it moves to the leading region only where the hinge crosses it. The outer display is unchanged (no hinge).', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: follow the system appearance', verdict: 'departure', note: 'Always dark, a radial glow over the launch ground (owner 2026-10-17, direction-g Sign-in; LoginView.swift:80-81).', by: 'apple-hig skill' },
+        { rule: 'Playing haptics: signal a refused password', verdict: 'pass', note: 'Fixed in LoginView.swift: failureFeedback(model.failure != nil) plays the error pattern when a sign-in fails, and the announcement goes through announceFailure.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: Button over onTapGesture', verdict: 'pass', note: 'Not applicable: the field is the accessible control; the row tap only focuses it for a larger touch area.', by: 'swiftui-pro skill' },
+        { rule: 'Layout: GeometryReader and minHeight for a scrolling centred column', verdict: 'pass', note: 'ScrollView with .frame(minHeight: proxy.size.height) and scrollBounceBehavior(.basedOnSize) (LoginView.swift:66-75) keeps the form scrollable on the Duo outer display.', by: 'swiftui-pro skill' },
+        { rule: 'Animation: value-based and completion chaining', verdict: 'pass', note: 'withAnimation(...) { } completion: chain for the mark settle and intro telemetry (:206-217); .animation(_, value: model.failure) (:142).', by: 'swiftui-pro skill' },
+        { rule: 'Views: environment colour scheme override', verdict: 'pass', note: 'Not applicable: the screen is always dark, and preferredColorScheme also sets the status bar and the keyboard; a scoped environment would not.', by: 'swiftui-pro skill' },
+        { rule: 'Hygiene: no credentials in the repo', verdict: 'pass', note: 'Debug prefill reads FENTON_HASS_USERNAME and PASSWORD from the environment under #if DEBUG only (LoginModel.swift:204-210); only the refresh token is persisted.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'refreshing, empty and reconnecting: not applicable. The sign-in layer runs before any HassConnection or snapshot exists; there is nothing saved to refresh, no list to be empty and no connection to lose. (A server that cannot be reached is the offline state here.)',
+      'Intro mark: LoginView puts opacity(stage.title) on the whole LoginHeader, and the mark is inside it, so the mark cannot be seen before 0.46 s. The mark\'s own rise (0.86 to 1.03 over 0.28 s from 0.15 s) therefore plays unseen and only the settle (1.03 to 1) shows, while direction-g and motion.md describe the mark springing in first. Drawn as the code runs; confirm with a simulator frame capture before changing either.',
+      'Unfolded Duo landscape: RootView applies readsWindowHinge to MainTabView only, so the sign-in column is centred in the 951 pt window and the 460 pt column (x 245 to 705) crosses the hinge band (455 to 496). Not run on a device ("unfolded Duo portrait was not run", duo.md); shown as drawn.',
+      'Docs vs code: split-view.md lists sign-in as a full-screen modal; it is a root layer under RootView (inventory-notes item 5). The footnote at the bottom is pushed by two flexible spacers, so on a tall iPad the header sits near the top third and the footnote at the bottom.',
+      'Folded Duo (466 pt) is wider than the 460 pt column cap: the column is capped there too, 3 pt each side.',
+      'Promote to kit: Mock.LL.screen (the sign-in layer), LL.mark (HouseHeartShape), LL.introAt / LL.arrivalAt (sampled timelines), LL.launchGround. They live in pages/login/_login-launch-flows.js. Symbols added there: location.circle, location.slash, scope, figure.walk.arrival.',
+      'Debug builds only: FENTON_SIGNIN_STUB, FENTON_EXPIRED_ACCOUNT, FENTON_SKIP_INTRO and FENTON_AUTOSIGNIN drive these states in journeys (auth.md); not product behaviour.',
+      'The keyboard, the system password-autofill bar and the caret blink are not drawn.',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: fresh, welcome back, working, wrong password, unreachable, failed, two-step, intro frames, AX5, six devices.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Controls that cover content or hide the main action</title><style>
+/* Layout: one reading column, then live-size header crops on a wallpaper band: before/after, a playable fade, the spacing ruler, and device variants. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --fg: #16181d;
+  --fg2: #4b525e;
+  --line: #d9dde4;
+  --accent: #0066cc;
+  --accent-soft: #e3effc;
+  --bad: #b3261e;
+  --ok: #1e7b34;
+  --code-bg: #eceef2;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --disp: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+    --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+  --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.col { max-width: 70ch; }
+h1 { font-family: var(--disp); font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance; }
+h2 { font-family: var(--disp); font-size: 24px; letter-spacing: -0.01em; margin: 56px 0 8px; text-wrap: balance; }
+h3 { font-family: var(--disp); font-size: 17px; margin: 0 0 4px; }
+p { margin: 0 0 12px; }
+.lede { font-size: 18px; color: var(--fg2); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+ul { padding-left: 1.2em; margin: 0 0 12px; } li { margin-bottom: 4px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.tag.bad { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+.fg2 { color: var(--fg2); }
+.small { font-size: 14px; }
+
+
+.band{margin-top:20px;padding:24px 18px;border-radius:14px;background:radial-gradient(120% 140% at 20% 0%,#2c4256 0%,#16222f 55%,#0b1118 100%);display:flex;flex-wrap:wrap;gap:24px 28px;align-items:flex-start;color:#fff}
+.cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cap{color:#c9d3de;font-size:14px;max-width:402px}.cap b{color:#fff}
+.dev{width:var(--w);max-width:100%;border-radius:22px;border:1px solid rgba(255,255,255,.14);background:rgba(8,12,18,.55);padding:12px 0;overflow:hidden;font-family:var(--ui);font-size:calc(17px*var(--ts,1));color:#fff}
+.dev.ax{--ts:2.0}
+.pad{padding:0 16px}
+.grp{background:rgba(255,255,255,.09);border-radius:12px;margin:0 16px 10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 14px;border-bottom:.5px solid rgba(255,255,255,.14)}
+.row:last-child{border-bottom:0}.row .sp{flex:1;min-width:0}.row .sub{color:rgba(255,255,255,.6);font-size:.82em}
+.chev{opacity:.5;font-weight:600}.hdr{font-size:calc(20px*var(--ts,1));padding:6px 16px;font-weight:700}.hdr.semi{font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,.14);border:.5px solid rgba(255,255,255,.28)}
+.seg{display:inline-flex;background:rgba(255,255,255,.14);border-radius:9px;padding:2px;gap:2px}.seg span{padding:6px 14px;min-height:40px;display:grid;place-items:center;border-radius:7px}.seg .on{background:rgba(255,255,255,.9);color:#111}
+.dots{display:flex;gap:8px;justify-content:center;align-items:center;min-height:44px}.dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.35)}.dots i.on{background:#fff}
+.cam{position:relative;height:120px;border-radius:14px;background:linear-gradient(135deg,#3a5a3e,#1c2c26 60%,#40523a);margin:0 16px 8px;overflow:hidden}.cam .nm{position:absolute;left:6px;bottom:6px;right:6px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.75);font-size:calc(12px*var(--ts,1));width:fit-content;max-width:calc(100% - 12px)}
+.btn{display:inline-grid;place-items:center;min-height:44px;padding:0 18px;border-radius:999px;background:#0a84ff;font-weight:600}.btn.off{background:rgba(255,255,255,.14);color:rgba(255,255,255,.4)}
+.foot{color:rgba(255,255,255,.6);font-size:calc(13px*var(--ts,1));padding:4px 30px 8px}
+.tile{margin:0 16px 8px;border-radius:22px;background:rgba(255,255,255,.1);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;min-height:64px}
+.sw{width:51px;height:31px;border-radius:16px;background:#30d158;position:relative}.sw::after{content:"";position:absolute;right:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff}
+.tag.good{background:#e1f4e5;color:var(--ok)}.rec{border-left:4px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:8px}
+</style></head><body><div class="wrap"><div class="col"><span class="tag">Proposal · 2026-10-23 · Decided (2026-10-24): camera name below the picture at accessibility sizes (B) and a small capsule otherwise; Custom Lights power button only on tiles whose tap opens a sheet</span><h1>Controls that cover content or hide the main action</h1><p class="lede">Cap or move the camera name capsule, and give Custom Lights tiles a visible power control.</p><p class="small fg2">Crops are live size (CSS px = pt), on the always-dark wallpaper. “AX” cells use a 2.0× text scale standing in for an accessibility size. Findings covered (apple-hig review of the atlas, #144):</p><ul class="small"><li>home.html:142 and security.html:138 · camera name covers picture at AX5</li><li>custom-lights.html:104 · no visible power</li><li>reconnecting-chip.html:107 · covered by the reconnecting-spinner proposal</li></ul></div><h2>Camera name over the picture</h2><div class="col"><p>The capsule scales with Dynamic Type inside a tile whose grid minimum (160 pt) does not. At AX5 it covers most of the picture. HIG, HomeKit: avoid covering camera views.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class="cam"><div class="nm">Front Door</div></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>Default: small capsule, fine.</b></div></div><div class="cell"><div class="dev ax" style="--w:402px"><div class="cam"><div class="nm">Front Door Driveway Camera</div></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>AX: the capsule swallows the picture.</b></div></div><div class="cell"><div class="dev ax" style="--w:402px"><div class="cam"><div class="nm" style="font-size:12px">Front Door Driv…</div></div></div><div class="cap"><span class="tag">Option A</span> <b>A: cap the capsule at xxxLarge (<code>dynamicTypeSize(...DynamicTypeSize.xxxLarge)</code>) and one line, truncating.</b></div></div><div class="cell"><div class="dev ax" style="--w:402px"><div class="cam" style="height:96px;margin-bottom:2px"></div><div style="padding:0 16px 8px;font-size:calc(13px*var(--ts,1))">Front Door Driveway Camera</div></div><div class="cap"><span class="tag">Option B</span> <b>B: at accessibility sizes, move the name below the picture.</b></div></div></div><h2>Custom Lights: power</h2><div class="col"><p>With <code>onOpen</code> set a tap opens the sheet, so power is only a drag to 0 or a VoiceOver action. design.md wants a visible control for the main action.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class="tile"><span>Living Room Lights<br><span class="sub">tap opens the sheet</span></span><span class="sub">62%</span></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>No visible power.</b></div></div><div class="cell"><div class="dev" style="--w:402px"><div class="tile"><span>Living Room Lights<br><span class="sub">62%</span></span><span class="btn" style="min-width:44px;padding:0">⏻</span></div></div><div class="cap"><span class="tag">Proposed</span> <b>A 44 pt power button at the trailing edge; tap on the rest of the tile still opens the sheet.</b></div></div></div><h2>Reconnecting chip</h2><div class="col"><p>The chip over page content is already addressed: the reconnecting-spinner proposal moves it into the header as an arc. This finding closes when that proposal ships, so nothing new is shown here. See <a href="../reconnecting-spinner/reconnecting-spinner.html">reconnecting-spinner</a>.</p></div><h2>Comparison</h2><div class="col"><p></p></div><div class="col" style="max-width:none"><div class="tablewrap"><table><tr><th></th><th>A</th><th>B</th></tr><tr><td>Picture visible at AX</td><td>yes</td><td>yes</td></tr><tr><td>Name readable in full</td><td>truncates (VoiceOver has the full name)</td><td>yes, wraps</td></tr><tr><td>Grid height</td><td>unchanged</td><td>taller rows at AX</td></tr><tr><td>Cost</td><td>one modifier</td><td>layout switch on size class</td></tr></table></div></div><h2>Recommendation</h2><div class="col rec"><b>Camera: Option B (name below the picture) at accessibility sizes, small capsule otherwise. Custom Lights: add the 44 pt power button.</b> Files: CameraGrid.swift, BrightnessTile.swift. Tests: AX5 UX tests on Home and Security (iPhone, Duo, iPad), unit for the size-class switch.</div><h2>Open questions for the owner</h2><div class="col"><div class="q">Camera: A (truncate) or B (move below)?</div><div class="q">Custom Lights: a power button on every tile, or only when the tile opens a sheet?</div></div></div></body></html>

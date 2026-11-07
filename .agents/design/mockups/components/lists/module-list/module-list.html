@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ModuleList and ModuleRow · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function sw(c, surface, cap, node, w) { return V.swatch(surface, cap, node, c, w || 380); }
+  function txt(t) { return h('span', { style: { color: 'inherit' } }, t); }
+  function mk() { return [{ title: 'Front Door', symbol: 'lock', glyph: 'var(--fam-contact-glyph)', accessory: txt('Locked') }, { title: 'Left Door', symbol: 'door.garage.closed', glyph: 'var(--fam-contact-glyph)', accessory: txt('Closed') },
+    { title: 'Room Thermostats', subtitle: 'View each room\'s temperature.', symbol: 'house', chevron: true }]; }
+
+  var base = Mock.componentConfig('ModuleList', { surfaces: ['page', 'sheet'] });
+  var cfg = Object.assign(base, {
+    states: base.states,
+    id: 'module-list', title: 'ModuleList and ModuleRow (inset list)', area: 'design', status: 'shipped',
+    summary: 'The inset list on the wallpaper (direction G, Controls: Lists): rows on one 26 pt module with hairlines inset to the text; a family-coloured glyph, a title (17) with an optional subtitle (13), a trailing accessory and a chevron when the row opens something. 52 pt, 60 pt with a subtitle. In a sheet the same rows sit on the sheet cell. A real List (swipe actions) draws each row\'s share with ModuleRowBackground.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKModule.swift', 'apple/Sources/HassDesign/Module.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/Features/Sprinklers/SprinklersScreen.swift'],
+    spec: ['.agents/patterns/module-list.md', '.agents/design/direction-g.md'],
+    patterns: ['module-list'],
+    hig: ['Lists and tables', 'Color', 'Dynamic Type', 'Accessibility', 'Materials'],
+    kitComponents: ['ModuleList', 'ModuleRow', 'ToggleRow', 'Toggle', 'StatusPill'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    a11y: [
+      { rule: 'Row element', note: 'The title and subtitle combine into one element ("Thermostat Hub, Heat"); a trailing accessory (a switch, a pop-up) stays its own control; the glyph and the chevron are decorative. A row that does something is a Button around the row with the label, value and hint.' },
+      { rule: 'Targets', note: 'Rows are at least 52 pt (60 with a subtitle) and grow with the text; the whole row is the target (contentShape rectangle).' },
+      { rule: 'Unavailable rows', note: 'Only the glyph dims (glyphOpacity 0.5); the text keeps full contrast so it stays readable (a faded label fails the contrast audit).' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the accessory moves under the text so neither truncates; titles wrap.' },
+      { rule: 'Colour', note: 'Neutral glyphs use the surface\'s secondary ink (module or sheet); family glyphs are never the only state cue (the value or subtitle says it). Red or orange text needs the dense module.' },
+      { rule: 'Reduce Transparency', note: 'The module becomes opaque (#1C1C1E thin, #141416 dense); a sheet already draws an opaque cell.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: inset grouped rows, 44 pt or taller, a chevron where a row opens something, hairlines inset to the text", verdict: "pass", note: "Rows are 52 pt (60 with a subtitle) with the whole row as the hit shape; the chevron appears only when showsChevron is set; on iOS 18 and later hairlines start at the text (textInset, scaled) or at the 16 pt margin for glyph-less rows.", by: "apple-hig skill" },
+        { rule: "Lists and tables: rows must stay distinguishable", verdict: "pass", note: "Fixed: before iOS 18 ModuleList sets rowHairlineInset and each ModuleRow draws its own bottom hairline; the list trims the last one.", by: "apple-hig skill" },
+        { rule: "Materials: Liquid Glass belongs to the navigation layer; content-layer surfaces use plain fills", verdict: "pass", note: "ModuleBackground is a translucent dark tint with 26 pt continuous corners, never glassEffect; with Reduce Transparency it turns opaque (#1C1C1E thin, #141416 dense).", by: "apple-hig skill" },
+        { rule: "Color and Accessibility: red and orange text needs enough contrast over a photo", verdict: "pass", note: "The dense module (#141416 at 78%) carries red and orange subtitles over the lit windows; thin is for white and grey text; unavailable rows dim only the glyph so text keeps 4.5:1.", by: "apple-hig skill" },
+        { rule: "Typography: Dynamic Type, accessory placement at accessibility sizes", verdict: "pass", note: "Title is body and subtitle footnote with fixedSize wrapping; at accessibility sizes the accessory moves beneath the text so neither truncates; glyph width and hairline inset use @ScaledMetric.", by: "apple-hig skill" },
+        { rule: "Feedback: press highlight like a list cell", verdict: "pass", note: "ModuleRowButtonStyle fills the row with the label ink at 10%, down instantly and released over 0.2 s, and never fades a disabled row's text.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Performance: avoid mask or clip layers per row in a scrolling list", verdict: "pass", note: "ModuleRowBackground draws an UnevenRoundedRectangle as the fill rather than clipping a square one, which avoided an offscreen pass per visible row on every scroll frame (ModuleList.swift lines 100 to 106).", by: "swiftui-pro skill" },
+        { rule: "API: Group(subviews:) to visit a builder's rows", verdict: "pass", note: "On iOS 18 the list inserts a hairline before every subview but the first with Group(subviews:) and ForEach(subviews); the iOS 17 branch is a plain VStack.", by: "swiftui-pro skill" },
+        { rule: "Views: extract helpers into View structs; one type per file", verdict: "pass", note: "Fixed: ModuleRow's leading side and chevron are ModuleRowLeading and ModuleRowChevron (ModuleRowParts.swift); the row has one type per file. The Group around the two layouts only carries shared modifiers.", by: "swiftui-pro skill" },
+        { rule: "Design: one canonical component per pattern", verdict: "pass", note: "InventoryRowBackground deleted; Inventory rows draw ModuleRowBackground(.dense, selected:) (ModuleList.swift, InventoryRow.swift:58).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: row combines its text and leaves the accessory a control", verdict: "pass", note: "accessibilityElement(.combine) wraps only the title and subtitle; the glyph and chevron are hidden; a switch or pop-up accessory keeps its own element and 44 pt target.", by: "swiftui-pro skill" },
+        { rule: "Design: hard-coded sizes", verdict: "pass", note: "Fixed: row heights are ModuleRowMetrics.height and heightWithSubtitle, next to the existing gap; text still grows the row (ModuleRowMetrics.swift).", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Users: Security Doors and car, Climate Thermostat Hub and Advanced Controls, Chores to-do lists and the Summary sheet tabs, the Vacation checklist, Food link rows and recipe sheet lists, Vacuums Auto-Clean and sheet lists, Custom Lights, Sprinklers\' controller cards (a ModuleList of a row plus a 2-column grid of StatusPills).',
+      'The Security and Climate pages are owned by other mockups; the "in context" rows here follow the #Preview in ModuleList.swift.',
+      'Pressed: ModuleRowButtonStyle fills the row with the label ink at 10%; down at once, released with quick (0.2 s) under a Button.',
+      'Dense: use when a row carries red or orange text; the dense module is #141416 at 78%.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: thin, dense, no glyph, accessories, a List\'s row backgrounds, pressed, AX5.' }],
+  });
+  cfg.states['accessories'] = { title: 'Accessories, chevron and subtitle rows', render: function (c) {
+    var sw1 = K.ModuleRow({ title: 'Guests Staying Over', symbol: 'person.2', glyph: 'var(--fam-occupancy-glyph)', accessory: K.Toggle({ on: true, label: 'Guests Staying Over' }) });
+    var off = K.ModuleRow({ title: 'Back Deck Light', subtitle: 'Unavailable', symbol: 'lightbulb', glyph: 'var(--fam-lights-glyph)', glyphOpacity: .5 });
+    return V.grid([sw(c, 'page', 'value accessories and a chevron row', K.ModuleList({ rows: mk() })), sw(c, 'sheet', 'the same on the sheet cell', K.ModuleList({ rows: mk() })),
+      sw(c, 'page', 'a switch accessory (switches only in list rows)', K.ModuleList({ rows: [sw1] })), sw(c, 'page', 'unavailable: only the glyph dims', K.ModuleList({ rows: [off, { title: 'Hallway Vent', symbol: 'wind', glyph: 'var(--fam-vents-glyph)' }] }))]); } };
+  cfg.states['dense-and-list'] = { title: 'Dense, and a List\'s per-row backgrounds', note: 'the inventory page is a List (swipe actions need one before iOS 27): each row draws its share of the module, rounding the first row\'s top and the last row\'s bottom', render: function (c) {
+    var cards = V.cards('all-food');
+    var dense = K.ModuleList({ density: 'dense', rows: [{ title: 'Replace the furnace filter', subtitle: 'Overdue · 3 days', subtitleInk: 'var(--g-red)', symbol: 'exclamationmark.circle', glyph: 'var(--g-red)' }, { title: 'Water the planters', subtitle: 'Due tomorrow', subtitleInk: 'var(--g-orange)', symbol: 'clock', glyph: 'var(--g-orange)' }] });
+    return V.grid([sw(c, 'page', 'dense: red and orange subtitles', dense), sw(c, 'page', 'a List with row backgrounds (the inventory page)', V.list([V.row(cards[0]), V.row(cards[1]), V.row(cards[2])])), sw(c, 'sheet', 'the same List rows in a sheet (cell colour)', V.list([V.row(cards[0]), V.row(cards[5])]))]); } };
+  cfg.states['rows'] = { title: 'Rows without a list', render: function (c) { return V.grid([sw(c, 'page', 'no glyphs: hairlines from the 16 pt margin', K.ModuleList({ hasGlyphs: false, rows: [{ title: 'Preheat the oven' }, { title: 'Season the chicken' }, { title: 'Roast for 45 minutes' }] })),
+    sw(c, 'sheet', 'steps in a sheet, no glyphs', K.ModuleList({ hasGlyphs: false, rows: [{ title: 'Preheat the oven' }, { title: 'Season the chicken' }] }))]); } };
+  cfg.states['in-context'] = { title: 'In context (the ModuleList.swift preview)', render: function (c) {
+    return h('div', V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Security', section: 'security', badge: 3, choresBadge: 2, body: [K.ModuleList({ rows: mk() })] }); }, .6, 'On a page: the rows of the preview on the thin module'),
+      V.embed('iphone', c, function (cx) { return Mock.sheet(cx, { title: 'Kitchen Lights', detent: 'fitted', size: 'page', presenter: Mock.page(cx, { title: 'Kitchen', back: 'Rooms', section: 'home', body: [] }), content: K.ModuleList({ rows: mk().slice(0, 2) }) }); }, .6, 'In a sheet: the sheet cell, title and secondary ink of the sheet')); } };
+  cfg.states['ax5'] = { title: 'Accessibility 5: accessory under the text', override: { ts: 'ax5' }, note: 'at accessibility sizes the accessory leaves the row\'s line', render: function (c) { return V.grid([sw(c, 'page', 'AX5', K.ModuleList({ rows: mk().slice(0, 2) }), 560), sw(c, 'sheet', 'AX5 in a sheet', K.ModuleList({ rows: mk().slice(2) }), 560)]); } };
+  cfg.motion = [
+    { id: 'row-press', what: 'Pressing a row: a light highlight across it while held', token: 'down at once, released with quick 0.2 s (label ink at 10%)', state: 'accessories',
+      source: 'HassDesign/ModuleList.swift ModuleRowButtonStyle quickTransition; design/motion-components.md', reduce: 'unchanged (opacity is not motion)',
+      play: function (stage) { var r = stage.querySelector('.ui-mrow'); if (!r) return Promise.resolve(); r.style.transition = 'background-color .2s ease-out'; r.style.background = 'var(--press)'; return Mock.sleep(700).then(function () { r.style.background = ''; return Mock.sleep(400); }); } },
+    { id: 'glyph-colour', what: 'A row\'s glyph and subtitle change colour with its state (a sprinkler starts watering)', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'accessories',
+      source: 'ModuleRow stateForeground("ModuleRow", …); SprinklersScreen controller row', reduce: 'still cross-fades at 0.2 s',
+      play: function (stage) { var g = stage.querySelector('.ui-mrow .rg'); if (!g) return Promise.resolve(); g.style.transition = 'color ' + Mock.anim.ms.state() + 'ms ease-in-out'; var was = getComputedStyle(g).color; g.style.color = 'var(--fam-water-glyph)'; return Mock.sleep(Mock.anim.ms.state() + 400).then(function () { g.style.color = was; return Mock.sleep(Mock.anim.ms.state() + 200); }); } },
+  ];
+  Mock.mount(cfg);
+})();
+</script></body></html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delete task dialog · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/chores/_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* The dialog over a page (always dark) or over a sheet (the Your Summary tabs; follows the system appearance). */
+  function onPage(ctx, id, o) { o = o || {}; return C.page(ctx, id, Object.assign({ dialog: { title: o.title, destructive: o.destructive } }, o.page)); }
+  function summarySheet(ctx, o) {
+    o = o || {};
+    var sec = C.section({ title: 'Past Due', items: C.sections('alexs-chores')[0].items, edit: true });
+    var tabs = K.ModalTabBar({ tabs: [{ id: 'p', title: 'Profile', symbol: 'person' }, { id: 'o', title: 'Overdue Chores', symbol: 'exclamationmark.circle', badge: 3 }, { id: 'u', title: 'Upcoming Chores', symbol: 'calendar' }], selected: 'o', ctx: ctx });
+    var sh = Mock.sheet(ctx, { title: 'Your Summary', detent: 'large', size: 'page', trailing: 'close', content: h('div', { style: { padding: '8px 0' } }, sec), tabs: tabs, presenter: C.page(ctx, 'chores') });
+    sh.appendChild(C.actionSheet(ctx, { title: 'Delete Replace Humidifier Filter?', destructive: 'Delete Task', dark: false }));
+    return sh;
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'todo-delete-dialog', title: 'Delete task? (confirmation dialog)', area: 'chores', status: 'shipped',
+    summary: 'The question a Delete swipe, menu item or VoiceOver action asks before a task or grocery item is removed: "Delete {title}?" with a red Delete Task or Delete Item and "This can\'t be undone." An iPhone action sheet, a popover on iPad. The same dialog serves the Chores pages, the Summary sheet\'s chore tabs and (as "Delete {name}?") the task sheet.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift', 'apple/Sources/HassUI/Features/Chores/DonetickTaskSheet.swift', 'apple/Sources/HassUI/Features/Chores/TodoListSection.swift', 'apple/Sources/HassCore/Todo/TodoRowActions.swift'],
+    spec: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md'],
+    patterns: ['modal-sheet', 'motion'], hig: ['Action sheets', 'Alerts', 'Context menus', 'Lists and tables'],
+    entities: ['todo.demo_todo_10', 'todo.demo_todo_1'], kitComponents: ['Alert', 'ModalTabBar', 'ModuleList'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'], alwaysDark: false,
+
+    states: {
+      'default': { title: 'Delete Task over the Chores tab', note: 'the page is dark, so the dialog is dark; the row stays until Delete Task is chosen', render: function (d) { return onPage(d, 'chores', { title: 'Delete Clean the gutters?', destructive: 'Delete Task' }); } },
+      'grocery': { title: 'Delete Item over Groceries', note: 'the same dialog; the button says Delete Item', render: function (d) { return onPage(d, 'groceries', { title: 'Delete Oat milk?', destructive: 'Delete Item' }); } },
+      'resident': { title: 'Over a resident page', render: function (d) { return onPage(d, 'alexs-chores', { title: 'Delete Replace Humidifier Filter?', destructive: 'Delete Task' }); } },
+      'from-summary': { title: 'Over the Your Summary sheet', note: 'a dialog over a sheet follows the sheet\'s appearance (light or dark)', render: summarySheet },
+      'from-task-sheet': { title: 'Over the task sheet: "Delete {name}?"', note: 'DonetickTaskSheet\'s own dialog (Delete Task row), no message line difference', render: function (d) { return C.taskSheet(d, { mode: 'edit', deleteDialog: true }); } },
+      'error': { title: 'Delete failed', note: 'the call failed: the row is back and the list says "Unable to delete task"', render: function (d) { return C.page(d, 'chores', { mode: 'error' }); } },
+      'offline': { title: 'Offline', note: 'nothing special: the dialog still asks, the call fails and the row returns with the same error', render: function (d) { return onPage(d, 'chores', { title: 'Delete Clean the gutters?', destructive: 'Delete Task', page: { connection: 'offline' } }); } },
+      'closed': { title: 'Before asking / after Cancel', render: function (d) { return C.page(d, 'chores', { swipe: 'trailing-full' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the title and buttons wrap inside the system dialog', render: function (d) { return onPage(d, 'chores', { title: 'Delete Clean the gutters?', destructive: 'Delete Task' }); } },
+    },
+
+    motion: [
+      { id: 'dialog-present', what: 'The dialog rises over the page and the scrim fades in; Cancel or a choice reverses it', token: 'system action sheet (spring, system-owned); the app adds nothing', state: 'closed',
+        source: 'confirmationDialog in TodoPageView.todoDeletionDialog; motion.md section 2', reduce: 'cross-fade, about 0.25 s',
+        play: function (stage) { return C.dialogDemo(stage, { title: 'Delete Clean the gutters?', destructive: 'Delete Task' }); } },
+      { id: 'row-leaves', what: 'Delete Task chosen: the row leaves at once and the module closes up', token: 'standard 0.3 s smooth (the list\'s one implicit animation); 0.2 s fade under Reduce Motion', state: 'closed',
+        source: 'TodoListController.remove, TodoPageView motionSafeAnimation; motion.md section 6', reduce: 'the row fades out at 0.2 s',
+        play: function (stage) { var r = stage.querySelector('.cz-row[data-item="Clean the gutters"]') || stage.querySelector('.cz-row'); return r ? C.leave(r).then(function () { return Mock.sleep(600); }) : Promise.resolve(); } },
+    ],
+
+    transitions: [
+      { from: 'Full Delete swipe', to: 'Delete {title}? dialog', kind: 'overlay', state: 'closed', note: 'A full trailing swipe on a row, the context menu\'s Delete or the VoiceOver Delete action asks first. The row has not moved.',
+        play: function (stage) { return C.dialogDemo(stage, { title: 'Delete Clean the gutters?', destructive: 'Delete Task' }); } },
+      { from: 'Delete Task', to: 'List without the row', kind: 'fade', state: 'closed', note: 'The call runs in the background; the row is already gone. If it fails the row returns with "Unable to delete task".',
+        play: function (stage) { var r = stage.querySelector('.cz-row'); return r ? C.leave(r).then(function () { return Mock.sleep(500); }) : Promise.resolve(); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'VoiceOver reads the title "Delete {title}?" then the message "This can\'t be undone.", then Delete Task (destructive, identifier todo.delete.confirm) and Cancel. Focus returns to the row on Cancel.' },
+      { rule: 'Destructive is not colour alone', note: 'The red button says Delete Task or Delete Item; the system also adds the destructive trait. Cancel is always offered (and is the escape gesture).' },
+      { rule: 'Title visible', note: 'titleVisibility: .visible keeps the task name in the dialog, because an action sheet over a long list otherwise hides which row it is about.' },
+      { rule: 'Dynamic Type', note: 'The system dialog scales and wraps; a long task title wraps to several lines before the message.' },
+      { rule: 'Where it is offered', note: 'Swipe, context menu and the VoiceOver "Delete" custom action all call the same closure (TodoRowActions). Groceries and Choreapp tasks delete; the admin To-Do never does.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Action sheets: confirm a destructive action, Cancel included, red Delete", verdict: "pass", note: "role .destructive Delete Task or Delete Item, titleVisibility .visible, system Cancel, message \"This can't be undone.\" (TodoPageView.swift lines 190-204).", by: "apple-hig skill" },
+        { rule: "Action sheets and Popovers: anchor to what it is about", verdict: "pass", note: "Not applicable to swipe and menu deletes: the swipe button that raised the dialog is gone once the swipe closes, so a row dialog never presents (iPad journeys, 2026-10-25). The dialog sits on the page (todoDeletionDialog, AlertCopy wording); editor Delete buttons do anchor their dialogs.", by: "apple-hig skill" },
+        { rule: "Alerts: avoid a confirmation for a common undoable action", verdict: "departure", note: "The task is removed server-side with todo.remove_item and cannot be undone, so asking first is warranted; direction-g.md prefers alerts but a confirmationDialog suits a swipe or menu source (recorded in the notes).", by: "apple-hig skill" },
+        { rule: "Modality: dismiss gestures", verdict: "pass", note: "A tap outside or Cancel keeps the row; the row only leaves after Delete is chosen (TodoListController.remove).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Navigation: confirmationDialog(presenting:) with the value", verdict: "pass", note: "todoDeletionDialog takes Binding<TodoDeletion?> and shows the task title (lines 190-204). With Xcode 27 confirmationDialog(_:item:) would drop the extra Boolean binding. Low modernisation.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: Delete reachable without the swipe", verdict: "pass", note: "The VoiceOver \"Delete\" custom action and the context menu call the same closure (TodoListSection.swift lines 216-219, 106-113).", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading, medium, large and fitted do not apply: an action sheet has no detents and loads nothing. The nearest states are over a sheet (from-summary, from-task-sheet) and the failure (error).',
+      'iPad and unfolded Duo: confirmationDialog is a popover anchored to the view it is attached to; here that is the whole page (TodoPageView), the sheet content (task sheet) or the Summary tab, so the popover anchor and arrow are the system\'s and are drawn centred without an arrow. Not verified on a device.',
+      'Docs versus code: direction-g.md and the catalog treat destructive confirmations as alerts; this one is a confirmationDialog (the sign-out confirmations differ the same way, see the inventory notes).',
+      'Surfaces: swipe (full or from the Delete button), the context menu, the VoiceOver Delete action and the task sheet\'s Delete Task row. The admin To-Do offers none of them.',
+      'Presenters are trimmed copies of the pages; the Summary sheet is a stand-in with the Overdue Chores tab (the real sheet is the Profile feature, not part of this batch).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: dialog over pages, groceries, the Summary sheet and the task sheet; present and row-leave motion.' }],
+  });
+})();
+</script></body></html>

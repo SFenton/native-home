@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign Out couldn't complete · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../../settings/_settings-account.js"></script>
+<script src="../_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var Y = function (o) { return function (ctx) { return SA.summarySheet(ctx, Object.assign({ tab: 'profile', alert: SA.signOutFailedAlert() }, o)); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'sign-out-failed-alert', title: 'Sign Out couldn’t complete (alert)', area: 'shell', status: 'shipped',
+    summary: 'The alert after confirming Sign Out when the server did not answer: "Couldn’t Sign Out" with "Check your connection and try again.", Try Again and Cancel. The same alert and copy sit on the Your Summary sheet and on the Home Assistant cover; the session stays signed in.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift'],
+    spec: ['.agents/pages/settings/profile.md', '.agents/pages/settings/ios.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Alerts'],
+    entities: [],
+    kitComponents: ['Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Over the Your Summary sheet', note: 'a title-only alert with OK; the sheet stays', render: Y({}) },
+      'from-ha-settings': { title: 'Over the Home Assistant cover', note: 'the same alert on the dark full-screen cover', render: function (ctx) { return SA.haCover(ctx, { account: 'loaded', failed: true, scrollEnd: true }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'a long title at the largest size wraps in the system alert', render: Y({}) },
+    },
+    motion: [],
+    transitions: [
+      { from: 'Confirm Sign Out', to: 'Failed alert', kind: 'fade', note: 'The confirmation is replaced by this alert when confirmedSignOut throws; the system fades and scales it in. OK dismisses it and the person can try again.',
+        play: function (stage) { var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = SA.alertScrim(ctx, SA.signOutFailedAlert()); scrim.style.opacity = 0; host.appendChild(scrim); return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1000); }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The alert is modal: the title "Couldn’t Sign Out", the message, then Cancel and Try Again (account.signOut.failed.retry). The sheet behind is hidden from VoiceOver.' },
+      { rule: 'Single action', note: 'OK carries the cancel role, so Escape and the two-finger scrub also dismiss it; nothing is lost.' },
+      { rule: 'Dynamic Type', note: 'The title is the whole message and wraps; the system alert scrolls if it grows past the window.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Alerts: say what happened and offer the next step', verdict: 'pass', note: 'AlertCopy.signOutFailed: "Couldn\'t Sign Out", reason, Try Again and Cancel.', by: 'apple-hig skill' },
+        { rule: 'Alerts: title only when it is enough', verdict: 'pass', note: 'One short sentence, no message.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Single OK dismiss button', verdict: 'pass', note: 'Button("OK", role: .cancel) so Escape and the scrub gesture dismiss it; the closure could even be omitted.', by: 'swiftui-pro skill' },
+        { rule: 'One copy of a string used twice', verdict: 'pass', note: 'AlertCopy.signOutFailed.', by: 'swiftui-pro skill' },
+        { rule: 'Reset the busy flag on every path', verdict: 'pass', note: 'defer { isSigningOut = false } (YourSummarySheet.swift:90).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading, error and offline: the alert is itself the error outcome of a sign-out; there is no loading or offline variant (an offline device fails the same way). medium, large and fitted: an alert has no detents.',
+      'The alert lives on both YourSummarySheet and HomeAssistantSettingsView with the same literal copy; promote the string to one constant.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

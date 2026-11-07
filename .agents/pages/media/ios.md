@@ -1,0 +1,10 @@
+# Media (iPhone and iPad)
+
+> **What:** how the native Media page is built. **Read when:** changing `HassUI/Features/Media`.
+
+- `MediaPageConfig` (`HassCore/Config/MediaPageConfig.swift`) holds the sections; each card is a `MediaRemoteDevice` plus the remote it opens, its span and off icon.
+- `MediaScreen` is pushed from the Quick Links sheet (`HomeRoute.media` in `HomeRouteDestination`, owned by the Room pages lane). It owns one Studio `MediaRemoteController`: the source tiles read `display(_:)` and run `tap(_:)` on it, and the Studio remote opens on the same controller, so an optimistic source change shows on both (web `OptimisticActionStateBoundary`). Other remotes open on their own controller via `MediaRemoteSheet(config:store:caller:)` with `.hassSheet(.page)`.
+- Tiles are `GlassTile(family: .media)` (pink when on, direction G) under `PageSectionHeader`s; rows of follow-up tiles share one height. Lead tiles are `GlassTile(kind: .navigate)` and open their remote whatever the TV's state (the remote's power button turns it on). A remote tile that is off shows Power beside its chevron; while playing, paused or buffering it adds previous, play/pause and next below the text and a volume slider (`media.card.<section>.<device>.volume`, writes on release), with discs `media.card.<section>.<device>.action.<id>`. Source and script tiles are toggles (value On/Off) and disable while their entity is unavailable.
+- Layout: sections in a `DynamicGridLayout` (min 340 pt, up to 3), tiles under the lead in a grid (min 140 pt, up to 4); both scale with Dynamic Type. Full-width push page in every pose; no split ([split-view](../../design/apple/split-view.md)). HIG: Layout, Buttons.
+- Game shows the controller icon: its artwork is bundled with the web app, not on the server (same gap as the remote's Apps tab).
+- Tests: `MediaPageConfigTests` (cards, labels, every service call, optimistic source), `HomePagesViewTests` (renders, tile look), `HomePagesJourneyTests` (gallery `FENTON_GALLERY=media-page`: calls, remote opens, audits with AX5, screenshots).

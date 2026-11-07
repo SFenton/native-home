@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign-in header and mark · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, LL = Mock.LL;
+  var REVIEW_DATE = '2026-10-23';
+  function ctxOf() { return Mock.current; }
+  function headerNode(ctx, o) { return h('div.ll-fixed', { style: { padding: '16px 0' } }, LL.header(Object.assign({ lt: LL.scale(ctx, 'lt') }, o))); }
+  function sw(caption, kids, flex) { return LL.swatch(caption, kids, { flex: flex || '1 1 340px' }); }
+
+  /* The mark's spring, as LoginView runs it: 0.86 to 1.03 (easeOut 0.28 s from 0.15 s), then 1.03 to 1 on `emphasized`. Inside the intro the header's own opacity hides the rise; here the
+     mark's own opacity is shown on its own so the scale is visible. */
+  function spring(el, reduce) {
+    if (reduce) return LL.run(350, function (t) { el.style.opacity = LL.ease.inOut(Math.min(1, t / 350)); el.style.transform = 'none'; });
+    return LL.run(930, function (t) {
+      var rise = LL.ease.out(Math.max(0, Math.min(1, (t - 150) / 280))), set = LL.ease.spring(Math.max(0, Math.min(1, (t - 430) / 500)));
+      el.style.opacity = rise; el.style.transform = 'scale(' + (t < 430 ? .86 + (1.03 - .86) * rise : 1.03 + (1 - 1.03) * set).toFixed(4) + ')';
+    });
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'login-header-mark', title: 'Sign-in header: house-and-heart mark, name, line', area: 'login', status: 'shipped', frame: false, alwaysDark: true,
+    summary: 'The top of the sign-in screen: the bare 96 pt house-and-heart in the saved app icon\'s house colour, "S+H" in large-title bold and one line; for a session that ended, the person\'s monogram, "Welcome back, <first name>" and a line about the password.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift', 'apple/Sources/HassDesign/HouseHeartShape.swift', 'apple/Sources/HassUI/Features/Login/SignInStyle.swift'],
+    spec: ['.agents/platforms/apple/auth.md', '.agents/design/direction-g.md', '.agents/platforms/apple/live-activities-per-job.md'],
+    patterns: ['motion'],
+    hig: ['App icons', 'Typography', 'Dynamic Type', 'Accessibility'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'fresh': { title: 'Fresh: mark, S+H, line', render: function (ctx) { return h('div.k-swatch-grid', [sw('fresh · Navy + Sky (the default icon)', headerNode(ctx, { mode: 'fresh' })), sw('fresh · narrow column: the line wraps, centred', h('div', { style: { maxWidth: '230px', margin: '0 auto' } }, headerNode(ctx, { mode: 'fresh' })), '1 1 260px')]); } },
+      'welcome-back': { title: 'Welcome back: monogram', render: function (ctx) {
+        return h('div.k-swatch-grid', [sw('welcome back · Alex Morgan', headerNode(ctx, { mode: 'welcome', name: 'Alex Morgan', first: 'Alex' })), sw('welcome back · a name with no initials shows the person glyph', headerNode(ctx, { mode: 'welcome', name: '', first: 'there' }))]);
+      } },
+      'icons': { title: 'The mark in each saved icon colour', render: function (ctx) {
+        return h('div.k-swatch-grid', Object.keys(LL.icons).map(function (k) { var ic = LL.icons[k];
+          return sw(ic.name + ' · house ' + ic.glyph + ', initials ' + ic.tint, h('div.ll-fixed', { style: { display: 'flex', gap: '24px', alignItems: 'center', justifyContent: 'center' } }, [LL.mark({ color: ic.glyph }), LL.monogram({ name: 'Alex Morgan', icon: k, lt: LL.scale(ctx, 'lt') })]), '1 1 220px'); }));
+      } },
+      'ring': { title: 'The heart\'s ring is transparent', render: function () {
+        function on(bg, cap) { return h('div.k-swatch.page', { style: { flex: '1 1 200px' } }, h('div.k-cap', cap), h('div', { style: { height: '140px', borderRadius: '14px', background: bg, display: 'grid', placeItems: 'center' } }, LL.mark({ color: LL.icons.navySky.glyph, size: 96 })));
+        }
+        return h('div.k-swatch-grid', [on('#121722', 'on the plain ground'), on('radial-gradient(circle 400px at 50% 20%,#3A4E73,#1E2A44 50%,#121722)', 'on the glow'), on('linear-gradient(135deg,#8a5a2a,#3a2a1a)', 'on a warm card: the ring shows it (real transparency, not a painted ring)')]);
+      } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the mark stays 96 pt; the monogram grows with the large title', render: function (ctx) { return h('div.k-swatch-grid', [sw('fresh', headerNode(ctx, { mode: 'fresh' })), sw('welcome back', headerNode(ctx, { mode: 'welcome', name: 'Alex Morgan', first: 'Alex' }))]); } },
+    },
+    motion: [
+      { id: 'mark-spring', what: 'The mark springs in: 0.86 to 1.03, then settles to 1', token: 'rise easeOut 0.28 s from 0.15 s, then emphasized spring(response 0.5, damping 0.8) (MotionTokens.Intro.markRise, emphasized)', source: 'apple/Sources/HassUI/Features/Login/LoginView.swift playIntro', state: 'fresh',
+        reduce: 'no scale, no spring: the whole header takes part in one 0.35 s cross-fade',
+        note: 'In the real screen the mark is inside the header, whose opacity waits for the title at 0.46 s, so the rise is not visible there (see pages/login notes). Shown on its own here.',
+        play: function (stage) { return spring(stage.querySelector('.ll-mark'), Mock.settings.reduceMotion); } },
+      { id: 'monogram-spring', what: 'The welcome back monogram takes the same spring', token: 'same as the mark', source: 'apple/Sources/HassUI/Features/Login/LoginHeader.swift (welcomeBack case)', state: 'welcome-back', reduce: 'one 0.35 s cross-fade',
+        play: function (stage) { return spring(stage.querySelector('.ll-mark'), Mock.settings.reduceMotion); } },
+    ],
+    a11y: [
+      { rule: 'Mark and monogram', note: 'Both are hidden from assistive technologies (decorative). The title is the header element.' },
+      { rule: 'Spoken name', note: '"S+H" is read "S and H" (AppBranding.spokenName; a plus sign is read inconsistently). The welcome back title reads as written, "Welcome back, Alex".' },
+      { rule: 'Header group', note: 'The three pieces are one container (accessibilityElement .contain); the line follows the title.' },
+      { rule: 'Dynamic Type', note: 'The title and line scale; the monogram disc grows with the large title (ScaledMetric); the 96 pt mark does not scale.' },
+      { rule: 'Colour', note: 'The mark\'s house colour is the saved icon\'s (default Navy + Sky #7CC4FF, 8.9:1 on the ground); the monogram\'s initials use the icon\'s tint on its glyph colour.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Accessibility: heading trait, spoken name for the brand', verdict: 'pass', note: '"S+H" is a heading with accessibilityLabel(AppBranding.spokenName); the mark and monogram are hidden (LoginHeader.swift:23-28; SignInMark.swift:16; SignInMonogram.swift:27).', by: 'apple-hig skill' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'largeTitle.bold and body scale; the monogram disc is @ScaledMetric(relativeTo: .largeTitle) (SignInMonogram.swift:11); the 96 pt mark is decorative and fixed.', by: 'apple-hig skill' },
+        { rule: 'Color: secondary line contrast on the glow', verdict: 'pass', note: 'The line is Surface.secondaryOnWallpaper (white at 85%) on the radial glow (LoginHeader.swift:50).', by: 'apple-hig skill' },
+        { rule: 'Motion: Reduce Motion shows the same pieces', verdict: 'pass', note: 'With Reduce Motion the stage becomes shown in one 0.35 s cross-fade and the title and form do not rise (LoginView.swift:100, :113, :200-203).', by: 'apple-hig skill' },
+        { rule: 'Motion: the intro the owner specified', verdict: 'pass', note: 'LoginHeader owns the title fade (titleShown/titleRise) so the mark\'s rise (0.86 to 1.03) is seen from 0.15 s; decision motion-timings 1-A.', by: 'apple-hig skill' },
+        { rule: 'Writing and Inclusion: names', verdict: 'pass', note: 'RememberedAccount.firstName reads the display name with PersonNameComponentsFormatter (.short), so single names and given names with two words stay whole.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: container semantics', verdict: 'pass', note: 'accessibilityElement(children: .contain) on the header and isHeader on the title (LoginHeader.swift:27, :44).', by: 'swiftui-pro skill' },
+        { rule: 'Design: semantic fonts', verdict: 'pass', note: 'largeTitle.bold(), body; the monogram\'s .font(.system(.title, design: .rounded, weight: .semibold)) still scales with Dynamic Type (SignInMonogram.swift:18).', by: 'swiftui-pro skill' },
+        { rule: 'Views: mode switch with distinct structure', verdict: 'pass', note: 'switch mode inside a VStack, each case one mark plus text, no AnyView (LoginHeader.swift:17-42).', by: 'swiftui-pro skill' },
+        { rule: 'Performance: intro state on the parent only', verdict: 'pass', note: 'scaleEffect and opacity read stage values passed in; only the intro frames change them (LoginView.swift:98-100).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'The house-and-heart is drawn here as an SVG with the same 100-unit coordinates as AppIconArtwork.house and .heart (heart 0.40 scale at (55, 60), ring 6.4 units wide); it is a stand-in, not the app\'s asset.',
+      'Promote to kit: Mock.LL.mark, LL.monogram, LL.header (pages/login/_login-launch-flows.js).',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: header in both modes, eight icon colours, the transparent ring, AX5, the spring.' }],
+  });
+})();
+</script></body></html>

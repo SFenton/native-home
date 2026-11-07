@@ -1,0 +1,54 @@
+{
+  "id": "transcript.turn_kind",
+  "version": 1,
+  "type": "choice",
+  "mode": "shadow",
+  "description": "What kind of turn is this in a session transcript?",
+  "instructions": "What kind of turn is the text in `text`, spoken by `speaker`?",
+  "criteria": {
+    "request": {
+      "what": "The owner asks for new work",
+      "not_for": "Corrections of work already done"
+    },
+    "correction": {
+      "what": "The owner says earlier work is wrong, incomplete or not what they meant",
+      "not_for": "New requests"
+    },
+    "decision": {
+      "what": "The owner picks between options or sets a rule",
+      "not_for": "Approvals of finished work"
+    },
+    "approval": {
+      "what": "The owner accepts finished work or says to continue",
+      "not_for": "Decisions between options"
+    },
+    "question": {
+      "what": "Someone asks a question and no work is requested",
+      "not_for": "Requests phrased as questions"
+    },
+    "progress": {
+      "what": "An agent reports progress, plans or tool output",
+      "not_for": "Final reports"
+    },
+    "final_report": {
+      "what": "An agent reports that its work is finished",
+      "not_for": "Progress updates"
+    },
+    "other": {
+      "what": "None of the above",
+      "not_for": "Anything that fits another option"
+    }
+  },
+  "state": {
+    "fields": [
+      "speaker",
+      "text"
+    ],
+    "max_chars": 3000
+  },
+  "accept": {
+    "min_confidence": 0.7
+  },
+  "output": "Steward table: per task, counts of owner corrections and decisions (the owner-as-QA measure), written to the weekly Workflow issue.",
+  "evidence": "Shadow. First measurement 2026-11-01 (single labeller, inline wording): accuracy 0.48 as worded (0.69 after one rewording, tuned on the same labels); see contracts/jev/derived/measurements.md. Re-measure with this file's wording before promoting."
+}

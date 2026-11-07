@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Remote app tile, device row and Hue Sync · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = MLC.remotes, A = R['living-room-shield'].apps;
+  var FORT = { t: 'Game', icon: 'gamecontroller' };
+  function app(a, o) { return function () { return h('div', { style: { width: '120px' } }, MLC.appTile(a, o)); }; }
+  function row(d, o) { return function () { return K.ModuleList({ rows: [MLC.deviceRow(d, o)] }); }; }
+  var D = MLC.devices.music, T = MLC.devices.theater;
+
+  Mock.mount({
+    kind: 'component', id: 'media-remote-app-tile', title: 'Remote app tile, device row and Hue Sync tab', area: 'media', status: 'shipped', frame: false,
+    summary: 'The three non-pad pieces of the remote: the app tile (artwork square, name, a ring and "Playing" while it runs), the device row (switch, checkmark choice or plain state) and the Hue Sync list.',
+    source: ['apple/Sources/HassUI/Features/MediaRemote/MediaRemoteTabs.swift', 'apple/Sources/HassUI/Features/MediaRemote/MediaRemoteSheet.swift', 'apple/Sources/HassCore/MediaRemote/MediaRemoteController.swift'],
+    spec: ['.agents/patterns/media-remote.md', '.agents/patterns/image-cache.md', '.agents/design/direction-g.md'],
+    patterns: ['media-remote', 'image-cache'], hig: ['Lists and tables', 'Toggles', 'Segmented controls', 'Buttons'],
+    entities: ['sensor.demo_media_room_2', 'switch.demo_guest_room_1', 'select.demo_media_room_mode_1'],
+    kitComponents: ['ModuleList', 'ModuleRow', 'Toggle', 'SegmentedChoice', 'Slider', 'TileGrid'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'app': { title: 'App tile: artwork, loading, white background, running, unavailable', note: 'the stand-in artwork is a lettered tile (the app draws images from the server); the icon fallback shows while loading or when no artwork exists',
+        render: function (ctx) { return MLC.stack([
+          MLC.grid([MLC.sw(ctx, 'sheet', 'artwork loaded', app(A[0], {})(), { flex: '0 0 auto' }), MLC.sw(ctx, 'sheet', 'artwork loading (icon fallback)', app(A[0], { art: 'loading' })(), { flex: '0 0 auto' }), MLC.sw(ctx, 'sheet', 'white background (Streaming B)', app(A[1], {})(), { flex: '0 0 auto' }), MLC.sw(ctx, 'sheet', 'running: ring and "Playing"', app(FORT, { active: true })(), { flex: '0 0 auto' }), MLC.sw(ctx, 'sheet', 'unavailable: artwork dims only', app(FORT, { unavailable: true })(), { flex: '0 0 auto' })]),
+          MLC.grid([MLC.sw(ctx, 'page', 'on a room page (module ground, white name)', app(FORT, { surface: 'page' })(), { flex: '0 0 auto' }), MLC.sw(ctx, 'page', 'running on a room page', app(FORT, { surface: 'page', active: true })(), { flex: '0 0 auto' })])]); } },
+      'device': { title: 'Device row: switch, choice, state, unavailable', note: 'direction G: switches only in list rows; one of several is a checkmark; a device that only reports a state is plain text, not a button',
+        render: function (ctx) { return MLC.grid([
+          MLC.sw(ctx, 'sheet', 'switch on (TV)', row(D[0])()), MLC.sw(ctx, 'sheet', 'switch off (Media Room Computer)', row(T[3])()),
+          MLC.sw(ctx, 'sheet', 'choice not selected (Server)', row(D[2])()), MLC.sw(ctx, 'sheet', 'choice selected', row(D[2], { selected: true })()),
+          MLC.sw(ctx, 'sheet', 'state only (Soundbar)', row(D[4])()), MLC.sw(ctx, 'sheet', 'unavailable switch', row(D[1], { unavailable: true })())]); } },
+      'hue': { title: 'Hue Sync tab: syncing, and unavailable', note: 'Power and Sync, Sync Mode, Intensity with Brightness, HDMI Input (HDMI 4 unplugged)', render: function (ctx) { return MLC.grid([MLC.sw(ctx, 'sheet', 'syncing', MLC.hueTab(ctx, { sync: true }), { flex: '1 1 340px' }), MLC.sw(ctx, 'sheet', 'unavailable', MLC.hueTab(ctx, { unavailable: true }), { flex: '1 1 340px' })]); } },
+      'ax5': { title: 'Accessibility 5: app tile and Hue Sync', override: { ts: 'ax5' }, note: 'segmented controls become menus', render: function (ctx) { return MLC.grid([MLC.sw(ctx, 'sheet', 'app tile', app(A[0], {})(), { flex: '1 1 240px' }), MLC.sw(ctx, 'sheet', 'Hue Sync', MLC.hueTab(ctx, { sync: true }), { flex: '1 1 420px' })]); } },
+    },
+    motion: [
+      { id: 'app-ring', what: 'An app starts: the pink ring grows on the artwork and "Playing" appears', token: 'state 0.6 s ease-in-out on the ring (stateColorTransition via GlassTileFace family; ring is an overlay)', state: 'app', source: 'MediaRemoteTabs.swift AppTile', reduce: 'cross-fade at 0.2 s',
+        note: 'The ring stroke itself is drawn without an explicit transition in AppTile (motion-components.md lists AppTile as "inherits GlassTile"): a gap to confirm.',
+        play: function (stage) { var t = stage.querySelector('.mlc-app'); t.classList.add('on'); return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { t.classList.remove('on'); }); } },
+    ],
+    a11y: [
+      { rule: 'App tile', note: 'A button named by the app; selected while running; unavailable dims only the artwork so the name keeps its contrast.' },
+      { rule: 'Device row', note: 'Switch rows read On or Off; choice rows are buttons with the selected trait and the state as value; read-only rows are text. Unavailable actionable rows are disabled (read as dimmed).' },
+      { rule: 'Hue Sync', note: 'Switches, segmented controls (menus at AX sizes), a Brightness slider adjustable with swipes, HDMI rows with the status as value ("Selected • Linked").' },
+      { rule: 'Targets', note: 'Rows 52 pt, controls 44 pt or more; artwork squares up to 168 pt.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Color: running state is not the ring alone', verdict: 'pass', note: 'The running app gets a 3 pt media-pink ring and the word "Playing" (MediaRemoteTabs.swift:58-61, 69-73), and VoiceOver reads the selected trait (line 83).' },
+        { by: 'apple-hig skill', rule: 'Lists: switches and choices in an inset list', verdict: 'pass', note: 'Devices and Hue Sync are List sections; switches for toggles, a checkmark row for a source choice, plain text for read-only state (lines 122-204).' },
+        { by: 'apple-hig skill', rule: 'Segmented controls: short choices, a menu when text cannot fit', verdict: 'pass', note: 'Sync Mode and Intensity are segmented at default sizes and a Picker(.menu) at accessibility sizes (lines 326-333).' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets', verdict: 'pass', note: 'Rows and HDMI buttons use .frame(minHeight: HassTokens.minTarget) (lines 179, 305, 364); artwork squares are up to 168 pt.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'design.md: wrap Slider in LabeledContent inside a List', verdict: 'pass', note: 'Not applicable: the Brightness row pairs the title, value and slider as one adjustable element on purpose; LabeledContent would change the row\'s layout and semantics.' },
+        { by: 'swiftui-pro skill', rule: 'Animate color with the app token', verdict: 'pass', note: 'Fixed on claude/hig-motion-1ec6c6: MediaRemoteTabs.swift AppTile ring now has stateColorTransition("AppTile"). Was: AppTile\'s ring changes between ColorFamily.media.glyph and the separator color with no stateColorTransition (lines 58-61), unlike the other tiles; the ring snaps when an app starts.' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: decorative images hidden, text carried by the control', verdict: 'pass', note: 'The fallback glyph is accessibilityHidden (line 108) and the tile is one element labelled by the app title (lines 80-82).' },
+      ],
+    },
+    notes: ['Lettered tiles stand in for the artwork the server publishes under /local/images/apps; Game has none yet, so it always shows the icon fallback.', 'Lists are drawn with the kit ModuleList (26 pt card); a SwiftUI inset grouped List draws the same cell colours.', 'Promote to kit: MLC.appTile, MLC.deviceRow, MLC.hueTab.'],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

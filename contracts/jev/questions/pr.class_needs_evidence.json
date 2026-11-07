@@ -1,0 +1,29 @@
+{
+  "id": "pr.class_needs_evidence",
+  "version": 1,
+  "type": "noul-set",
+  "mode": "shadow",
+  "description": "For each device class, would a person using it see or feel anything different after this change?",
+  "instructions": "Judge iPhone, iPhone Duo and iPad one at a time. Would someone holding that device, in any of its positions or while moving between them, see a different screen or a different movement? A change that only applies while the Duo is half open does not change the iPhone or the iPad, even if they share the code. Device class to judge: {option}.",
+  "criteria": {
+    "iphone": "iPhone looks or moves differently",
+    "duo": "iPhone Duo looks or moves differently in at least one position or transition",
+    "ipad": "iPad looks or moves differently upright, on its side, or while turning"
+  },
+  "state": {
+    "fields": [
+      "request",
+      "title",
+      "what_changed",
+      "files",
+      "changed_poses"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "yes_above": 0.6,
+    "no_below": 0.25
+  },
+  "output": "pr_visual select: recorded under jev_shadow as a hint for K.6 rule 2; a class Jev marks yes but the tree finds unchanged gets K.6 rule 3 (Checked, no change found, still no comment). Shadow: never changes the selection.",
+  "evidence": "unmeasured"
+}

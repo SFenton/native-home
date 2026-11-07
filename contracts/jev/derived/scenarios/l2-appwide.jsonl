@@ -1,0 +1,100 @@
+{"id": "aw-001", "change": "Shifted the base palette from the cool blue-grey #111723 to a warm charcoal and the neutral inks to warm greys. Device tints keep their families.", "label": true, "why": "Palette is the app's overall look.", "split": "test"}
+{"id": "aw-002", "change": "Changed the accent blue used for prominent buttons, selected tab, links and toggles to a teal, and updated the matching tint tokens.", "label": true, "why": "The accent colour is on every screen.", "split": "test"}
+{"id": "aw-003", "change": "The signed-in shell no longer forces the dark appearance. Pages now follow the system light or dark setting, with new light variants of the page and module surfaces.", "label": true, "why": "Theme change for all pages.", "split": "test"}
+{"id": "aw-004", "change": "Page and section titles now use the rounded system design everywhere. Body text is unchanged.", "label": true, "why": "Typography system.", "split": "dev"}
+{"id": "aw-005", "change": "Raised the base text size one step: body copy moves from .subheadline to .body in rows, tiles and sheets through the typography tokens.", "label": true, "why": "Type scale applies to every screen.", "split": "test"}
+{"id": "aw-006", "change": "Replaced the app font with a bundled custom typeface for titles, labels and values.", "label": true, "why": "Typography system.", "split": "test"}
+{"id": "aw-007", "change": "Redrew the app icon as a white S+H monogram on deep blue, with new dark and tinted variants.", "label": true, "why": "App icon.", "split": "test"}
+{"id": "aw-008", "change": "The default app icon changed from the house glyph to a plain monogram, and the in-app About row now shows it.", "label": true, "why": "App icon is the identity.", "split": "test"}
+{"id": "aw-009", "change": "The tab bar goes from five tabs to four. Chores moves into a More menu.", "label": true, "why": "Global navigation structure.", "split": "test"}
+{"id": "aw-010", "change": "Tab labels are removed. The tab bar now shows icons only.", "label": true, "why": "A small tab bar change, but it appears on every screen.", "split": "test"}
+{"id": "aw-011", "change": "The selected tab tint changed from white to the accent blue.", "label": true, "why": "Small change to the tab bar every screen shows.", "split": "dev"}
+{"id": "aw-012", "change": "The default tab order changes so Chores comes first and Home second.", "label": true, "why": "Global navigation.", "split": "dev"}
+{"id": "aw-013", "change": "The tab bar becomes a floating Liquid Glass pill that hides on scroll down and returns on scroll up.", "label": true, "why": "Tab bar on every page.", "split": "test"}
+{"id": "aw-014", "change": "The flyout menu is replaced by a Menu tab that lists every section.", "label": true, "why": "How sections are reached.", "split": "test"}
+{"id": "aw-015", "change": "On iPad and the unfolded Duo in landscape the flyout is a persistent sidebar. Phones keep the overlay.", "label": true, "why": "Global navigation restructure.", "split": "dev"}
+{"id": "aw-016", "change": "Home's Quick Links sheet is removed and every section is reachable from a grid on a new Sections tab.", "label": true, "why": "How sections are reached.", "split": "dev"}
+{"id": "aw-017", "change": "Every page push and pop now uses a shared spring with a slight parallax of the wallpaper, defined once in MotionTokens.", "label": true, "why": "Page motion shared by every page.", "split": "test"}
+{"id": "aw-018", "change": "All pushes in the app now slide with the same curve and duration, and pops reverse it. Tab switches cross-fade.", "label": true, "why": "Shared page transition.", "split": "test"}
+{"id": "aw-019", "change": "Every page's title moves from inline to a large title that collapses on scroll, through the page base.", "label": true, "why": "Page header on every page.", "split": "dev"}
+{"id": "aw-020", "change": "The back button on every pushed page is a chevron only, with no previous-title label.", "label": true, "why": "Header component on every pushed page.", "split": "dev"}
+{"id": "aw-021", "change": "A connection status pill now sits in the header of every page, replacing the separate offline chip.", "label": true, "why": "A component on every screen.", "split": "test"}
+{"id": "aw-022", "change": "Every page gets a bottom-right circular quick-add button for a shared action sheet.", "label": true, "why": "A component added to every screen.", "split": "test"}
+{"id": "aw-023", "change": "The house photo behind every page is replaced by a plain dark gradient.", "label": true, "why": "Window wallpaper.", "split": "test"}
+{"id": "aw-024", "change": "The wallpaper scrim is darker and the blur default raised, so every page behind the content changes.", "label": true, "why": "Wallpaper shared by all pages.", "split": "test"}
+{"id": "aw-025", "change": "Tile and module corner radii move from 16 and 20 pt to 22 and 26 pt in the tokens.", "label": true, "why": "Radius tokens drive almost every surface.", "split": "dev"}
+{"id": "aw-026", "change": "The spacing scale tokens are tightened (m 12 to 10, l 16 to 14, xl 24 to 20).", "label": true, "why": "Spacing scale used on every screen.", "split": "test"}
+{"id": "aw-027", "change": "Icons across the app move from regular to semibold weight through the symbol map default.", "label": true, "why": "Symbol weight on every screen.", "split": "test"}
+{"id": "aw-028", "change": "The soft top-edge effect under headers is replaced by a solid blurred header bar on every page.", "label": true, "why": "Page header chrome.", "split": "test"}
+{"id": "aw-029", "change": "The launch screen, display name and in-app sign-in logo are updated to a new wordmark.", "label": true, "why": "Identity of the app.", "split": "test"}
+{"id": "aw-030", "change": "The tab badge style (colour, size, position) changes for every tab.", "label": true, "why": "Tab bar badge.", "split": "test"}
+{"id": "aw-031", "change": "The tab bar hides while scrolling down on every page and returns on scroll up.", "label": true, "why": "Tab bar behaviour on all pages.", "split": "test"}
+{"id": "aw-032", "change": "Swiping from the left edge of any tab root now opens the flyout, and the flyout lists every section.", "label": true, "why": "Navigation gesture on every root.", "split": "test"}
+{"id": "aw-033", "change": "Each page's header is now a shared component with a title, trailing action slot and subtitle line, replacing the per-page headers.", "label": true, "why": "Header on every page.", "split": "dev"}
+{"id": "aw-034", "change": "The Dynamic Type scale is capped at AX3 for all text and the layout policies reflow accordingly.", "label": true, "why": "Type system.", "split": "test"}
+{"id": "aw-035", "change": "The headline and caption styles in the typography tokens are re-weighted (headline semibold to bold, caption regular to medium) for all text in the app.", "label": true, "why": "Typography system.", "split": "dev"}
+{"id": "aw-036", "change": "Dark pages now use a deep navy background colour in place of the blurred photo under the scrim when Reduce Transparency is off.", "label": true, "why": "Wallpaper change.", "split": "test"}
+{"id": "aw-037", "change": "The device tint families (lights, climate, water, security) are re-chosen in the tokens, so every tile, icon and wash changes colour.", "label": true, "why": "Colour palette.", "split": "test"}
+{"id": "aw-038", "change": "The page base's content margins on iPhone widen from 16 to 20 pt, so every page's layout shifts in.", "label": true, "why": "Structure shared by every page.", "split": "test"}
+{"id": "aw-039", "change": "A new global search entry in the header opens from any page.", "label": true, "why": "Navigation addition on every page.", "split": "test"}
+{"id": "aw-040", "change": "The tab bar's icons are replaced with a new custom icon set.", "label": true, "why": "Tab bar identity.", "split": "test"}
+{"id": "aw-041", "change": "The Rooms page status rail gets a fifth chip for Air Quality.", "label": false, "why": "One page's content.", "split": "test"}
+{"id": "aw-042", "change": "The Thermostat dial gets a thicker track and a larger target value.", "label": false, "why": "One component on one page.", "split": "test"}
+{"id": "aw-043", "change": "The Mapped map draws room outlines in a lighter stroke.", "label": false, "why": "One component in one sheet.", "split": "test"}
+{"id": "aw-044", "change": "The Security System sheet's arm button is bigger and tinted by state.", "label": false, "why": "One sheet.", "split": "test"}
+{"id": "aw-045", "change": "Chores rows show the assignee's avatar at the trailing edge.", "label": false, "why": "One page.", "split": "test"}
+{"id": "aw-046", "change": "The Sprinklers page lays pills out in two columns on iPad landscape.", "label": false, "why": "One page layout.", "split": "dev"}
+{"id": "aw-047", "change": "The Food hub's Recipes tile gets a new photo and a subtitle.", "label": false, "why": "One tile.", "split": "test"}
+{"id": "aw-048", "change": "The 'Added to Grocery List' toast now says how many items were added.", "label": false, "why": "One copy line.", "split": "dev"}
+{"id": "aw-049", "change": "The chore Undo window goes from 5 s to 4 s.", "label": false, "why": "A timing change on one control.", "split": "test"}
+{"id": "aw-050", "change": "The Weather sheet's Done button becomes an X.", "label": false, "why": "One sheet.", "split": "test"}
+{"id": "aw-051", "change": "The Contact Sensors chip counts only entities in the 'on' state.", "label": false, "why": "One chip's logic.", "split": "test"}
+{"id": "aw-052", "change": "The image card used by Recipes gets a 20 pt radius and a bottom gradient. Recipes is the only page that uses it.", "label": false, "why": "Restyled shared component with a single consumer.", "split": "test"}
+{"id": "aw-053", "change": "The GlassTile's on-state wash is brightened. It is used on Rooms and Lights pages only.", "label": false, "why": "A component in a few places.", "split": "test"}
+{"id": "aw-054", "change": "StatusPill gets a filled capsule. It appears on the Sprinklers page and in the humidifier sheet.", "label": false, "why": "A component in two places.", "split": "test"}
+{"id": "aw-055", "change": "The thermostat hub pill menu stays open after a choice.", "label": false, "why": "Behaviour on one control.", "split": "dev"}
+{"id": "aw-056", "change": "The Camera tiles gain a bottom gradient behind the name.", "label": false, "why": "One page's tiles.", "split": "dev"}
+{"id": "aw-057", "change": "The tab bar badge on Chores no longer vanishes for a few seconds after reconnecting.", "label": false, "why": "A bug in one badge, no look change.", "split": "test"}
+{"id": "aw-058", "change": "The offline chip appears only after 10 s offline.", "label": false, "why": "A timing change.", "split": "test"}
+{"id": "aw-059", "change": "The Media remote's Apps tab uses four columns on iPhone.", "label": false, "why": "One tab of one sheet.", "split": "test"}
+{"id": "aw-060", "change": "The vacation checklist title shows '3 of 5 done'.", "label": false, "why": "Copy on one page.", "split": "dev"}
+{"id": "aw-061", "change": "Solo Trip traveler buttons show an avatar beside the name.", "label": false, "why": "One screen.", "split": "dev"}
+{"id": "aw-062", "change": "The Reset All Lights button asks for confirmation.", "label": false, "why": "One control.", "split": "dev"}
+{"id": "aw-063", "change": "Scan Item gets a torch button in the top right.", "label": false, "why": "One screen.", "split": "test"}
+{"id": "aw-064", "change": "The Recipes sort sheet gets a Cook time option.", "label": false, "why": "One sheet.", "split": "test"}
+{"id": "aw-065", "change": "The Performance screen gets a summary card at the top.", "label": false, "why": "One screen.", "split": "test"}
+{"id": "aw-066", "change": "The About row on Settings shows the date version.", "label": false, "why": "One row.", "split": "test"}
+{"id": "aw-067", "change": "The Rain delay picker offers 12, 24 and 48 hours.", "label": false, "why": "One setting.", "split": "dev"}
+{"id": "aw-068", "change": "The wallpaper blur slider in Settings gets a preview strip.", "label": false, "why": "One Settings control.", "split": "test"}
+{"id": "aw-069", "change": "The Living Room remote renders its layout straight away and fills app icons in as they load.", "label": false, "why": "One sheet's loading.", "split": "test"}
+{"id": "aw-070", "change": "The Climate page's Whole Home section uses the same high as the weather card.", "label": false, "why": "Data fix.", "split": "test"}
+{"id": "aw-071", "change": "The app now remembers the last Chores sub-page for 30 minutes after backgrounding.", "label": false, "why": "Restore behaviour, no look.", "split": "test"}
+{"id": "aw-072", "change": "Settings topic pages pop with a left-edge swipe.", "label": false, "why": "A gesture on one set of pages.", "split": "test"}
+{"id": "aw-073", "change": "The Inventory list rows get a 44 pt product thumbnail.", "label": false, "why": "One list.", "split": "dev"}
+{"id": "aw-074", "change": "The Expiring Soon section turns orange at 7 days.", "label": false, "why": "One threshold.", "split": "test"}
+{"id": "aw-075", "change": "The Garage tile shows a spinner and 'Opening…' after the command is acknowledged.", "label": false, "why": "One tile.", "split": "test"}
+{"id": "aw-076", "change": "The Front Door lock tile reads its state from the lock entity instead of the contact sensor.", "label": false, "why": "Logic on one tile.", "split": "dev"}
+{"id": "aw-077", "change": "Camera streams are kept for 30 s when you leave a camera page.", "label": false, "why": "Connection behaviour, no look.", "split": "test"}
+{"id": "aw-078", "change": "The dishwasher tile opens a room device sheet laid out like the fan sheet.", "label": false, "why": "One new sheet.", "split": "test"}
+{"id": "aw-079", "change": "The grill and fan sheets open at a medium detent.", "label": false, "why": "Two sheets.", "split": "test"}
+{"id": "aw-080", "change": "The lock screen Live Activity stops saying 'Updating…' after a few minutes.", "label": false, "why": "One activity's copy.", "split": "test"}
+{"id": "aw-081", "change": "The home-screen widget shows who is home and whether the front door is locked.", "label": false, "why": "A new widget, app look untouched.", "split": "test"}
+{"id": "aw-082", "change": "The Home screen weather card shows a 7 day strip instead of 5.", "label": false, "why": "One card.", "split": "test"}
+{"id": "aw-083", "change": "The Lights page shows a Copy Color From picker with colour names.", "label": false, "why": "One sheet.", "split": "dev"}
+{"id": "aw-084", "change": "The Security page lists open doors A to Z.", "label": false, "why": "One list's order.", "split": "test"}
+{"id": "aw-085", "change": "The Vacuums page status tiles include the bin level.", "label": false, "why": "One page.", "split": "test"}
+{"id": "aw-086", "change": "The cleaning report map no longer shows room names.", "label": false, "why": "One map.", "split": "test"}
+{"id": "aw-087", "change": "The Chores quick links are reordered to match the web.", "label": false, "why": "One row of links.", "split": "test"}
+{"id": "aw-088", "change": "The recipe detail ingredient list gets checkboxes.", "label": false, "why": "One screen.", "split": "dev"}
+{"id": "aw-089", "change": "The check row in Chores and Vacation gets a 44 pt hit area.", "label": false, "why": "A component on two pages.", "split": "test"}
+{"id": "aw-090", "change": "Swipe rows on Chores add a Snooze action beside Edit. Chores is the only page with swipe rows.", "label": false, "why": "A shared component with one consumer.", "split": "test"}
+{"id": "aw-091", "change": "The page indicator dots under the Home weather card carousel are smaller.", "label": false, "why": "One component, one place.", "split": "test"}
+{"id": "aw-092", "change": "The floating action bar's Add Task button says 'New Chore'.", "label": false, "why": "Copy on one button.", "split": "test"}
+{"id": "aw-093", "change": "The Admin page lists Guests above Users.", "label": false, "why": "One page order.", "split": "dev"}
+{"id": "aw-094", "change": "The sprinkler battery warning shows at 30%.", "label": false, "why": "One threshold.", "split": "dev"}
+{"id": "aw-095", "change": "The thermostat haptic fires on whole degrees only.", "label": false, "why": "Behaviour of one control.", "split": "test"}
+{"id": "aw-096", "change": "The Sprinklers sheet's Stop watering label is darker in light mode.", "label": false, "why": "One label.", "split": "dev"}
+{"id": "aw-097", "change": "The tab bar's Chores badge counts only open items.", "label": false, "why": "A count fix, tab bar look untouched.", "split": "test"}
+{"id": "aw-098", "change": "Ticker labels scroll at a slower speed on the Media page.", "label": false, "why": "One component on one page.", "split": "test"}
+{"id": "aw-099", "change": "The weather sheet's hourly strip scrolls to the current hour on open.", "label": false, "why": "One sheet.", "split": "test"}
+{"id": "aw-100", "change": "The Cameras page fits four tiles per row on iPad landscape.", "label": false, "why": "One page layout.", "split": "test"}

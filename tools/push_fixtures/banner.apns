@@ -1,0 +1,15 @@
+{
+  "Simulator Target Bundle": "com.sfenton.home",
+  "aps": {
+    "alert": { "title": "Front Door", "subtitle": "Security", "body": "The front door has been unlocked for 10 minutes." },
+    "sound": "default",
+    "interruption-level": "time-sensitive",
+    "thread-id": "security"
+  },
+  "fenton": {
+    "v": 1,
+    "tag": "front-door-unsecured",
+    "group": "security",
+    "url": "/sfenton-react-dash/home?path=security#security-system"
+  }
+}

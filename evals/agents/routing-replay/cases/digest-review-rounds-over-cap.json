@@ -1,0 +1,22 @@
+{
+  "id": "digest-review-rounds-over-cap",
+  "source": "2026-11-02: a review reached round 3 (cap 2); review_rounds_over_cap fires.",
+  "recorded": "2026-11-02",
+  "kind": "digest",
+  "input": {
+    "files": {
+      "build/review/lane.json": {
+        "verdict": "changes",
+        "round": 3
+      }
+    }
+  },
+  "expect": {
+    "triggers": {
+      "has": [
+        "review_rounds_over_cap"
+      ]
+    },
+    "counts.review_rounds": 3
+  }
+}

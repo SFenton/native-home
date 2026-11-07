@@ -1,0 +1,32 @@
+{
+  "id": "lane-agents-and-labels-together-refused",
+  "source": "2026-11-02: a lane changed an agent file and Jev labels together; the evaluator must stay separate from what it judges.",
+  "recorded": "2026-11-02",
+  "kind": "lane_check",
+  "input": {
+    "check": "separation",
+    "rows": [
+      [
+        "M",
+        ".claude/agents/coder.md",
+        "0000000000000000000000000000000000000000",
+        "1111111111111111111111111111111111111111"
+      ],
+      [
+        "A",
+        "contracts/jev/derived/labels/new.jsonl",
+        "0000000000000000000000000000000000000000",
+        "1111111111111111111111111111111111111111"
+      ]
+    ]
+  },
+  "expect": {
+    "refused": true,
+    "kind": "paths",
+    "message": {
+      "has": [
+        "split it into two lanes"
+      ]
+    }
+  }
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Improvement Tasks · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: group rows by what the person decides on", verdict: "pass", note: "Past Due, Due Today, Upcoming and No Due Date headers with empty lists removed (TodoPageLayout.section, TodoPageView.swift lines 237-247).", by: "apple-hig skill" },
+        { rule: "Writing: sentence copy has typos", verdict: "pass", note: "ChoresConfig.homeImprovementChores emptyDescription is \"There are no home improvement tasks due. Nice job!\".", by: "apple-hig skill" },
+        { rule: "Color: do not rely on colour alone", verdict: "pass", note: "Far-off tasks read as \"Due in 3 months\" with the calendar glyph (DueLabel, TodoListSection.swift line 256), never colour only.", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: keep content clear of the fold", verdict: "pass", note: "Fixed: TodoPageView lays the list in HingedPanes with the task form in the trailing pane where the window splits; the list ends at the hinge.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Dynamic Type: due line wraps, check column scales", verdict: "pass", note: "DueLabel text uses fixedSize vertical (TodoListSection.swift line 260) and the check column is @ScaledMetric (line 168).", by: "swiftui-pro skill" },
+        { rule: "Sheets: Add Task preassigns the page's assignee", verdict: "pass", note: "AddAction.donetickTask(defaultAssignee) feeds DonetickTaskSheet(.create) (TodoPageView.swift lines 114-115).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: row action sets", verdict: "pass", note: "TodoRowActions: Edit offered once, as the button.", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.pageConfig('home-improvement-chores', {
+    title: 'Home Improvement Tasks',
+    summary: 'Home improvement tasks: Past Due, Due Today, Upcoming, No Due Date (empty lists hidden). Opened from the Home Tasks Quick Link; Add Task preassigns "Home Improvement". Fixture tasks.',
+    entities: ['todo.demo_todo_25', 'todo.demo_todo_26', 'todo.demo_todo_27', 'todo.demo_todo_28', 'input_boolean.demo_mode_4'],
+    defaultTitle: 'Two upcoming tasks',
+    a11y: [{ rule: 'Reading order', note: 'Back (Chores), Quick Links, Profile; the title "Home Improvement Tasks" (heading); the "Upcoming" heading and its rows; Add Task; tab bar.' }],
+    notes: [
+      'The tile on the Chores tab reads "Home Tasks"; the page title is "Home Improvement Tasks". The assignee value is "3" (Choreapp user 3), shown as "Home Improvement" in the task form.',
+      'Far-off tasks read in weeks or months ("Due in 3 months"): TodoItem.dueLabel switches unit at 1, 21 and 60 days. The empty copy is "No Tasks Due / There are no home improvement tasks due. Nice job!".',
+    ],
+  }));
+
+})();
+</script></body></html>

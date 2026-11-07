@@ -1,0 +1,208 @@
+{
+ "note": "Inline definitions of 4 planned questions, used only to measure against local labels. The real question files are written by ar-jev-tools; re-measure after reconciling wording.",
+ "probes": [
+  {
+   "id": "owner_msg.kind",
+   "type": "choice",
+   "state_fields": [
+    "owner_message"
+   ],
+   "labels": "labels/owner_msg.kind.jsonl",
+   "instructions": "A developer is working with AI coding agents and sends `owner_message` in the middle of a session. What is the message mainly doing?",
+   "options": {
+    "approve": "Says yes, go, approved or merge to something the agent proposed or asked",
+    "decide": "Picks between options or answers a question the agent asked, without approving a whole proposal",
+    "status_ping": "Asks how it is going, for the status or an estimate, or whether something finished",
+    "bug_report": "Reports something wrong or still wrong with the product or the tooling",
+    "new_task": "Asks the agent to do, build or research something",
+    "question": "Asks for an explanation or an opinion and does not ask for work",
+    "rule": "States how things must always be done from now on",
+    "redirect": "Stops, defers or redirects: skip this, not now, continue here, wrong session, try again",
+    "ack_done": "Reports that the person did a step themselves, such as done, ready, enabled",
+    "feedback": "Praises or comments on a result without asking for anything"
+   }
+  },
+  {
+   "id": "route.role",
+   "type": "choice",
+   "state_fields": [
+    "request"
+   ],
+   "labels": "labels/route.role.jsonl",
+   "instructions": "Which agent role should take the work asked for in `request`?",
+   "options": {
+    "researcher": "Answers a question by reading code, docs, repositories or measurements and reports; changes nothing",
+    "designer": "Produces mockups, layouts or motion proposals for the owner to pick from",
+    "coder": "Changes product code or tests",
+    "verifier": "Runs tests or captures evidence and reports pass or fail",
+    "reviewer": "Reviews a change or a pull request",
+    "steward": "Records rules, lessons or workflow changes",
+    "menial": "Runs fixed chores: build and deploy, clean up, list, rerun",
+    "ha_operator": "Changes Home Assistant configuration, automations or integrations",
+    "owner": "Needs the owner's own account, credentials or decision"
+   }
+  },
+  {
+   "id": "change.kind",
+   "type": "choice",
+   "state_fields": [
+    "pr"
+   ],
+   "labels": "labels/change.kind.jsonl",
+   "instructions": "What kind of change is the pull request described in `pr`?",
+   "options": {
+    "feature": "Adds behavior or a screen",
+    "bugfix": "Fixes something that was wrong",
+    "refactor": "Restructures code with no behavior change",
+    "perf": "Makes something faster or lighter",
+    "test": "Adds or changes tests only",
+    "docs": "Documentation or notes only",
+    "tooling": "Scripts, hooks, CI or agent workflow",
+    "design_spec": "A mockup or specification with no product code"
+   }
+  },
+  {
+   "id": "transcript.turn_kind",
+   "type": "choice",
+   "state_fields": [
+    "turn"
+   ],
+   "labels": "labels/transcript.turn_kind.jsonl",
+   "instructions": "An AI agent wrote `turn` while it works. What is this turn mainly doing?",
+   "options": {
+    "plan": "Says what it will do and why, before doing it",
+    "progress": "Says what it just did or is doing now, with a next step",
+    "result": "Reports an outcome, finding or measurement",
+    "wait": "Only says it is waiting, queued, or that nothing has changed",
+    "blocker": "Reports an error, stall or environment problem",
+    "ask": "Asks the owner for something or states it needs the owner"
+   }
+  },
+  {
+   "id": "transcript.turn_kind.v2",
+   "type": "choice",
+   "state_fields": [
+    "turn"
+   ],
+   "labels": "labels/transcript.turn_kind.jsonl",
+   "instructions": "An AI agent wrote `turn` while it works. Which one description fits the whole turn best? If the turn reports a finding, a number, a pass or fail, or a cause, choose result even when it also names a next step.",
+   "options": {
+    "plan": "Says what it intends to do next and why; nothing has been done yet in this turn",
+    "progress": "Says it is starting or has just done a concrete action (running, editing, pushing, launching, rerunning) and reports no finding",
+    "result": "States a finding, measurement, test outcome, pass or fail, or a cause",
+    "wait": "Says it is waiting on an agent, a queue, a run or the owner, or that nothing has changed",
+    "blocker": "Reports an error, crash, stall or environment problem that stops progress",
+    "ask": "Asks the owner for something or says it needs the owner"
+   }
+  },
+  {
+   "id": "design.user_visible.v1",
+   "type": "noul",
+   "state_fields": [
+    "body"
+   ],
+   "labels": "labels/design.user_visible.jsonl",
+   "instructions": "Would a person using the app see or feel a difference after this change: something on screen, how it moves, its wording, or how they get around?",
+   "criteria": null,
+   "note": "The shipped v1 wording, measured as sent (no criteria) against labels written to the owner's 2026-11-02 rule."
+  },
+  {
+   "id": "design.user_visible.v2",
+   "type": "noul",
+   "state_fields": [
+    "body"
+   ],
+   "labels": "labels/design.user_visible.jsonl",
+   "instructions": "Would a person using the app see a different design after this change: something drawn differently, worded differently, animated differently, or a different way to get around? A change only to when or how often an existing screen state appears (delays, timeouts, retries, refresh intervals, how long something stays connected or cached, thresholds), to a default value, to a wrong value the design already shows, or to speed, battery or reliability is not a different design.",
+   "criteria": {
+    "true": "Something is drawn, worded, animated or navigated differently: layout, sizes, colours, icons, order, a new or removed control or setting, on-screen or VoiceOver wording, animation, haptics, gestures, navigation or sheets",
+    "false": "The same screens with the same look, words and motion; only timing, frequency, thresholds, defaults, corrected values, performance, reliability, tests, tooling or docs change"
+   },
+   "note": "Owner rule 2026-11-02: only the timing of an existing state changing is not visible."
+  },
+  {
+   "id": "decision.kind",
+   "type": "choice",
+   "state_fields": [
+    "plan"
+   ],
+   "labels": "labels/decision.kind.jsonl",
+   "instructions": "An agent has researched a change to a native iOS app and summarised its plan. Before anything is built, what does the plan need from the app's owner?",
+   "options": {
+    "none": "Nothing: the change has one sensible answer, or it follows an existing pattern, a recorded owner decision, the web dashboard's behaviour or Apple's guidelines, or it restores the documented design",
+    "policy": "A pick between trade-offs where the screens keep the same look, words and motion: only timing, frequency, thresholds, defaults, or cost, battery, data or privacy change",
+    "design": "A pick about something drawn, worded, animated or navigated differently, with no decision already on record"
+   }
+  },
+  {
+   "id": "decision.needs_owner",
+   "type": "noul",
+   "state_fields": [
+    "plan"
+   ],
+   "labels": "labels/decision.needs_owner.jsonl",
+   "instructions": "An agent has researched a change to a native iOS app and summarised its plan. Does the plan leave a choice only the app's owner should make: options or trade-offs that no existing pattern, recorded owner decision, web-dashboard behaviour or Apple guideline already settles?",
+   "criteria": {
+    "true": "Two or more reasonable options remain and nothing on record picks between them",
+    "false": "The plan has one sensible answer, or an existing rule, decision, parity or guideline settles it"
+   },
+   "note": "Composite alternative to decision.kind: needs_owner x design.user_visible.v2."
+  },
+  {
+   "id": "design.target_decided",
+   "type": "noul",
+   "state_fields": [
+    "plan"
+   ],
+   "labels": "labels/design.target_decided.jsonl",
+   "instructions": "An agent has researched a change to a native iOS app that alters what is drawn, worded, animated or navigated, and summarised the owner's request and its plan. Is the visible result already settled, so a designer only needs to apply it rather than explore options? It is settled when the owner's request names the look, wording or motion they want (for example by pointing at another screen or layout that already does it), or when an existing pattern, recorded owner decision, web-dashboard behaviour or Apple guideline fixes it.",
+   "criteria": {
+    "true": "The look, wording or motion to build is already named or fixed; only how to build it, or a scope or rule exception, may remain",
+    "false": "What it should look, read or move like is still open: the options differ in what a person would see"
+   },
+   "note": "Gate question 3 (owner, 2026-11-02). Asked only when design.user_visible says visible. A yes may move L2 design to an L1 Designer spec, which lowers a level: hint-only until measured precision >= 0.95 and the owner approves acting on it."
+  },
+  {
+   "id": "owner_msg.about_workflow",
+   "type": "noul",
+   "state_fields": [
+    "owner_message"
+   ],
+   "labels": "labels/owner_msg.about_workflow.jsonl",
+   "instructions": "A developer runs a team of AI coding agents on an iOS app and sends `owner_message`. Is the message about how the agents themselves work (their roles, routing, rules, prompts, hooks, tools, the decision model, evals, the review and merge process, autonomy), rather than about the app, its design, its bugs or a specific product task?",
+   "criteria": {
+    "true": "It asks to change, explain or judge how the agents, their rules, tools, routing, evals or process work",
+    "false": "It is about the app, its design, its behaviour, a product task, a status check or a plain approval"
+   },
+   "note": "Steward entry B (owner, 2026-11-02): routes an owner message to the Steward first. Hint only; the rule (Workflow label or agent/workflow paths) decides first."
+  },
+  {
+   "id": "design.matches_request",
+   "type": "noul",
+   "state_fields": [
+    "pair"
+   ],
+   "labels": "labels/design.matches_request.jsonl",
+   "instructions": "The owner of a native iOS app asked for a change in their own words (`Request:`), and an agent built or proposed a change (`Change:`). Does the change do what the owner asked, with the scope they asked for: it delivers the result they described or clearly implied, it does not replace their stated choice with a different one, and it does not widen into parts of the app they did not ask about?",
+   "criteria": {
+    "true": "The change delivers what the request asks, at the scope it asks, without substituting a different design or touching unasked parts",
+    "false": "The change misses or contradicts the ask, picks something the owner did not ask for, widens beyond the ask, or the request is too vague to tell"
+   },
+   "note": "Owner 2026-11-03: request-driven L2 work is autonomous only when this says yes; no or unsure parks for the owner."
+  },
+  {
+   "id": "design.app_wide",
+   "type": "noul",
+   "state_fields": [
+    "change"
+   ],
+   "labels": "labels/design.app_wide.jsonl",
+   "instructions": "An agent changed a native iOS app (`change`). Does the change alter the whole app's look or structure rather than one screen or component: the colour palette or theme, typography system, app icon, global navigation (tab bar, flyout, how sections are reached), shared motion for every page, or a component used on every screen?",
+   "criteria": {
+    "true": "It changes something every screen or the app's overall identity or structure depends on",
+    "false": "It is local to one screen, one component in a few places, or a behaviour with no app-wide look"
+   },
+   "note": "Owner 2026-11-03: agent-initiated app-wide changes park for the owner; local ones are autonomous."
+  }
+ ]
+}

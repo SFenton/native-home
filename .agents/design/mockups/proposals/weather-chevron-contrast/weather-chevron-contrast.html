@@ -1,0 +1,198 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weather chevron contrast</title><style>
+/* Layout: one reading column, then live-size crops of the weather card's hourly strip on two card backgrounds, today beside three options, then the comparison. */
+:root {
+  --bg: #f4f5f7; --surface: #ffffff; --fg: #16181d; --fg2: #4b525e; --line: #d9dde4;
+  --accent: #0066cc; --accent-soft: #e3effc; --bad: #b3261e; --ok: #1e7b34; --code-bg: #eceef2;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --disp: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+    --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+  --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.col { max-width: 70ch; }
+h1 { font-family: var(--disp); font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance; }
+h2 { font-family: var(--disp); font-size: 24px; letter-spacing: -0.01em; margin: 56px 0 8px; text-wrap: balance; }
+h3 { font-family: var(--disp); font-size: 17px; margin: 0 0 4px; }
+p { margin: 0 0 12px; }
+.lede { font-size: 18px; color: var(--fg2); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+ul { padding-left: 1.2em; margin: 0 0 12px; } li { margin-bottom: 4px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.fg2 { color: var(--fg2); } .small { font-size: 14px; }
+.rec { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 8px; }
+.ctrls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 16px 0 0; font-size: 14px; }
+.ctrls button { font: inherit; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.ctrls button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin-top: 12px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; }
+.tw { overflow-x: auto; }
+.pass { color: var(--ok); font-weight: 600; } .fail { color: var(--bad); font-weight: 600; }
+
+/* Wallpaper band and live-size card crops (CSS px = pt). */
+.band { margin-top: 20px; padding: 24px 18px; border-radius: 14px; background: radial-gradient(120% 140% at 20% 0%, #2c4256 0%, #16222f 55%, #0b1118 100%); display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 24px 28px; color: #fff; }
+.band.light { background: radial-gradient(120% 140% at 20% 0%, #9fb3c4 0%, #6f8597 55%, #4a5d6c 100%); }
+.cell { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cap { color: #d6dee7; font-size: 14px; } .cap b { color: #fff; }
+.ratio { font-family: var(--mono); font-size: 13px; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.35); }
+.ratio.bad { color: #ff8a80; } .ratio.ok { color: #7ee2a0; }
+.card { border-radius: 22px; background: var(--card, #1f1e1e); padding: 10px 0 4px; font-family: var(--ui); color: #fff; overflow: hidden; }
+.band.light .card { --card: #4e5056; }
+.strip { position: relative; padding: 0 56px; }
+.hours { display: flex; justify-content: space-between; gap: 4px; }
+.hr { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px; padding: 6px 0; }
+.ht { font-size: calc(13px * var(--ts, 1)); font-weight: 600; } .hd { font-size: calc(17px * var(--ts, 1)); font-weight: 500; }
+.gl { width: 26px; height: 22px; }
+.ctl { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.35); color: #fff; cursor: pointer; transition: opacity .2s ease, background-color .2s ease, border-color .2s ease, color .2s ease; }
+.ctl.prev { left: 6px; } .ctl.next { right: 6px; }
+.ctl svg { width: calc(17px * var(--gs, 1)); height: calc(17px * var(--gs, 1)); }
+.ctl:disabled { cursor: default; }
+/* Today: .opacity(0.4) on top of the .plain style's own disabled fade, about 0.2 of white in all (measured 1.9:1). */
+.v-today .ctl:disabled { opacity: .4; color: rgba(255,255,255,.5); }
+/* A: one fade, 55% of the whole control, through a style that does not fade the label again. */
+.v-a .ctl:disabled { opacity: .55; }
+/* B: the control fades out at the ends; its slot stays, so the hours never shift. */
+.v-b .ctl:disabled { opacity: 0; pointer-events: none; }
+/* C: the fill and ring drop away; the glyph stays at 50% white. */
+.v-c .ctl:disabled { background: transparent; border-color: transparent; color: rgba(255,255,255,.5); }
+.dots { display: flex; gap: 7px; justify-content: center; align-items: center; min-height: 44px; }
+.dots i { width: 7px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.45); transition: width .2s ease; } .dots i.cur { width: 18px; background: #fff; }
+.ax { --ts: 1.6; --gs: 1.35; }
+.ax .hours .hr:nth-child(n+4) { display: none; }
+/* A phone-width reader gets fewer hours per crop, so the strip never runs under the Next button. */
+.card { container-type: inline-size; }
+@container (max-width: 520px) { .hours .hr:nth-child(n+5) { display: none; } .ax .hours .hr:nth-child(n+3) { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ctl, .dots i { transition: none; } }
+</style></head><body><div class="wrap">
+
+<div class="col">
+<span class="tag">Proposal · 2026-10-27 · Decided (2026-10-27): option A, fix on the weather card only</span>
+<h1>Weather card: the disabled Previous and Next chevrons</h1>
+<p class="lede">At either end of the hourly strip, the chevron that can't page any further fades to 1.9:1 and fails the accessibility audit. This proposal offers three ways to make it read at 3:1 or better, or to remove it.</p>
+<p class="small fg2">The crops are live size (CSS px = pt) and show the strip as regular width draws it: iPad portrait and landscape, and the unfolded iPhone Duo. iPhone and the folded Duo show no Previous or Next buttons; they page by swiping and by the page dots, so nothing changes there. Tap the chevrons to page, or use the buttons below to switch text size.</p>
+</div>
+
+<h2>Cause</h2>
+<div class="col">
+<ul>
+<li><b>Measured.</b> <code>ChromeJourneyTests.testChromePassesAccessibilityAudit</code> on iPad landscape failed twice with contrast 1.9 on “Previous 24-hour weather forecast”. Pixels from the same run: the glyph peaks at <code>#4C4C4A</code> on a circle of <code>#1F1E1E</code>, 1.91:1. The bar for a control is 3:1 (WCAG 1.4.11).</li>
+<li><b>Why it got fainter.</b> <code>WeatherPagedCarousel.controlButton</code> sets <code>.opacity(0.4)</code> and uses <code>.buttonStyle(.plain)</code>. The plain style fades a disabled label a second time, so the glyph ends up at about 20% white, not 40%. Modelling both fades predicts a glyph of <code>#4A4949</code> and 1.94:1, which matches the measurement. On its own, the 40% would come to about 3.9:1 on this card. The repo has seen this before: <code>.plain</code> faded a locked tile to 2.5:1 (<code>patterns/entity-tile.md</code>). That's why tiles, module rows and the Filter sheet never fade disabled text.</li>
+<li><b>Why now.</b> The chevron was always this faint. The audit started catching it once the one-row chip rail moved the card to where the audit samples it (branch <code>fix/duo-tabbar-chip-rail</code>). On <code>main</code> it fails the same rule; the audit just doesn't land on it.</li>
+<li>The atlas's weather card mockup fades the button once, by 40%, so it shows a brighter glyph than the app draws.</li>
+</ul>
+</div>
+
+<div class="ctrls" role="group" aria-label="Crop controls">
+<span class="fg2">Text size</span>
+<button type="button" data-ts="def" aria-pressed="true">Large (default)</button>
+<button type="button" data-ts="ax" aria-pressed="false">AX3</button>
+<button type="button" id="reset">Back to page 1</button>
+</div>
+
+<h2>Dark card (the measured failure)</h2>
+<div class="band" id="dark"></div>
+
+<h2>Lighter card (a bright wallpaper; contrast estimated)</h2>
+<div class="band light" id="light"></div>
+
+<h2>Options</h2>
+<div class="col">
+<h3>A · One fade, 55% (recommended)</h3>
+<p>Give the two controls a small button style that leaves disabled labels alone, like <code>GlassTileButtonStyle</code> and <code>ModuleRowButtonStyle</code>, then fade the whole control to 55%. The control looks and sits the same as before; at an end it's simply dimmer. Estimated 6.3:1 on the dark card and 4.8:1 on the lighter one; enabled is 18:1. VoiceOver still reads “dimmed”.</p>
+<h3>B · Hide at the ends</h3>
+<p>At an end, the control that can't page fades out, but its 44 pt slot stays so the hours don't move. VoiceOver skips it; the page dots and the three-finger swipe still give the position. A missing control can't fail contrast. It goes against the 2026-10-24 rule “disable instead of hiding”. That rule is about controls whose reason needs saying, which doesn't really apply to a pager, but it is a departure.</p>
+<h3>C · Outline only</h3>
+<p>At an end, the circle's fill and ring go away and the glyph stays at 50% white, so the state shows as a change of shape, not just a dimmer button. Estimated 5.1:1 on the dark card but only 3.4:1 on the lighter one, because the glyph loses the dark circle behind it. The glyph sits straight on the card, so on a bright wallpaper it has the least margin of the three, and it adds a third look to a control that otherwise has one.</p>
+</div>
+
+<h2>Comparison</h2>
+<div class="tw"><table>
+<thead><tr><th></th><th>Today</th><th>A · One fade, 55%</th><th>B · Hide at the ends</th><th>C · Outline only</th></tr></thead>
+<tbody>
+<tr><th>Disabled glyph, dark card</th><td class="fail">1.9:1 (measured)</td><td class="pass">≈6.3:1</td><td>Not drawn</td><td class="pass">≈5.1:1</td></tr>
+<tr><th>Disabled glyph, lighter card</th><td class="fail">≈1.9:1</td><td class="pass">≈4.8:1</td><td>Not drawn</td><td class="pass">≈3.4:1 (thin margin)</td></tr>
+<tr><th>Clearly different from enabled (18:1)</th><td>Yes, but too faint</td><td>Yes: dimmer, same shape</td><td>Yes: absent</td><td>Yes: no circle</td></tr>
+<tr><th>Repo rules</th><td>Fails the audit</td><td>Matches the no-double-fade rule from tiles and rows</td><td>Departs from “disable instead of hiding”</td><td>A new look for one control</td></tr>
+<tr><th>HIG</th><td>Color: contrast</td><td>Buttons: a dimmed state that stays legible</td><td>Page controls: the dots already give the position</td><td>Buttons: state shown by shape, not only color</td></tr>
+<tr><th>VoiceOver</th><td>“Previous…, dimmed”</td><td>“Previous…, dimmed”</td><td>Skipped at the ends</td><td>“Previous…, dimmed”</td></tr>
+<tr><th>Code</th><td></td><td>One button style in <code>WeatherPagedCarousel</code>; no new token</td><td>Opacity plus <code>.accessibilityHidden</code> at the ends</td><td>Fill and ring switch on <code>disabled</code></td></tr>
+</tbody></table></div>
+<p class="small fg2">The ≈ figures use the WCAG formula with the control's layers composited over the card colour: <code>#1F1E1E</code> measured on the iPad, <code>#4E5056</code> assumed for a bright wallpaper. The build re-measures them with <code>performAccessibilityAudit</code> on iPad and the unfolded Duo.</p>
+
+<h2>Recommendation</h2>
+<div class="col rec">
+<p><b>A.</b> It's the smallest change people would notice: the control looks and sits the same and only gets a little brighter at the ends. It fixes the actual cause (the double fade), not just this one measurement, and it's the rule tiles, rows and the Filter sheet already follow.</p>
+<p class="small">What it changes: <code>WeatherPagedCarousel.swift</code> (a private button style; <code>.opacity(0.55)</code> when disabled). Tests: a unit test pinning the disabled opacity, and the iPad Chrome audit rerun on iPad and the unfolded Duo, plus the weather header journeys on all three devices. Docs: <code>patterns/weather.md</code>, and the weather card mockup changed to fade once, by 55%.</p>
+</div>
+
+<h2>Open question</h2>
+<div class="col">
+<p>Eight other controls fade themselves when disabled (<code>.opacity(0.4–0.5)</code>: the bed side sheet, vacuum area editor, media remote, tinted capsule buttons and others). Any of them that also uses <code>.plain</code> may be faded twice in the same way. Should the fix stay on the weather card, or should I audit those eight in a follow-up?</p>
+</div>
+
+</div>
+<script>
+(function () {
+  var CH = { l: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4 7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+             r: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4 8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' };
+  var CLOUD = '<svg class="gl" viewBox="0 0 26 22" aria-hidden="true"><path d="M7 18h12a4.5 4.5 0 0 0 .6-9A6 6 0 0 0 8 8.4 4.8 4.8 0 0 0 7 18z" fill="#fff"/><path d="M9 20.5l-1 1.5M13 20.5l-1 1.5M17 20.5l-1 1.5" stroke="#5ac8fa" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  var HOURS = [['Now', 50], ['12 AM', 49], ['1 AM', 49], ['2 AM', 49], ['3 AM', 50], ['4 AM', 50], ['5 AM', 51], ['6 AM', 51], ['7 AM', 52], ['8 AM', 53], ['9 AM', 55], ['10 AM', 56], ['11 AM', 57], ['12 PM', 58], ['1 PM', 58], ['2 PM', 57], ['3 PM', 56], ['4 PM', 55], ['5 PM', 53], ['6 PM', 52], ['7 PM', 51], ['8 PM', 50], ['9 PM', 50], ['10 PM', 49]];
+  var PER = 6, PAGES = HOURS.length / PER;
+  var VARIANTS = [
+    { cls: 'v-today', name: 'Today', dark: ['1.9:1', 'bad', 'measured'], light: ['≈1.9:1', 'bad', 'estimated'], note: '40% opacity on a .plain button that fades it again' },
+    { cls: 'v-a', name: 'A · One fade, 55%', dark: ['≈6.3:1', 'ok'], light: ['≈4.8:1', 'ok'], note: 'same control, one fade' },
+    { cls: 'v-b', name: 'B · Hide at the ends', dark: ['not drawn', 'ok'], light: ['not drawn', 'ok'], note: 'the slot stays; the dots give the position' },
+    { cls: 'v-c', name: 'C · Outline only', dark: ['≈5.1:1', 'ok'], light: ['≈3.4:1', 'ok'], note: 'the fill and ring drop away; the glyph stays at 50% white' }];
+  var cells = [];
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function render(c) {
+    var hours = HOURS.slice(c.page * PER, c.page * PER + PER);
+    c.hours.innerHTML = hours.map(function (x) { return '<div class="hr"><span class="ht">' + x[0] + '</span>' + CLOUD + '<span class="hd">' + x[1] + '°</span></div>'; }).join('');
+    c.prev.disabled = c.page === 0; c.next.disabled = c.page === PAGES - 1;
+    var hide = c.variant === 'v-b';
+    c.prev.setAttribute('aria-hidden', hide && c.prev.disabled ? 'true' : 'false');
+    c.next.setAttribute('aria-hidden', hide && c.next.disabled ? 'true' : 'false');
+    c.dots.innerHTML = ''; for (var i = 0; i < PAGES; i++) c.dots.appendChild(el('i', i === c.page ? 'cur' : ''));
+    c.dots.setAttribute('aria-label', 'Page ' + (c.page + 1) + ' of ' + PAGES);
+  }
+  function build(bandId, key) {
+    var band = document.getElementById(bandId);
+    VARIANTS.forEach(function (v) {
+      var r = v[key], cell = el('div', 'cell');
+      cell.appendChild(el('div', 'cap', '<b>' + v.name + '</b> · disabled Previous <span class="ratio ' + r[1] + '">' + r[0] + '</span>' + (r[2] ? ' ' + r[2] : '') + '<br>' + v.note));
+      var card = el('div', 'card ' + v.cls), strip = el('div', 'strip'), hours = el('div', 'hours');
+      var prev = el('button', 'ctl prev', CH.l), next = el('button', 'ctl next', CH.r);
+      prev.type = next.type = 'button'; prev.setAttribute('aria-label', 'Previous 24-hour weather forecast'); next.setAttribute('aria-label', 'Next 24-hour weather forecast');
+      strip.appendChild(hours); strip.appendChild(prev); strip.appendChild(next);
+      var dots = el('div', 'dots'); dots.setAttribute('role', 'group');
+      card.appendChild(strip); card.appendChild(dots); cell.appendChild(card); band.appendChild(cell);
+      var c = { page: 0, hours: hours, prev: prev, next: next, dots: dots, card: card, variant: v.cls };
+      prev.onclick = function () { if (c.page > 0) { c.page--; render(c); } };
+      next.onclick = function () { if (c.page < PAGES - 1) { c.page++; render(c); } };
+      cells.push(c); render(c);
+    });
+  }
+  build('dark', 'dark'); build('light', 'light');
+  document.querySelectorAll('[data-ts]').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('[data-ts]').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      cells.forEach(function (c) { c.card.classList.toggle('ax', b.dataset.ts === 'ax'); });
+    };
+  });
+  document.getElementById('reset').onclick = function () { cells.forEach(function (c) { c.page = 0; render(c); }); };
+})();
+</script>
+</body></html>

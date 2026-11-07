@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Car · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  Mock.mount({
+    kind: 'page', id: 'household-mach-e', title: 'Car', area: 'settings', status: 'shipped',
+    summary: 'Settings > Household > car. A "Charge Status" header over five tiles for the car: Charge Status, Doors, Driver\'s Seat, Passenger Seat, Climate. Rollout S (2026-10-28, owner pick 25 B): Doors is an action tile with the lock disc (LockActions, the Security page tile\'s states); the other four show state only and are not buttons (the web gives them no action).',
+    source: ['apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/HouseholdSettingsConfig.swift', 'apple/Sources/HassCore/Settings/HouseholdSettingsController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
+    spec: ['.agents/pages/settings/household.md', '.agents/pages/security/ios.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['entity-tile', 'dynamic-grid', 'page-backdrop'],
+    hig: ['Layout', 'Dynamic Type', 'Accessibility (traits)', 'Color'],
+    entities: ['sensor.demo_vehicle_..._elvehcharging', 'lock (SecurityConfig.vehicleLockEntityId)', 'select.demo_vehicle_..._rccseatfrontleft', 'select.demo_vehicle_..._rccseatfrontright', 'number.demo_vehicle_..._rcctemperature'],
+    kitComponents: ['GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: HF.pageStates('mach-e', {
+      base: {},
+      defaultTitle: 'Plugged in, doors locked, passenger seat heated',
+      extra: {
+        'doors-unlocking': { title: 'Doors unlocking (arc in the disc)', note: 'after a tap: the lock\'s own transitional state until it reports', opts: { doors: 'unlocking' } },
+        'doors-unlocked': { title: 'Doors unlocked (filled, white disc)', note: 'the disc offers Lock', opts: { doors: 'unlocked' } },
+        'doors-jammed': { title: 'Doors jammed (red, different glyph)', note: 'the disc still offers Lock', opts: { doors: 'jammed' } },
+      },
+      errorNote: 'the car (Car) is unreachable: every tile reads Unavailable and dims; the header stays',
+      long: { long: true },
+      longTitle: 'Longest value at xxxLarge',
+      longNote: 'Charge Status shows the sensor\'s raw text (a long fixture value) and wraps; the other tiles wrap their titles',
+    }),
+
+    motion: HF.pageMotion('mach-e', false),
+    transitions: HF.pageTransitions('mach-e'),
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back (or Open Navigation), Quick Links, Profile; the title "Car"; the heading "Charge Status"; then Charge Status, Doors, Driver\'s Seat, Passenger Seat, Climate.' },
+      { rule: 'Doors (rollout S)', note: 'One element, "Doors, Locked", a button; the lock disc repeats the body so it is hidden from VoiceOver. A tap sends lock.unlock (lock.lock while unlocked or jammed) and shows "Unlocking" until the car reports; "Didn\'t Respond" if the call is rejected. Unavailable dims in place.' },
+      { rule: 'Not buttons', note: 'The other four tiles: GlassStateTile removes the button trait and hit testing: each tile reads "<title>, <value>" ("Doors, Locked") as static text, so VoiceOver does not announce an action that does not exist.' },
+      { rule: 'Active is not colour alone', note: 'An active tile (Passenger Seat, Heat) gets the blue tint and a filled glyph and the word Heat; inactive tiles are grey with the word Off.' },
+      { rule: 'Unavailable', note: '"Doors, Unavailable": dimmed, still static text.' },
+      { rule: 'Header', note: '"Charge Status" is a title3 heading. The tile of the same name below it is a different element (the header names the group, the tile names the sensor).' },
+      { rule: 'Dynamic Type', note: 'Tiles (min 150, max 4) stack glyph over text at AX5 and the grid goes to one column; long sensor values wrap rather than truncate.' },
+      { rule: 'Reduce Motion / Transparency', note: 'A live value change cross-fades in 0.6 s (0.2 s reduced); Reduce Transparency draws the solid tile finish.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists and tables: read-only values are not buttons', verdict: 'pass', note: 'GlassStateTile removes hit testing and the button trait (HouseholdSettingsPage.swift:225-238), so the five tiles read as static state.', by: 'apple-hig skill' },
+        { rule: 'Content: show the value the web hides', verdict: 'departure', note: 'The web leaves Charge Status without a visible value; the app shows the sensor text (pages/settings/household.md), so the tile carries information.', by: 'apple-hig skill' },
+        { rule: 'Typography: a section needs a heading', verdict: 'pass', note: 'The "Charge Status" title3 header carries isHeader (:198-201), though it is hand-built instead of SettingsSection.', by: 'apple-hig skill' },
+        { rule: 'Color: state beyond colour', verdict: 'pass', note: 'Each tile shows its value as text ("Plugged In", "Locked") with the blue control tint (compactState, HouseholdSettingsController.swift:124-131).', by: 'apple-hig skill' },
+        { rule: 'Layout: adaptive grid at Dynamic Type', verdict: 'pass', note: 'HouseholdTileGrid(minWidth: 150, maxColumns: 4) scales the minimum with the text.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: Differentiate Without Colour for active vs inactive', verdict: 'pass', note: 'GlassStateTile speaks On/Off (GlassStateTile.spokenValue) when there is no state text and draws the word when Differentiate Without Color is on.', by: 'apple-hig skill' },
+        { rule: 'Feedback: stale or missing data', verdict: 'pass', note: 'A nil or unavailable entity reads "Unavailable" and the tile mutes only icon and border (GlassTileButtonStyle comment), keeping the text at 4.5:1.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: removing the button trait from a Button', verdict: 'pass', note: 'GlassStateTile now uses GlassTile\'s .state kind (a plain element, never a Button) instead of a hit-test-disabled command tile.', by: 'swiftui-pro skill' },
+        { rule: 'Views: reuse SettingsSection', verdict: 'pass', note: 'Fixed: MachEContent uses SettingsSection (HouseholdSettingsPage.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Views: let in ViewBuilder with ForEach', verdict: 'pass', note: 'ForEach(config.tiles) with an inline let display is one tile per element (:203-214).', by: 'swiftui-pro skill' },
+        { rule: 'Data: view reads one derived value per tile', verdict: 'pass', note: 'controller.readOnly(tile) returns a small struct, so a change updates one tile.', by: 'swiftui-pro skill' },
+        { rule: 'Design: tokens for tint', verdict: 'pass', note: 'HassTokens.Tint.settingsControl (:113); no raw colours in the view.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading: no loading UI; the tiles read the saved snapshot. With nothing saved they read Unavailable (the error state). refreshing: a new value from the car updates one tile in place. empty: the five tiles are config, so the page is never empty.',
+      'Docs versus code: pages/settings/household.md places the row in the Account sheet; the code pushes it on the Settings tab path. This page has no SettingsSection: a bare title3 header over the grid (8 pt apart, MachEContent).',
+      'Fixture data: the values (Plugged In, Locked, Off, Heat, 72) are invented. The sensor shows its raw text, a select or number shows title-cased state (compactState). Entity ids are shortened with "..." where the real ones embed the vehicle identifier.',
+      'Charge Status\'s real value set is not documented in the repo; "Plugged In" is a stand-in.',
+      'Pages never split: one centred 840 pt column on wide windows; the Duo grid rounds to even columns around the hinge.',
+      'Unconfirmed: on the unfolded Duo in landscape the centred 840 pt column is not aligned to the hinge band (x 455 to 496 pt), so with four columns one tile can straddle the fold even though the grid rounds to an even count; the simulator pose was only run for pages without this check, so confirm on a device.',
+    ],
+    changelog: [{ date: '2026-11-04', note: 'The short last row fills in whole tracks, on the track lines of the row above.' }, { date: '2026-10-23', note: 'First pass: five read-only tiles, unavailable, offline, reconnecting, long value, xxxLarge and AX5.' }],
+  });
+})();
+</script></body></html>

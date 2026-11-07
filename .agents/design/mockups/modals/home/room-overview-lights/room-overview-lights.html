@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lights overview · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_room-overview-data.js"></script>
+<script src="../_room-overview.js"></script>
+</head><body>
+<script>
+(function () {
+  var kind = 'lights', mixed = RO.world('mixed');
+  var states = RO.overviewStates(kind, { room: 'Kitchen' });
+  states.room.title = 'Kitchen Lights pushed inside the sheet';
+  states.room.note = 'the room\'s group light as one full-width brightness tile, then each light; see room-group-detail for every detail state';
+
+  Mock.mount({
+    kind: 'modal', id: 'room-overview-lights', title: 'Lights overview sheet', area: 'home', status: 'shipped',
+    summary: 'Opened by the Lights chip on Home. Every room that has lights, "Lights On" first and "Lights Off" after, as status cards that push the room\'s lights inside the sheet. A full-height page sheet that follows the system appearance; switch Sheet appearance above (the States gallery shows both).',
+    source: ['apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift',
+      'apple/Sources/HassCore/Rooms/RoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomGroups.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/pages/home/spec.md', '.agents/pages/home/ios.md', '.agents/patterns/room-overview-sheet.md'],
+    patterns: ['room-overview-sheet', 'modal-sheet', 'dynamic-grid', 'entity-tile', 'status-rail'],
+    hig: ['Sheets', 'Toolbars', 'Layout', 'Typography', 'Accessibility'],
+    entities: ['light.demo_living_room_item_1', 'light.kitchen', 'light.demo_bedroom_1_1', 'switch.demo_entryway_light_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'ChipRail', 'WeatherCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: states,
+    motion: RO.overviewMotion(kind),
+    transitions: RO.transitions(kind, 'Kitchen'),
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Lights" (the subtitle, e.g. "11 of 46 On", is part of the navigation title), then the "Lights On" heading and its room cards in grid order, then "Lights Off" and its cards, and Close last in the bar (identifier overview.lights). Escape and the two-finger scrub dismiss.' },
+      { rule: 'Section headings', note: '"Lights On" and "Lights Off" carry the heading trait (rotor Headings jumps between them); a section with no rooms is dropped with its heading.' },
+      { rule: 'Room cards', note: 'One button each: label the room ("Living Room"), value its state ("2 On", "Off"), hint "Opens Living Room Lights", trailing chevron decorative. Identifier overview.lights.room.<room>. 72 pt minimum height, wider than 44 pt.' },
+      { rule: 'State is not colour alone', note: 'A lit card is the warm tile with a filled bulb and a count ("2 On"); an off card is dark with an outline bulb and the word "Off". The multi-light glyph (two bulbs) and the single bulb tell rooms with several lights apart.' },
+      { rule: 'Equal heights', note: 'Every card has the height of the tallest (Bedroom 1 Closet wraps to two lines at larger sizes), measured on each layout pass, so rows stay aligned at every Dynamic Type size and rotation.' },
+      { rule: 'Dynamic Type', note: 'The minimum card width scales (140 pt at Large). At xxxLarge names wrap and the grid drops to fewer columns; at AX5 it is one column of stacked tiles (glyph above name and state), the title and subtitle use the bar\'s large-content rules, and the grid scrolls.' },
+      { rule: 'Close', note: 'The circle x is labelled Close for VoiceOver (never "Done"); it stays in the bar when a room is pushed.' },
+      { rule: 'Light and dark', note: 'The sheet follows the system appearance (white cells on #F2F2F7, or #2C2C2E on #1C1C1E); the lit tile and the lit-band ink are fixed in both. Reduce Transparency draws the solid tile finish.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Sheets: consider medium for progressive disclosure; full height where content is more useful there", verdict: 'departure', note: "Opens at large only (HomeScreen.swift:38, .hassSheet(.page, height: .full)) because the sheet pushes pages and its height must not change on a push (hassSheet doc, HassModal.swift:132-136, owner 2026-10-16).", by: 'apple-hig skill' },
+        { rule: "Color: convey state beyond colour", verdict: 'pass', note: "A room with lights on fills as the warm lit tile and its subtitle says how many are on; the 'Lights On' then 'Lights Off' headings repeat it in words (RoomOverviewStyle.swift:23-27).", by: 'apple-hig skill' },
+        { rule: "Layout: a grid that reflows with text size", verdict: 'pass', note: "RoomOverviewGrid uses @ScaledMetric 140, up to six columns, equal row heights (RoomOverviewGrid.swift:11-14), so a wrapping room name lifts every card and AX5 goes to one column.", by: 'apple-hig skill' },
+        { rule: "Lists and tables: a disclosure indicator for drill-down", verdict: 'pass', note: "Every card is kind .navigate with a trailing chevron, hint 'Opens <room> Lights' and a push (RoomOverviewTile.swift:23-26); direction-g.md still calls them status tiles, the code draws navigation.", by: 'apple-hig skill' },
+        { rule: "Designing for iPhone Duo: sheets adapt to the fold", verdict: 'pass', note: "A system page sheet (presentationSizing .page, HassModal.swift:224-225) is used, so placement across the hinge is the system's; the unfolded pose has not been run on a device, so only the standard component is verified.", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "sheet(item:) over an optional value", verdict: 'pass', note: "Home presents with sheet(item: $sheet) on an Identifiable enum (HomeScreen.swift:33).", by: 'swiftui-pro skill' },
+        { rule: "Navigation subtitle where available, a counted title otherwise", verdict: 'pass', note: "sheetSubtitle puts the count in the iOS 26 subtitle and the web's counted title applies before it (RoomOverviewSheet.swift:27-31, 48-51).", by: 'swiftui-pro skill' },
+        { rule: "Accessibility: label, value and hint on a custom tile Button", verdict: 'pass', note: "GlassTile puts label, value and hint on the Button itself and hides the glyph (GlassTile.swift:135-145, 410).", by: 'swiftui-pro skill' },
+        { rule: "Dynamic Type: no fixed point sizes", verdict: 'pass', note: "Tile text uses .subheadline and .footnote with a @ScaledMetric glyph (GlassTile.swift:298-299, 416, 425).", by: 'swiftui-pro skill' },
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'loading: there is no loading state. The sheet reads EntityStore, so the "loading" state here is an empty store: every room reads Off. No spinner, skeleton or pending bar exists on these cards.',
+      'medium and fitted: not offered. The sheet is hassSheet(.page, height: .full), so large is the only detent; the page sheet size on iPad is the 704 pt page form. (Security\'s Contact Sensors chip uses the same sheet and also opens it full height.)',
+      'Dismiss: Close or a swipe down; see the Transitions list. There is no confirmation.',
+      'Docs versus code: direction-g.md says room cards in the chip overviews are "status tiles, not navigation", but the code draws them with kind .navigate (a trailing chevron) and pushes the room. patterns/motion.md still lists the overview room tiles as a zoom; the code is a plain push (owner 2026-10-22, motion.md 4.3, .measuresNavigation(.push)). Drawn as the code.',
+      'The sections follow the state when the grid is built; a live change recolours a card in place and never moves it (motion.md 6). The motion list therefore flips Gym in place.',
+      'Unavailable lights: the overview cards have no unavailable face; an unavailable member just does not count as on. The pushed tiles do dim (room-group-detail).',
+      'Sheet subtitle total: the count is over every room light once (46 lights in the fixture, each light counted once even where two rooms list it). Values are invented; room names and entity ids are the app\'s.',
+      'Duo unfolded: the page sheet is centred in the window and crosses the hinge band here; the grid takes even columns on a hinge, which a 704 pt sheet satisfies (four columns). Placement is the system\'s; the unfolded simulator pose was run for pages only. Check on a device.',
+      'Kit gaps (promote to kit): the symbols window.vertical.open|closed, figure.stand, desktopcomputer, stove, stairs and bathtub (added at runtime in modals/home/_room-overview.js); TileGrid with equal rows stretches a section header to the tile height (this file equalises tile heights in JS instead); BrightnessTile prints "On at 70%" where the app prints "70%" (this file rewrites the text).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: overview in every state, the pushed room, push and present transitions, light and dark.' }],
+  });
+})();
+</script></body></html>

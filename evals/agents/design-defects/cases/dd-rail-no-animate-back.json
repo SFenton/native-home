@@ -1,0 +1,16 @@
+{
+  "id": "dd-rail-no-animate-back",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "when back/close is added, the rail doesn't animate to accommodate (or remove) the button",
+  "surface": "shell-header-items",
+  "poses": [
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "f1bbf733",
+  "fix_ref": "47acc219",
+  "fix_confidence": "high",
+  "expected": "Adding or removing Back/Close animates the rail; capture frames across the transition and flag a jump."
+}

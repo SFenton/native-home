@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add admin to-do sheet (with images) · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/chores/_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Sheets: confirm before a dismiss that loses input", verdict: "pass", note: "DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask 'Discard changes?' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). AddAdminTodoSheet guards typed text and chosen images.", by: "apple-hig skill" },
+        { rule: "Text fields: a visible label, not only a placeholder", verdict: "pass", note: "AddAdminTodoSheet gives the Task section FormHeader(\"Task\"); the mockup drawing is updated (Chores.adminSheet).", by: "apple-hig skill" },
+        { rule: "Privacy: disclose where input goes", verdict: "pass", note: "Footer: \"This issue is synchronized from the dashboard Admin To-Do list. The repository is public.\" (line 96) and image limits (line 114).", by: "apple-hig skill" },
+        { rule: "Image wells and pickers: system picker, clear limits", verdict: "pass", note: "PhotosPicker, maxSelectionCount 4, a Remove button per image at 44 x 44 (lines 105, 185-191); validation error shown at the top.", by: "apple-hig skill" },
+        { rule: "Toolbars: Cancel leading, a verb-named confirm trailing", verdict: "departure", note: "direction-g.md Sheets: circle x and a filled check labelled \"Add\", disabled until valid (SheetEditToolbar.swift lines 11-137).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Views: TextField(axis: .vertical) over TextEditor", verdict: "pass", note: "lineLimit(1...4) vertical TextField (lines 91-92); a 1000 character cap in onChange.", by: "swiftui-pro skill" },
+        { rule: "Navigation: sheet(item:) with NavigationStack inside", verdict: "pass", note: "Presented through TodoPageView sheet(item:) with .hassSheet(.form) fitting the content.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: icon-only buttons carry text", verdict: "pass", note: "The remove button is labelled \"Remove {filename}\" (line 191) and the thumbnail is accessibilityHidden.", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.sheetConfig({
+    id: 'add-admin-todo-sheet', title: 'Add admin to-do sheet (with images)', file: 'TodoItemSheets.swift', fromLabel: 'To-Do', from: 'admin-todo',
+    summary: 'Add Task with the subtitle "Admin To-Do": a multi-line Task field, a public-repository disclosure, and up to four PNG, JPEG or WebP images from the photo library. Without images it is a plain todo.add_item; with images it posts to the dashboard integration. A fitted form sheet.',
+    source: ['apple/Sources/HassCore/Todo/TodoServicing.swift'], entities: ['todo.demo_todo_1'], patterns: [],
+    build: function (ctx, o) { return C.adminSheet(ctx, o); },
+    defaultTitle: 'Empty', defaultNote: 'Add is disabled until the trimmed task is not empty; "Add Images" opens the system photo picker', defaultO: {},
+    errorTitle: 'Image problem', errorNote: 'a picked set that breaks the rules shows the web\'s wording above the fields ("Select PNG, JPEG, or WebP images."); the picked images are cleared', errorO: { value: 'Back up the photo library', error: 'Select PNG, JPEG, or WebP images.' },
+    offlineO: { value: 'Back up the photo library', images: ['image-1.jpeg'], error: 'Unable to add this task. Try again.' },
+    ax5O: { value: 'Back up the photo library', images: ['image-1.jpeg', 'image-2.png'] },
+    extra: {
+      'typed': { title: 'Task typed, no images', note: 'a plain todo.add_item', o: { value: 'Back up the photo library' } },
+      'with-images': { title: 'Two images picked', note: 'each row: a 44 pt thumbnail, the file name and a remove button; the picker row now reads "Choose Different Images"', o: { value: 'Back up the photo library', images: ['image-1.jpeg', 'image-2.png'] } },
+      'uploading': { title: 'Uploading', note: 'the multipart POST /api/sfenton_admin_todo with the bearer token is in flight: arc on the check, form disabled', o: { value: 'Back up the photo library', images: ['image-1.jpeg', 'image-2.png'], busy: 'saving' } },
+      'upload-error': { title: 'Upload failed', note: '"Unable to add this task. Try again." and the form stays filled', o: { value: 'Back up the photo library', images: ['image-1.jpeg', 'image-2.png'], error: 'Unable to add this task. Try again.' } },
+    },
+    a11y: [
+      { rule: 'Photo picker row', note: 'A PhotosPicker styled as a list row in the action tint (Ink.action: the app accent measured 3.3:1 on the modal ground); label "Add Images" or "Choose Different Images". The system picker is out of scope.' },
+      { rule: 'Image rows', note: 'The thumbnail is decorative (hidden); the row reads the file name; "Remove {name}" is a 44 x 44 destructive button.' },
+      { rule: 'Disclosure', note: 'The footer "This issue is synchronized from the dashboard Admin To-Do list. The repository is public." is read with the field; it is the only warning that the text becomes public.' },
+    ],
+    notes: [
+      'items with images: the task text is capped at 1000 characters (silently trimmed) and shows one to four lines. Images are 4 at most, 10 MB each; wording is AdminTodoUpload.validationError.',
+      'loading: no fetch; the nearest state is Uploading (busy). Thumbnails here are kit photo stand-ins, never the user\'s pictures. The system PhotosPicker presents over this sheet and is not drawn.',
+      'Only Alex sees the admin To-Do (hidden from Sam), so only he reaches this sheet.',
+    ],
+  }));
+
+})();
+</script></body></html>

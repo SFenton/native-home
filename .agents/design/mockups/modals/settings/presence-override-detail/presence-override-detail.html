@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Room presence override detail · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function detail(room, mode, o) { return function (ctx) { return HF.detailSheet(ctx, Object.assign({ room: room, mode: mode }, o)); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'presence-override-detail', title: 'Room presence override detail', area: 'settings', status: 'shipped',
+    summary: 'Pushed inside the Presence-Based Overrides sheet when a room tile is tapped. The title is just the room name; below it the room\'s four modes as a single-choice list (icon, label, what it does, a checkmark on the current one). One column on phones, two where the sheet is wide. An unavailable room shows all four dimmed and disabled with the reason.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdSettings.swift', 'apple/Sources/HassDesign/SettingsSection.swift', 'apple/Sources/HassCore/Settings/PresenceOverrideState.swift', 'apple/Sources/HassCore/Settings/HouseholdSettingsController.swift'],
+    spec: ['.agents/pages/settings/household.md', '.agents/patterns/settings-section.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['settings-section', 'modal-sheet', 'dynamic-grid', 'motion'],
+    hig: ['Lists and tables (single choice with a checkmark)', 'Sheets', 'Navigation bars', 'Color', 'Dynamic Type'],
+    entities: ['switch.<room>_presence_..._presence_allowed', 'service presence_based_lighting.set_automation_state (active | off | paused | quieted)'],
+    kitComponents: ['HassModal', 'SelectableOptionRow', 'TileGrid', 'SheetCloseItem'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Kitchen: Enabled', note: 'the selected row has the green border, green glyph and a green checkmark; tap another row to try it', render: detail('Kitchen', 'enabled') },
+      'disabled': { title: 'Kitchen: Disabled', render: detail('Kitchen', 'off') },
+      'paused': { title: 'Bedroom 1: Paused', render: detail('Bedroom 1', 'paused') },
+      'quieted': { title: 'Gym: Quieted', render: detail('Gym', 'quieted') },
+      'error': { title: 'Studio: Unavailable', note: 'all four rows are at 50% and disabled; below them "Home Assistant state is unavailable."; Back and Close still work', render: detail('Studio', 'unavailable') },
+      'offline': { title: 'Over an offline Admin page', note: 'no offline UI inside the sheet: the last known mode stays selected; a tap sends and reverts after 2 s if nothing confirms', render: detail('Kitchen', 'enabled', { connection: 'offline' }) },
+      'wide': { title: 'Two columns on an iPad page sheet', override: { device: 'ipad-landscape' }, note: 'a 704 pt sheet leaves 672 pt, enough for two 300 pt columns; the web\'s 2x2 grid crowded an iPhone, so the phone gets one', render: detail('Kitchen', 'enabled') },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the rows grow, one column, labels and descriptions wrap; the title "Downstairs Hallway" is the longest room name', render: detail('Downstairs Hallway', 'quieted') },
+      'long-text': { title: 'Longest room name at xxxLarge', override: { ts: 'xxxl' }, note: 'the bar shows Back, the centred title and Close; the title is capped around xxxLarge by the bar', render: detail('Downstairs Hallway', 'enabled') },
+    },
+
+    motion: [
+      { id: 'option-select', what: 'Choosing a mode: the new row fills its border and glyph in its colour and its checkmark fades in; the old row empties', token: 'border and glyph colour: state 0.6 s ease-in-out; checkmark: quick 0.2 s easeOut (0.2 s reduced for colour)', state: 'default',
+        source: 'HassDesign/SettingsSection.swift SelectableOptionRow (stateColorTransition + quickTransition "SelectableOptionRow"); motion.md section 6', reduce: 'colour still cross-fades, shortened to 0.2 s; the checkmark fade is unchanged (opacity is not motion)',
+        play: function (stage) {
+          var rows = stage.querySelectorAll('.hf-opt'); if (rows.length < 3) return Promise.resolve();
+          rows[2].click(); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { rows[3].click(); return Mock.sleep(Mock.anim.ms.state() + 500); }).then(function () { rows[0].click(); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+      { id: 'disabled-dim', what: 'A room becoming unavailable: all four rows fade to 50%', token: 'quick 0.2 s easeOut on opacity', state: 'default',
+        source: 'HassDesign/SettingsSection.swift SelectableOptionRow .quickTransition("SelectableOptionRow", value: isDisabled)', reduce: 'unchanged (opacity is not motion)',
+        play: function (stage) {
+          var rows = stage.querySelectorAll('.hf-opt'); rows.forEach(function (r) { r.disabled = true; });
+          return Mock.sleep(Mock.anim.ms.quick() + 700).then(function () { rows.forEach(function (r) { r.disabled = false; }); return Mock.sleep(Mock.anim.ms.quick() + 300); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Presence-Based Overrides sheet (room tile)', to: 'Room modes', kind: 'push', state: 'default', note: 'A plain push inside the sheet\'s NavigationStack: the room list shifts left and dims, the modes slide in with Back and Close. No zoom inside sheets (owner 2026-10-22). Reduce Motion cross-fades.',
+        play: function (stage) { return HF.pushFromGrid(stage, { hold: 1100 }); } },
+      { from: 'Room modes', to: 'Presence-Based Overrides sheet', kind: 'push', state: 'default', note: 'Back pops (interactive edge swipe too); Close dismisses the whole sheet from here, not just this page.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, the title (the room name), Close in the bar; then the four modes top to bottom (Enable, Disable, Paused, Quieted); when unavailable, the explanation last.' },
+      { rule: 'Option row', note: 'A button named by its label, with the description as the hint, and the selected trait on the current mode (identifier presence.option.<enabled|off|paused|quieted>). The icon and checkmark are decorative; the selected state is spoken, not only the border.' },
+      { rule: 'Unavailable', note: 'All four rows are disabled (dimmed, not actionable) and the text "Home Assistant state is unavailable." follows them; VoiceOver reaches it as normal text.' },
+      { rule: 'Targets', note: 'Each row is at least 44 pt tall (12 pt padding around a 17 pt label and a 15 pt description, in practice about 76 pt).' },
+      { rule: 'Dynamic Type', note: 'Labels and descriptions wrap (fixedSize vertical); the grid is one column below 612 pt and at every accessibility size; the title never truncates because it is just the room name.' },
+      { rule: 'Title length', note: 'The web title "<Room> Presence Lighting" clipped at large text sizes beside Back and Close, so the detail is titled with just the room (HIG: Navigation bars, keep titles short).' },
+      { rule: 'Not colour alone', note: 'The four modes differ by glyph (bulb, bulb with a slash, pause, muted speaker) and written label as well as the border colour.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists and tables: single choice with a visible selection', verdict: 'pass', note: 'SelectableOptionRow adds a checkmark, a 2 pt border and the isSelected trait (SettingsSection.swift:140-166); the tint is not the only signal.', by: 'apple-hig skill' },
+        { rule: 'Navigation bars: short titles', verdict: 'pass', note: 'Title is just the room because the bar also holds Back and Close (AdminSettingsContent.swift:198-201).', by: 'apple-hig skill' },
+        { rule: 'Sheets: Close from any depth', verdict: 'pass', note: 'householdSheetDone is applied on the pushed page too, passing the sheet\'s own dismiss (:109-114, :158).', by: 'apple-hig skill' },
+        { rule: 'Layout: one column, two where there is room', verdict: 'pass', note: 'DynamicGridLayout(minCellWidth: 300, maxColumns: 2) (:175).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: disabled controls explain themselves', verdict: 'pass', note: 'All four options go to 50% and disabled with "Home Assistant state is unavailable." below (:191-196; SettingsSection.swift:157-158).', by: 'apple-hig skill' },
+        { rule: 'Feedback: a refused change tells the person', verdict: 'pass', note: 'Fixed in AdminSettingsContent.swift (PresenceOverrideDetail): presenceFailed shows an InlineAlert error line with the error haptic and announcement for 4 s.', by: 'apple-hig skill' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'headline title, subheadline detail, fixedSize vertical on both (SettingsSection.swift:130-137), so long modes wrap at AX5.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: hints carry actions, not content', verdict: 'pass', note: 'SelectableOptionRow speaks the mode description as the value.', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: Button with selected trait and label', verdict: 'pass', note: 'The Button itself carries label, hint and .isSelected (:164-166).', by: 'swiftui-pro skill' },
+        { rule: 'Views: conditional modifier wrapper', verdict: 'pass', note: 'Fixed: PresenceOverrideDetail\'s Done is a toolbar item present only with a sheet (AdminSettingsContent.swift); OptionalSheetDone is gone.', by: 'swiftui-pro skill' },
+        { rule: 'Navigation: destination registered once per stack', verdict: 'pass', note: 'navigationDestination(for: PresenceRoom.self) sits on the sheet\'s root only (:157).', by: 'swiftui-pro skill' },
+        { rule: 'Motion: state transitions honour Reduce Motion', verdict: 'pass', note: 'quickTransition and stateColorTransition cross-fade the border and checkmark (SettingsSection.swift:144, :155).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading: no loading state; the detail reads EntityStore (snapshot first). A room never seen reads Unavailable (the error state). refreshing: a mode change from Home Assistant moves the selection in place.',
+      'medium, large and fitted: a pushed page cannot change the sheet\'s height, so the presence sheet is always the large detent (full height) and this page shows at that height; there is no medium or fitted for the detail.',
+      'Docs versus code: household.md lists the sheet with "Done"; the code has the circle-X Close on both levels (householdSheetDone).',
+      'The push demo lays the room grid under the detail and slides the detail in over it; the same push is also on the presence-overrides-sheet item, started from the grid.',
+      'Fixture data: the selected modes are invented; the copy is PresenceOverrideState verbatim.',
+      'Duo unfolded: the page sheet is centred and may cross the hinge band (not run on a simulator).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: four modes, unavailable, one and two columns, selection motion, light and dark.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brightness tile · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function t(o) { return function () { return h('div', { style: { width: '220px', position: 'relative', paddingTop: o && o.dragging ? '30px' : '0' } }, MLC.lightTile(o)); }; }
+  function both(ctx, label, o, extra) { return MLC.grid([MLC.sw(ctx, 'page', label, t(o)(), { flex: '0 0 auto', note: extra }), MLC.sw(ctx, 'sheet', label, t(o)(), { flex: '0 0 auto' })]); }
+  function G(items) { return function (ctx) { return MLC.stack(items.map(function (x) { return both(ctx, x[0], x[1], x[2]); })); }; }
+
+  Mock.mount({
+    kind: 'component', id: 'brightness-tile', title: 'Brightness tile (the light dragger)', area: 'tiles', status: 'shipped', frame: false,
+    summary: 'A dimmable light as the warm lit tile whose bright band is the brightness. Tap flips power (or opens the light\'s details, with a chevron); a horizontal drag sets brightness, a "30%" bubble floats over the band edge, the tile lifts, a haptic ticks every 10%.',
+    source: ['apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/CustomLights/CustomLightsScreen.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['entity-tile'], hig: ['Sliders', 'Buttons', 'Playing haptics'], entities: ['light.demo_front_door_door_8'],
+    kitComponents: ['GlassTile', 'BrightnessTile'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'on': { title: 'On at 80% (opens details) and 41%', note: 'status line "80%" (not "On at 80%": the kit\'s BrightnessTile says that, the app does not); chevron when tap opens the sheet', render: G([['80%, opens details', { title: 'Bollard 1', percent: 80, open: true }], ['41%, power tile (no chevron)', { title: 'Bollard 5', percent: 41 }]]) },
+      'off': { title: 'Off', note: 'the off face: status "Off"', render: G([['off', { title: 'Bollard 6', percent: 0, open: true }]]) },
+      'colour': { title: 'Colour fill (a coloured bulb tints the band)', note: 'the band takes the light\'s rgb_color, never past dark-ink contrast', render: G([['red', { title: 'Bollard 2', percent: 71, rgb: [255, 0, 0], open: true }], ['green', { title: 'Left Door Light', percent: 100, rgb: [0, 255, 0], open: true }], ['blue', { title: 'Right Door Light', percent: 90, rgb: [0, 0, 255], open: true }]]) },
+      'dragging': { title: 'Dragging: lifted, bubble', note: 'scale 1.03 and a shadow; with Reduce Motion only the shadow and bubble', render: G([['drag to 30%', { title: 'Bollard 2', percent: 30, rgb: [255, 0, 0], dragging: true, open: true }]]) },
+      'unavailable': { title: 'Unavailable', note: 'status "Unavailable", glyph dims, no touch', render: G([['unavailable', { title: 'Back Deck Light', percent: 0, unavailable: true, open: true }]]) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the stacked tile; the status stays one line', render: G([['80%', { title: 'Bollard 1', percent: 80, open: true }]]) },
+    },
+    motion: [
+      { id: 'drag', what: 'A horizontal drag: the tile lifts, the band and bubble follow the finger, a haptic ticks every 10%', token: 'quick 0.2 s easeOut for the band and bubble, 1.03 lift', source: 'BrightnessTile.swift motionSafeAnimation(quick); motion-components.md BrightnessTile (done)', reduce: 'no scale: shadow and bubble fade; the band jumps', state: 'on',
+        play: function (stage) { return MLC.drag(stage.querySelector('.ui-tile.lit'), [80, 55, 25, 60, 95, 80]); } },
+      { id: 'power', what: 'Tap flips power: optimistic full, then the restored level arrives', token: 'quick 0.2 s on the band; the face colour on state 0.6 s', source: 'BrightnessInteraction.flip; pendingTimeout 4 s', reduce: 'unchanged (no movement)', state: 'on',
+        play: function (stage) { var tile = stage.querySelectorAll('.ui-tile.lit')[1], band = tile.querySelector('.band'), st = tile.querySelector('.st'); band.style.width = '0%'; st.textContent = 'Off'; return Mock.sleep(900).then(function () { band.style.width = '100%'; st.textContent = '100%'; return Mock.sleep(700); }).then(function () { band.style.width = '41%'; st.textContent = '41%'; return Mock.sleep(500); }); } },
+    ],
+    a11y: [
+      { rule: 'Element', note: 'One adjustable button: label the light, value "71%", "Off" or "Unavailable", hint "Double-tap for details. Swipe up or down to adjust brightness." (or "Double-tap to turn on or off" without a chevron).' },
+      { rule: 'Adjust', note: 'Swipe up or down steps by 10% (clamped 0 to 100) and sends once; where tap opens details a 44 pt power button ("Turn On/Off {title}") sits where the chevron was, and the VoiceOver action is not repeated.' },
+      { rule: 'Drag', note: 'Only a mostly horizontal pan sets brightness; a vertical one scrolls the page (a UIKit pan from iOS 18).' },
+      { rule: 'Not colour alone', note: 'Level is shown as the band, the percentage and Off or Unavailable words; the bubble is hidden from VoiceOver (the value is read).' },
+      { rule: 'Targets and type', note: '72 pt tall minimum; the bubble caps its type at xxLarge.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Sliders: continuous values adjust by drag and by assistive adjust', verdict: 'pass', note: 'A horizontal drag commits on release; accessibilityAdjustableAction steps 10% and sends once (BrightnessTile.swift:143-149, 280-285).' },
+        { by: 'apple-hig skill', rule: 'Playing haptics: a selection tick as the value moves', verdict: 'pass', note: 'sensoryFeedback(.selection) fires between 10% steps only while dragging (lines 123-125).' },
+        { by: 'apple-hig skill', rule: 'Color: level is not shown by the band alone', verdict: 'pass', note: 'The band is joined by the percent, Off or Unavailable text (status, lines 217-220); the "30%" bubble is VoiceOver-hidden because the value is read.' },
+        { by: 'apple-hig skill', rule: 'Typography: Dynamic Type', verdict: 'departure', note: 'The drag bubble caps its type at xxLarge (line 244); it is transient, hidden from VoiceOver and repeats the tile\'s own scaling percent.' },
+        { by: 'apple-hig skill', rule: 'Gestures: a visible way to do the primary action', verdict: 'pass', note: 'BrightnessTile draws a 44 pt power button (identifier brightness.power) in place of the chevron when onOpen is set.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: onTapGesture only when needed, with button traits', verdict: 'pass', note: 'onTapGesture (line 88) shares the overlay with a pan, so a Button cannot be used; the element adds .isButton and an accessibilityAction (lines 136-137).' },
+        { by: 'swiftui-pro skill', rule: 'api.md: avoid UIKit; SwiftUI first', verdict: 'departure', note: 'HorizontalPan is a UIGestureRecognizerRepresentable (lines 350-391) because from iOS 18 a SwiftUI DragGesture inside a ScrollView stops the page scrolling (comment lines 318-323); iOS 17 keeps the SwiftUI drag.' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: no shadow pass at rest', verdict: 'pass', note: 'The blurred shadow is drawn only while dragging (line 121).' },
+        { by: 'swiftui-pro skill', rule: 'views.md: no timing heuristics for gesture disambiguation', verdict: 'pass', note: 'Fixed: the clock is gone; BrightnessDrag holds the tap and drag as one gesture with precedence (iOS 18 UIKit pan cancels the tap; elsewhere DragGesture.exclusively(before: TapGesture)).' },
+      ],
+    },
+    notes: ['Kit gap: Mock.components.BrightnessTile draws "On at 70%" and has no chevron; the app draws "70%" (BrightnessTile.status) and a chevron with onOpen. This page uses MLC.lightTile; promote to kit.', 'The unavailable tile is the off face with the glyph at 50%.', 'The lit tile\'s cream and band colours are the kit tokens (direction-g.md "Lit tiles").'],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

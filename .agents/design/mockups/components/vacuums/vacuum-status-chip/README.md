@@ -1,0 +1,8 @@
+# Vacuum status tiles, order chip, setting rows, action and selection tiles (component)
+> **What:** the small vacuum sheet parts as decided 2026-10-28: three status tiles, order chip and badge, pop-up setting rows (animated Water and Fan), action tiles (target, run, dock), selection tiles (Rooms, Auto-Clean), the Clean button. **Read when:** you change `VacuumComponents.swift`, `VacuumStatusChips.swift`, `VacuumActionTile.swift`, `VacuumChoiceTile.swift`, `VacuumActionButton.swift`, `VacuumSettingRow.swift` or a vacuum control. The id keeps its old name "status chip".
+- Mockup: [vacuum-status-chip.html](vacuum-status-chip.html) · status shipped (PR #210) · reviewed 2026-10-23 (redesign reviewed in the build PR)
+- Source: `apple/Sources/HassUI/Features/Vacuums/VacuumComponents.swift, VacuumStatusChips.swift, VacuumActionTile.swift, VacuumChoiceTile.swift, VacuumActionButton.swift, VacuumSettingRow.swift, VacuumShapeMotion.swift, VacuumMapPanel.swift, VacuumControlsTab.swift, VacuumRoomsTab.swift, HassDesign/GlassTile.swift` (paths under `apple/Sources/` unless full) · Spec: `.agents/design/vacuum-sheet-redesign.md, patterns/vacuum-sheet.md` · Patterns: vacuum-sheet, action-tiles, module-list
+- States covered: status tiles by state, order chip, badge, pop-up rows (all four, Water absent, Fan absent), action tiles (target, run, unavailable with footer, dock, tracked), selection tiles, Clean button, ax5
+- Motion: Water row in and out (standard / quick), selection disc (state 0.6 s)
+- Devices: compact and regular width (sheet surface, light and dark)
+- Open notes: tile helpers still load from `proposals/`; promote the vac.* builders and the tile helpers to the kit when the build lands

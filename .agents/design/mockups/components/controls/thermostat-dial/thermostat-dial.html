@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ThermostatDial · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, SC = window.SecClimate;
+  /** One dial swatch: o are SC.dial options; surface decides the supporting ink and the size class follows the swatch. */
+  function D(label, o, note, w) { return { label: label, note: note, width: w || '400px', build: function (surface) { return SC.dial(Object.assign({ title: 'Whole Home', surface: surface === 'page' ? 'page' : 'sheet', current: 72, action: 'idle' }, o)); } }; }
+  function S(title, items, min) { return SC.swatchState(title, { min: min || 400, items: items }); }
+
+  Mock.mount({
+    kind: 'component', id: 'thermostat-dial', title: 'ThermostatDial', area: 'design', status: 'shipped', frame: false,
+    summary: 'The signature thermostat control: a 270 degree ring open at the bottom, heat and cool trails with draggable handles in range mode or one handle for a single target, a current-temperature marker, and a readout. Drag a handle in the Interactive state (the arrow keys here stand in for the VoiceOver adjust swipe; the app has no key handler).',
+    source: ['apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDialGeometry.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDialModel.swift', 'apple/Sources/HassUI/Controls/Thermostat/ClimateThermostatDial.swift'],
+    spec: ['.agents/patterns/thermostat-dial.md', '.agents/design/direction-g.md', '.agents/pages/climate/spec.md'],
+    patterns: ['thermostat-dial', 'optimistic-actions', 'motion'],
+    hig: ['Sliders', 'Accessibility: VoiceOver adjustable', 'Color', 'Dynamic Type', 'Haptics'],
+    entities: ['climate.thermostat_contact_sensors_global_virtual_thermostat', 'climate.demo_example_2'],
+    kitComponents: ['ThermostatDial'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'range': S('Heat and cool setpoints', [D('Range 71 to 74, heating', { low: 71, high: 74, action: 'heating' }, 'heat-to orange #CD5401 and cool-to teal #2C8E98; trails run from each end to its handle'), D('Range 68 to 72, cooling', { low: 68, high: 72, current: 75, action: 'cooling' }), D('Range, idle', { low: 70, high: 76, current: 73 })]),
+      'single': S('Single target (a thermostat without a range)', [D('Heating to 72', { target: 72, current: 68.5, action: 'heating' }, 'no trails; the handle and marker take the status colour'), D('Cooling to 70', { target: 70, current: 74, action: 'cooling' }), D('Idle at 72', { target: 72, current: 72 }, 'idle uses the secondary ink')]),
+      'off': S('Off (dimmed)', [D('Single target, off, idle', { target: 72, current: 72, action: 'off', off: true }, 'the ring drops to 45% opacity and loses its colour; text keeps full contrast'), D('Range, off', { low: 71, high: 74, action: 'off', off: true }, 'a range keeps the ring bright: dimming applies only without a range')]),
+      'unavailable': S('Unavailable (missing, unavailable or unknown)', [D('Unavailable', { unavailable: true, current: null, low: null, high: null, action: 'unavailable' }, 'no handles, no marker; the readout says Unavailable and "--"; the ring dims')]),
+      'read-only': S('Read-only (readout only)', [D('Read only', { low: 71, high: 74, action: 'heating', readOnly: true }, 'handles and gestures are off; the readout still speaks')]),
+      'dragging': S('A handle being dragged', [D('Heat-to handle held', { low: 69, high: 74, action: 'heating', dragging: 'low' }, 'a 12% white halo (40 pt) and a larger shadow; the numerals follow only for value dials; no animation while dragging')]),
+      'sizes': S('Sizes', [D('page 316 pt', { size: 'page', low: 71, high: 74, action: 'heating' }, 'Whole Home'), D('modal 300 pt', { size: 'modal', low: 71, high: 74 }, 'a room\'s detail in the sheet'), D('compact 250 pt', { size: 'compact', low: 71, high: 74 }, 'a small preview')], 300),
+      'interactive': S('Interactive: drag a handle', [D('Range, try it', { low: 71, high: 74, action: 'heating', interactive: true }, 'pointer drag; the arrow keys stand in for VoiceOver swipe up and down (one 0.5 step), the app has no hardware-keyboard handler; heat-to never passes cool-to; release commits (no call here)')]),
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the 76 pt numeral scales with text (to ~237 pt) and the readout shrinks uniformly to fit inside the ring (minimumScaleFactor 0.4)', render: function (ctx) { return SC.swatches(ctx, { min: 400, items: [D('Range at AX5', { low: 71, high: 74, action: 'heating' }), D('Single at AX5', { target: 72, current: 68.5, action: 'heating' })] }); } },
+    },
+
+    motion: [
+      { id: 'glide', what: 'Home Assistant reports new setpoints: the handles glide to them', token: 'quick 0.2 s easeOut, only when no handle is being dragged', state: 'range',
+        source: 'ThermostatDial.body .animation(reduceMotion || activeHandle != nil ? nil : MotionTokens.quick, value: displayed)', reduce: 'no animation: handles jump',
+        note: 'RingArc has no animatableData, so the arcs step while the handles and the marker glide (read from the code; confirm on a device).',
+        play: function (stage) { var d = stage.querySelector('.cdial'); d.setTargets({ low: 66, high: 77 }); return Mock.sleep(Mock.anim.ms.quick() + 600).then(function () { d.setTargets({ low: 71, high: 74 }); return Mock.sleep(Mock.anim.ms.quick() + 400); }); } },
+      { id: 'drag', what: 'Dragging the heat-to handle: it follows the finger with no animation, selection haptics at each step; the call goes on release', token: 'none while dragging (animation modifier is nil); haptic .selection per step', state: 'range',
+        source: 'ThermostatDial.handleView DragGesture, .sensoryFeedback(.selection, trigger: displayed)', reduce: 'unchanged (nothing animates); haptics are the system\'s',
+        play: function (stage) {
+          var d = stage.querySelector('.cdial'), v = 71, steps = 10, i = 0;
+          return new Promise(function (res) { var t = setInterval(function () { i++; v -= 1; d.setTargets({ low: v }, { dragging: 'low' }); if (i >= steps) { clearInterval(t); d.setTargets({ low: v }, { dragging: null }); setTimeout(function () { d.setTargets({ low: 71 }); res(); }, 900); } }, 90); });
+        } },
+      { id: 'status-colour', what: 'The HVAC action changes: the marker and a single handle cross-fade to the new status colour', token: 'state 0.6 s ease-in-out, colour only', state: 'single',
+        source: 'ThermostatDial marker and handle .stateColorTransition("ThermostatDial", value: colorKey); motion-components.md', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var d = stage.querySelector('.cdial'); d.update({ action: 'cooling' }); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { d.update({ action: 'idle' }); return Mock.sleep(Mock.anim.ms.state() + 400); }).then(function () { d.update({ action: 'heating' }); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Handles', note: 'Each handle is its own adjustable element: label "<title> target temperature", "<title> heat to" or "<title> cool to", value "72 degrees"; swipe up or down moves one step and commits. 64 pt touch target around each 24 pt handle. The web hid them from assistive tech.' },
+      { rule: 'Readout', note: 'One element: label "<title> thermostat, Heating, currently 68.5°F", value "set to 72.0°F". Ring, trails and marker are hidden.' },
+      { rule: 'Ring taps', note: 'A tap on the ring band (64 pt wide) moves the nearest handle there; touches inside the ring fall through to the enclosing scroll view.' },
+      { rule: 'State is not colour alone', note: 'The action line states Heating, Cooling or Idle; the colours (orange, teal, grey) add to it. Unavailable says "Unavailable".' },
+      { rule: 'Increase Contrast', note: 'The track goes from 16% to 38% of the label colour.' },
+      { rule: 'Dynamic Type', note: 'The numeral is @ScaledMetric(relativeTo: .largeTitle) 76; the whole readout shrinks to fit 62% of the ring (no wrapping inside the ring).' },
+      { rule: 'Reduce Motion', note: 'Handle glide off; haptics unchanged.' },
+      { rule: 'Contrast on the wallpaper', note: 'Supporting text is 92% white on the page (72% measured 3.8:1) and the adaptive secondary ink in a sheet.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Gestures and Buttons: custom drag handles need a generous touch target; touches outside the control fall through", verdict: "pass", note: "Each 24 pt handle sits in a 64 pt hit frame and the ring accepts taps in a 64 pt band (RingHitShape), so touches inside the ring fall through to the enclosing scroll view; the drag shows the setpoint at once and commits on release.", by: "apple-hig skill" },
+
+        { rule: "Accessibility: provide an alternative to a precise drag gesture", verdict: "pass", note: "ThermostatDial handle adds \"Raise\" and \"Lower\" accessibility actions beside the adjustable action (one step each), reachable by Switch Control and Voice Control; no new visible buttons (hig-decisions).", by: "apple-hig skill" },
+
+        { rule: "VoiceOver: custom controls expose name, value and adjustability", verdict: "pass", note: "Each handle is an adjustable element ('<title> heat to', value '72 degrees', swipe up or down moves one step and commits) and the readout is one element ('Heating, currently 68.5°F', 'set to 72.0°F'); the ring, trails and marker are hidden.", by: "apple-hig skill" },
+
+        { rule: "Color: do not rely on colour alone; non-text contrast 3:1", verdict: "pass", note: "The ring track is HassTokens.Ink.track(increasedContrast:), the label colour at 42% (60% with Increase Contrast), 3:1 as a boundary (ThermostatDialRing.trackColor, Palette.trackOpacity); tested in ColourContrastTests.", by: "apple-hig skill" },
+
+        { rule: "Typography: Dynamic Type should enlarge text, not shrink it to fit", verdict: "pass", note: "At accessibility sizes ThermostatDial.readout shows the numeral alone (no 0.4 shrink, 0.8 side width) and the action and caption lines sit below the dial in ThermostatDial.textLines.", by: "apple-hig skill" },
+
+        { rule: "Feedback and Playing haptics: selection haptic while adjusting", verdict: "pass", note: "sensoryFeedback(.selection, trigger: displayed) fires only while a handle is active, once per step; the glide animation is off while dragging and under Reduce Motion, while haptics are unchanged.", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "API: sensoryFeedback and value-keyed animation", verdict: "pass", note: "The dial uses .sensoryFeedback(.selection, trigger:) rather than UIKit generators and .animation(_, value: displayed), switched off while a handle is active or Reduce Motion is on.", by: "swiftui-pro skill" },
+
+        { rule: "Design: avoid GeometryReader where containerRelativeFrame works; no fixed screen sizes", verdict: "pass", note: "The ring is centred with a frame in the GeometryReader instead of .position; the reader stays for the measured side (ThermostatDial.dial).", by: "swiftui-pro skill" },
+
+        { rule: "Data flow: pure view, editor model owns the draft, caller rolls back on rejection", verdict: "pass", note: "@State ThermostatDialEditor holds the in-flight edit, onCommit sends setpoints and a rejection value rolls the handles back, matching AGENTS.md's optimistic-actions rule (Home Assistant stays the source of truth).", by: "swiftui-pro skill" },
+
+        { rule: "Design: hard-coded colours", verdict: "pass", note: "Fixed: heat and cool are HassTokens.Tint.heat and cool (ThermostatDialPalette.swift) and the 76 pt numeral follows Bold Text through the legibility weight (ThermostatDialReadout.swift).", by: "swiftui-pro skill" },
+
+        { rule: "Views: one type per file; computed some View members", verdict: "pass", note: "Fixed: ThermostatDial.swift now composes ThermostatDialRing, ThermostatDialReadout and ThermostatDialHandle (one View struct per file); the ring, readout and handle builder methods are gone.", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'Corrected 2026-10-23 (skill review): the mockup said a handle can be focused and moved with the arrow keys. In the app a handle is moved by drag, a ring tap, or VoiceOver\'s adjustable action (swipe up or down, one step); there is no onKeyPress, focusable or Stepper path (ThermostatDial.swift, ClimateThermostatDial.swift). The arrow keys in the Interactive state are a demo stand-in for the VoiceOver action.',
+      'This mockup draws the dial with the local SecClimate.dial because the kit\'s ThermostatDial draws only the range look (heat arc from the minimum, cool arc to the maximum, a dark dot): no single-target mode (no trails), no off or unavailable state, no halo, a plain white knob without the 4 pt status ring, and a text readout without the fitting. Promote to kit: this dial.',
+      'Docs versus code: the catalog and thermostat-dial.md say numerals roll; the code has no contentTransition on the readout, so the current temperature swaps. The code also says "Thin" in direction-g.md but draws Light (76 pt, .light).',
+      'Docs versus code: thermostat-dial.md says sizes page 316, modal 300, compact 250 are the ring maximum; the view adds a 20 pt gutter each side so the 64 pt handle targets stay inside (box 356, 340 and 290 pt).',
+      'The unit is drawn raised with an alignment guide in the app; here with relative positioning. The thermometer glyph in the caption is the app\'s Label; the kit stand-in is used.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: range, single, off, unavailable, read-only, dragging, sizes, interactive and AX5; three motions.' }],
+  });
+})();
+</script></body></html>

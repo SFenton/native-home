@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Remote controls · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = MLC.remotes;
+  function pad(ctx, id, o) { return MLC.pad(ctx, R[id], o); }
+  function one(ctx, label, node, o) { return MLC.sw(ctx, 'sheet', label, node, Object.assign({ flex: '0 1 340px' }, o)); }
+
+  Mock.mount({
+    kind: 'component', id: 'media-remote-controls', title: 'Remote controls', area: 'media', status: 'shipped', frame: false,
+    summary: 'The remote\'s controls: the 3 × 3 pad of grey circles (Power in the top-right cell, a filled success disc while on and a neutral ring while off), the volume card with its slider, and the transport keys. Sheet cell colour, white glyphs.',
+    source: ['apple/Sources/HassUI/Features/MediaRemote/MediaRemoteControls.swift', 'apple/Sources/HassCore/Config/MediaRemotes.swift', 'apple/Sources/HassCore/MediaRemote/MediaRemoteController.swift'],
+    spec: ['.agents/patterns/media-remote.md', '.agents/design/direction-g.md'],
+    patterns: ['media-remote'], hig: ['Buttons', 'Playing haptics', 'Sliders'], entities: ['media_player.demo_living_room_1', 'media_player.demo_media_player_1'],
+    kitComponents: ['Slider', 'SheetCloseItem'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Streaming box pad, volume card, transport', render: function (ctx) { var r = R['living-room-shield']; return MLC.grid([one(ctx, 'pad', pad(ctx, 'living-room-shield')), one(ctx, 'volume card', MLC.volumeCard(r)), one(ctx, 'transport', MLC.transport(ctx))]); } },
+      'power': { title: 'Power on (filled disc) and off (ring)', note: 'Power stays enabled while the directions disable: it is how the device turns on', render: function (ctx) { return MLC.grid([one(ctx, 'on', pad(ctx, 'living-room-shield', { power: 'on' })), one(ctx, 'off', pad(ctx, 'living-room-shield', { power: 'off' }))]); } },
+      'pressed': { title: 'Pressed (Up), and Reduce Motion', note: 'scales to 0.94; with Reduce Motion it dims to 70% (turn the switch above)', render: function (ctx) { return one(ctx, 'Up held', pad(ctx, 'living-room-shield', { pressed: 'Up' })); } },
+      'disabled': { title: 'Disabled: everything unavailable', note: 'directions, playback and volume at 40%; Power a ring and enabled', render: function (ctx) { var r = R['music-room-remote']; return MLC.grid([one(ctx, 'pad', pad(ctx, 'music-room-remote', { power: 'unavailable' })), one(ctx, 'volume (kept: showVolumeWhenOff)', MLC.volumeCard(r, { off: true, pct: 0 })), one(ctx, 'transport', MLC.transport(ctx, { disabled: true }))]); } },
+      'keyboard': { title: 'Keyboard open (Expanded)', note: 'the Keyboard key reads Expanded; the form shows under the pad, Send disabled while blank', render: function (ctx) { return MLC.grid([one(ctx, 'pad', pad(ctx, 'living-room-shield', { keyboard: true })), one(ctx, 'form, blank', MLC.keyboardForm(ctx, {})), one(ctx, 'form, typed', MLC.keyboardForm(ctx, { text: 'stranger things' }))]); } },
+      'apple-tv': { title: 'Streamer pad and the Studio (switch) pad', note: 'Streamer: Menu chevron, dot on Select, house on Home, empty keyboard corner; Studio: no keyboard corner, Power is a switch', render: function (ctx) { return MLC.grid([one(ctx, 'Streamer', pad(ctx, 'master-bedroom-apple-tv')), one(ctx, 'Studio', pad(ctx, 'music-room-remote'))]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'pad keys 104 pt, transport 88 pt; the keyboard form stacks', render: function (ctx) { return MLC.grid([one(ctx, 'pad', pad(ctx, 'living-room-shield'), { flex: '0 1 400px' }), one(ctx, 'controls', MLC.controlsTab(ctx, R['living-room-shield'], { keyboard: true }), { flex: '0 1 460px' })]); } },
+    },
+    motion: [
+      { id: 'press', what: 'A key presses in with a light haptic', token: 'quick 0.2 s easeOut, scale 1 to 0.94', source: 'RoundButtonStyle (motionSafeAnimation quick)', reduce: 'dims to 70% instead of scaling', state: 'default',
+        play: function (stage) { var k = stage.querySelector('.mlc-key[aria-label="Select"]'); return MLC.press(k).then(function () { return MLC.press(stage.querySelector('.mlc-key[aria-label="Down"]')); }); } },
+      { id: 'power-colour', what: 'Power turns from a filled success disc to a neutral ring when the device turns off', token: 'state 0.6 s ease-in-out on the glyph', source: 'RemoteButtonIcon stateForeground', reduce: 'cross-fade at 0.2 s', state: 'default',
+        play: function (stage) { var p = stage.querySelector('.mlc-key.pwr'); p.classList.add('off'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { p.classList.remove('off'); return Mock.sleep(Mock.anim.ms.state() + 200); }); } },
+    ],
+    a11y: [
+      { rule: 'Pad', note: 'A group "<title> remote controls"; keys read Back (or Menu), Up, Power, Left, Select, Right, Home, Down, Keyboard; Power first in VoiceOver order; a light haptic per press; Select on a streaming box has no glyph but is a labelled button.' },
+      { rule: 'Power', note: 'Value On or Off; Voice Control also "Power On" and "Power Off"; a switch only where the config says toggle (Studio). A filled disc or a ring, plus the value.' },
+      { rule: 'Volume', note: 'Slider "<title> volume", "32 percent", adjustable; commits on release or at once for VoiceOver steps. Mute, Volume Down and Volume Up are 44 pt buttons.' },
+      { rule: 'Targets', note: 'Pad keys 64 to 104 pt (capped to the column), transport 44 to 88 pt.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Color: power state needs more than red versus green', verdict: 'pass', note: 'RemoteButtonIcon draws power as a filled Ink.success disc with Ink.onSuccessFill glyph when on and a neutral outlined ring when off (MediaRemoteControls.swift, RemoteStyle.powerOn and powerOff); no red and green pair.' },
+        { by: 'apple-hig skill', rule: 'Playing haptics: light feedback on a press', verdict: 'pass', note: 'Fixed in MediaRemoteControls.swift: RemoteIconButton and PowerButton own a TapCounter and play tapFeedback, so transport, mute and volume keys tick like the pad.' },
+        { by: 'apple-hig skill', rule: 'Buttons: a control looks pressable', verdict: 'pass', note: 'RemoteButtonIcon draws a 12 pt centre dot for the glyphless streaming box select key (RemoteButtonIcon.selectDot).' },
+        { by: 'apple-hig skill', rule: 'Sliders: leading and trailing symbols show the range', verdict: 'pass', note: 'Speaker minus and plus buttons flank the slider (lines 381-387); each is a 44 pt target.' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets that scale', verdict: 'pass', note: 'Pad keys are min(max(@ScaledMetric 76, 64), 104), never under 44 pt in a narrow column (lines 193-203); transport keys 44 to 88 pt (line 319).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'performance.md: one service call per gesture, not per point', verdict: 'pass', note: 'SliderDraft keeps the drag local and commits on release or at once for VoiceOver steps (lines 250-273).' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Reduce Motion and Voice Control', verdict: 'pass', note: 'RoundButtonStyle dims instead of scaling under Reduce Motion (lines 60-61); Power adds input labels "Power" and the device title (line 159).' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: labels for image-only buttons', verdict: 'pass', note: 'Every key sets accessibilityLabel from its config and hides the glyph (lines 86, 106).' },
+      ],
+    },
+    notes: ['The Select dot (Streamer) and the Home dot (streaming box) are footnote-size circle.fill glyphs, not buttons without glyphs.', 'Promote to kit: MLC.pad, MLC.volumeCard, MLC.transport, MLC.keyboardForm.'],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

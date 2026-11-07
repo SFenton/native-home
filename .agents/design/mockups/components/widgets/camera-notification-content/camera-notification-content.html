@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Camera notification expanded view · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../live-activity/_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  var ACTIONS = [{ title: 'View Camera', icon: 'video' }];
+  /** The expanded notification: the system's header, the extension's 16:9 view, then the default content (DefaultContentHidden is false). */
+  function expanded(ctx, state, o) {
+    o = o || {};
+    var head = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', fontSize: LA.size(ctx, 'foot') + 'px', color: 'rgba(255,255,255,.7)' }, 'aria-hidden': 'true' }, LA.appIcon(22), h('span', { style: { fontWeight: 600, letterSpacing: '.02em' } }, 'S+H'), h('span', { style: { flex: 1 } }), h('span', 'now'));
+    var body = h('div', { style: { padding: '10px 14px 14px', fontSize: LA.size(ctx, 'sub') + 'px' } }, h('div', { style: { fontWeight: 600 } }, 'Doorbell'), h('div', { style: { color: 'rgba(255,255,255,.92)', marginTop: '2px' } }, 'Someone is at the front door.'));
+    var card = h('div', { style: { width: '370px', maxWidth: '100%', borderRadius: '24px', overflow: 'hidden', background: 'rgba(44,44,48,.82)', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)', color: '#fff', fontFamily: 'var(--font)' }, role: 'group', 'aria-label': 'Doorbell, Someone is at the front door.' }, head, LA.cameraView({ state: state, title: 'Doorbell' }), body);
+    return h('div', { style: { display: 'flex', flexDirection: 'column', width: '370px', maxWidth: '100%' } }, card, o.actions === false ? null : LA.notifActions(ACTIONS, { ctx: ctx }));
+  }
+  function lock(ctx, node) { return Mock.frame(ctx, h('div.la-lock', h('div.ui-wall'), h('div', { style: { position: 'absolute', left: 0, right: 0, top: ctx.device.safeTop + 28 + 'px', display: 'flex', justifyContent: 'center', padding: '0 16px', zIndex: 5 } }, node))); }
+  function set(ctx, items) {
+    return LA.stage(items.map(function (it) { return LA.fig(expanded(ctx, it[0], it[2]), it[0], it[1]); }));
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'camera-notification-content', title: 'Camera notification expanded view', area: 'widgets', status: 'shipped', frame: false,
+    summary: 'Long-press a camera notification: the attached snapshot at once, then the camera live, in a black 16:9 view above the notification\'s own text and buttons.',
+    source: ['apple/Apps/NotificationContent/NotificationViewController.swift'],
+    spec: ['.agents/platforms/apple/push.md'],
+    patterns: [],
+    hig: ['Notifications', 'Video'],
+    entities: ['camera.demo_front_door_camera_item_1 (fixture: tools/push_fixtures/camera.apns)'],
+    devices: ['iphone', 'duo-folded'],
+    states: {
+      'default': { title: 'Live, with the View Camera button', note: 'Doorbell, expanded on the Lock Screen', render: function (ctx) { return lock(ctx, expanded(ctx, 'live')); } },
+      loading: { title: 'Loading (no snapshot yet)', note: 'black ground and a spinner top-left', render: function (ctx) { return set(ctx, [['loading', 'black, spinner top-left (the attachment has not loaded or none was attached)']]); } },
+      snapshot: { title: 'Snapshot only (spinner)', render: function (ctx) { return set(ctx, [['snapshot', 'the attached snapshot at once, spinner while the stream connects']]); } },
+      live: { title: 'Live (red Live badge)', render: function (ctx) { return set(ctx, [['live', 'first MJPEG frame or HLS ready: Live badge, frames replace the snapshot']]); } },
+      failed: { title: 'Failed (snapshot, nothing else)', render: function (ctx) { return set(ctx, [['failed', 'not signed in or no stream: the snapshot stays, no spinner, no badge']]); } },
+      buttons: { title: 'Buttons from the payload', note: 'the camera category is fixed; the buttons are set at runtime from fenton.actions', render: function (ctx) {
+        return LA.stage([LA.fig(h('div', { style: { display: 'flex', flexDirection: 'column' } }, expanded(ctx, 'live', { actions: false }), LA.notifActions([{ title: 'View Camera', icon: 'video' }], { ctx: ctx })), 'camera.apns', 'one button: View Camera (uri to the Security page, camera-front-door)'),
+          LA.fig(h('div', { style: { display: 'flex', flexDirection: 'column' } }, expanded(ctx, 'live', { actions: false }), LA.notifActions([{ title: 'View Camera', icon: 'video' }, { title: 'Ignore', destructive: true }], { ctx: ctx })), 'with more actions', 'illustrative: any actions the automation sends; every press goes to the app (.dismissAndForwardAction)')]); } },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'the view is a picture with one label; the system\'s title and body scale', render: function (ctx) { return set(ctx, [['live', 'live']]); } },
+    },
+    motion: [
+      { id: 'snapshot-to-live', what: 'Black, then the snapshot, then the Live badge as frames arrive', token: 'none: SwiftUI swaps views; no app animation', source: 'apple/Apps/NotificationContent/NotificationViewController.swift',
+        reduce: 'Nothing to reduce: the swaps are instant. The spinner is the system ProgressView.', state: 'loading',
+        note: 'Order in code: the attachment image shows at once; MJPEG (plain HTTP with the token) and HLS (camera/stream over a commands-only websocket) start together; the first to deliver frames sets isLive, which shows the badge and (for HLS) the player at opacity 1. The mockup swaps every 1.2 s.',
+        play: function (stage) {
+          function set2(st) { var old = stage.querySelector('.la-cam16'); if (old) old.parentNode.replaceChild(LA.cameraView({ state: st, title: 'Doorbell' }), old); }
+          return Mock.sleep(900).then(function () { set2('snapshot'); return Mock.sleep(1200); }).then(function () { set2('live'); return Mock.sleep(1200); }); } },
+    ],
+    transitions: [
+      { from: 'Notification banner', to: 'Expanded notification', kind: 'overlay', note: 'Long press (or pull down) on the banner: the system presents the content extension at 16:9 (UNNotificationExtensionInitialContentSizeRatio 0.5625).' },
+      { from: 'Expanded notification', to: 'S+H (Security page, camera)', kind: 'cut', note: 'A button press stops the stream and forwards to the app (.dismissAndForwardAction); the app opens the button\'s uri or fires mobile_app_notification_action.' },
+    ],
+    a11y: [
+      { rule: 'One element', note: 'The whole view is a single accessibility element (children ignored) labelled "Doorbell, camera snapshot" or "Doorbell, live camera"; the label changes when the stream goes live.' },
+      { rule: 'Buttons', note: 'The system draws and names them from the payload (title; sfsymbols icons; authenticationRequired; destructive; textInput).' },
+      { rule: 'No controls in the view', note: 'There is no play, pause or full-screen control: a glance, not a player (PlayerLayerView avoids VideoPlayer\'s controls).' },
+      { rule: 'Contrast', note: 'The Live badge is white on red; the spinner is white on black.' },
+      { rule: 'Motion', note: 'The video itself is motion the person asked for by opening the notification; the muted player has no audio.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Notifications: custom content is glanceable', verdict: 'pass', note: 'A 16:9 picture and one Live badge (NotificationViewController.swift:171-209); the title, body and buttons stay the system\'s (defaultContentHidden is false).' },
+        { by: 'apple-hig skill', rule: 'Notifications: action buttons use the system presentation', verdict: 'pass', note: 'extensionContext.notificationActions come from the payload (line 40); every button is forwarded to the app (lines 50-54).' },
+        { by: 'apple-hig skill', rule: 'Playing video: no sound without a request', verdict: 'pass', note: 'The HLS player is created muted (line 142) and has no controls.' },
+        { by: 'apple-hig skill', rule: 'Feedback: say when something failed', verdict: 'pass', note: 'Fixed in NotificationViewController.swift: CameraNotificationModel.failed now also covers both streams failing, and the badge reads "Stream unavailable" (accessibility label too).' },
+        { by: 'apple-hig skill', rule: 'Color: a fixed video surface', verdict: 'departure', note: 'Black ground with a white-on-red badge in every appearance (lines 176, 205); it is a video surface inside system chrome, as in direction-g.md Layers.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: group into one labelled element', verdict: 'pass', note: 'accessibilityElement(children: .ignore) with a label that switches between "snapshot" and "live camera" (lines 194-195).' },
+        { by: 'swiftui-pro skill', rule: 'api.md: avoid UIKit unless the API is UIKit', verdict: 'departure', note: 'The content extension is a UIViewController hosting SwiftUI (lines 13-30) and the player is an AVPlayerLayer view (lines 213-230) because UNNotificationContentExtension and SwiftUI VideoPlayer (which adds controls) require it.' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: do not iterate a byte stream one byte at a time', verdict: 'pass', note: 'MJPEGChunkStream reads the response in the chunks URLSession delivers (HassCore, unit-tested) and the frame scanner takes each chunk; no per-byte await.' },
+      ],
+    },
+    notes: [
+      'Not confirmed on a device: push.md (status 2026-10-15, paused by the owner) says the expanded view showed the snapshot but the live video never started, and the extension wrote no trace lines. The Live state is drawn from the code, not from a working capture.',
+      'Debug builds also print the model\'s step (status text) at the bottom-left of the view; release builds do not, so the mockup omits it.',
+      'The snapshot and the Lock Screen are kit stand-ins (no real camera pictures). The notification header, default title and body and the button list are system-drawn; their look here approximates iOS.',
+      'Devices: iPhone and iPhone Duo (the notification is a system presentation); the 370 pt width is the phone card width, the Duo folded display is not measured for notifications.',
+      'Doc versus code: none; the push.md section matches the code. DefaultContentHidden is false (project.yml), so the title and body show beneath the view.',
+      'Promote to kit: LA.cameraView, LA.notif, LA.notifActions.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

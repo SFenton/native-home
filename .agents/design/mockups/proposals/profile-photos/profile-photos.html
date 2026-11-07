@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profile photos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* One reading column, then live-size crops on a wallpaper band. Every avatar below is the same AvatarMock the app's AvatarView mirrors:
+   initials disc underneath, photo layers on top, cross-fade by opacity. */
+:root {
+  --bg: #f4f5f7; --surface: #ffffff; --fg: #16181d; --fg2: #4b525e; --line: #d9dde4; --accent: #0066cc; --accent-soft: #e3effc;
+  --bad: #b3261e; --ok: #1e7b34; --code-bg: #eceef2; --dur: 0.6s;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --disp: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --alex: #1f6fd1; --sam: #c2308f; --guest: #666;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c; --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c; --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.col { max-width: 70ch; }
+h1 { font-family: var(--disp); font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance; }
+h2 { font-family: var(--disp); font-size: 24px; letter-spacing: -0.01em; margin: 56px 0 8px; text-wrap: balance; }
+h3 { font-family: var(--disp); font-size: 17px; margin: 0 0 4px; }
+p { margin: 0 0 12px; } .lede { font-size: 18px; color: var(--fg2); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+ul, ol { padding-left: 1.2em; margin: 0 0 12px; } li { margin-bottom: 4px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.tag.rec { background: var(--accent); color: #fff; }
+.fg2 { color: var(--fg2); } .small { font-size: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0 20px; background: var(--surface); border-radius: 10px; overflow: hidden; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg2); background: var(--code-bg); }
+tr:last-child td { border-bottom: 0; }
+.scroll { overflow-x: auto; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin: 16px 0; }
+button.ctl { font: inherit; font-size: 14px; font-weight: 600; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+button.ctl.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ctl:focus-visible, .toggle input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; }
+.toggle input { width: 20px; height: 20px; }
+
+/* Wallpaper band: the signed-in shell is always dark (direction G). */
+.band { margin-top: 16px; padding: 24px 20px; border-radius: 14px; background: radial-gradient(120% 140% at 20% 0%, #2c4256 0%, #16222f 55%, #0b1118 100%); display: flex; flex-wrap: wrap; gap: 26px 30px; align-items: flex-start; color: #fff; }
+.cell { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cell > .cap { color: #c9d3de; font-size: 14px; max-width: 380px; } .cell > .cap b { color: #fff; }
+.screen { position: relative; width: 380px; max-width: 100%; border-radius: 22px; overflow: hidden; background: rgba(8,12,18,.55); border: 1px solid rgba(255,255,255,.12); font-family: var(--ui); }
+.bar { height: 62px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 16px 0; }
+.bar .lead { margin-right: auto; color: #fff; font-weight: 700; font-size: 22px; }
+.glass { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgba(120,126,136,.38); border: .5px solid rgba(255,255,255,.2); color: #fff; }
+.rail { position: absolute; top: 0; right: 0; bottom: 0; width: 83px; display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 12px; }
+.rail .grp { width: 54px; border-radius: 27px; padding: 5px; display: flex; flex-direction: column; gap: 6px; align-items: center; background: rgba(120,126,136,.38); border: .5px solid rgba(255,255,255,.2); }
+
+/* Sheet crops: Account header and People rows on the sheet ground. */
+.sheet { width: 380px; max-width: 100%; border-radius: 22px; padding: 18px 16px; background: #1c1c1e; color: #fff; }
+.sheet.light { background: #f2f2f7; color: #111; }
+.sheet .name { font-size: 22px; font-weight: 700; text-align: center; margin-top: 8px; }
+.sheet .srv { font-size: 15px; color: #a1a1a8; text-align: center; }
+.sheet.light .srv { color: #5b5b62; }
+.sheet .hdr { display: flex; flex-direction: column; align-items: center; padding-bottom: 14px; }
+.cellrow { background: #2c2c2e; border-radius: 12px; overflow: hidden; }
+.sheet.light .cellrow { background: #fff; }
+.prow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; border-bottom: .5px solid rgba(255,255,255,.12); font-size: 17px; }
+.sheet.light .prow { border-bottom-color: rgba(0,0,0,.12); }
+.prow:last-child { border-bottom: 0; } .prow .n { flex: 1; } .prow .s { color: #5fd07a; } .prow .s.away { color: #a1a1a8; }
+.sheet.light .prow .s { color: #1e7b34; } .sheet.light .prow .s.away { color: #5b5b62; }
+.sec { font-size: 13px; text-transform: uppercase; letter-spacing: .02em; color: #a1a1a8; margin: 6px 14px 6px; }
+
+/* The avatar. --d is its diameter; initials sit under the photo layers and the photo layers fade over them. */
+.av { --d: 44px; position: relative; width: var(--d); height: var(--d); border-radius: 50%; flex: none; overflow: hidden; color: #fff; display: grid; place-items: center; font-weight: 600; font-size: calc(var(--d) * .4); background: var(--fill, #0066cc); }
+.av.ring { overflow: visible; }
+.av .ini { position: relative; z-index: 0; }
+.av .ph { position: absolute; inset: 0; border-radius: 50%; opacity: 0; transition: opacity var(--dur) ease-in-out; }
+.av .ph svg { width: 100%; height: 100%; display: block; }
+.av.hair::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.28); pointer-events: none; z-index: 3; }
+.sheet.light .av.hair::after, .light-ctx .av.hair::after { box-shadow: inset 0 0 0 .5px rgba(0,0,0,.18); }
+.ringed { padding: 2px; border-radius: 50%; box-shadow: 0 0 0 2px var(--rc); background: transparent; }
+.sheet .ringed { padding: 3px; }
+.alex { --fill: var(--alex); } .sam { --fill: var(--sam); } .guest { --fill: #666; } .me { --fill: #0066cc; }
+.tl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; color: #c9d3de; }
+.tl i { font-style: normal; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.12); }
+.statusline { font-size: 14px; color: #c9d3de; min-height: 22px; }
+.sizes { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- Stand-in portraits (illustrations, not photos): three different pictures so a replace is visible. -->
+  <symbol id="pA" viewBox="0 0 100 100"><rect width="100" height="100" fill="#e8b98a"/><circle cx="50" cy="40" r="19" fill="#7a4b2a"/><path d="M12 100c2-24 18-34 38-34s36 10 38 34z" fill="#2f5d8a"/><circle cx="50" cy="42" r="16" fill="#f1c9a5"/><path d="M33 36c3-14 31-16 35 0-10-6-24-6-35 0z" fill="#4a2c16"/></symbol>
+  <symbol id="pB" viewBox="0 0 100 100"><rect width="100" height="100" fill="#bcd9c6"/><circle cx="50" cy="40" r="19" fill="#2a1a12"/><path d="M10 100c2-24 18-34 40-34s38 10 40 34z" fill="#a8326f"/><circle cx="50" cy="43" r="16" fill="#e9b894"/><path d="M30 44c-2-22 38-26 40 0-3-12-12-18-20-18s-17 6-20 18z" fill="#2a1a12"/></symbol>
+  <symbol id="pC" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f2d98a"/><circle cx="50" cy="41" r="17" fill="#d79a72"/><path d="M14 100c2-22 16-32 36-32s34 10 36 32z" fill="#24304a"/><path d="M34 34c4-12 28-12 32 0-8-4-24-4-32 0z" fill="#1c1c1c"/><circle cx="43" cy="42" r="1.8" fill="#222"/><circle cx="57" cy="42" r="1.8" fill="#222"/></symbol>
+  <symbol id="pD" viewBox="0 0 100 100"><rect width="100" height="100" fill="#c9bfe8"/><circle cx="50" cy="41" r="17" fill="#8a5a3a"/><path d="M12 100c2-24 18-34 38-34s36 10 38 34z" fill="#e0e0e0"/><path d="M33 40c0-14 34-14 34 0-8-6-26-6-34 0z" fill="#111"/></symbol>
+</svg>
+
+<div class="wrap">
+  <p><span class="tag">Proposal · 2026-10-27</span> <span class="tag">proposed</span></p>
+  <h1>Profile photos</h1>
+  <p class="lede">Alex and Sam now have a photo on their Home Assistant person. The app fetches it, keeps it on the device, and draws it in place of their initials on the Profile button, the Account sheet and the People list. It fades in or out when Home Assistant's picture changes, and every cached photo is deleted on sign-out.</p>
+  <p class="small fg2">Owner brief 2026-10-27. Mockup-first per <code>propose-first</code>. The stand-in portraits below are illustrations, not real photos.</p>
+
+  <h2>1. Goal, and where a photo goes</h2>
+  <div class="col">
+    <p>Today every person is initials on a filled disc. Three surfaces draw one, at three sizes (measured from source):</p>
+    <ul>
+      <li><b>Profile button</b>: 44 pt disc on iOS 26+ (32 pt inside a 44 pt material circle before), <code>ProfileButton.label</code>. Fixed size, caps Dynamic Type.</li>
+      <li><b>Account header</b>: 84 pt, <code>@ScaledMetric</code> relative to <code>.largeTitle</code>, <code>AccountHeader</code>.</li>
+      <li><b>People at Home rows</b>: 36 pt, <code>@ScaledMetric</code> relative to <code>.body</code>, <code>PersonRow</code>, in the person's chore colour (Alex blue, Sam magenta, guests grey).</li>
+    </ul>
+    <p><b>Source.</b> Home Assistant's <code>person.*</code> entity carries <code>entity_picture</code> (<code>/api/image/serve/&lt;id&gt;/512x512</code>) and <code>user_id</code>. The id inside the path changes when someone uploads a new photo, so the path is the change signal. The signed-in user's person is the one whose <code>user_id</code> matches <code>auth/current_user</code> (the rule <code>PresenceLinker</code> already uses). The app has no WebView and one state path, so nothing new is read: <code>EntityStore</code> already holds the attribute.</p>
+    <p><b>Not changed:</b> the Duo rail group keeps the person symbol (a custom view stays 68 pt off the rail's column, existing departure). The welcome-back sign-in monogram keeps initials (signed out, photos are deleted).</p>
+  </div>
+
+  <h2>2. The four cases, playable</h2>
+  <div class="col"><p>Launch compares the server's picture path with the cached copy. A cold launch draws the cached photo on its first frame with no fade; a fade only plays when something changes while the screen is up.</p></div>
+  <div class="scroll"><table>
+    <tr><th>On device</th><th>On server</th><th>The app does</th><th>What you see</th></tr>
+    <tr><td>Nothing</td><td>Nothing</td><td>Nothing</td><td>Initials (today)</td></tr>
+    <tr><td>Nothing</td><td>A picture</td><td>Download, store, then show</td><td>Initials fade into the photo</td></tr>
+    <tr><td>A photo</td><td>Nothing (entity loaded, no <code>entity_picture</code>)</td><td>Delete the file</td><td>Photo fades into initials</td></tr>
+    <tr><td>A photo</td><td>A different picture</td><td>Download the new one, store, then swap</td><td>Old photo cross-fades into the new one (never via initials)</td></tr>
+    <tr><td>A photo</td><td>Same picture</td><td>Conditional request (<code>If-None-Match</code>); 304 keeps it</td><td>Nothing moves</td></tr>
+    <tr><td>Anything</td><td>Offline or a failed download</td><td>Keep what is cached; never delete on an error or before the entity has loaded</td><td>Nothing moves</td></tr>
+    <tr><td>Anything</td><td>Sign-out or an expired session</td><td>Delete every avatar file and in-memory image</td><td>Initials, then the sign-in</td></tr>
+  </table></div>
+
+  <div class="card" id="demo">
+    <h3>Playground · recommended option (A)</h3>
+    <p class="small fg2">The same three surfaces update together, as they do in the app: one per-person box in the store, three views bound to it.</p>
+    <div class="controls">
+      <button class="ctl" data-play="appear">Photo appears</button>
+      <button class="ctl" data-play="remove">Photo removed</button>
+      <button class="ctl" data-play="replace">Photo replaced</button>
+      <button class="ctl primary" data-play="reset">Reset to initials</button>
+      <label class="toggle"><input type="checkbox" id="rm"><span>Reduce Motion (0.2 s)</span></label>
+      <label class="toggle"><input type="checkbox" id="slow"><span>Slow 4×</span></label>
+    </div>
+    <div class="statusline" id="status" role="status">Ready · nothing cached</div>
+    <div class="band">
+      <div class="cell"><div class="screen"><div class="bar"><span class="lead">Home</span><span class="glass" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>
+        <span class="av me" data-who="alex" data-surface="button"><span class="ini">AD</span></span></div><div style="height:14px"></div></div>
+        <div class="cap"><b>iPhone, iPad bar.</b> 44 pt disc fills the glass circle; same size on both.</div></div>
+      <div class="cell"><div class="sheet"><div class="hdr"><span class="av me" data-who="alex" data-surface="header" style="--d:84px"><span class="ini">AD</span></span>
+        <div class="name">Alex Morgan</div><div class="srv">home.example.org</div></div>
+        <div class="sec">People at Home</div>
+        <div class="cellrow">
+          <div class="prow"><span class="av alex" data-who="alex" data-surface="row" style="--d:36px"><span class="ini">AD</span></span><span class="n">Alex Morgan</span><span class="s">Home</span></div>
+          <div class="prow"><span class="av sam" data-who="sam" data-surface="row" style="--d:36px"><span class="ini">AD</span></span><span class="n">Sam Morgan</span><span class="s">Home</span></div>
+          <div class="prow"><span class="av guest" data-who="guest" data-surface="row" style="--d:36px"><span class="ini">GM</span></span><span class="n">Guest Mia</span><span class="s away">Away</span></div>
+        </div></div>
+        <div class="cap"><b>Account sheet.</b> The viewer is the large avatar; every person, residents and guests, has a row. Sam's own photo changes on the same play.</div></div>
+    </div>
+  </div>
+
+  <h2>3. Options</h2>
+  <div class="col"><p>The design question is what a photo does to the person's identity colour and to the edge of the disc. Fade timing is the second question (§4).</p></div>
+  <div class="band" style="gap:34px 40px">
+    <div class="cell" style="max-width:420px"><h3 style="color:#fff">A · Photo fills the disc <span class="tag rec">Recommended</span></h3>
+      <div class="sizes">
+        <span class="av hair me" data-static="pA" style="--d:44px"><span class="ini">AD</span></span>
+        <span class="av hair me" data-static="pA" style="--d:84px"><span class="ini">AD</span></span>
+        <span class="av hair sam" data-static="pB" style="--d:36px"><span class="ini">AD</span></span>
+        <span class="av hair guest" data-static="pD" style="--d:36px"><span class="ini">GM</span></span>
+      </div>
+      <div class="cap">The photo is the whole circle with a 0.5 pt hairline (white 28% on dark, black 18% on light) so a pale photo does not dissolve into the wallpaper or the sheet. Colour is only the fallback behind initials. Same as Contacts and Messages.</div></div>
+    <div class="cell" style="max-width:420px"><h3 style="color:#fff">B · Photo with identity ring</h3>
+      <div class="sizes">
+        <span class="ringed" style="--rc:var(--alex)"><span class="av me" data-static="pA" style="--d:44px"><span class="ini">AD</span></span></span>
+        <span class="ringed" style="--rc:var(--alex)"><span class="av me" data-static="pA" style="--d:84px"><span class="ini">AD</span></span></span>
+        <span class="ringed" style="--rc:var(--sam)"><span class="av sam" data-static="pB" style="--d:36px"><span class="ini">AD</span></span></span>
+        <span class="ringed" style="--rc:#888"><span class="av guest" data-static="pD" style="--d:36px"><span class="ini">GM</span></span></span>
+      </div>
+      <div class="cap">A 2 pt ring in the person's chore colour keeps "blue is Alex, magenta is Sam". On the 44 pt bar disc a ring either shrinks the photo to 36 pt or overhangs the 44 pt glass circle; and ring colour alone tells nobody apart for colour-blind readers (the name is already beside it).</div></div>
+  </div>
+  <div class="band" style="margin-top:12px">
+    <div class="cell"><div class="sheet light" style="width:320px"><div class="sec" style="color:#5b5b62">Light sheet · option A</div><div class="cellrow">
+      <div class="prow light-ctx"><span class="av hair alex" data-static="pC" style="--d:36px"><span class="ini">AD</span></span><span class="n">Pale photo on white</span><span class="s">Home</span></div></div>
+      <div class="cap" style="color:#444"><b style="color:#111">Why the hairline.</b> The photo's bright yellow background would otherwise lose its edge on the grouped cell.</div></div></div>
+    <div class="cell"><div class="sheet" style="width:320px"><div class="sec">AX5 · option A</div><div class="hdr"><span class="av hair me" data-static="pA" style="--d:150px"><span class="ini">AD</span></span><div class="name" style="font-size:34px">Alex Morgan</div></div>
+      <div class="cap"><b>Accessibility 5.</b> The Account avatar scales with the text (<code>ScaledMetric</code>, 84 → ~150 pt) and the 36 pt row avatar scales with body. The bar disc stays 44 pt; the Large Content Viewer shows the photo enlarged on press and hold.</div></div></div>
+  </div>
+
+  <h2>4. Fade timing</h2>
+  <div class="col"><p>A photo arriving or changing is a fill change of an element that stays put, which the motion doc routes to <code>MotionTokens.state</code> (0.6 s ease-in-out, 0.2 s under Reduce Motion), the timing the owner approved for chip, tile and fill changes. The alternative is the shorter <code>crossFade</code> (0.35 s), the "moment" timing. Compare them:</p></div>
+  <div class="card">
+    <div class="controls"><button class="ctl" id="cmp600">0.6 s (state)</button><button class="ctl" id="cmp350">0.35 s (crossFade)</button><span class="statusline" id="cmpstatus" style="color:var(--fg2)"></span></div>
+    <div class="band" style="margin-top:0"><div class="sizes">
+      <span class="av me" id="cmpA" style="--d:84px"><span class="ini">AD</span></span>
+      <span class="av sam" id="cmpB" style="--d:44px"><span class="ini">AD</span></span></div></div>
+  </div>
+  <table>
+    <tr><th></th><th>0.6 s state (recommended)</th><th>0.35 s crossFade</th></tr>
+    <tr><td>Rule</td><td>Fills and tints that change with state (motion.md §7); no new token</td><td>The Reduce Motion moment timing; used for the sign-in swap</td></tr>
+    <tr><td>Feel</td><td>Unhurried; reads as the picture arriving</td><td>Brisk; closer to the system's image swaps</td></tr>
+    <tr><td>Cost</td><td>Long on a 44 pt disc, but nothing moves and it never blocks a tap</td><td>Introduces a second timing for the same kind of change</td></tr>
+  </table>
+
+  <h2>5. Devices</h2>
+  <div class="band">
+    <div class="cell"><div class="screen" style="height:150px"><div class="rail"><div class="grp"><span class="glass" style="width:44px;height:44px;background:none;border:0"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 18c1.5-3 9.5-3 11 0"/></svg></span></div></div>
+      <div style="padding:20px 100px 0 18px;font-weight:700;font-size:20px">iPhone Duo, rail</div></div>
+      <div class="cap"><b>Duo (folded, and unfolded portrait/landscape rail).</b> Person symbol in the shared glass group, unchanged. The Account sheet and People rows (all three sheet widths) show photos.</div></div>
+    <div class="cell"><div class="screen" style="width:430px"><div class="bar"><span class="lead">Home</span><span class="glass"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>
+      <span class="av hair me" data-static="pA" style="--d:44px"><span class="ini">AD</span></span></div><div style="height:14px"></div></div>
+      <div class="cap"><b>iPad, any orientation.</b> Same bar, same 44 pt avatar; sheets show the 84 pt header.</div></div>
+  </div>
+
+  <h2>6. Comparison</h2>
+  <div class="scroll"><table>
+    <tr><th></th><th>A · Photo fills the disc</th><th>B · Photo with identity ring</th></tr>
+    <tr><td>HIG</td><td>Avatars in Contacts, Messages and account sheets are plain circles; toolbars want one 44 pt target</td><td>Rings are Apple's status idiom (Stories, activity), not identity; adds a second encoding</td></tr>
+    <tr><td>44 pt bar target</td><td>Photo is 44 pt, fills the glass circle</td><td>Photo shrinks to ~36 pt or the ring overhangs the glass</td></tr>
+    <tr><td>Colour only?</td><td>No colour carries meaning; name is beside every row</td><td>Ring colour carries identity, backed by the name</td></tr>
+    <tr><td>Contrast</td><td>Hairline outline on any photo</td><td>Ring is the outline; ring colours need 3:1 on the sheet ground</td></tr>
+    <tr><td>Cost</td><td>One view, no new colours</td><td>Per-person ring colour plumbed through three views</td></tr>
+  </table></div>
+
+  <h2>7. Recommendation</h2>
+  <div class="col">
+    <p><b>Option A with the 0.6 s <code>state</code> fade.</b> It is the simplest thing that satisfies the brief, uses only existing tokens, keeps the 44 pt bar target, and treats a photo like every other avatar on iOS. The chore colours stay on the initials fallback, where they already live.</p>
+    <p><b>What it asks of the app.</b></p>
+    <ul>
+      <li><b>HassCore</b> <code>PersonAvatarStore</code>: file-per-person under Application Support (excluded from backup), a small JSON sidecar with the picture path, <code>ETag</code> and <code>Last-Modified</code>; a pure <code>plan(cached:server:)</code> that returns keep, download, delete or replace; <code>removeAll()</code>. Bearer token attached only when the URL is on the signed-in server's host.</li>
+      <li><b>HassDesign</b> <code>AvatarView</code> (one canonical component, new pattern record <code>avatar</code>): initials under, photo layers over, two-layer cross-fade, hairline, <code>MotionTokens.state</code> via <code>motionSafeAnimation</code>.</li>
+      <li><b>HassUI</b> <code>PersonAvatars</code> (observable, per-person boxes) fed from <code>EntityStore</code> once at launch/connect and on <code>entity_picture</code> change; <code>ProfileButton</code>, <code>AccountHeader</code>, <code>PersonRow</code> adopt <code>AvatarView</code>; <code>AppSession.signOut()</code> calls <code>removeAll()</code>.</li>
+      <li><b>Tests</b>: unit (plan matrix, store round-trip, sign-out wipe, host-scoped auth, change detection), UX and accessibility on iPhone, Duo and iPad (label unchanged, 44 pt target, AX5, photo is decorative, VoiceOver still reads the name).</li>
+      <li><b>VoiceOver</b> is unchanged: the avatar stays hidden, the name is read from the button and rows.</li>
+    </ul>
+  </div>
+
+  <h2>8. Open questions</h2>
+  <div class="col"><ul>
+    <li><b>Expired session.</b> <code>sessionExpired()</code> calls <code>signOut()</code>, so a refused token also deletes photos and the welcome-back screen shows initials. I read "sign-out" as including this; say if the welcome-back should keep the photo.</li>
+    <li><b>Other residents.</b> The People list shows photos for every <code>person.*</code> with a picture, guests included, not only the two residents.</li>
+  </ul></div>
+</div>
+
+<script>
+(function () {
+  var rm = document.getElementById('rm'), slow = document.getElementById('slow'), status = document.getElementById('status');
+  function dur() { var d = rm.checked ? 0.2 : 0.6; return slow.checked ? d * 4 : d; }
+  function sym(id) { return '<svg viewBox="0 0 100 100" aria-hidden="true"><use href="#' + id + '"/></svg>'; }
+  /* The two-layer cross-fade AvatarView uses: a new photo fades in on top of the shown one, then the shown one is dropped;
+     removal fades the top layer out onto the initials that were underneath all along. */
+  function setPhoto(av, id, d) {
+    av.style.setProperty('--dur', d + 's');
+    var layers = av.querySelectorAll('.ph'), top = layers[layers.length - 1];
+    if (!id) { layers.forEach(function (l) { l.style.opacity = 0; setTimeout(function () { l.remove(); }, d * 1000 + 50); }); return; }
+    var n = document.createElement('span'); n.className = 'ph'; n.innerHTML = sym(id); n.dataset.id = id; av.appendChild(n);
+    n.getBoundingClientRect(); n.style.opacity = 1;
+    setTimeout(function () { layers.forEach(function (l) { l.remove(); }); }, d * 1000 + 50);
+  }
+  document.querySelectorAll('[data-static]').forEach(function (av) { var n = document.createElement('span'); n.className = 'ph'; n.style.opacity = 1; n.innerHTML = sym(av.dataset.static); av.appendChild(n); });
+  var photos = { alex: ['pA', 'pC'], sam: ['pB', 'pD'] }, current = {};
+  function each(who, fn) { document.querySelectorAll('#demo [data-who="' + who + '"]').forEach(fn); }
+  function apply(who, id) { var d = dur(); current[who] = id; each(who, function (av) { setPhoto(av, id, d); }); }
+  var steps = {
+    appear: function () { status.textContent = 'Server has a picture, none cached: download, store, then fade in (' + dur() + ' s)'; apply('alex', 'pA'); apply('sam', 'pB'); },
+    remove: function () { status.textContent = 'Entity loaded with no picture: delete files, fade back to initials (' + dur() + ' s)'; apply('alex', null); apply('sam', null); },
+    replace: function () { var s = current.alex === 'pA' ? 'pC' : 'pA', t = current.sam === 'pB' ? 'pD' : 'pB';
+      if (!current.alex) { s = 'pA'; t = 'pB'; }
+      status.textContent = 'Picture path changed: new file stored, then cross-fade photo to photo, never through initials (' + dur() + ' s)'; apply('alex', s); apply('sam', t); },
+    reset: function () { status.textContent = 'Ready · nothing cached'; apply('alex', null); apply('sam', null); }
+  };
+  document.querySelectorAll('[data-play]').forEach(function (b) { b.addEventListener('click', function () { steps[b.dataset.play](); }); });
+
+  /* Fade timing comparison: crossfade a photo in and out at the chosen duration. */
+  var cmp = document.getElementById('cmpstatus');
+  function cmpRun(sec) {
+    var a = document.getElementById('cmpA'), b = document.getElementById('cmpB');
+    cmp.textContent = sec + ' s'; setPhoto(a, null, 0.05); setPhoto(b, null, 0.05);
+    setTimeout(function () { setPhoto(a, 'pA', sec); setPhoto(b, 'pB', sec); }, 250);
+    setTimeout(function () { setPhoto(a, 'pC', sec); setPhoto(b, 'pD', sec); }, 250 + sec * 1000 + 700);
+  }
+  document.getElementById('cmp600').addEventListener('click', function () { cmpRun(0.6); });
+  document.getElementById('cmp350').addEventListener('click', function () { cmpRun(0.35); });
+})();
+</script>
+</body></html>

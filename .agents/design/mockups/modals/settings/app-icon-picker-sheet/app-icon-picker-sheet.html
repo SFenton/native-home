@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>App Icon picker · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var A = function (o) { return function (ctx) { return SA.appIconSheet(ctx, o); }; };
+  function select(stage, id) {
+    stage.querySelectorAll('.sa-ic').forEach(function (b) { var on = b.dataset.icon === id; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'app-icon-picker-sheet', title: 'App Icon picker', area: 'settings', status: 'shipped',
+    summary: 'Opened by the App Icon row in Settings. A fitted form sheet with the eight icons in a grid, each with its name, "Default" under the app’s own and a check and ring on the installed one. Choosing one installs it at once. Follows the system appearance; switch Sheet appearance above.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconPickerModel.swift',
+      'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconPreview.swift', 'apple/Sources/HassDesign/AppIconArtwork.swift', 'apple/Sources/HassCore/Settings/AppIconChoice.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/pages/settings/ios.md'],
+    patterns: ['modal-sheet'],
+    hig: ['App icons', 'Sheets', 'Collections', 'Accessibility', 'Color'],
+    entities: [],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Navy + Sky installed (the default)', note: 'two columns on iPhone, three on a form sheet; the installed one has a ring and a check', render: A({ selected: 'navySky' }) },
+      'other-selected': { title: 'Plum + Lilac installed', render: A({ selected: 'plumLilac' }) },
+      'loading': { title: 'Changing: choices disabled', note: 'while setAlternateIconName is in flight taps are ignored and the buttons dim; iOS then shows its own notice', render: A({ selected: 'navySky', changing: true }) },
+      'error': { title: 'Couldn’t Change Icon', note: 'the system refused: the alert names the icon and the reason; the selection stays where it was', render: A({ selected: 'navySky', failure: true, failed: 'plumLilac' }) },
+      'offline': { title: 'Offline', note: 'no network is involved: switching icons is a local system call, so this sheet looks the same offline', render: A({ selected: 'navySky' }) },
+      'medium': { title: 'Medium detent (before measuring)', render: function (c) { return SA.appIconSheet(c, { selected: 'navySky', detent: 'medium' }); } },
+      'large': { title: 'Large detent (AX sizes)', note: 'one column at AX5 grows taller than the window, so the sheet caps at large and scrolls', render: function (c) { return SA.appIconSheet(c, { selected: 'navySky', detent: 'large' }); } },
+      'fitted': { title: 'Fitted detent (shipped)', render: A({ selected: 'navySky', detent: 'fitted' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column; the icon grows with the text (88 pt scaled); the sheet scrolls', render: A({ selected: 'navySky' }) },
+    },
+    motion: [
+      { id: 'selection-ring', what: 'Choosing an icon: the ring fades onto the new icon and off the old one, and the check moves', token: 'state 0.6 s ease-in-out colour (0.2 s reduced), colour only',
+        source: 'HassUI/Features/Settings/AppIcon/AppIconChoiceButton.swift stateColorTransition("AppIconChoiceButton", value: isSelected); motion.md section 6', reduce: 'still cross-fades, shortened to 0.2 s', state: 'default',
+        play: function (stage) { select(stage, 'tealMint'); return Mock.sleep(Mock.anim.ms.state() + 400).then(function () { select(stage, 'navySky'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'system-notice', what: 'iOS shows its own notice when the icon changes', token: 'system (not the app’s)', source: 'UIApplication.setAlternateIconName', reduce: 'system-owned',
+        play: function () { return Mock.sleep(300); } },
+    ],
+    transitions: [
+      { from: 'App Icon row (Settings)', to: 'App Icon sheet', kind: 'sheet', note: 'A fitted form sheet; the row’s preview and name follow a choice made here (they share one model).',
+        play: function (stage) { var ctx = Mock.current; return Mock.presentDemo(stage, { title: 'App Icon', detent: 'fitted', size: 'form', trailing: 'close', content: SA.appIconContent(ctx, { selected: 'navySky' }) }); } },
+      { from: 'Failure', to: 'Couldn’t Change Icon alert', kind: 'fade', note: 'The system alert fades in over the sheet; OK clears failureMessage.', state: 'default',
+        play: function (stage) { var ctx = Mock.current, host = stage.querySelector('.ui-host'), sc = SA.alertScrim(ctx, Mock.components.Alert({ title: 'Couldn’t Change Icon', message: 'The icon wasn’t changed to Plum + Lilac. The operation couldn’t be completed.', buttons: [{ title: 'OK', role: 'cancel' }] })); sc.style.opacity = 0; host.appendChild(sc); return Mock.anim.fade(sc, { ms: 200 }).then(function () { return Mock.sleep(1000); }).then(function () { sc.remove(); }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The title "App Icon", Close (appIcon.close); the eight icons in reading order (left to right, top to bottom); the footer note last.' },
+      { rule: 'Each choice', note: 'A button named for the pair ("Navy and Sky, default": a plus sign is read inconsistently, so the spoken name says "and"), value "Selected" or "Not selected" (appIcon.choice.<id>). The ring and check are not the only signal.' },
+      { rule: 'Targets', note: 'Each button is at least 44 pt tall; the icon is 88 pt scaled (about 3 times that at AX5).' },
+      { rule: 'Changing', note: 'While a change is in flight every choice is disabled, so a double tap cannot queue a second change.' },
+      { rule: 'Footer', note: 'The footnote ("iOS shows its own notice when the icon changes...") is in the sheet’s secondary ink, 4.5:1 on both grounds, and is a separate element (appIcon.footer).' },
+      { rule: 'Dynamic Type', note: 'The grid is adaptive with a scaled minimum cell (130 pt): two columns on iPhone, three on a form sheet, one at accessibility sizes; names wrap.' },
+      { rule: 'Light and dark', note: 'Follows the system appearance; the icon art is the same in both, with a hairline at 14% so its edge reads on a white sheet.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'App icons: alternate icons chosen in settings', verdict: 'pass', note: 'Eight icons with names; the footer explains dark and tinted Home Screen versions come with each (AppIconPickerSheet.swift:28-31).', by: 'apple-hig skill' },
+        { rule: 'Sheets: fitted height, grabber, Close for a sheet with no draft', verdict: 'pass', note: 'hassSheet(.form) is content-fitted with a visible grabber; choosing installs at once so Close, not Cancel, is the exit (AppIconSettingsRow.swift:18-21).', by: 'apple-hig skill' },
+        { rule: 'Color: selection beyond colour', verdict: 'pass', note: 'Ring plus a checkmark, and the button\'s value reads "Selected"/"Not selected" (AppIconChoiceButton.swift:22-31, :49).', by: 'apple-hig skill' },
+        { rule: 'Alerts: say what failed and why', verdict: 'pass', note: '"Couldn\'t Change Icon" with the icon name and the system\'s reason, one OK (AppIconPickerSheet.swift:40-45; AppIconPickerModel.swift:58-60).', by: 'apple-hig skill' },
+        { rule: 'Layout: touch targets and adaptive grid', verdict: 'pass', note: 'Each tile is at least 44 pt with an 88 pt scaled icon; adaptive columns drop to one at AX sizes (AppIconPickerSheet.swift:13-27).', by: 'apple-hig skill' },
+        { rule: 'Typography: avoid the smallest sizes', verdict: 'pass', note: 'AppIconChoiceButton \'Default\' label is .footnote.', by: 'apple-hig skill' },
+        { rule: 'Feedback: a change in flight', verdict: 'pass', note: 'Taps are ignored and the grid dims while setAlternateIconName runs (isChanging, :25); iOS then shows its own notice.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: decorative art hidden, name on the button', verdict: 'pass', note: 'AppIconPreview is accessibilityHidden; the Button labels itself with spokenName and ", default" (AppIconPreview.swift:24; AppIconChoiceButton.swift:48).', by: 'swiftui-pro skill' },
+        { rule: 'Data: @MainActor @Observable model shared by row and sheet', verdict: 'pass', note: 'AppIconPickerModel is @MainActor @Observable and passed with @Bindable (AppIconPickerModel.swift:10; AppIconPickerSheet.swift:12).', by: 'swiftui-pro skill' },
+        { rule: 'Views: keep async work out of the button label', verdict: 'pass', note: 'Fixed: the grid button calls AppIconPickerSheet.select(_:), which starts the Task; the label holds no async work.', by: 'swiftui-pro skill' },
+        { rule: 'Design: ScaledMetric for icon and column size', verdict: 'pass', note: 'cellMinimum and side are @ScaledMetric(relativeTo: .body) (AppIconPickerSheet.swift:13; AppIconChoiceButton.swift:14).', by: 'swiftui-pro skill' },
+        { rule: 'API: continuous corner shapes', verdict: 'pass', note: 'clipShape(.rect(cornerRadius:, style: .continuous)) at 22.37% of the side (AppIconPreview.swift:13-18).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'The icon art here is a re-drawing of AppIconArtwork’s geometry (dusk glass, tint at 0.86, house and heart), not the PNGs; the standard appearance only (dark and tinted Home Screen versions are the system’s to show).',
+      'Disabled look while changing is the system’s dimming of a plain button (drawn at 40%); unverified.',
+      'The sheet is not tabbed and does not change height, so it is fitted; at AX5 it caps at large. Docs: direction-g.md App icon records the pairs and the owner decision of 2026-10-17.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: eight icons, selection, changing, failure alert and AX5.' }],
+  });
+})();
+</script></body></html>

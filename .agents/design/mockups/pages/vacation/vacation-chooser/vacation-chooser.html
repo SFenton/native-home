@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vacation (chooser) · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.VS.V;
+  function chooser(o) { return function (ctx) { return V.chooserPage(ctx, o); }; }
+  function settingsRoot(ctx) {
+    var rows = K.ModuleList({ rows: [{ title: 'Vacation', subtitle: V.copy.vacationLinkSubtitle, symbol: 'airplane', chevron: true }, { title: 'Appearance', subtitle: 'Background blur and app icon.', symbol: 'circle.lefthalf.filled', chevron: true }] });
+    return Mock.page(ctx, { title: 'Settings', section: 'settings', badge: 3, choresBadge: 2, body: [rows] });
+  }
+
+  Mock.mount({
+    kind: 'page', id: 'vacation-chooser', title: 'Vacation (chooser)', area: 'vacation', status: 'shipped',
+    summary: 'Settings > Vacation: a list of the two away modes, Vacation and Solo Trip, each opening its own page. When a mode is already engaged the chooser is skipped and its page shows at once.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsEntry.swift', 'apple/Sources/HassCore/Config/VacationConfig.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripCopy.swift'],
+    spec: ['.agents/pages/vacation/spec.md', '.agents/pages/vacation/ios.md'],
+    patterns: ['module-list', 'settings-section', 'header-edge-fade', 'page-backdrop', 'motion'],
+    hig: ['Lists and tables', 'Navigation bars', 'Layout', 'Dynamic Type'],
+    entities: ['sensor.demo_away_2', 'input_boolean.demo_mode_4', 'input_boolean.demo_mode_3'],
+    kitComponents: ['ModuleList', 'BackButton', 'QuickLinksButton', 'ProfileButton', 'TabBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Two rows', render: chooser() },
+      'setup-required': { title: 'Solo Trip setup required', note: 'subtitle becomes "Needs setup in Home Assistant" after 5 s of continuous command_available: false (unavailable at launch shows at once) (plain text; the web\'s "Learn More" link-lookalike is dropped)', render: chooser({ setup: true }) },
+      'engaged': { title: 'A mode is engaged: the chooser is skipped', note: 'Vacation.route sends an engaged vacation (or the vacation_mode / invalid-dates flags) to Vacation Mode and an engaged Solo Trip to Solo Trip; shown here is what the person sees instead of the chooser', render: function (ctx) { return V.modePage(ctx, { on: true }); } },
+      'offline': { title: 'No network', note: 'rows are static; the offline chip sits under the header and the cloud badge shows on Profile', render: chooser({ connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: chooser({ connection: 'reconnecting' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the glyph moves above the text (SettingsLinkRow) so the text keeps the row width; the system chevron stays', render: chooser() },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Settings', to: 'Vacation', kind: 'push', state: 'default', note: 'NavigationLink(value: SettingsRoute.vacation): the system push on the Settings tab\'s path. Never replaced or decorated (motion.md section 4.2).',
+        play: function (stage) {
+          var ctx = Mock.current, cur = stage.querySelector('.ui-page'), root = settingsRoot(ctx);
+          cur.parentNode.insertBefore(root, cur);
+          return Mock.anim.push(root, cur).then(function () { return Mock.sleep(500); }).then(function () { root.remove(); });
+        } },
+      { from: 'Vacation', to: 'Vacation Mode or Solo Trip', kind: 'push', state: 'default', note: 'A row pushes its page onto the same stack. When a mode is engaged the swap happens at the root instead (VacationScreen.displayedRoute) and, once an engaged page has shown, turning the mode off keeps that page (lastEngaged) instead of dropping back to the chooser.',
+        play: function (stage) {
+          var ctx = Mock.current, cur = stage.querySelector('.ui-page'), next = V.modePage(ctx, { checks: [true, true, false, false, false] });
+          cur.parentNode.appendChild(next);
+          return Mock.anim.push(cur, next).then(function () { return Mock.sleep(700); }).then(function () { cur.style.transform = ''; cur.style.filter = ''; next.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back ("Settings"), the large title "Vacation", then the two rows top to bottom; Quick Links and Profile follow the header per the shell.' },
+      { rule: 'Rows', note: 'Each row is one element: title then subtitle ("Vacation. Set away dates and prepare the house for vacation."), a link/button trait from the NavigationLink; the glyph is hidden. Identifiers vacation.chooser.vacationMode and vacation.chooser.soloTrip. 60 pt tall, over the 44 pt minimum.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the glyph sits above the title and subtitle so the text keeps the row width (beside it, the Vacation row grew to 749 pt on the folded Duo at AX5). Text wraps; nothing truncates.' },
+      { rule: 'Contrast', note: 'White 17 pt title and 15 pt secondary (rgba(235,235,245,.68)) on the #1C1C1E cell.' },
+      { rule: 'Setup subtitle', note: '"Needs setup in Home Assistant" is plain text with no action; it is read with the row.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: rows that navigate show a disclosure", verdict: "pass", note: "Two NavigationLink rows; SettingsLinkRow is drawn with showsChevron false because the link draws its own (VacationScreen.swift lines 86-98, SettingsScreen.swift lines 110-111).", by: "apple-hig skill" },
+        { rule: "Lists and tables: the same list looks the same on the same surface", verdict: "pass", note: "VacationChooser sets the Settings list's listRowBackground (module ground on the page surface).", by: "apple-hig skill" },
+        { rule: "Typography: Dynamic Type", verdict: "pass", note: "SettingsLinkRow moves the glyph above the text at accessibility sizes so text keeps the row width (SettingsScreen.swift lines 119-124).", by: "apple-hig skill" },
+        { rule: "Writing: a subtitle that looks like a link", verdict: "pass", note: "SoloTripCopy.setupRequiredSubtitle is the plain text \"Needs setup in Home Assistant\" (departure recorded in .agents/pages/vacation/ios.md).", by: "apple-hig skill" },
+        { rule: "Navigation: a chooser that disappears when a mode is engaged", verdict: "departure", note: "ios.md and VacationScreen.swift lines 21-23, 62-65: an engaged mode skips the chooser, and turning it off keeps its page via lastEngaged so the root does not swap under the person.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Navigation: do not mix destination styles in one hierarchy", verdict: "pass", note: "Fixed: VacationChooser pushes VacationPage values with a registered pageDestination (VacationScreen.swift).", by: "swiftui-pro skill" },
+        { rule: "Views: switch on route inside body", verdict: "pass", note: "@ViewBuilder content switches three roots by derived route; state lives in HouseholdAwayController above the switch (lines 19, 50-60).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: identifiers and combined row", verdict: "pass", note: "accessibilityIdentifier on both links; SettingsLinkRow reads as one element with title then subtitle.", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading, refreshing, empty, error and long-text: none apply. The list is static copy; only the Solo Trip subtitle reads household state, and an unavailable status shows the setup subtitle (state setup-required) rather than a loading or error UI. Long text wraps (ax5).',
+      'The chooser is reached from Settings only. It appears briefly: an engaged mode, or the vacation_mode and invalid-dates helpers, skips it (VacationScreen.route).',
+      'Docs vs code: the spec says the chooser is the same row as Settings; code draws rows on the system grouped cell, not the module ground the Settings list uses (see the review). The vacation docs say these pages are "Settings detail pages: right pane in Duo unfolded landscape and iPad landscape"; code keeps a push in every pose (ios.md says so too).',
+      'The cell is drawn #1C1C1E opaque (the system dark grouped row) rather than the module\'s 66% thin: derived from the missing listRowBackground, not confirmed on a device.',
+      'Wallpaper, glyphs and the tab chrome are kit stand-ins.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: chooser, setup subtitle, engaged skip, offline, reconnecting, AX5, pushes.' }],
+  });
+})();
+</script></body></html>

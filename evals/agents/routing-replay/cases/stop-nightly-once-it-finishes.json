@@ -1,0 +1,32 @@
+{
+  "id": "stop-nightly-once-it-finishes",
+  "source": "2026-11-02: nightly run 3 of 3 ended \"once it finishes I will check\".",
+  "recorded": "2026-11-02",
+  "kind": "stop_hook",
+  "input": {
+    "items": [
+      {
+        "type": "user",
+        "message": {
+          "role": "user",
+          "content": "go"
+        }
+      },
+      {
+        "type": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Once it finishes I will check the digest."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "blocked": true
+  }
+}

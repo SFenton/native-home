@@ -1,0 +1,16 @@
+{
+  "id": "dd-room-vacuum-card-opens-nothing",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Living Room robot vacuum modal doesn't show the vacuum modal; vacuum modal is working in vacuums-specific page",
+  "surface": "vacuums",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "66a3fecb",
+  "fix_confidence": "high",
+  "expected": "Tap the room's vacuum card and confirm the Vacuums sheet opens; a tap with no presented sheet is a defect."
+}

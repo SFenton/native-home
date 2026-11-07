@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Copy and wording</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.1;margin:0 0 12px}
+h2{font-size:22px;margin:40px 0 8px}
+p{margin:0 0 12px;max-width:70ch}.lede{color:var(--fg2);font-size:18px}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font:0.88em ui-monospace,Menlo,monospace}
+.tag{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg2)}
+tr:last-child td{border-bottom:0}
+.o{color:var(--bad)}.n{color:var(--ok);font-weight:600}.s{color:var(--fg2);font-size:13px}
+.scroll{overflow-x:auto}
+</style></head><body><div class="wrap">
+<div class="tag">Proposal · 2026-10-23 · Decided (2026-10-24): accept all eleven rows. Row 5 states the issue number and promises no follow-up; row 7 adds Try Again; row 9 is plain text; rows 1 and 8 depart from web parity (recorded in the chores and vacation page notes). Plurals use a small PluralCopy helper (no String Catalog yet).</div>
+<h1>Copy and wording</h1>
+<p class="lede">Twelve strings the HIG review flagged. Every string is shown as it ships today and as proposed, with where it appears. Nothing is built until you pick.</p>
+<p>Voice follows the <code>ux-copy</code> rules: say what happened and what to do, in plain words, no internal names. The app is <b>S+H</b> to people (<code>.agents/platforms/apple/app-name.md</code>). Rows marked <b>web parity</b> copy the React dashboard verbatim today, so changing them departs from it on purpose (the HIG wins; the departure gets recorded).</p>
+
+<h2>A. Grammar with one obvious answer</h2>
+<div class="scroll"><table>
+<tr><th>#</th><th>Where</th><th>Today</th><th>Proposed</th><th>Notes</th></tr>
+<tr><td>1</td><td>Chores empty states: You, Alex, Sam, Unassigned, Home Improvement (<code>ChoresConfig.swift</code> 118, 176, 191, 199, 207, 214); Chores pages and the empty <code>ContentUnavailableView</code></td>
+ <td class="o">“You have no chores due- nice job!”<br>“There are no unassigned chores due- nice job!”<br>“There are no home improvement tasks due- nice job!”</td>
+ <td class="n">“You have no chores due. Nice job!”<br>“There are no unassigned chores due. Nice job!”<br>“There are no home improvement tasks due. Nice job!”</td>
+ <td class="s">Web parity: the typo is the web's. Fix it natively and tell the web repo separately; never edit it from here.</td></tr>
+<tr><td>2</td><td>Room climate subtitle when no reading exists (<code>RoomOverview.climateSubtitle</code>, line 270), also the error state</td>
+ <td class="o">“1 sensors”</td><td class="n">“1 sensor” / “3 sensors”</td>
+ <td class="s">Use String Catalog plural variants (<code>^[%lld sensor](inflect: true)</code> style), not hand-rolled <code>if</code>s.</td></tr>
+<tr><td>3</td><td>Climate: Critical Protection opener subtitle (<code>ClimateLogic.criticalSubtitle</code>, line 202)</td>
+ <td class="o">“1 rooms forced”</td><td class="n">“1 room forced” / “2 rooms forced”</td><td class="s">Same plural mechanism as #2.</td></tr>
+</table></div>
+
+<h2>B. Wording that names the wrong thing or promises something untrue</h2>
+<div class="scroll"><table>
+<tr><th>#</th><th>Where</th><th>Today</th><th>Proposed</th><th>Why</th></tr>
+<tr><td>4</td><td>Camera viewer: Photos permission denied alert (<code>CameraViewer.swift</code> 150)</td>
+ <td class="o">“Snapshots are saved to your photo library. Allow Home to add photos in Settings.”</td>
+ <td class="n">“Snapshots are saved to your photo library. Allow S+H to add photos in Settings.”</td>
+ <td class="s">People know the app as S+H. VoiceOver reads it “S and H” via <code>CFBundleSpokenName</code> only for the app name, so the string keeps “S+H”.</td></tr>
+<tr><td>5</td><td>Feedback sheet: success alert (<code>FeedbackFormSheet.swift</code> 80); title stays</td>
+ <td class="o">“Thank you! It was filed as issue #123. The triage agent will pick it up on its next run.”</td>
+ <td class="n">“Your report is filed as issue #123. We'll follow up on GitHub.”</td>
+ <td class="s">Drops the filler “Thank you!” (the title already confirms) and the internal “triage agent”. Open question 1: is “We'll follow up” a promise you want?</td></tr>
+<tr><td>6</td><td>Feedback failure alerts (<code>FeedbackFilingError</code> notConfigured, githubProblem)</td>
+ <td class="o">“…Add the Fenton Home Feedback integration there.”<br>“…Its GitHub token may need replacing in Fenton Home Feedback.”</td>
+ <td class="n">“Reporting isn't set up in Home Assistant yet. Ask whoever manages Home Assistant to set it up.”<br>“Home Assistant couldn't file this on GitHub. Try again later, or ask whoever manages Home Assistant to check its GitHub connection.”</td>
+ <td class="s">Only an administrator can act on a token; the person filing needs a next step they can take. The integration's own name stays in the HA-side docs.</td></tr>
+<tr><td>7</td><td>Placeholder screen (<code>PlaceholderScreen.swift</code>), used by <code>HomeRoute</code> and <code>RoomScreen</code> fallbacks</td>
+ <td class="o">“Coming in a later update.”</td>
+ <td class="n">“Can't open this page right now. Check your connection and try again.”</td>
+ <td class="s">Every route it stands in for exists; the real cause is no connection or unknown route. Open question 2: add a Retry button?</td></tr>
+</table></div>
+
+<h2>C. Repetition, false affordance and missing action</h2>
+<div class="scroll"><table>
+<tr><th>#</th><th>Where</th><th>Today</th><th>Proposed</th><th>Why</th></tr>
+<tr><td>8</td><td>Solo Trip page while a trip runs (<code>SoloTripNoticeBox</code> / <code>SoloTripStatusView</code>)</td>
+ <td class="o">Section title “Alex Away” above a notice box titled “Alex Away”</td>
+ <td class="n">Keep the notice box title “Alex Away”; drop the repeated section title (status shows description and actions only).</td>
+ <td class="s">One statement, once. Web parity: the web shows both.</td></tr>
+<tr><td>9</td><td>Vacation chooser row subtitle (<code>SoloTripCopy.setupRequiredSubtitle</code>)</td>
+ <td class="o">“Home Assistant Setup · Learn More”</td>
+ <td class="n">“Needs setup in Home Assistant”</td>
+ <td class="s">“Learn More” reads as a link but the row has no action. Open question 3: or make the row open a short explainer instead?</td></tr>
+<tr><td>10</td><td>Sprinklers: low battery notice (<code>SprinklersScreen.swift</code> 64)</td>
+ <td class="o">“Garden Faucet Battery 15%”</td>
+ <td class="n">“Garden Faucet battery is low (15%). Replace the batteries soon.”</td>
+ <td class="s">Names the problem and the action. The Battery pill below still shows the number.</td></tr>
+<tr><td>11</td><td>Sign-in: “Welcome back” (<code>LoginCopy.welcomeBack</code>, <code>RememberedAccount.firstName</code>)</td>
+ <td class="o">First word of the name via <code>split(whitespace)</code>, string interpolation</td>
+ <td class="n">Same words; derive the given name with <code>PersonNameComponents</code> (<code>PersonNameComponentsFormatter</code>, <code>.short</code> style).</td>
+ <td class="s">Names that do not split into first/last (“Mary Ann”, “Ng”, single names) stay correct. Not visible for “Alex”.</td></tr>
+</table></div>
+
+<h2>Recommendation</h2>
+<p>Accept all eleven rows as proposed. Rows 1–3 and 11 are plain bug fixes; rows 4–10 are wording. Build touches the strings above, a plural String Catalog for #2/#3, unit tests for each string and the plural cases, and updates the affected atlas mockups' <code>reviews</code> lines.</p>
+<h2>Open questions</h2>
+<ol><li>Row 5: should the success alert promise a follow-up, or just state the issue number?</li>
+<li>Row 7: add a Retry button to the placeholder?</li>
+<li>Row 9: plain “Needs setup” text, or a tappable explainer?</li>
+<li>Rows 1 and 8 depart from web parity. Fine to depart, and record it in the pages' specs?</li></ol>
+</div></body></html>

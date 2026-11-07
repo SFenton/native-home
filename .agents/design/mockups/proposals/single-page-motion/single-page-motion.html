@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Single-Page Motion · Proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+<script src="../../pages/settings/_settings-account.js"></script>
+<script src="../../pages/settings/_settings-page.js"></script>
+<style>
+/* Proposal furniture only (dm-*). App visuals come from the kit (ui-*, k-device); nothing here restyles them. */
+:root { --dm-bg:#f5f5f7; --dm-fg:#1d1d1f; --dm-fg2:#5b5b63; --dm-card:#fff; --dm-line:#d8d8de; --dm-accent:#0a66d8; --dm-good:#1d7a3a; --dm-warn:#9a5b00; --dm-bad:#b3261e; --dm-chip:#ececf1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --dm-bg:#111114; --dm-fg:#f2f2f5; --dm-fg2:#a4a4ae; --dm-card:#1c1c21; --dm-line:#33333b; --dm-accent:#5aa2ff; --dm-good:#5fd07e; --dm-warn:#f0b35a; --dm-bad:#ff8a80; --dm-chip:#2a2a31; } }
+:root[data-theme="dark"] { --dm-bg:#111114; --dm-fg:#f2f2f5; --dm-fg2:#a4a4ae; --dm-card:#1c1c21; --dm-line:#33333b; --dm-accent:#5aa2ff; --dm-good:#5fd07e; --dm-warn:#f0b35a; --dm-bad:#ff8a80; --dm-chip:#2a2a31; }
+html, body { background: var(--dm-bg); color: var(--dm-fg); margin: 0; }
+body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+.dm-wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+.dm-wrap h1 { font: 700 28px/1.2 -apple-system, sans-serif; margin: 4px 0 8px; letter-spacing: -.01em; }
+.dm-wrap h2 { font: 700 20px/1.25 -apple-system, sans-serif; margin: 36px 0 10px; }
+.dm-wrap h3 { font: 600 16px/1.3 -apple-system, sans-serif; margin: 18px 0 6px; }
+.dm-wrap p, .dm-wrap li { max-width: 78ch; }
+.dm-wrap code { font: 12.5px/1.4 ui-monospace, Menlo, monospace; background: var(--dm-chip); padding: 1px 5px; border-radius: 5px; }
+.dm-eyebrow { font: 600 12px/1.3 ui-monospace, Menlo, monospace; color: var(--dm-fg2); text-transform: uppercase; letter-spacing: .06em; }
+.dm-quote { border-left: 3px solid var(--dm-accent); margin: 12px 0; padding: 4px 14px; color: var(--dm-fg2); }
+.dm-card { background: var(--dm-card); border: 1px solid var(--dm-line); border-radius: 14px; padding: 14px 16px; }
+.dm-controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; position: sticky; top: 0; z-index: 50; background: var(--dm-card); border: 1px solid var(--dm-line); border-radius: 14px; padding: 12px 14px; }
+.dm-controls label, .dm-controls .dm-lbl { display: flex; flex-direction: column; gap: 4px; font: 600 12px/1.2 -apple-system, sans-serif; color: var(--dm-fg2); }
+.dm-controls select, .dm-controls input[type=range] { min-height: 36px; font: 15px -apple-system, sans-serif; color: var(--dm-fg); background: var(--dm-bg); border: 1px solid var(--dm-line); border-radius: 9px; padding: 0 8px; }
+.dm-seg { display: inline-flex; border: 1px solid var(--dm-line); border-radius: 10px; overflow: hidden; flex-wrap: wrap; }
+.dm-seg button { min-height: 36px; min-width: 44px; border: 0; background: transparent; color: var(--dm-fg); padding: 0 12px; font: 600 14px -apple-system, sans-serif; cursor: pointer; }
+.dm-seg button[aria-pressed="true"] { background: var(--dm-accent); color: #fff; }
+.dm-btn { min-height: 44px; border: 1px solid var(--dm-line); border-radius: 10px; background: var(--dm-bg); color: var(--dm-fg); padding: 0 14px; font: 600 14px -apple-system, sans-serif; cursor: pointer; }
+.dm-btn.primary { background: var(--dm-accent); border-color: var(--dm-accent); color: #fff; }
+.dm-btn:disabled { opacity: .5; cursor: default; }
+.dm-check { flex-direction: row !important; align-items: center; min-height: 36px; font-size: 14px !important; color: var(--dm-fg) !important; }
+.dm-check input { width: 20px; height: 20px; }
+.dm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+.dm-stage { display: flex; flex-wrap: wrap; gap: 24px 28px; align-items: flex-start; margin-top: 16px; min-height: 200px; }
+.dm-fig { margin: 0; flex: none; }
+.dm-fig figcaption { margin-top: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--dm-fg2); max-width: 420px; }
+.dm-fig figcaption b { display: block; font: 600 14px -apple-system, sans-serif; color: var(--dm-fg); }
+.dm-fig .dm-step { display: block; min-height: 2.8em; }
+.dm-z { transform-origin: 0 0; width: max-content; }
+.dm-z > .k-device { display: inline-block; vertical-align: top; }
+.dm-live { margin-top: 10px; font: 13px/1.4 ui-monospace, Menlo, monospace; color: var(--dm-fg2); min-height: 1.4em; }
+.dm-table-wrap { overflow-x: auto; }
+table.dm-t { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; }
+table.dm-t th, table.dm-t td { border-bottom: 1px solid var(--dm-line); padding: 8px 10px; text-align: left; vertical-align: top; }
+table.dm-t th { font-weight: 600; color: var(--dm-fg2); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.dm-good { color: var(--dm-good); font-weight: 600; } .dm-warn { color: var(--dm-warn); font-weight: 600; } .dm-bad { color: var(--dm-bad); font-weight: 600; }
+.dm-rec { border: 2px solid var(--dm-accent); }
+.dm-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+/* Mockup layers inside a device screen */
+.dm-layer { position: absolute; inset: 0; }
+.dm-pages { position: absolute; inset: 0; overflow: hidden; }
+.dm-chrome { pointer-events: none; }
+.dm-dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+.dm-col { position: absolute; top: 0; bottom: 0; overflow: hidden; }
+.dm-col > .ui-page { --rail-w: 0px !important; }
+.dm-touch { position: absolute; z-index: 140; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: rgba(255,255,255,.34); border: 2px solid rgba(255,255,255,.85); box-shadow: 0 2px 10px rgba(0,0,0,.45); pointer-events: none; }
+.dm-touch span { position: absolute; left: 46px; top: 8px; font: 600 11px/1.2 ui-monospace, Menlo, monospace; color: #fff; background: rgba(0,0,0,.7); padding: 2px 6px; border-radius: 6px; white-space: nowrap; }
+.dm-tag { position: absolute; z-index: 150; left: 10px; bottom: 10px; font: 600 11px/1.2 ui-monospace, Menlo, monospace; color: #fff; background: rgba(0,0,0,.62); padding: 3px 7px; border-radius: 6px; pointer-events: none; }
+</style>
+</head><body>
+<main class="dm-wrap">
+  <div class="dm-eyebrow">Proposal · 2026-11-02 · DRY-9998 (dry run, nothing built) · L2 design</div>
+  <h1>Smooth page motion on single-page layouts</h1>
+  <p>Bring the unfolded Duo's column motion (pages move over one still wallpaper) to iPhone, folded Duo and Duo/iPad portrait, and answer how one shared wallpaper behaves when you switch tabs.</p>
+
+  <h2>1. Goal and cause</h2>
+  <blockquote class="dm-quote">The owner (2026-11-02): smooth page and sub-page transitions on the unfolded Duo in Settings; in folded, portrait and iPhone layouts "I still see pages transition in individually, swapping the background". Second question: "How would shared background work with tab navigation?"</blockquote>
+  <p><b>Cause (read from code, not captured; research <code>build/research/dry-9998-settings-motion.md</code> R1).</b> In the split layout the pages are transparent hosts moved by frame over one static wallpaper (<code>UKColumnsViewController.swift:434-496</code>, smooth spring 0.3 s). On a single page the stock <code>UINavigationController</code> push runs and every pushed page draws its own opaque <code>UKBackdropView</code> (<code>UKPageViewController.swift:94-100</code>), so a push slides one full wallpaper over another, with the system's 30% parallax, dim and edge shadow on the wallpaper itself. The shell already draws one window-level wallpaper behind the tab controller (<code>UKShellViewController.swift:84-89</code>); pages just do not rely on it.</p>
+  <p><b>Rules on record.</b> <code>design/motion.md</code> §2 and §4.2: push and pop are the system's, "Never replaced, slowed or decorated". §4.1: a tab switch is a cut, "No custom tab transitions, ever". The columns are the only approved departure (split-view, owner 2026-11-01). Every option below except "Today" departs from §2/§4.2 to some degree; none touches §4.1.</p>
+
+  <h2>2. Play it</h2>
+  <div class="dm-controls" role="group" aria-label="Mockup controls">
+    <label>Device<select id="dm-device"></select></label>
+    <div class="dm-lbl"><span id="dm-opt-lbl">Option</span><div class="dm-seg" id="dm-option" role="group" aria-labelledby="dm-opt-lbl"></div></div>
+    <div class="dm-lbl"><span id="dm-view-lbl">View</span><div class="dm-seg" id="dm-view" role="group" aria-labelledby="dm-view-lbl"></div></div>
+    <div class="dm-lbl"><span id="dm-speed-lbl">Speed</span><div class="dm-seg" id="dm-speed" role="group" aria-labelledby="dm-speed-lbl"></div></div>
+    <label class="dm-check"><input type="checkbox" id="dm-rm"> Reduce Motion</label>
+    <label style="min-width:200px">Freeze the first push at <span id="dm-scrub-val">0%</span> of its time<input type="range" id="dm-scrub" min="0" max="100" value="0" aria-describedby="dm-scrub-help"></label>
+  </div>
+  <div class="dm-actions" role="group" aria-label="Play">
+    <button class="dm-btn primary" data-play="sequence">Push → sub-push → pop → pop</button>
+    <button class="dm-btn" data-play="swipe">Swipe back (completes)</button>
+    <button class="dm-btn" data-play="swipe-cancel">Swipe back (let go early)</button>
+    <button class="dm-btn" data-play="tabs">Tab switch and re-tap</button>
+    <button class="dm-btn" data-play="reset">Reset</button>
+  </div>
+  <p id="dm-scrub-help" class="dm-live" style="margin-top:6px">The slider holds Settings → Admin Controls at that point of the transition, on every device shown: compare mid-transition frames side by side.</p>
+  <div id="dm-stage" class="dm-stage"></div>
+  <div id="dm-live" class="dm-live" aria-live="polite"></div>
+
+  <h2>3. Options</h2>
+  <div class="dm-table-wrap"><table class="dm-t">
+    <thead><tr><th>Key</th><th>Push and pop (iPhone, folded Duo, Duo/iPad portrait)</th><th>Swipe back, interrupted</th><th>Matches columns?</th><th>Reduce Motion</th><th>Cost and risk</th><th>Departs from</th></tr></thead>
+    <tbody>
+      <tr><td><b>Today</b></td><td>System push; each page carries its own wallpaper, so the wallpaper slides, dims and casts the edge shadow</td><td>System; springs back</td><td class="dm-bad">No</td><td>System cross-fade</td><td>None (shipped)</td><td>Nothing</td></tr>
+      <tr><td><b>A</b> Shared wallpaper, system push</td><td>Wallpaper still; content slides as the system push (old page 30%, dimmed). Transparent pages overlap mid-push: the old page shows through the new one, and the system dim darkens a moving band of the wallpaper</td><td>System</td><td class="dm-warn">Partly (still wallpaper only)</td><td>System cross-fade</td><td>Small change; ghosting very likely (research R3.1)</td><td>None in motion; page-backdrop R4 better met</td></tr>
+      <tr><td><b>A2</b> Shared wallpaper, system push, old page fades alongside</td><td>As A, but the old page fades out as it moves (<code>transitionCoordinator.animate(alongsideTransition:)</code>), so nothing ghosts; the dim band and shadow over the wallpaper remain (unverified)</td><td>System, the fade follows the finger and reverses on cancel</td><td class="dm-warn">Partly (different travel and curve)</td><td>System cross-fade</td><td>Small; keeps every system gesture (iOS 26 content swipe included) and the bar animation</td><td>§4.2 "decorated" (a small one)</td></tr>
+      <tr class="dm-rec"><td><b>B</b> Column motion everywhere (recommended)</td><td>Wallpaper still; the new page enters from the trailing edge while the old one leaves by the leading edge, edge to edge, a full width each, smooth spring 0.3 s, no dim, no shadow, no fade: the columns' motion with one column</td><td>Follows the finger 1:1, previous page adjacent; past half (or a flick) completes with the spring, else springs back</td><td class="dm-good">Yes, same token and direction</td><td>0.2 s cross-fade, no slide; the swipe still tracks the finger</td><td>Medium: custom animator plus interaction controller; bar sync, flyout edge pan, iOS 26 content swipe (research R5)</td><td>§2 and §4.2 "replaced"; record the exception</td></tr>
+      <tr><td><b>C</b> Settings only, one-column columns controller</td><td>Inside Settings, looks like B; Home, Security and the rest keep Today's push</td><td>Columns' own pan; disabled under Reduce Motion today</td><td class="dm-warn">In Settings only</td><td>Columns' (survivors still slide 0.2 s, see notes)</td><td>Large: replaces the system Back, swipe and large title for one section; two motion languages</td><td>§4.2, and adds a second push mechanism</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Dropped.</b> D, the iOS 18 zoom from the row: the wrong shape for a list row (motion.md §4.3 keeps zoom for tiles that are what they open), iOS 18 only, so iOS 17 would still push. The research's "short fade on the outgoing page" in B is dropped too: in B the pages never overlap (edge to edge), so there is nothing to ghost, and the columns do not fade a page that moves.</p>
+  <p><b>C is not drawn separately</b>: in Settings it is frame for frame B, and elsewhere it is Today.</p>
+
+  <h2>4. Tab switches with one shared wallpaper</h2>
+  <div class="dm-grid2">
+    <div class="dm-card"><h3>What stays</h3><p>The wallpaper is one view per window, behind the tab bar controller (it exists today). It never moves, re-renders or cross-fades on a tab switch, a push, a pop or a rotation. The tab bar (or the Duo rail), Quick Links and Profile also stay.</p></div>
+    <div class="dm-card"><h3>What changes</h3><p>Only the page on top, as a cut (§4.1 unchanged, "no custom tab transitions, ever"). Each tab keeps its own stack and scroll position: leave Settings two levels deep, visit Home, come back, and you are two levels deep with the same wallpaper behind you. Nothing cross-fades.</p></div>
+    <div class="dm-card"><h3>Re-tapping the tab</h3><p>The first re-tap pops to the root with the same motion as Back in the chosen option (B: the top page slides out to the trailing edge, the root slides in from the leading edge; intermediate pages are skipped). A second re-tap scrolls to the top. On iPad portrait the tabs live in the flyout; its slide is unchanged and the page behind it cuts.</p></div>
+    <div class="dm-card"><h3>Why not per tab</h3><p>One wallpaper per tab or per section would render the photo several times, bring back the swap on a tab switch, and needs a rule nobody asked for (page-backdrop R2: "pushes, tabs and splits all show one picture").</p></div>
+  </div>
+
+  <h2>5. Recommendation: B</h2>
+  <div class="dm-card dm-rec">
+    <p><b>B, for every section's pushes, not only Settings.</b> It is the motion the owner already likes, made literal: the same token (<code>UKMotion.standard</code>, smooth spring 0.3 s), the same direction and the same still wallpaper as the columns, so unfolding or rotating a Duo or iPad changes the layout but not the motion language. It removes the per-page wallpaper and its per-frame display-link tracking, so the main thread does less during a push.</p>
+    <ul>
+      <li><b>HIG, Motion:</b> "Add motion purposefully" and "make feedback realistic and consistent with gestures and expectations"; "As much as possible, let people cancel animations rather than wait for completion". B's motion shows where you are in the hierarchy (deeper is to the right, in both layouts), and the swipe back is cancellable mid-way.</li>
+      <li><b>HIG, Motion:</b> "System components provide familiar motion". This is the case for the rule we are departing from: the system push is familiar. B keeps the familiar parts (direction, edge swipe, Back button, timing close to the system's) and changes the parallax, dim and shadow.</li>
+      <li><b>HIG, Gestures:</b> "Supplement standard gestures, don't replace them": the leading-edge swipe and the Back button both stay; on iOS 26 the content swipe must drive the same animator.</li>
+      <li><b>HIG, Tab bars:</b> a tab bar "preserves navigation state within each section"; keep the bar visible between sections. Unchanged: tabs cut, each stack is kept.</li>
+      <li><b>HIG, Accessibility, Reduce Motion:</b> "replacing axis transitions with fades" and "tracking gestures directly". B cross-fades at 0.2 s and keeps the finger-tracking swipe.</li>
+    </ul>
+    <p><b>Gate before rollout:</b> a one-section spike (Settings) with frame captures (<code>UK_RECORD=1</code>) and <code>tools/ios_navperf.sh</code>; if the bar, flyout edge pan or iOS 26 swipe do not come out clean, fall back to A2 (smaller departure, same wallpaper).</p>
+  </div>
+
+  <h2>6. Open questions for the owner</h2>
+  <ol>
+    <li>B, A2 or Today? (Recommended B.)</li>
+    <li>Every section, or Settings first? (Recommended every section, after the Settings spike.)</li>
+    <li>On iOS 26, should the swipe anywhere on the page also go back? It competes with sideways-scrolling chip rails. (Recommended: edge only for now, same as iOS 17/18.)</li>
+  </ol>
+
+  <h2>Notes</h2>
+  <ul>
+    <li>Fidelity: the Back button and the bar title move with their page here; the system bar cross-fades them in place. That is the same in every option, so the comparison holds. Quick Links, Profile, the tab bar and the Duo rail are drawn once on a fixed layer, as UIKit draws them.</li>
+    <li>Timing: Today and A use the kit's system push (<code>Mock.anim.easing.push</code>, 0.35 s); B uses <code>UKMotion.standard</code> drawn as a critically damped spring that reaches rest in about 0.45 s; Reduce Motion uses <code>Mock.anim.ms.quick()</code> (0.2 s) for B and the system's 0.35 s cross-fade for the others.</li>
+    <li>The Admin Controls and Automation Overrides bodies are stand-ins built from the Settings kit helpers (<code>SA.section</code>, <code>SA.link</code>, <code>SA.toggleRow</code>); the subject is the motion, not the copy.</li>
+    <li>Finding, columns under Reduce Motion: pages that stay on screen still move between columns for 0.2 s (<code>UKColumnsViewController.swift:486-490</code>, <code>reduced: .quick</code> drives the frame change), and the interactive back is switched off (<code>:554</code>). B cross-fades in place and keeps the swipe; aligning the columns is an L1 follow-up. The split reference here draws the columns as the code does.</li>
+    <li>Promote to kit in a real run: <code>Mock.anim.slide</code> (both pages a full width, standard spring) beside <code>Mock.anim.push</code>, and a shared-wallpaper layer option for <code>Mock.page</code>.</li>
+  </ul>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var h = Mock.h, K = Mock.components;
+
+  /* ---------------------------------------------------------------- devices, options, easing */
+  var DEVICES = [
+    { key: 'iphone', label: 'iPhone' },
+    { key: 'duo-folded', label: 'Duo folded' },
+    { key: 'duo-unfolded-portrait', label: 'Duo unfolded portrait' },
+    { key: 'ipad-portrait', label: 'iPad portrait' },
+    { key: 'duo-unfolded-landscape', label: 'Duo unfolded landscape (split, reference)' },
+    { key: 'ipad-landscape', label: 'iPad landscape (split, reference)' },
+  ];
+  function bezier(x1, y1, x2, y2) {
+    function cx(t) { return 3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t; }
+    function cy(t) { return 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t; }
+    return function (x) { if (x <= 0) return 0; if (x >= 1) return 1; var lo = 0, hi = 1, t = x; for (var i = 0; i < 28; i++) { t = (lo + hi) / 2; if (cx(t) < x) lo = t; else hi = t; } return cy(t); };
+  }
+  var SPRING_MS = 450;   // UKMotion.standard: smooth spring 0.3 s, no bounce; drawn critically damped (w = 22/s), ~0.45 s to rest
+  var EASE = {
+    push: bezier(.25, .1, .25, 1),   // Mock.anim.easing.push (system push stand-in)
+    quick: bezier(0, 0, .2, 1),      // Mock.anim.easing.quick
+    linear: function (t) { return t; },
+    spring: function (t) { var w = 22, s = t * SPRING_MS / 1000, T = SPRING_MS / 1000; return (1 - (1 + w * s) * Math.exp(-w * s)) / (1 - (1 + w * T) * Math.exp(-w * T)); },
+  };
+  var SYSTEM_MS = 350;   // kit: system push about 0.35 s (Mock.anim.push); Reduce Motion cross-fade Mock.anim.ms.moment()
+  var OPTIONS = {
+    today: { label: 'Today', short: 'Today: system push, a wallpaper per page', ownWall: true, kind: 'system', ms: SYSTEM_MS, ease: EASE.push, rmMs: function () { return Mock.anim.ms.moment(); } },
+    a: { label: 'A', short: 'A: shared wallpaper, system push', ownWall: false, kind: 'system', ms: SYSTEM_MS, ease: EASE.push, rmMs: function () { return Mock.anim.ms.moment(); } },
+    a2: { label: 'A2', short: 'A2: shared wallpaper, system push, old page fades', ownWall: false, kind: 'system', fadeUnder: true, ms: SYSTEM_MS, ease: EASE.push, rmMs: function () { return Mock.anim.ms.moment(); } },
+    b: { label: 'B (rec.)', short: 'B: column motion, shared wallpaper (recommended)', ownWall: false, kind: 'slide', ms: SPRING_MS, ease: EASE.spring, rmMs: function () { return Mock.anim.ms.quick(); } },
+  };
+  var ORDER = ['today', 'a', 'a2', 'b'];
+  var S = { device: 'iphone', option: 'b', compare: false, rm: false, speed: 1, gen: 0, scrub: 0 };
+
+  function hashRead() {
+    var m = {}; location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) m[p[0]] = decodeURIComponent(p[1] || ''); });
+    if (m.d && DEVICES.some(function (d) { return d.key === m.d; })) S.device = m.d;
+    if (m.o && OPTIONS[m.o]) S.option = m.o;
+    S.compare = m.v === 'compare'; S.rm = m.rm === '1'; if (m.sp) S.speed = parseFloat(m.sp) || 1;
+  }
+  function hashWrite() {
+    try { history.replaceState(null, '', '#d=' + S.device + '&o=' + S.option + '&v=' + (S.compare ? 'compare' : 'single') + '&rm=' + (S.rm ? 1 : 0) + '&sp=' + S.speed); } catch (e) {}
+  }
+
+  /* ---------------------------------------------------------------- tween (aborts when the stage is rebuilt) */
+  function tween(ms, ease, fn) {
+    var gen = S.gen; ms = Math.max(1, ms / S.speed);
+    return new Promise(function (res, rej) {
+      var t0 = performance.now();
+      function step() {
+        if (gen !== S.gen) return rej('aborted');
+        var t = Math.min(1, (performance.now() - t0) / ms); fn(ease(t));
+        if (t < 1) tick(step); else res();
+      }
+      tick(step);
+    });
+  }
+  /** Next frame: rAF, with a timer fallback so a throttled (background) pane still plays. */
+  function tick(cb) { var fired = false; function go() { if (!fired) { fired = true; cb(); } } requestAnimationFrame(go); setTimeout(go, 24); }
+  function wait(ms) { var gen = S.gen; return new Promise(function (res, rej) { setTimeout(function () { gen === S.gen ? res() : rej('aborted'); }, ms / S.speed); }); }
+
+  /* ---------------------------------------------------------------- pages (kit builders) */
+  function withCtx(ctx, fn) { var prev = Mock.current, prm = Mock.settings.reduceMotion; Mock.current = ctx; Mock.settings.reduceMotion = ctx.reduceMotion; try { return fn(); } finally { Mock.current = prev; Mock.settings.reduceMotion = prm; } }
+  function rows(c, list) {   // stand-in rows: Settings kit helpers when loaded, else ModuleList
+    if (window.SA && SA.section && SA.link) return SA.wrap(c, list.map(function (sec) {
+      return SA.section({ header: sec.header, footer: sec.footer, noglyph: !!sec.toggles, rows: sec.rows.map(function (r) { return r.toggle != null ? SA.toggleRow(r.title, r.toggle) : SA.link({ title: r.title, subtitle: r.subtitle, symbol: r.symbol, chevron: true, ctx: c }); }) });
+    }));
+    return K.ModuleList({ rows: [].concat.apply([], list.map(function (s) { return s.rows.map(function (r) { return { title: r.title, subtitle: r.subtitle, symbol: r.symbol || 'gearshape', chevron: r.toggle == null }; }); })) });
+  }
+  var ROUTES = {
+    root: function (c) { return window.SA && SA.settingsPage ? SA.settingsPage(c, {}) : SN.rootPage(c, 'settings'); },
+    admin: function (c) { return Mock.page(c, { title: 'Admin Controls', back: 'Settings', section: 'settings', badge: 3, choresBadge: 2, body: [rows(c, [
+      { rows: [{ title: 'Presence-Based Toggles', subtitle: 'Who is home decides the lights and locks.', symbol: 'person.badge.shield.checkmark' }, { title: 'Automation Overrides', subtitle: 'Pause an automation for a while.', symbol: 'slider.vertical.3' }] },
+      { header: 'Quick Toggles', toggles: true, rows: [{ title: 'Guest Mode', toggle: false }, { title: 'Night Lights', toggle: true }] }])] }); },
+    overrides: function (c) { return Mock.page(c, { title: 'Automation Overrides', back: 'Admin Controls', section: 'settings', badge: 3, choresBadge: 2, body: [rows(c, [
+      { header: 'Automations', toggles: true, footer: 'Turning one off pauses it until you turn it back on.', rows: [{ title: 'Morning Lights', toggle: true }, { title: 'Away Lock', toggle: true }, { title: 'Garage Auto-Close', toggle: false }] }])] }); },
+    home: function (c) { return SN.rootPage(c, 'home'); },
+  };
+  function isTrailing(el) { return el.matches('[aria-label^="Quick Links"],[aria-label^="Profile"]') || !!el.querySelector('[aria-label^="Quick Links"],[aria-label^="Profile"]'); }
+  /** A moving page: no tab bar or rail (the shell's), Quick Links and Profile hidden (drawn on the fixed layer), its own wallpaper only for Today. */
+  function prep(page, ownWall) {
+    if (!ownWall) Array.prototype.forEach.call(page.querySelectorAll(':scope > .ui-wall'), function (w) { w.remove(); });
+    Array.prototype.forEach.call(page.querySelectorAll('.ui-tabbar, :scope > .ui-rail'), function (n) { n.remove(); });
+    var bar = page.querySelector(':scope > .ui-bar');
+    if (bar) Array.prototype.forEach.call(bar.children, function (ch) { if (isTrailing(ch)) ch.style.visibility = 'hidden'; });
+    return page;
+  }
+  /** The shell's fixed layer: tab bar or rail, Quick Links and Profile; everything else removed or hidden. */
+  function chrome(c, section) {
+    var p = Mock.page(c, { title: ' ', section: section, badge: 3, choresBadge: 2, body: [] });
+    Array.prototype.forEach.call(p.querySelectorAll(':scope > .ui-wall, :scope > .ui-scroll'), function (n) { n.remove(); });
+    var bar = p.querySelector(':scope > .ui-bar');
+    if (bar) Array.prototype.forEach.call(bar.children, function (ch) { if (!isTrailing(ch)) ch.style.visibility = 'hidden'; });
+    p.classList.add('dm-chrome'); return p;
+  }
+  function wallLayer(c) {
+    var p = Mock.page(c, { title: ' ', section: 'settings', body: [] });
+    Array.prototype.slice.call(p.children).forEach(function (ch) { if (!ch.classList.contains('ui-wall')) ch.remove(); });
+    p.setAttribute('aria-hidden', 'true'); return p;
+  }
+
+  /* ---------------------------------------------------------------- a stage: one device, one option */
+  function Stage(key, optKey) {
+    this.key = key; this.optKey = optKey; this.opt = OPTIONS[optKey];
+    this.ctx = Mock.ctx(key, { appearance: 'dark', reduceMotion: S.rm });
+    this.split = !!this.ctx.splitGeometry;
+    if (this.split) this.opt = { label: 'Columns', short: 'Columns (shipped): reference for every option', ownWall: false };
+    this.section = 'settings'; this.stacks = { settings: ['root'], home: ['home'] }; this.nodes = {};
+    var self = this;
+    withCtx(this.ctx, function () {
+      self.pagesEl = h('div.dm-pages');
+      self.dim = h('div.dm-dim');
+      self.wall = self.opt.ownWall ? null : wallLayer(self.ctx);
+      self.chromeEl = chrome(self.ctx, 'settings');
+      self.tag = h('div.dm-tag', { 'aria-hidden': 'true' }, self.opt.label);
+      self.device = Mock.frame(self.ctx, [self.wall, self.pagesEl, self.chromeEl, self.tag].filter(Boolean));
+    });
+    this.screen = this.device.querySelector('.screen');
+    this.layout(true);
+  }
+  Stage.prototype.stack = function () { return this.stacks[this.section]; };
+  Stage.prototype.top = function () { var s = this.stack(); return s[s.length - 1]; };
+  Stage.prototype.node = function (route) {
+    var id = this.section + ':' + route, self = this;
+    if (!this.nodes[id]) this.nodes[id] = withCtx(this.ctx, function () { return prep(ROUTES[route](self.ctx), self.opt.ownWall); });
+    return this.nodes[id];
+  };
+  Stage.prototype.W = function () { return this.ctx.contentW; };
+  function clear(n) { n.style.transform = ''; n.style.opacity = ''; n.style.boxShadow = ''; n.style.left = ''; n.style.width = ''; }
+  /** Resting layout: single page = the top page alone; split = the last two of the stack in the columns. */
+  Stage.prototype.layout = function () {
+    var self = this;
+    while (this.pagesEl.firstChild) this.pagesEl.firstChild.remove();
+    this.dim.style.opacity = 0;
+    if (!this.split) { var n = this.node(this.top()); clear(n); this.pagesEl.appendChild(n); return; }
+    this.colLayout(this.stack().length, 1, this.stack().length);
+  };
+  /* ---- columns (split reference) */
+  Stage.prototype.slots = function () {
+    var g = this.ctx.splitGeometry, lead = g.leading, x2 = g.leading + g.band;
+    return { '-1': { x: -(x2), w: lead }, '0': { x: 0, w: lead }, '1': { x: x2, w: g.trailing }, '2': { x: this.W(), w: g.trailing } };
+  };
+  Stage.prototype.slotOf = function (i, depth) {   // page i (0 = root) in a stack of `depth` pages
+    if (depth <= 2) return i;                       // root leading, first page trailing
+    return i - (depth - 2);                          // the last two show; earlier ones are off to the left
+  };
+  Stage.prototype.colBox = function (route) {
+    var id = 'col:' + route; if (!this.nodes[id]) { var box = h('div.dm-col'); box.appendChild(this.node(route)); this.nodes[id] = box; }
+    return this.nodes[id];
+  };
+  /** Draw the columns between two depths at progress p (frames lerp), optionally cross-fading added/removed pages (Reduce Motion, as the code does). */
+  Stage.prototype.colLayout = function (from, p, to, fades) {
+    var routes = ['root', 'admin', 'overrides'], sl = this.slots(), self = this;
+    while (this.pagesEl.firstChild) this.pagesEl.firstChild.remove();
+    routes.forEach(function (r, i) {
+      var inFrom = i < from, inTo = i < to; if (!inFrom && !inTo) return;
+      var a = inFrom ? self.slotOf(i, from) : 2, b = inTo ? self.slotOf(i, to) : 2;
+      var op = 1;
+      if (fades && !inFrom) { a = b; op = p; }
+      if (fades && !inTo) { b = a; op = 1 - p; }
+      a = Math.max(-1, Math.min(2, a)); b = Math.max(-1, Math.min(2, b));
+      var A = sl[a], B = sl[b], box = self.colBox(r);
+      box.style.left = (A.x + (B.x - A.x) * p) + 'px'; box.style.width = B.w + 'px'; box.style.opacity = op;
+      self.pagesEl.appendChild(box);
+    });
+  };
+  /* ---- single-page frames */
+  Stage.prototype.frame = function (dir, p, from, to, interactive) {
+    var top = dir === 'push' ? to : from, under = dir === 'push' ? from : to, q = dir === 'push' ? p : 1 - p, W = this.W(), o = this.opt;
+    if (this.ctx.reduceMotion && !interactive) { from.style.opacity = 1 - p; to.style.opacity = p; return; }
+    if (o.kind === 'slide') {   // B: both pages a full width, edge to edge, over the still wallpaper
+      top.style.transform = 'translateX(' + (W * (1 - q)) + 'px)';
+      under.style.transform = 'translateX(' + (-W * q) + 'px)';
+      return;
+    }
+    // system push stand-in: top page travels the full width, the page under it 30% and dims; the top casts an edge shadow
+    top.style.transform = 'translateX(' + (W * (1 - q)) + 'px)';
+    under.style.transform = 'translateX(' + (-.3 * W * q) + 'px)';
+    this.dim.style.transform = under.style.transform; this.dim.style.opacity = (.3 * q).toFixed(3);
+    top.style.boxShadow = q > 0.001 && q < .999 ? '-8px 0 30px rgba(0,0,0,.35)' : '';
+    if (o.fadeUnder) under.style.opacity = (1 - q).toFixed(3);
+  };
+  Stage.prototype.mount = function (dir, from, to) {
+    while (this.pagesEl.firstChild) this.pagesEl.firstChild.remove();
+    var top = dir === 'push' ? to : from, under = dir === 'push' ? from : to;
+    clear(top); clear(under);
+    this.pagesEl.appendChild(under); this.pagesEl.appendChild(this.dim); this.pagesEl.appendChild(top);
+  };
+  Stage.prototype.say = function (t) { if (this.cap) this.cap.textContent = t; };
+  Stage.prototype.go = function (dir, route, toRoot) {
+    var st = this.stack(), self = this, fromDepth = st.length;
+    if (dir === 'push') st.push(route); else { if (st.length < 2) return Promise.resolve(); if (toRoot) st.length = 1; else st.pop(); }
+    var toDepth = st.length;
+    if (this.split) {
+      var fades = this.ctx.reduceMotion;   // code: Reduce Motion -> added/removed fade, survivors move over `quick`
+      var ms = fades ? Mock.anim.ms.quick() : SPRING_MS, ease = fades ? EASE.quick : EASE.spring;
+      return tween(ms, ease, function (p) { self.colLayout(fromDepth, p, toDepth, fades); }).then(function () { self.layout(); });
+    }
+    var fromR = dir === 'push' ? st[st.length - 2] : null, from, to;
+    if (dir === 'push') { from = this.node(fromR); to = this.node(route); }
+    else { from = this.nodes[this.section + ':' + (toRoot ? (fromDepth === 3 ? 'overrides' : 'admin') : (fromDepth === 3 ? 'overrides' : 'admin'))]; to = this.node(this.top()); }
+    if (!from) { this.layout(); return Promise.resolve(); }
+    this.mount(dir, from, to);
+    var rm = this.ctx.reduceMotion, o = this.opt;
+    return tween(rm ? o.rmMs() : o.ms, rm ? EASE.quick : o.ease, function (p) { self.frame(dir, p, from, to); }).then(function () { self.layout(); });
+  };
+  /** Interactive pop: the finger drags to `reach` of the width, then lifts; completes past half, else springs back. */
+  Stage.prototype.swipe = function (reach) {
+    var self = this, st = this.stack();
+    if (this.split) {
+      if (this.ctx.reduceMotion) { this.say('Columns: the edge pan is off under Reduce Motion (UKColumnsViewController.swift:554). Back button only.'); return wait(1200); }
+      var d = st.length, ok = reach >= .5;
+      return this.touch(function (p) { self.colLayout(d, p * reach, d - 1); }, reach).then(function () {
+        return tween(SPRING_MS * (ok ? 1 - reach : reach) + 120, EASE.quick, function (p) { self.colLayout(d, ok ? reach + (1 - reach) * p : reach * (1 - p), d - 1); });
+      }).then(function () { if (ok) st.pop(); self.layout(); });
+    }
+    var from = this.node(this.top()), to = this.node(st[st.length - 2]), ok2 = reach >= .5, o = this.opt;
+    this.mount('pop', from, to);
+    return this.touch(function (p) { self.frame('pop', p * reach, from, to, true); }, reach).then(function () {
+      var rest = ok2 ? 1 - reach : reach, ease = o.kind === 'slide' ? EASE.spring : o.ease, ms = o.kind === 'slide' ? SPRING_MS : SYSTEM_MS;
+      return tween(Math.max(160, ms * (rest + .3)), ease, function (p) { self.frame('pop', ok2 ? reach + (1 - reach) * p : reach * (1 - p), from, to, true); });
+    }).then(function () { if (ok2) st.pop(); self.layout(); });
+  };
+  /** A finger dot travelling from the leading edge while fn(p) moves the pages (p 0..1 of the drag). */
+  Stage.prototype.touch = function (fn, reach) {
+    var dot = h('div.dm-touch', { 'aria-hidden': 'true' }, h('span', 'drag from the edge')), y = this.ctx.h * .55, W = this.W();
+    dot.style.top = y + 'px'; dot.style.left = '6px'; this.screen.appendChild(dot);
+    return tween(700, EASE.linear, function (p) { dot.style.left = (6 + p * reach * W) + 'px'; fn(p); })
+      .then(function () { return wait(140); })
+      .then(function () { dot.remove(); }, function (e) { dot.remove(); throw e; });
+  };
+  /** Tab switch: a cut. The wallpaper and the fixed layer stay; only the tab selection changes. */
+  Stage.prototype.tab = function (section) {
+    var self = this; this.section = section;
+    withCtx(this.ctx, function () { var c = chrome(self.ctx, section); self.chromeEl.replaceWith(c); self.chromeEl = c; });
+    if (this.split && section === 'home') { while (this.pagesEl.firstChild) this.pagesEl.firstChild.remove(); var n = this.node('home'); clear(n); this.pagesEl.appendChild(n); return Promise.resolve(); }
+    this.layout(); return Promise.resolve();
+  };
+  /** Freeze the first push (root -> Admin Controls) at progress p, for the mid-transition comparison. */
+  Stage.prototype.freeze = function (p) {
+    this.section = 'settings'; this.stacks.settings = ['root'];
+    if (p <= 0) { this.layout(); return; }
+    if (this.split) { var rm = this.ctx.reduceMotion; this.colLayout(1, (rm ? EASE.quick : EASE.spring)(p), 2, rm); return; }
+    var from = this.node('root'), to = this.node('admin'); this.mount('push', from, to);
+    this.frame('push', (this.ctx.reduceMotion ? EASE.quick : this.opt.ease)(p), from, to);
+  };
+
+  /* ---------------------------------------------------------------- scripts */
+  function steps(st, list) {   // list of [caption, fn]
+    return list.reduce(function (pr, s) { return pr.then(function () { st.say(s[0]); return s[1](); }); }, Promise.resolve());
+  }
+  var SCRIPTS = {
+    sequence: function (st) {
+      return steps(st, [
+        ['Settings', function () { return wait(500); }],
+        ['Tap Household > Admin Controls: push', function () { return st.go('push', 'admin'); }],
+        ['Admin Controls', function () { return wait(600); }],
+        ['Tap Automation Overrides: sub-push', function () { return st.go('push', 'overrides'); }],
+        ['Automation Overrides', function () { return wait(700); }],
+        ['Back: pop', function () { return st.go('pop'); }],
+        ['Admin Controls', function () { return wait(600); }],
+        ['Back: pop to Settings', function () { return st.go('pop'); }],
+        ['Settings', function () { return wait(300); }],
+      ]);
+    },
+    swipe: function (st) {
+      return steps(st, [
+        ['Push Admin Controls', function () { return st.stack().length > 1 ? Promise.resolve() : st.go('push', 'admin'); }],
+        ['Admin Controls', function () { return wait(500); }],
+        ['Swipe back past half, lift: completes', function () { return st.swipe(.62); }],
+        ['Settings', function () { return wait(400); }],
+      ]);
+    },
+    'swipe-cancel': function (st) {
+      return steps(st, [
+        ['Push Admin Controls', function () { return st.stack().length > 1 ? Promise.resolve() : st.go('push', 'admin'); }],
+        ['Admin Controls', function () { return wait(500); }],
+        ['Swipe back a third, lift: springs back (cancelled)', function () { return st.swipe(.33); }],
+        ['Still on Admin Controls', function () { return wait(500); }],
+      ]);
+    },
+    tabs: function (st) {
+      var flyout = st.ctx.device.tabs === 'flyout';
+      var via = flyout ? ' (in the flyout)' : '';
+      return steps(st, [
+        ['Push Admin Controls', function () { return st.stack().length > 1 ? Promise.resolve() : st.go('push', 'admin'); }],
+        ['Settings, one level deep', function () { return wait(600); }],
+        ['Tap Home' + via + ': a cut. The wallpaper does not move', function () { return st.tab('home'); }],
+        ['Home', function () { return wait(1100); }],
+        ['Tap Settings' + via + ': a cut back, still one level deep', function () { return st.tab('settings'); }],
+        ['Admin Controls, as left', function () { return wait(1000); }],
+        ['Re-tap Settings: pops to the root (same motion as Back)', function () { return st.go('pop', null, true); }],
+        ['Settings', function () { return wait(400); }],
+      ]);
+    },
+  };
+
+  /* ---------------------------------------------------------------- page assembly */
+  var stageEl = document.getElementById('dm-stage'), live = document.getElementById('dm-live'), stages = [];
+  function zoomFor(d, n) {
+    var avail = Math.max(300, stageEl.clientWidth || 960), per = n > 1 ? Math.min(avail, (avail - 28 * (Math.min(n, 4) - 1)) / Math.min(n, 4)) : Math.min(avail, 640);
+    return Math.min(1, per / (d.w + 40));
+  }
+  function build() {
+    S.gen++; hashWrite();
+    stageEl.innerHTML = ''; stages = [];
+    var split = !!Mock.ctx(S.device, {}).splitGeometry;
+    var keys = S.compare && !split ? ORDER : [split ? 'b' : S.option];
+    keys.forEach(function (k) {
+      var st = new Stage(S.device, k), d = st.ctx.device, z = zoomFor(d, keys.length);
+      var cap = h('span.dm-step', 'Settings');
+      st.cap = cap;
+      stageEl.appendChild(h('figure.dm-fig', h('div.dm-z', { style: { zoom: z } }, st.device), h('figcaption', h('b', st.opt.short), DEVICES.filter(function (x) { return x.key === S.device; })[0].label + (S.rm ? ' · Reduce Motion' : ''), cap)));
+      stages.push(st);
+    });
+    if (S.scrub > 0) stages.forEach(function (st) { st.freeze(S.scrub); });
+    live.textContent = split ? 'Split layout: the shipped columns, shown for reference; the options apply to single-page layouts.' : '';
+  }
+  function play(name) {
+    if (name === 'reset') { scrub.value = 0; S.scrub = 0; scrubVal.textContent = '0%'; build(); return; }
+    scrub.value = 0; S.scrub = 0; scrubVal.textContent = '0%';
+    build();
+    var gen = S.gen;   // any Play (or control change) rebuilds the stages and aborts the run in progress
+    live.textContent = 'Playing: ' + name;
+    Promise.all(stages.map(function (st) { return SCRIPTS[name](st); })).then(function () { if (gen === S.gen) live.textContent = 'Done.'; }, function () {});
+  }
+
+  /* controls */
+  hashRead();
+  var sel = document.getElementById('dm-device');
+  DEVICES.forEach(function (d) { var o = document.createElement('option'); o.value = d.key; o.textContent = d.label; sel.appendChild(o); });
+  sel.value = S.device; sel.addEventListener('change', function () { S.device = sel.value; build(); });
+  function seg(id, items, cur, on) {
+    var el = document.getElementById(id);
+    items.forEach(function (it) {
+      var b = h('button', { type: 'button', 'aria-pressed': String(it[0] === cur) }, it[1]);
+      b.addEventListener('click', function () { Array.prototype.forEach.call(el.children, function (x) { x.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', 'true'); on(it[0]); });
+      el.appendChild(b);
+    });
+  }
+  seg('dm-option', ORDER.map(function (k) { return [k, OPTIONS[k].label]; }), S.option, function (k) { S.option = k; S.compare = false; syncView(); build(); });
+  seg('dm-view', [['single', 'One option'], ['compare', 'Compare all']], S.compare ? 'compare' : 'single', function (v) { S.compare = v === 'compare'; build(); });
+  function syncView() { Array.prototype.forEach.call(document.getElementById('dm-view').children, function (b, i) { b.setAttribute('aria-pressed', String((i === 1) === S.compare)); }); }
+  seg('dm-speed', [[1, '1×'], [0.5, '½×'], [0.2, '⅕×']], S.speed, function (v) { S.speed = v; hashWrite(); });
+  var rmBox = document.getElementById('dm-rm'); rmBox.checked = S.rm; rmBox.addEventListener('change', function () { S.rm = rmBox.checked; build(); });
+  var scrub = document.getElementById('dm-scrub'), scrubVal = document.getElementById('dm-scrub-val');
+  scrub.addEventListener('input', function () {
+    S.scrub = scrub.value / 100; scrubVal.textContent = scrub.value + '%';
+    S.gen++;
+    stages.forEach(function (st) { st.freeze(S.scrub); st.say(S.scrub > 0 ? 'Push held at ' + scrub.value + '%' : 'Settings'); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-play]'), function (b) { b.addEventListener('click', function () { play(b.dataset.play); }); });
+  var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(build, 200); });
+  build();
+})();
+</script>
+</body></html>

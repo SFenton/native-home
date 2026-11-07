@@ -1,0 +1,17 @@
+{
+  "id": "dd-folded-landscape-sheets-full-height",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "On duo landscape or folded, modals can always just open full height and from the bottom",
+  "surface": "hass-modal",
+  "poses": [
+    "duo-folded",
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "18205cc5",
+  "fix_ref": "68bc1ad6",
+  "fix_confidence": "high",
+  "expected": "DuoSheetPolicy: folded or beside a vertical hinge means full height from the bottom; flag a content-height sheet in those poses."
+}

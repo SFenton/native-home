@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Server field and missing house layout · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/login/_login-launch-flows.js"></script>
+<style>
+/* Local helpers for this proposal (promote to kit if the pick ships: hc-* server row and skeleton shapes). Sizes use the kit's Dynamic Type variables. */
+.hc-ph{color:rgba(235,235,245,.3)}
+.hc-srvline{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:var(--fs-sub);line-height:1.3;color:var(--g-secondary-on-wallpaper);text-align:center;min-height:44px}
+.hc-srvline b{font-weight:600;color:#fff;word-break:break-all}
+.hc-link{background:none;border:0;padding:0 4px;min-height:44px;font:inherit;font-size:var(--fs-body);color:#8AC4FF;cursor:pointer}
+.hc-caption{font-size:var(--fs-foot);line-height:1.35;color:var(--g-secondary-on-wallpaper);margin:-8px 8px 0}
+.hc-rail{display:flex;gap:8px;padding:0 16px;overflow:hidden}
+.hc-centre{display:flex;align-items:center;justify-content:center;padding:24px 0}
+.hc-setup{position:absolute;inset:0;background:#121722;color:#fff;font-family:var(--font);z-index:10;overflow-y:auto}
+.hc-setup .col{box-sizing:border-box;margin:0 auto;max-width:460px;min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:calc(var(--safe-top,54px) + 24px) 24px 40px;text-align:center}
+.hc-setup h1{font:700 var(--fs-lt)/1.2 var(--font-d);margin:0}
+.hc-setup p{font-size:var(--fs-body);line-height:1.35;color:var(--g-secondary-on-wallpaper);margin:0}
+</style>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, LL = Mock.LL, A = Mock.anim;
+  var SERVER = 'https://ha.example.com', PH = 'homeassistant.local:8123', DEMO_NAME = 'Alex Morgan';
+
+  /* ------------------------------------------------------------------ copy (the pick's strings, as the Coder ships them) */
+  var C = {
+    serverLabel: 'Server', serverPlaceholder: PH,
+    badURL: 'Enter the address you open Home Assistant with, like homeassistant.local:8123.',
+    notHA: "Home Assistant didn't answer at that address. Check it and try again.",
+    unreachableTitle: "Can't reach Home Assistant",
+    unreachableBody: 'Check the server address and that this phone is online. If both are right, Home Assistant may be restarting; try again in a minute.',
+    gettingHome: 'Getting your home from Home Assistant',
+  };
+  var INTEGRATION = 'S+H Home Integration';
+  var STATES = {
+    missing: { symbol: 'puzzlepiece.extension', title: 'Add the ' + INTEGRATION,
+      admin: 'S+H gets your rooms, cameras and controls from the ' + INTEGRATION + ' in Home Assistant. Install or update it there; S+H picks it up by itself.',
+      member: 'S+H gets your rooms, cameras and controls from the ' + INTEGRATION + ' in Home Assistant. Ask whoever manages your Home Assistant to install or update it.',
+      action: 'Open Integrations' },
+    notConfigured: { symbol: 'house', title: "Home Isn't Set Up Yet",
+      admin: 'The ' + INTEGRATION + ' is installed but has no house layout yet. Add one in Home Assistant; S+H picks it up by itself.',
+      member: 'The ' + INTEGRATION + ' is installed but has no house layout yet. Ask whoever manages your Home Assistant to add one.',
+      action: 'Open ' + INTEGRATION },
+    invalid: { symbol: 'exclamationmark.triangle', title: 'Unable to Read the House Layout',
+      admin: "Home Assistant lists what's wrong under Repairs. Fix it there; S+H picks it up by itself.",
+      member: 'Ask whoever manages your Home Assistant to check Repairs.',
+      action: 'Open Repairs' },
+    newer: { symbol: 'arrow.down.circle', title: 'Update S+H',
+      admin: 'This Home Assistant has a newer house layout than this version of S+H can read. Update S+H to see your home.' },
+    timeout: { symbol: 'exclamationmark.triangle', title: 'Unable to Load the House Layout',
+      admin: "Home Assistant hasn't sent the house layout. Try again; if it keeps happening, restart Home Assistant.", action: 'Try Again' },
+  };
+
+  /* ------------------------------------------------------------------ sign-in helpers (LL.screen plus a server row) */
+  function serverRow(o) {
+    var value = o.value == null ? SERVER : o.value;
+    var fd = o.readonly ? h('span.fd.ro', { role: 'text', 'aria-label': 'Server, ' + value }, value)
+      : h('span.fd', { role: 'textbox', 'aria-label': 'Server address' }, value ? value : h('span.hc-ph', C.serverPlaceholder), o.focus ? h('span.ll-caret') : null);
+    return h('div.ll-row' + (o.ax ? '.ax' : ''), h('span.lb', { 'aria-hidden': 'true' }, C.serverLabel), fd, o.redline ? h('span.ll-redline', { 'aria-hidden': 'true', style: { borderRadius: '26px 26px 0 0' } }) : null);
+  }
+  /** Option A: the server is the first row of the one glass module. o: LL.screen options + server {value, readonly, focus, redline}, inline (message), card (bool) */
+  function signInA(ctx, o) {
+    var root = LL.screen(ctx, o), mod = root.querySelector('.ll-module'), form = root.querySelector('.ll-form');
+    var s = o.server || {};
+    mod.insertBefore(h('div.ll-hair', { 'aria-hidden': 'true' }), mod.firstChild);
+    mod.insertBefore(serverRow(Object.assign({ ax: !!ctx.axSize }, s)), mod.firstChild);
+    if (o.inline) form.insertBefore(LL.inlineError(o.inline), root.querySelector('.ll-btn'));
+    if (o.card) {
+      form.insertBefore(LL.failureCard({ title: C.unreachableTitle, message: C.unreachableBody, detail: 'NSURLErrorDomain -1003: A server with the specified hostname could not be found.', expanded: false }), mod);
+      root.querySelector('.ll-btn .ui-primary').lastChild.textContent = 'Try Again';
+    }
+    if (s.value === '') { var b = root.querySelector('.ll-btn .ui-primary'); b.disabled = true; }
+    return root;
+  }
+  /** Option B: step 1 asks only for the server (Continue), step 2 is today's form under a server line with Change. */
+  function signInB1(ctx, o) {
+    var root = LL.screen(ctx, { username: '', password: 0, noFootnote: true }), mod = root.querySelector('.ll-module');
+    mod.innerHTML = ''; mod.setAttribute('aria-label', 'Server');
+    mod.appendChild(serverRow({ value: o.value, focus: true, ax: !!ctx.axSize }));
+    var btn = root.querySelector('.ll-btn .ui-primary'); btn.lastChild.textContent = 'Continue'; btn.setAttribute('aria-label', 'Continue'); btn.disabled = !o.value;
+    root.querySelector('.ll-line').textContent = 'Connect to your Home Assistant';
+    root.querySelector('.ll-formwrap').appendChild(h('p.ll-foot', 'Use the address you open Home Assistant with. S+H checks it before asking for your password.'));
+    return root;
+  }
+  function signInB2(ctx, o) {
+    var root = LL.screen(ctx, o), form = root.querySelector('.ll-form');
+    form.insertBefore(h('div.hc-srvline', h('span', 'Signing in to'), h('b', SERVER.replace('https://', '')), h('button.hc-link', { type: 'button' }, 'Change')), form.firstChild);
+    return root;
+  }
+  /** Option C: today's form; the server is a line under the module with Change, expanding into its own module when changed or unknown. */
+  function signInC(ctx, o) {
+    var root = LL.screen(ctx, o), form = root.querySelector('.ll-form'), mod = root.querySelector('.ll-module');
+    if (o.expanded) {
+      var m = h('div.ll-module.ui-module', { role: 'group', 'aria-label': 'Server' }, serverRow({ value: o.value, focus: true, ax: !!ctx.axSize }));
+      form.insertBefore(m, mod);
+      form.insertBefore(h('p.hc-caption', 'The address you open Home Assistant with.'), mod);
+    } else {
+      form.insertBefore(h('div.hc-srvline', h('span', 'Server'), h('b', SERVER.replace('https://', '')), h('button.hc-link', { type: 'button' }, 'Change')), root.querySelector('.ll-btn'));
+    }
+    return root;
+  }
+
+  /* ------------------------------------------------------------------ Home and page helpers */
+  function skel(style) { return h('div.ui-skel.pulse', { 'aria-hidden': 'true', style: style }); }
+  function cols(ctx) { return (ctx.splitAtHinge ? ctx.contentW / 2 : ctx.contentW) >= 700 ? 4 : 2; }
+  function tileGrid(ctx, n, ratio) {
+    return h('div', { 'aria-hidden': 'true', style: { display: 'grid', gridTemplateColumns: 'repeat(' + cols(ctx) + ', 1fr)', gap: '12px' } },
+      Array.apply(null, Array(n)).map(function () { return skel({ aspectRatio: ratio || '1 / 0.78', borderRadius: '22px' }); }));
+  }
+  function sectionSkel(ctx, n, ratio) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, skel({ height: 'calc(17px * var(--sc))', width: '96px', borderRadius: '99px' }), tileGrid(ctx, n, ratio)); }
+  /** The Home skeleton: four chip capsules, the weather module, one section bar and four camera-shaped tiles; one VoiceOver element. */
+  function homeSkeleton(ctx, o) {
+    o = o || {};
+    var rail = h('div.hc-rail.ui-bleed', { 'aria-hidden': 'true' }, [118, 104, 126, 96].map(function (w) { return skel({ height: 'calc(44px * var(--sc))', width: w + 'px', flex: 'none', borderRadius: '99px' }); }));
+    var wx = skel({ height: 'calc(196px * var(--sc))', borderRadius: '26px' });
+    var cams = sectionSkel(ctx, 4);
+    var fold = Mock.foldColumns(ctx, { top: [rail], leading: [wx], trailing: [cams] });
+    var body = fold || [rail, wx, cams];
+    var label = h('span', { role: 'status', 'aria-label': C.gettingHome, style: { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' } });
+    return [label].concat(body);
+  }
+  function pageSkeleton(ctx) {
+    var label = h('span', { role: 'status', 'aria-label': C.gettingHome, style: { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' } });
+    var a = sectionSkel(ctx, 4, '1 / 0.62'), b = sectionSkel(ctx, 2, '1 / 0.62');
+    var fold = Mock.foldColumns(ctx, { leading: [a], trailing: [b] });
+    return [label].concat(fold || [a, b]);
+  }
+  /** StateMessage centred in the free space; with a band (partly folded Duo) it sits in the leading region (HingeAvoidance). */
+  function stateMsg(ctx, key, role) {
+    var s = STATES[key], admin = role !== 'member';
+    var node = K.ContentUnavailableView({ symbol: s.symbol, title: s.title, description: admin ? s.admin : (s.member || s.admin), action: admin && s.action ? s.action : null });
+    var min = Math.max(320, ctx.h - (ctx.isPhone && !ctx.folded ? 300 : 220));
+    var box = h('div.hc-centre', { style: { minHeight: min + 'px' } }, h('div', { style: { maxWidth: '460px' } }, node));
+    var fold = Mock.foldColumns(ctx, { leading: [box], trailing: [] });
+    return fold || [box];
+  }
+  function home(ctx, body, o) { return Mock.page(ctx, Object.assign({ title: 'Home', section: 'home', badge: 0, choresBadge: 0, profileName: DEMO_NAME, body: body }, o)); }
+  function security(ctx, body, o) { return Mock.page(ctx, Object.assign({ title: 'Security', section: 'security', badge: 0, choresBadge: 0, profileName: DEMO_NAME, body: body }, o)); }
+
+  /** Option B (missing config): a setup root layer replacing the shell. */
+  function setupLayer(ctx) {
+    var dev = ctx.device, s = STATES.missing;
+    return h('div.hc-setup', { role: 'group', 'aria-label': 'Finish setting up', style: { '--safe-top': dev.safeTop + 'px' } },
+      h('div.col', h('div', { style: { display: 'flex', justifyContent: 'center' } }, LL.mark({ size: 72 })), h('h1', 'Finish Setting Up'), h('p', s.admin),
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' } }, K.PrimaryButton({ title: 'Open Home Assistant' }), h('button.hc-link', { type: 'button' }, 'Sign Out'))));
+  }
+  /** Option C (missing config): a notice at the top over the Home skeleton. */
+  function bannerHome(ctx) {
+    var s = STATES.missing;
+    var box = K.InfoBox({ title: s.title, message: s.admin, tone: 'neutral' });
+    return home(ctx, [h('div', box)].concat(homeSkeleton(ctx)));
+  }
+  /** The Home Assistant settings modal with the new House Layout row (Server section) and, when needed, its footer. */
+  function haSettings(ctx, value, footer) {
+    var sheet = LL.haSettings(ctx, {});
+    var card = sheet.querySelector('.ll-card');
+    /* demo person in the Account rows (the shared helper's default is not demo data) */
+    sheet.querySelectorAll('.ll-cell .v').forEach(function (v) { if (/^[A-Z][a-z]+ [A-Z][a-z]+$/.test(v.textContent)) v.textContent = DEMO_NAME; });
+    sheet.querySelectorAll('.ui-monogram').forEach(function (m) { m.setAttribute('aria-label', 'Profile, ' + DEMO_NAME); m.setAttribute('title', 'Profile, ' + DEMO_NAME); m.textContent = 'AM'; });
+    if (card) {
+      card.appendChild(h('div.ll-cell.wrap', h('span', 'House Layout'), h('span.v', value)));
+      if (footer) card.parentNode.appendChild(h('div.ft', h('span', footer)));
+    }
+    return sheet;
+  }
+
+  var FILLED = { username: 'alex', password: 10 };
+  function S(fn, o) { return function (ctx) { return fn(ctx, Object.assign({}, o)); }; }
+
+  Mock.mount({
+    kind: 'proposal', id: 'house-config-states', title: 'Server field and missing house layout', area: 'proposals', status: 'proposed',
+    summary: 'Owner, 2026-11-06: "No discovery for now- just a textbox for you to enter the URL of HASS." Three ways to add the server address to sign-in (A: a Server row in the one module, B: a server step first, C: a server line with Change), and three ways to show a house with no layout once the compiled values are gone (A: a state message in each page, B: a setup layer over the shell, C: a notice over the skeleton), plus the first-sign-in skeleton, the cached-layout rule and a missing entity. Decided: sign-in A and missing layout A. Record: .agents/design/house-config-states.md.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift', 'apple/Sources/HassUI/Features/Login/LoginModel.swift', 'apple/Sources/HassUI/Features/Login/LoginCopy.swift',
+      'apple/Sources/HassCore/Auth/HassServer.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPendingValueBar.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Settings/UKHomeAssistantSettings.swift'],
+    spec: ['.agents/design/house-config-states.md', '.agents/platforms/apple/auth.md', '.agents/pages/home/spec.md', '.agents/patterns/state-message.md', '.agents/platforms/apple/connection-lifecycle.md'],
+    patterns: ['state-message', 'content-gate', 'entity-tile', 'hinge-avoidance', 'motion'],
+    hig: ['Text fields', 'Entering data', 'Virtual keyboards', 'Writing', 'Loading', 'Progress indicators', 'Designing for iPhone Duo'],
+    kitComponents: ['PrimaryButton', 'ContentUnavailableView', 'InfoBox', 'ArcSpinner', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'today': { title: 'Sign-in today: no address field', note: 'the server is HassServer.fentonHome, compiled in (owner 2026-10-17, now reversed)', render: S(LL.screen, FILLED) },
+      'a-empty': { title: 'Option A (picked): no server known yet', note: 'a build without HASS_DEFAULT_SERVER and no last server: the Server row shows the placeholder; Sign In is off until all three rows have text', render: S(signInA, { username: '', password: 0, server: { value: '', focus: true } }) },
+      'a-prefilled': { title: 'Option A: last server and username remembered', note: 'after a deliberate sign-out, or a build setting prefill; password empty and focused', render: S(signInA, { username: 'alex', password: 0, focus: 'password' }) },
+      'a-bad-url': { title: 'Option A: not an address', note: 'checked when the Server field ends editing and on Sign In; red hairline round the Server row and the red line under the module; nothing is sent', render: S(signInA, { username: 'alex', password: 10, server: { value: 'ha example', redline: true }, inline: C.badURL }) },
+      'a-not-ha': { title: 'Option A: something answered, not Home Assistant', note: 'step 1 of the login flow (no password sent yet) got no flow_id: the same red line and hairline', render: S(signInA, { username: 'alex', password: 10, server: { value: 'https://example.com', redline: true }, inline: C.notHA }) },
+      'a-unreachable': { title: 'Option A: server unreachable', note: 'the existing card, reworded to mention the address; no hairline (the address may be right); Try Again', render: S(signInA, Object.assign({ card: true }, FILLED)) },
+      'a-welcome-back': { title: 'Option A: welcome back', note: 'server and username read-only, password only; Use a Different Account returns to the fresh form with the server still filled', render: S(signInA, { mode: 'welcome', username: 'alex', name: 'Alex Morgan', first: 'Alex', password: 0, focus: 'password', server: { readonly: true } }) },
+      'a-ax5': { title: 'Option A at AX5', override: { ts: 'ax5' }, note: 'labels above the fields, the form scrolls, Sign In stays reachable at the end of the scroll', render: S(signInA, { username: 'alex', password: 10 }) },
+      'b-server-step': { title: 'Option B: a server step first', note: 'Continue checks the address before the account form appears; a fresh sign-in is two screens', render: function (c) { return signInB1(c, { value: SERVER }); } },
+      'b-account-step': { title: 'Option B: account step under a server line', note: 'Change goes back to step 1', render: S(signInB2, FILLED) },
+      'c-collapsed': { title: 'Option C: server line under the module', note: 'today\'s form; the address is a line with Change', render: S(signInC, FILLED) },
+      'c-expanded': { title: 'Option C: Change pressed (or no server known)', note: 'the server gets its own module and caption above the account module', render: S(signInC, Object.assign({ expanded: true, value: SERVER }, FILLED)) },
+
+      'loading': { title: 'First sign-in, no saved layout: Home skeleton (decided rule)', note: 'four chip capsules, the weather module, a section bar and camera-shaped tiles pulse like the pending bars; the header shows the one Connecting arc; no spinner in the page', render: function (c) { return home(c, homeSkeleton(c), { connection: 'reconnecting' }); } },
+      'skeleton-page': { title: 'First sign-in: any other page (Security)', note: 'the generic page skeleton: section bars and tiles', render: function (c) { return security(c, pageSkeleton(c), { connection: 'reconnecting' }); } },
+      'offline': { title: 'First sign-in with no network', note: 'the skeleton stays, the offline chip says why (as the pending bars do today)', render: function (c) { return home(c, homeSkeleton(c), { connection: 'offline' }); } },
+      'ma-missing': { title: 'Option A (picked): integration missing or too old, administrator', note: 'StateMessage in the page; the action opens the Home Assistant modal on Integrations', render: function (c) { return home(c, stateMsg(c, 'missing')); } },
+      'ma-missing-member': { title: 'Option A: integration missing, not an administrator', note: 'no action: the person cannot install it; the copy says who can', render: function (c) { return home(c, stateMsg(c, 'missing', 'member')); } },
+      'ma-not-configured': { title: 'Option A: integration installed, no layout ({configured: false})', render: function (c) { return home(c, stateMsg(c, 'notConfigured')); } },
+      'error': { title: 'Option A: invalid layout (the server raised a Repair)', note: 'the action opens Repairs in the Home Assistant modal', render: function (c) { return home(c, stateMsg(c, 'invalid')); } },
+      'ma-newer': { title: 'Option A: layout newer than this build reads', note: 'no action in the app: the way forward is an update', render: function (c) { return home(c, stateMsg(c, 'newer')); } },
+      'ma-timeout': { title: 'Option A: connected, no answer after 10 s', note: 'the failed-load rule: Try Again resubscribes', render: function (c) { return home(c, stateMsg(c, 'timeout')); } },
+      'ma-security': { title: 'Option A on another page (Security)', note: 'every page whose body comes from the layout shows the same state under its own title; tabs, Quick Links, Profile and Settings stay', render: function (c) { return security(c, stateMsg(c, 'missing')); } },
+      'ax5': { title: 'Option A at AX5', override: { ts: 'ax5' }, note: 'the message starts at the top of the free space and scrolls when taller (state-message pattern)', render: function (c) { return home(c, stateMsg(c, 'missing')); } },
+      'mb-setup-layer': { title: 'Option B: a setup layer replaces the shell', note: 'no tabs, Profile or Settings; Sign Out on the layer', render: function (c) { var p = home(c, []); p.appendChild(setupLayer(c)); return p; } },
+      'mc-banner': { title: 'Option C: a notice over the skeleton', note: 'the skeleton keeps pulsing under an error', render: function (c) { return bannerHome(c); } },
+      'default': { title: 'A saved layout always wins (decided rule)', note: 'cached document, server now answers missing, not set up, invalid or newer: Home draws the saved layout as usual, nothing on the page; the Home Assistant modal says so', render: function (c) { return LL.homePage(c, { badge: 0, profileName: DEMO_NAME }); } },
+      'entity-missing': { title: 'A configured entity missing from Home Assistant (decided rule)', note: 'its tile reads Unavailable, dimmed, as an unavailable entity does today; nothing is hidden or reordered', render: function (c) {
+        var chips = Mock.chips.home(); chips[2] = Mock.chips.unavailable('Climate', 'thermometer.medium'); return LL.homePage(c, { badge: 0, chips: chips, profileName: DEMO_NAME }); } },
+      'ha-row-missing': { title: 'Home Assistant modal: House Layout row, two entities not found', note: 'administrators can see what to fix', render: function (c) { return haSettings(c, 'Loaded, 2 not found', 'Not found in Home Assistant: light.demo_kitchen_ceiling_1, input_text.demo_air_quality_1. Their tiles show Unavailable.'); } },
+      'ha-row-saved': { title: 'Home Assistant modal: saved layout in use', render: function (c) { return haSettings(c, 'Saved copy', 'Home Assistant can’t send the house layout right now (the ' + INTEGRATION + ' is missing), so S+H shows the copy it saved.'); } },
+    },
+    motion: [
+      { id: 'skeleton-pulse', what: 'The skeleton pulses like the pending bars', token: 'opacity 0.35 to 1 over 1.4 s, repeats (motion.md section 5, first sign-in placeholders)', state: 'loading', source: 'UKPendingValueBar.swift (the same pulse)', reduce: 'static at 65% opacity', play: function () { return Mock.sleep(2800); } },
+      { id: 'skeleton-to-content', what: 'The layout arrives: the skeleton fades out, the page fades in and rises 4 pt; values then pulse until states land', token: 'skeleton quick 0.2 s out; content 170 ms fade and 4 pt rise (content-gate step 3)', state: 'loading', source: 'patterns/content-gate.md sequence step 3', reduce: 'fade only, no rise',
+        play: function (stage) { var b = stage.querySelector('.ui-body') || stage; return A.fade(b, { from: 1, to: 0 }).then(function () { return A.rise(b); }); } },
+      { id: 'state-appears', what: 'The server answers with a problem: the skeleton fades out and the state message fades in', token: 'quick 0.2 s easeOut each', state: 'ma-missing', source: 'motion.md section 7 quick', reduce: 'unchanged (opacity only)',
+        play: function (stage) { var n = stage.querySelector('.ui-cuv'); return n ? A.fade(n) : Mock.sleep(200); } },
+      { id: 'inline-appears', what: 'A bad address: the red hairline and the red line fade in', token: 'quick 0.2 s easeOut (as the wrong-password line)', state: 'a-bad-url', source: 'UKLoginViewController.showFailure', reduce: 'unchanged (opacity only)',
+        play: function (stage) { var n = stage.querySelector('.ll-err'); return n ? A.fade(n) : Mock.sleep(200); } },
+    ],
+    a11y: [
+      { rule: 'Server field', note: 'Labels, identifiers and reading order: decision record, Identifiers and labels.' },
+      { rule: 'Errors', note: 'The red line is announced (as the wrong-password line is) and carries the warning glyph, so it does not rest on colour alone; focus returns to the Server field.' },
+      { rule: 'Skeleton', note: 'One element for the whole skeleton, shapes hidden; its label and identifiers are in the decision record. The header arc keeps its own label.' },
+      { rule: 'State message', note: 'Title is a heading; the glyph is hidden; the action is a 50 pt PrimaryButton with its own identifier (decision record). VoiceOver moves to the message when it replaces the skeleton (layoutChanged).' },
+      { rule: 'Targets and AX5', note: 'Rows stay 52 pt (scaled), Change and link buttons 44 pt; at AX5 labels sit above fields and the message scrolls.' },
+    ],
+    reviews: {
+      date: '2026-11-06',
+      hig: [
+        { rule: 'Text fields: "In iOS, iPadOS ... show the appropriate keyboard type (such as numbers or URLs)"; "Display a trailing Clear button"', verdict: 'pass', note: 'All three options use the URL keyboard; A adds the clear button while editing.', by: 'apple-hig skill' },
+        { rule: 'Text fields: "Evenly space multiple fields; stack vertically when possible, with consistent widths"', verdict: 'pass', note: 'A: three equal rows in one module. C mixes a line and a module; B splits them across screens.', by: 'apple-hig skill' },
+        { rule: 'Entering data: "Be clear about the data you need ... You can prefill reasonable defaults"', verdict: 'pass', note: 'A prefills the last server or the build setting and shows a format example as placeholder.', by: 'apple-hig skill' },
+        { rule: 'Writing: "Show errors next to the field and say how to enter information correctly ... Avoid unhelpful robotic messages like Invalid name"', verdict: 'pass', note: 'The address errors sit under the module with a hairline on the Server row and give an example.', by: 'apple-hig skill' },
+        { rule: 'Loading: "Show something quickly ... use placeholder text, graphics, or animations until content arrives"', verdict: 'pass', note: 'The skeleton draws Home\'s shape at once; no full-screen spinner (owner, 2026-10-24).', by: 'apple-hig skill' },
+        { rule: 'Progress indicators: "Keep indicators moving. If a process stalls, explain the problem and what people can do"', verdict: 'pass', note: 'Missing layout A replaces the skeleton with a message and an action; C keeps the skeleton pulsing under an error.', by: 'apple-hig skill' },
+        { rule: 'Writing: "Provide clear next steps on any blank screens, with a button or link if possible"', verdict: 'pass', note: 'Administrators get a button to the exact Home Assistant page; others are told who can fix it.', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: "Preserve functionality, element state, hierarchy, and access across displays/poses"; folding region', verdict: 'pass', note: 'A keeps the shell; the message sits in the leading region when the band is present. B removes the shell.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Dynamic Type and 44 pt targets', verdict: 'pass', note: 'UIKit screens: UKLoginRowView and UKStateMessageView already scale; no fixed heights added.', by: 'swiftui-pro skill (design lens)' },
+        { rule: 'No reload on reopen', verdict: 'pass', note: 'A cached layout always draws; status changes never blank a page that has a document.', by: 'swiftui-pro skill (design lens)' },
+      ],
+    },
+    notes: [
+      'Decision: 2026-11-06, judged sign-in Options A, B and C; picked A. Judged missing-layout Options A, B and C; picked A. Reasons, copy and the rules: .agents/design/house-config-states.md.',
+      'Evidence: these live-size drawings and the code (owner tier for the migration: no simulator captures per change). The end-of-migration capture pass on GitHub Actions captures the list in the decision record.',
+      'Not yet built: login.html and home.html map the app as it is; the implementing PR updates them (Server row, the new errors, skeleton and state messages) and sets this proposal\'s shippedIn.',
+      'refreshing, empty and reconnecting: refreshing is the default state here (a saved layout draws as usual), empty is the state messages, reconnecting is unchanged from home.html.',
+      'long-text: a long server address scrolls inside its field while editing and truncates in the middle when read-only; drawn short here.',
+      'Kit limit: the StateMessage is drawn with the kit ContentUnavailableView, which is the same glyph, heading, text and PrimaryButton stack as UKStateMessageView.',
+      'Sample server ha.example.com and the placeholder homeassistant.local:8123 are generic; the integration name follows its manifest (HouseConfigCopy.integrationName).',
+    ],
+    changelog: [{ date: '2026-11-06', note: 'Proposal and decision (house-config-design-states, plan steps 6 and 10).' }, { date: '2026-11-06', note: 'Integration name corrected to its manifest name, S+H Home Integration.' }, { date: '2026-11-06', note: 'Review round 1: demo person and demo entity ids; identifiers and labels moved to the decision record.' }],
+  });
+})();
+</script></body></html>

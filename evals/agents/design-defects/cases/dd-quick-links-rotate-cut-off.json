@@ -1,0 +1,17 @@
+{
+  "id": "dd-quick-links-rotate-cut-off",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "When opening Quick Links in unfolded portrait and rotating to unfolded landscape, modal does not adjust and content is cut off at the bottom",
+  "surface": "quick-links",
+  "poses": [
+    "duo-unfolded-portrait",
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "244c4124",
+  "fix_ref": "e2f0e56d",
+  "fix_confidence": "high",
+  "expected": "Rotate-in and rotate-out with the sheet open: the sheet must re-fit its detent and placement; flag content clipped below the sheet bottom after the rotation."
+}

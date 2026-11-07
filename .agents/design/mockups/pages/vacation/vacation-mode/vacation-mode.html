@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vacation Mode · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.VS.V;
+  var ALL = [true, true, true, true, true];
+  function page(o) { return function (ctx) { return V.modePage(ctx, o); }; }
+
+  Mock.mount({
+    kind: 'page', id: 'vacation-mode', title: 'Vacation Mode', area: 'vacation', status: 'shipped',
+    summary: 'Settings > Vacation > Vacation Mode: the mode card, then the pre-vacation checklist (off) or the vacation dates (on). Turning it on asks for the dates in a sheet; turning it off asks first. While a Solo Trip owns the household plan the page shows its status instead. Sample data is fixture data.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/Features/Vacation/VacationComponents.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKScheduleDateFields.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift',
+      'apple/Sources/HassCore/Config/VacationConfig.swift', 'apple/Sources/HassCore/HouseholdAway/VacationModeController.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripStatus.swift'],
+    spec: ['.agents/pages/vacation/spec.md', '.agents/pages/vacation/ios.md', '.agents/patterns/schedule-date-fields.md'],
+    patterns: ['schedule-date-fields', 'module-list', 'entity-tile', 'info-box', 'settings-section', 'optimistic-actions', 'motion'],
+    hig: ['Toggles', 'Lists and tables', 'Date pickers', 'Alerts', 'Sheets', 'Color', 'Dynamic Type'],
+    entities: ['input_boolean.demo_mode_4', 'input_boolean.demo_mode_3', 'input_datetime.demo_input_datetime_1', 'input_datetime.demo_input_datetime_2', 'input_boolean.demo_mode_1', 'input_boolean.demo_input_boolean_13', 'sensor.demo_away_2'],
+    kitComponents: ['GlassTile', 'TileGrid', 'ModuleList', 'ScheduleDateFields', 'InlineAlert', 'InfoBox', 'PageSectionHeader', 'Alert', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Off, checklist 2 of 5', render: page({}) },
+      'checklist-complete': { title: 'Off, checklist 5 of 5', note: 'the card now opens the Confirm Vacation sheet (hint "Asks for the vacation dates.")', render: page({ checks: ALL }) },
+      'error': { title: 'Enable tapped with tasks left', note: 'inline error above the card; cleared when the checklist completes or the mode enables', render: page({ errorShown: true }) },
+      'pending': { title: 'Pending: Confirm Vacation sheet open', note: 'the card is blue and reads Pending while the sheet is up; dismissing the sheet returns it to Off', render: function (ctx) { return V.confirmSheet(ctx, {}); } },
+      'on': { title: 'On, vacation dates inline', note: 'the checklist is replaced by Vacation Dates; each change is written after 0.9 s of quiet', render: page({ on: true }) },
+      'invalid-range': { title: 'On, invalid date range', note: 'Home Assistant raised the invalid-dates flag or the range is wrong: red message under the description; fix the dates to re-enable', render: page({ on: true, invalid: true, dates: { start: 'Nov 2, 2026 · 12:00 PM', end: 'Oct 24, 2026 · 6:00 PM' } }) },
+      'solo-trip-engaged': { title: 'Solo Trip owns the plan', note: 'only the Solo Trip status shows: the section title and the success notice both read "Alex Away" (the code draws both)', render: page({ solo: 'active' }) },
+      'solo-trip-attention': { title: 'Solo Trip needs attention', note: 'restore_required: two bordered buttons resolve it', render: page({ solo: 'restore' }) },
+      'unavailable': { title: 'Helper unavailable', note: 'the card reads Unavailable with its power disc dimmed in place and is disabled; unavailable checklist rows dim their circle only and cannot be toggled', render: page({ unavailable: true, unavailableChecks: [true, true, true, true, true], checks: [false, false, false, false, false] }) },
+      'disable-alert': { title: 'Turning off asks first', note: 'see the alert mockup', render: function (ctx) { return V.disableAlert(ctx); } },
+      'offline': { title: 'No network', note: 'values stay; offline chip under the header; a tap would not reach Home Assistant, so nothing changes', render: page({ connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: page({ connection: 'reconnecting' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column; the tile stacks; checklist rows wrap; date labels sit above their pickers', render: page({ errorShown: true }) },
+    },
+
+    motion: [
+      { id: 'mode-card', what: 'Vacation Mode turns on: the card goes from off to blue Pending to green On, the disc turning white', token: 'state 0.6 s ease-in-out, colour only', state: 'checklist-complete',
+        source: 'HassUI/Features/Vacation/VacationModeScreen.swift modeSection (tint, isActive); HassDesign/GlassTile.swift stateColorTransition("GlassTile"); motion.md section 6', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) {
+          var tile = stage.querySelector('.ui-tile'), st = tile.querySelector('.st');
+          return Mock.anim.toggleState(tile, ['tinted'], ['off']).then(function () { st.textContent = 'Pending'; tile.querySelector('.disc').classList.add('on'); tile.style.setProperty('--glyph', V.tint.pending); return Mock.sleep(Mock.anim.ms.state() + 500); })
+            .then(function () { st.textContent = 'On'; tile.style.setProperty('--glyph', V.tint.vacation); return Mock.sleep(Mock.anim.ms.state() + 600); })
+            .then(function () { tile.style.removeProperty('--glyph'); tile.querySelector('.disc').classList.remove('on'); return Mock.anim.toggleState(tile, ['off'], ['tinted']).then(function () { st.textContent = 'Off'; }); });
+        } },
+      { id: 'checklist-check', what: 'A checklist task is ticked: the grey circle becomes a green check', token: 'quick 0.2 s easeOut (colour); the glyph swaps with the value', state: 'default',
+        source: 'HassUI/Features/Vacation/VacationModeScreen.swift VacationChecklistRow (stateForeground, quickTransition); motion.md sections 6 and 7', reduce: 'the same 0.2 s colour fade (colour is not motion); no symbol effect is used',
+        play: function (stage) {
+          var row = stage.querySelectorAll('.ui-mrow')[2], g = row.querySelector('.rg'), ms = Mock.anim.ms.quick();
+          g.style.transition = 'color ' + ms + 'ms ease-out';
+          g.innerHTML = Mock.icon('checkmark.circle.fill'); g.style.color = 'var(--ink-success)'; row.setAttribute('aria-checked', 'true');
+          return Mock.sleep(900).then(function () { g.innerHTML = Mock.icon('circle'); g.style.color = 'var(--g-secondary-on-module)'; row.setAttribute('aria-checked', 'false'); return Mock.sleep(500); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Vacation Mode card (off, checklist done)', to: 'Confirm Vacation sheet', kind: 'sheet', state: 'checklist-complete', note: 'Tapping the card presents the form sheet (hassSheet(.form), fitted); the page scales back and dims. Content is present on arrival (motion.md section 4.4). The card reads Pending while it is open.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Confirm Vacation', detent: 'fitted', size: 'form', leading: 'cancel', trailing: 'none', content: h('div.vs-stack', V.dateFields({ fields: [{ label: 'Starts', value: V.when.now }, { label: 'Ends', value: V.when.plus1 }] }), V.actionButton('Confirm Vacation', { prominent: true })) }, { hold: 1200 }); } },
+      { from: 'Vacation Mode card (on)', to: 'Turn-off alert', kind: 'fade', state: 'on', note: 'Tapping an engaged card asks first (owner 2026-10-13): the system alert scales and fades in over the page.',
+        play: function (stage) {
+          var ctx = Mock.current, host = h('div.ui-host', { style: { zIndex: 60 } }), scrim = h('div.ui-alert-scrim.g-dark', K.Alert({ title: V.copy.disableTitle, message: V.copy.disableMessage, buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Turn Off' }] }));
+          stage.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+      { from: 'Checklist section', to: 'Vacation Dates section', kind: 'cut', state: 'checklist-complete', note: 'When the mode turns on the second section swaps from the checklist to the dates with no animation: a plain `if` in the view, not withAnimation. A person-caused layout change; motion.md section 6 would allow the standard list animation. Candidate.',
+        play: function (stage) { return Mock.sleep(300); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back ("Settings"), the title "Vacation Mode", the description "Enable or disable vacation mode for the house", the error (if shown), the card, then the section header (heading) and the checklist or the dates. In a two-column layout the order stays mode then second section.' },
+      { rule: 'Mode card', note: 'Rollout M (2026-10-28): an action tile, text and one 44 pt power disc, no leading glyph. Tile and disc are the same toggle button: label "Vacation Mode", value "On", "Off", "Pending" or "Unavailable", hint "Asks for the vacation dates." (checklist done) or "Asks before turning Vacation Mode off." (on). Identifier vacation.modeCard; the alert buttons are vacation.modeCard.confirm and .cancel. 72 pt tall. State is in words, in tint and in the white disc, never tint alone.' },
+      { rule: 'Checklist rows', note: 'Each row is one element: label the task, value "Checked", "Not checked" or "Unavailable", the toggle trait; 52 pt minimum. Only the glyph dims while unavailable; the title keeps its contrast. The header reads "Pre-Vacation Checklist · 2 of 5" as a heading.' },
+      { rule: 'Date fields', note: 'Each is a labelled compact date-and-time picker ("Starts", "Ends") 44 pt tall; at accessibility sizes the picker drops below its label. The range error is an inline alert read as an error, not part of a field.' },
+      { rule: 'Dynamic Type', note: 'The grid minimum is 340 pt (not scaled), so AX5 is one column; tiles go to their stacked layout; rows and descriptions wrap (fixedSize vertical). Checked at AX5 below.' },
+      { rule: 'Alert', note: 'Turning an engaged mode off asks first: "Turn Off Vacation Mode?" with a plain Turn Off (the bold default) and Cancel.' },
+      { rule: 'Contrast', note: 'Card tints were checked at 4.5:1 for text (AwayTint): Vacation on #42A147, pending #1F87E6, Solo Trip #5C8CF0; check mark green is Ink.success, deeper on a light sheet.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Toggles: a toggle-like button off a list row, state obvious", verdict: "pass", note: "VacationModeTile: an action GlassTile (AwayTileActions, power disc) with .isToggle, value On, Off, Pending or Unavailable and a tint change (VacationModeScreen.swift); HIG Toggles: outside a list use a toggle-like button, not a switch.", by: "apple-hig skill" },
+        { rule: "Alerts: title length and wording", verdict: "pass", note: "AlertCopy.turnOffVacation.", by: "apple-hig skill" },
+        { rule: "Alerts: destructive style on a deliberate choice", verdict: "pass", note: "Turn Off is plain.", by: "apple-hig skill" },
+        { rule: "Lists and tables: a checklist as toggle rows", verdict: "pass", note: "VacationChecklistRow is one 52 pt toggle element with Checked, Not checked or Unavailable (lines 128-162); only the glyph dims while unavailable, so the title keeps contrast.", by: "apple-hig skill" },
+        { rule: "Feedback: explain a blocked action", verdict: "pass", note: "A pre-checklist error InlineAlert appears when the card is tapped early (line 52) and the hint says what the card will do.", by: "apple-hig skill" },
+        { rule: "Date pickers: constrain what cannot be valid", verdict: "pass", note: "Same VacationDateFields change: each picker stops at the other's value.", by: "apple-hig skill" },
+        { rule: "Layout: two sections side by side when wide", verdict: "pass", note: "Fixed: AwaySectionGrid.minSectionWidth is a @ScaledMetric, so the sections stack at AX5.", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: dates change in place", verdict: "pass", note: "Inline dates commit after 0.9 s of quiet (liveDateCommitDelay, VacationScheduleDates.swift), so one wheel adjustment is one service call.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Animation: animate layout the person caused", verdict: "pass", note: "VacationModeScreen animates showsInlineDates and VacationDateFields the range error with MotionTokens.standard.", by: "swiftui-pro skill" },
+        { rule: "Views: computed some View properties for sections", verdict: "pass", note: "Types split into their own files (VacationChecklistRow, VacationDateFields, VacationConfirmationSheet); the three section properties remain small private helpers.", by: "swiftui-pro skill" },
+        { rule: "Navigation: alert and sheet bound to controller state", verdict: "pass", note: "sheet(isPresented:) and alert use Binding(get:set:) onto the controller flags whose setters cancel (lines 104-110), so an interactive dismissal resets the card.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: card hint reflects the next action", verdict: "pass", note: "accessibilityHint(controller.cardAccessibilityHint) with value from the subtitle (lines 63-64).", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading, refreshing, empty and long-text: none apply as separate UIs. Values come from EntityStore (saved snapshot first), so there is nothing to wait for; an unavailable helper is the unavailable state; the copy is fixed, so text length is covered by AX5.',
+      'error here is the pre-checklist error (the blocked enable). Household Away command errors are deliberately not shown on this page (ios.md, owner 2026-10-13): the shared controller would carry Solo Trip errors here.',
+      'Docs vs code: spec.md describes four pickers (Start Date, Start Time, End Date, End Time) and a "Confirm Vacation sheet (form size)" with the web\'s chevron on the card; code uses one date-and-time picker per moment and no chevron (ios.md lists these departures). AwaySection\'s doc comment says Vacation opens in the Account and Quick Links sheets; Settings is a tab now, so the page style (PageSectionHeader) is what is drawn.',
+      'The Confirm Vacation default range is now to now + 1 day. Vacation Dates fixtures here are made-up dates.',
+      'Solo Trip engaged: the page draws the section title and the notice title both as "Alex Away" (SoloTripStatus.make with the default options). Not changed here.',
+      'Presenter in the pending state is this page with every task checked (the card cannot open the sheet otherwise).',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Rollout M: the mode card is an action tile with a power disc; the off tap opens the dates sheet, the on tap asks the alert.' }, { date: '2026-10-23', note: 'First pass: off, checklist complete, blocked, pending sheet, on, invalid range, solo trip, unavailable, alert, offline, AX5, motion.' }],
+  });
+})();
+</script></body></html>

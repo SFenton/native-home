@@ -1,0 +1,13 @@
+{
+  "id": "gate-no-jev-stays-silent",
+  "source": "Rule: no Jev answer prints nothing and exits 0 (silence never skips the Designer or lowers a level).",
+  "recorded": "2026-11-02",
+  "kind": "gate_cli",
+  "input": {
+    "plan": "A real plan with words."
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": ""
+  }
+}

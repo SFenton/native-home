@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitchen room page · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms;
+
+  function kitchen(st, o) { return function (ctx) { return R.page(ctx, 'kitchen', st || {}, o); }; }
+  function tileEl(stage, ident) { return stage.querySelector('[data-ident="' + ident + '"]'); }
+  /* A pushed page the Groceries tiles open (HomeRoute .groceryList / .food); their content belongs to the Chores and Food batches. */
+  function pushed(ctx, title) {
+    return Mock.page(ctx, { title: title, section: 'home', back: 'Kitchen', badge: 3, choresBadge: 2, body: [h('p', { style: { margin: 0, color: 'var(--g-secondary-on-wallpaper)', font: 'var(--fs-sub) var(--font)' } }, title + ' page: see the ' + (title === 'Grocery List' ? 'Chores' : 'Food') + ' batch.')] });
+  }
+  /* The groceries-only branch: RoomPageContent draws it when a kitchen has no visible section (not reachable with today's config). */
+  function groceriesOnly(ctx) {
+    var room = R.build('kitchen', {});
+    return Mock.page(ctx, { title: 'Kitchen', section: 'home', back: 'Home', badge: 3, choresBadge: 2, body: [R.rail(ctx, 'Kitchen', room.chips), R.sections(ctx, [{ node: R.groceries(room), span2: true }])] });
+  }
+
+  Mock.mount({
+    kind: 'page', id: 'room-kitchen', title: 'Kitchen room page (Groceries section)', area: 'rooms', status: 'shipped',
+    summary: 'The Kitchen is the one room page with a section the config does not hold: KitchenGroceriesSection (Grocery List and Food) is added before its Appliances and Climate sections and always shows. Four chips on the rail; the dishwasher is a full-width appliance card.',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Rooms/RoomSheets.swift',
+      'apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
+    spec: ['.agents/pages/rooms/spec.md', '.agents/pages/rooms/ios.md', '.agents/pages/chores/ios.md'],
+    patterns: ['status-rail', 'entity-tile', 'dynamic-grid', 'room-overview-sheet', 'modal-sheet'],
+    hig: ['Toolbars', 'Layout', 'Color', 'Typography', 'Dynamic Type', 'Motion', 'Accessibility'],
+    entities: ['light.kitchen', 'input_text.demo_kitchen_1', 'binary_sensor.demo_kitchen_presence_1', 'binary_sensor.demo_kitchen_contact_1', 'select.demo_program_1',
+      'sensor.demo_door_1', 'sensor.demo_state_1', 'sensor.demo_program_1', 'cover.demo_kitchen_vent_1', 'todo.demo_todo_1', 'sensor.demo_expired_items_1', 'sensor.demo_sensor_1'],
+    kitComponents: ['ChipRail', 'StatusChip', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'TabBar', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Groceries, Appliances, Climate', note: '5 items on the list, 42 food items with 3 expiring soon (RoomsFixtures)', render: kitchen() },
+      'loading': { title: 'Nothing saved yet', note: 'no gate: counters read 0 (the list "No groceries listed", food "0 Items • 0 Expiring Soon") and device cards read Unavailable', render: kitchen({ u: true, groceries: 0, food: [0, 0] }) },
+      'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design (no reload on reopen)', render: kitchen() },
+      'error': { title: 'Entities unavailable', note: 'the dishwasher and vent dim; the Groceries tiles are pages, so they stay tappable and read their counters', render: kitchen({ u: true }) },
+      'offline': { title: 'No network', note: 'values stay; offline chip and cloud badge', render: kitchen({}, { connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: kitchen({}, { connection: 'reconnecting' }) },
+      'counts': { title: 'Empty list, single item', note: 'subtitle rules: 0 reads "No groceries listed", 1 reads "1 item"; Food reads "1 Item • 0 Expiring Soon"', render: kitchen({ groceries: 0, food: [1, 0] }) },
+      'groceries-1': { title: 'One grocery', render: kitchen({ groceries: 1 }) },
+      'dishwasher-running': { title: 'Dishwasher mid-cycle', note: 'the card swaps to its progress entity: "Eco 50°C • 42%", cleaning purple fill (no progress band on the room card)', render: kitchen({ dishwasher: 'run' }) },
+      'active': { title: 'Lights on, someone in the room, door open', note: 'Lights amber, Occupancy green, Door amber (open, someone home)', render: kitchen({ lightsOn: true, door: 'home' }) },
+      'long-text': { title: 'Large counts', note: 'long subtitles wrap to two lines inside the tile; the row grows with them', render: kitchen({ groceries: 128, food: [1204, 37] }) },
+      'groceries-only': { title: 'Groceries only (code branch)', note: 'drawn from RoomPageContent.sections when the kitchen has no visible section; not reachable with today\'s RoomsConfig; the section spans the page', render: groceriesOnly },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: kitchen() },
+      'duo-part-fold': { title: 'Duo partly folded (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Groceries and Climate lead, Appliances trails (the sides it had); each side stacks, no row hole', render: kitchen() },
+      'placeholder': { title: 'No connection yet (PlaceholderScreen)', render: function (ctx) { return R.placeholder(ctx, 'Kitchen'); } },
+    },
+
+    motion: [
+      { id: 'dishwasher-start', what: 'The dishwasher starts a cycle: the card fills with cleaning purple and its state line swaps to the progress', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'default',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile"); RoomController.usesAlternate; motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = tileEl(stage, 'room.card.Dishwasher'); return R.toggle(t, true, 'Eco 50°C • 42%').then(function () { return Mock.sleep(500); }).then(function () { return R.toggle(t, false, 'Ready • Eco 50°C'); }); } },
+      { id: 'chip-colour', what: 'The Door chip follows the house: Closed to Open (someone home: amber)', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'default',
+        source: 'HassUI/Features/Home/StatusRail.swift StatusChipStyle; motion.md section 6', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) { var c = stage.querySelector('.ui-chip[data-chip="Door"]'); c.style.setProperty('--cf', 'var(--chip-contact-home-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-home-glyph)'); c.querySelector('.su').textContent = 'Open'; c.querySelector('.g').innerHTML = Mock.icon('door.left.hand.open', { fill: true }); return Mock.sleep(Mock.anim.ms.state() + 300); } },
+    ],
+
+    transitions: [
+      { from: 'Grocery List tile', to: 'Grocery List page', kind: 'push', note: 'A navigate tile pushes HomeRoute.groceryList onto the stack (system push, never a zoom: motion.md 4.2). The page belongs to the Chores batch.',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = pushed(ctx, 'Grocery List'); a.parentNode.appendChild(b); return Mock.anim.push(a, b).then(function () { return Mock.sleep(700); }).then(function () { b.remove(); a.style.transform = ''; a.style.filter = ''; }); } },
+      { from: 'Food tile', to: 'Food page', kind: 'push', note: 'HomeRoute.food: the Food hub (Food batch). The tile subtitle is the pantry summary.',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = pushed(ctx, 'Food'); a.parentNode.appendChild(b); return Mock.anim.push(a, b).then(function () { return Mock.sleep(700); }).then(function () { b.remove(); a.style.transform = ''; a.style.filter = ''; }); } },
+      { from: 'Dishwasher card', to: 'Dishwasher sheet', kind: 'sheet', note: 'Opens RoomCardSheet at large with the generic read-only tiles (the dishwasher lane has not landed): "More controls for this device are coming."',
+        play: function (stage) { var s = R.cardSheet('dishwasher'); return Mock.presentDemo(stage, { title: s.title, detent: 'large', size: 'page', trailing: 'close', content: s.content }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, Quick Links, Profile; "Kitchen" (heading); the status rail (Lights, Climate, Occupancy, Door); then Groceries (heading; Grocery List, Food), Appliances (Dishwasher), Climate (Vent). At regular width the sections read left column then right.' },
+      { rule: 'Groceries tiles', note: 'Two buttons with chevrons: "Grocery List, 5 items" and "Food, 42 Items • 3 Expiring Soon", identifiers room.groceries.list and room.groceries.food. They are pages, drawn dark with the neutral family (no colour family: direction G).' },
+      { rule: 'Dishwasher', note: 'A button with a chevron: "Dishwasher, Ready • Eco 50°C"; mid-cycle the value becomes the program and its progress and the tile fills; unavailable dims and is not enabled.' },
+      { rule: 'Chips', note: '"Door, Closed" opens the Kitchen door sheet; chips are 48 pt tall buttons with the hint "Opens Door".' },
+      { rule: 'Dynamic Type', note: 'The Groceries pair wraps to one column at AX5; counts wrap rather than truncate. Section headers are 20 bold with the heading trait.' },
+      { rule: 'Targets', note: 'All tiles 72 pt or taller; chips 48 pt.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Toolbars: Back leading on a pushed page, Quick Links as the trailing action', verdict: 'pass', note: 'Shell header only (RoomPageContent adds its own Quick Links button only when shellNavigator is nil, RoomScreen.swift:99); Back is the system glass circle.' },
+        { rule: 'Layout: group related items under headings', verdict: 'pass', note: 'Groceries, Appliances and Climate are titled sections in a DynamicGridLayout(minCellWidth: 340, maxColumns: 2); one column below 704 pt, so folded Duo and iPhone read one list.' },
+        { rule: 'Color: do not rely on colour alone', verdict: 'pass', note: 'Dishwasher mid-cycle prints "Eco 50°C • 42%" and fills; Groceries tiles print counts ("5 items", "42 Items • 3 Expiring Soon").' },
+        { rule: 'Color: one hue per meaning', verdict: 'departure', note: 'Groceries tiles are neutral dark because they are pages, not devices (direction-g.md Colour families); the web gave the list a red wash the native tile drops.' },
+        { rule: 'Navigation: a header button instead of a tab for Quick Links', verdict: 'departure', note: 'Owner decision 2026-10-16 (direction-g.md Navigation).' },
+        { rule: 'Accessibility: describe where a control leads', verdict: 'pass', note: 'KitchenGroceriesSection tiles carry hints "Opens the Groceries page" / "Opens the Food page".' },
+      ],
+      swiftui: [
+        { rule: 'Reuse one component per pattern', verdict: 'pass', note: 'Both Groceries tiles are GlassTile(kind: .navigate) in the shared grid with equalHeightTiles(); no kitchen-only tile.' },
+        { rule: 'Dynamic Type: scaled minimum width', verdict: 'pass', note: 'minTileWidth is @ScaledMetric(relativeTo: .subheadline) 140, so the pair drops to one column at AX sizes; counts wrap.' },
+        { rule: 'Accessibility identifiers and containers', verdict: 'pass', note: 'Section is .accessibilityElement(children: .contain) with a heading-trait header; tiles carry room.groceries.list / .food.' },
+        { rule: 'Hygiene: types in their own files and docs match code', verdict: 'pass', note: 'KitchenGroceriesSection has its own file; the Food vs Food & Recipes title stays open as copy (needs propose-first).' },
+      ],
+    },
+
+    notes: [
+      'Partly folded Duo (claude/section-sides, section-sides.md): fold columns, same sides as the old grid, stacked per side; every other pose unchanged.',
+      "Built on claude/action-nav-tiles: renders the shared room-card builders, so its PC, towel rack, garage and remote cards are action tiles (see room-card-tile).",
+      'empty: the Kitchen never shows "Nothing Here Yet!": RoomPageContent skips the empty view for the kitchen and always draws Groceries. A kitchen with no visible sections would show Groceries only (state groceries-only).',
+      'Docs versus code: pages/rooms/spec.md says Groceries holds "Grocery List, Food & Recipes"; the code titles the second tile "Food" (G.listTitle is "Grocery List"). The web config also gave the list a red wash (RoomsConfig.Groceries.listBackground) that the native tile does not use. Drawn: the code.',
+      'loading: no gate or pending bars; see room-page. With an empty store the counters read 0, so the tiles show "No groceries listed" and "0 Items • 0 Expiring Soon".',
+      'Dishwasher: the sheet is the generic read-only fallback until the dishwasher lane lands (RoomDeviceModal.resolve returns nil); friendly names in that sheet come from Home Assistant and are stand-ins here.',
+      'The Grocery List and Food pages are other batches (chores, food).',
+      'Promote to kit: the helpers listed in pages/rooms/_rooms.js (notes of room-page).',
+    ],
+    changelog: [{ date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; state duo-part-fold.' }, { date: '2026-10-23', note: 'First pass: Groceries, Appliances and Climate on every device; counts, running dishwasher, groceries-only branch.' }, { date: '2026-10-27', note: "Action tiles (claude/action-nav-tiles): renders the shared room-card builders, so its PC, towel rack, garage and remote cards are action tiles (see room-card-tile)." }],
+  });
+})();
+</script></body></html>

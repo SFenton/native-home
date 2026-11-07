@@ -1,0 +1,16 @@
+{
+  "id": "dd-security-card-width-portrait",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Security card in unfolded portrait should take whole width.",
+  "surface": "security",
+  "poses": [
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": null,
+  "fix_ref": null,
+  "fix_confidence": null,
+  "expected": "The alarm panel spans the full content width in unfolded portrait; flag a card narrower than its column."
+}

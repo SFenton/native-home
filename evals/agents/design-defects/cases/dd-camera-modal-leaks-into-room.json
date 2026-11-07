@@ -1,0 +1,16 @@
+{
+  "id": "dd-camera-modal-leaks-into-room",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "I clicked room from quick links, somehow tapped Driveway, and driveway camera modal was open when I landed on room",
+  "surface": "quick-links-rooms",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": null,
+  "fix_ref": null,
+  "fix_confidence": null,
+  "expected": "A tap during the Quick Links hand-off must not present a second sheet over the destination page; check for a stray presented controller after the push."
+}

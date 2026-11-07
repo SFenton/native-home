@@ -1,0 +1,17 @@
+{
+  "id": "dd-hinge-rule-other-pages",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Noticing that this still needs to be applied to individual room pages, and potentially more (food? media? vacuums page?)",
+  "surface": "room-page",
+  "poses": [
+    "duo-unfolded-landscape",
+    "duo-partial-fold"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "5038a159",
+  "fix_ref": "06892198",
+  "fix_confidence": "medium",
+  "expected": "The posture rule applies to every grid: room pages, media, vacuums, climate, sprinklers, lights, recipes. Run both poses on each and compare to the rule."
+}

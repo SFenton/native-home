@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Special Device Modes · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  Mock.mount({
+    kind: 'page', id: 'household-special-device-modes', title: 'Special Device Modes', area: 'settings', status: 'shipped',
+    summary: 'Settings > Household > Special Device Modes. One section, one toggle: High AQI Mode, which sets every air purifier in the house to its highest setting to ward off smoke.',
+    source: ['apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/HouseholdSettingsConfig.swift', 'apple/Sources/HassCore/Settings/HouseholdSettingsController.swift', 'apple/Sources/HassDesign/SettingsSection.swift'],
+    spec: ['.agents/pages/settings/household.md', '.agents/patterns/settings-section.md'],
+    patterns: ['settings-section', 'entity-tile', 'dynamic-grid', 'page-backdrop'],
+    hig: ['Toggles', 'Layout', 'Dynamic Type'],
+    entities: ['input_boolean.demo_mode_1'],
+    kitComponents: ['SettingsSection', 'GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: HF.pageStates('special-device-modes', {
+      base: { aqi: false },
+      defaultTitle: 'High AQI Mode off',
+      long: { aqi: true },
+      longNote: 'xxxLarge with High AQI Mode on: the paragraph wraps and the tile title stays on its lines',
+      extra: { 'aqi-on': { title: 'High AQI Mode on', note: 'every air purifier is held at its highest setting by the automation; this tile only flips the input_boolean', opts: { aqi: true } } },
+    }),
+
+    motion: HF.pageMotion('special-device-modes', true),
+    transitions: HF.pageTransitions('special-device-modes'),
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back (or Open Navigation), Quick Links, Profile; the title "Special Device Modes"; the heading "High AQI Mode", its paragraph, then the tile.' },
+      { rule: 'Toggle tile', note: '"High AQI Mode, Off" with the toggle trait; selected when on. Identifier household.tile.input_boolean.high_aqi_mode. The air purifier glyph is decorative.' },
+      { rule: 'Unavailable', note: '"High AQI Mode, Unavailable": dimmed and inert.' },
+      { rule: 'Targets and Dynamic Type', note: 'The tile is at least 72 pt; the grid (min 240, max 2) is one column from AX sizes up and on iPhone. Nothing truncates.' },
+      { rule: 'Consequence is stated', note: 'The paragraph says what the mode does (all purifiers to their highest setting), so the toggle is not an unlabelled switch; there is no confirmation because it is reversible.' },
+      { rule: 'Reduce Motion / Transparency', note: 'Colour cross-fades shorten to 0.2 s; Reduce Transparency draws the solid tile finish.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Toggles: describe the effect of the switch', verdict: 'pass', note: 'The section header "High AQI Mode" and its paragraphs explain that every purifier goes to its highest setting (SettingsSection :22-41).', by: 'apple-hig skill' },
+        { rule: 'Color: state beyond colour', verdict: 'pass', note: 'The tile reads "On"/"Off" as text alongside the green fill.', by: 'apple-hig skill' },
+        { rule: 'Layout: one control on a wide window', verdict: 'pass', note: 'A single tile in a maxColumns: 2 grid at 240 pt minimum, inside the 840 pt column (:165); it spans the section (duo-widths rule 1, in flight).', by: 'apple-hig skill' },
+        { rule: 'Alerts: confirm an action with a broad effect', verdict: 'pass', note: 'Fixed: HouseholdToggleTile(confirmation:) raises AlertCopy.highAqiMode(turningOn:) ("This changes every air purifier in the house") before the flip; HouseholdSettingsJourneyTests covers it.', by: 'apple-hig skill' },
+        { rule: 'Writing: plain words', verdict: 'pass', note: 'Copy says "ward off smoke" and names the effect; no entity jargon.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: tile exposes toggle, value and unavailable', verdict: 'pass', note: 'GlassTile traits and "Unavailable" value (GlassTile.swift:138-142, :175).', by: 'swiftui-pro skill' },
+        { rule: 'Views: SettingsSection with trailing content', verdict: 'pass', note: 'Uses the shared SettingsSection rather than hand-built headers.', by: 'swiftui-pro skill' },
+        { rule: 'Data: optimistic overlay reverts', verdict: 'pass', note: 'controller.flip commits an overlay with a revertAfter and resets on failure (HouseholdSettingsController.swift:151-162), so the tile never stays wrong.', by: 'swiftui-pro skill' },
+        { rule: 'Resizability: no hard-coded device logic', verdict: 'pass', note: 'Single column capped at 840 pt; the Duo hinge only matters with more than one tile.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading: no loading UI; the tile reads the saved snapshot and shows Unavailable only when the entity has never been seen (the error state). refreshing: a live change updates the tile in place. empty: the page has exactly one section from config, so it is never empty.',
+      'Docs versus code: pages/settings/household.md puts these rows in the Account sheet; the code pushes them on the Settings tab path.',
+      'Fixture data: the on or off value is invented; the entity id is the real one.',
+      'Pages never split: one centred 840 pt column on wide windows; with one tile, the tile spans the section (duo-widths rule 1).',
+      'Unconfirmed: on the unfolded Duo in landscape the centred 840 pt column is not aligned to the hinge band (x 455 to 496 pt), so with four columns one tile can straddle the fold even though the grid rounds to an even count; the simulator pose was only run for pages without this check, so confirm on a device.',
+    ],
+    changelog: [{ date: '2026-11-04', note: 'High AQI Mode spans its section.' }, { date: '2026-10-23', note: 'First pass: High AQI Mode off, on and unavailable on every device.' }],
+  });
+})();
+</script></body></html>

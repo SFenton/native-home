@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add Item scanner · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function scan(ctx, o) { return V.scanScreen(ctx, Object.assign({ location: 'Pantry' }, o)); }
+  function closed(ctx) { return V.page(ctx, { space: 'all-food' }); }
+  var FRIDGE = { location: 'Fridge', hint: 'Suggested for this product by Pantryhub.' };
+
+  Mock.mount({
+    kind: 'modal', id: 'scan-item-sheet', title: 'Add Item scanner', area: 'inventory', status: 'shipped',
+    summary: 'The Scan Item button opens a three-step create sheet that stays one large form sheet: scan or type the product (Step 1), read or pick the expiration date (Step 2), review and add (Step 3), then "Added to Fridge". Circle x Cancel on step 1, a Back circle on later steps, the filled check adds. Camera is AVFoundation; simulators have none.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Inventory/UKScanItemSheet.swift', 'apple/Sources/HassUI/Features/Inventory/ScanCamera.swift',
+      'apple/Sources/HassCore/Inventory/ScanItemModel.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'floating-actions'],
+    hig: ['Sheets', 'Toolbars', 'Camera and scanning', 'Progress indicators', 'Alerts', 'Dynamic Type', 'Buttons'],
+    entities: ['evershelf.resolve_barcode', 'evershelf.read_expiry_image', 'evershelf.prepare_scanned_product', 'evershelf.suggest_location', 'evershelf.add_scanned_item'],
+    kitComponents: ['HassModal', 'SheetCancelItem', 'SheetConfirmItem', 'BackButton', 'PrimaryButton', 'InlineAlert', 'ArcSpinner', 'FilterOptionRow', 'Toggle'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Step 1: scanning a barcode', note: 'live camera in a 4:5 card (26 pt corners, at most 400 pt wide), the pill "Looking for a Barcode" with an arc, manual entry under it in the action tint; the footer holds Skip Barcode as a grey capsule (nothing to carry forward yet)', render: function (c) { return scan(c, { step: 'barcode-camera' }); } },
+      'loading': { title: 'Barcode read, processing', note: 'the camera goes away at once and the form shows "Processing…" with an arc while Pantryhub resolves the barcode (the instructions and footer hide)', render: function (c) { return scan(c, { step: 'barcode-processing' }); } },
+      'barcode-found': { title: 'Step 1: product found', note: 'the subtitle becomes "Enter Product Name · Step 1 of 3"; the name is filled in, Scan Barcode Again is an action-tint row, and Next is the one filled button', render: function (c) { return scan(c, { step: 'barcode-found' }); } },
+      'barcode-notfound': { title: 'Step 1: no match', note: 'a warning ("No barcode match found for 0123456789012."), an empty name, Next filled but disabled until a name is typed', render: function (c) { return scan(c, { step: 'barcode-notfound' }); } },
+      'error': { title: 'Camera unavailable', camera: 'unavailable', note: 'simulators and devices without a camera: a black card with a warning glyph and "Camera unavailable. Enter the details manually."; manual entry stays', render: function (c) { return scan(c, { step: 'barcode-camera', camera: 'unavailable' }); } },
+      'camera-denied': { title: 'Camera access off', note: 'permission denied: "Camera access is off. Allow it in Settings, or enter the details manually."', render: function (c) { return scan(c, { step: 'barcode-camera', camera: 'denied' }); } },
+      'camera-starting': { title: 'Starting the camera', note: 'a page-size arc and "Starting camera…" over black until the session runs', render: function (c) { return scan(c, { step: 'barcode-camera', camera: 'starting' }); } },
+      'offline': { title: 'Barcode lookup failed (offline)', note: 'a service failure shows the error ("Unable to resolve barcode.") above the name field; the item can still be typed and added once back online. The page behind carries the offline chip', render: function (c) { return scan(c, { step: 'barcode-failed' }); } },
+      'simulated': { title: 'Simulated camera (debug builds)', note: 'FENTON_SCAN_CAMERA=simulated draws a viewfinder with Simulate Scan / Simulate Photo for journeys; never in a release build', render: function (c) { return scan(c, { step: 'barcode-camera', camera: 'simulated' }); } },
+      'expiry-camera': { title: 'Step 2: photograph the date', note: 'Back (circle) leading; a camera card; Read Expiration Date is the filled button while no date is known, Skip Expiration the grey one', render: function (c) { return scan(c, { step: 'expiry-camera' }); } },
+      'expiry-manual': { title: 'Step 2: enter the date', note: 'toggle and date, then the Quick Expiration Dates list (In 3 Days to In 1 Year) and Read Expiration Date as a row; Next is disabled until there is a date', render: function (c) { return scan(c, { step: 'expiry-manual' }); } },
+      'expiry-read': { title: 'Step 2: date read from the package', note: 'the date fills in with "Read from the package" under Expires; the instructions change to "Review or adjust the expiration date"', render: function (c) { return scan(c, { step: 'expiry-read' }); } },
+      'expiry-notfound': { title: 'Step 2: no date in the photo', render: function (c) { return scan(c, { step: 'expiry-notfound', quick: 'In 1 Week', date: 7 }); } },
+      'expiry-failed': { title: 'Step 2: AI read unavailable (429)', note: 'rate-limit and quota errors read as this friendly copy; any other failure shows the service message', render: function (c) { return scan(c, { step: 'expiry-failed' }); } },
+      'review': { title: 'Step 3: review', note: 'product header (glyph tile, name, "Barcode …"), one group (Name, How Many as a typed number plus stepper, expiry, Prepared Food), then "Where should it be stored?" with six places and where the suggestion came from; the check adds ("Add to Fridge")', render: function (c) { return scan(c, Object.assign({ step: 'review' }, FRIDGE)); } },
+      'review-qty-error': { title: 'Step 3: quantity below 1', note: '"Quantity must be at least 1." in red under the group; decimals are floored on Add', render: function (c) { return scan(c, Object.assign({ step: 'review-qty-error' }, FRIDGE)); } },
+      'review-add-error': { title: 'Step 3: add failed', note: 'the sheet returns to review with the error under the form ("Unable to add this item to Fridge."); the same idempotency key is reused on retry', render: function (c) { return scan(c, Object.assign({ step: 'review-add-error' }, FRIDGE)); } },
+      'review-fallback': { title: 'Step 3: no suggestion yet', note: 'while Pantryhub has not matched the product the page default is used and the hint says so ("Using the app default until Pantryhub finds a better match." on All Food, "the current page default" on a location page)', render: function (c) { return scan(c, { step: 'review', location: 'Pantry', hint: 'Using the app default until Pantryhub finds a better match.' }); } },
+      'adding': { title: 'Adding to the Fridge…', note: 'subtitle "Adding Item"; no toolbar buttons; interactive dismissal is blocked', render: function (c) { return scan(c, { step: 'adding', location: 'Fridge' }); } },
+      'added': { title: 'Added to the Fridge', note: 'a 64 pt green check (a glyph and words, not colour alone), subtitle "Item Added", Close (circle x) trailing; the page behind refreshes its rows', render: function (c) { return scan(c, { step: 'added', location: 'Fridge' }); } },
+      'large': { title: 'Large detent (the only one)', note: 'height: .full: the step buttons, camera and pages must not change the sheet height', render: function (c) { return scan(c, { step: 'review', location: 'Fridge', hint: 'Suggested for this product by Pantryhub.' }); } },
+      'closed': { title: 'Before presenting / after dismissing', render: function (c) { return closed(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the step buttons leave the pinned footer and sit at the end of the form (pinned they took about 40% of an iPhone and left a short window)', render: function (c) { return scan(c, { step: 'barcode-camera' }); } },
+      'ax5-review': { title: 'Accessibility 5: review', override: { ts: 'ax5' }, render: function (c) { return scan(c, Object.assign({ step: 'review' }, FRIDGE)); } },
+    },
+
+    motion: [
+      { id: 'camera-pill', what: 'The status pill over the camera: an arc turns beside "Looking for a Barcode"', token: 'ArcSpinner compact 20 pt, 0.82 s a turn; the pill is a dark material capsule', state: 'default',
+        source: 'HassUI/Features/Inventory/CameraStatusPill.swift; HassDesign/ArcSpinner.swift; motion.md section 5', reduce: 'the arc keeps turning at half speed',
+        play: function (stage) { var p = stage.querySelector('.inv-pill'); if (!p) return Promise.resolve(); return Mock.anim.fade(p, { ms: 200 }).then(function () { return Mock.sleep(1800); }); } },
+      { id: 'step-cut', what: 'Next and Back change the step: the form swaps in place with no animation', token: 'none: a cut (motion.md section 4.4: no entrance animations inside sheets)', state: 'default',
+        source: 'ScanItemSheet.swift switch model.step', reduce: 'unchanged',
+        note: 'The catalog hint said "step pages cross-fade". The code has no transition or animation anywhere in the Inventory sheets; the step is a plain content swap, consistent with motion.md section 4.4.',
+        play: function (stage) { var c = Mock.current, host = stage.querySelector('.ui-host'); if (!host) return Promise.resolve(); var par = host.parentNode, next = V.scanScreen(c, { step: 'expiry-camera' }, null);
+          return Mock.sleep(500).then(function () { par.replaceChild(next, host); return Mock.sleep(900); }).then(function () { par.replaceChild(host, next); }); } },
+      { id: 'quantity-roll', what: 'The stepper changes How Many', token: 'none on the field (typed text); the system stepper repeats while held', state: 'review',
+        source: 'ScanItemSheet.quantityRow', reduce: 'unchanged', play: function (stage) { var v = stage.querySelector('.inv-scan .ui-field .val'); if (!v) return Promise.resolve(); return Mock.anim.roll(v, '2').then(function () { return Mock.sleep(500); }).then(function () { return Mock.anim.roll(v, '1'); }); } },
+    ],
+    transitions: [
+      { from: 'Scan Item (floating bar)', to: 'Add Item sheet', kind: 'sheet', state: 'closed', note: 'Presents the large form sheet over the live camera; the page scales back. Dismissal is blocked while adding. A second sheet cannot be open: the floating bar hides while any sheet is up.',
+        play: function (stage) { var c = Mock.current; var o = V.scanSheet(c, { step: 'barcode-camera' }); V._foot = null; return Mock.presentDemo(stage, o); } },
+      { from: 'Add Item sheet', to: 'Inventory page', kind: 'sheet', state: 'added', note: 'Close (circle x) after "Added to Fridge" dismisses; the page already refreshed its rows (refreshLoaded). Cancel on step 1 dismisses with nothing added.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(400); }); } },
+      { from: 'Step 1', to: 'Step 2', kind: 'cut', state: 'barcode-found', note: 'Next moves on and starts committing the product in the background (prepare_scanned_product); a Back circle appears leading. The change is a cut.',
+        play: function (stage) { var c = Mock.current, host = stage.querySelector('.ui-host'), par = host.parentNode, next = V.scanScreen(c, { step: 'expiry-manual' }, null);
+          return Mock.sleep(400).then(function () { par.replaceChild(next, host); return Mock.sleep(900); }).then(function () { par.replaceChild(host, next); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Add Item" with the step subtitle, the toolbar (Cancel or Back, Add to Fridge or Close), the instructions, then the camera card, manual entry and the footer buttons. At AX sizes the footer buttons follow the form. The sheet is modal.' },
+      { rule: 'Camera', note: 'The live feed is labelled "Live item scan camera feed" (or "… expiration date camera feed"); the pill is an updatesFrequently element ("Looking for a Barcode"); a failed camera reads its message. Manual entry is always one control away, so scanning is never required.' },
+      { rule: 'Toolbar', note: 'Cancel (identifier scan.cancel), Back labelled "Back to Barcode Scan" or "Back to Expiration Date", the confirm check labelled "Add to Fridge" (disabled with no name), Close after adding. Dismissal is blocked while adding.' },
+      { rule: 'Fields', note: 'Name "Product name", How Many "Quantity" and "How Many" for the stepper, the date toggle "Expiration Date" and picker "Expiration date", Prepared Food, six location rows with the selected trait; the hint under the list says where the suggestion came from.' },
+      { rule: 'Buttons', note: 'One filled PrimaryButton at most per step; the other is a grey capsule tinted with ink so the contrast audit judges it by its tint. All 50 pt tall.' },
+      { rule: 'Not colour alone', note: 'Added is a check glyph plus "Added to Fridge"; errors are InlineAlert text with a glyph; the selected location has a check and the selected trait.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the header text, rows and buttons wrap; the buttons move into the form; Quick Expiration Dates rows wrap. No label is truncated.' },
+      { rule: 'Permission', note: 'Camera access uses the system prompt (NSCameraUsageDescription); a denied permission shows the settings message instead of a blank card.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: multi-step flow Cancel, Back, confirm', verdict: 'pass', note: 'Cancel on step 1, a Back circle on later steps, the filled check "Add to <place>" on review and Close once added (ScanItemSheet.swift:96-120), matching the Sheets step table.', by: 'apple-hig skill' },
+        { rule: 'Sheets: unsaved changes on swipe down', verdict: 'pass', note: 'DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask \'Discard changes?\' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). ScanItemSheet guards ScanItemModel.hasDraft (swipe on every step, Cancel on the first).', by: 'apple-hig skill' },
+        { rule: 'Privacy: ask in context and handle a refusal', verdict: 'pass', note: 'Fixed (owner pick): ScanItemSheet shows an Open Settings button when camera access is off.' },
+        { rule: 'Feedback: confirm a scan', verdict: 'pass', note: 'Fixed in ScanItemSheet.swift: sensoryFeedback on lookupStatus and expiryStatus (feedback(lookup:), feedback(expiry:)): success when a barcode or date is read, error when the read failed.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: an alternative to the camera', verdict: 'pass', note: 'Manually Enter Name and Manually Enter Expiration Date sit under each viewfinder, and the live feed is labelled; the status pill is .updatesFrequently (ScanItemSheet.swift:398-406, CameraStatusPill).', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: reflow', verdict: 'pass', note: 'At accessibility sizes the step buttons scroll with the form instead of pinning and taking 40% of the screen (ScanItemSheet.swift:45-55).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: do not force font sizes', verdict: 'pass', note: 'Decided 2026-10-24 (dynamic-type-glyphs): the result check and simulated camera glyph are decoration and do not scale.', by: 'swiftui-pro skill' },
+        { rule: 'Design: no UIKit colours', verdict: 'pass', note: 'ScanItemSheet.surface reads HassTokens.Surface.systemGround (ScanItemSheet.swift:80)' },
+        { rule: 'Camera lifecycle with task(id:)', verdict: 'pass', note: '.task(id: CameraKey) syncs the camera with the step and onDisappear stops it (ScanItemSheet.swift:66-67).', by: 'swiftui-pro skill' },
+        { rule: 'Data flow: Binding(get:set:) per field', verdict: 'pass', note: 'Fixed: the field bindings are ControllerBinding.make over the model\'s setters (hasExpiryBinding, expiryBinding, nameBinding, quantityBinding, quantityStepBinding) in ScanItemSheet.swift.', by: 'swiftui-pro skill' },
+        { rule: 'Form controls', verdict: 'pass', note: 'Quantity is a text field with a decimal pad and a Stepper, both labelled, in a Form; expiry is a Toggle plus DatePicker (:344-390).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'medium and fitted: none. hassSheet(.form, height: .full) is always the large detent so the camera card and the three pages do not change the sheet\'s height; the "large" state is the shipped one.',
+      'loading is the barcode-processing state; "Processing…" also covers the expiry photo read. The pill text "Looking Up Product" and "Reading Expiration Date" (cameraActivity) look unreachable in the current flow: reading a barcode or taking the photo hides the camera before the lookup starts, so those pill branches never show.',
+      'Docs and code: spec.md describes a Scan sheet with VisionKit and a "Location" step list that included Library; native lists Pantry, Fridge, Freezer, Spice Rack, Cabinet and Library (Library is offered when adding but has no page of its own). The catalog hint "step pages cross-fade" is not in the code (see the step-cut motion item).',
+      'In-flight: none. The camera picture is a stand-in (a dark gradient and a reticle); no real image is committed.',
+      'Duo unfolded: the centred form sheet crosses the hinge band here (system placement; check on a device). iPad form sheets are 540 by 620 pt; the page sheet size is not used.',
+      'Footer: pinned under the form (the sheet is a VStack of the Form and the buttons) except at AX sizes; in this mockup the pinned footer is attached below the scroll area of the kit sheet.',
+      'Colour of the sheet and footer: the app draws systemGroupedBackground; the kit sheet ground (#1C1C1E dark, #F2F2F7 light) stands in for it.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: three steps, camera states, results, errors, AX5, light and dark.' }],
+  });
+})();
+</script></body></html>

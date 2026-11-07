@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SegmentedChoice and percent slider row · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  var base = Mock.componentConfig('SegmentedChoice', { surfaces: ['sheet'] });
+  function sw(items, o) { return function (ctx) { return HF.surfaces(ctx, items, Object.assign({ surfaces: ['sheet'] }, o)); }; }
+  function label(t) { return h('div', { style: { font: '600 var(--fs-sub)/1.2 var(--font)', color: 'var(--ink-sheet-2)', margin: '0 0 8px 4px' } }, t); }
+  function seg(ctx, o) { return K.SegmentedChoice(Object.assign({ ctx: ctx }, o)); }
+  function cell(kids) { return h('div.ui-form', h('div', { style: { padding: '8px 16px' } }, kids)); }
+
+  Mock.mount(Object.assign(base, {
+    kind: 'component', id: 'segmented-choice', title: 'SegmentedChoice and percent slider row', area: 'design', status: 'shipped',
+    summary: 'Two small input controls on sheets. SegmentedChoice: a short single choice of two to four options as a system segmented control (a pop-up menu that names the choice at accessibility sizes); choosing sends at once. PercentSliderRow: a labelled 0 to 100 slider in steps of 5 that shows and speaks its value (the Recipes filter).',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/floating-actions.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['floating-actions', 'modal-sheet'],
+    hig: ['Segmented controls', 'Sliders', 'Pop-up buttons', 'Dynamic Type', 'Accessibility (adjustable)'],
+    entities: [],
+    kitComponents: ['SegmentedChoice', 'Slider', 'FilterSheet'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: Object.assign({}, base.states, {
+      'real-usages': { title: 'Real usages (labels and options from the code)', render: function (ctx) { return HF.surfaces(ctx, [
+        { label: 'Humidifier · Mode (3)', node: function () { return seg(ctx, { options: ['Manual', 'Auto Humidity', 'Sleep'], selected: 'Auto Humidity', label: 'Mode' }); } },
+        { label: 'Humidifier · Mist output (4)', node: function () { return seg(ctx, { options: ['Low', 'Medium', 'High', 'Max'], selected: 'Medium', label: 'Mist output' }); } },
+        { label: 'Humidifier · Warm mist (4)', node: function () { return seg(ctx, { options: ['Off', 'Low', 'Medium', 'High'], selected: 'Off', label: 'Warm mist' }); } },
+        { label: 'Wake light · Alarm Type (2)', node: function () { return seg(ctx, { options: ['Scheduled', 'One-Time'], selected: 'Scheduled', label: 'Alarm Type', large: true }); } },
+        { label: 'Recipe filter · Expiring Within (3)', node: function () { return seg(ctx, { options: ['7 Days', '30 Days', '90 Days'], selected: '30 Days', label: 'Expiring Within' }); } },
+      ], { surfaces: ['sheet'], basis: 320 }); } },
+      'no-selection': { title: 'No option selected', note: 'the device reports a value outside the options (a mist level between presets): the control shows nothing selected and choosing still works', render: sw([
+        { label: 'Mist output at level 4', node: function () { var n = K.SegmentedChoice({ options: ['Low', 'Medium', 'High', 'Max'], selected: null, label: 'Mist output' }); return n; } },
+      ]) },
+      'disabled': { title: 'Disabled', note: 'the system control dims itself (the device is unavailable, or Expiring Within while its toggle is off)', render: sw([
+        { label: 'Expiring Within, toggle off', node: function () { var n = K.SegmentedChoice({ options: ['7 Days', '30 Days', '90 Days'], selected: '30 Days', label: 'Expiring Within' }); n.style.opacity = .4; n.style.pointerEvents = 'none'; n.setAttribute('aria-disabled', 'true'); return n; } },
+      ]) },
+      'slider-rows': { title: 'Percent slider row', note: '0 to 100 in steps of 5; one adjustable element for VoiceOver (value spoken as "<n> percent"; swipe up or down moves 5)', render: sw([
+        { label: 'Minimum Ingredients Available · 0%', node: function () { return HF.percentRow('Minimum Ingredients Available', 0); } },
+        { label: 'Availability Weight · 60%', node: function () { return HF.percentRow('Availability Weight', 60); } },
+        { label: 'Expiry Weight · 100%', node: function () { return HF.percentRow('Expiry Weight', 100); } },
+        { label: 'disabled (sorted alphabetically)', node: function () { var r = HF.percentRow('Expiry Weight', 60, { disabled: true }); r.style.opacity = .5; return r; } },
+      ]) },
+      'filter-sheet': { title: 'In context: Filter Recipes (one section of each)', render: function (ctx) { return HF.surfaces(ctx, [
+        { label: 'Filter Recipes', wide: true, node: function () { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '520px' } },
+          h('section', h('p.ui-formhead', { role: 'heading', 'aria-level': '2' }, 'Ingredient Coverage'), cell(HF.percentRow('Minimum Ingredients Available', 40)), h('p.ui-formfoot', 'Only show recipes where at least this percentage of required ingredients is available.')),
+          h('section', h('p.ui-formhead', { role: 'heading', 'aria-level': '2' }, 'Expiring Ingredients'), h('div.ui-form', h('div.ui-field', h('span.lb', 'Expiring Ingredients Only'), K.Toggle({ on: true, label: 'Expiring Ingredients Only' }))), h('div', { style: { padding: '10px 4px 0' } }, seg(ctx, { options: ['7 Days', '30 Days', '90 Days'], selected: '30 Days', label: 'Expiring Within' })), h('p.ui-formfoot', 'Show recipes that use ingredients expiring within 30 days.'))); } },
+      ], { surfaces: ['sheet'] }); } },
+      'ax5': { title: 'Accessibility 5: a menu names the choice', override: { ts: 'ax5' }, note: 'segments cannot grow, so the picker is a pop-up button showing "<label>: <choice>"; the slider row stacks its label over the value', render: function (ctx) { return HF.surfaces(ctx, [
+        { label: 'Mist output', node: function () { return seg(ctx, { options: ['Low', 'Medium', 'High', 'Max'], selected: 'Medium', label: 'Mist output' }); } },
+        { label: 'Availability Weight', node: function () { return HF.percentRow('Availability Weight', 60); } },
+      ], { surfaces: ['sheet'] }); } },
+    }),
+
+    motion: [],
+
+    a11y: [
+      { rule: 'Segmented control', note: 'One Picker with the segmented style, labelled by its title ("Mist output"); each segment is a button named by its option; the selected segment carries the selected trait. XCUITest finds it by identifier (e.g. purifier.speed) and each option by title.' },
+      { rule: 'Menu form', note: 'At accessibility sizes it is a pop-up Picker naming the choice (label and current option) and at least 44 pt tall; a segmented control cannot hold accessibility text.' },
+      { rule: 'Percent slider', note: 'The visible title and value belong to one adjustable element: label "Availability Weight", value "60 percent", increment and decrement move 5 (PercentSliderRow.adjusted). Hiding the visible text while only the slider spoke was flagged as inaccessible text on the folded Duo.' },
+      { rule: 'Disabled', note: 'Dims to 50% (the row) or by the system (the picker) and is not actionable; a footer says why when it is not obvious ("Weights are unavailable while recipes are sorted alphabetically").' },
+      { rule: 'Targets', note: 'The segmented control is controlSize(.large) or at least 44 pt (frame minHeight minTarget); the slider thumb is the system\'s.' },
+      { rule: 'Immediate effect', note: 'Choosing sends at once (no Apply); the control shows the device\'s reported value, so it never claims a selection the device has not made.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Segmented controls: two to four short options; avoid more segments than fit", verdict: "pass", note: "SegmentedChoice is documented for 2 to 4 options (direction-g.md Controls) using the system segmented Picker at controlSize(.large), with titles short enough for one line.", by: "apple-hig skill" },
+
+        { rule: "Segmented controls and Accessibility: segments cannot hold accessibility text", verdict: "pass", note: "At accessibility sizes the control becomes a menu Picker that names the choice and its current option with a 44 pt minimum height, so text never truncates inside a segment.", by: "apple-hig skill" },
+
+        { rule: "Feedback: a control acknowledges a tap", verdict: "pass", note: "Not applicable as written: SegmentedChoice is stateless by decision (controller-bound controls); its callers pass the controller's shown value (AirPurifierController.mode via RoomDeviceCommands.displayed), which is the optimistic overlay, so the choice moves at once and a failed call rolls back and now marks the key failed (OptimisticOverlay.fail).", by: "apple-hig skill" },
+
+        { rule: "Sliders: show the value; adjustable in useful steps", verdict: "pass", note: "PercentSliderRow shows 'NN%' beside the title, steps by 5, and exposes one adjustable element ('Availability Weight', '60 percent', increment and decrement by 5); hiding the visible text while only the slider spoke was flagged on the folded Duo.", by: "apple-hig skill" },
+
+        { rule: "Disabled controls: explain why", verdict: "pass", note: "A disabled row dims to 50% and a footer says why when not obvious ('Weights are unavailable while recipes are sorted alphabetically'); the picker is dimmed by the system.", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "Data flow: avoid Binding(get:set:) in the view body", verdict: "pass", note: "Fixed: SegmentedChoice builds its selection with ControllerBinding.make, the one documented read-only-value binding (SegmentedChoice.swift); the controller owns the value and select is the intent.", by: "swiftui-pro skill" },
+
+        { rule: "Design: Slider wrapped in LabeledContent; reuse the system control's accessibility", verdict: "pass", note: "Not applicable: PercentSliderRow is one adjustable element for title, value and slider on purpose (the audit flagged the hidden title as inaccessible text on the folded Duo); LabeledContent would restyle the row and drop that pairing.", by: "swiftui-pro skill" },
+
+        { rule: "Views: one control for the segmented-or-menu switch", verdict: "pass", note: "RecipeHorizonPicker now wraps SegmentedChoice (RecipesScreen.swift); one implementation of the segmented-or-menu switch.", by: "swiftui-pro skill" },
+
+        { rule: "API: generic over Hashable options, identifiers for UI tests", verdict: "pass", note: "SegmentedChoice<Option: Hashable> uses ForEach(options, id: \\.self) with .tag(Optional(option)) so no selection is a valid state (a mist level between presets), and the identifier sits on the Picker.", by: "swiftui-pro skill" },
+
+        { rule: "Resizability: switch layout by Dynamic Type size, not by device", verdict: "pass", note: "typeSize.isAccessibilitySize chooses .menu or .segmented; nothing branches on a device or size class, so the folded Duo's narrow outer display and iPad sheets behave the same.", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'This component has no motion of its own: the segment thumb slide and the slider drag are the system\'s. The Motion list is empty on purpose.',
+      'Docs versus code: the catalog says PercentSliderRow is in RecipesScreen; it is (struct PercentSliderRow). The kit\'s Slider.js documents a different use, Settings > Appearance > Background Blur, which lives in the settings-account batch.',
+      'Recipe filter: the expiry horizon uses its own Picker (RecipeHorizonPicker) rather than SegmentedChoice; it is drawn here with the same look as the control.',
+      'Swatches show the sheet surface only: both controls appear only on sheets.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: two, three, four options, menu at AX5, no selection, disabled, percent slider rows and the Filter Recipes context.' }],
+  }));
+})();
+</script></body></html>

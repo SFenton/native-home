@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dynamic Island compact and minimal · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function compact(name, ctx, o) { return LA.islandCompact(LA.fx(name), Object.assign({ ctx: ctx }, o)); }
+  function minimal(name, ctx) { return LA.islandMinimal(LA.fx(name), { ctx: ctx }); }
+  function figs(ctx, names, make, note) {
+    return LA.stage([note ? h('p.la-note', { style: { width: '100%' } }, note) : null].concat(names.map(function (n) { return LA.fig(make(n, ctx), n); })));
+  }
+  function slug(code) { return 'problem-' + code.replace(/\./g, '-'); }
+
+  Mock.mount({
+    kind: 'component', id: 'dynamic-island-compact', title: 'Dynamic Island compact and minimal', area: 'live-activity', status: 'shipped', frame: false,
+    summary: 'The island while another app is in front: the ring on the leading side, the time on the trailing side with a rigid width, or the glyph and one word when the job has no time.',
+    source: ['apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift', 'apple/Sources/FentonActivityViews/HomeActivityIslandPreview.swift', 'apple/Sources/FentonActivityViews/ActivityRing.swift',
+      'apple/Sources/FentonActivityViews/SeverityCircle.swift', 'apple/Apps/Widgets/HomeLiveActivity.swift', 'apple/Sources/FentonActivityModel/ActivityCard.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: [],
+    hig: ['Live Activities', 'Dynamic Island'],
+    entities: ['fenton_home job engine content-state v2'],
+    devices: ['iphone'],
+    states: {
+      'default': { title: 'Compact over the Home Screen', note: 'Guest Bath Fan: a 24 pt ring on the left, 4:42 in the fan\'s tint on the right', render: function (ctx) {
+        return LA.homeScreen(ctx, LA.islandAt(compact('fan', ctx, { minWidth: 0 }))); } },
+      widths: { title: 'Widths: dishwasher vs vacuum', render: function (ctx) {
+        return figs(ctx, ['dishwasher', 'dishwasher-long', 'fan', 'dryer', 'washer', 'dishwasher-percent', 'hotflash-cooling', 'dishwasher-paused', 'dishwasher-waiting', 'dishwasher-complete', 'vacuum', 'vacuum-cleaning', 'vacuum-long', 'vacuum-paused'], compact,
+          'A time gets a rigid width: the live text is drawn over a hidden template ("00:00", or "0:00:00" from an hour, and for every count-up so a dryer cannot outgrow it). A card with no time shows its short word at 13 pt, capped at 56 pt with an ellipsis. A card with no time and no progress (the vacuum) shows the glyph alone on the left. The capsule here is the app\'s 250 pt stand-in widened only where a wider template needs it; the system sizes the real island.'); } },
+      problems: { title: 'Problems (severity circle and one word)', render: function (ctx) {
+        return figs(ctx, LA.PROBLEMS.filter(function (r) { return !r.device || r.device === 'Dishwasher'; }).slice(0, 14).map(function (r) { return slug(r.code); }), compact, 'A problem swaps the ring for a 24 pt solid severity circle and the time for one word from the code ("Stuck", "Refill water"); an unknown code reads "Help" (critical) or "Check" (warning).'); } },
+      minimal: { title: 'Minimal', render: function (ctx) {
+        return figs(ctx, ['fan', 'dishwasher', 'dishwasher-percent', 'dryer', 'hotflash-cooling', 'dishwasher-complete', 'vacuum', 'problem-navigation-stuck', 'problem-power-low_battery'], minimal, 'The ring alone (the glyph alone when the card has no time or progress; the severity circle on a problem). The system draws the real minimal view at about 36 pt; the stand-in circle is 44 pt, so its accessibility element is a target a person could hit.'); } },
+      two: { title: 'Two activities', note: 'with two running, each shows as a minimal bubble beside the camera', render: function (ctx) {
+        return LA.homeScreen(ctx, h('div', { style: { position: 'absolute', left: 0, right: 0, top: '8px', display: 'flex', justifyContent: 'center', gap: '132px', zIndex: 62 } }, minimal('fan', ctx), minimal('dishwasher-percent', ctx))); } },
+      limited: { title: 'Limited width (iOS 27)', render: function (ctx) {
+        return LA.stage([h('p.la-note', { style: { width: '100%' } }, 'When isDynamicIslandLimitedInWidth is set (iOS 27, and an iPhone with two activities) the trailing side is empty and only the leading ring shows.')].concat(['dishwasher', 'fan', 'vacuum', 'problem-navigation-stuck'].map(function (n) {
+          return LA.fig(compact(n, ctx, { limited: true }), n, 'limited'); }))); } },
+      ax5: { title: 'Accessibility 5 (island capped)', override: { ts: 'ax5' }, note: 'the island never grows past xxxLarge, so it looks the same as the default', render: function (ctx) {
+        return figs(ctx, ['dishwasher', 'vacuum', 'problem-navigation-stuck'], compact, 'The trailing time is capped at xxxLarge (.dynamicTypeSize(...xxxLarge)); the rigid template scales with it, so the width stays the template\'s.'); } },
+    },
+    motion: [
+      LA.motionTick('apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift'),
+    ],
+    transitions: [
+      { from: 'Compact island', to: 'Expanded island', kind: 'overlay', note: 'A long press, or an alerting update, expands the island; the system draws the morph (see the expanded island mockup). A tap opens the app at the job\'s page.' },
+    ],
+    a11y: [
+      { rule: 'Names', note: 'Leading: the card\'s title, or on a problem the whole spoken summary ("Main Floor Vacuum, needs help: Stuck in Kitchen. Move it somewhere flat, then tap Resume."). Trailing time: spoken as "5 minutes left", "running for 32 minutes".' },
+      { rule: 'Targets', note: 'The system owns the island hit area; the 44 pt stand-in minimal circle exists only so the journey audit can hit it.' },
+      { rule: 'Dynamic Type', note: 'Capped at xxxLarge by design (the island\'s regions are the system\'s size); the time is a text style so the template and the live text scale together.' },
+      { rule: 'Colour', note: 'The time and word take the job\'s dark family accent on black (at least 3:1); a problem word takes the severity light tint.' },
+      { rule: 'Not colour alone', note: 'A problem is a circle with a glyph and a word, not just red.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Dynamic Island: compact content is minimal', verdict: 'pass', note: 'One 24 pt ring or glyph on the leading side and one time or word on the trailing side (HomeActivityIslandViews.swift:18-90).' },
+        { by: 'apple-hig skill', rule: 'Dynamic Island: content must not stretch the island', verdict: 'pass', note: 'The live time is drawn over a hidden template of the same font so Text(timerInterval:) cannot widen it (lines 94-114).' },
+        { by: 'apple-hig skill', rule: 'Live Activities: respect limited width', verdict: 'pass', note: 'On iOS 27 isDynamicIslandLimitedInWidth empties the trailing side (HomeLiveActivity.swift:62-83).' },
+        { by: 'apple-hig skill', rule: 'Dynamic Type: system-sized island', verdict: 'departure', note: 'The trailing side is capped at xxxLarge (HomeLiveActivity.swift:44) because the island\'s width is the system\'s; the time is a text style so its template and live text scale together.' },
+        { by: 'apple-hig skill', rule: 'Color: contrast of text on black', verdict: 'pass', note: 'No colour change: every ColorFamily glyph is at least 6.4:1 on black; ActivityStyleTests.theAccentReadsOnTheIslandsBlack now pins 4.5:1 for all families and the stale 3:1 comment in ActivityStyle.accent is fixed.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: group and name the pieces', verdict: 'pass', note: 'Leading and trailing set an explicit label (the card title, a problem\'s spoken summary, the spoken figure) and ignore children (lines 33-35, 66-67).' },
+        { by: 'swiftui-pro skill', rule: 'api.md: text styles over fixed sizes', verdict: 'pass', note: 'compactTimeFont is .subheadline semibold monospacedDigit and compactLabelFont .footnote (ActivityStyle.swift:120-122).' },
+        { by: 'swiftui-pro skill', rule: 'api.md: availability checks', verdict: 'pass', note: 'The iOS 27 environment value is wrapped in #available (HomeLiveActivity.swift:67-82).' },
+      ],
+    },
+    notes: [
+      'Devices: iPhones with a Dynamic Island only (iPhone 17 Pro drawn). iPhone Duo has a camera punch-hole and no island; nothing is drawn there.',
+      'Doc versus code: spec 8 says the compact leading ring is 26 pt and the trailing time 15 pt; 8a and the code use a 24 pt ring and a 15 pt text style.',
+      'The capsule is the app\'s own stand-in (HomeActivityIslandPreview, 250 x 36); the real island width and the position of the status bar text beside it are the system\'s. In the device figure the status bar time can sit under the capsule edge.',
+      'Compact capsule widths here estimate each template with a monospaced digit width; the journeys compare the real trailing bounds with the hidden template (LiveActivityJourneyTests).',
+      'Promote to kit: LA.islandCompact, LA.islandMinimal and LA.card in components/live-activity/_widgets-liveactivity.js.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: widths, problems, minimal, two activities, limited width.' }],
+  });
+})();
+</script></body></html>

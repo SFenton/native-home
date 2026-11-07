@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Weather sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/weather/_home-weather.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, HW = Mock.HW, K = Mock.components;
+
+  function S(o) { return function (ctx) { return HW.sheet(ctx, o); }; }
+  /* The sheet is a scroll view: a state can open it scrolled to a panel (the page-scroll control only moves the page behind). */
+  function at(o, target) {
+    return function (ctx) {
+      var host = HW.sheet(ctx, o);
+      Mock.whenAttached(host, function () { var sc = host.querySelector('.ui-mscroll'), el = sc && sc.querySelector(target); if (el) sc.scrollTop = el.offsetTop - 8; });
+      return host;
+    };
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'weather-sheet', title: 'Weather sheet', area: 'home', status: 'shipped', alwaysDark: true,
+    summary: 'Opened by tapping the Home weather card: a full-height page sheet over the condition gradient with the hero, the Today briefing, hourly Conditions in three modes, the next seven days and the Highlights tiles. Dark in either system appearance. Sample data is the gallery fixture (72 F, rain easing to cloud).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift', 'apple/Sources/HassUI/Features/Home/Weather/WeatherBackdrop.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherBackdrop.swift',
+      'apple/Sources/HassUI/Features/Home/Weather/WeatherCardContent.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/patterns/weather.md', '.agents/pages/home/spec.md', '.agents/design/direction-g.md'],
+    patterns: ['weather', 'modal-sheet', 'dynamic-grid', 'header-edge-fade', 'motion'],
+    hig: ['Sheets', 'Scroll views', 'Color', 'Dark Mode', 'Dynamic Type', 'Motion', 'Materials', 'Charting data'],
+    entities: ['weather.demo_weather_1', 'sun.sun', 'sensor.demo_air_quality_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'TileGrid', 'WeatherGlyph', 'ChipRail', 'ModalTabBar (not used: no tabs)'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Loaded, rain easing to cloud', note: 'full height; the gradient is the sheet ground', render: S({ scene: 'rain' }) },
+      'loading': { title: 'Loading (nothing saved yet)', note: 'placeholder hours and day rows, no hero range, charts say Unavailable', render: S({ scene: 'neutral', phase: 'loading', cond: 'Cloudy', glyph: 'cloudy' }) },
+      'error': { title: 'Forecast request failed', note: 'inline messages replace the carousel and the day list; the hero and the current-conditions tiles still show', render: S({ scene: 'neutral', phase: 'error', cond: 'Cloudy', glyph: 'cloudy' }) },
+      'empty': { title: 'Provider returned no forecast', note: 'same layout as error with the empty copy', render: S({ scene: 'neutral', phase: 'empty', cond: 'Cloudy', glyph: 'cloudy' }) },
+      'offline': { title: 'Over an offline Home', note: 'no offline UI of its own: the store keeps the last forecast and retries quietly (5 s doubling to 5 min); with nothing saved this is the loading state', render: function (ctx) { return HW.sheet(ctx, { scene: 'rain', connection: 'offline' }); } },
+      'stale-error': { title: 'Refresh failed, last forecast kept', note: 'a non-connection failure keeps the data and adds the message under the hourly row', render: S({ scene: 'rain', phase: 'stale' }) },
+      'scene-sunny': { title: 'Scene: clear (sunny)', render: S({ scene: 'sunny', cond: 'Sunny', glyph: 'sunny', brief: 'clear' }) },
+      'scene-clouds': { title: 'Scene: clouds', render: S({ scene: 'clouds', cond: 'Partly Cloudy', glyph: 'partly-cloudy', brief: 'clear' }) },
+      'scene-fog': { title: 'Scene: fog', render: S({ scene: 'fog', cond: 'Fog', glyph: 'cloudy', brief: 'clear' }) },
+      'scene-storm': { title: 'Scene: storm, severe-storm hazard briefing', note: 'the hazard icon replaces the condition glyph and takes the severity colour (orange for an alert)', render: S({ scene: 'storm', cond: 'Lightning', glyph: 'storm', brief: 'storm' }) },
+      'scene-snow': { title: 'Scene: snow', render: S({ scene: 'snow', cond: 'Snow', glyph: 'snow', brief: 'clear' }) },
+      'scene-night': { title: 'Scene: night', note: 'sun below the horizon: the sun tile reads Sunrise and has no marker; stars are drawn', render: S({ scene: 'night', night: true, cond: 'Clear Night', glyph: 'clear-night', brief: 'clear' }) },
+      'hazard-air': { title: 'Briefing: poor air quality (caution)', note: 'severity caution draws the hazard icon in yellow', render: S({ scene: 'neutral', cond: 'Cloudy', glyph: 'cloudy', brief: 'air', aqi: true }) },
+      'no-aqi': { title: 'No air-quality sensor', note: 'the Air Quality tile is left out of the grid', render: at({ scene: 'rain', aqi: false }, '.hw-grid') },
+      'aqi-unavailable': { title: 'AQI entity unavailable', note: 'the tile stays with "--" and Unavailable; the rail has no marker', render: at({ scene: 'rain', aqi: 'unavailable' }, '.hw-grid') },
+      'mode-precipitation': { title: 'Conditions: precipitation mode', note: 'the mode also drives the seven-day rows', render: S({ scene: 'rain', mode: 'precipitation' }) },
+      'mode-wind': { title: 'Conditions: wind mode', note: 'arrows point where the wind blows to', render: S({ scene: 'rain', mode: 'wind' }) },
+      'calm-wind': { title: 'Calm wind tile', note: 'no needle, no E and W letters, direction reads Calm', render: at({ scene: 'sunny', cond: 'Sunny', glyph: 'sunny', brief: 'clear', calm: true }, '.hw-grid') },
+      'daily': { title: 'Scrolled to the seven days', render: at({ scene: 'rain', mode: 'condition' }, '[aria-label="Seven-day weather forecast"]') },
+      'highlights': { title: 'Scrolled to the Highlights', render: at({ scene: 'rain' }, '.hw-grid') },
+      'long-text': { title: 'Long condition label in the hero', note: 'the hero condition wraps and stays centred', render: S({ scene: 'storm', cond: 'Heavy Thunderstorm With Hail', glyph: 'storm', brief: 'storm' }) },
+      'large': { title: 'Large (full) detent: the only one it has', note: 'hassSheet(.page, height: .full); on iPad the page sheet (704 pt)', render: S({ scene: 'rain', detent: 'large' }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Home page the sheet scales back', render: function (ctx) { return HW.presenter(ctx); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of tiles, stacked panel headers and day rows, two hours a page', render: S({ scene: 'rain' }) },
+    },
+
+    motion: [
+      { id: 'rain-streaks', what: 'Rain and storm decoration: thirty-six thin streaks fall slowly behind the panels (snow: thirty flakes)', token: 'continuous, 24 fps cap (TimelineView minimumInterval 1/24), 0.12 to 0.24 screens per second',
+        state: 'default', source: 'HassUI/Features/Home/Weather/WeatherDecoration.swift streaks; patterns/weather.md; performance.md (one stroked path, timeline paused off scene)',
+        reduce: 'a single still frame (streaks at their starting positions); with Reduce Transparency the decoration is left out and the gradient stays solid',
+        play: function () { return Mock.sleep(3500); } },
+      { id: 'compass-needle', what: 'The wind needle turns the short way round to a new bearing (250 to 290 degrees, then 350 to 10 turns 20 degrees, not 340)', token: 'standard 0.3 s smooth (MotionTokens.standard), rotation only', state: 'highlights',
+        source: 'WeatherCompass.swift onChange(sourceDegrees), WeatherPresentation.shortestBearingDelta', reduce: 'no animation: the needle jumps',
+        play: function (stage) {
+          var nd = stage.querySelector('.hw-compass .nd'); if (!nd) return Promise.resolve();
+          nd.scrollIntoView({ block: 'center' });
+          function turn(deg) { nd.style.transform = 'rotate(' + deg + 'deg)'; return Mock.sleep(Mock.settings.reduceMotion ? 250 : 650); }
+          return turn(290).then(function () { return turn(350); }).then(function () { return turn(370); }).then(function () { nd.style.transition = 'none'; nd.style.transform = 'rotate(250deg)'; void nd.offsetWidth; nd.style.transition = ''; return Mock.sleep(300); });
+        } },
+      { id: 'mode-switch', what: 'Switching Conditions between conditions, precipitation and wind swaps the hours and the seven-day rows in place', token: 'quick 0.2 s easeOut content change (motionSafeAnimation quick, value: mode); no slide', state: 'default',
+        source: 'WeatherHourlyPanel.swift content .motionSafeAnimation(MotionTokens.quick, value: mode); WeatherDailyPanel.swift', reduce: 'the content swaps without the fade',
+        play: function (stage) { var body = stage.querySelector('.hw-sheet'); var b = stage.querySelector('.hw-modes button[data-mode="precipitation"]'); if (!b) return Promise.resolve(); b.scrollIntoView({ block: 'center' }); return Mock.sleep(250).then(function () { b.click(); return Mock.sleep(900); }).then(function () { stage.querySelector('.hw-modes button[data-mode="wind"]').click(); return Mock.sleep(900); }).then(function () { stage.querySelector('.hw-modes button[data-mode="condition"]').click(); return Mock.sleep(500); }); } },
+      { id: 'rail-marker', what: 'A rail moves its span and marker when the value changes (Feels Like 75 to 68 degrees)', token: 'standard 0.3 s smooth on the rail value (WeatherRail motionSafeAnimation standard)', state: 'highlights',
+        source: 'WeatherRail.swift .motionSafeAnimation(MotionTokens.standard, value: range)', reduce: 'the rail jumps',
+        play: function (stage) { var mk = stage.querySelector('[data-tile="feels"] .mk'); if (!mk) return Promise.resolve(); mk.scrollIntoView({ block: 'center' }); mk.style.left = 'calc((100% - 12px) * .30)'; return Mock.sleep(900).then(function () { mk.style.left = 'calc((100% - 12px) * .625)'; return Mock.sleep(500); }); } },
+      { id: 'page-dots', what: 'The hourly carousel pages whole screens of hours; the indicator stretches the current dot', token: 'dot width quick 0.2 s; paging is the scroll view\'s own (UIKit paging, Reduce Motion jumps)', state: 'default',
+        source: 'WeatherPagedCarousel.swift indicator quickTransition, PagedRow', reduce: 'the row jumps to the page (no animatesPaging)',
+        play: function (stage) { var c = stage.querySelector('.hw-carwrap'); if (!c) return Promise.resolve(); c.scrollIntoView({ block: 'center' }); return Mock.sleep(300).then(function () { c.goTo(1); return Mock.sleep(900); }).then(function () { c.goTo(0); return Mock.sleep(700); }); } },
+    ],
+
+    transitions: [
+      { from: 'Home weather card', to: 'Weather sheet', kind: 'sheet', state: 'closed', note: 'Tapping anywhere on the card (the header is the one button for assistive technology) presents the sheet at full height. The system slides it up; Home scales back and dims. Content is present on arrival (motion.md section 4.4); the sheet reads the same forecast store as the card, so it never reloads.',
+        play: function (stage) { return HW.presentDemo(stage, { scene: 'rain' }, 1300); } },
+      { from: 'Weather sheet', to: 'Home', kind: 'sheet', state: 'default', note: 'Close (circle x) or a swipe down. The system slides the sheet away; the Home page returns to full size.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Focus lands on the sheet title "Weather", then the hero (one element: condition and degrees), the Today panel (heading "Today", the headline as a header, the narrative bullets), Conditions (header, the Hourly detail group with Conditions, Precipitation and Wind, the subhead, the hours), Next Seven Days, Highlights, and Close last in the bar.' },
+      { rule: 'Mode buttons', note: 'Labelled Conditions, Precipitation, Wind with the selected trait (the web read "Conditions conditions"); hints say what each shows. 44 pt square, 132 pt group. The group is named "Hourly detail".' },
+      { rule: 'Hours, days and tiles', note: 'Spoken as the web\'s aria-labels: "7 PM Rain 62°F", "Mon precipitation 0.10 in 40%", "Wind 9 mph; Gusts 14 mph; From west-southwest, 250 degrees". Charts, gauges, the compass and rails are hidden; the tile speaks the series.' },
+      { rule: 'Carousel', note: 'VoiceOver reads the hours on the page on screen and announces "Page 2 of 5"; the page indicator is an adjustable 44 pt element, and regular layouts add 44 pt Previous and Next buttons (disabled at the ends).' },
+      { rule: 'Contrast', note: 'White text on every gradient: the lightest stop is at least 5.6:1 (checked by WeatherViewTests.backdropsAreDarkEnoughForWhiteText); secondary text is white at 85%, at least 4.5:1; panels are a black 28% wash, so decoration never lowers it.' },
+      { rule: 'State is not colour alone', note: 'A hazard briefing changes the icon as well as its colour; AQI shows the number and the category word beside the rail; UV, feels-like and visibility show value and status text.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the Conditions header stacks (title over the mode picker), day rows stack the day above its detail, the wind tile stacks readouts over the compass (capped at 160 pt), the highlight grid drops to one column and the carousel shows two hours a page (never clipped). Hour labels scale freely.' },
+      { rule: 'Reduce Motion and Reduce Transparency', note: 'Rain and snow are a still frame, the needle and rails jump, the carousel jumps; with Reduce Transparency the decoration is omitted and the gradient stays solid (panels are a wash, not a blur, so nothing else changes).' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Sheets: consider medium for progressive disclosure", verdict: 'departure', note: "The sheet opens at large only, dark in either appearance, over a condition gradient (WeatherCardContent.swift:54, .hassSheet(.page, height: .full, appearance: .dark)); hassSheet doc (HassModal.swift:132-141) records both choices.", by: 'apple-hig skill' },
+        { rule: "Color: contrast on every scene", verdict: 'pass', note: "Every gradient stop is dark enough for white text (WeatherBackdrop.swift:44-53; the lightest, clear-sky top 0.13/0.40/0.78, measures about 5.5:1 against white) and panels add a 28% black wash that needs no blur (WeatherSurface.swift:15).", by: 'apple-hig skill' },
+        { rule: "Accessibility: Reduce Motion and Reduce Transparency", verdict: 'pass', note: "Decoration animates only with Reduce Motion off and is left out under Reduce Transparency, leaving a solid gradient (WeatherBackdrop.swift:25-28); the carousel pages with no animation (WeatherPagedCarousel.swift:55).", by: 'apple-hig skill' },
+        { rule: "Charting data: make every chart accessible, with labels for values", verdict: 'pass', note: "Bar charts and rails are hidden from VoiceOver and each tile speaks its whole series as a value (WeatherBarChart.swift:41, WeatherTile.swift:26-28, WeatherChanceTile.swift:14-18).", by: 'apple-hig skill' },
+        { rule: "Page controls: tapping either side of the current indicator moves a page", verdict: 'pass', note: "WeatherPagedCarousel uses PageIndicator: tap either half to move a page on iPhone as well as iPad.", by: 'apple-hig skill' },
+        { rule: "Typography: minimum text size and Dynamic Type", verdict: 'pass', note: "The hero numeral scales without shrinking; hours are .subheadline, chart axes and pressure unit are .caption.", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Close with semantic placement", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+        { rule: "Use presentationBackground and a color-scheme environment for a dark sheet", verdict: 'pass', note: "presentationBackground draws the gradient at every detent and preferredColorScheme(.dark) applies to the whole sheet, which is intended (WeatherSheet.swift:50-52).", by: 'swiftui-pro skill' },
+        { rule: "Never use fixed font sizes where a style exists", verdict: 'pass', note: "The hero numeral keeps its @ScaledMetric(relativeTo: .largeTitle) size and no longer shrinks (WeatherSheet.hero); hour glyphs are @ScaledMetric (WeatherModalHour).", by: 'swiftui-pro skill' },
+        { rule: "Avoid UIKit unless needed (PagedRow)", verdict: 'departure', note: "The hourly carousel is a UIKit paging scroll view because a nested SwiftUI ScrollView committed offset through the sheet's view graph every frame (WeatherPagedCarousel.swift:52-54, patterns/resume-lifecycle.md).", by: 'swiftui-pro skill' },
+        { rule: "Accessibility traits and labels", verdict: 'pass', note: "Panels are .contain with labels, headers carry isHeader, the hero combines (WeatherHourlyPanel.swift:24-26, WeatherHighlightsPanel.swift:37-38, WeatherSheet.swift:82).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'medium and fitted: the Weather sheet has neither. It presents with hassSheet(.page, height: .full) only, so the one detent state is "large". The kit\'s medium and fitted drawings do not apply.',
+      'Docs versus code: patterns/weather.md says the carousel is `scrollTargetBehavior(.paging)`; the code hosts a UIKit PagedRow (WeatherPagedCarousel.swift header) because the SwiftUI scroll view leaked state. The mockup draws the behaviour, not the mechanism.',
+      'Docs versus code: patterns/weather.md says hours per page come "from the size class and text size"; compact 5 and regular 7 at the default size (card 6 and 9), 0.8 at xxxLarge, 0.5 at AX1 and AX2 and 0.34 beyond, never below 2 (WeatherCarouselPaging).',
+      'Sample data is WeatherFixtures (72 F, feels 75, wind 9 mph gusting 14 from 250 degrees, 29.92 inHg, AQI 72). The sun times are plausible stand-ins (the fixture uses offsets from now). Glyphs, the compass and the gauge are drawn by the local helper, not the app\'s SF Symbols.',
+      'Promote to kit: components/weather/_home-weather.js (HW.sheetBody and the tile builders); icons eye.fill, sunrise.fill, sunset.fill, location.north.fill, gauge.with.dots.needle.33percent.',
+      'On the unfolded Duo the page sheet is centred and crosses the hinge band here (system placement, not measured; same caveat as the other page sheets).',
+      'Every scene reuses the rain-easing-to-cloud hours and days of the gallery fixture; only the gradient, decoration, hero condition and briefing change, so a sunny scene still lists rain hours. Real data would match.',
+      'Not confirmed in code: the first hour of the carousel is labelled Now and the rest follow the device clock; the mockup\'s clock is the status bar\'s 9:41.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: the full sheet with every panel, scene, mode and state, motion and transitions.' }],
+  });
+})();
+</script></body></html>

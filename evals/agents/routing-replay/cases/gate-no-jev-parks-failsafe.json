@@ -1,0 +1,21 @@
+{
+  "id": "gate-no-jev-parks-failsafe",
+  "source": "Owner clarification 2026-11-03: Jev unavailable or a question file missing parks the app-UI gate (fail safe); the hints stay silent.",
+  "recorded": "2026-11-03",
+  "kind": "gate_cli",
+  "input": {
+    "plan": "A real plan with words."
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": {
+      "has": [
+        "gate: park basis=agent answer=unavailable"
+      ],
+      "lacks": [
+        "Jev route",
+        "reads as visible"
+      ]
+    }
+  }
+}

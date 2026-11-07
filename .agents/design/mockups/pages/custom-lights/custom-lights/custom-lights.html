@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Custom Lights · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function page(ctx, o) { return MLC.customLightsPage(ctx, o || {}); }
+  function homePage(ctx) { return Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home(), frame: { x: 0, w: ctx.contentW } })] }); }
+  function lightSheetOpts(ctx) { return { title: 'Bollard 2', subtitle: 'On · 71%', detent: 'fitted', size: 'page', trailing: 'close', content: MLC.lightSheetBody(ctx, {}) }; }
+
+  Mock.mount({
+    kind: 'page', id: 'custom-lights', title: 'Custom Lights', area: 'custom-lights', status: 'shipped',
+    summary: 'Manual control of the front yard lights: a switch, the lighting mode, and in Custom mode a brightness tile per light plus Reset All Lights. Pushed under Home from Quick Links; dark page on the house photo.',
+    source: ['apple/Sources/HassUI/Features/CustomLights/CustomLightsScreen.swift', 'apple/Sources/HassCore/Config/CustomLightsConfig.swift', 'apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKModule.swift', 'apple/Sources/HassUI/Features/Home/HomeRoute.swift'],
+    spec: ['.agents/pages/custom-lights/spec.md', '.agents/pages/custom-lights/ios.md'],
+    patterns: ['module-list', 'dynamic-grid', 'entity-tile', 'page-backdrop'],
+    hig: ['Lists and tables', 'Toggles', 'Color wells', 'Layout', 'Toolbars'],
+    entities: ['input_boolean.demo_front_yard_1', 'input_select.demo_front_yard_1', 'light.demo_front_yard_1', 'light.demo_front_door_door_7', 'light.demo_front_door_door_6', 'light.demo_front_door_door_5'],
+    kitComponents: ['ModuleList', 'ModuleRow', 'Toggle', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'OptionPickerSheet'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Manual on, Custom mode: eight light tiles', note: 'the swatch is the lights\' live colours, darkest first (buildCustomGradient); tiles are the lit tile with the brightness band', render: function (c) { return page(c); } },
+      'manual-off': { title: 'Manual control off: one row', note: 'the Lighting Mode row (a pop-up menu of the modes, no sheet), the tiles and Reset appear only while manual control is on', render: function (c) { return page(c, { manual: 'off' }); } },
+      'preset-mode': { title: 'Manual on, Team Colors: mode row only', note: 'the swatch is the mode\'s two colours; a preset mode shows no tiles', render: function (c) { return page(c, { mode: 'Team Colors' }); } },
+      'default-mode': { title: 'Manual on, Default mode', note: 'Default has no swatch (nothing draws), just the name and the chevrons', render: function (c) { return page(c, { mode: 'Default' }); } },
+      'loading': { title: 'First sign-in, nothing saved', note: 'no pending UI on this page: with no entity the switch is unavailable and off (glyph at 50%), so only the switch row draws', render: function (c) { return page(c, { manual: 'unavailable' }); } },
+      'refreshing': { title: 'Saved snapshot, fresh values swap in', note: 'identical to default by design: nothing re-fades (owner 2026-10-17)', render: function (c) { return page(c); } },
+      'error': { title: 'Lights unavailable, manual control on', note: 'tiles read Unavailable and dim their glyph; they cannot be touched, Reset still sends', render: function (c) { return page(c, { lights: 'unavailable' }); } },
+      'offline': { title: 'No network', note: 'values stay; offline chip under the header; cloud badge on Profile', render: function (c) { return page(c, { connection: 'offline' }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: function (c) { return page(c, { connection: 'reconnecting' }); } },
+      'dragging': { title: 'Dragging a tile (bubble, lifted)', note: 'a horizontal drag sets brightness from the finger\'s x; the "30%" bubble floats over the band edge; haptic tick every 10%', render: function (c) {
+        var ctx = c; var body = MLC.customLightsBody(ctx, {}); var page = Mock.page(c, { title: 'Custom Lights', section: 'home', back: 'Home', badge: 3, choresBadge: 2, body: body });
+        Mock.whenAttached(page, function () { var t = page.querySelectorAll('.ui-tile.lit')[3]; if (t) { var pct = 30; var band = t.querySelector('.band'); band.style.width = pct + '%'; t.querySelector('.st').textContent = pct + '%'; MLC.lift(t, pct); } }); return page; } },
+      'long-text': { title: 'Long light names', note: 'names wrap to a second line; every tile in a row takes the tallest height', render: function (c) {
+        var old = MLC.lights.slice(); MLC.lights[0] = ['Front Door Exterior Left Wall Light', 100, [0, 255, 0]]; MLC.lights[1] = ['Front Door Exterior Right Wall Light', 90, [0, 0, 255]];
+        try { return page(c); } finally { MLC.lights[0] = old[0]; MLC.lights[1] = old[1]; } } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the mode accessory moves under its title, tiles stack glyph over text in one column', render: function (c) { return page(c); } },
+      'duo-part-fold': { title: 'Duo partly folded: the section divides at its blocks (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Front Yard and the switch and mode card lead; the light tiles and Reset All Lights trail, level with the card (section-sides.md, single-section rule)', render: function (c) { return page(c); } },
+      'duo-part-fold-preset': { title: 'Duo partly folded, a preset mode', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'no lights to show, so the trailing side is empty; the card stays leading', render: function (c) { return page(c, { mode: 'Team Colors' }); } },
+      'closed': { title: 'A sheet open behind (presenter)', render: function (c) { return page(c); } },
+    },
+
+    motion: [
+      { id: 'mode-swatch', what: 'Lighting Mode changes: the swatch cross-fades to the new mode\'s colours', token: 'state 0.6 s ease-in-out (stateColorTransition("LightingModeButton"))', state: 'default',
+        source: 'CustomLightsScreen.swift LightingModeButton; motion-components.md LightingModeButton (done)', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) {
+          var acc = stage.querySelector('.mlc-modeacc'), sw = acc.querySelector('.ui-swatch'), mode = acc.querySelector('.mode');
+          var next = sw.cloneNode(true); next.style.background = 'linear-gradient(90deg,' + MLC.swatch("Holiday Mode").join(',') + ')'; next.style.position = 'absolute'; next.style.opacity = 0; sw.style.position = 'relative'; sw.parentNode.style.position = 'relative'; sw.parentNode.insertBefore(next, sw.nextSibling);
+          next.style.left = sw.offsetLeft + 'px'; next.style.top = sw.offsetTop + 'px';
+          return Mock.anim.fade(next, { ms: Mock.anim.ms.state() }).then(function () { sw.style.background = next.style.background; next.remove(); mode.textContent = "Holiday Mode"; return Mock.sleep(500); });
+        } },
+      { id: 'brightness-drag', what: 'Dragging a light tile: it lifts, the band and the % bubble follow the finger, a haptic ticks every 10%', token: 'quick 0.2 s easeOut for the band, bubble and lift; no animation lag behind the finger', state: 'default',
+        source: 'HassDesign/BrightnessTile.swift (motionSafeAnimation quick, scaleEffect 1.03); motion-components.md BrightnessTile', reduce: 'no lift or scale: only the shadow and bubble fade; the band jumps',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-tile.lit')[3]; return MLC.drag(t, [71, 55, 30, 18, 62, 80]); } },
+      { id: 'manual-toggle', what: 'Manual control turns on: the Lighting Mode row, the tiles and Reset appear', token: 'none: the rows are inserted by state, with no explicit animation in the code', state: 'manual-off',
+        source: 'CustomLightsScreen.swift body (if manualOn / showsLights)', reduce: 'unchanged (nothing animates)',
+        note: 'Not a MotionTokens gap: motion.md section 6 says user actions animate with standard; this page lets the content appear instantly. Raise with the owner if it should use standard (0.3 s).',
+        play: function (stage) {
+          var ctx = Mock.current, sc = stage.querySelector('.ui-body'), pgs = stage.querySelector('.ui-page'), nw = MLC.customLightsBody(ctx, {})[0], old = sc.firstChild;
+          return Mock.sleep(700).then(function () { sc.replaceChild(nw, old); return Mock.sleep(1100); }).then(function () { sc.replaceChild(old, nw); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Quick Links sheet', to: 'Custom Lights page', kind: 'push', state: 'default', note: 'Pushes under Home like every Quick Links destination (HomeRoute.customLights): system push, Back circle, content present on arrival.',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = homePage(ctx), parent = a.parentNode; parent.insertBefore(b, a); a.hidden = false;
+          return Mock.anim.push(b, a).then(function () { return Mock.sleep(500); }).then(function () { b.remove(); });
+        } },
+      { from: 'Light tile', to: 'Custom light sheet', kind: 'sheet', state: 'closed', note: 'Tap opens the light\'s sheet (page sheet, fitted). A horizontal drag on the tile sets brightness instead and never opens it.',
+        play: function (stage) { return Mock.presentDemo(stage, lightSheetOpts(Mock.current), { hold: 1300 }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, Quick Links, Profile; the title; the "Front Yard" heading; the switch row; the Lighting Mode row; the eight tiles in order (Left Door Light, Right Door Light, Bollards 1 to 6); Reset All Lights.' },
+      { rule: 'Switch row', note: 'One switch labelled "Manually Control Front Yard Lights" (identifier customLights.manual); disabled and dimmed while unavailable.' },
+      { rule: 'Lighting Mode row', note: 'One button: label "Lighting Mode", value the mode, hint "Opens the lighting modes."; the swatch and chevrons are hidden. The mode name is in the tint (Ink.action) so state is words, not only the swatch.' },
+      { rule: 'Light tiles', note: 'Each tile is a button named by the light with the value "71%", "Off" or "Unavailable" and the hint "Double-tap for details. Swipe up or down to adjust brightness." Swipe up and down steps by 10%; a custom action offers Turn On or Turn Off.' },
+      { rule: 'Reset All Lights', note: 'A list row with its own label; Ink.action text on the module so the contrast is 4.5:1 or better.' },
+      { rule: 'Targets and Dynamic Type', note: 'Tiles are 72 pt tall, rows 52 pt; the grid\'s minimum width (150 pt) scales with type and AX5 gives one column; the accessory moves under the title.' },
+      { rule: 'Reduce Motion', note: 'The tile does not scale while dragging (shadow and bubble only); the swatch still cross-fades at 0.2 s.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Toggles: a switch belongs in a list row', verdict: 'pass', note: 'ManualControlRow is a ModuleRow holding a labelled Toggle (CustomLightsScreen.swift:108-122); unavailable disables it and dims the glyph.' },
+        { by: 'apple-hig skill', rule: 'Pop-up buttons: the up-down chevron promises an in-place menu', verdict: 'pass', note: 'LightingModeButton draws a plain chevron.forward (owner option A, 2026-10-24); the up-down glyph is gone because it opens a sheet.' },
+        { by: 'apple-hig skill', rule: 'Alerts: confirm or allow undo for a bulk destructive action', verdict: 'pass', note: 'Reset All Lights asks first (AlertCopy.resetAllLights, CustomLightsScreen).' },
+        { by: 'apple-hig skill', rule: 'Layout: readable width on iPad', verdict: 'pass', note: 'Content is capped at 960 pt and centred (line 69); tiles use DynamicGridLayout with a scaled 150 pt minimum, up to four columns; AX5 renders one column with the switch under its wrapped title.' },
+        { by: 'apple-hig skill', rule: 'Color: state is words and shape as well as hue', verdict: 'pass', note: 'Each light tile carries the band, the percent and Off or Unavailable; the mode name is text in Ink.action beside the swatch.' },
+        { by: 'apple-hig skill', rule: 'Navigation: Quick Links as a header button', verdict: 'departure', note: 'Owner decision 2026-10-16 (direction-g.md Navigation).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: gesture-only controls need an action alternative', verdict: 'pass', note: 'Drag-to-set brightness has swipe-up/down adjust in steps of 10 and a Turn On/Off custom action (BrightnessTile.swift:138-149).' },
+        { by: 'swiftui-pro skill', rule: 'design.md: a visible control for the main action', verdict: 'pass', note: 'Already fixed on main (#159): BrightnessTile draws a 44 pt power button when onOpen is set; the unavailable-tile chevron is removed too (a chevron means push).' },
+        { by: 'swiftui-pro skill', rule: 'views.md: animate inserted content with a value', verdict: 'pass', note: 'CustomLightsScreen: motionSafeAnimation(MotionTokens.standard, value: manualOn) and showsLights; measuresMotion("CustomLights.manual").' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Reduce Motion replaces movement with opacity', verdict: 'pass', note: 'The dragged tile skips its 1.03 scale under Reduce Motion and only the shadow and bubble fade (BrightnessTile.swift:119).' },
+      ],
+    },
+
+    notes: [
+      'Partly folded Duo (claude/section-sides, section-sides.md): the one section divides at its blocks: header and switch/mode card lead, light tiles and Reset trail (was: the card and Reset row across the band, tiles split 1 + 1 around it); every other pose unchanged.',
+      'empty: no empty state; the five rows and eight lights come from CustomLightsConfig, and a missing entity reads as unavailable (see loading and error).',
+      'Code versus docs: ios.md says Reset All Lights is "its own card"; it is a one-row ModuleList drawn here (same look).',
+      'The drag state is a still of a lifted tile; the Motion list plays the drag. A tap on a tile opens the sheet; the fixture\'s eighth light (Bollard 6) is off.',
+      'Kit gap: the kit\'s BrightnessTile says "On at 70%"; the app says "70%". This page uses MLC.lightTile (components/media/_media-lights-cameras.js): promote to kit.',
+      'Fixture values: seven lights on at 100, 90, 80, 71, 61, 51 and 41% in green, blue, magenta, red, green, orange and blue (HomePagesGallery); real entity names, no real addresses.',
+    ],
+    changelog: [{ date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo, controls lead and lights trail; states duo-part-fold, duo-part-fold-preset.' }, { date: '2026-10-23', note: 'First pass: manual, mode and custom states, drag, unavailable, AX5, six devices.' }],
+  });
+})();
+</script></body></html>

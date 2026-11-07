@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Activity job card · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function card(name, ctx, o) { return LA.lockCard(LA.fx(name), Object.assign({ ctx: ctx }, o)); }
+  function set(ctx, names, intro) {
+    return LA.stage([intro ? h('p.la-note', { style: { width: '100%' } }, intro) : null].concat(names.map(function (n) { return LA.fig(card(n, ctx), n); })));
+  }
+  function lock(ctx, names) { return LA.lockScreen(ctx, names.map(function (n) { return card(n, ctx); })); }
+
+  Mock.mount({
+    kind: 'component', id: 'live-activity-job-card', title: 'Live Activity job card (Lock Screen, banner, StandBy)', area: 'live-activity', status: 'shipped', frame: false,
+    summary: 'One card per running job on the Lock Screen: glyph and title, the value with its buttons in one row, a 5 pt bar. 370 pt wide on a phone, at most 160 pt tall, always on a dark ground.',
+    source: ['apple/Sources/FentonActivityViews/JobCardView.swift', 'apple/Sources/FentonActivityViews/HomeActivityLockScreenView.swift', 'apple/Sources/FentonActivityViews/ActivityStyle.swift',
+      'apple/Sources/FentonActivityViews/ActivityValueLine.swift', 'apple/Sources/FentonActivityViews/ActivityFigure.swift', 'apple/Sources/FentonActivityViews/ActivityBar.swift',
+      'apple/Sources/FentonActivityModel/ActivityCard.swift', 'apple/Sources/FentonActivityModel/HomeActivityFixtures.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: ['telemetry'],
+    hig: ['Live Activities', 'Dynamic Type', 'Buttons', 'Color'],
+    entities: ['fenton_home job engine content-state v2 (HomeActivityFixtures names)'],
+    devices: ['iphone', 'duo-folded'],
+    states: {
+      'default': { title: 'Lock Screen, one job', note: 'Guest Bath Fan on the Lock Screen (a stand-in wallpaper and clock)', render: function (ctx) { return lock(ctx, ['fan']); } },
+      stack2: { title: 'Lock Screen, two jobs', render: function (ctx) { return lock(ctx, ['fan', 'dishwasher-percent']); } },
+      stack4: { title: 'Lock Screen, four jobs (the cap)', note: 'four cards is the engine cap (spec section 6)', render: function (ctx) { return lock(ctx, LA.names.stack); } },
+      banner: { title: 'Banner over the Home Screen', note: 'an alerting update shows the same card as a banner', render: function (ctx) {
+        return LA.homeScreen(ctx, LA.bannerAt(ctx, card('dishwasher', ctx), ctx.device.safeTop + 12)); } },
+      standby: { title: 'StandBy (no corner mark)', note: 'landscape; the system scales the card, the factor here is illustrative', render: function (ctx) {
+        return h('div', { style: { display: 'flex', gap: '24px', flexWrap: 'wrap', padding: '8px 4px' } }, LA.fig(LA.standby(ctx, LA.fx('dishwasher')), 'dishwasher', 'isFullscreen: corner mark dropped'), LA.fig(LA.standby(ctx, LA.fx('washer')), 'washer', 'count-up, no bar')); } },
+      jobs: { title: 'Fans and dishwasher', render: function (ctx) { return set(ctx, LA.names.jobs, 'Fan countdowns (4:42, 1:04:42 and the long titles that wrap to two lines), the dishwasher as countdown, percent, paused and waiting. Paused is the word and a Resume button; nothing dims (owner, 2026-10-17).'); } },
+      laundry: { title: 'Washer, dryer and Complete', render: function (ctx) { return set(ctx, LA.names.laundry, 'Count-ups have no bar. The dryer can also count down to an estimate (VoiceOver says "about"). Complete: a check, the word in the job\'s tint, a full bar, no buttons.'); } },
+      vacuums: { title: 'Vacuum, one room per card', render: function (ctx) { return set(ctx, LA.names.vacuums, 'No time and no bar: the headline is the 24 pt big line and Pause, Resume and Dock are 44 pt round icon buttons. Mopping takes the water tint.'); } },
+      hotflash: { title: 'Hot flash', render: function (ctx) { return set(ctx, LA.names.hotflash, 'The detail joins the title ("Hot Flash · Your side"); Cooling is a text value with a 45% bar.'); } },
+      pending: { title: 'Pending, unconfirmed, notice', render: function (ctx) { return set(ctx, LA.names.states.slice(0, 3), 'A press swaps the buttons for "Stopping…" until Home confirms; after the 20 s stale date they return with "Not confirmed"; a failed press shows a notice in place of the figure for one update.'); } },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'value wraps under the title and the buttons stack; the card grows past 160 pt', render: function (ctx) { return set(ctx, ['fan', 'vacuum-long', 'hotflash-alex-bysam', 'dishwasher-paused']); } },
+    },
+    motion: [
+      LA.motionTick('apple/Sources/FentonActivityViews/ActivityFigure.swift'),
+      { id: 'press-pending', what: 'A press swaps the buttons for "Stopping…", then they return with "Not confirmed" once the state is stale', token: 'system content update (ActivityKit default); stale after 20 s (ActivityClock.pendingStaleInterval)',
+        source: 'apple/Sources/FentonActivityViews/ActivityButtons.swift', reduce: 'The app sets no animation here; the system applies its own default update transition and honours Reduce Motion.',
+        note: 'The mockup waits 1.4 s instead of 20 s.',
+        play: function (stage) {
+          return Mock.sleep(300).then(function () { LA.swapFirst(stage, LA.fx('fan-pending')); return Mock.sleep(1400); })
+            .then(function () { LA.swapFirst(stage, LA.fx('fan-pending-stale')); return Mock.sleep(900); }); } },
+      { id: 'complete', what: 'The job finishes: a check, "Complete" in the tint, a full bar, no buttons', token: 'system content update (ActivityKit default)', source: 'apple/Sources/FentonActivityViews/ActivityFigure.swift',
+        reduce: 'No app animation; the system update transition applies.', play: function (stage) { return Mock.sleep(300).then(function () { LA.swapFirst(stage, LA.fx('dishwasher-complete')); return Mock.sleep(900); }); } },
+    ],
+    transitions: [
+      { from: 'Lock Screen card', to: 'S+H (job page)', kind: 'cut', note: 'A tap on the card opens fentonhome://liveactivity?url=<dashboard path> (widgetURL), which the app routes like a notification link. A button runs its App Intent in the app process and does not open the app.' },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Title (spoken as "Dryer, running for" or "Guest Bath Fan, time left"), then the value (the live time), then the buttons. The corner mark, glyph, ring and bar are hidden from VoiceOver.' },
+      { rule: 'Button names', note: 'Every button carries its device: "Stop Guest Bath Fan", "Pause Main Floor Vacuum". The vacuum\'s round icon buttons are still named in words.' },
+      { rule: '44 pt targets', note: 'Pills are 36 pt tall inside a 44 pt hit area; round buttons are 44 pt circles (LiveActivityJourneyTests asserts the targets on every card).' },
+      { rule: 'Contrast', note: 'Secondary text is 78% white on the 78% dark glass, 4.5:1 or better over any wallpaper (ActivityStyleTests). Accent colours are the dark family values, at least 3:1 on black.' },
+      { rule: 'Dynamic Type', note: 'Sizes scale from their text style (17 pt title, 32 pt value, 24 pt big line). At accessibility sizes the title may take four lines, the value wraps under it and the buttons stack, all inside the screen width (journey test at AX5).' },
+      { rule: 'State is not colour alone', note: 'Paused is the word and the Resume button; Complete is a check and the word; problems are a separate card with their own glyph and words.' },
+      { rule: 'Always-On', note: 'isLuminanceReduced drops the ring track (the ring is not on the Lock Screen card; only the island and small family use it).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Live Activities: glanceable, one value, at most two controls', verdict: 'pass', note: 'Glyph and title, one 32 pt value with the buttons in its row, an optional 5 pt bar (JobCardView.swift:20-62).' },
+        { by: 'apple-hig skill', rule: 'Live Activities: Lock Screen height limit', verdict: 'pass', note: 'ActivityStyle.lockScreenHeightLimit is 160 pt (line 127) and LiveActivityJourneyTests assert it; those tests were not run in this review.' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets', verdict: 'pass', note: 'Pill 36 pt in a 44 pt frame, round 44 pt (ActivityButtons.swift:92, 104-107).' },
+        { by: 'apple-hig skill', rule: 'Color: contrast and not color alone', verdict: 'pass', note: 'Secondary text is 78% white tested at 4.5:1 on the card ground (ActivityStyle.swift:31); Paused is the word and the Resume button, Complete a check and the word.' },
+        { by: 'apple-hig skill', rule: 'Materials: system background on the Lock Screen', verdict: 'departure', note: 'activityBackgroundTint(ActivityStyle.ground) (HomeLiveActivity.swift:28): an own dark tint so family accents keep 3:1 on any wallpaper (direction-g.md colour families).' },
+        { by: 'apple-hig skill', rule: 'Always-On: reduce brightness', verdict: 'pass', note: 'Fixed: dimsWhenAlwaysOn() lowers the ring and glyph, the progress bar, the severity mark and the button fills to 60 percent under isLuminanceReduced; text stays at full strength.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Dynamic Type with scaled metrics', verdict: 'pass', note: 'ActivityFontModifier scales 17, 24 and 32 pt from their text style with @ScaledMetric (ActivityFont.swift:6-18); AX sizes stack the value over the buttons (JobCardView.swift:50-55).' },
+        { by: 'swiftui-pro skill', rule: 'views.md: avoid manual geometry hacks', verdict: 'pass', note: 'Not applicable: a timer bar must be the system\'s self-counting ProgressView(timerInterval:), which a custom style cannot count without pushes, so the scale is the only way to thicken it.' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: avoid AnyView', verdict: 'departure', note: 'ActivityActions.control returns AnyView because the Button(intent:) lives in the widget extension (ActivityActions.swift:11).' },
+        { by: 'swiftui-pro skill', rule: 'design.md: semantic colors', verdict: 'departure', note: 'White text on a fixed dark tint by design (ActivityStyle.swift:28-44); the Lock Screen card is the one surface that is always dark.' },
+      ],
+    },
+    notes: [
+      'Doc versus code: per-job spec section 8 first described a 64 pt ring job card and a 28 pt value; section 8a (L4) replaced it with no ring, a 32 pt value and the buttons in the value row. The mockup draws the code (L4).',
+      'Devices: the card is 370 pt wide on a phone (JobCardView gallery comment); a tablet shows 425 or 500 pt. No iPad presentation is designed, so no iPad device is offered. iPhone Duo has not been run with a Live Activity: the folded outer display is drawn with the same 370 pt card.',
+      'The Lock Screen wallpaper, clock and flashlight are kit stand-ins; the system draws everything outside the card. Clock values are fixture times (4:42, 42:00, 1:04:42, 32:10), not live.',
+      'Glyphs are stand-ins for the SF Symbols the app names (fan.fill, dishwasher.fill, dryer.fill, washer.fill, robotic.vacuum, thermometer.snowflake). Promote to kit: the glyph drawings and LA.card in components/live-activity/_widgets-liveactivity.js.',
+      'In-flight: none. Fixtures are HomeActivityFixtures names; the engine (ha-fenton-push) side is not built, so the card has only ever shown fixture or relay test content.',
+      'Not on the card: loading, empty, offline. A Live Activity exists only while a job runs; losing the connection to Home ends updates and the system dims a stale card.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: lock screen, banner, StandBy, every job family, pending and AX5.' }],
+  });
+})();
+</script></body></html>

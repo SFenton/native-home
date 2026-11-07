@@ -1,0 +1,29 @@
+{
+  "id": "pr.plain_language",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Reverse check: does the 'What changed for you' text read as plain language for a non-engineer?",
+  "instructions": "Could a person who has never read code, and only uses the app, understand what is different on their device and what to look for, from this text alone? Names of files, classes, flags, tests, tools, branches, issue numbers, or words such as 'refactor', 'registry', 'layout pass' make it technical.",
+  "criteria": {
+    "true": "Plain words about what the person sees and does; at most one idea per sentence; no internal names",
+    "false": "Needs engineering knowledge, names internal pieces, or describes the implementation instead of what changes on screen"
+  },
+  "state": {
+    "fields": [
+      "title",
+      "body"
+    ],
+    "max_chars": 3000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.6,
+    "no_below": 0.35
+  },
+  "output": "pr_visual compose: a clear no (p<0.35) asks for a rewrite for a non-engineer; unsure passes with a note; unavailable falls back to the code lint alone.",
+  "target": {
+    "precision": 0.9
+  },
+  "evidence": "unmeasured"
+}

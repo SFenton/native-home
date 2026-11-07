@@ -1,0 +1,16 @@
+{
+  "id": "dd-unfolded-portrait-not-full-width",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "In unfolded portrait, Home screen (maybe others) doesn't take full width *sometimes*, unsure how to reproduce",
+  "surface": "home",
+  "poses": [
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": null,
+  "fix_ref": null,
+  "fix_confidence": null,
+  "expected": "A page's content frame spans the free width (window minus rail) after rotation and relaunch; flag any page whose right edge stops short of the window or rail."
+}

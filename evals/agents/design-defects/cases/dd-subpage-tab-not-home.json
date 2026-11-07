@@ -1,0 +1,16 @@
+{
+  "id": "dd-subpage-tab-not-home",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Rooms, Food & Recipes, Vacuums page, media page are all sub-pages of home tab; when navigating to them from a different tab, we need ...",
+  "surface": "tab-bar",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "8f369bb5",
+  "fix_confidence": "high",
+  "expected": "Opening a Home sub-page from another tab selects the Home tab; read the selected tab from the accessibility tree."
+}

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Controls · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  /* The two sheets this page opens, as Mock.sheet options (for the Transitions list). */
+  function presenceOpts() { return { title: 'Presence-Based Overrides', detent: 'large', size: 'page', trailing: 'close', content: HF.presenceGrid() }; }
+  function resetOpts() { return { title: 'Presence Auto-Reset', detent: 'fitted', size: 'page', trailing: 'close', content: HF.autoResetGrid() }; }
+
+  Mock.mount({
+    kind: 'page', id: 'household-admin', title: 'Admin Controls', area: 'settings', status: 'shipped',
+    summary: 'Settings > Household > Admin Controls (the page title is "Admin"). Six sections on the wallpaper, top to bottom: Security Controls, Living Room Power Recovery, Relay Control Mode (with the guest-mode warning), Presence-Based Light Overrides and Automatic Presence Setting Overrides (each a tile that opens a sheet), and Show Specific Controls. Pushed from the Settings tab; tiles are interactive here (tap a toggle).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdSettings.swift', 'apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/HouseholdSettingsConfig.swift',
+      'apple/Sources/HassCore/Settings/HouseholdSettingsController.swift', 'apple/Sources/HassDesign/SettingsSection.swift', 'apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift'],
+    spec: ['.agents/pages/settings/household.md', '.agents/patterns/settings-section.md'],
+    patterns: ['settings-section', 'entity-tile', 'dynamic-grid', 'modal-sheet', 'page-backdrop', 'header-edge-fade'],
+    hig: ['Toggles', 'Sheets', 'Navigation bars', 'Alerts', 'Dynamic Type', 'Color'],
+    entities: ['input_boolean.demo_front_door_lock_1', 'automation.demo_living_room_power_1', 'input_boolean.demo_mode_2', 'input_boolean.demo_guest_room_2', 'input_boolean.demo_input_boolean_1', 'input_boolean.demo_input_boolean_12', 'switch.<room>_presence_..._presence_allowed'],
+    kitComponents: ['SettingsSection', 'GlassTile', 'TileGrid', 'InlineAlert', 'SheetCloseItem', 'HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: HF.pageStates('admin', {
+      base: { on: { door: true, relay: false, faucets: true, xmas: false }, guestRoomOn: false },
+      long: { on: { door: true, relay: true, faucets: true, xmas: false }, guestRoomOn: true },
+      longNote: 'Relay Control Mode on with Guest Room guest mode on: the longest copy on the page (the warning) at xxxLarge; paragraphs and the opener titles wrap',
+      extra: {
+        'relay-warning': { title: 'Relay Control Mode on with Guest Room guest mode on', note: 'the InlineAlert appears under Relay Control Mode (web showRelayGuestModeWarning, live state); it appears with no animation', opts: { on: { door: true, relay: true, faucets: true, xmas: false }, guestRoomOn: true } },
+        'all-on': { title: 'Every toggle on', opts: { on: { door: true, relay: true, faucets: true, xmas: true }, guestRoomOn: false } },
+        'all-off': { title: 'Every toggle off (winter: faucets hidden)', opts: { on: { door: false, relay: false, faucets: false, xmas: false }, guestRoomOn: false } },
+      },
+    }),
+
+    motion: HF.pageMotion('admin', true),
+    transitions: HF.pageTransitions('admin', [
+      { from: 'Open Presence-Based Overrides', to: 'Presence-Based Overrides sheet', kind: 'sheet', state: 'default', note: 'A page sheet at the large detent (hassSheet(.page, height: .full)); the page scales back and dims. Content is on arrival. Reduce Motion cross-fades.',
+        play: function (stage) { return Mock.presentDemo(stage, presenceOpts(), { hold: 1100 }); } },
+      { from: 'Open Presence-Based Auto-Reset Configuration', to: 'Presence Auto-Reset sheet', kind: 'sheet', state: 'default', note: 'A fitted page sheet (hassSheet(.page)), capped at large; 14 tiles scroll inside it.',
+        play: function (stage) { return Mock.presentDemo(stage, resetOpts(), { hold: 1100 }); } },
+    ]),
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back (or Open Navigation), Quick Links, Profile; the page title "Admin" (heading, accessibilityIdentifier household.admin on the scroller); then each section header (heading trait), its paragraphs, and its tiles, top to bottom. The tab bar or rail is last.' },
+      { rule: 'Section headers', note: 'Every SettingsSection title is a title3 semibold heading, so the rotor Headings walks the six sections.' },
+      { rule: 'Toggle tiles', note: '"Front Door Auto-Lock, On": a button with the toggle trait; the glyph is hidden from VoiceOver. Outdoor Faucets and Holiday Lights are the same; Relay Control Mode likewise.' },
+      { rule: 'Power recovery', note: 'A command tile named "Attempt to turn power back on" with the hint "Runs the Living Room power recovery automation." It runs at once, no confirmation, as on the web (automation.trigger).' },
+      { rule: 'Openers', note: 'Two navigate tiles (chevron) named by their titles; identifiers admin.open.presenceOverrides and admin.open.autoReset. They present sheets, so focus moves into the sheet and returns to the tile on dismiss.' },
+      { rule: 'Relay warning', note: 'One element read "Warning: Guest Room guest mode is active. ..."; the orange glyph is decorative. Colour is not the only cue: the word Warning is spoken and the box carries a triangle.' },
+      { rule: 'Unavailable', note: 'Each unavailable toggle reads "<title>, Unavailable", is dimmed (glyph 50%) and is inert; the page still opens its sheets.' },
+      { rule: 'Contrast on the wallpaper', note: 'Section paragraphs use the fixed white ink on a page (the adaptive secondary measured 4.1:1 there, 2026-10-17); in a sheet the sheet\'s own secondary ink.' },
+      { rule: 'Dynamic Type', note: 'At AX5 every tile stacks (glyph above text), the grids drop to one column (minimum cell width scales with the text) and the six sections keep their 24 pt spacing; the page scrolls, nothing truncates. Titles wrap ("Open Presence-Based Auto-Reset Configuration").' },
+      { rule: 'Reduce Motion / Transparency', note: 'Colour cross-fades shorten to 0.2 s; the sheets cross-fade. Reduce Transparency draws the solid tile finish.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Toggles: outside a list row use a toggle-like button, with an obvious state change', verdict: 'pass', note: 'Household tiles are GlassTile kind .toggle (isToggle trait, value On/Off, HouseholdSettingsPage.swift:135-154): a fill and glyph change plus the word, not a switch on a card.', by: 'apple-hig skill' },
+        { rule: 'Color: never convey state by colour alone', verdict: 'pass', note: 'Every toggle tile speaks and shows its state as text ("On", "Off", "Unavailable", HouseholdSettingsController.swift:72-81) beside the green fill.', by: 'apple-hig skill' },
+        { rule: 'Layout: readable content width on large windows', verdict: 'pass', note: 'One column capped at 840 pt and centred (HouseholdSettingsPage.swift:96-99); the page never splits on any device.', by: 'apple-hig skill' },
+        { rule: 'Navigation bars: keep titles short', verdict: 'departure', note: 'The page title is "Admin" while the Settings row says "Admin Controls": the web route title is shorter and fits the large title at AX sizes (HouseholdSettingsConfig Admin.pageTitle; household.md).', by: 'apple-hig skill' },
+        { rule: 'Alerts and inline messages: say what and why, near the control', verdict: 'pass', note: 'The relay guest-mode warning is an InlineAlert read as "Warning: …", glyph plus primary ink on an orange wash (SettingsSection.swift:68-84; AdminSettingsContent.swift:47-49).', by: 'apple-hig skill' },
+        { rule: 'Feedback: acknowledge an action and its failure', verdict: 'pass', note: 'Fixed: failed flips show the failed face (ToggleDisplay.isFailed), and Power Recovery marks its automation key failed (powerRecoveryFailed) so the tile shows "Didn\'t Respond" with the error haptic.', by: 'apple-hig skill' },
+        { rule: 'Playing haptics: confirm a state change you cannot see happen', verdict: 'pass', note: 'Fixed in GlassTile.swift: toggle and command tiles (including Power Recovery) play TapFeedback.tap and the error haptic on failure.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: headings, labels, hints on non-obvious controls', verdict: 'pass', note: 'SettingsSection title carries .isHeader (SettingsSection.swift:27); Power Recovery has a hint (AdminSettingsContent.swift:37).', by: 'swiftui-pro skill' },
+        { rule: 'Views: sheet(item:) over isPresented', verdict: 'pass', note: 'AdminSheet is an Identifiable enum bound with sheet(item:) (:9-14, :67).', by: 'swiftui-pro skill' },
+        { rule: 'Views: avoid some View helper methods; extract subviews', verdict: 'pass', note: 'Fixed: opener is AdminSheetOpener, a View struct.', by: 'swiftui-pro skill' },
+        { rule: 'Resizability: grid and fold', verdict: 'pass', note: 'Fixed: band-aware DynamicGridLayout (DynamicGridMetrics band) aligns the tracks to the hinge wherever the column sits, not only when centred on it.', by: 'swiftui-pro skill' },
+        { rule: 'Navigation: destinations as values on the tab path', verdict: 'pass', note: 'HouseholdSettingsPage values are appended by SettingsTabRoot, so back swipe and the shell\'s path stay in step.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading: the page has no loading UI. It reads EntityStore, which always answers from the saved snapshot; on a first sign-in with nothing saved every entity is nil and the tiles read Unavailable until the first delta (the error state draws that).',
+      'refreshing: identical to default by design: a live change updates one tile in place (no spinner, no re-fade). empty: the page always has its six sections, so there is no empty state.',
+      'Docs versus code: pages/settings/household.md says the rows "push it inside the Account sheet (AccountSheet)" and that the sheets have "Done". The code pushes on the Settings tab\'s own path (MainTabView, SettingsTabRoot) and the sheets use the circle-X Close (SheetCloseItem). The mockup draws the code.',
+      'Docs versus code: the page title is "Admin" (HouseholdSettingsConfig.Admin.pageTitle); the Settings row and this catalog entry say "Admin Controls".',
+      'Pages never split: Settings pushes full width on every device (OnDemandSplitStack has no adopter), so the unfolded Duo and iPad landscape show one centred 840 pt column; the Duo grid rounds to even columns around the hinge.',
+      'Fixture data: toggle values and the guest-mode flag are invented for the mockup; entity ids are the real ones from HouseholdSettingsConfig.',
+      'Promote to kit: HF.icons (air.purifier, ev.charger, carseat.left, arrow.triangle.2.circlepath, lightbulb.slash, pause.circle, basket, list.bullet, list.number, barcode.viewfinder and more), HF.optionRow, HF.percentRow, HF.contentUnavailable (see pages/settings/_household-forms.js).',
+      'The tab bar slides with the page in the push demo; in the app the tab bar stays put while only the content pushes.',
+      'Unconfirmed: on the unfolded Duo in landscape the centred 840 pt column is not aligned to the hinge band (x 455 to 496 pt), so with four columns one tile can straddle the fold even though the grid rounds to an even count; the simulator pose was only run for pages without this check, so confirm on a device.',
+      'Kit bugs worked around locally (promote the fixes to kit.css): a SettingsSection title renders at 16 px because the atlas rule `.k-wrap h3` beats `.ui-settings h3`, and `.ui-grid` tracks overflow at AX5 because the scaled minimum is not capped at the container width (DynamicGridLayout always keeps one column). Both overrides are in pages/settings/_household-forms.js.',
+    ],
+    changelog: [{ date: '2026-11-04', note: 'Each lone tile spans its section on every device, so the titles read in full.' }, { date: '2026-10-23', note: 'First pass: six sections, relay warning, unavailable, offline, reconnecting (arc and chip), xxxLarge and AX5, toggle motion and the two sheet transitions.' }],
+  });
+})();
+</script></body></html>

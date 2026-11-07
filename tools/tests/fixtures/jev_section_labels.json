@@ -1,0 +1,27 @@
+{
+  "about": "Hand labels for research.section_relevant (tools/jev_measure.py sections). A section counts as relevant when its text contains any phrase in `any_of`. Questions are paraphrased so they do not copy the doc's headings.",
+  "pairs": [
+    {"file": ".agents/workflow/pr-lifecycle.md", "question": "What happens if I try to merge a change that nobody has looked at?", "any_of": ["blocked: no review recorded"]},
+    {"file": ".agents/workflow/pr-lifecycle.md", "question": "What choices does the independent checker have when it finishes?", "any_of": ["\"pass|changes|blocker\""]},
+    {"file": ".agents/workflow/pr-lifecycle.md", "question": "Which safety hook stops a session from running commands in the wrong checkout?", "any_of": ["`worktree_guard` hook"]},
+    {"file": ".agents/workflow/ci.md", "question": "How was the overnight storage crisis on the build machine handled?", "any_of": ["The disk filled overnight"]},
+    {"file": ".agents/workflow/ci.md", "question": "Which two tests touch the login keychain?", "any_of": ["keychainRoundTrips"]},
+    {"file": ".agents/workflow/ci.md", "question": "Is it risky that anyone's pushed branch executes on the owner's computer?", "any_of": ["runs its own workflow files"]},
+    {"file": ".agents/workflow/ci.md", "question": "Who signs the app archive and with what certificate?", "any_of": ["needs an **Apple Distribution** identity"]},
+    {"file": ".agents/platforms/apple/capacity.md", "question": "Why is a stock simulator heavy and how is it trimmed?", "any_of": ["258 processes"]},
+    {"file": ".agents/workflow/versioning.md", "question": "How do I make sure a change appears in the release text?", "any_of": ["Notes come from commit-message trailers"]},
+    {"file": ".agents/workflow/versioning.md", "question": "What does a version string look like once it is displayed in the app?", "any_of": ["AppBuildInfo.versionText"]},
+    {"file": ".agents/platforms/apple/testflight.md", "question": "What if several uploads are waiting at the same time?", "any_of": ["one pending run per concurrency group"]},
+    {"file": ".agents/platforms/apple/testflight.md", "question": "What is the app's identifier in Apple's store portal?", "any_of": ["6828605693"]},
+    {"file": ".agents/platforms/apple/testflight.md", "question": "Do we have to declare use of encryption?", "any_of": ["ITSAppUsesNonExemptEncryption: false"]},
+    {"file": ".agents/platforms/apple/testflight.md", "question": "Can I test the pipeline without actually shipping?", "any_of": ["**dry_run** ticked"]},
+    {"file": ".agents/platforms/apple/push.md", "question": "How do I see what the notification code did on a physical phone?", "any_of": ["push-trace.log"]},
+    {"file": ".agents/platforms/apple/push.md", "question": "When does the system permission prompt first appear?", "any_of": ["The system alert is never raised on sign-in"]},
+    {"file": ".agents/platforms/apple/connection-lifecycle.md", "question": "Why were requests at home slow and what fixed it?", "any_of": ["40–65 ms per request"]},
+    {"file": ".agents/platforms/apple/location.md", "question": "What happens to a person's presence when location sharing is switched off?", "any_of": ["taken off the person"]},
+    {"file": ".agents/design/motion.md", "question": "What does the app do for people who turned on reduced motion?", "any_of": ["accessibilityReduceMotion"]},
+    {"file": ".agents/design/motion.md", "question": "Should switching tabs animate?", "any_of": ["A cut, with no transition", "switches with no animation on the content", "Animating tab switches"]},
+    {"file": ".agents/testing/apple/performance.md", "question": "How much work may the main thread do per live update?", "any_of": ["No work on the main thread proportional to the number of entities"]},
+    {"file": ".agents/testing/apple/performance.md", "question": "Does the phone keep the high refresh rate while scrolling?", "any_of": ["120 Hz request while scrolling"]}
+  ]
+}

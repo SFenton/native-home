@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guests Staying Over section · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../weather/_home-weather.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, HW = Mock.HW;
+
+  /** GuestPresenceSection: RoomSectionHeader, one footnote, a ControlTileGrid (DynamicGridLayout min 110, max 6) of occupancy tiles. */
+  var ROOMS = [['Guest Room', 'bed.double'], ['Studio', 'guitars'], ['Media Room', 'videoprojector']];
+  function appMin(n) { var c = Mock.current; return n / ((c && c.scale) || 1); } /* the app's ControlTileGrid (110) and CameraGrid (160) pass a plain number: not @ScaledMetric, so they do not follow Dynamic Type; the kit TileGrid scales min, so divide it out */
+  function section(ctx, on, o) {
+    o = o || {};
+    var anyOn = on.some(Boolean);
+    if (!anyOn && !o.unavailable) return h('div', { style: { minHeight: '0', fontSize: '12px', opacity: .6, fontFamily: 'var(--mono)', padding: '4px 0' }, 'aria-label': 'Guests Staying Over is not drawn' }, '(nothing drawn: the section is an empty view while every guest toggle is off)');
+    var tiles = ROOMS.map(function (r, i) {
+      var un = !!(o.unavailable && o.unavailable[i]);
+      return { title: r[0], subtitle: on[i] ? 'Guests staying' : 'No guests', symbol: r[1], family: 'occupancy', isActive: !!on[i] && !un, isUnavailable: un };
+    });
+    return h('div.ui-section', K.PageSectionHeader({ title: 'Guests Staying Over' }), h('p', 'Guest mode skips some away automations. Review security, climate, and auto-clean controls before leaving.'), K.TileGrid({ min: appMin(110), max: 6, items: tiles }));
+  }
+  function win(ctx, node) { return HW.win(ctx, node, { max: 1000 }); }
+  function S(items) {
+    return function (ctx) {
+      return HW.swatches(ctx, items.map(function (it) {
+        var w = Math.min(it.narrow && ctx.splitGeometry ? ctx.splitGeometry.trailing : ctx.contentW, 1000);
+        return { cap: it.cap, note: it.note, surface: 'page', width: w + 28, node: function () { return HW.win(ctx, section(ctx, it.on, it), { width: w }); } };
+      }));
+    };
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'guest-presence-section', title: 'Guests Staying Over section', area: 'home', status: 'shipped', frame: false,
+    summary: 'Shown on Home (between the weather card and the cameras) and on Security only while a guest toggle is on: a header, one footnote and three occupancy tiles that toggle each room\'s stay. With every toggle off the section draws nothing. First pass: the stay toggles only (the web also has more security copy).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassCore/Config/HomeConfig.swift (guestToggles)', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift'],
+    spec: ['.agents/pages/home/spec.md', '.agents/pages/security/ios.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['entity-tile', 'dynamic-grid', 'optimistic-actions'],
+    hig: ['Toggles', 'Layout', 'Color', 'Dynamic Type'],
+    entities: ['input_boolean.demo_guest_room_2', 'input_boolean.demo_media_room_1', 'input_boolean.demo_guest_room_1'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'one-on': { title: 'One guest toggle on', note: 'Guest Room fills green (occupancy family), the others stay dark and read "No guests"', render: S([{ cap: 'page · Guest Room on', on: [true, false, false] }]) },
+      'all-on': { title: 'All three on', render: S([{ cap: 'page · all on', on: [true, true, true] }]) },
+      'hidden': { title: 'Hidden (no guests)', note: 'the section is not drawn; Home closes the gap and shows the cameras directly under the weather card', render: S([{ cap: 'page · every toggle off', on: [false, false, false] }]) },
+      'error': { title: 'A toggle entity is unavailable', note: 'an unavailable toggle draws the off face with a dimmed glyph and cannot be pressed; the text keeps full contrast', render: S([{ cap: 'page · Studio unavailable', on: [true, false, false], unavailable: [false, true, false] }, { cap: 'page · all unavailable (section shown only while another is on)', on: [true, false, false], unavailable: [false, true, true] }]) },
+      'loading': { title: 'First sign-in (nothing saved)', note: 'the section needs a toggle to read "on", so before any state arrives it is not drawn; the Home mockup shows the page in this state', render: S([{ cap: 'page · no state yet', on: [false, false, false] }]) },
+      'narrow': { title: 'Trailing pane of the unfolded Duo', note: 'cameras and guests share the trailing half; a pane that narrow fits two or three tiles a row (minimum cell 110 pt)', render: S([{ cap: 'page · trailing pane', on: [true, true, false], narrow: true }]) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the app\'s ControlTileGrid minimum is a plain 110 pt, not @ScaledMetric, so three narrow tiles a row at AX5 and the text clips (corrected 2026-10-23: the kit scales the minimum by default, this grid does not)', render: S([{ cap: 'page · AX5', on: [true, false, true] }]) },
+    },
+
+    motion: [
+      { id: 'tile-fill', what: 'A guest toggle turns a tile green (or dark) when the stay starts or ends', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'one-on',
+        source: 'GlassTile.swift stateColorTransition("GlassTile"); motion.md section 6 (tiles lit/unlit)', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-tile')[1]; if (!t) return Promise.resolve(); return Mock.anim.toggleState(t, ['on'], []).then(function () { t.querySelector('.st').textContent = 'Guests staying'; return Mock.sleep(500); }).then(function () { return Mock.anim.toggleState(t, [], ['on']); }).then(function () { t.querySelector('.st').textContent = 'No guests'; }); } },
+    ],
+    transitions: [],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The header "Guests Staying Over" (heading), the footnote, then Guest Room, Studio, Media Room.' },
+      { rule: 'Tile', note: 'Each tile is a toggle button named after the room with the value "On" or "Off" (the subtitle reads Guests staying or No guests); unavailable reads "Unavailable" and is disabled. Glyph is decorative.' },
+      { rule: 'Targets and contrast', note: 'Tiles are at least 72 pt tall; footnote is secondary-on-wallpaper (85% white, 4.5:1 or better); the on face is white on #2A732E (5.8:1).' },
+      { rule: 'Dynamic Type', note: 'Footnote wraps without a line limit; tiles go one per row at AX5 with glyph above text.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Toggles: outside a list use a toggle-like button, not a switch; make state obvious", verdict: 'pass', note: "Each room is a GlassTile of kind .toggle: the family fill appears while on and the subtitle flips between 'Guests staying' and 'No guests', with the isToggle trait and On or Off as the value (GlassTile.swift:165-180, GuestPresenceSection.swift:27-34).", by: 'apple-hig skill' },
+        { rule: "Layout and Dynamic Type: a grid minimum that follows text size", verdict: 'pass', note: "ControlTileGrid.minTileWidth is @ScaledMetric(relativeTo: .subheadline) 110 (GuestPresenceSection.swift).", by: 'apple-hig skill' },
+        { rule: "Feedback: say when a command cannot be carried out", verdict: 'pass', note: "Fixed in GuestPresenceSection.swift: the toggle goes through OptimisticActions (flip), so a failed or offline call rolls back and the tile shows the failed face (\"Didn't Respond\", isError) with the error haptic and announcement.", by: 'apple-hig skill' },
+        { rule: "Typography: footnote for the explanatory sentence; headings are headers", verdict: 'pass', note: "The guidance text is .footnote in the always-dark secondary ink and wraps (GuestPresenceSection.swift:20-23); 'Guests Staying Over' is a header-trait title3 (PageSectionHeader, RoomSupport.swift:163-167).", by: 'apple-hig skill' },
+        { rule: "Designing for iPhone Duo: trailing pane and fold", verdict: 'pass', note: "In the unfolded Duo's trailing half the grid fits two or three tiles and rounds to an even count across a hinge (HomeScreen.swift:71-76, DynamicGridLayout.swift:190-194).", by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: "Never hide a section with an empty placeholder: render nothing", verdict: 'pass', note: "The section returns no view while every toggle is off (GuestPresenceSection.swift:15-16), so Home closes the gap instead of showing a dead header.", by: 'swiftui-pro skill' },
+        { rule: "One state path: read entities through EntityStore", verdict: 'pass', note: "Each tile reads store.entity(id).state per toggle (line 26); no polling.", by: 'swiftui-pro skill' },
+        { rule: "Avoid try? that swallows errors", verdict: 'pass', note: "Fixed in GuestPresenceSection.swift: try? replaced by OptimisticActions.perform, whose failure rolls back and shows the failed face.", by: 'swiftui-pro skill' },
+        { rule: "Accessibility: label, value and traits on the tile Button", verdict: 'pass', note: "GlassTile sets label, 'On'/'Off' value and .isToggle on the Button itself (GlassTile.swift:135-145).", by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'The section renders nothing while all toggles are off, so "empty" is the hidden state; there is no empty-state copy.',
+      'Docs versus code: spec.md says the section is "Guest presence and security" in the web; native ships the first pass (stay toggles only), as the file header says.',
+      'loading and offline: the section reads three entities from EntityStore, so it follows the snapshot and never shows a spinner; offline it shows the last values (the offline chip is on the page).',
+      "Corrected 2026-10-23 (skill review): the AX5 state drew one tile per row because the kit TileGrid scales its minimum; ControlTileGrid's 110 pt is not @ScaledMetric in the app (GuestPresenceSection.swift:50), so at AX5 the three tiles stay in one row. The mockup now passes appMin() to undo the kit scaling.",
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: hidden, one, all, unavailable, narrow pane and AX5.' }],
+  });
+})();
+</script></body></html>

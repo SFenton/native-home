@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Climate overview sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_room-overview-data.js"></script>
+<script src="../_room-overview.js"></script>
+</head><body>
+<script>
+(function () {
+  var kind = 'climate', room = "Office";
+  var states = RO.overviewStates(kind, { room: room });
+  states.room.note = 'a plain push with Back; the room\'s temperature sensors, then its vent (an open vent fills the Vents blue)';
+  Mock.mount({
+    kind: 'modal', id: 'room-overview-climate', title: 'Climate overview sheet', area: 'home', status: 'shipped',
+    summary: "Opened by the Climate chip on Home. Every room that has temperature sensors, one dark card per room with its range (a climate card always reports, so it never fills), pushing the room's sensors and vents inside the sheet. A full-height page sheet that follows the system appearance.",
+    source: [
+      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift',
+      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift',
+      'apple/Sources/HassCore/Rooms/RoomOverview.swift',
+      'apple/Sources/HassCore/Rooms/RoomGroups.swift',
+      'apple/Sources/HassCore/Rooms/RoomFormat.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift',
+      'apple/Sources/HassDesign/DynamicGridLayout.swift',
+      'apple/Sources/HassDesign/HassModal.swift'
+],
+    spec: [".agents/pages/home/spec.md", ".agents/pages/home/ios.md", ".agents/patterns/room-overview-sheet.md"],
+    patterns: ['room-overview-sheet', 'modal-sheet', 'dynamic-grid', 'entity-tile', 'status-rail'],
+    hig: ['Sheets', 'Toolbars', 'Layout', 'Typography', 'Accessibility'],
+    entities: ["input_text.demo_living_room_2", "sensor.demo_office_temperature_1", "cover.demo_office_vent_1"],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'ChipRail', 'WeatherCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: states,
+    motion: RO.overviewMotion(kind),
+    transitions: RO.transitions(kind, room),
+
+    a11y: [
+      {
+            "rule": "Reading order",
+            "note": "The sheet is modal: focus lands on the title \"Climate\" (no subtitle: the cards carry the figures), the \"Rooms\" heading, the 14 room cards in grid order, then Close (identifier overview.climate). Escape and the two-finger scrub dismiss."
+      },
+      {
+            "rule": "Room cards",
+            "note": "One button each: label the room (\"Office\"), value its range (\"70.1 - 72.4°F\"), hint \"Opens Office Climate\", chevron decorative. Identifier overview.climate.room.<room>. 72 pt minimum height."
+      },
+      {
+            "rule": "State is not colour alone",
+            "note": "Direction G dropped the temperature colours: every card is dark with its room's glyph (sofa, bed, stove...) and the temperature is text, so nothing is carried by hue."
+      },
+      {
+            "rule": "Range text",
+            "note": "The range helper's text with each number truncated to one decimal (\"70.1 - 72.4°F\"); a missing helper falls back to the sensors' min and max, then to \"N sensors\"."
+      },
+      {
+            "rule": "Equal heights and Dynamic Type",
+            "note": "Every card has the height of the tallest, measured on each layout pass. The minimum width scales (140 pt at Large); at AX5 it is one column of stacked tiles."
+      },
+      {
+            "rule": "Close",
+            "note": "The circle x is labelled Close for VoiceOver (never \"Done\"); it stays in the bar when a room is pushed, and dismisses the whole sheet from any depth."
+      },
+      {
+            "rule": "Light and dark",
+            "note": "The sheet follows the system appearance (white cells on #F2F2F7, or #2C2C2E on #1C1C1E); family fills and the lit tile are fixed in both. Reduce Transparency draws the solid tile finish."
+      }
+],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Sheets: consider medium for progressive disclosure; full height where content is more useful there", verdict: 'departure', note: "Opens at large only (HomeScreen.swift:38, .hassSheet(.page, height: .full)) because the sheet pushes pages and its height must not change on a push (hassSheet doc, HassModal.swift:132-136, owner 2026-10-16).", by: 'apple-hig skill' },
+        { rule: "Color: climate cards never fill, so state is words", verdict: 'pass', note: "Climate is 'active' whenever it reports, so cards stay dark with the family glyph and print the range as text (RoomOverviewStyle.swift:21-27); nothing depends on colour.", by: 'apple-hig skill' },
+        { rule: "Writing: grammatical copy", verdict: 'pass', note: "RoomOverview.climateSubtitle and ClimateLogic.criticalSubtitle use PluralCopy.count: \"1 sensor\", \"1 room forced\".", by: 'apple-hig skill' },
+        { rule: "Layout: scaled minimum and equal heights", verdict: 'pass', note: "Same RoomOverviewGrid, @ScaledMetric 140, equal heights (RoomOverviewGrid.swift:11-31).", by: 'apple-hig skill' },
+        { rule: "Lists and tables: a chevron for drill-down", verdict: 'pass', note: "kind .navigate with hint 'Opens <room> Climate' (RoomOverviewTile.swift:23-26).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Prefer automatic grammar agreement for counts (localization)", verdict: 'pass', note: 'Fixed: RoomOverview.climateSubtitle and ClimateLogic.criticalSubtitle spell out the singular, so one sensor reads 1 sensor and one room 1 room forced; tests added.', by: 'swiftui-pro skill' },
+        { rule: "navigationDestination(for:)", verdict: 'pass', note: "A single registration for RoomGroup (RoomOverviewSheet.swift:32).", by: 'swiftui-pro skill' },
+        { rule: "Use tokens tuned to contrast, not raw opacity", verdict: 'pass', note: "Card inks come from Surface tokens measured per ground (GlassTile.swift:514-529).", by: 'swiftui-pro skill' },
+        { rule: "Reduce Motion", verdict: 'pass', note: "A live change recolours a card in place through stateColorTransition (0.2 s when reduced) and never reorders it.", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      "loading: there is no loading state. The sheet reads EntityStore, so the \"loading\" state here is an empty store: every range falls to \"N sensors\" (a missing sensor has no reading). No spinner, skeleton or pending bar exists on these cards. Climate has no quiet state (it always reports) and no motion of its own: a card never fills, so no colour change plays; the range text simply changes.",
+      "Grammar bug as shipped: a one-sensor room whose helper and sensor are unavailable reads \"1 sensors\" (climateSubtitle uses \"\\(count) sensors\"). Shown in the error state (Entryway, Downstairs Hallway).",
+      "Unavailable rooms: the overview cards carry no unavailable face. A room whose range helper is unavailable (Hallway in the error state) falls back to its sensors' min and max.",
+      "The pushed room (Office) lists \"Temperature Sensors\" then \"Vent\" (a lone vent not titled Vents is singular); see room-group-detail.",
+      "medium and fitted: not offered. The sheet is hassSheet(.page, height: .full), so large is the only detent; on iPad and the unfolded Duo it is the 704 pt page sheet. Dismiss is Close or a swipe down (Transitions list); there is no confirmation.",
+      "Docs versus code: direction-g.md says room cards in the chip overviews are \"status tiles, not navigation\", but the code draws them with kind .navigate (a trailing chevron) and pushes the room; patterns/motion.md still lists the overview room tiles as a zoom, but the code is a plain push (owner 2026-10-22, motion.md 4.3, .measuresNavigation(.push)). Drawn as the code.",
+      "Duo unfolded: the page sheet is centred in the window and crosses the hinge band here; a 704 pt sheet gives four even columns. Placement is the system's (the unfolded simulator pose was run for pages only): check on a device.",
+      "Kit gaps (promote to kit): symbols window.vertical.open|closed, figure.stand, desktopcomputer, stove, stairs, bathtub (added at runtime in modals/home/_room-overview.js); TileGrid with equal rows stretches a section header to the tile height and its track overflows a narrow container at AX5 (the helper equalises in JS and caps the track); BrightnessTile prints \"On at 70%\" where the app prints \"70%\".",
+      "Fixture: values are invented; room names, entity ids and the group lists are the app's (HassCore/Rooms/RoomGroups.swift)."
+],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: overview in every state, the pushed room, present and push transitions, light and dark.' }],
+  });
+})();
+</script></body></html>

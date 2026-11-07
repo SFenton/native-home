@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Groceries · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: a trailing swipe with a destructive action", verdict: "pass", note: "Groceries has no editor, so the trailing edge is Delete alone and it asks first (\"Delete Item\", TodoPageView.swift line 197).", by: "apple-hig skill" },
+        { rule: "Alerts: avoid confirming a common, undoable action", verdict: "pass", note: "TodoPageLayout.deletion(for:) is .immediate for groceries (owner, 2026-10-24).", by: "apple-hig skill" },
+        { rule: "Undo and redo: completed groceries disappear", verdict: "pass", note: "Checked-off groceries stay 5 s in the done look with Undo; each tick has its own timer so rapid shopping keeps every Undo (TodoListController.eachTickKeepsItsOwnGrace).", by: "apple-hig skill" },
+        { rule: "Loading and Empty states: say what to do next", verdict: "pass", note: "ContentUnavailableView with \"No Groceries Listed / Add some groceries to see them appear.\" and the Add Groceries action (TodoPageView.swift lines 85-96, 277).", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: keep content clear of the fold", verdict: "pass", note: "Fixed: TodoPageView lays the list in HingedPanes with the Add Groceries form in the trailing pane (todo.pane.placeholder invites the add) where the window splits; the list ends at the hinge.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Navigation: one destination reached from three places", verdict: "pass", note: "Pushed from Chores Quick Links by value, from Kitchen and from HomeRoute; the title is always ChoresConfig.groceries.title.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: row is a toggle with a hint", verdict: "pass", note: "accessibilityAddTraits(.isToggle), value \"Not done\", hint \"Marks the task done.\" (TodoListSection.swift lines 209-214). The hint says \"task\" on a grocery item. Copy only.", by: "swiftui-pro skill" },
+        { rule: "Views: floating bar title is page specific", verdict: "pass", note: "TodoPageLayout.addTitle returns \"Add Groceries\" for the grocery action (TodoPageView.swift lines 276-279).", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.pageConfig('groceries', {
+    title: 'Groceries (Grocery List)',
+    summary: 'The shared grocery list: one list "Grocery List" of checkable items on the dimmed house photo, an Add Groceries button, swipe to delete. No editor and no due dates. Fixture items.',
+    source: ['apple/Sources/HassUI/Features/Home/HomeRoute.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift'],
+    entities: ['todo.demo_todo_1'],
+    defaultTitle: 'Three items on the list',
+    reviews: { hig: [{ rule: 'Buttons: a labelled primary action for the page', verdict: 'pass', note: 'Add Groceries is the one floating action (floating-actions.md).' }], swiftui: [] },
+    a11y: [{ rule: 'Reading order', note: 'Back (the sending page), Quick Links, Profile; the title "Groceries" (heading); the "Grocery List" heading; each item top to bottom; Add Groceries; tab bar. Items have no Edit button, so the row is one toggle plus Delete in the actions.' }],
+    notes: [
+      'Pushed from three places: the Chores Quick Links ("Groceries" tile, back label Chores), the Kitchen room page (a "Grocery List" tile, back label Kitchen) and the HomeRoute.groceryList route. The nav title is always "Groceries" (ChoresConfig.groceries.title) even when the route is called "Grocery List".',
+      'Groceries is a Choreapp-free page: rows edit nothing (no Edit glyph, trailing swipe is Delete only) and Delete says "Delete Item", not "Delete Task". Checking an item off runs todo.update_item; completed items are hidden.',
+      'With nothing listed the empty state reads "No Groceries Listed / Add some groceries to see them appear." No vacation copy (hiddenByVacation is false).',
+    ],
+  }));
+
+})();
+</script></body></html>

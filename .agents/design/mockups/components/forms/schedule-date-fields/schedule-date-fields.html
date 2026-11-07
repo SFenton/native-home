@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ScheduleDateFields · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  var base = Mock.componentConfig('ScheduleDateFields');
+  function sw(items, o) { return function (ctx) { return HF.surfaces(ctx, items, o); }; }
+  function F(fields) { return function () { return K.ScheduleDateFields({ fields: fields }); }; }
+  var RANGE = [{ label: 'Starts', value: 'Oct 24, 2026 · 9:00 AM' }, { label: 'Ends', value: 'Oct 28, 2026 · 6:00 PM' }];
+  var TRIP = [{ label: 'Departs', value: 'Oct 24, 2026 · 7:30 AM' }, { label: 'Returns', value: 'Oct 26, 2026 · 8:00 PM' }];
+  var RANGE_ERR = 'Start date and time must be before end date and time. Vacation mode is disabled until the dates are fixed.';
+  var DESC = 'Set the start and end time for your vacation. Vacation mode will automatically be turned off at the set end date and time.';
+  function p(t) { return h('p', { style: { margin: 0, font: '400 var(--fs-sub)/1.3 var(--font)', color: 'inherit', opacity: .85 } }, t); }
+  function col(kids) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, kids); }
+
+  Mock.mount(Object.assign(base, {
+    kind: 'component', id: 'schedule-date-fields', title: 'ScheduleDateFields', area: 'design', status: 'shipped',
+    summary: 'Date and time pickers for schedules: one combined date-and-time field per moment (Starts / Ends, Departs / Returns), two to a row when the width allows. Each is a labelled system compact picker on a material row at least 44 pt tall; at accessibility sizes the picker drops below its label. Fields that write to Home Assistant on every change report only after a short quiet.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKScheduleDateFields.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/Features/Vacation/VacationScheduleDates.swift'],
+    spec: ['.agents/patterns/schedule-date-fields.md'],
+    patterns: ['schedule-date-fields', 'settings-section', 'dynamic-grid'],
+    hig: ['Pickers (date pickers)', 'Layout', 'Dynamic Type', 'Accessibility'],
+    entities: [],
+    kitComponents: ['ScheduleDateFields', 'InlineAlert', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: Object.assign({}, base.states, {
+      'date-time': { title: 'Date and time (one field per moment)', render: sw([
+        { label: 'Starts and Ends (Vacation Mode)', node: F(RANGE) }, { label: 'Departs and Returns (Solo Trip editor)', node: F(TRIP) },
+      ], { basis: 380 }) },
+      'single': { title: 'One field: Returns (Solo Trip on the page)', note: 'the traveler is away; only the return is editable, written to Home Assistant after the commit delay', render: sw([
+        { label: 'Returns', node: F([{ label: 'Returns', value: 'Oct 26, 2026 · 8:00 PM' }]) },
+      ]) },
+      'date-only': { title: 'Date only and time only', note: '.date and .time remain for a value that is only one of them; no screen uses them today (a date-only change leaves the time unchanged)', render: sw([
+        { label: 'date', node: F([{ label: 'Return Date', value: 'Oct 26, 2026' }]) }, { label: 'time', node: F([{ label: 'Return Time', value: '8:00 PM' }]) },
+      ]) },
+      'vacation-dates': { title: 'In context: Vacation dates', note: 'the section inside Vacation Mode: a description, then the two fields; changes commit 0.9 s after the last wheel turn', render: sw([
+        { label: 'Vacation Mode · dates valid', node: function () { return col([p(DESC), K.ScheduleDateFields({ fields: RANGE })]); } },
+      ], { basis: 420 }) },
+      'invalid': { title: 'Invalid range: the error sits above the fields', note: 'validation messages go next to the fields as inline alerts, never inside them; Vacation Mode stays off until fixed', render: sw([
+        { label: 'Vacation Mode · end before start', node: function () { return col([p(DESC), K.InlineAlert({ message: RANGE_ERR, severity: 'error' }), K.ScheduleDateFields({ fields: [{ label: 'Starts', value: 'Oct 28, 2026 · 6:00 PM' }, { label: 'Ends', value: 'Oct 24, 2026 · 9:00 AM' }] })]); } },
+        { label: 'Solo Trip editor · return before departure', node: function () { return col([K.ScheduleDateFields({ fields: [{ label: 'Departs', value: 'Oct 28, 2026 · 7:30 AM' }, { label: 'Returns', value: 'Oct 26, 2026 · 8:00 PM' }] }), K.InlineAlert({ message: 'Return must be after departure.', severity: 'error' }), K.PrimaryButton({ title: 'Schedule Solo Trip', disabled: true })]); } },
+      ], { basis: 420 }) },
+      'disabled': { title: 'Disabled while scheduling', note: '.disabled(controller.isScheduling) dims the system pickers', render: sw([
+        { label: 'saving', node: function () { var n = K.ScheduleDateFields({ fields: TRIP }); n.style.opacity = .5; n.style.pointerEvents = 'none'; n.setAttribute('aria-disabled', 'true'); return n; } },
+      ]) },
+      'ax5': { title: 'Accessibility 5: the picker drops below its label', override: { ts: 'ax5' }, note: 'one column; the label never truncates', render: sw([{ label: 'Starts and Ends', node: F(RANGE) }]) },
+    }),
+
+    motion: [
+      { id: 'commit-delay', what: 'Turning a wheel: the picker shows the new value at once; the service call goes out only after 0.9 s of quiet, so one adjustment is one call; with no echo from Home Assistant after 3 s the draft clears', token: 'timers, not an animation: commit delay 0.9 s (liveDateCommitDelay), draft fallback 3 s', state: 'vacation-dates',
+        source: 'HassDesign/ScheduleDateFields.swift ScheduleDatePicker; HassUI/Features/Vacation/VacationScheduleDates.swift liveDateCommitDelay', reduce: 'unchanged (no motion involved)',
+        play: function (stage) {
+          var chip = stage.querySelector('.ui-datefield .ui-date'); if (!chip) return Promise.resolve();
+          var note = h('div', { style: { font: '12px var(--font-m, monospace)', opacity: .7, marginTop: '8px' } }, 'idle'); chip.closest('.in').appendChild(note);
+          var was = chip.textContent;
+          function set(t) { note.textContent = t; }
+          chip.textContent = 'Oct 25, 2026'; set('draft shown at once (0 ms)');
+          return Mock.sleep(300).then(function () { chip.textContent = 'Oct 26, 2026'; set('wheel turned again: timer restarts (300 ms)'); return Mock.sleep(900); })
+            .then(function () { set('0.9 s quiet: one service call sent (1.2 s)'); return Mock.sleep(1200); })
+            .then(function () { set('echo arrived: draft cleared, saved value shown'); return Mock.sleep(900); })
+            .then(function () { chip.textContent = was; note.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Name', note: 'Each picker is a DatePicker with its label hidden visually and set for VoiceOver ("Starts", "Returns"), so the compact button reads "Starts, Oct 24, 2026, 9:00 AM"; the identifier is the field\'s (soloTrip.return, soloTrip.editor.start).' },
+      { rule: 'Reading order', note: 'Label then picker in each row, rows in reading order (start before end); the validation alert follows the fields it concerns, as an error read "Error: …".' },
+      { rule: 'Targets', note: 'Each row is at least 44 pt tall (frame minHeight minTarget); the system compact picker sits inside it.' },
+      { rule: 'Dynamic Type', note: 'The row is ViewThatFits: label and picker side by side when the label fits on one line, else the picker drops below it (and always at accessibility sizes). The label wraps; it never truncates ("Departure Time" truncated once, 2026-10-11).' },
+      { rule: 'Not colour alone', note: 'An invalid range is a written error with a glyph in red; the fields themselves do not turn red.' },
+      { rule: 'Reduce Motion', note: 'There is no animation of its own; the system picker handles its popover.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Pickers: compact date picker when space is constrained; date and time in one row", verdict: "pass", note: "Each field is the system compact DatePicker (the Calendar app's Starts and Ends idiom) with date, hourAndMinute or both components; the system popover edits and confirms.", by: "apple-hig skill" },
+
+        { rule: "Entering data: validate dynamically and give feedback as soon as a problem is found", verdict: "pass", note: "An invalid range (return before start) shows a written 'Error: ...' alert beside the fields with a red glyph; the fields themselves do not turn red, so the error is not colour alone.", by: "apple-hig skill" },
+
+        { rule: "Entering data: prevent errors rather than only report them", verdict: "pass", note: "ScheduleDateField.limited(from:to:) bounds the picker with in: (ScheduleDateFields.swift); Vacation and Solo Trip end pickers start at the start value.", by: "apple-hig skill" },
+
+        { rule: "Buttons and Layout: 44 pt rows; labels never truncate at large text", verdict: "pass", note: "Each row has minHeight 44; ViewThatFits puts label and picker side by side when the label fits on one line, else the picker drops below (always at accessibility sizes), after 'Departure Time' once truncated (2026-10-11).", by: "apple-hig skill" },
+
+        { rule: "Feedback: a change that triggers a service call should not be lost", verdict: "pass", note: "Fixed in ScheduleDatePicker.swift: an unsent pick is flushed on disappear (flush(), unsent state) instead of being cancelled with the task.", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "Data flow: avoid Binding(get:set:) in the view body", verdict: "pass", note: "The picker binds a @State pick; commit and the 3 s fallback run from onChange and task(id:), cancelled with the view, same timings.", by: "swiftui-pro skill" },
+
+        { rule: "Resizability: ViewThatFits for horizontal-then-vertical arrangements", verdict: "pass", note: "ViewThatFits(in: .horizontal) tries label beside picker, then stacked, and a DynamicGridLayout puts two fields per row from a 320 pt minimum, with no device check.", by: "swiftui-pro skill" },
+
+        { rule: "Design: LabeledContent for title and control", verdict: "pass", note: "Not applicable: the row keeps its ViewThatFits so the label never truncates and the picker drops below it at accessibility sizes; LabeledContent's stacking at AX sizes is not the audited layout.", by: "swiftui-pro skill" },
+
+        { rule: "Concurrency: cancellable task for a delayed commit", verdict: "pass", note: "A @MainActor Task sleeps commitDelay, reports once and falls back to the saved value after 3 s if Home Assistant never echoes it; a new pick cancels the previous task so one adjustment is one service call.", by: "swiftui-pro skill" },
+
+        { rule: "Views: one type per file; computed some View members", verdict: "pass", note: "Fixed: label and picker computed members are gone; the picker is ScheduleDateControl (ScheduleDateControl.swift) and ScheduleDateField.swift, ScheduleDatePicker.swift and ScheduleDateFields.swift hold one type each.", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'The kit draws the compact picker as two tertiary-fill chips (date, time); the real control is the system DatePicker. The popover is not drawn.',
+      'Catalog hint "committed after delay (inline)" is the commit-delay Play; "invalid" is the validation alert shown beside the fields.',
+      'Vacation Mode\'s dates and Solo Trip are owned by the vacation-sprinklers batch; they appear here as consumers.',
+      'Fixture dates are invented.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: ranges, single field, date and time only, invalid, disabled, commit delay and AX5.' }],
+  }));
+})();
+</script></body></html>

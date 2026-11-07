@@ -1,0 +1,16 @@
+{
+  "id": "dd-settings-own-tab",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "Settings is its own page like web app, not a modal we get to from profile",
+  "surface": "settings",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "navigation",
+  "pre_fix_ref": "676dfd2e",
+  "fix_ref": "10aeaf20",
+  "fix_confidence": "high",
+  "expected": "Settings is the last tab, with Quick Links and Profile as header buttons on every page."
+}

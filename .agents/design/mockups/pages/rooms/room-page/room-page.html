@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Room page · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms;
+
+  /* The Living Room is the page this mockup leads with: every section layout the config uses (grid, lead row via the other states, app launcher) and all five chips. */
+  function page(ctx, id, st, o) { return R.page(ctx, id, st || {}, o); }
+  var ROOM = function (id, st, o) { return function (ctx) { return page(ctx, id, st, o); }; };
+  function tileEl(stage, ident) { return stage.querySelector('[data-ident="' + ident + '"]'); }
+  function chipEl(stage, title) { return stage.querySelector('.ui-chip[data-chip="' + title + '"]'); }
+
+  /* A room card's sheet over the page (RoomCardSheet: large detent, page size). */
+  function cardSheetOpts(key) { var s = R.cardSheet(key); return { title: s.title, detent: 'large', size: 'page', trailing: 'close', content: s.content }; }
+
+  Mock.mount({
+    kind: 'page', id: 'room-page', title: 'Room page (config-driven, 16 rooms)', area: 'rooms', status: 'shipped',
+    summary: 'One template for sixteen rooms: a status rail of overview chips, then the room\'s titled sections in a responsive section grid (two columns from 704 pt), each opening a sheet. Pushed from Quick Links, so the header shows Back, Quick Links and Profile. Leads with the Living Room; Bedroom 1 and Kitchen have their own items.',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Rooms/RoomSupport.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomCards.swift', 'apple/Sources/HassDesign/TileActions/TileActionButtonStyle.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift',
+      'apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift', 'apple/Sources/HassCore/Rooms/RoomFormat.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift'],
+    spec: ['.agents/pages/rooms/spec.md', '.agents/pages/rooms/ios.md', '.agents/design/apple/split-view.md'],
+    patterns: ['status-rail', 'entity-tile', 'dynamic-grid', 'room-device-sheets', 'room-overview-sheet', 'optimistic-actions', 'modal-sheet', 'motion'],
+    hig: ['Toolbars', 'Layout', 'Lists and tables (grids)', 'Color', 'Typography', 'Dynamic Type', 'Empty states (ContentUnavailableView)', 'Motion', 'Accessibility'],
+    entities: ['light.demo_living_room_item_1', 'input_text.demo_living_room_2', 'binary_sensor.demo_living_room_1', 'binary_sensor.demo_living_room_contact_1', 'sensor.demo_living_room_3',
+      'cover.demo_living_room_1', 'select.demo_living_room_mode_1', 'vacuum.demo_vacuum_1', 'media_player.demo_living_room_2', 'switch.demo_bathroom_1_switch_1', 'cover.demo_garage_door_2'],
+    kitComponents: ['ChipRail', 'StatusChip', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'TabBar', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Living Room, evening fixture', note: 'five chips; Climate, Devices, Remote, Quick App Launch (full width); two section columns from 704 pt', render: ROOM('living-room') },
+      'loading': { title: 'Nothing saved yet', note: 'no gate and no pending bars: with an empty store every card reads Unavailable, as in the error state', render: ROOM('living-room', { u: true }) },
+      'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design: views bind to per-entity boxes that update in place, nothing re-fades (AGENTS.md: no reload on reopen)', render: ROOM('living-room') },
+      'empty': { title: 'Hallway: "Nothing Here Yet!"', note: 'a room with no sections still shows its rail; the Entryway and Downstairs Hallway read the same', render: ROOM('hallway') },
+      'error': { title: 'Entities unavailable', note: 'cards dim and stop responding; chips read Unavailable (Climate and Air Quality stay filled, Window goes neutral)', render: ROOM('living-room', { u: true }) },
+      'offline': { title: 'No network', note: 'values stay; the offline chip under the header and the cloud badge on Profile', render: ROOM('living-room', {}, { connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'the arc left of Quick Links', render: ROOM('living-room', {}, { connection: 'reconnecting' }) },
+      'theater-devices': { title: 'Media Room: Switch turning on, streaming box on', note: 'rollout R: Handheld Console and Media Room Streaming Box are action tiles (text . power disc); the Switch shows the arc and "Turning On…" until its boolean reports, the streaming box is settled on', render: ROOM('theater-room', { switchFlight: true, shieldOn: true }) },
+      'purifier-off': { title: 'Living Room: purifier off', note: 'rollout R: Air Purifier is a navigation tile with a Power disc (fan.demo_living_room_1); off reads "Auto • Off" and the tile goes dark', render: ROOM('living-room', { purifierOff: true }) },
+      'long-text': { title: 'Media Room: long names, three section kinds', note: 'Media Room Remote, Handheld Console, Media Room Streaming Box, Media Room Computers; names wrap to two lines in a tile, never truncate', render: ROOM('theater-room') },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'tiles anchor text to the bottom and go one column; chips scroll (compact) or wrap (regular)', render: ROOM('living-room') },
+      'duo-part-fold': { title: 'Duo partly folded: Living Room in fold columns (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'sides by configured order: Climate and Remote lead, Devices and Quick App Launch trail; each side stacks (no row holes); the launcher no longer spans. At accessibility sizes the wrapped rail heads the leading column and Devices starts level with it (section-sides.md rule 11)', render: ROOM('living-room') },
+      'duo-part-fold-theater': { title: 'Duo partly folded: Media Room', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Climate, Quick App Launch and Devices lead; Remote and Media Room Computers trail', render: ROOM('theater-room') },
+      'duo-part-fold-single': { title: 'Duo partly folded: a one-section room (Back Deck)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'a room with one section leads; its trailing side is empty (the rail still spans); same for Guest Room, Gym, Dining Room and both bathrooms', render: ROOM('back-deck') },
+      'placeholder': { title: 'No connection yet (PlaceholderScreen)', note: 'RoomScreen without a connection or caller draws a ContentUnavailableView with "Not Available Yet", the cause and Try Again', render: function (ctx) { return R.placeholder(ctx, 'Living Room'); } },
+      'active': { title: 'Devices running', note: 'window open at home (amber chip), vacuum cleaning (cleaning purple), remote playing (media pink), launcher shows the playing app', render: ROOM('living-room', { window: 'home', playing: true, cleaning: true }) },
+      'window-armed': { title: 'Window open while armed', note: 'the contact chip reddens and shows a triangle; chips follow the house, not the room', render: ROOM('living-room', { window: 'armed' }) },
+      'lead-row': { title: 'Guest Bathroom: lead row (fan) then a grid', note: 'fan alone on a phone; at regular width it joins the two-column grid beside the vent (owner 2026-10-17)', render: ROOM('guest-bathroom') },
+      'fan-on-timed': { title: 'Bathroom 1: fan on, locked, timed', note: 'white rail circles, lit teal tile, "Off in 12:34" (lock is spoken, never written)', render: ROOM('master-bathroom', { towel: true }) },
+      'fan-unavailable': { title: 'Fan unavailable', note: 'no rail (no dead controls); the tile still opens its sheet', render: ROOM('guest-bathroom', { fanU: true }) },
+      'music-room': { title: 'Studio: lead row with three source tiles', note: 'rollout R: sources are selection tiles (check disc while chosen, empty ring otherwise, "On the TV" while chosen) that share the remote\'s optimistic state; three follow-ups switch to two filling columns; the Game launcher section is off the page', render: ROOM('music-room', { source: 'Game Console' }) },
+      'office': { title: 'Office: PCs personalised to the viewer', note: 'Your PC for the signed-in resident, Sam\'s PC for the other; a PC is a command tile in the power family', render: ROOM('office') },
+      'back-deck': { title: 'Back Deck: inert chip and a disabled grill', note: 'the Occupancy chip has no sheet, so it is not a button; Grill Probe is dimmed while off', render: ROOM('back-deck') },
+      'garage': { title: 'Garage: one chip, laundry, door controls', note: 'a single overview chip; the washer and dryer are read-only state tiles; the doors are the Security page\'s GarageDoorTile with the card\'s title', render: ROOM('garage', { left: 'open' }) },
+    },
+
+    motion: [
+      { id: 'tile-optimistic', what: 'Tapping the Towel Rack shows the change at once; Home Assistant\'s answer wins afterwards (a revert shows the tile going back)', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'lead-row',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile"); RoomController.run(.flip) via OptimisticActions (.liveChange); motion.md section 6', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) { var t = tileEl(stage, 'room.card.Towel Rack'); return R.toggle(t, true, 'On').then(function () { return Mock.sleep(700); }).then(function () { return R.toggle(t, false, 'Off'); }); } },
+      { id: 'chip-colour', what: 'The Window chip changes with the house: Closed to Open (soft green to amber), glyph swaps', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only; glyph swap is the system symbol replace', state: 'default',
+        source: 'HassUI/Features/Home/StatusRail.swift StatusChipStyle (shared with room rails); motion.md section 6', reduce: 'cross-fades at 0.2 s; the glyph swap is an identity change',
+        play: function (stage) { var c = chipEl(stage, 'Window'); c.style.setProperty('--cf', 'var(--chip-contact-home-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-home-glyph)'); c.querySelector('.su').textContent = 'Open'; c.querySelector('.g').innerHTML = Mock.icon('door.left.hand.open', { fill: true }); return Mock.sleep(Mock.anim.ms.state() + 300); } },
+      { id: 'glyph-replace', what: 'A garage door tile\'s glyph swaps from closed to open while it moves, its fill follows', token: 'system symbolEffect(.replace) on the glyph (identity under Reduce Motion); fill cross-fade state 0.6 s', state: 'garage',
+        source: 'HassDesign/GlassTile.swift (glyph contentTransition); SecurityTiles.swift GarageDoorTile', reduce: 'the glyph swaps with no effect; the fill still cross-fades at 0.2 s',
+        play: function (stage) { var t = tileEl(stage, 'room.card.Right Door'), g = t.querySelector('.glyph');
+          return Mock.anim.fade(g, { from: 1, to: 0, ms: 120 }).then(function () { g.innerHTML = Mock.icon('door.garage.open', { fill: true }); t.querySelector('.st').textContent = 'Sending Open…'; return R.toggle(t, true).then(function () { return Mock.anim.fade(g, { from: 0, to: 1, ms: 200 }); }); }).then(function () { return Mock.sleep(500); }); } },
+      { id: 'fan-countdown', what: 'The fan tile\'s status line counts down once a second while a timer runs', token: 'TimelineView every 1 s only while a countdown shows (hourly otherwise); plain text swap, no numeric transition', state: 'fan-on-timed',
+        source: 'HassUI/Features/Rooms/BathroomFanRoomTile.swift', reduce: 'unchanged: it is a text update, not motion',
+        play: function (stage) { var st = tileEl(stage, 'room.card.Fan').querySelector('.st'), n = 0; function tick() { n++; st.textContent = 'Off in 12:' + (34 - n); return n < 5 ? Mock.sleep(1000).then(tick) : Promise.resolve(); } return Mock.sleep(600).then(tick); } },
+    ],
+
+    transitions: [
+      { from: 'Room card (Climate, Vents)', to: 'Room card sheet', kind: 'sheet', note: 'A card with a sheet presents RoomCardSheet at the large detent (page size on iPad). The page scales back and dims; content is present on arrival (motion.md 4.4). Device cards open their own lane sheets instead (fan, purifier, humidifier, grill, vacuum, wake light, beds, remotes).',
+        play: function (stage) { return Mock.presentDemo(stage, cardSheetOpts('lights-living-room')); } },
+      { from: 'Status chip (Lights)', to: 'Room card sheet', kind: 'sheet', note: 'A chip with a sheet opens the same sheet type; a chip without one (Back Deck Occupancy) is inert.',
+        play: function (stage) { return Mock.presentDemo(stage, cardSheetOpts('climate-living-room')); } },
+      { from: 'Quick Links (Rooms grid)', to: 'This room page', kind: 'push', note: 'A room tile closes the Quick Links sheet first, then the room pushes onto the page\'s stack once the sheet has gone, so the push never races the dismissal (QuickLinksSheet.go, quickLinksDismissed). Plain system push; no zoom.',
+        play: function (stage) { var ctx = Mock.current; return R.sheetThenPush(stage, { title: 'Rooms', leading: 'back', trailing: 'none', detent: 'large', size: 'page', content: R.roomsGrid() }, function () { return page(ctx, 'kitchen', {}); }); } },
+      { from: 'Room page', to: 'Home', kind: 'push', note: 'Back (glass circle) or the interactive edge swipe pops the page; the system pop, never replaced.',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = R.homePresenter(ctx); a.parentNode.insertBefore(b, a); return Mock.anim.push(a, b, { back: true }).then(function () { return Mock.sleep(500); }).then(function () { b.remove(); a.style.transform = ''; a.style.filter = ''; }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back (or Open Navigation), Quick Links, Profile; then the room title (heading); the status rail (group "<Room> status") with its chips; then each section (a container named by its title with a heading) and its cards left to right, top to bottom; the tab bar last. At regular width the two section columns read column by column (left column first).' },
+      { rule: 'Chips', note: 'Each chip is a button "<title>, <summary>" ("Window, Closed") with the hint "Opens <title>"; an inert chip (no sheet) is a plain element with the same label and no button role. State is words plus glyph plus colour; the contact chip adds a triangle when armed.' },
+      { rule: 'Cards', note: 'One element per card: label = title, value = its state line. Kinds map to roles: a toggle (Towel Rack) is a switch with an On/Off value, a command (PC, garage door) a button with an Opens/Closes hint, a selection (Studio sources) a button that is selected while on, a modal card a button with a chevron, a state tile (Washing Machine) is not a button and is never dimmed as disabled. Unavailable cards are dimmed and not enabled.' },
+      { rule: 'Bathroom fan tile', note: 'The tile is a button (opens the fan sheet) with the value "on, off in 12 minutes, locked"; Lock and Power are two switches (44 pt minimum, 66 pt cap, glyph under 45% of the circle) named Lock and Power with On/Off values and the identifiers room.fan.<power entity>.lock|power. Hidden while unavailable.' },
+      { rule: 'Targets', note: 'Chips 48 pt tall, tiles 72 pt or taller, app tiles square (up to 168 pt), fan circles 44 pt, header circles 44 pt.' },
+      { rule: 'Dynamic Type', note: 'Section headers 20 bold (heading trait, rotor). Tiles keep a scaled minimum width of 140 pt and reflow to one column at accessibility sizes; at AX5 every tile anchors its text bottom-leading and the fan rail drops under the text. The section grid minimum (340 pt) does not scale, so a phone is always one column.' },
+      { rule: 'Reduce Motion and Transparency', note: 'Colour changes cross-fade at 0.2 s. With Reduce Transparency the wallpaper is the plain base colour and tiles and chips draw the solid finish.' },
+      { rule: 'Privacy', note: 'With FENTON_REDACT_PRIVATE the Occupancy chip reads "Hidden" (screenshots only).' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Toolbars: Back leading, actions trailing', verdict: 'pass', note: 'Back, Quick Links and Profile come from the shell header; on the folded Duo they move to the trailing rail as the system does.' },
+        { rule: 'Layout: adapt with size, no fixed columns', verdict: 'pass', note: 'DynamicGridLayout tiles from a scaled 140 pt minimum; sections from 340 pt, at most two columns; chips scroll on compact width and wrap on regular.' },
+        { rule: 'Designing for iPhone Duo: even column counts, nothing across the fold', verdict: 'pass', note: 'Fixed: DynamicGridLayout now measures its frame and passes the hinge band to DynamicGridMetrics(band:): two regions with the band as the middle gap, so no column starts inside the fold. RoomPageContent\'s section minimum is a @ScaledMetric.' },
+        { rule: 'Accessibility: Reduce Transparency and Increase Contrast', verdict: 'pass', note: 'GlassTile switches to the solid finish via TileFinish.effective; chip ground is always dark so fixed white ink holds.' },
+        { rule: 'Feedback: confirm state changes', verdict: 'pass', note: 'Fixed: GlassTile plays TapFeedback.tap on toggle, command and selection tiles (GlassTile.swift, GlassTileKind.playsTapFeedback); a failed flip shows the failed face (RoomController.isFailed, RoomCardTile).' },
+        { rule: 'Navigation: Quick Links as a header button', verdict: 'departure', note: 'Owner decision 2026-10-16 (direction-g.md Navigation).' },
+      ],
+      swiftui: [
+        { rule: 'Data flow: bind to small observable boxes', verdict: 'pass', note: 'Per-entity boxes in EntityStore; the fan tile ticks hourly unless a countdown shows so its identity stays stable.' },
+        { rule: 'Navigation: sheet(item:) over sheet(isPresented:)', verdict: 'pass', note: 'Four sheets use item or a dedicated route; the queuedModal/onDismiss hand-off keeps one sheet at a time (RoomScreen.swift:166).' },
+        { rule: 'Data: avoid Binding(get:set:) in the view body', verdict: 'pass', note: 'The remote sheet is driven by a RemoteSelection @State.' },
+        { rule: 'Navigation: one presentation state per screen', verdict: 'pass', note: 'Fixed: RoomPageContent holds one @State presented: RoomPresentation? (card, remote, quickLinks, device) and one sheet(item:); two sheets at once is unrepresentable.' },
+        { rule: 'Swift: do not swallow errors silently', verdict: 'pass', note: 'Already fixed: RoomScreen.task logs the failed signed-in user read (viewerLog.error) and keeps plain titles.' },
+      ],
+    },
+
+    notes: [
+      "Partly folded Duo (claude/section-sides, section-sides.md): fold columns; a section's side is the parity of its configured index, so Quick App Launch and one-section rooms no longer span the band (was: UKRoomsGrid row-major, the launcher and a sole section full width with tiles split around the band); every other pose unchanged.",
+      "Built on claude/action-nav-tiles: PCs, towel racks and garage doors read text . disc (power / door disc); the vacuum is a navigation tile with start/pause and dock discs left of the chevron; the bathroom fan's Lock and Power are discs (room.card.Fan.action.lock|power); a playing remote shows transport and volume below; read-only tiles are flat. Shared helper pages/rooms/_rooms.js carries the change.",
+      'Sixteen rooms, one template: living-room, guest-room, master-bedroom, gym, hallway, office, kitchen, dining-room, back-deck, music-room, theater-room, downstairs-hallway, garage, guest-bathroom, master-bathroom, entryway. This mockup draws Living Room, Hallway (empty), Guest and Bathroom 1, Studio, Media Room, Office, Back Deck and Garage; Guest Room, Gym and Dining Room are the same cards with fewer sections; Entryway and Downstairs Hallway are empty like the Hallway. Bedroom 1 and Kitchen have their own items.',
+      'no rail: no room in RoomsConfig has an empty overviewCards list (Garage has the fewest, one chip), so the "no rail" branch in RoomPageContent is unreachable today; the Garage state shows the single-chip rail.',
+      'loading: room pages have no content gate or pending bars. Opened before the first snapshot, every card reads Unavailable (an empty store), which is the error state; the shell\'s own launch handling covers the rest.',
+      'Where docs and code differ: pages/rooms/ios.md says Quick Links is a toolbar button "in compact width before iOS 26, on section roots"; the shell header now carries it on every page and RoomPageContent adds its own only outside the shell (shellNavigator == nil). Drawn: header button.',
+      'Section grid on the unfolded Duo (landscape) reads two columns: the second begins at about x 446, inside the hinge band (455 to 496). DynamicGridLayout rounds the count to even but does not offset tracks from the hinge; not verified on a device.',
+      'App launcher artwork is a remote image; the mockup draws the placeholder glyph the tile shows while it loads (white ground for Streaming B). Wallpaper, glyphs and the entity values are kit stand-ins and gallery fixtures (RoomsFixtures); the purifier reads "Auto • On" where the fixture has the fan off.',
+      'Wake-Light Alarms never fills: the generic tile only fills for states on, open, playing, recording, home, heat or cool, and the sensor reports a phase word. See room-master-bedroom.',
+      'Device sheets (fan, purifier, humidifier, grill, vacuum, wake light, beds, media remotes) belong to other batches; the vacuum and humidifier fall back to RoomDeviceFallback without the app\'s connection (debug gallery).',
+      'Promote to kit: the symbols added in pages/rooms/_rooms.js (stove, stairs, bathtub, desktopcomputer, window.vertical.*, air.purifier, heat.waves, dishwasher, washer, dryer, sunrise, apple.logo, appletvremote.gen4, figure.stand, server.rack), R.tile / R.section / R.sections, the app launcher tile, the fan rail and the ContentUnavailableView stand-in.',
+    ],
+    changelog: [{ date: '2026-11-04', note: "Short rows fill their section (Vent and Air Purifier equal halves in one row; whole tracks under another row); the section grid's 340 pt minimum scales with text up only, so the unfolded Duo in portrait is one column at every size; a section alone in its row (Remote before Quick App Launch) spans both columns. Quick App Launch never fills." }, { date: '2026-11-03', note: 'Partly folded at accessibility sizes the wrapped rail heads the leading column instead of spanning (section-sides.md rule 11).' }, { date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; states duo-part-fold, duo-part-fold-theater, duo-part-fold-single.' }, { date: '2026-10-23', note: 'First pass: Living Room and eight other rooms, every state, motion and transitions.' }, { date: '2026-10-27', note: "Action tiles (claude/action-nav-tiles): PCs, towel racks and garage doors read text . disc (power / door disc); the vacuum is a navigation tile with start/pause and dock discs left of the chevron; the bathroom fan's Lock and Power are discs" }],
+  });
+})();
+</script></body></html>

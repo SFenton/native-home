@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Empty and error states · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = HF.contentUnavailable;
+  function cu(o) { return function () { return C(o); }; }
+
+  /* Every ContentUnavailableView (or plain-stack stand-in) the app draws today, grouped by where it sits. */
+  var PAGE = [
+    { label: 'Room with no cards · RoomScreen', note: 'Nothing Here Yet! (the glyph is the room\'s own symbol)', node: cu({ symbol: 'house', title: 'Nothing Here Yet!', description: 'Once some devices are added to this room, we can display them here.' }) },
+    { label: 'Chores list empty · TodoPageView', note: 'checklist glyph, centred on the wallpaper (mockup n5-empty)', node: cu({ symbol: 'checklist', title: 'No Chores Due', description: 'You have no chores due. Nice job!' }) },
+    { label: 'Another resident\'s list · ChoresConfig', node: cu({ symbol: 'checklist', title: 'No Chores Due', description: 'Sam has no chores due. Nice job!' }) },
+    { label: 'Groceries empty', node: cu({ symbol: 'checklist', title: 'No Groceries Listed', description: 'Add some groceries to see them appear.' }) },
+    { label: 'Admin to-do empty', node: cu({ symbol: 'checklist', title: 'No To-Do Tasks', description: 'Use Add Task to create an admin to-do.' }) },
+    { label: 'List hidden by Vacation Mode', node: cu({ symbol: 'checklist', title: 'No Chores Due', description: 'Enjoy vacation!' }) },
+    { label: 'Recipes, nothing matches · plain stack', note: 'a scrolling stack, not ContentUnavailableView (it capped its text size and clipped on the folded Duo, 2026-10-12)', node: cu({ symbol: 'magnifyingglass', title: 'No Recipes Found', description: 'No recipes matched the current filters.', stack: true }) },
+    { label: 'Recipes, a search with no results', node: cu({ symbol: 'magnifyingglass', title: 'No Recipes Found', description: 'Try a different search or loosen the recipe filters.', stack: true }) },
+    { label: 'Recipes failed to load · Retry', note: 'the page\'s one primary action, as wide as its label', node: cu({ symbol: 'exclamationmark.triangle', title: 'Unable to Load Recipes', action: { title: 'Retry' } }) },
+    { label: 'Suggested recipes failed · Food hub', node: cu({ symbol: 'fork.knife', title: 'Suggestions Unavailable', description: 'Suggested recipes are temporarily unavailable.' }) },
+    { label: 'Inventory, nothing stored · InventoryEmptyState', note: 'plain wrapping text (the audit read ContentUnavailableView in a list row as clipped)', node: cu({ symbol: 'basket', title: 'No Items Found', description: 'Scan an item to add it to your pantry.', stack: true }) },
+    { label: 'Inventory, no match', node: cu({ symbol: 'basket', title: 'No Matching Items', description: 'Try a different filter, or clear it to show all items.', stack: true }) },
+    { label: 'Inventory failed to load · Try Again', node: cu({ symbol: 'exclamationmark.triangle', title: 'Unable to Load Pantry', description: 'Try again in a moment, or scan an item while pantry is unavailable.', action: { title: 'Try Again' }, stack: true }) },
+    { label: 'Inventory route without models', node: cu({ symbol: 'person.crop.circle.badge.exclamationmark', title: 'Not Signed In' }) },
+    { label: 'Placeholder tab · PlaceholderScreen', note: 'the no-connection fallback; copy undocumented elsewhere', node: cu({ symbol: 'shield', title: 'Not Available Yet', description: 'Can’t open this page right now. Check your connection and try again.', action: 'Try Again' }) },
+    { label: 'Home Assistant web page failed · HomeAssistantWebPage', note: 'the action is a plain system Button, not the primary capsule', node: cu({ symbol: 'wifi.exclamationmark', title: 'Can\'t open Devices', description: 'Home Assistant couldn\'t be reached. Check your connection and try again.', action: { title: 'Try Again', plain: true } }) },
+  ];
+  var SHEET = [
+    { label: 'Task failed to load · DonetickTaskSheet', note: 'the description is the error text (fixture)', node: cu({ symbol: 'exclamationmark.triangle', title: 'Unable to Load Task', description: 'The task could not be loaded. Try again in a moment.' }) },
+    { label: 'Recipe failed to load · RecipeDetailView', note: 'the description is the loader\'s message (fixture)', node: cu({ symbol: 'exclamationmark.triangle', title: 'Unable to Load Recipe', description: 'The recipe details could not be loaded.' }) },
+    { label: 'Recipe details unsupported', node: cu({ symbol: 'exclamationmark.triangle', title: 'Recipe Details Unsupported', description: 'This recipe source does not provide details.' }) },
+    { label: 'No ingredients', node: cu({ symbol: 'list.bullet', title: 'No Ingredients Available', description: 'Ingredient details are not available for this recipe.' }) },
+    { label: 'No instructions', node: cu({ symbol: 'list.number', title: 'No Instructions Available', description: 'Instructions are not available for this recipe.' }) },
+    { label: 'Instructions link missing', node: cu({ symbol: 'link', title: 'Instructions Link Unavailable', description: 'The external instruction link is not available.' }) },
+    { label: 'Room card with no controls · RoomSheetFallback', note: 'the title is the card\'s title and symbol', node: cu({ symbol: 'lock', title: 'Garage Door', description: 'This source does not have interactive controls available from this view.' }) },
+    { label: 'Security Quick Link, state only', note: 'the description is the compact state', node: cu({ symbol: 'shield', title: 'Security System', description: 'Armed Home' }) },
+  ];
+  function only(list, s) { return list.map(function (x) { return Object.assign({}, x, { only: s }); }); }
+  function inRoom(ctx) {
+    var pg = Mock.page(ctx, { title: 'Gym', section: 'home', back: 'Rooms', badge: 3, choresBadge: 2, body: [C({ symbol: 'dumbbell', title: 'Nothing Here Yet!', description: 'Once some devices are added to this room, we can display them here.' })] });
+    return h('div.hf-plain-frame', Mock.frame(ctx, pg));
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'content-unavailable', title: 'Empty and error states (ContentUnavailable usage)', area: 'design', status: 'shipped', frame: false,
+    summary: 'A reference sheet of every empty and error message the app draws: the system ContentUnavailableView (glyph, bold title, secondary description, optional action) and the two plain-stack look-alikes (Recipes and Inventory) built because the system view caps its text size. Pages draw them white on the wallpaper; sheets use the sheet\'s ink.',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailView.swift',
+      'apple/Sources/HassUI/Features/Chores/DonetickTaskSheet.swift', 'apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryRoute.swift', 'apple/Sources/HassUI/UIKitPort/App/UKScreens.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantWebPage.swift', 'apple/Sources/HassUI/Features/Rooms/RoomSheets.swift', 'apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift',
+      'apple/Sources/HassCore/Config/ChoresConfig.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
+    spec: ['.agents/patterns/settings-section.md', '.agents/design/direction-g.md'],
+    patterns: ['content-gate', 'floating-actions'],
+    hig: ['Loading', 'Typography', 'Dynamic Type', 'Buttons'],
+    entities: [],
+    kitComponents: ['PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'pages': { title: 'On the wallpaper (pages)', render: function (ctx) { return HF.surfaces(ctx, only(PAGE, 'page'), { surfaces: ['page'], basis: 300 }); } },
+      'sheets': { title: 'In a sheet', note: 'follows the Sheet appearance control', render: function (ctx) { return HF.surfaces(ctx, only(SHEET, 'sheet'), { surfaces: ['sheet'], basis: 300 }); } },
+      'in-room': { title: 'In context: an empty room page', note: 'the Room page\'s sections list is empty (a room with no cards): the message is centred in the body under the title; the tab bar or rail stays', render: inRoom },
+      'ax5': { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'titles and descriptions wrap in full; the system view\'s capped text size is why Recipes and Inventory use plain stacks', render: function (ctx) { return HF.surfaces(ctx, [PAGE[0], PAGE[6], PAGE[8], PAGE[12]].map(function (x) { return Object.assign({}, x, { only: 'page' }); }), { surfaces: ['page'], basis: 300 }); } },
+    },
+
+    motion: [],
+
+    a11y: [
+      { rule: 'One group', note: 'ContentUnavailableView reads as one element: the title, then the description, then the action. The glyph is decorative. The title is exposed as a heading.' },
+      { rule: 'Actions', note: 'Retry and Try Again are real buttons (identifiers recipes.retry and haWeb.retry; the Inventory container is inventory.empty); the capsules are 50 pt tall, so over 44 pt. The Recipes and Inventory error actions are the PrimaryButton capsule; the Home Assistant web page uses a plain system button.' },
+      { rule: 'Plain stacks, not the system view', note: 'Recipes (No Recipes Found) and Inventory (InventoryEmptyState) draw their own centred stack: the system view caps its Dynamic Type size and the audit read the title as clipped (folded Duo AX audit 2026-10-12; list rows 2026-10-21). A scrolling stack wraps fully at AX5.' },
+      { rule: 'Tone', note: 'Titles say what is missing in Title Case ("No Items Found"); descriptions say what to do next. Chores copy keeps the web\'s "nice job!" with its original hyphen spacing ("due- nice").' },
+      { rule: 'Dynamic Type', note: 'The glyph is a text-style symbol, so it scales; the stack grows the page height rather than truncating.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Writing: say what happened and what to do next; be consistent", verdict: "pass", note: "AlertCopy.tryAgain is the one retry label (Recipes, Inventory, HA web page).", by: "apple-hig skill" },
+
+        { rule: "Progress indicators and Loading: if a process fails, explain the problem and what people can do", verdict: "pass", note: "DonetickTaskSheet shows LoadFailure.of(\"Task\", ...).stateMessage: a Try Again button (AlertCopy.tryAgain, task.retry) that re-runs load() with an inline arc and \"Trying Again\", and \"You're Offline\" wording with the reason when HassConnection.isOffline.", by: "apple-hig skill" },
+
+        { rule: "Writing: plain, specific copy; Title Case titles that name what is missing", verdict: "pass", note: "Titles such as 'No Items Found', 'Can't open <page>' and 'Unable to Load Recipes' name the problem; descriptions say what to check ('Check your connection and try again').", by: "apple-hig skill" },
+
+        { rule: "Writing: copy typos and odd punctuation", verdict: "pass", note: "ChoresConfig empty descriptions now read \"due. Nice job!\" (departure from web parity, recorded in .agents/pages/chores/ios.md).", by: "apple-hig skill" },
+
+        { rule: "Typography: support Dynamic Type through AX5 without clipping", verdict: "departure", note: "Recipes (No Recipes Found) and Inventory draw their own scrolling stack because ContentUnavailableView capped its text size and clipped the title at AX sizes on the folded Duo (AX audit 2026-10-12; RecipesScreen.swift line 111, InventoryEmptyState.swift doc comment).", by: "apple-hig skill" },
+
+        { rule: "Buttons: 44 pt minimum target", verdict: "pass", note: "Retry and Try Again are the 50 pt PrimaryButton capsule; the Home Assistant page uses a system button.", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "Design: strongly prefer ContentUnavailableView for missing data", verdict: "pass", note: "Eleven call sites use it (Rooms, Chores, Recipe detail, Task sheet, Quick Links, placeholders, the web page); the two plain stacks are recorded departures with a reason in code.", by: "swiftui-pro skill" },
+
+        { rule: "Design: use ContentUnavailableView.search for empty search results", verdict: "pass", note: "Not applicable: StateMessage is the canonical empty state (pattern state-message.md) and keeps the search term and next step under AX5 clipping; ContentUnavailableView.search is not used on purpose.", by: "swiftui-pro skill" },
+
+        { rule: "Accessibility: title is a heading, glyph is hidden, actions are real buttons", verdict: "pass", note: "Custom stacks add .isHeader to the title and accessibilityHidden to the glyph; ContentUnavailableView groups title, description and actions natively; the retry buttons carry identifiers.", by: "swiftui-pro skill" },
+
+        { rule: "Views: do not duplicate a pattern across call sites", verdict: "pass", note: "Fixed: the twelve ContentUnavailableView sites (room, recipe, Choreapp, placeholder, Inventory, web page, Quick Links, suggestions) now use StateMessage / CenteredStateMessage, the shared empty state.", by: "swiftui-pro skill" },
+
+        { rule: "Localization: build text with interpolation, not concatenation", verdict: "pass", note: "Label(\"Can't open \\(page.title)\") uses interpolation, so the key is extractable; page.emptyTitle and loader errors are runtime Strings, shown verbatim.", by: "swiftui-pro skill" },
+
+        { rule: "Resizability: centred, scrollable, no fixed width beyond a cap", verdict: "pass", note: "The stacks centre with maxWidth .infinity and a 320 pt cap on the retry button, so the layout holds on the folded Duo, unfolded Duo and iPad split columns.", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'This is a catalogue sheet: the system view is drawn approximately (glyph, bold title, secondary description, centred). The exact spacing and sizes belong to ContentUnavailableView.',
+      'Fixture copy: descriptions that are error text from a loader (Unable to Load Task, Unable to Load Recipe, Recipe Details Unsupported) are invented; titles and the other descriptions are verbatim from the code and config.',
+      'Chores empty copy comes from ChoresConfig (one page per list); the Vacation variant is shown when Vacation Mode is on for a list that hides then.',
+      'Also in code, not drawn here: SummaryEmptyState (the Your Summary tabs, owned by the settings-account batch) and the Profile summary copy.',
+      'Docs versus code: the catalog hint lists "Unable to Load Task" under Chores and "No Ingredients Available" under Recipe detail; both are on sheets (sheets state). Inventory\'s error title is "Unable to Load <space title>".',
+      'The glyph used for the room is the room\'s own icon (RoomNavigation); a gym shows a dumbbell in the in-room state.',
+      'loading, error and offline for a surface that uses these are the surface\'s own states; this component is the content shown inside them.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: 16 page messages, 8 sheet messages, an in-context room, AX5.' }],
+  });
+})();
+</script></body></html>

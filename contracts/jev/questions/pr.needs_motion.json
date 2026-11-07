@@ -1,0 +1,27 @@
+{
+  "id": "pr.needs_motion",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Does the change make something move differently, so a still picture would not show it?",
+  "instructions": "Does the change make something move, appear, disappear, scroll, rotate, fold, present or respond to a gesture differently over time, so a still picture would not show it?",
+  "criteria": {
+    "true": "Animation, transition, gesture, scroll behaviour, rotation or fold behaviour, sheet presentation, or something a person feels as smoother or faster",
+    "false": "What changes can be seen in one frame, or nothing visible changes"
+  },
+  "state": {
+    "fields": [
+      "title",
+      "body",
+      "files"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.6,
+    "no_below": 0.3
+  },
+  "output": "pr_visual select: recorded under jev_shadow; a yes with no clip becomes Visuals Missing once measured.",
+  "evidence": "unmeasured"
+}

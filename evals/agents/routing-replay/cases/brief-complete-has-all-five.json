@@ -1,0 +1,21 @@
+{
+  "id": "brief-complete-has-all-five",
+  "source": "A complete brief reports nothing missing.",
+  "recorded": "2026-11-02",
+  "kind": "brief",
+  "input": {
+    "brief": "complete",
+    "jev": {
+      "objective": 0.95,
+      "output_format": 0.9,
+      "boundaries": 0.9,
+      "done_check": 0.9,
+      "device_families": 0.92
+    }
+  },
+  "expect": {
+    "missing": {
+      "eq": []
+    }
+  }
+}

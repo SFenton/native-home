@@ -1,0 +1,20 @@
+{
+  "id": "research.section_relevant",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Rerank: does one section of a document answer or bear on a question? Asked per section, section text in the state (items.<id>), question in the instruction.",
+  "instructions": "Does {item} contain information that answers, or directly bears on, this question: \"{question}\"",
+  "per_item": true,
+  "item_state": true,
+  "state": {
+    "max_chars": 24000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.55,
+    "no_below": 0.45
+  },
+  "output": "tools/jev_sections.py: ranks the BM25 shortlist; the top-k sections are returned verbatim with offsets and p (Researcher reads them instead of whole documents).",
+  "evidence": "unmeasured"
+}

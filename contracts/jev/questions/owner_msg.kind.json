@@ -1,0 +1,54 @@
+{
+  "id": "owner_msg.kind",
+  "version": 1,
+  "type": "choice",
+  "mode": "shadow",
+  "description": "What is the owner asking for in this message?",
+  "instructions": "What is the owner doing in the message in `text`?",
+  "criteria": {
+    "new_task": {
+      "what": "Asking for new work or a new feature",
+      "not_for": "Reporting that something is broken"
+    },
+    "bug_report": {
+      "what": "Reporting that something does not work or looks wrong",
+      "not_for": "Requests for new features"
+    },
+    "design_feedback": {
+      "what": "Giving an opinion or direction about how something should look, read or move",
+      "not_for": "Bug reports about broken behavior"
+    },
+    "decision": {
+      "what": "Choosing between options already put to them",
+      "not_for": "Asking for something new"
+    },
+    "question": {
+      "what": "Asking for information and no change",
+      "not_for": "Requests phrased as questions"
+    },
+    "approval": {
+      "what": "Accepting finished work or telling the agents to go ahead",
+      "not_for": "Choosing between options"
+    },
+    "stop_or_redirect": {
+      "what": "Telling the agents to stop, undo or change direction",
+      "not_for": "Corrections of small details"
+    },
+    "chat": {
+      "what": "Conversation with no work in it",
+      "not_for": "Anything with a request"
+    }
+  },
+  "state": {
+    "fields": [
+      "text",
+      "open_task"
+    ],
+    "max_chars": 3000
+  },
+  "accept": {
+    "min_confidence": 0.7
+  },
+  "output": "Router decision hint: which intake path an owner message takes (new ledger entry, an existing task's `Needs Decision` answer, or a plain reply). The orchestrator still reads the message.",
+  "evidence": "Shadow. First measurement 2026-11-01 (single labeller, inline wording): accuracy 0.80; see contracts/jev/derived/measurements.md. Re-measure with this file's wording before promoting."
+}

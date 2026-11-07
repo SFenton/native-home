@@ -1,0 +1,17 @@
+{
+  "id": "dd-miller-columns-navigation",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "click vacation, vacation appears in right, click mode, right view animates over to left, next view comes in on right",
+  "surface": "settings",
+  "poses": [
+    "duo-unfolded-landscape",
+    "ipad-landscape"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "2b237fed",
+  "fix_ref": "888441c7",
+  "fix_confidence": "high",
+  "expected": "Going deeper in a split shifts the trailing pane to the leading column and opens the next page trailing; flag a push that replaces the pane in place."
+}

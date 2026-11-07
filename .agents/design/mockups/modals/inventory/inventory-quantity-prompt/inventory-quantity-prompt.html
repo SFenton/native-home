@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quantity prompt · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  /* From the page the alert is always dark (the shell forces dark); from the editor sheet it follows the sheet's appearance. */
+  function fromPage(ctx, alert, o) { return V.page(ctx, Object.assign({ space: 'all-food', noFab: true, overlay: V.alertOverlay(ctx, alert) }, o)); }
+  function fromEditor(ctx, key, alert) {
+    var m = V.models[key];
+    return Mock.sheet(ctx, Object.assign(V.editorSheet(ctx, m, {}), { presenter: V.page(ctx, { space: 'all-food', noFab: true }), alert: alert }));
+  }
+  var SHOP = { title: 'Add Whole Milk to Groceries', message: 'Quantity of Whole Milk to add to the grocery cart.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Add' }] };
+  var DEL = { title: 'Delete Eggs', message: 'Choose how many Eggs to delete. Enter a number from 1 to 12.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Delete' }] };
+
+  Mock.mount({
+    kind: 'modal', id: 'inventory-quantity-prompt', title: 'Quantity prompt (alert with a field)', area: 'inventory', status: 'shipped',
+    summary: 'The web\'s window.prompt as a native alert with a decimal-pad field prefilled 1: Add to Groceries (the cart button or the leading swipe), Delete how many (a card with more than one in stock), and the editor\'s Delete and Prepared Food prompts. Cancel and one confirm button.',
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift (InventoryPrompt)', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift (EditorPrompt)', 'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift (parseQuantity)'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md'],
+    patterns: ['floating-actions'],
+    hig: ['Alerts', 'Text fields', 'Keyboards', 'Dynamic Type'],
+    entities: ['todo.demo_todo_1', 'evershelf.add_to_shopping', 'evershelf.delete_inventory'],
+    kitComponents: ['Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Add to Groceries', note: 'title "Add <item> to Groceries", the message names the item, the field holds 1; Cancel (bold) and Add. An empty or below-1 entry does nothing, as on the web', render: function (c) { return fromPage(c, V.alertField(SHOP)); } },
+      'delete': { title: 'Delete how many (Eggs, 12 in stock)', note: 'only when more than one is stocked; a single unit uses the confirmation dialog instead. The message states the range', render: function (c) { return fromPage(c, V.alertField(DEL)); } },
+      'invalid': { title: 'After an invalid delete entry', note: 'the alert is gone and the row shows "Enter a number from 1 to 12." in red under its text (the entry above the stock count or below 1)', render: function (c) { return V.page(c, { space: 'all-food', errors: { eggs: 'Enter a number from 1 to 12.' }, noFab: true }); } },
+      'editor-delete': { title: 'From the editor: Delete how many', note: 'the editor\'s Delete row asks the same way above one; the title carries the batch ("Delete Black Beans expiring Jun 20, 2027"). Over a sheet the alert follows the sheet\'s appearance', render: function (c) { return fromEditor(c, 'beans', V.alertField({ title: 'Delete Black Beans expiring Jun 20, 2027', message: 'Choose how many to delete. Enter a number from 1 to 2.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Delete' }] })); } },
+      'editor-prepared': { title: 'From the editor: mark as Prepared', note: 'flipping Prepared Food above one asks how many to change; the button is Change. "Unmark … as Prepared" when it is already prepared', render: function (c) { return fromEditor(c, 'soup', V.alertField({ title: 'Unmark Chicken Soup prepared as Prepared', message: 'Choose how many to change. Enter a number from 1 to 2.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Change' }] })); } },
+      'long-text': { title: 'Long item name', note: 'the title wraps over several lines; the alert grows', render: function (c) { return fromPage(c, V.alertField({ title: 'Add Organic Extra Virgin Cold-Pressed Olive Oil With Basil and Roasted Garlic to Groceries', message: 'Quantity of Organic Extra Virgin Cold-Pressed Olive Oil With Basil and Roasted Garlic to add to the grocery cart.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Add' }] })); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the buttons stack (three or more, or long titles, stack); the field and message scale with the text', render: function (c) { return fromPage(c, V.alertField(Object.assign({}, SHOP, { buttons: [{ title: 'Add' }, { title: 'Cancel', role: 'cancel' }] }))); } },
+      'closed': { title: 'Before the prompt', render: function (c) { return V.page(c, { space: 'all-food', noFab: true }); } },
+    },
+    motion: [
+      { id: 'alert-in', what: 'The alert appears over the dimmed page', token: 'system alert: scale and fade; never decorated (motion.md section 2)', state: 'closed',
+        source: 'SwiftUI .alert; motion.md section 4.4 and 8', reduce: 'the system cross-fades it',
+        play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'); var o = V.alertOverlay(c, V.alertField(SHOP)); page.appendChild(o); var a = o.querySelector('.ui-alert');
+          var rm = Mock.settings.reduceMotion; if (a.animate) a.animate(rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'scale(1.12)' }, { opacity: 1, transform: 'none' }], { duration: 250, easing: 'ease-out' });
+          return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
+    ],
+    transitions: [
+      { from: 'Cart button or leading swipe', to: 'Add to Groceries alert', kind: 'fade', state: 'closed', note: 'Opens the alert (field prefilled 1); Add calls evershelf.add_to_shopping and todo.add_item, and the cart shows an arc then a check for 3 s.',
+        play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'), o = V.alertOverlay(c, V.alertField(SHOP)); page.appendChild(o); return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1300); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
+      { from: 'Delete (swipe or editor)', to: 'Delete how many alert', kind: 'fade', state: 'closed', note: 'More than one in stock: this alert. An out-of-range entry closes it and puts a red line on the row.',
+        play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'), o = V.alertOverlay(c, V.alertField(DEL)); page.appendChild(o); return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1300); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The alert is modal: title, message, the text field (labelled "Quantity", identifier inventory.prompt.field, decimal pad), Cancel, then the confirm button. Focus lands on the title; the field takes the keyboard.' },
+      { rule: 'Field', note: 'A numeric text field with the placeholder "Quantity" and the value 1 selected; the message states the valid range so VoiceOver users know it before typing.' },
+      { rule: 'Buttons', note: 'Cancel has the cancel role (bold, always present); the confirm button is a plain default button ("Add", "Delete", "Change"), not role destructive: the destructive cue is the control that opened it.' },
+      { rule: 'Errors', note: 'An invalid delete number is not shown in the alert; it appears on the row ("Enter a number from 1 to 12.") and is read as part of the row\'s label. An invalid shopping quantity does nothing.' },
+      { rule: 'Dynamic Type', note: 'The system alert scales with the text and stacks its buttons at accessibility sizes; the alert scrolls if taller than the window.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Alerts: include a text field only when input resolves the situation', verdict: 'pass', note: 'A quantity is needed to add or delete, so the alert carries a decimal-pad field prefilled with 1 (InventoryScreen.swift:92-100, InventoryPresentation.ask).', by: 'apple-hig skill' },
+        { rule: 'Alerts: validate and say what is wrong', verdict: 'pass', note: 'InventoryPresentation.submit reports an invalid shopping or delete quantity on the row; an alert cannot stay open.', by: 'apple-hig skill' },
+        { rule: 'Alerts: button titles', verdict: 'pass', note: 'One specific verb (Add, Delete, Change) and Cancel; the alert is purely transactional, not informational.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Alert with TextField', verdict: 'pass', note: 'alert(_:isPresented:presenting:) with a TextField action and a message closure is the iOS 16 form (InventoryScreen.swift:92-100); the Boolean is a hand-made Binding(get:set:) (:229-231), the one low-severity wart.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading, error, offline: none. The alert has no async state of its own; a failed add or delete shows on the cart (arc then back to the cart) or as a row error. The medium, large and fitted detents do not apply: an alert has no detents.',
+      'The alert from the page is always dark (the shell forces dark); from the editor sheet it follows the sheet\'s appearance (the default prompt states use the page, editor-* states follow the Sheet appearance control).',
+      'The decimal pad is drawn as a stand-in on compact widths only; on iPad and the unfolded Duo the keyboard is the user\'s (floating or hardware), so none is drawn.',
+      'Docs and code: spec.md asked whether to replace window.prompt with native alerts (assumed yes); native does. The delete alert says "Choose how many Eggs to delete. Enter a number from 1 to 12." (the web says "Choose how many {title} to delete from the {location}."), so the location is dropped.',
+      'The button on the editor Prepared prompt reads Change; the title carries the batch qualifier ("Mark Chicken Soup prepared as Prepared" reads oddly when the qualifier already says prepared: this follows the code, qualifier appended to the item title).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: shopping, delete, editor delete and prepared prompts, invalid entry, AX5.' }],
+  });
+})();
+</script></body></html>

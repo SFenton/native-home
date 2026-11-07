@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fan timer controls · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../modals/room-devices/_devices-vacuums.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv;
+  function sw(label, build, o) { return Object.assign({ label: label, surface: 'sheet', w: 380, build: build }, o); }
+  function bar(f) { return h('div.dv-bar', { 'aria-hidden': 'true' }, h('i', { style: { width: Math.round(f * 100) + '%' } })); }
+
+  Mock.mount({
+    kind: 'component', id: 'fan-timer-controls', title: 'Fan timer controls (segments, length, progress)', area: 'room-devices', status: 'shipped', frame: false,
+    summary: 'The bathroom fan sheet\'s timer: a six-length segmented row and one button when idle; an orange countdown, a thin progress bar and Clear Timer while it runs. Sheet surface, light and dark.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift', 'apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKDeviceKit.swift', 'apple/Sources/HassCore/RoomDevices/BathroomFanController.swift'],
+    spec: ['.agents/patterns/room-device-sheets.md'],
+    patterns: ['room-device-sheets'],
+    hig: ['Segmented controls', 'Buttons', 'Progress indicators', 'Color', 'Dynamic Type'],
+    entities: ['timer.demo_bathroom_1_fan_1', 'input_boolean.demo_bathroom_1_fan_2', 'input_datetime.demo_bathroom_1_fan_1'],
+    kitComponents: ['PrimaryButton', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'picker': { title: 'Idle picker', render: function (ctx) { return dv.swatches(ctx, [sw('30m chosen (default)', function () { return dv.timerPicker({ minutes: 30 }); }), sw('1h chosen', function () { return dv.timerPicker({ minutes: 60 }); }), sw('5m chosen', function () { return dv.timerPicker({ minutes: 5 }); }),
+        sw('Disabled (fan or helper unavailable)', function () { return dv.timerPicker({ minutes: 30, disabled: true }); }, { note: 'the button is 40% opacity; the segments stay tappable (a choice is local until Set)' })], ['sheet']); } },
+      'length-row': { title: 'Length row alone', render: function (ctx) { return dv.swatches(ctx, [sw('Chosen = the label\'s opposite', function () { return dv.lengthRow(15); }, { note: 'white with black text in a dark sheet; near-black with white text in a light one (Surface.selectedSegment)' })], ['sheet']); } },
+      'running': { title: 'Running timer', render: function (ctx) { return dv.swatches(ctx, [sw('Just started (30:00, bar full)', function () { return dv.timerRunning({ text: '30:00', fraction: 1, spoken: '30 minutes' }); }), sw('12:34 left of 15 minutes', function () { return dv.timerRunning({ text: '12:34', fraction: .84 }); }),
+        sw('Last seconds (00:08)', function () { return dv.timerRunning({ text: '00:08', fraction: .01, spoken: '8 seconds' }); }), sw('Over an hour (01:00:00)', function () { return dv.timerRunning({ text: '01:00:00', fraction: 1, spoken: '1 hour' }); }, { note: 'the 40 pt countdown shrinks to half before it truncates' }),
+        sw('Countdown unavailable', function () { return dv.timerRunning({ text: 'Unavailable', fraction: 0, spoken: 'Unavailable', disabled: true }); }, { note: 'no deadline: the text reads Unavailable, the bar is empty, Clear Timer is disabled while the helper is unavailable' })], ['sheet']); } },
+      'parts': { title: 'Parts', render: function (ctx) { return dv.swatches(ctx, [sw('Progress bar 0%, 50%, 100% (6 pt)', function () { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px', '--ink-timer': 'var(--ink-timer)' } }, bar(0), bar(.5), bar(1)); }),
+        sw('Clear Timer (tinted capsule)', function () { return dv.tintedCapsule('Clear Timer'); }, { note: 'red label on a 16% red tint in a dark sheet, 8% in a light one' }), sw('Clear Timer, disabled', function () { return dv.tintedCapsule('Clear Timer', { disabled: true }); })], ['sheet']); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the length row becomes a three-column grid; the countdown scales to 1.76x', render: function (ctx) { return dv.swatches(ctx, [sw('Picker', function () { return dv.timerPicker({ minutes: 30 }); }), sw('Running', function () { return dv.timerRunning({ text: '12:34', fraction: .84 }); })], ['sheet']); } },
+    },
+
+    motion: [
+      { id: 'countdown-tick', what: 'The countdown and bar step once a second', token: 'TimelineView(.periodic, by: 1), no animation modifier', state: 'running',
+        source: 'FanTimerRunning.swift, FanTimerProgressBar.swift', reduce: 'unchanged (nothing animates)',
+        play: function (stage) {
+          var t = stage.querySelectorAll('.dv-run .t')[1], b = stage.querySelectorAll('.dv-run .dv-bar i')[1], left = 754, i = 0;
+          return new Promise(function (res) { var id = setInterval(function () { left--; var m = Math.floor(left / 60), s = left % 60; t.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; b.style.width = (left / 900 * 100).toFixed(1) + '%'; if (++i >= 4) { clearInterval(id); res(); } }, 1000); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Length row', note: 'A group (identifier fan.timerLength) of six buttons named in words ("5 minutes" ... "1 hour"), visible text 5m ... 1h; the chosen one has the selected trait; 44 pt tall each (fan.timerOption.N).' },
+      { rule: 'Start button', note: 'The one primary button reads its result: "Turn Off in 30 Minutes" / "Turn Off in 1 Hour" (fan.setTimer); the footnote explains the timer also turns the fan on.' },
+      { rule: 'Running', note: 'The countdown is one element: label "Timer", value spoken as a duration ("4 minutes 5 seconds"); the glyph and the bar are hidden from VoiceOver; Clear Timer is a destructive button.' },
+      { rule: 'Dynamic Type', note: 'The row wraps to three columns at AX sizes; the countdown is @ScaledMetric(.largeTitle) and shrinks (minimumScaleFactor .5) before it truncates.' },
+      { rule: 'Contrast', note: 'Chosen segment against the cell at least 3:1; timer orange #FF9F0A on #1C1C1E and #B35C00 on #F2F2F7; the red label on its tint at least 4.5:1.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Segmented controls: about 5 on iPhone', verdict: 'departure', note: 'Six lengths in one custom row (owner 2026-10-17); wraps to three columns at AX sizes instead of becoming a menu.' },
+        { rule: 'Buttons: 44 pt targets', verdict: 'pass', note: 'Segments 44 pt, primary button 50 pt, Clear Timer 44 pt.' },
+        { rule: 'Accessibility: value changes announce', verdict: 'pass', note: 'FanTimerRunning speaks BathroomFanController.spokenCountdown (whole minutes, then "less than a minute"), so the value changes at most once a minute.' },
+        { rule: 'Progress indicators: determinate bar', verdict: 'pass', note: 'Thin bar empties with the time left and is hidden from VoiceOver.' },
+        { rule: 'Color: contrast', verdict: 'pass', note: 'Timer orange #FF9F0A on dark and #B35C00 on light; chosen segment at least 3:1; red on its tint 4.5:1.' },
+      ],
+      swiftui: [
+        { rule: 'Design: ScaledMetric', verdict: 'pass', note: 'The 40 pt countdown and glyph scale from .largeTitle.' },
+        { rule: 'Views: segments as Buttons with traits', verdict: 'pass', note: 'FanTimerSegment is a Button with .isSelected and a spoken duration label.' },
+        { rule: 'Design: minimumScaleFactor on live numbers', verdict: 'pass', note: 'FanTimerRunning drops the shrink and stacks the glyph over the countdown at accessibility sizes; FanTimerSegment drops its 0.7 shrink (the row already wraps to three columns).' },
+        { rule: 'Motion: Reduce Motion', verdict: 'pass', note: 'Nothing animates.' },
+      ],
+    },
+
+    notes: [
+      'Components only: the page behind the sheet is not shown here; the bathroom-fan-sheet mockup shows the controls in context.',
+      'There is no component for the length row in the kit: dv.lengthRow, dv.timerRunning and dv.tintedCapsule live in modals/room-devices/_devices-vacuums.js (promote to kit).',
+      'The unavailable countdown reads "Unavailable" in the timer orange; the code shows it in the same orange as a running timer.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: picker lengths, running states, parts, AX5.' }],
+  });
+})();
+</script></body></html>

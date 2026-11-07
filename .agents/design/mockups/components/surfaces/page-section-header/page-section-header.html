@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Page section header · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function sw(c, surface, cap, node, w) { return V.swatch(surface, cap, node, c, w || 380); }
+  function formHead(t) { return h('p.ui-formhead', { role: 'heading', 'aria-level': '2' }, t); }
+  function sheetHeader(title, subtitle) { return h('div', { style: { textAlign: 'center', padding: '8px 0 12px' } }, h('div', { style: { font: '600 var(--fs-hd)/1.2 var(--font)' }, role: 'heading', 'aria-level': '1' }, title), subtitle ? h('div', { style: { fontSize: 'var(--fs-foot)', color: 'var(--ink-sheet-2)' } }, subtitle) : null); }
+
+  var base = Mock.componentConfig('PageSectionHeader', { surfaces: ['page'] });
+  var cfg = Object.assign(base, {
+    states: base.states,
+    id: 'page-section-header', title: 'Page section header and form header/footer', area: 'design', status: 'shipped',
+    summary: 'Three headers: PageSectionHeader (20 Bold over tiles and lists on the wallpaper, with an optional detail such as "Page 1 of 5" or a count), FormHeader and FormFooter (secondary ink over a Form section in a sheet; the system measured 3.3:1) and the iOS 26 sheet subtitle under a sheet\'s title (the count a sheet keeps).',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetSubtitle.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKFoodHubViewController.swift'],
+    spec: ['.agents/design/direction-g.md'],
+    patterns: ['modal-sheet', 'floating-actions'],
+    hig: ['Typography', 'Lists and tables', 'Sheets', 'Navigation bars (subtitles)', 'Dynamic Type', 'Accessibility'],
+    kitComponents: ['PageSectionHeader', 'FormField', 'FilterSheet', 'HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    a11y: [
+      { rule: 'Heading trait', note: 'Every header has the heading trait, so VoiceOver\'s headings rotor jumps between sections; the detail is part of the same row and read after the title ("Expiring Soon, 2").' },
+      { rule: 'Detail contrast', note: 'On the wallpaper the detail uses white at 85% (Ink.onDarkSecondary): 72% label ink measured 4.1:1 there ("Page 1 of 5", 2026-10-15). In a sheet the header uses the readable secondary ink.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the detail moves under the title (VStack) so neither is squeezed; titles wrap (fixedSize vertical); the 20 pt Bold scales as title3.' },
+      { rule: 'Form headers', note: 'FormHeader and FormFooter replace Section("…") text, whose system secondary measured about 3.3:1 on the grouped ground (WCAG 1.4.3); the heading trait stays.' },
+      { rule: 'Sheet subtitle', note: 'On iOS 26 the system draws it under the centred title and follows the bar\'s Dynamic Type; earlier systems show the title alone, so a figure a sheet shows nowhere else must stay in the title or the form (Add Item puts its step line in the form).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Typography: a clear hierarchy that scales with Dynamic Type", verdict: "pass", note: "The page header is title3 bold (20 pt Bold at the default size, direction-g.md Type), scales with text and wraps; at accessibility sizes the detail drops under the title through AnyLayout(VStackLayout) so neither is squeezed.", by: "apple-hig skill" },
+        { rule: "Color: 4.5:1 for text on the wallpaper and on sheet grounds", verdict: "pass", note: "The detail on the wallpaper is white at 85% (Ink.onDarkSecondary) because 72% label ink measured 4.1:1 ('Page 1 of 5', 2026-10-15); in a sheet FormHeader and FormFooter take Ink.secondary instead of the system's about 3.3:1 secondary.", by: "apple-hig skill" },
+        { rule: "Accessibility: headings are exposed so people can navigate by them", verdict: "pass", note: "PageSectionHeader and FormHeader carry .isHeader, so the headings rotor jumps between sections; the detail is a sibling Text read after the title.", by: "apple-hig skill" },
+        { rule: "Navigation bars: a subtitle that carries information must not depend on one OS version", verdict: "pass", note: "The vacuum report keeps its figure as the first list line when SheetSubtitle.isShown is false (VacuumMapPanel); the other figure-carrying callers already branch on SheetSubtitle.isShown.", by: "apple-hig skill" },
+        { rule: "Lists and tables: section headers follow one convention", verdict: "pass", note: "FilterSection draws its header with PageSectionHeader.titleFont; bare FormHeader in a Form keeps the system header (decided 2026-10-24, titles-and-headers).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Design: use hierarchical styles over manual opacity where contrast allows", verdict: "departure", note: "Headers use Ink.secondary and Ink.onDarkSecondary (plain colours at fixed opacity) because .secondary picks up vibrancy and measured 3.1 to 4.1:1 on the wallpaper and grouped ground (HassTokens.swift Ink comment).", by: "swiftui-pro skill" },
+        { rule: "Design: bold() instead of fontWeight; Label and LabeledContent for icon or title-value pairs", verdict: "pass", note: ".font(.title3.bold()) is used, not fontWeight(.bold); the headers are text-only so no Label is needed.", by: "swiftui-pro skill" },
+        { rule: "Resizability: switch arrangement with AnyLayout at accessibility sizes", verdict: "pass", note: "AnyLayout(VStackLayout or HStackLayout) keeps the same children and identity while the layout flips, so no state resets; ViewThatFits would also work but guesses the point of overflow.", by: "swiftui-pro skill" },
+        { rule: "API: navigationSubtitle behind #available", verdict: "pass", note: "The call sits behind #available(iOS 26.0, *) with the older systems falling through to self, and an empty subtitle draws nothing.", by: "swiftui-pro skill" },
+        { rule: "Localization: text through resources", verdict: "pass", note: "Not applicable until the app is localized: headers take runtime strings from controllers; no string catalog ships.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'PageSectionHeader consumers: Vacuums ("Robot Vacuums", "Auto-Clean"), Food hub sections (detail "Page 1 of 5"), Chores ("Quick Links" and each list title), Inventory sections (detail is the count), Vacation sections, the Summary sheet\'s "Expired Food". RoomSectionHeader is the Home alias.',
+      'FormHeader and FormFooter are drawn at the kit\'s 15 Semibold and 13 pt (direction G); the app draws a bare FormHeader at the system header size: unconfirmed, not measured here.',
+      'No motion: headers never animate; a count that changes (a row is deleted) is a content change.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: header, detail, form header and footer, sheet subtitle, in context, AX5.' }],
+  });
+  cfg.states['in-context'] = { title: 'On pages: Food, Vacuums, Inventory, Chores', note: 'the heading sits 8 to 12 pt over its content; the next section starts 24 pt below', render: function (c) {
+    function sec(t, d, kid) { return h('div.ui-section', K.PageSectionHeader({ title: t, detail: d }), kid); }
+    var tiles = K.TileGrid({ min: 150, max: 2, items: [{ title: 'Kitchen Light', subtitle: 'Off', symbol: 'lightbulb', family: 'lights' }, { title: 'Office Light', subtitle: 'Off', symbol: 'lightbulb', family: 'lights' }] });
+    var cards = K.TileGrid({ min: 150, max: 2, items: [{ title: 'Pasta Primavera', subtitle: '30 min', symbol: 'fork.knife', family: 'recipes' }, { title: 'Chicken Soup', subtitle: '45 min', symbol: 'fork.knife', family: 'recipes' }] });
+    var inv = V.list([V.row(V.cards('all-food')[0]), V.row(V.cards('all-food')[1])]);
+    return h('div', V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Food & Recipes', back: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [sec('Suggested Recipes', 'Page 1 of 5', cards), sec('Inventory', null, tiles)] }); }, .6, 'Food hub: detail "Page 1 of 5"'),
+      V.embed('iphone', c, function (cx) { return V.page(cx, { space: 'all-food', sort: 'expiry' }); }, .6, 'Inventory sorted by expiry: detail is the count'),
+      V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Vacuums', section: 'home', badge: 3, choresBadge: 2, body: [sec('Robot Vacuums', null, tiles), sec('Auto-Clean', null, inv)] }); }, .6, 'Vacuums: plain headers over a grid and a list')); } };
+  cfg.states['form-and-subtitle'] = { title: 'In a sheet: FormHeader, FormFooter and the sheet subtitle', render: function (c) {
+    var form = h('section', formHead('What item are you adding?'), h('div.ui-form', h('div.ui-field', h('span.lb', 'Name'), h('span.va', 'Greek Yogurt')), h('div.ui-field', h('span.lb', 'Prepared Food'), K.Toggle({ on: false, label: 'Prepared Food' }))), h('p.ui-formfoot', 'Prepared Food marks an item that does not need classification.'));
+    var filt = h('section', formHead('Sort By'), h('div.ui-optlist', [{ title: 'Title', selected: true }, { title: 'Expiration Date' }].map(function (o) { return K.FilterOptionRow(o); })));
+    return V.grid([sw(c, 'sheet', 'Form section: header over rows, footer under them', form, 380), sw(c, 'sheet', 'FilterSection: header 15 Semibold in the readable secondary ink', filt, 380),
+      sw(c, 'sheet', 'sheet title with the iOS 26 subtitle ("2 of 10 Items")', sheetHeader('Filter Inventory', '2 of 10 Items'), 380), sw(c, 'sheet', 'before iOS 26: the title alone (the count is lost; Add Item moves its step line into the form)', sheetHeader('Filter Inventory', null), 380)]); } };
+  cfg.states['ax5'] = { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'the detail moves under the title; long titles wrap', render: function (c) { return V.grid([sw(c, 'page', 'AX5 header with detail', K.PageSectionHeader({ title: 'Suggested Recipes', detail: 'Page 1 of 5' }), 560), sw(c, 'sheet', 'AX5 form header and footer', h('section', formHead('Where should it be stored?'), h('p.ui-formfoot', 'Suggested for this product by Pantryhub.')), 560)]); } };
+  cfg.motion = [];
+  Mock.mount(cfg);
+})();
+</script></body></html>

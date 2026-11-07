@@ -1,0 +1,16 @@
+{
+  "id": "dd-settings-horizontal-scroll",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Settings can be scrolled horizontally?",
+  "surface": "settings",
+  "poses": [
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "2da231e8",
+  "fix_ref": "2f31df9e",
+  "fix_confidence": "medium",
+  "expected": "Page content never exceeds its width: the scroll view's content width equals its frame width; flag horizontal scrolling."
+}

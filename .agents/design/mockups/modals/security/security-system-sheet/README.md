@@ -1,0 +1,9 @@
+# Security System sheet (modal)
+> **What:** the sheet the Security chip opens: one card with the alarm mode and the four mode buttons, fitted height, light and dark. **Read when:** you change `SecuritySystemSheet`, `AlarmPanel`, the Disarm alert, or need a reference for a sheet built with the kit.
+- Mockup: [security-system-sheet.html](security-system-sheet.html) · status shipped · reviewed 2026-10-23 (extended by the security-climate batch)
+- Source: `apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift`, `SecurityScreen.swift`, `HomeScreen.swift`, `HassDesign/HassModal.swift`, `SheetFit.swift`, `HassCore/Config/SecurityConfig.swift` · Spec: `.agents/pages/security/spec.md`, `ios.md` · Patterns: modal-sheet, header-edge-fade, motion
+- States covered: default (armed home), loading (arming), error (unavailable), offline (over an offline Home), disarmed, armed away, armed night, triggered, optimistic (tapped mode), from-security, hidden (redacted), disarm-confirm alert, medium, large, fitted, closed (the presenter), ax5; dark and light side by side in the States gallery
+- Motion: mode fill and badge cross-fade (0.6 s), triggered wash, optimistic roll-back. Transitions: present, dismiss, Disarm alert
+- Devices: iPhone, Duo folded, Duo unfolded landscape, iPad portrait and landscape (page sheet, 704 pt)
+- Open notes: no true loading state (reads the store); on the unfolded Duo the centred sheet crosses the hinge band (placement is the system's, check on a device); the same body is Quick Links > Security System
+- Fitted height, 2026-10-28 (shipped in #185; owner option B of `proposals/sheet-bottom-gap`): like every fitted sheet it no longer has a second 34 pt band under the card (20 pt on an iPad). Not probed separately; the rule is the one the camera viewer and Quick Links were measured with.

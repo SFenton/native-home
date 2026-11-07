@@ -1,0 +1,17 @@
+{
+  "id": "dd-quick-links-rooms-resize",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Quick Links -> Rooms doesn't animate resize modal (and presumably vice-versa)",
+  "surface": "quick-links-rooms",
+  "poses": [
+    "iphone",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "89668a82",
+  "fix_ref": "c5e8b074",
+  "fix_confidence": "medium",
+  "expected": "Pushing Rooms inside the Quick Links sheet animates the sheet to the new height, and back on pop; flag an instant jump."
+}

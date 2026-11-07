@@ -1,0 +1,30 @@
+{
+  "Simulator Target Bundle": "com.sfenton.home",
+  "aps": {
+    "timestamp": 1792249200,
+    "event": "update",
+    "content-state": {
+      "v": 2,
+      "phase": "problem",
+      "controls": [],
+      "value": {
+        "kind": "text",
+        "text": "Attention"
+      },
+      "problem": {
+        "severity": "warning",
+        "code": "power.low_battery",
+        "icon": "battery",
+        "problem": "Battery low",
+        "message": "Heading to the dock. It finishes Kitchen after charging."
+      },
+      "url": "/sfenton-react-dash/home?path=vacuums"
+    },
+    "relevance-score": 90.0,
+    "stale-date": 1792251000
+  },
+  "fenton": {
+    "v": 2,
+    "tag": "job.vacuum.main_floor"
+  }
+}

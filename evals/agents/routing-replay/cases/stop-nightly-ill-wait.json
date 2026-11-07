@@ -1,0 +1,37 @@
+{
+  "id": "stop-nightly-ill-wait",
+  "source": "2026-11-02: nightly run 1 of 3 ended its turn with \"I'll wait for the build\"; headless, the Stop hook blocks.",
+  "recorded": "2026-11-02",
+  "kind": "stop_hook",
+  "input": {
+    "items": [
+      {
+        "type": "user",
+        "message": {
+          "role": "user",
+          "content": "go"
+        }
+      },
+      {
+        "type": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Build started. I'll wait for it to finish."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "blocked": true,
+    "reason": {
+      "has": [
+        "last message says you are waiting"
+      ]
+    }
+  }
+}

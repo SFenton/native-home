@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Session expired, welcome back · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, LL = Mock.LL, A = Mock.anim;
+  var REVIEW_DATE = '2026-10-23';
+  function root(stage) { return stage.querySelector('.ll-root'); }
+  var W = { mode: 'welcome', username: 'alex', name: 'Alex Morgan', first: 'Alex' };
+  function S(o) { return function (ctx) { return LL.screen(ctx, Object.assign({}, o)); }; }
+  /* Home goes at once (MainTabView.transition(.identity)); the sign-in layer fades in over the window's own background (drawn black). */
+  function crossing(ctx, p) {
+    var s = LL.screen(ctx, Object.assign({ intro: 175 }, W, { password: 0 })); s.style.opacity = p;
+    return [h('div', { style: { position: 'absolute', inset: 0, background: '#000' }, 'aria-hidden': 'true' }), s];
+  }
+
+  Mock.mount({
+    kind: 'flow', id: 'session-expired-welcome-back', title: 'Session expired, welcome back sign-in', area: 'shell', status: 'shipped',
+    summary: 'Home Assistant refuses the saved sign-in (the connection status becomes rejected): the app ends the session, keeps who it was, and the sign-in layer fades in as Welcome back, Alex with only the password to type. Use a Different Account goes to the plain form.',
+    source: ['apple/Sources/HassUI/App/AppSession.swift', 'apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/Features/Login/LoginModel.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift'],
+    spec: ['.agents/platforms/apple/auth.md', '.agents/design/motion.md'],
+    patterns: ['motion'],
+    hig: ['Entering data', 'Feedback', 'Motion'],
+    kitComponents: ['PrimaryButton', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'rejected-token': { title: '1 · Signed in, Home on screen', note: 'the connection reports .rejected (a refused refresh token); AppSession.connectionStatusChanged calls sessionExpired(). A rejected token is not a "down" state, so no arc or chip shows first', render: function (ctx) { return LL.homePage(ctx); } },
+      'crossing': { title: '2 · The layers swap (0.17 s in)', note: 'Home leaves at once (identity transition); the sign-in layer fades in over the window background, half way here', render: function (ctx) { return crossing(ctx, .5); } },
+      'welcome-back': { title: '3 · Welcome back, Alex', note: 'the person\'s monogram, the account read-only, only the password to type; the intro has played again (see notes)', render: S(Object.assign({ password: 0, focus: 'password' }, W)) },
+      'welcome-back-intro': { title: '3 · Welcome back, intro at 0.6 s', note: 'sessionExpired() calls signOut(), which resets MotionPolicy, so the signed-out screen plays its intro again', render: S(Object.assign({ password: 0, intro: 600 }, W)) },
+      'welcome-back-working': { title: '3 · Signing back in', render: S(Object.assign({ password: 9, working: true }, W)) },
+      'error': { title: 'Wrong password', note: 'same inline error and red hairline as a fresh sign-in; the password clears and takes focus', render: S(Object.assign({ password: 0, focus: 'password', failure: { kind: 'wrong' } }, W)) },
+      'offline': { title: 'Server unreachable while signing back in', note: 'the failure card above the account and password; Try Again; nothing is forgotten', render: S(Object.assign({ password: 9, failure: { kind: 'unreachable' } }, W)) },
+      'use-different-account': { title: '4 · Use a Different Account', note: 'forgetExpiredAccount() clears the remembered username and name: the plain form, username empty', render: S({ username: '', password: 0 }) },
+      'plain-form': { title: 'No remembered account: the plain form', note: 'a phone signed in before the app remembered a username, or one that signed out deliberately: the username is kept to fill the form (a deliberate sign-out is not a welcome back)', render: S({ username: 'alex', password: 0, focus: 'password' }) },
+      'long-text': { title: 'Long first name', render: S({ mode: 'welcome', first: 'Bartholomew-Alexander', name: 'Bartholomew-Alexander Fenton-Whitaker', username: 'bartholomew.alexander.fenton-whitaker@example.com', password: 6 }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: S(Object.assign({ password: 9 }, W)) },
+    },
+
+    motion: [
+      { id: 'layers-cross-fade', what: 'The root swaps from the signed-in shell to the sign-in layer', token: 'crossFade 0.35 s easeInOut (animation(MotionTokens.crossFade, value: session.isSignedIn)); the shell\'s transition is .identity, the layer\'s .opacity', state: 'rejected-token',
+        source: 'HassUI/App/RootView.swift shell; AppSession.swift sessionExpired', reduce: 'unchanged: it is already a cross-fade',
+        play: function (stage) {
+          var ctx = Mock.current, home = stage.querySelector('.ui-page'), s = LL.screen(ctx, Object.assign({ intro: 0, password: 0, focus: 'password' }, W)); s.style.opacity = 0;
+          return Mock.sleep(500).then(function () {
+            home.style.display = 'none'; stage.style.background = '#000'; stage.insertBefore(s, stage.querySelector('.k-status'));
+            return Promise.all([A.fade(s, { ms: 350 }), LL.run(Mock.settings.reduceMotion ? 350 : LL.INTRO_MS, function (t) { LL.introAt(s, t, Mock.settings.reduceMotion); })]);
+          }).then(function () { home.style.display = ''; });
+        } },
+      { id: 'intro-again', what: 'The sign-in intro plays again on the welcome back screen', token: 'glow 0.5 s, header 0.4 s from 0.46 s (+10 pt), form 0.45 s from 0.71 s (+28 pt); Reduce Motion: 0.35 s cross-fade', state: 'welcome-back-intro',
+        source: 'HassUI/App/AppSession.swift signOut (motion.reset); LoginView.swift playIntro', reduce: 'one 0.35 s cross-fade',
+        note: 'A side effect of sessionExpired() reusing signOut(); not stated in direction-g or motion.md, which describe the intro for a cold launch and for a sign-out.',
+        play: function (stage) { return LL.run(LL.INTRO_MS, function (t) { LL.introAt(root(stage), t, Mock.settings.reduceMotion); }); } },
+      { id: 'failure-appears', what: 'A failure card or inline error appears', token: 'quick easeOut 0.2 s', state: 'welcome-back', source: 'LoginView.swift animation(quick, value: model.failure)', reduce: 'unchanged (opacity)',
+        play: function (stage) {
+          var r = root(stage), form = r.querySelector('.ll-form'), mod = r.querySelector('.ll-module'), btn = r.querySelector('.ll-btn');
+          var err = LL.inlineError(LL.copy.wrong), line = h('span.ll-redline', { 'aria-hidden': 'true' }); mod.querySelectorAll('.ll-row')[1].appendChild(line); form.insertBefore(err, btn);
+          return Promise.all([A.fade(err, { ms: A.ms.quick() }), A.fade(line, { ms: A.ms.quick() })]).then(function () { return Mock.sleep(1000); });
+        } },
+      { id: 'different-account', what: 'Use a Different Account: the monogram becomes the mark, the title and the username row change', token: 'quick easeOut 0.2 s (withAnimation(MotionTokens.quick))', state: 'welcome-back', source: 'LoginView.swift useDifferentAccount', reduce: 'unchanged (opacity)',
+        play: function (stage) {
+          var r = root(stage), ctx = Mock.current, parts = [].slice.call(r.querySelectorAll('.ll-titlewrap, .ll-module, .ll-link'));
+          return Promise.all(parts.map(function (e) { return A.fade(e, { from: 1, to: 0, ms: A.ms.quick() }); })).then(function () {
+            var fresh = LL.screen(ctx, { username: '', password: 0 }); fresh.style.opacity = 0; r.replaceWith(fresh);
+            return A.fade(fresh, { ms: A.ms.quick() });
+          });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Home (token rejected)', to: 'Welcome back', kind: 'fade', state: 'rejected-token', note: 'The shell goes at once and the sign-in layer fades in over 0.35 s, intro playing. No alert, no banner: the screen itself says what happened ("Your sign-in ended").',
+        play: function (stage) {
+          var ctx = Mock.current, home = stage.querySelector('.ui-page'), s = LL.screen(ctx, Object.assign({ intro: 0, password: 0 }, W)); s.style.opacity = 0;
+          return Mock.sleep(500).then(function () { home.style.display = 'none'; stage.style.background = '#000'; stage.insertBefore(s, stage.querySelector('.k-status')); return Promise.all([A.fade(s, { ms: 350 }), LL.run(LL.INTRO_MS, function (t) { LL.introAt(s, t, Mock.settings.reduceMotion); })]); }).then(function () { home.style.display = ''; });
+        } },
+      { from: 'Welcome back', to: 'Home', kind: 'overlay', state: 'welcome-back-working', note: 'A successful sign-in is not a first sign-in this session: motion.hasPlayed(.signInArrival) is false after the reset, so the arrival plays again (flows/sign-in-to-home-arrival).',
+        play: function (stage) { var ctx = Mock.current, home = LL.homePage(ctx); stage.insertBefore(home, root(stage)); LL.arrivalAt(stage, 0, Mock.settings.reduceMotion); return Mock.sleep(60).then(function () { return LL.run(LL.ARRIVAL_MS, function (t) { LL.arrivalAt(stage, t, Mock.settings.reduceMotion); }); }); } },
+    ],
+
+    a11y: [
+      { rule: 'No alert for the expiry', note: 'There is no alert or banner: the layer is named "Sign in", the title says "Welcome back, Alex" and the line says "Your sign-in ended. Enter your password to pick up where you left off." VoiceOver\'s focus lands on the new layer because the old tree is gone.' },
+      { rule: 'Read-only account', note: 'One element, "Username, alex"; only the password is editable, with focus moved to it after a refusal.' },
+      { rule: 'Use a Different Account', note: 'A 44 pt text button (#8AC4FF, 4.5:1 or better over the glow); disabled while a request is out.' },
+      { rule: 'Announcements', note: 'Failures post an announcement as on a fresh sign-in.' },
+      { rule: 'Reduce Motion', note: 'The root already cross-fades (0.35 s); the intro becomes one cross-fade.' },
+      { rule: 'Privacy', note: 'Only the last username and the person\'s name are remembered (UserDefaults, not secrets); never the password.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Entering data: do not ask again for what you know', verdict: 'pass', note: 'The username is shown read-only and only the password is asked (LoginFields.swift:55-64).', by: 'apple-hig skill' },
+        { rule: 'Feedback: say why the person was signed out', verdict: 'pass', note: '"Welcome back, <first name>" and "Your sign-in ended. Enter your password to pick up where you left off." (LoginCopy.swift:21,24).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: announce a change of screen', verdict: 'pass', note: 'AppSession.sessionExpired posts Announcer.screenChanged(announcing: expiredAnnouncement), "Your session ended. Welcome back, X. Sign in again to continue."', by: 'apple-hig skill' },
+        { rule: 'Launching: do not repeat a long intro', verdict: 'pass', note: 'Decided 2026-10-24 (navigation-flows 3 A): AppSession.sessionExpired() marks the intro played after signOut(), so the welcome back screen skips it while the sign-in arrival still plays.', by: 'apple-hig skill' },
+        { rule: 'Layout: no flash of the wrong colour between layers', verdict: 'pass', note: 'Fixed from code, not captured: RootView puts SignInStyle.base behind both layers so the instant removal of the tabs reveals the sign-in ground. A live rejection cannot be driven in a journey.', by: 'apple-hig skill' },
+        { rule: 'Buttons: 44 pt text button for the secondary action', verdict: 'pass', note: 'Use a Different Account has minHeight HassTokens.minTarget and a lifted link colour (LoginView.swift:130-139; SignInStyle.swift:14).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Declare transitions where views are inserted and removed', verdict: 'pass', note: '.transition(.identity) on the shell, .transition(.opacity) on the sign-in layer, animation on isSignedIn (RootView.swift:140, 155, 158).', by: 'swiftui-pro skill' },
+        { rule: 'Hide a covered layer from assistive tech', verdict: 'pass', note: '.accessibilityHidden(session.isSignedIn) and allowsHitTesting on the sign-in layer (RootView.swift:153-154).', by: 'swiftui-pro skill' },
+        { rule: 'Do the same reset once', verdict: 'pass', note: 'Fixed on claude/hig-motion-1ec6c6: AppSession.signOut resets once. Was: AppSession.signOut calls motion.reset() twice (AppSession.swift:185 and 188). Low hygiene.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'refreshing, loading, empty: not applicable (the layer has no data to load). offline is the failure card state above.',
+      'Intro replay on expiry: sessionExpired() calls signOut(), whose motion.reset() clears the intro and the arrival, so the welcome back screen plays the full intro and a successful sign-in plays the arrival again. Intended for a deliberate sign-out (the comment says so); for an expiry it is incidental and undocumented.',
+      'Window background during the swap: drawn black; RootView sets none and the first-frame ground is gone after launch. Not confirmed on a device.',
+      'Debug builds: FENTON_EXPIRED_ACCOUNT=<username>|<name> starts as if a session had just ended; FENTON_SIGNIN_STUB=wrong|slow|success|unreachable|failed|twostep answers the flow.',
+      'The unfolded Duo landscape column crosses the hinge as on the sign-in page (see pages/login notes).',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: rejected token, the swap, welcome back (finished and intro), working, errors, use a different account, plain form, AX5.' }],
+  });
+})();
+</script></body></html>

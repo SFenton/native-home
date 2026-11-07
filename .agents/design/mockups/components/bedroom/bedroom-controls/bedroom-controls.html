@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bedroom controls · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../modals/bedroom/_bedroom-motion.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom, CM = Mock.cm;
+  var SHEET = ['sheet'];
+  function rows(ctx) {
+    var m = B.bed('left');
+    return CM.grid(ctx, [
+      { label: 'BedroomRow: icon, title, one line, chevron', node: B.row({ symbol: 'moon.stars', title: 'Tonight', lines: ['Change the current Pod target only.'], trailing: B.chev() }) },
+      { label: 'Alarm group: two lines, switch', node: B.row({ symbol: 'alarm', title: 'Monday Alarm', lines: ['6:30 AM', 'Enabled'], trailing: B.toggle(true, 'Monday 6:30 AM alarm') }) },
+      { label: 'Muted (disabled alarm)', node: B.row({ symbol: 'alarm.waves.left.and.right', title: 'Saturday Alarms', lines: ['8:00 AM, 9:15 AM', '1 Enabled • 1 Disabled'], muted: true, trailing: B.chev() }) },
+      { label: 'Stage row with steppers (44 pt circles)', node: B.row({ symbol: 'bed.double', title: 'Bedtime', lines: ['+4 · Now'], button: false, trailing: [B.stepper('Lower Bedtime', 'minus'), B.stepper('Raise Bedtime', 'plus')] }) },
+      { label: 'Steppers at the limit (disabled)', node: B.row({ symbol: 'sun.max', title: 'Dawn', lines: ['+10'], button: false, trailing: [B.stepper('Lower Dawn', 'minus'), B.stepper('Raise Dawn', 'plus', true)] }) },
+      { label: 'Wake alarm: schedule and ramp', node: B.row({ symbol: 'alarm', title: 'Weekday Wake', lines: ['Weekdays · 6:45 AM', 'Ramp: 30 min'], trailing: B.toggle(true, 'Weekday Wake') }) },
+    ], { surfaces: SHEET, min: 320 });
+  }
+  function choice(ctx) {
+    return CM.grid(ctx, [
+      { label: 'ChoiceGrid: ramp (30 Minutes selected)', node: B.choiceGrid('Light Ramp Duration', B.RAMPS.map(B.durationLabel), '30 Minutes'), min: 330 },
+      { label: 'ChoiceGrid: hold (10 Minutes selected)', node: B.choiceGrid('Post-Wake Hold Time', B.HOLDS.map(B.durationLabel), '10 Minutes'), min: 330 },
+      { label: 'ChoiceGrid disabled (read only or old integration)', node: B.choiceGrid('Post-Wake Hold Time', B.HOLDS.map(B.durationLabel), '10 Minutes', { disabled: true }), min: 330 },
+    ], { surfaces: SHEET, min: 330 });
+  }
+  function weekday(ctx) {
+    return CM.grid(ctx, [
+      { label: 'WeekdayPicker: Monday to Friday', node: B.weekdayPicker('Days', B.WORKDAYS), min: 330 },
+      { label: 'Every day', node: B.weekdayPicker('Days', B.DAYS), min: 330 },
+      { label: 'None chosen (Save disables)', node: B.weekdayPicker('Days', []), min: 330 },
+    ], { surfaces: SHEET, min: 330 });
+  }
+  function fields(ctx) {
+    return CM.grid(ctx, [
+      { label: 'ClockTimeField (compact time picker)', node: B.clockField('Time', '6:30 AM'), min: 300 },
+      { label: 'Date row (one-time alarm)', node: h('div.bd-clock', h('span', 'Alarm Date'), h('span.bd-pill', 'Oct 24, 2026')), min: 300 },
+      { label: 'Text field (grows to three lines)', node: B.textField('Alarm Name', 'Weekday Wake'), min: 300 },
+      { label: 'Switch row (min 44 pt)', node: B.tglRow('Use Room Wake Lights', true), min: 300 },
+      { label: 'Section header (heading trait)', node: B.section('Sleep Schedule', 'Recurring levels for each stage of the night.'), min: 300 },
+      { label: 'Status reading card', node: B.statusCard({ title: 'Heart Rate', symbol: 'heart', value: '58 bpm' }), min: 300 },
+    ], { surfaces: SHEET, min: 300 });
+  }
+  Mock.mount({
+    kind: 'component', id: 'bedroom-controls', title: 'Bedroom rows, choice grid, weekday picker, clock field', area: 'bedroom', status: 'shipped', frame: false, alwaysDark: false,
+    summary: 'The small controls the wake-light and bed sheets share (BedroomComponents.swift): BedroomRow, BedroomSectionHeader, ChoiceGrid, WeekdayPicker, ClockTimeField and the once-a-second clock. They live on the sheet\'s cell colour and follow the system appearance.',
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedSideSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift', 'apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassDesign/Motion/StateColorTransition.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/dynamic-grid.md', '.agents/design/motion-components.md'],
+    patterns: ['bedroom-devices', 'dynamic-grid', 'schedule-date-fields', 'motion'],
+    hig: ['Lists', 'Pickers', 'Toggles', 'Color', 'Dynamic Type'],
+    entities: [],
+    kitComponents: ['TileGrid', 'Toggle', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'BedroomRow', render: rows },
+      'choice-grid': { title: 'ChoiceGrid', render: choice },
+      'weekday-picker': { title: 'WeekdayPicker', note: 'seven chips with a 52 pt minimum: five columns then two on an iPhone sheet, all seven on iPad', render: weekday },
+      'fields': { title: 'Clock, date, text, switch, header, reading', render: fields },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'grids collapse to one column, rows wrap', render: function (ctx) { return CM.grid(ctx, [{ label: 'Row + choice + weekday', node: h('div.bd-stack', B.row({ symbol: 'alarm', title: 'Weekday Wake', lines: ['Weekdays · 6:45 AM', 'Ramp: 30 min'], trailing: B.toggle(true, 'Weekday Wake') }), B.choiceGrid('Light Ramp Duration', ['None', '5 Minutes', '10 Minutes'], '5 Minutes'), B.weekdayPicker('Days', B.WORKDAYS), B.notice({ tone: 'warning', message: 'Select at least one day.' })), min: 340 }], { surfaces: SHEET, min: 340 }); } },
+    },
+    motion: [
+      { id: 'choice-fill', what: 'A ChoiceGrid tile is chosen: its rounded square fills with the action blue and the label turns white; the old one empties', token: 'state 0.6 s easeInOut, fill and ink together (0.2 s reduced)', state: 'choice-grid',
+        source: 'BedroomComponents.swift ChoiceGrid: stateColorTransition("ChoiceGrid", value: selected), stateForeground', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var f = stage.querySelector('.bd-field'), c = f.querySelectorAll('.bd-choice'), cur = f.querySelector('.bd-choice.sel'), to = c[1]; to.classList.add('sel'); cur.classList.remove('sel'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { cur.classList.add('sel'); to.classList.remove('sel'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+      { id: 'weekday-fill', what: 'A weekday capsule is chosen or cleared: the capsule fills (or empties) and the label changes ink', token: 'state 0.6 s easeInOut, fill and ink together (0.2 s reduced)', state: 'weekday-picker',
+        source: 'BedroomComponents.swift WeekdayPicker: stateColorTransition("WeekdayPicker", value: selected)', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var c = stage.querySelectorAll('.bd-field')[0].querySelectorAll('.bd-choice.cap'); var sat = c[6], mon = c[1]; sat.classList.add('sel'); mon.classList.remove('sel'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { sat.classList.remove('sel'); mon.classList.add('sel'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+      { id: 'switch', what: 'The row switch flips', token: 'knob standard 0.3 s; track state 0.6 s (0.2 s reduced)', state: 'default',
+        source: 'system Toggle inside BedroomRow', reduce: 'track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-toggle'); t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'BedroomRow', note: 'A row combines its text; the glyph is hidden. A wrapping Button or an explicit combined element adds the trait; the trailing switch keeps its own label ("Monday 6:30 AM alarm"). Minimum height 44 pt.' },
+      { rule: 'BedroomSectionHeader', note: 'The title carries the heading trait; the detail is plain text read after it.' },
+      { rule: 'ChoiceGrid and WeekdayPicker', note: 'Containers named by their titles; each tile or chip is a button with the selected trait and a full label ("Monday", "30 Minutes"); 44 pt minimum; the whole grid dims (not hides) when disabled.' },
+      { rule: 'ClockTimeField', note: 'The system compact DatePicker: label, current value, and the wheel on activation; minimum height 44 pt.' },
+      { rule: 'Dynamic Type', note: 'Minimum cell widths (120 pt and 52 pt) are ScaledMetrics, so grids reduce columns as text grows (AX5: one column); rows wrap.' },
+      { rule: 'Contrast', note: 'Selected tiles #0071E3 with white 4.6:1; the shared notices (InlineAlert, InfoBox) are tinted washes with primary ink on top, so text keeps 4.5:1 in both appearances.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Lists: rows have a 44 pt minimum and a clear trailing control', verdict: 'pass', note: 'BedroomRow minHeight is minTarget with padding.' },
+        { rule: 'Color: severity not by colour alone', verdict: 'pass', note: 'BedroomNotice was removed; the sheets use InlineAlert, which reads Warning: or Error: before the message, and InfoBox, whose title says Away or Home.' },
+        { rule: 'Color: selection not by colour alone', verdict: 'pass', note: 'WeekdayPicker draws a checkmark and bold label on a selected chip (showsCheckmark, labelWeight, BedroomComponents.swift); ChoiceGrid also always draws a checkmark on the selected tile (selectionShowsCheckmark), one rule for both.' },
+        { rule: 'Pickers: system pickers', verdict: 'pass', note: 'ClockTimeField is the system compact DatePicker; one-of-few choices use SegmentedChoice.' },
+        { rule: 'Typography: Dynamic Type reflow', verdict: 'pass', note: 'Cell minimums (120 pt, 52 pt) are ScaledMetrics so grids reduce columns; text wraps.' },
+        { rule: 'Color: contrast of tint washes', verdict: 'pass', note: 'Washes are 14% of the tone with primary ink on top.' },
+      ],
+      swiftui: [
+        { rule: 'Reuse shared components', verdict: 'pass', note: 'Fixed: BedroomNotice was removed; the Bedroom sheets use InlineAlert (warning, error) and InfoBox (success, neutral).' },
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Already fixed: ClockTimeField reads @Environment(\\.calendar) and binds through a private computed `date` built with Binding.projected(read:write:) (BedroomComponents.swift); the HH:MM string keeps String(format:) for ASCII digits by design.' },
+        { rule: 'Design: system colours that adapt', verdict: 'pass', note: 'Fixed: BedroomNotice was removed; InlineAlert and InfoBox draw the tones from Ink tokens that adapt.' },
+        { rule: 'Accessibility: Button with image and text', verdict: 'pass', note: 'Buttons carry text labels; the glyphs in rows are hidden.' },
+        { rule: 'Motion: colour with the app token', verdict: 'pass', note: 'ChoiceGrid and WeekdayPicker use stateColorTransition and stateForeground.' },
+      ],
+    },
+    notes: [
+      'Notices: the Bedroom sheets use the shared InlineAlert and InfoBox (BedroomNotice was removed 2026-10-24).',
+      'ChoiceGrid is a single-choice tile grid; the segmented SegmentedChoice is the shared control for 2 to 4 options (Alarm Type). A third control for choosing one of five or six durations is not in the pattern docs.',
+      'The weekday chips are named by their three-letter label ("Mon"), spoken as the full day.',
+      'Component mockup: no device frame; Device sets the size class; Sheet appearance switches the swatches between light and dark.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

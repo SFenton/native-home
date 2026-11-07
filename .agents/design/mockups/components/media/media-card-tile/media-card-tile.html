@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media tile · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function card(c, o) { return MLC.mediaTile(c, o); }
+  var LEAD_ON = { t: 'Living Room Streaming Box', sym: 'tv', offSym: 'tv.slash', lead: true, on: true, sub: 'Playing', transport: true, vol: 40 };
+  var LEAD_PAUSED = Object.assign({}, LEAD_ON, { sub: 'Paused', paused: true });
+  var LEAD_NOVOL = Object.assign({}, LEAD_ON, { vol: null });
+  var LEAD_IDLE = { t: 'Living Room Streaming Box', sym: 'tv', offSym: 'tv.slash', lead: true, on: true, sub: 'On' };
+  var LEAD_OFF = { t: 'Living Room Streaming Box', sym: 'tv', offSym: 'tv.slash', lead: true, on: false, sub: 'Off' };
+  var LEAD_UN = { t: 'Living Room Streaming Box', sym: 'tv', offSym: 'tv.slash', lead: true, on: false, sub: 'Unavailable', un: true };
+  var SRC_OFF = { t: 'Game Console', sym: 'gamecontroller', on: false, sub: null, source: true }, SRC_ON = { t: 'Game Console', sym: 'gamecontroller', on: true, sub: 'On the TV', source: true }, SRC_UN = { t: 'Game Console', sym: 'gamecontroller', on: false, un: true, sub: 'Unavailable', source: true };
+  var SW_OFF = { t: 'Handheld Console', sym: 'gamecontroller', on: false, sub: 'Off', script: true }, SW_FLIGHT = Object.assign({}, SW_OFF, { sub: 'Turning On…', flight: true }), SW_ON = Object.assign({}, SW_OFF, { on: true, sub: 'On' }), SW_UN = Object.assign({}, SW_OFF, { sub: 'Unavailable', un: true });
+  function both(ctx, label, node, o) { return MLC.grid([MLC.sw(ctx, 'page', label, node(), Object.assign({ flex: '1 1 260px' }, o)), MLC.sw(ctx, 'sheet', label, node(), { flex: '1 1 260px' })]); }
+  var GROUPS = function (items) { return function (ctx) { return MLC.stack(items.map(function (x) { return both(ctx, x[0], x[1], x[2]); })); }; };
+
+  Mock.mount({
+    kind: 'component', id: 'media-card-tile', title: 'Media tile', area: 'media', status: 'shipped', frame: false,
+    summary: 'The Media page\'s tile: a GlassTile in the media family (dark with a pink glyph while off, filled media pink while on). A lead tile opens its remote (chevron) and carries its actions: Power beside the chevron when off, the transport and volume below while playing (built on claude/action-nav-tiles); a source or script tile runs its command in place.',
+    source: ['apple/Sources/HassUI/Features/Media/MediaScreen.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassCore/Config/MediaPageConfig.swift'],
+    spec: ['.agents/patterns/entity-tile.md', '.agents/pages/media/ios.md', '.agents/design/direction-g.md'],
+    patterns: ['entity-tile'], hig: ['Buttons', 'Color'], entities: ['media_player.demo_living_room_2', 'sensor.demo_media_room_2'],
+    kitComponents: ['GlassTile'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'lead': { title: 'Lead tile (opens a remote): off, on, playing, unavailable', note: 'navigation tile, glyph . text . chevron; never disabled, even unavailable. Off, on and standby show Power beside the chevron (left of its 20 pt reserve); playing shows the transport below (see Transport). Unavailable dims the Power disc in place.', render: GROUPS([['off', function () { return card(LEAD_OFF); }], ['on (Power only)', function () { return card(LEAD_IDLE); }], ['playing', function () { return card(LEAD_ON); }], ['unavailable', function () { return card(LEAD_UN); }]]) },
+      'transport': { title: 'Transport: playing, paused, volume hidden', note: 'prev, play/pause (always emphasised), next below the text, centred; the volume slider under them only while the volume entity is on and supports volume_set (Receiver and Beam are excepted, as the remote sheet does). Prev and next call media_player.media_previous_track / media_next_track. Full-row tile only: the action set changing animates the height (motion.md section 6).', render: GROUPS([['playing + volume', function () { return card(LEAD_ON); }], ['paused', function () { return card(LEAD_PAUSED); }], ['playing, no volume', function () { return card(LEAD_NOVOL); }]]) },
+      'source': { title: 'Source tile (selection face): not chosen, chosen, unavailable', note: 'rollout R, selection-tiles option C: chosen fills in media pink with a white check disc and reads "On the TV" (VoiceOver: selected, disc "Turn Off TV"); not chosen is dark with an empty ring and no state line; unavailable dims', render: GROUPS([['not chosen', function () { return card(SRC_OFF); }], ['chosen', function () { return card(SRC_ON); }], ['unavailable', function () { return card(SRC_UN); }]]) },
+      'script': { title: 'Switch / streaming box (action tile, tracked power disc): off, turning on, on, unavailable', note: 'rollout R: text . disc, no leading glyph; the disc shows the arc spinner while the script runs and until input_boolean.demo_input_boolean_*_active reports, then animates to the filled power glyph; a failure animates back and reads "Didn\'t Respond"', render: GROUPS([['off', function () { return card(SW_OFF); }], ['turning on', function () { return card(SW_FLIGHT); }], ['on', function () { return card(SW_ON); }], ['unavailable', function () { return card(SW_UN); }]]) },
+      'pending': { title: 'First sign-in (pending)', note: 'the name at once, a soft pulsing bar where the state goes', render: GROUPS([['lead', function () { return card(LEAD_ON, { pending: true }); }], ['source', function () { return card(SRC_OFF, { pending: true }); }]]) },
+      'wraps': { title: 'Long title wraps', render: GROUPS([['two lines', function () { return card({ t: 'Handheld Console OLED Docked Console', sym: 'gamecontroller', on: true, sub: 'On' }); }]]) },
+      'ax5': { title: 'Accessibility 5: stacked tile', override: { ts: 'ax5' }, render: GROUPS([['lead', function () { return card(LEAD_ON); }], ['source', function () { return card(SRC_OFF); }]]) },
+    },
+    motion: [
+      { id: 'tile-fill', what: 'A tile turns on: the media pink fills, the glyph goes white, the subtitle reads On', token: 'state 0.6 s ease-in-out, colour only', source: 'GlassTileFace stateColorTransition; motion-components.md GlassTile', reduce: 'cross-fade at 0.2 s', state: 'source',
+        play: function (stage) { var t = stage.querySelector('.ui-tile'); return MLC.flip(t, true, 'On').then(function () { return Mock.sleep(500); }).then(function () { return MLC.flip(t, false, 'Off'); }); } },
+    ],
+    a11y: [
+      { rule: 'Name and value', note: 'A button named by the device with its state as the value; the lead tile\'s chevron marks that it opens a remote. Source tiles are switches (On or Off); unavailable ones are dimmed and cannot be activated.' },
+      { rule: 'Not colour alone', note: 'The pink fill is joined by the words On, Off, Playing or Unavailable and the glyph (television-off while off).' },
+      { rule: 'Targets and type', note: '72 pt minimum height; wraps at large sizes; AX sizes stack the glyph over the text.' },
+      { rule: 'Contrast', note: 'White on the pink fill is 4.5:1 or better (media fill #A03A61); the off glyph is the family colour mixed toward grey on the dark module.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Buttons: a tile that opens something shows a disclosure', verdict: 'pass', note: 'Only lead tiles carry the chevron (kind .navigate, GlassTile.swift:121); source and script tiles run in place with no chevron.' },
+        { by: 'apple-hig skill', rule: 'Color: never the only differentiator', verdict: 'pass', note: 'On, Off, Playing and Unavailable are words in the subtitle and the spoken value (GlassTile.swift:173-181); the television-off glyph swaps when the room is off.' },
+        { by: 'apple-hig skill', rule: 'Accessibility: disabled controls keep readable text', verdict: 'pass', note: 'GlassTileButtonStyle never fades the label; only the glyph and border mute while unavailable (GlassTile.swift:186-194).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: choices read as selected, not as switches', verdict: 'pass', note: 'MediaCardTile.look maps ControlSemantics.selection to GlassTile.Kind.selection(isSelected:), so source tiles read as selected, not as switches.' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Button, not onTapGesture; label and value on the control', verdict: 'pass', note: 'One Button with accessibilityLabel and accessibilityValue, disabled both inside and outside the combined element (GlassTile.swift:135-145).' },
+      ],
+    },
+    notes: ['Page and sheet swatches are shown because the same tile style is used on room pages (module) and in sheets (cell); on the Media page itself it is always on the dark page.', 'The kit GlassTile draws the face; the card data (titles, glyphs, labels) comes from MediaPageConfig (components/media/_media-lights-cameras.js).'],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }, { date: '2026-10-27', note: 'Action tiles (claude/action-nav-tiles): lead tiles gain the Power disc and, while playing, transport and volume below.' }],
+  });
+})();
+</script></body></html>

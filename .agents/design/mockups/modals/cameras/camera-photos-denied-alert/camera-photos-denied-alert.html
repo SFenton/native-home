@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Allow Photos Access · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  /* .alert("Allow Photos Access", isPresented: $showsPhotosDenied) on CameraControls: Open Settings, Cancel (role cancel), over the always-dark viewer. */
+  function over(ctx, o) { return MLC.viewerSheet(ctx, Object.assign({ alert: true, snap: 'idle' }, o)); }
+
+  Mock.mount({
+    kind: 'modal', id: 'camera-photos-denied-alert', title: 'Allow Photos Access (alert)', area: 'cameras', status: 'shipped', alwaysDark: true,
+    summary: 'The system alert the camera viewer shows when Snapshot is tapped and Photos access is denied: where snapshots go and a button to Settings. Always dark here because the viewer under it is.',
+    source: ['apple/Sources/HassUI/Features/Cameras/CameraViewer.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/camera-streams.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Alerts', 'Privacy', 'Dark Mode'],
+    entities: [],
+    kitComponents: ['Alert', 'HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Photos access denied', note: 'Cancel stays (also on iPad, where an action sheet would be a popover); Open Settings goes to the app\'s page in Settings', render: function (c) { return over(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the system stacks the two buttons and scrolls long text', render: function (c) { return over(c); } },
+    },
+
+    motion: [],
+    transitions: [
+      { from: 'Snapshot tap (Photos denied)', to: 'Allow Photos Access alert', kind: 'fade', state: 'default', note: 'The system alert scales and fades in over the viewer (never decorated). The snapshot button returns to idle first, so nothing is left pulsing underneath.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'), sc = host.querySelector('.ui-alert-scrim'); return Mock.anim.fade(sc, { ms: 200 }).then(function () { return Mock.sleep(1200); }); } },
+      { from: 'Open Settings', to: 'Settings app', kind: 'cut', state: 'default', note: 'UIApplication.openSettingsURLString leaves the app; the viewer stays presented behind.', play: function () { return Mock.sleep(300); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The alert is modal: title "Allow Photos Access", the message, then the buttons; VoiceOver does not reach the viewer behind until it closes.' },
+      { rule: 'Buttons', note: 'Open Settings and Cancel; Cancel carries role .cancel so it is bold and always present; the system sizes them at 44 pt or more and stacks them at AX sizes.' },
+      { rule: 'Copy', note: 'Says where snapshots go and what to do ("Snapshots are saved to your photo library. Allow S+H to add photos in Settings.").' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Alerts: clear title, short message, Cancel available', verdict: 'pass', note: '"Allow Photos Access", one sentence of cause and fix, Cancel with role .cancel (CameraViewer.swift:142-151).' },
+        { by: 'apple-hig skill', rule: 'Privacy: ask in context, explain, send people to Settings', verdict: 'pass', note: 'requestAuthorization(for: .addOnly) runs when Snapshot is tapped (line 303); a denial shows the alert with Open Settings.' },
+        { by: 'apple-hig skill', rule: 'Writing: use the app name people know', verdict: 'pass', note: 'CameraViewer alert message says "Allow S+H to add photos in Settings."' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'api.md: openURL instead of UIApplication', verdict: 'pass', note: 'Open Settings calls @Environment(\.openURL) (CameraViewer.swift:146)' },
+      ],
+    },
+
+    notes: [
+      'loading, error, offline, medium, large, fitted: a one-line alert has none of these. It shows the moment Snapshot meets a denied permission; offline does not matter (the save is local) and the sheet height is the viewer\'s (see camera-viewer).',
+      'Copy discrepancy: the message reads "Allow S+H to add photos in Settings"; the app is S+H to people (AGENTS.md invariants). Draw the code; fix the copy.',
+      'Presenter: the camera viewer (in-flight fitted target) over Home. The alert is system UI, drawn dark because the viewer is.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: the alert over the dark viewer on every device, plus AX5.' }],
+  });
+})();
+</script></body></html>

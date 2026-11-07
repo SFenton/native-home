@@ -1,0 +1,20 @@
+{
+  "id": "research.evidence",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Screen: does a section state a citable fact, rule or example for the question?",
+  "instructions": "Does {item} state a concrete fact, rule, number, example or step that a reader could cite as evidence for the answer to this question: \"{question}\"",
+  "per_item": true,
+  "item_state": true,
+  "state": {
+    "max_chars": 24000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.55,
+    "no_below": 0.45
+  },
+  "output": "tools/jev_sections.py --screen: labels a returned section `evidence` (above 0.55) in the research note's evidence list.",
+  "evidence": "unmeasured"
+}

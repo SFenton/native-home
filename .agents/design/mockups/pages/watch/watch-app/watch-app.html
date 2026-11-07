@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apple Watch app (stub) · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/live-activity/_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  /** The one screen the stub draws: a house, "S+H", "Coming soon", centred in a VStack with 8 pt spacing. */
+  function screen(ctx) {
+    var t1 = LA.size(ctx, 't1'), hd = LA.size(ctx, 'hd'), ft = LA.size(ctx, 'foot'), k = ctx.ts === 'ax5' ? 1 : (ctx.ts === 'xxxl' ? 1.1 : 1);
+    var title = Math.round(28 * t1 / 28 * .85), head = Math.round(16 * hd / 17), foot = Math.round(13 * ft / 13 * .95);
+    return LA.watch(h('div', { role: 'group', 'aria-label': 'S and H, Coming soon', style: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '0 12px', textAlign: 'center', background: '#000', color: '#fff', fontFamily: 'var(--font)', overflow: 'hidden' } },
+      h('span', { 'aria-hidden': 'true', style: { width: title + 'px', height: title + 'px', display: 'block', color: '#fff' }, html: Mock.icon('house.fill', { fill: true, size: title + 'px' }) }),
+      h('span', { style: { fontSize: head + 'px', fontWeight: 600, lineHeight: 1.15 } }, 'S+H'),
+      h('span', { style: { fontSize: foot + 'px', color: 'rgba(235,235,245,.6)', lineHeight: 1.2 } }, 'Coming soon')));
+  }
+  function fig(ctx) {
+    return h('div', { style: { display: 'flex', gap: '28px', flexWrap: 'wrap', alignItems: 'flex-start', padding: '8px 4px' } },
+      LA.fig(screen(ctx), 'FentonHomeWatchApp', 'WindowGroup { VStack(spacing: 8) }'),
+      h('div', { style: { maxWidth: '420px', font: '13px/1.5 var(--font)', color: 'var(--k-fg2)' } },
+        h('p', { style: { margin: '0 0 8px' } }, h('b', { style: { color: 'var(--k-fg)' } }, 'What is drawn: '), 'an Image(systemName: "house.fill") at .title, the app name (AppBranding.displayName, .headline) and "Coming soon" (.footnote, secondary). Nothing else: no navigation, no data, no connection.'),
+        h('p', { style: { margin: '0 0 8px' } }, h('b', { style: { color: 'var(--k-fg)' } }, 'VoiceOver: '), 'the name is labelled "S and H" (AppBranding.spokenName) because "S+H" would be read "S plus H"; "Coming soon" is read as it is.'),
+        h('p', { style: { margin: 0 } }, h('b', { style: { color: 'var(--k-fg)' } }, 'Planned, not built (do not draw): '), 'security state, open contacts count, lights on count and a short list of favourite toggles (design/apple/watchos.md). Whether the watch connects directly or relays through the phone is an open decision (TODO(orchestrator)).')));
+  }
+
+  Mock.mount({
+    kind: 'page', id: 'watch-app', title: 'Apple Watch app (stub)', area: 'watch', status: 'shipped', frame: false,
+    summary: 'A placeholder: the Watch app target exists and draws a house, "S+H" and "Coming soon". The planned scope is not built.',
+    source: ['apple/Apps/watchOS/FentonHomeWatchApp.swift', 'apple/Sources/HassCore/Spotlight/AppBranding.swift'],
+    spec: ['.agents/design/apple/watchos.md', '.agents/platforms/apple/app-name.md'],
+    patterns: [],
+    hig: ['Designing for watchOS', 'Typography'],
+    devices: ['watch'],
+    states: {
+      'default': { title: 'Coming soon', note: 'Apple Watch 46 mm (208 × 248 pt); the stub does not vary by size', render: fig },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'text styles scale on the Watch; verify on a device', render: fig },
+    },
+    motion: [],
+    transitions: [],
+    a11y: [
+      { rule: 'Name', note: 'The title is labelled "S and H" (AppBranding.spokenName, matching CFBundleSpokenName); "S+H" visually.' },
+      { rule: 'Reading order', note: 'The house glyph first: Image(systemName:) has no label or hidden trait, so VoiceOver reads the symbol\'s own name ("house"), then "S and H", then "Coming soon".' },
+      { rule: 'Dynamic Type', note: 'All text uses text styles (.title glyph, .headline, .footnote), so it scales; the content has no scroll view, so at the largest sizes it can clip on a small Watch. Not run on a device.' },
+      { rule: 'Contrast', note: 'White and system secondary on black.' },
+      { rule: 'Targets', note: 'Nothing is interactive.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'watchOS: a Watch app does one useful thing at a glance', verdict: 'pass', note: 'Decided (owner pick, 2026-10-23): no empty Watch app ships; FentonHomeWatch is not embedded in FentonHome or its scheme (project.yml comment) until the watchos.md scope is built.' },
+        { by: 'apple-hig skill', rule: 'Typography: text styles', verdict: 'pass', note: '.title, .headline and .footnote (lines 10-14) scale with Dynamic Type.' },
+        { by: 'apple-hig skill', rule: 'Accessibility: names with symbols are spoken correctly', verdict: 'pass', note: 'accessibilityLabel(AppBranding.spokenName) reads "S and H" instead of "S plus H" (line 13).' },
+        { by: 'apple-hig skill', rule: 'Accessibility: decorative images are hidden', verdict: 'pass', note: 'FentonHomeWatchApp: the house symbol is the label icon of a ContentUnavailableView and is accessibilityHidden.' },
+        { by: 'apple-hig skill', rule: 'Layout: content fits at the largest sizes', verdict: 'pass', note: 'FentonHomeWatchApp wraps its three lines in a ScrollView.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'design.md: ContentUnavailableView for missing content', verdict: 'pass', note: 'FentonHomeWatchApp placeholder is ContentUnavailableView with the S+H label and "Coming soon" description.' },
+        { by: 'swiftui-pro skill', rule: 'design.md: no hard-coded stack spacing', verdict: 'pass', note: 'Fixed: the watch stub imports HassDesign (project.yml dependency added) and uses HassTokens.Spacing.s (FentonHomeWatchApp.swift).' },
+        { by: 'swiftui-pro skill', rule: 'design.md: semantic styles', verdict: 'pass', note: 'foregroundStyle(.secondary); no fixed colours.' },
+      ],
+    },
+    notes: [
+      'Corrected 2026-10-23 (skill review): the Reading order entry said the house glyph is decorative; FentonHomeWatchApp.swift never hides it, so VoiceOver reads its name first (recorded as a fix).',
+      'Status: placeholder. Do not invent screens: the only drawn UI is the stub above. The Watch Smart Stack tile for a Live Activity is not an app screen (it is the iOS activity\'s .small family, see live-activity-small).',
+      'States: default and ax5 are drawn. There is no loading, refreshing, empty, error, offline, reconnecting or long-text state, because the stub has no connection, data or user content. The Watch app does not connect (design/apple/watchos.md).',
+      'Device: this mockup registers an Apple Watch 46 mm device (208 × 248 pt) at runtime in components/live-activity/_widgets-liveactivity.js; the kit has none. Promote to kit: the Watch device and frame. The Watch face and bezel here are stand-ins; no other Watch size is shown.',
+      'Sizes of the three text elements are approximations of watchOS .title, .headline and .footnote.',
+      'It shares HassCore (AppBranding); sign-in, entities and the tokens the plan names are not used yet.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: the stub only.' }],
+  });
+})();
+</script></body></html>

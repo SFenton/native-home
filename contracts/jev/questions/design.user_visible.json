@@ -1,0 +1,30 @@
+{
+  "id": "design.user_visible",
+  "version": 2,
+  "type": "noul",
+  "mode": "active",
+  "description": "Would a person using the app see a different design after this change? Hint line at intake and at the post-research gate; may only raise an autonomy level.",
+  "instructions": "Would a person using the app see a different design after this change: something drawn differently, worded differently, animated differently, or a different way to get around? A change only to when or how often an existing screen state appears (delays, timeouts, retries, refresh intervals, how long something stays connected or cached, thresholds), to a default value, to a wrong value the design already shows, or to speed, battery or reliability is not a different design.",
+  "criteria": {
+    "true": "Something is drawn, worded, animated or navigated differently: layout, sizes, colours, icons, order, a new or removed control or setting, on-screen or VoiceOver wording, animation, haptics, gestures, navigation or sheets",
+    "false": "The same screens with the same look, words and motion; only timing, frequency, thresholds, defaults, corrected values, performance, reliability, tests, tooling or docs change"
+  },
+  "state": {
+    "fields": [
+      "title",
+      "body",
+      "files"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.6,
+    "no_below": 0.3
+  },
+  "output": "Hint line at intake and at the post-research gate. p>=0.6 says the change is visible: send it to the Designer; it may raise L0 to L1. A no or the band says nothing, and a no never skips the Designer or lowers a level.",
+  "evidence": "contracts/jev/derived/measurements.md, decision-gate corpus 2026-11-02: plan AUC 0.994 (p>=0.6 correct 50/50), request AUC 0.925 (p>=0.6 correct 44/45)",
+  "target": {
+    "precision": 0.95
+  }
+}

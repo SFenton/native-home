@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Presence Auto-Reset · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function sheet(o) { return function (ctx) { return HF.autoResetSheet(ctx, o); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'auto-reset-sheet', title: 'Presence Auto-Reset sheet', area: 'settings', status: 'shipped',
+    summary: 'Opened by "Open Presence-Based Auto-Reset Configuration" on Admin Controls. A fitted page sheet holding one toggle tile per room (14): when a room\'s toggle is on, presence lighting there is re-enabled each morning if the room cleared during the night. The sheet title is the short "Presence Auto-Reset" (the opener and the section above keep the full name).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdSettings.swift', 'apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/HouseholdSettingsConfig.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift'],
+    spec: ['.agents/pages/settings/household.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'entity-tile', 'dynamic-grid', 'header-edge-fade', 'motion'],
+    hig: ['Sheets', 'Toggles', 'Toolbars', 'Dynamic Type', 'Dark Mode'],
+    entities: ['switch.<room>_auto_re_enable_presence_lighting (14 rooms)'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Fitted, six rooms on', note: 'tiles are interactive here (tap one)', render: sheet({}) },
+      'error': { title: 'Every toggle unavailable', note: 'all 14 read Unavailable, dimmed and inert', render: sheet({ unavailable: true }) },
+      'offline': { title: 'Over an offline Admin page', note: 'no offline UI in the sheet: last known values; the page behind carries the chip', render: function (c) { return HF.autoResetSheet(c, { connection: 'offline' }); } },
+      'one-missing': { title: 'One toggle unavailable (Studio)', render: sheet({ oneMissing: true }) },
+      'medium': { title: 'Medium detent', note: 'what the sheet opens at until its content is measured (it is then remembered per call site)', render: sheet({ detent: 'medium' }) },
+      'large': { title: 'Large detent', note: 'a fitted height is capped at large: 14 tiles are taller than a phone, so on iPhone the shipped sheet is effectively large and scrolls', render: sheet({ detent: 'large' }) },
+      'fitted': { title: 'Fitted detent (shipped)', render: sheet({ detent: 'fitted' }) },
+      'closed': { title: 'Before presenting / after dismissing', render: function (c) { return HF.presenter(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of stacked tiles; the height reaches the large cap and the sheet scrolls', render: sheet({ detent: 'large' }) },
+    },
+
+    motion: [
+      { id: 'tile-colour', what: 'A room\'s auto-reset switches: the tile fills in the Settings green, the glyph fills, the subtitle changes from Off to On', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'default',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile"); HouseholdToggleTile; motion.md section 6', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) {
+          var t = stage.querySelector('.ui-tile[aria-pressed="false"]'); if (!t) return Promise.resolve(); var title = t.getAttribute('aria-label').split(',')[0];
+          HF.flipByTitle(t, title); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { HF.flipByTitle(t, title); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Admin Controls', to: 'Presence Auto-Reset sheet', kind: 'sheet', state: 'closed', note: 'The opener tile presents a fitted page sheet (capped at large); Admin scales back and dims. Content is there on arrival. Reduce Motion cross-fades.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Presence Auto-Reset', detent: 'fitted', size: 'page', trailing: 'close', content: HF.autoResetGrid() }, { hold: 1200 }); } },
+      { from: 'Presence Auto-Reset sheet', to: 'Admin Controls', kind: 'sheet', state: 'default', note: 'Dismiss with the circle-X Close or a swipe down (interactive, system-owned).',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Presence Auto-Reset", then the 14 toggle tiles in the web\'s room order, then Close. Escape and the two-finger scrub dismiss.' },
+      { rule: 'Toggle tiles', note: '"Kitchen, On": a button with the toggle trait (selected when on), identifier household.tile.switch.<room>_auto_re_enable_presence_lighting. The cycle glyph is decorative; the state is the words On or Off, the filled glyph and the tinted rim.' },
+      { rule: 'Unavailable', note: 'An unavailable toggle reads "<Room>, Unavailable", dims and does nothing.' },
+      { rule: 'Close', note: 'Circle-X labelled Close (household.sheet.done), 44 pt.' },
+      { rule: 'Context lives on the page', note: 'The explanation (re-enable in the morning if the room cleared) is on the Admin page section above the opener, not in the sheet: the sheet is only the 14 toggles. The tile titles are the room names, so the sheet title and the section title carry the meaning.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the grid is one column of stacked tiles, the sheet reaches the large cap and scrolls; "Downstairs Hallway" wraps.' },
+      { rule: 'Targets', note: 'Tiles are at least 72 pt tall; two columns on iPhone (min cell 150), four on an iPad page sheet.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: smallest detent that shows the content', verdict: 'pass', note: 'hassSheet(.page) is fitted and capped at large (HassModal.swift:149, SheetFit.swift:11-16); 14 tiles reach the cap on iPhone, so it opens large and scrolls.', by: 'apple-hig skill' },
+        { rule: 'Sheets: Close, Cancel or Done', verdict: 'departure', note: 'A circle-X Close at the trailing edge replaces Done because the toggles apply immediately (owner 2026-10-13, HassModal.swift:3-6).', by: 'apple-hig skill' },
+        { rule: 'Toggles: outside a list use a toggle-like button with an obvious state', verdict: 'pass', note: '14 HouseholdToggleTiles, state also spoken and shown as On/Off text (AdminSettingsContent.swift:228).', by: 'apple-hig skill' },
+        { rule: 'Layout: page sheet for tile grids on iPad', verdict: 'pass', note: 'HassSheetWidth.page gives grids and columns room; HouseholdTileGrid(minWidth: 150, maxColumns: 4).', by: 'apple-hig skill' },
+        { rule: 'Materials: sheets on an opaque ground', verdict: 'departure', note: 'A partial-height sheet is glass on iOS 26 and let the page\'s coloured tiles show through, so the ground is opaque at every detent (HassModal.swift:192-194, :257; direction-g.md Sheets).', by: 'apple-hig skill' },
+        { rule: 'Layout: keep controls clear of the fold', verdict: 'pass', note: 'Fixed: AutoResetSheet applies .clearsHinge() (HassDesign/HingeAvoidance.swift): the form uses the wider side of the band. Ships on the simulator measurement; re-check on a device run.', by: 'apple-hig skill' },
+        { rule: 'Feedback: failed changes', verdict: 'pass', note: 'Fixed: HouseholdSettingsController.perform calls overlay.fail, ToggleDisplay.isFailed drives GlassTile isError with the subtitle "Didn\'t Respond" (HouseholdToggleTile).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Presentation: system sheet with presentationDetents', verdict: 'pass', note: 'SheetFit feeds .presentationDetents a measured height (SheetFit.swift:300) and iPad presentationSizing(.page.fitted) on iOS 18+.', by: 'swiftui-pro skill' },
+        { rule: 'API: toolbar placement by role', verdict: 'pass', note: 'SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).', by: 'swiftui-pro skill' },
+        { rule: 'Views: HouseholdSheet extracts chrome', verdict: 'pass', note: 'title, modalChrome and Close live in HouseholdSheet (AdminSettingsContent.swift:95-107), not repeated per sheet.', by: 'swiftui-pro skill' },
+        { rule: 'API: UIKit colour for the sheet ground', verdict: 'pass', note: 'SheetGroundModifier reads HassTokens.Surface.systemGround (HassModal.swift:257)' },
+      ],
+    },
+
+    notes: [
+      'The fitted sheet opens at medium until its content is measured, then the system settles it to the measured height (no app animation; the height is remembered per call site). loading: no loading state; the toggles read EntityStore (snapshot first), and an entity never seen reads Unavailable (the error state). refreshing: a live change updates one tile in place.',
+      'The fixture turns six rooms on; real values come from the 14 switch.<room>_auto_re_enable_presence_lighting entities.',
+      'Docs versus code: the household.md page record does not mention this sheet\'s detent or title; the code is hassSheet(.page) (fitted) titled "Presence Auto-Reset". The web hash is #presence-based-overrides-auto.',
+      'Duo unfolded: the page sheet is centred and may cross the hinge band (not run on a simulator).',
+      'The presenter is a trimmed Admin page (Settings tab push).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: 14 room toggles, three detents, unavailable, offline, AX5, light and dark.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,19 @@
+{
+  "id": "route-feature-with-ui-words-still-researcher",
+  "source": "2026-11-02: Feature -> Designer first. UI words never skip the Researcher for a Feature.",
+  "recorded": "2026-11-02",
+  "kind": "route",
+  "input": {
+    "labels": [
+      "Feature"
+    ],
+    "title": "[Feature] New tile layout and animation",
+    "body": "A different screen layout with motion."
+  },
+  "expect": {
+    "route": {
+      "eq": "researcher"
+    },
+    "level": "L1"
+  }
+}

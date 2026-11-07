@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tile finish and layouts · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../weather/_home-weather.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, HW = Mock.HW;
+
+  function tile(p) { return K.GlassTile(p); }
+  function row(items) { return h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' } }, items); }
+  function grid(items, o) { o = o || {}; return K.TileGrid({ min: o.min || 150, max: o.max || 4, items: items, equal: o.equal !== false }); }
+  function table(head, rows) { return h('div.k-table-wrap', h('table', h('thead', h('tr', head.map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); })))); }
+
+  /** The faces, one of each: off, filled, lit, error, room fill, unavailable. */
+  var FACES = [
+    { title: 'Heating', subtitle: 'Off', symbol: 'thermometer.medium', family: 'heating', isActive: false },
+    { title: 'Heating', subtitle: 'Heating to 70°', symbol: 'thermometer.medium', family: 'heating', isActive: true },
+    { title: 'Table Light', subtitle: 'On at 70%', symbol: 'lightbulb', family: 'lights', isActive: true },
+    { title: 'Left Door', subtitle: 'Didn\'t respond', symbol: 'door.garage.closed', family: 'contact', isError: true },
+    { title: 'Kitchen', symbol: 'house', room: 'kitchen', layout: 'stack', titleLines: 2, kind: 'navigate' },
+    { title: 'Back Deck Light', subtitle: 'Unavailable', symbol: 'lightbulb', family: 'lights', isUnavailable: true }];
+
+  /** The four arrangements. The kit draws row and the bottom-anchored stack; the two gallery-only arrangements are adjusted here (promote to kit if wanted). */
+  var LAYOUTS = [
+    ['row', 'Row (shipped)', 'The glyph in a 30 pt column, title and state beside it, vertically centred; 48 pt content, 72 pt tile (Apple Home\'s accessory tile).', 72],
+    ['anchoredBottom', 'Anchored Bottom (navigation tiles, accessibility sizes)', 'Glyph top-leading, text bottom-leading; 72 pt content, 96 pt tile; reserves two title lines on the Rooms grid, Climate Rooms and Quick Links.', 96],
+    ['centeredStack', 'Centred Stack (gallery only)', 'Glyph over the title and state, the pair centred vertically and leading aligned; 60 pt content, 84 pt tile.', 84],
+    ['stackedTop', 'Stacked Top (before 2026-10-16)', 'Glyph, title and state stacked at the top, spare height left at the bottom; 88 pt content, 112 pt tile.', 112],
+  ];
+  function layoutTile(kind, p) {
+    var base = Object.assign({ title: 'Bedroom 1 Lights', subtitle: 'On at 70%', symbol: 'lightbulb', family: 'lights', isActive: true }, p || {});
+    if (kind === 'row') return tile(base);
+    if (kind === 'anchoredBottom') return tile(Object.assign(base, { layout: 'stack' }));
+    var t = tile(Object.assign(base, { layout: 'stack' })), g = t.querySelector('.glyph'), tx = t.querySelector('.tx');
+    t.classList.remove('stack'); t.style.flexDirection = 'column'; t.style.alignItems = 'flex-start'; t.style.gap = '8px';
+    g.style.width = 'auto'; g.style.justifyContent = 'flex-start'; g.style.fontSize = 'var(--fs-t3)'; tx.style.flex = 'none'; tx.style.width = '100%';
+    if (kind === 'centeredStack') { t.style.justifyContent = 'center'; t.style.minHeight = '84px'; }
+    else { t.style.justifyContent = 'flex-start'; t.style.minHeight = '112px'; }
+    return t;
+  }
+
+  /** One layer of the finish at a time, on the wallpaper stand-in (TintedGlassGround, TintedGlassSheen, TintedGlassRim). */
+  function layers(fill) {
+    var UL = 'linear-gradient(rgba(28,28,30,.66),rgba(28,28,30,.66))', FU = 'linear-gradient(rgba(28,28,30,.5),rgba(28,28,30,.5))', FL = 'linear-gradient(' + fill + 'c7,' + fill + 'c7)',
+        SH = 'linear-gradient(180deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 46%, rgba(0,0,0,.08) 100%)';
+    function box(bg, rim, cap) {
+      var el = h('div', { style: { position: 'relative', width: '150px', height: '72px', borderRadius: '22px', background: bg, overflow: 'hidden' } }, rim ? h('i', { style: { position: 'absolute', inset: 0, borderRadius: '22px', padding: '1px', background: 'linear-gradient(180deg, rgba(255,255,255,.32), rgba(255,255,255,.06))', WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude' } }) : null);
+      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' } }, el, h('span', { style: { font: '12px var(--font)', opacity: .8 } }, cap));
+    }
+    return [box(UL, false, '1  underlay #1C1C1E at 66%'), box(FL + ',' + FU, false, '2  family fill 78% over a 50% underlay'), box(SH + ',' + FL + ',' + FU, false, '3  one sheen: white 14% to clear at 46% to black 8%'), box(SH + ',' + FL + ',' + FU, true, '4  1 pt rim, white 32% to 6%')];
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'tile-finish-layout', title: 'Tile finish (tinted glass) and tile layouts', area: 'design', status: 'shipped', frame: false,
+    summary: 'How a tile\'s surface is finished and how it arranges its content. Tinted glass is the shipped finish (the family fill at 78% over a dark underlay, a lit hairline and one soft sheen, with no live blur); solid is the opaque fallback under Reduce Transparency or Increase Contrast. Row is the shipped layout; the bottom-anchored stack is the navigation tile and the accessibility-size layout; two others stay for the gallery.',
+    source: ['apple/Sources/HassDesign/TileFinish.swift', 'apple/Sources/HassDesign/TileLayout.swift', 'apple/Sources/HassDesign/TileMetrics.swift', 'apple/Sources/HassDesign/TintedGlassGround.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKTilePaint.swift', 'apple/Sources/HassDesign/TintedGlassSheen.swift', 'apple/Sources/HassDesign/FinishColor.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/entity-tile.md', '.agents/testing/apple/performance.md'],
+    patterns: ['entity-tile', 'dynamic-grid'],
+    hig: ['Materials', 'Accessibility (Reduce Transparency, Increase Contrast)', 'Layout', 'Dynamic Type'],
+    entities: [],
+    kitComponents: ['GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'finishes': { title: 'Tinted glass against the solid fallback', note: 'every state keeps its meaning in both; the difference is edge and depth, which answers "subtle, less childish" (owner 2026-10-16) while the glanceable family-colour fill stays', render: function (ctx) {
+        function r(rt) { var n = row(FACES.map(tile)); return n; }
+        var solid = h('div.k-reduce-transparency', { style: { display: 'contents' } }, row(FACES.map(tile)));
+        return HW.swatches(ctx, [{ cap: 'page · tinted glass (shipped)', surface: 'page', node: row(FACES.map(tile)) }, { cap: 'page · solid (Reduce Transparency or Increase Contrast)', surface: 'page', node: solid },
+          { cap: 'sheet · tinted glass (opaque fills, the same sheen and rim)', surface: 'sheet', node: row(FACES.map(tile)) }]); } },
+      'layers': { title: 'The layers of tinted glass', note: 'a tile draws one underlay or flattened fill colour, one sheen gradient and one stroked rim: a layer is real cost on a page of 120 tiles (performance.md)', render: function (ctx) {
+        return HW.swatches(ctx, [{ cap: 'page · Heating on, built up layer by layer', surface: 'page', width: 760, node: h('div', { style: { display: 'flex', gap: '18px', flexWrap: 'wrap' } }, layers('#A8440A')) }, { cap: 'page · Occupancy on', surface: 'page', width: 760, node: h('div', { style: { display: 'flex', gap: '18px', flexWrap: 'wrap' } }, layers('#2A732E')) }]); } },
+      'tokens': { title: 'Finish tokens', note: 'TileFinish.Tokens.tintedGlass(on:): a sheet has no wallpaper to show through, so fills are opaque there (fillOpacity 1)', render: function (ctx) {
+        return HW.swatches(ctx, [{ cap: 'page · values', surface: 'page', width: 760, node: table(['Token', 'On a page', 'In a sheet', 'What it does'], [['underlay', '#1C1C1E at 0.66', '(the sheet cell)', 'the dark ground under an off or error face; the thin module'], ['fillUnderlay', '0.50', '—', 'under a translucent family fill, lower because a saturated fill hides more of the module'], ['fillOpacity', '0.78', '1', 'white-ink family and room fills; lights and power stay opaque (dark ink)'], ['sheenTop / sheenBottom', '0.14 white / 0.08 black', 'same (a room fill gets only the bottom shade; a white cell gets none)', 'one vertical gradient, clear at 46% of the height'], ['rimTop / rimBottom', '0.32 / 0.06 white', 'same (a white cell takes the separator colour)', 'a 1 pt hairline stroked with a vertical gradient, lit at the top'], ['offGlyphKeep', '0.88 (solid 0.72)', '—', 'the share of the family colour an off glyph keeps']]) }]); } },
+      'layouts': { title: 'The four tile arrangements', note: 'owner 2026-10-16: "it feels too high up / lots of dead space, but I like the tiles themselves": four were drawn on the gallery and measured; Row shipped', render: function (ctx) {
+        return HW.swatches(ctx, LAYOUTS.map(function (l) { return { cap: 'page · ' + l[1], note: l[2] + ' (' + l[3] + ' pt tile)', surface: 'page', width: 320, node: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, layoutTile(l[0]), layoutTile(l[0], { title: 'Garage', subtitle: 'Closed', symbol: 'door.garage.closed', family: 'contact', isActive: false })) }; })); } },
+      'title-reserve': { title: 'Navigation tiles reserve two title lines', note: 'a one-line name sits on the bottom line, a two-line name fills both, and every tile has one height (glyph + 8 pt + two lines + padding, 96 pt at the default size and growing with Dynamic Type)', render: function (ctx) {
+        var items = [['Kitchen', 'kitchen'], ['Downstairs Hallway', 'downstairs-hallway'], ['Bedroom 1', 'master-bedroom'], ['Gym', 'gym']].map(function (r) { return { title: r[0], symbol: 'house', room: r[1], layout: 'stack', titleLines: 2, kind: 'navigate' }; });
+        return HW.swatches(ctx, [{ cap: 'page · Rooms grid, equal row heights', surface: 'page', node: grid(items) }, { cap: 'sheet · the same in a sheet (bottom shade only, no highlight)', surface: 'sheet', node: grid(items) }]); } },
+      'solid': { title: 'Reduce Transparency: solid layouts', override: { reduceTransparency: true }, note: 'opaque fills, no sheen, no rim; the thin module (#1C1C1E) when off', render: function (ctx) { return HW.swatches(ctx, [{ cap: 'page · solid finish', surface: 'page', node: row(FACES.map(tile)) }, { cap: 'sheet · solid finish', surface: 'sheet', node: row(FACES.map(tile)) }]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'a row has no width left for text, so every tile resolves to anchored bottom (glyph top-leading, text bottom-leading); the grid gives one column', render: function (ctx) { return HW.swatches(ctx, [{ cap: 'page · row resolved at AX5', surface: 'page', width: 560, node: grid([{ title: 'Kitchen Lights', subtitle: 'On at 70%', symbol: 'lightbulb', family: 'lights', isActive: true }, { title: 'Heating', subtitle: 'Off', symbol: 'thermometer.medium', family: 'heating', isActive: false }]) }]); } },
+    },
+
+    motion: [],
+    transitions: [],
+
+    a11y: [
+      { rule: 'The finish never changes meaning', note: 'On, off, error and unavailable read the same in tinted glass and solid; Reduce Transparency and Increase Contrast select solid (TileFinish.effective), so nothing depends on seeing the wallpaper through a tile.' },
+      { rule: 'Contrast', note: 'White ink on a 78% family fill over the underlay holds 4.5:1 (the fill underlay is chosen so the wallpaper can tint it without costing the ink); the off glyph is lifted to 3:1 on the lightest ground a glyph can sit on; a light sheet\'s white cell takes the separator colour as its hairline because a white rim has nothing to lift off.' },
+      { rule: 'Targets and reflow', note: 'Every layout is at least 72 pt tall (row 72, anchored 96, centred 84, stacked top 112), and accessibility text sizes switch to anchored bottom so text is never squeezed beside the glyph.' },
+      { rule: 'Nothing to announce', note: 'The finish, rim and sheen are decorative layers (no accessibility elements); the tile\'s name, value and traits are on the button (see the GlassTile mockup).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Materials: do not use Liquid Glass in the content layer", verdict: "pass", note: "Tiles are content, so tinted glass is translucency over the already-blurred wallpaper plus one sheen gradient and a hairline rim, never glassEffect (TileFinish.swift doc comment).", by: "apple-hig skill" },
+        { rule: "Materials: prefer standard system materials", verdict: "departure", note: "The finish is a custom 78% family fill over a 50% dark underlay rather than a system material, because a material or blur per tile cost GPU time and crashed the simulator's render server (direction-g.md Layers; performance.md; owner 2026-10-17, Tile finish option A).", by: "apple-hig skill" },
+        { rule: "Accessibility and Dark Mode: test with Reduce Transparency and Increase Contrast, separately and together", verdict: "pass", note: "TileFinish.effective returns .solid for either setting (opaque family fill, thin module when off) and every state keeps its meaning; the off glyph keeps 88% of the family colour on glass and 72% on solid so it holds 3:1.", by: "apple-hig skill" },
+        { rule: "Layout and Buttons: 44 pt targets; text reflows at accessibility sizes", verdict: "pass", note: "Every arrangement is at least 72 pt (row 48 content plus 24 padding; anchored 96, centred 84, stacked 112) and TileLayout.resolved turns a row into anchored bottom at accessibility sizes so text is never squeezed beside the glyph.", by: "apple-hig skill" },
+        { rule: "Color: contrast of white ink on a translucent fill over a photo", verdict: "pass", note: "No visual change (decision colour-contrast: README records the flat-swatch ratio); the worst case depends on the wallpaper photo and is a wallpaper/scrim question, not a token one.", by: "apple-hig skill" },
+        { rule: "Layout: do not ship unused arrangements", verdict: "pass", note: "Not applicable: direction-g.md (owner, 2026-10-16) keeps the alternative arrangements in code for overrides and the gallery compares them; the enum's gallery titles moved out (below).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Design: named tokens for the numbers behind the finish", verdict: "pass", note: "TileFinish.Tokens records underlay 0.66, fillUnderlay 0.50, fillOpacity 0.78 (1 in a sheet), sheen 0.14 and 0.08, rim 0.32 and 0.06 as an Equatable Sendable struct that direction-g.md and the mockup reproduce.", by: "swiftui-pro skill" },
+        { rule: "API: @Entry defaults must stay equal across reads", verdict: "pass", note: "tileFinish defaults to TileFinish.standard, a static let (a debug launch may read FENTON_TILE_FINISH once), and tileLayout to .row, so readers do not update on unrelated environment changes.", by: "swiftui-pro skill" },
+        { rule: "Performance: layers per tile are few and measured", verdict: "pass", note: "A tile draws a ground, one sheen gradient, one rim stroke and an optional tinted border, with a Debug-only FENTON_TILE_FINISH_OMIT switch to measure each; tools/ios_scrollcost.sh is the gate (AGENTS.md invariant).", by: "swiftui-pro skill" },
+        { rule: "Hygiene: debug switches and gallery strings in the shipping module", verdict: "pass", note: "Fixed in part, rest deliberate: TileFinish.title/summary and TileLayout.title moved to the gallery (DirectionGGallery.swift). The DEBUG-only FENTON_TILE_FINISH reads are the scroll-cost probe tooling and compile out of Release.", by: "swiftui-pro skill" },
+        { rule: "Data flow: pure arithmetic separated from drawing", verdict: "pass", note: "TileMetrics.minContentHeight and TileLayout.resolved are pure functions of layout, reserved lines and scaled metrics, unit tested apart from the views.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Kit gap: under Reduce Transparency the kit repaints a lit (lights) tile\'s unlit part dark (kit.css `.k-reduce-transparency .ui-tile` sets --ul after `.ui-tile.lit`), so a partly filled lit tile shows dark ink on dark; the app keeps the warm base (LitTile.base) in the solid finish. This page draws the lit tile without a progress band for that reason. Promote the fix to kit.css.',
+      'motion: this surface has no motion of its own; the colour cross-fade between states is the GlassTile mockup\'s (0.6 s state token).',
+      'The kit draws two layouts. Centred Stack and Stacked Top are adjusted here from the stack with local style (components/tiles/tile-finish-layout), because they are gallery-only arrangements nothing ships; promote to kit only if they are ever adopted.',
+      'The "layers" drawing composites the same colours and opacities as TintedGlassGround over a flat dark swatch; on the real wallpaper the underlay lets the photo tint the tile a little.',
+      'Docs versus code: none found. direction-g.md and entity-tile.md describe the same tokens as TileFinish.Tokens.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: finishes side by side, layer build-up, tokens, the four layouts, two-line reserve, solid and AX5.' }],
+  });
+})();
+</script></body></html>

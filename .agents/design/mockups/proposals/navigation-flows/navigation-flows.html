@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Navigation flows · proposal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--soft:#e3effc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--soft:#152a44;--bad:#ff6961;--ok:#30d158;--code:#20242b;color-scheme:dark}}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui);margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 72px max(16px,env(safe-area-inset-left))}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px}h2{font-size:24px;margin:52px 0 8px}h3{font-size:17px;margin:0 0 6px}
+p{margin:0 0 12px;max-width:72ch}code{font:.88em var(--mono);background:var(--code);padding:1px 5px;border-radius:4px}
+.tag{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:14px 0}
+.opt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.opt.rec{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.opt .cap{color:var(--fg2);font-size:14px;margin-top:8px}
+.stack{display:flex;flex-direction:column-reverse;gap:4px;margin:8px 0}
+.pg{border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:14px;background:var(--bg)}
+.pg.top{border-color:var(--accent);background:var(--soft);font-weight:600}.pg.dim{opacity:.55}
+.bk{font-size:13px;color:var(--fg2)}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:block;overflow-x:auto}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--bg)}
+.ok{color:var(--ok)}.no{color:var(--bad)}
+</style></head><body><div class="wrap">
+<span class="tag">Proposal · 2026-10-23 · Decided (2026-10-24): 1 B Quick Links pops to the page already open; 2 A restore pushed routes on a cold launch within 30 minutes; 3 A an expired session skips the intro; 4 A zoom from the camera card, never inside a sheet. Built.</span>
+<h1>Navigation flows: four owner choices</h1>
+<p>The HIG navigation review of the atlas (#144) left four findings whose fix changes what a person sees or feels. Seven others were fixed in code with tests (link landing, duplicate push, page chrome at the stack, Rooms order, Vacation destinations). Per <code>propose-first</code> nothing below is built. Every section shows the stack or flow today beside the options; they are structural, so they are drawn as stacks and timelines rather than pixel mockups, and the same applies on iPhone, iPhone Duo and iPad (the rule is geometric; no device differs except where noted). Text size changes nothing here: no copy or layout moves.</p>
+
+<h2>1. Quick Links is lateral: what should Back do?</h2>
+<p><b>Cause.</b> Quick Links pushes onto the current section's path (<code>ShellHeader.swift</code> <code>pushPending</code>), so using it repeatedly grows Home › Media › Vacuums › Media. Back walks the whole trail. The same page twice in a row is already fixed in code.</p>
+<div class="grid">
+<div class="opt"><h3>Original (today)</h3><div class="stack"><div class="pg top">Media (top)</div><div class="pg">Vacuums</div><div class="pg">Media</div><div class="pg">Home (root)</div></div><div class="cap">Back ×3 to get home. The trail records where you jumped from.</div></div>
+<div class="opt"><h3>A · Pop to root, then push</h3><div class="stack"><div class="pg top">Media (top)</div><div class="pg">Home (root)</div></div><div class="cap">Quick Links always lands one level deep. Back returns to the section root. Loses the page you were on.</div></div>
+<div class="opt rec"><h3>B · Keep the trail, cap repeats</h3><div class="stack"><div class="pg top">Media (top)</div><div class="pg">Vacuums</div><div class="pg">Home (root)</div></div><div class="cap">Choosing a page already in the stack pops back to it instead of pushing again. No page appears twice; nothing else is lost.</div></div>
+</div>
+<table><tr><th></th><th>Original</th><th>A</th><th>B</th></tr>
+<tr><td>HIG: Back makes sense (hierarchy)</td><td class="no">grows without limit</td><td class="ok">flat, predictable</td><td class="ok">no duplicates, still a trail</td></tr>
+<tr><td>Owner rule: no surprise navigation</td><td class="ok">nothing lost</td><td class="no">drops the current page</td><td class="ok">nothing lost</td></tr>
+<tr><td>Cost</td><td>none</td><td>pop in <code>push(_:in:)</code></td><td>needs a stack of routes (replace <code>NavigationPath</code> with a typed array)</td></tr></table>
+<p><b>Recommendation: B.</b> Smallest surprise. Asks for <code>ShellNavigator.paths</code> to hold <code>[HomeRoute]</code>-aware state and tests for pop-to-existing.</p>
+
+<h2>2. Cold launch: restore the pushed page?</h2>
+<p><b>Cause.</b> Only the selected tab is stored (<code>@SceneStorage("selectedTab")</code>, <code>MainTabView.swift</code>); pushed pages live in memory, so a cold launch lands on the tab root. HIG Launching: restore the previous state.</p>
+<div class="grid">
+<div class="opt"><h3>Original (today)</h3><p class="bk">Home › Vacuums → kill app → launch</p><div class="stack"><div class="pg top">Home root</div></div><div class="cap">Selected tab only. Scroll and pushed page are lost.</div></div>
+<div class="opt rec"><h3>A · Restore tab + pushed route</h3><p class="bk">same → launch</p><div class="stack"><div class="pg top">Vacuums</div><div class="pg">Home root</div></div><div class="cap">Persist each section's route list (Codable <code>HomeRoute</code>, <code>SettingsRoute</code>). Back works at once. Shown only within a window (say 30 min), else the root.</div></div>
+<div class="opt"><h3>B · Restore only after a short absence</h3><div class="stack"><div class="pg top">Home root (after &gt;30 min)</div></div><div class="cap">Same code as A with the window as the whole rule; the person who opens the app the next morning gets the root.</div></div>
+</div>
+<p><b>Recommendation: A with a 30 minute window.</b> Open question: does the owner want the window, or always restore? Rooms/sheets and scroll offsets stay out of scope (they are in the no-reload-on-reopen work).</p>
+
+<h2>3. Expired session: replay the intro?</h2>
+<p><b>Cause.</b> <code>sessionExpired()</code> calls <code>signOut()</code>, whose <code>motion.reset()</code> clears the intro flag, so the full 1.2 s launch sequence plays on the Welcome back screen (<code>AppSession.swift</code>, <code>RootView.swift</code>).</p>
+<div class="grid">
+<div class="opt"><h3>Original (today)</h3><div class="cap">Token refused → glow fades up (≈0.4 s) → mark springs in → title and form rise (1.2 s total) → Welcome back, name prefilled.</div></div>
+<div class="opt rec"><h3>A · Skip the intro on expiry</h3><div class="cap">Welcome back appears at once, form already shown. The intro still plays after an explicit Sign Out and on first install. Reduce Motion unchanged (already a fade).</div></div>
+<div class="opt"><h3>B · Short fade (0.3 s)</h3><div class="cap">Keeps a hint of arrival without the long sequence.</div></div>
+</div>
+<p><b>Recommendation: A.</b> The person did nothing; the app should not stage a show. One flag: expiry does not call <code>motion.reset()</code>.</p>
+
+<h2>4. Zoom transitions: wire them, and where?</h2>
+<p><b>Cause.</b> <code>zoomSource</code> and <code>zoomDestination</code> (<code>ZoomTransition.swift</code>) have no call site. <code>motion.md</code> §4.3 names the camera card and the room tile; the owner's 2026-10-22 note says no zoom inside sheets, which rules out the room tile in the Rooms sheet.</p>
+<div class="grid">
+<div class="opt"><h3>Original (today)</h3><div class="cap">Camera card → sheet viewer. Home room tile → plain push. Dead helper code.</div></div>
+<div class="opt rec"><h3>A · Zoom where a tile is the thing</h3><div class="cap">Home room tiles and the camera card zoom into their page (iOS 18+, push on iOS 17). Nothing inside a sheet. Reduce Motion: cross-fade.</div></div>
+<div class="opt"><h3>B · Delete the helpers</h3><div class="cap">Keep plain pushes everywhere and remove the dead API and the motion.md §4.3 text.</div></div>
+</div>
+<table><tr><th></th><th>Original</th><th>A</th><th>B</th></tr>
+<tr><td>Owner: none in sheets</td><td class="ok">yes</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+<tr><td>HIG: Navigation transitions</td><td>fine</td><td class="ok">matches Photos/Music</td><td>fine</td></tr>
+<tr><td>Cost</td><td>dead code</td><td>2 call sites, perf signposts, a11y + UX tests, back-swipe check</td><td>delete files and docs</td></tr></table>
+<p><b>Recommendation: A for the Home room tile only; camera card stays a sheet.</b> The camera viewer is already in its own proposal (<code>camera-viewer-fit</code>), so deciding it here would collide.</p>
+
+<h2>Open questions for the owner</h2>
+<ul><li>§1: B (no repeats) or A (always flat)?</li><li>§2: restore always, or within a window (and how long)?</li><li>§3: skip the intro on expiry only, or also soften it after Sign Out?</li><li>§4: zoom on Home room tiles; leave the camera card to its proposal?</li></ul>
+</div></body></html>

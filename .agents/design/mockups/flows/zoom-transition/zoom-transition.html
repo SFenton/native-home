@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zoom transition · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  function home(c) { return SN.rootPage(c, 'home'); }
+  function picture() { return h('div', { style: { aspectRatio: '16 / 9', borderRadius: '20px', background: Mock.scene('front-door'), position: 'relative' } }, h('span', { style: { position: 'absolute', left: '12px', bottom: '10px', font: '600 var(--fs-c1) var(--font)', color: '#fff', background: 'rgba(0,0,0,.7)', padding: '4px 8px', borderRadius: '99px' } }, 'Live')); }
+  /* The destination as the zoom would grow into it: a pushed page (the zoom is a navigation transition), content in its first frame. */
+  function dest(c) { return SN.pushedPage(c, { title: 'Front Door', body: [picture(), h('div.ui-section', K.PageSectionHeader({ title: 'Controls' }), K.TileGrid({ min: 150, max: 2, items: [{ title: 'Talk', subtitle: 'Off', symbol: 'mic', family: 'media', isActive: false }, { title: 'Snapshot', symbol: 'camera', family: 'media', isActive: false }] }))] }); }
+  function geo(page, tile) { var o = SN.offset(tile, page); return { x: o.x, y: o.y, w: tile.offsetWidth, h: tile.offsetHeight, W: page.offsetWidth, H: page.offsetHeight }; }
+  /* Set a destination at progress t (0 = the tile, 1 = at rest): the transform a zoom interpolates, by layout points. */
+  function zoomAt(base, d, t) {
+    var tile = base.querySelector('.ui-cam'); if (!tile) return;
+    var g = geo(base, tile), sx = g.w / g.W, sy = g.h / g.H;
+    d.style.transformOrigin = '0 0';
+    d.style.transform = 'translate(' + (g.x * (1 - t)) + 'px,' + (g.y * (1 - t)) + 'px) scale(' + (sx + (1 - sx) * t) + ',' + (sy + (1 - sy) * t) + ')';
+    d.style.borderRadius = (22 * (1 - t) + 55 * t * 0) + 'px'; d.style.overflow = 'hidden'; d.style.opacity = 1;
+  }
+  function mid(c, t) {
+    var base = home(c), d = dest(c); d.style.zIndex = 40;
+    Mock.whenAttached(base, function () { setTimeout(function () { zoomAt(base, d, t); var tile = base.querySelector('.ui-cam'); if (tile) tile.style.opacity = 1 - Math.min(1, t * 3); }, 60); });
+    return [base, d];
+  }
+  function rect(c, base) { Mock.whenAttached(base, function () { var tile = base.querySelector('.ui-cam'); if (tile) { var g = geo(base, tile); base.appendChild(h('div', { 'aria-hidden': 'true', style: { position: 'absolute', zIndex: 60, left: (g.x - 4) + 'px', top: (g.y - 4) + 'px', width: (g.w + 8) + 'px', height: (g.h + 8) + 'px', borderRadius: '26px', border: '2px dashed #ff9f0a', pointerEvents: 'none' } }), h('div', { 'aria-hidden': 'true', style: { position: 'absolute', zIndex: 60, left: (g.x) + 'px', top: (g.y + g.h + 8) + 'px', font: '600 11px var(--mono)', color: '#ff9f0a', background: 'rgba(0,0,0,.65)', padding: '2px 6px', borderRadius: '6px' } }, 'zoomSource radius 22 pt (default 26)')); } }); return base; }
+  function runZoom(stage, closing) {
+    var c = Mock.current, base = stage.querySelector('.ui-page'), tile = base.querySelector('.ui-cam'), d = dest(c), rm = !!Mock.settings.reduceMotion;
+    d.style.zIndex = 40; base.parentNode.insertBefore(d, base.nextSibling);
+    var g = geo(base, tile), sx = g.w / g.W, sy = g.h / g.H, from = 'translate(' + g.x + 'px,' + g.y + 'px) scale(' + sx + ',' + sy + ')';
+    d.style.transformOrigin = '0 0';
+    var open = rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: from, borderRadius: '22px', opacity: .6 }, { transform: 'none', borderRadius: '0px', opacity: 1 }];
+    var a = d.animate(closing ? open.slice().reverse() : open, { duration: rm ? 350 : 500, easing: Mock.anim.easing.sheet, fill: 'both' }).finished;
+    var b = tile.animate(closing ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'both' }).finished;
+    return Promise.all([a, b]).then(function () { return Mock.sleep(500); }).then(function () { if (!closing) return Mock.sleep(300); }).then(function () { Mock.anim.reset(stage); d.remove(); });
+  }
+
+  Mock.mount({
+    kind: 'flow', id: 'zoom-transition', title: 'Zoom transition (designed, not wired)', area: 'shell', status: 'proposed',
+    summary: 'The iOS 18 zoom navigation transition, designed in motion.md 4.3 for a tile that IS the thing it opens (a camera card, a recipe card, a room tile), with ZoomSource and ZoomDestination helpers in the code. No view calls them: today room tiles and cameras push or present sheets. Drawn as the design, only if the owner re-confirms.',
+    source: [ 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassUI/Features/Cameras/CameraViewer.swift', 'apple/Sources/HassUI/App/Motion/MotionPolicy.swift'],
+    spec: ['.agents/design/motion.md', '.agents/patterns/motion.md'],
+    patterns: ['motion', 'image-card'],
+    hig: ['Motion', 'Navigation and search', 'Accessibility'],
+    kitComponents: ['CameraTile', 'TileGrid', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'ipad-portrait'],
+    states: {
+      'tile-source': { title: '1. The tile that is the thing it opens', note: 'a camera card on Home; .zoomSource(id:in:cornerRadius:) matches the tile\'s radius (22 pt; the helper\'s default 26 pt clipped the tile wrongly)', render: function (c) { var p = rect(c, home(c)); SN.finger(p, '.ui-cam', { label: 'tap' }); return p; } },
+      'mid-zoom': { title: '2. Mid-zoom: the tile grows into the page', note: 'about 0.5 s on the system curve; the destination\'s content is already drawn; the source fades out', render: function (c) { return mid(c, .5); } },
+      'destination': { title: '3. At rest: the destination page', note: 'pushed on the stack with the zoom navigation transition (.navigationTransition(.zoom(sourceID:in:))); Back or swipe down or pinch zooms it back into its tile', render: function (c) { return dest(c); } },
+      'reduce-motion-cross-fade': { title: 'Reduce Motion: a cross-fade', note: 'the system turns the zoom into a cross-fade; the app adds nothing', override: { reduceMotion: true }, render: function (c) { var base = home(c), d = dest(c); d.style.zIndex = 40; d.style.opacity = .5; return [base, d]; } },
+      'today-camera-sheet': { title: 'Today: the camera card opens a sheet', note: 'code: CameraViewer is hassSheet(.page, ...) over Home, dark by design (full on main, fitted in flight); there is no zoom', render: function (c) { return Mock.sheet(c, { title: 'Front Door', detent: 'large', size: 'page', trailing: 'close', appearance: 'dark', content: h('div', { style: { margin: '8px 16px 24px' } }, picture()), presenter: home(c) }); } },
+      'ios17-fallback': { title: 'iOS 17: no zoom, the plain push', note: 'the helpers do nothing before iOS 18; the push stays as it is', render: function (c) { return dest(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the destination at AX5', render: function (c) { return dest(c); } },
+    },
+    motion: [
+      { id: 'zoom-open', what: 'The tile grows into the destination page; the tile fades out as the page takes its place', token: 'system zoom (about 0.5 s, the system curve); source clip radius 22 pt; signposts ZoomOpen / ZoomClose', state: 'tile-source',
+        source: 'HassUI/App/Motion/ZoomTransition.swift (zoomSource, zoomDestination); motion.md 4.3', reduce: 'the system makes it a 0.35 s cross-fade',
+        play: function (stage) { return runZoom(stage, false); } },
+      { id: 'zoom-close', what: 'Back, swipe down or pinch shrinks the page back into its tile', token: 'system zoom, interactive; ZoomClose is not recorded yet (patterns/motion.md Departures)', state: 'tile-source',
+        source: 'zoomDestination navigationTransition(.zoom)', reduce: 'cross-fade',
+        play: function (stage) { return runZoom(stage, true); } },
+    ],
+    transitions: [
+      { from: 'Camera card (Home)', to: 'Camera page', kind: 'zoom', state: 'tile-source', note: 'Designed (motion.md 4.3, "a camera card opening the camera viewer"). Not wired: the camera card presents a sheet. Source and destination share an id in a @Namespace owned by the view that has both.',
+        play: function (stage) { return runZoom(stage, false); } },
+      { from: 'Camera page', to: 'Camera card (Home)', kind: 'zoom', state: 'tile-source', note: 'The zoom runs backwards on Back, a swipe down or a pinch; interruptible.', play: function (stage) { return runZoom(stage, true); } },
+      { from: 'Tile inside a sheet', to: 'Pushed page', kind: 'push', state: 'tile-source', note: 'Never a zoom (owner 2026-10-22): the zoom hides the sheet\'s content while its backdrop stays blurred, then the page appears. Pushes inside a sheet are plain pushes.',
+        play: function (stage) { var c = Mock.current, a = stage.querySelector('.ui-page'), b = dest(c); a.parentNode.insertBefore(b, a.nextSibling); return Mock.anim.push(a, b).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); b.remove(); }); } },
+    ],
+    a11y: [
+      { rule: 'Name, role, state', note: 'The source tile keeps its name and hint ("Front Door camera, Live", "Opens the camera"); the destination is a normal pushed page with Back and a heading.' },
+      { rule: 'Reduce Motion', note: 'The system replaces the zoom with a cross-fade; the grow is never played.' },
+      { rule: 'Gestures', note: 'Back, swipe down or pinch dismiss; all three have the Back button as the accessible equivalent.' },
+      { rule: 'Targets', note: 'The tile is far larger than 44 pt; Back is the 44 pt circle.' },
+      { rule: 'Dynamic Type / AX5', note: 'No effect on the transition; the destination page reflows.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Motion: use a zoom where a thumbnail opens its full view', verdict: 'pass', note: 'The rule is stated at the API: only a tile that is the thing it opens (ZoomTransition.swift:5-7).', by: 'apple-hig skill' },
+        { rule: 'Motion: Reduce Motion and iOS 17', verdict: 'pass', note: 'Gated by #available(iOS 18); older systems keep the push or sheet, and the system zoom follows Reduce Motion (ZoomTransition.swift:17-23, 35-40).', by: 'apple-hig skill' },
+        { rule: 'Navigation: the design is not wired', verdict: 'pass', note: 'Decided 2026-10-24 (navigation-flows 4 A): the camera card is a zoomSource and CameraViewer a zoomDestination (HomeScreen, SecurityScreen, CameraGrid.zoomNamespace); Home has no room tile and nothing inside a sheet zooms.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Match the source clip to the tile\'s corner radius', verdict: 'pass', note: 'zoomSource defaults to HassTokens.Radius.tile (22) (ZoomTransition.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Do not keep API nothing calls', verdict: 'pass', note: 'zoomSource and zoomDestination now have call sites in CameraGrid, HomeScreen and SecurityScreen; ZoomOpen is recorded by the destination\'s probe and NavigationPerformanceTests.testZoomOpenAndCloseStaysWithinBudget measures it.', by: 'swiftui-pro skill' },
+        { rule: 'Branch on #available, fall back silently', verdict: 'pass', note: 'iOS 18 branches in both modifiers.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Status: designed, not wired (catalog status designed-not-wired; the mockup kit has no such status, so it shows "proposed"). Drawn only so the design is visible if the owner re-confirms. zoomSource and zoomDestination have no call sites on main.',
+      'Docs versus code (inventory notes 1): motion.md section 3 lists room tile, camera and recipe as zoom, patterns/motion.md says only overview room tiles, the owner on 2026-10-22 says none inside sheets, and the camera and recipe cards present sheets (Direction G). The mockup draws the camera card as the example of the design, plus the sheet it really opens (today-camera-sheet).',
+      'The kit has no zoom for a destination page of a different device; the play grows the page from the tile by transform, not a real matched geometry.',
+      'Camera pictures and the tile are kit stand-ins; no real camera names.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: tile source, mid-zoom, destination, Reduce Motion, today\'s sheet, iOS 17 fallback.' }],
+  });
+})();
+</script></body></html>

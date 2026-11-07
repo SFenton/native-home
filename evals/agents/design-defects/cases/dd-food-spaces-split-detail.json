@@ -1,0 +1,17 @@
+{
+  "id": "dd-food-spaces-split-detail",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Food spaces- list should be on left and on right we show some \"empty state\"; it shows black background and otherwise needs work",
+  "surface": "inventory-space",
+  "poses": [
+    "duo-unfolded-landscape",
+    "ipad-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "0ef93b5e",
+  "fix_confidence": "high",
+  "expected": "In a split pose the list leads and a placeholder pane trails on the clear page ground; flag a black pane or a toolbar that reflows when fully open."
+}

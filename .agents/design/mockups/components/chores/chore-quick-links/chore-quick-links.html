@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chore quick links · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/chores/_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  function box(w, node) { return h('div', { style: { width: w + 'px', maxWidth: '100%' } }, node); }
+  function pageSw(ctx, cap, node, note) { return C.swatch(ctx, 'page', cap, node, note); }
+  var ND = function (c, n) { return h('div.k-swatch-grid', n); };
+
+  Mock.mount({
+    kind: 'component', id: 'chore-quick-links', title: 'Chore quick links (counts)', area: 'chores', status: 'shipped', frame: false,
+    summary: 'The Quick Links section at the top of the Chores tab: five filled navigation tiles (glyph, text, chevron), one colour per page, whose state line is the open count ("3 open · 2 overdue"); Groceries spans the last row. Rollout M, 2026-10-28: the count numeral is gone. Size class control picks compact or regular width.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassDesign/ColorFamily.swift', 'apple/Sources/HassCore/Config/ChoresConfig.swift'],
+    spec: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md'], patterns: ['entity-tile', 'dynamic-grid'],
+    hig: ['Color', 'Dynamic Type', 'Lists and tables'], entities: ['todo.demo_todo_10', 'todo.demo_todo_20', 'todo.demo_todo_21', 'todo.demo_todo_27', 'todo.demo_todo_1'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'tiles': { title: 'The five tiles', note: 'ChoreFamily fills with white ink and a chevron; the state line reads the page\'s open count; no numeral',
+        render: function (ctx) { return h('div.cz-swatch-stack', pageSw(ctx, 'Alex\'s Tasks as the viewer ("Your Chores")', box(190, C.quickLinkTile(C.LINKS[0]))), pageSw(ctx, 'Sam\'s Tasks', box(190, C.quickLinkTile(C.LINKS[1]))), pageSw(ctx, 'Unassigned Tasks', box(190, C.quickLinkTile(C.LINKS[2]))), pageSw(ctx, 'Home Tasks', box(190, C.quickLinkTile(C.LINKS[3]))), pageSw(ctx, 'Groceries (spans two tracks)', box(390, C.quickLinkTile(C.LINKS[4])))); } },
+      'compact': { title: 'Compact: two columns, Groceries across the last row', render: function (ctx) { return pageSw(ctx, 'iPhone width (370 pt)', box(370, C.quickLinks({ viewer: 'alex' }))); } },
+      'three': { title: 'Three tracks (about 540 pt)', note: 'Groceries still closes the grid across two tracks', render: function (ctx) { return pageSw(ctx, '540 pt', box(540, C.quickLinks({ viewer: 'alex' }))); } },
+      'four': { title: 'Four tracks, the cap (iPad)', note: 'four links fill four tracks and a wide Groceries closes the second row; the grid stops at four on purpose', render: function (ctx) { return pageSw(ctx, '1000 pt', box(1000, C.quickLinks({ viewer: 'alex' }))); } },
+      'zero': { title: 'Zero counts', note: 'every list empty: each tile reads "Nothing open"', render: function (ctx) { return pageSw(ctx, '370 pt', box(370, C.quickLinks({ viewer: 'alex', zero: true }))); } },
+      'sam': { title: 'Signed in as Sam', note: 'titles swap: "Alex\'s Chores" and "Your Chores"; each link keeps its colour whoever is signed in', render: function (ctx) { return pageSw(ctx, '370 pt', box(370, C.quickLinks({ viewer: 'sam' }))); } },
+      'non-resident': { title: 'Signed in as neither resident', note: 'no personalised titles: "Alex\'s Tasks", "Sam\'s Tasks" (the web names)', render: function (ctx) { return pageSw(ctx, '370 pt', box(370, C.quickLinks({ viewer: null }))); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'still two columns at 370 pt (the 150 pt minimum is not scaled); the tiles take their stacked layout (glyph top, text anchored bottom) at about 181 pt wide and Groceries still spans the last row', render: function (ctx) { return pageSw(ctx, '370 pt', box(370, C.quickLinks({ viewer: 'alex' }))); } },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'One button per tile', note: 'Label = title ("Your Chores"), value = state line ("3 open · 2 overdue"), button trait, identifier chores.link.<page>. There is no numeral to hide.' },
+      { rule: 'Targets and reflow', note: 'Tiles are at least 72 pt tall (96 pt stacked); the grid keeps a literal 150 pt minimum (ChoresScreen.swift line 70, not @ScaledMetric), so it stays two columns on an iPhone at AX sizes while the stacked tile layout takes over.' },
+      { rule: 'Colour', note: 'Each tile has its own glyph (person, person, tray, hammer, cart) and title; white ink on every fill keeps 4.5:1 for the title, the 92% subtitle and the status-chip lift (ColorFamilyTests).' },
+      { rule: 'Alignment', note: 'The tiles are the list\'s first plain row (zero insets), so their edges match the modules\' through the list\'s own insets in every size class.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Layout: the count must not collide with the title", verdict: "pass", note: "Rollout M removed the numeral: the count is the state line, so nothing sits beside the title but the chevron (ChoresScreen.swift).", by: "apple-hig skill" },
+        { rule: "Typography: Dynamic Type through AX5", verdict: "pass", note: "ChoreQuickLinks.minTileWidth is @ScaledMetric(relativeTo: .subheadline) 150 (ChoresScreen.swift).", by: "apple-hig skill" },
+        { rule: "Color: a colour per page plus glyph and title", verdict: "pass", note: "Five fills with white ink at 4.5:1, a distinct glyph each (person, tray, hammer, cart) and the title (ColorFamily.swift lines 87-91; ChoresScreen.swift lines 107-114).", by: "apple-hig skill" },
+        { rule: "Color: chore tiles use colours nothing else uses", verdict: "departure", note: "Owner 2026-10-16: #0022CC, #B410AE, #C2127A, #6600CC, #802200 so chores do not collide with device families.", by: "apple-hig skill" },
+        { rule: "Layout: align tiles with the list margins", verdict: "departure", note: "ios.md 2026-10-16/17 and TodoListAlignment.swift lines 41-58: the tiles are a section header measured against a plain row.", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: no tile across the fold", verdict: "pass", note: "Grids call HingeAwareGrid so the column count rounds to an even number while windowHinge is set (DynamicGridLayout.swift lines 186-195).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Accessibility: label, value, button trait", verdict: "pass", note: "accessibilityElement(children: .ignore), label title, value subtitle, .isButton, count in the value (ChoresScreen.swift).", by: "swiftui-pro skill" },
+        { rule: "Layout: gridSpan for the closing tile", verdict: "pass", note: "Groceries spans two tracks in every column count via gridSpan(link.countsGroceries ? 2 : 1) (line 86).", by: "swiftui-pro skill" },
+        { rule: "Design: avoid hard-coded paddings", verdict: "pass", note: "Rollout M removed the numeral insets with the numeral.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Corrected 2026-10-23 by the skill review: the AX5 Quick Links grid used a scaled 150 pt minimum and drew one column; ChoresScreen.swift line 70 passes a literal 150, so an iPhone gets two tracks and the words clip. Redrawn from the code.',
+      'Docs versus code: ios.md "Departures" still says the tiles use the glass face with the web colour on the icon and border; the code draws filled tiles in the chore families (owner 2026-10-16). Counts here are computed from the fixtures in _chores.js, with the app\'s ChoresConfig.counts rules (overdue outranks upcoming; undated is a second clause).',
+      'Rollout M (2026-10-28): the numeral is gone, so a long title only shares its row with the chevron.',
+      'The tile order is the web\'s links with Groceries moved last (ChoreQuickLinks.links). The Duo unfolded landscape is a one-grid page, so a track can cross the hinge band (dynamic-grid.md).',
+      'Colours and glyph discs are the kit\'s stand-ins (circle glyphs drawn by _chores.js).',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Rollout M: navigation tiles with a chevron, count in the state line, no numeral.' }, { date: '2026-10-23', note: 'First pass: tiles, 2/3/4 tracks, zero counts, both viewers, AX5.' }],
+  });
+
+})();
+</script></body></html>

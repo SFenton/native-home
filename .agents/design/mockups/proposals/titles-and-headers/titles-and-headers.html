@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Titles, subtitles and section headers: one convention</title><style>
+/* Layout: one reading column, then live-size header crops on a wallpaper band: before/after, a playable fade, the spacing ruler, and device variants. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --fg: #16181d;
+  --fg2: #4b525e;
+  --line: #d9dde4;
+  --accent: #0066cc;
+  --accent-soft: #e3effc;
+  --bad: #b3261e;
+  --ok: #1e7b34;
+  --code-bg: #eceef2;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --disp: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+    --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+  --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.col { max-width: 70ch; }
+h1 { font-family: var(--disp); font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance; }
+h2 { font-family: var(--disp); font-size: 24px; letter-spacing: -0.01em; margin: 56px 0 8px; text-wrap: balance; }
+h3 { font-family: var(--disp); font-size: 17px; margin: 0 0 4px; }
+p { margin: 0 0 12px; }
+.lede { font-size: 18px; color: var(--fg2); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+ul { padding-left: 1.2em; margin: 0 0 12px; } li { margin-bottom: 4px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.tag.bad { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+.fg2 { color: var(--fg2); }
+.small { font-size: 14px; }
+
+
+.band{margin-top:20px;padding:24px 18px;border-radius:14px;background:radial-gradient(120% 140% at 20% 0%,#2c4256 0%,#16222f 55%,#0b1118 100%);display:flex;flex-wrap:wrap;gap:24px 28px;align-items:flex-start;color:#fff}
+.cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cap{color:#c9d3de;font-size:14px;max-width:402px}.cap b{color:#fff}
+.dev{width:var(--w);max-width:100%;border-radius:22px;border:1px solid rgba(255,255,255,.14);background:rgba(8,12,18,.55);padding:12px 0;overflow:hidden;font-family:var(--ui);font-size:calc(17px*var(--ts,1));color:#fff}
+.dev.ax{--ts:2.0}
+.pad{padding:0 16px}
+.grp{background:rgba(255,255,255,.09);border-radius:12px;margin:0 16px 10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 14px;border-bottom:.5px solid rgba(255,255,255,.14)}
+.row:last-child{border-bottom:0}.row .sp{flex:1;min-width:0}.row .sub{color:rgba(255,255,255,.6);font-size:.82em}
+.chev{opacity:.5;font-weight:600}.hdr{font-size:calc(20px*var(--ts,1));padding:6px 16px;font-weight:700}.hdr.semi{font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,.14);border:.5px solid rgba(255,255,255,.28)}
+.seg{display:inline-flex;background:rgba(255,255,255,.14);border-radius:9px;padding:2px;gap:2px}.seg span{padding:6px 14px;min-height:40px;display:grid;place-items:center;border-radius:7px}.seg .on{background:rgba(255,255,255,.9);color:#111}
+.dots{display:flex;gap:8px;justify-content:center;align-items:center;min-height:44px}.dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.35)}.dots i.on{background:#fff}
+.cam{position:relative;height:120px;border-radius:14px;background:linear-gradient(135deg,#3a5a3e,#1c2c26 60%,#40523a);margin:0 16px 8px;overflow:hidden}.cam .nm{position:absolute;left:6px;bottom:6px;right:6px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.75);font-size:calc(12px*var(--ts,1));width:fit-content;max-width:calc(100% - 12px)}
+.btn{display:inline-grid;place-items:center;min-height:44px;padding:0 18px;border-radius:999px;background:#0a84ff;font-weight:600}.btn.off{background:rgba(255,255,255,.14);color:rgba(255,255,255,.4)}
+.foot{color:rgba(255,255,255,.6);font-size:calc(13px*var(--ts,1));padding:4px 30px 8px}
+.tile{margin:0 16px 8px;border-radius:22px;background:rgba(255,255,255,.1);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;min-height:64px}
+.sw{width:51px;height:31px;border-radius:16px;background:#30d158;position:relative}.sw::after{content:"";position:absolute;right:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff}
+.tag.good{background:#e1f4e5;color:var(--ok)}.rec{border-left:4px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:8px}
+</style></head><body><div class="wrap"><div class="col"><span class="tag">Proposal · 2026-10-23 · Decided (2026-10-24): adopt all; bold is the section-header weight everywhere; the shorter vacuum report title departs from the web (recorded in the vacuums page spec)</span><h1>Titles, subtitles and section headers: one convention</h1><p class="lede">One section header style, bold system weights, short nav titles with the detail in a subtitle, and one heading per screen.</p><p class="small fg2">Crops are live size (CSS px = pt), on the always-dark wallpaper. “AX” cells use a 2.0× text scale standing in for an accessibility size. Findings covered (apple-hig review of the atlas, #144):</p><ul class="small"><li>settings-controls.html:88 and settings-section-block.html:62 · SettingsSection / MachE header</li><li>page-section-header.html:41 · FilterSection vs FormHeader</li><li>performance-screen.html:122 · Images header</li><li>room-overview-tile.html:87 · hand-applied weight</li><li>vacuum-outcome-report.html:59 · long title</li><li>placeholder-screen.html:83 · double heading</li><li>page-section-header.html:40 · subtitle iOS 26 only</li><li>vacation-chooser.html:67 · system grouped cell</li></ul></div><h2>One section header style</h2><div class="col"><p>Four header treatments coexist: <code>SettingsSection</code> title3 semibold, <code>PageSectionHeader</code> title3 bold, <code>MachEContent</code> hand-repeated with no 4 pt gap, <code>FilterSection</code> 15 semibold, and the Performance “Images” header as plain Text.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class="hdr semi">Display</div><div class="hdr ">Pages</div><div class="hdr" style="padding-bottom:0;font-size:15px;font-weight:600">Filter by</div><div class="hdr semi">Images</div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>Today: weights and gaps differ.</b></div></div><div class="cell"><div class="dev" style="--w:402px"><div class="hdr ">Display</div><div class="hdr ">Pages</div><div class="hdr ">Filter by</div><div class="hdr ">Images</div></div><div class="cap"><span class="tag">Proposed</span> <b>Proposed: one <code>SectionHeaderStyle</code> = title3 bold, 4 pt gap; FilterSection and Performance use it. Bare FormHeader in a Form stays system.</b></div></div></div><h2>Tile titles</h2><div class="col"><p><code>.subheadline.weight(.semibold)</code> in GlassTile becomes <code>.subheadline.bold()</code>. One step heavier; the only visible effect.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class='pad' style='font-weight:600'>Bedroom</div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>semibold</b></div></div><div class="cell"><div class="dev" style="--w:402px"><div class='pad' style='font-weight:700'>Bedroom</div></div><div class="cap"><span class="tag">Proposed</span> <b>bold</b></div></div></div><h2>Vacuum cleaning report title</h2><div class="col"><p>The inline title “Main Floor · Automatic Cleaning Report (4)” (~45 characters) truncates on iPhone and the Duo outer display.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class="pad" style="text-align:center;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Main Floor · Automatic Cleaning Re…</div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>Truncates at 402 pt.</b></div></div><div class="cell"><div class="dev" style="--w:402px"><div class="pad" style="text-align:center"><b>Cleaning Report</b><br><span class="sub" style="font-size:12px">Main Floor · Automatic · 4 runs</span></div></div><div class="cap"><span class="tag">Proposed</span> <b>Title “Cleaning Report”, subtitle “Main Floor · Automatic · 4 runs”.</b></div></div></div><h2>Placeholder, subtitles and the vacation list</h2><div class="col"><p>Placeholder screens say the page name twice; the ContentUnavailableView title goes (the nav title stays). <code>sheetSubtitle</code> draws only on iOS 26+, so on iOS 17–25 “2 of 10 Items” is lost: show it as a footer line there. VacationChooser draws system grouped cells where Settings uses the module ground; give it the same <code>listRowBackground</code>.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class="pad" style="text-align:center"><b>Energy</b><br><br><span style="font-size:20px;font-weight:600">Energy</span><br><span class="sub">Not available yet</span></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>Two headings.</b></div></div><div class="cell"><div class="dev" style="--w:402px"><div class="pad" style="text-align:center"><b>Energy</b><br><br><span class="sub">Not available yet</span></div></div><div class="cap"><span class="tag">Proposed</span> <b>One heading.</b></div></div></div><h2>Comparison</h2><div class="col"><p></p></div><div class="col" style="max-width:none"><div class="tablewrap"><table><tr><th></th><th>Cost</th><th>Risk</th></tr><tr><td>Header style</td><td>1 component, ~5 call sites</td><td>weight shift only</td></tr><tr><td>Report title</td><td>2 strings</td><td>differs from web (HIG wins; record)</td></tr><tr><td>Placeholder</td><td>delete one view</td><td>none</td></tr><tr><td>iOS 17 subtitle</td><td>footer fallback</td><td>new small view</td></tr><tr><td>Vacation list ground</td><td>1 modifier</td><td>matches Settings</td></tr></table></div></div><h2>Recommendation</h2><div class="col rec"><b>Adopt all of the above as shown.</b> The weight changes are the only taste call. Files: SettingsScreen/PageSectionHeader (new shared style), FilterSheet, PerformanceScreen, GlassTile, VacuumMapPanel, PlaceholderScreen, SheetSubtitle, VacationScreen. Tests: snapshot-free unit tests for the title strings; AX5 UX tests.</div><h2>Open questions for the owner</h2><div class="col"><div class="q">Is bold (not semibold) the section-header weight you want everywhere?</div><div class="q">OK to depart from the web’s long vacuum report title?</div></div></div></body></html>

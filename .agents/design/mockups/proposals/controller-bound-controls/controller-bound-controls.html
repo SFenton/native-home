@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Controller-bound controls</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--soft:#e3effc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--mono:ui-monospace,"SF Mono",Menlo,monospace;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--soft:#152a44;--bad:#ff6961;--ok:#30d158;--code:#20242b;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(26px,4vw,38px);line-height:1.1;margin:0 0 8px}h2{font-size:22px;margin:44px 0 8px}h3{font-size:16px;margin:0 0 4px}
+p{margin:0 0 12px;max-width:70ch}.lede{color:var(--fg2);font-size:18px}.tag{font:12px var(--mono);color:var(--fg2)}
+code{font:13px var(--mono);background:var(--code);padding:1px 5px;border-radius:4px}
+pre{font:12.5px/1.45 var(--mono);background:var(--code);padding:12px;border-radius:8px;overflow:auto;margin:8px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line)}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--code)}
+.scroll{overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.rec{border-color:var(--accent);box-shadow:0 0 0 2px var(--soft)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+button,select{font:inherit;padding:8px 12px;min-height:44px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.dev{background:#000;border-radius:28px;padding:10px;margin:0 auto}
+.dev.iphone{width:260px}.dev.duo{width:330px}.dev.ipad{width:420px}
+.screen{background:#1c1c1e;color:#f2f2f7;border-radius:20px;padding:12px 10px;min-height:150px}
+.duo .screen{display:grid;grid-template-columns:1fr 1fr;gap:0}.duo .screen>div+div{border-left:6px solid #000;padding-left:8px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#2c2c2e;border-radius:10px;padding:10px;margin-bottom:6px;font-size:14px;min-height:44px}
+.sw{width:51px;height:31px;border-radius:16px;background:#555;position:relative;flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw.on{background:#34c759}.sw.on::after{transform:translateX(20px)}.sw.pend{outline:2px dashed #ffd60a}
+.cap{font-size:12px;color:#aeaeb2;margin:-2px 0 8px}
+.log{font:12.5px var(--mono);background:var(--code);padding:10px;border-radius:8px;min-height:120px;white-space:pre-wrap}
+.legend span{display:inline-block;margin-right:12px;font-size:13px}
+</style></head><body><div class="wrap">
+<p class="tag">Proposal · 2026-10-24 · status: proposed · awaiting owner · no Swift changed</p>
+<h1>Controller-bound controls</h1>
+<p class="lede">About 25 <code>Binding(get:set:)</code> in <code>HassUI</code> forward to a controller. The swiftui-pro review flags them; the first pass skipped them because Home Assistant is the source of truth. This proposal asks how to remove the closures without changing what a control does.</p>
+
+<h2>1. What is wrong or wanted</h2>
+<p><b>Nothing a person sees.</b> I traced every site: the <code>get</code> already reads controller state <i>including its optimistic overlay</i> (<code>OptimisticActions</code>, <code>revertAfter</code> 2 s, generation rollback). So a control flips at the tap, stays on a confirm, and snaps back on a rejection or a 2 s silence. That behaviour is correct and every option below keeps it byte-for-byte. The ask is code shape only: the pixel output is unchanged, so under <a href="../../../../workflow/propose-first.md">propose-first</a> this is a refactor and needs the owner's pick for the <i>pattern</i>, not for pixels.</p>
+<p>The sites are not one problem. They fall in four groups, and the right answer differs per group:</p>
+<div class="scroll"><table>
+<tr><th>Group</th><th>Sites (apple/Sources/HassUI/Features)</th><th>What the closure does</th></tr>
+<tr><td><b>A. Controller-forward</b> (HA is truth)</td><td>Sprinklers: Rain Delay, Smart Watering, program switches (×2). Humidifier: Device Timer stepper, Display. Vacuums: autoClean. Climate: Predictive Comfort, HubPicker. Bedroom: <code>BedAlarmToggle</code>, WakeLight row toggle, <code>WakeLightDefaultsTab.binding</code>, BedSideSheet scope sheet (<code>isPresented</code>)</td><td><code>get</code> = controller value (overlay included), <code>set</code> = one command</td></tr>
+<tr><td><b>B. Value-ignoring action toggles</b></td><td>Humidifier schedules enabled, Climate <code>ClimateToggleRow</code>, Vacuums autoClean, ScanItem Prepared Food, MediaRemote switches</td><td><code>set: { _ in action() }</code>: the controller flips, the toggle only reports intent</td></tr>
+<tr><td><b>C. Local draft transforms</b></td><td>WakeLight editor: Alarm Name (strip newlines, 40 cap), Alarm Date, “Add to bed” toggles (Set membership), <code>kindBinding</code>. Humidifier schedule editor. ScanItem <code>nameBinding</code>, <code>quantityBinding</code>, <code>quantityStepBinding</code></td><td>Local <code>@State</code>/model is already the source of truth; the closure normalises. No HA race.</td></tr>
+<tr><td><b>D. Async-gated</b></td><td><code>InventoryItemEditor.preparedBinding</code></td><td><code>get</code> reads the batch; <code>set</code> opens a prompt and must <i>not</i> flip until confirmed</td></tr>
+</table></div>
+<p>Two notes from reading the code: <code>SegmentedChoice</code> already takes <code>selection:</code> + a callback, and WakeLight’s <code>kindBinding.wrappedValue = $0</code> is a Binding built only to be called like a function. And the “scheduling toggle whose setter ignores its value” is group B by design: <code>toggleEnabled()</code> reads the controller’s own state, so it cannot desync.</p>
+
+<h2>2. Options</h2>
+<div class="grid">
+<div class="card"><h3>O1 · Leave as is, codify it</h3><p>Keep the closures. Add one paragraph to <a href="../../../../patterns/optimistic-actions.md">optimistic-actions</a>: a forwarding Binding is allowed only when <code>get</code> reads controller state; local <code>@State</code> + <code>onChange</code> mirrors are a review finding. Triage can then ignore the swiftui-pro rule here.</p><p class="tag">0 files · 0 risk · finding stays open</p></div>
+<div class="card rec"><h3>O2 · Shared controls <span class="tag">(recommended, for A, B, D)</span></h3><p><code>ControllerToggle(title, isOn: Bool, send: (Bool)->Void)</code>, <code>ActionToggle(title, isOn: Bool, action: ()->Void)</code>, <code>ControllerStepper(value:, range:, step:, send:)</code> (built on <code>Stepper(onIncrement:onDecrement:)</code>), <code>ControllerPicker</code>. Callers pass a plain <code>Bool</code>/<code>Int</code> read and a function; the <i>one</i> internal Binding lives in HassDesign, documented, tested, with the 44 pt row, a11y identifier and a <code>pending</code> hint in one place. Group C: the editors’ closures move to the draft types (<code>draft.setKind</code>, <code>draft.dateValue</code>, name normalised by <code>.onChange</code> since local state <i>is</i> the truth) and ScanItem gets writable model properties used through <code>@Bindable</code>.</p><p class="tag">~14 view files + 1 new Design file + 2 draft helpers · same pixels</p></div>
+<div class="card"><h3>O3 · Writable controller properties</h3><p>Controllers expose <code>var rainDelay: Bool { get set }</code> whose <code>set</code> sends the command; views use <code>@Bindable</code> and <code>$controller.rainDelay</code>. Removes closures everywhere with no new view type.</p><p class="tag">~12 controllers touched · setters with side effects · cannot express group B or D · hides that a write is a command</p></div>
+<div class="card"><h3>O4 · Local <code>@State</code> + <code>onChange</code> <span class="tag">(rejected)</span></h3><p>What the review literally suggests. Control flips from its own state, then <code>onChange</code> sends. Shown below as the failure case.</p></div>
+</div>
+
+<h2>3. Echo timing and failure, played</h2>
+<p>One switch (Rain Delay) on the three device families. Pick the command outcome, then tap the switch. <b>O1 and O2 are identical</b> by construction; O4 drifts.</p>
+<div class="bar"><b>Outcome:</b>
+<button data-o="echo" class="on">Echoes in 300 ms</button><button data-o="slow">Echo after 1.2 s</button><button data-o="reject">Rejected (service error)</button><button data-o="silent">No echo (2 s revert)</button><button data-o="other">Other phone toggles at t=0.5 s</button></div>
+<div class="bar"><b>Option:</b><button data-m="o2" class="on">O1 / O2 (overlay)</button><button data-m="o4">O4 (local state)</button><button id="go">Tap switch</button></div>
+<div class="grid">
+<div><div class="dev iphone"><div class="screen"><div class="row"><span>Rain Delay · 24 Hours</span><span class="sw" data-sw></span></div><div class="cap" data-cap>iPhone · portrait only</div></div></div></div>
+<div><div class="dev duo"><div class="screen"><div><div class="row"><span>Rain Delay</span><span class="sw" data-sw></span></div></div><div><div class="cap">Duo · second pane shows the sheet’s other sections; control is the same</div></div></div></div></div>
+<div><div class="dev ipad"><div class="screen"><div class="row"><span>Rain Delay · 24 Hours</span><span class="sw" data-sw></span></div><div class="cap">iPad · sheet detent; same row</div></div></div></div>
+</div>
+<div class="bar legend"><span>Dashed yellow outline = pending (shown here only to explain; <b>the app draws none</b>, see optimistic-actions “no error UI”)</span></div>
+<div class="log" id="log">Choose an outcome and tap the switch.</div>
+
+<h3 style="margin-top:20px">Timeline summary</h3>
+<div class="scroll"><table>
+<tr><th>Outcome</th><th>Today / O1 / O2</th><th>O3</th><th>O4 (local state)</th></tr>
+<tr><td>Echo in 300 ms</td><td>Flips at tap; overlay clears on <code>.confirmation</code>; no visible change</td><td>same</td><td>Flips at tap; echo equal; fine</td></tr>
+<tr><td>Rejected</td><td>Flips, then the generation rollback restores the old value</td><td>same</td><td><b>Stays flipped</b> until something else changes the entity; lies about the house</td></tr>
+<tr><td>No echo</td><td>Reverts after 2 s (web parity)</td><td>same</td><td><b>Never reverts</b></td></tr>
+<tr><td>Other phone toggles at 0.5 s</td><td>Follows live change (<code>.liveChange</code> / confirmation)</td><td>same</td><td>Echo of the other device’s write fights the local value; needs a second <code>onChange</code> and a guard against send loops</td></tr>
+<tr><td>Cold launch / reconnect</td><td>Reads <code>EntityStore</code> snapshot; no blank (AGENTS invariant)</td><td>same</td><td>Local copy seeded once; stale after reconnect</td></tr>
+</table></div>
+
+<h2>4. VoiceOver</h2>
+<ul>
+<li>Value is announced from the same read as today: “Rain Delay · 24 Hours, switch button, on”. O2 owns the label/identifier/hint so the 14 sites cannot drift (the autoClean <code>accessibilityHint</code>, the <code>.labelsHidden()</code> rows with an explicit label).</li>
+<li>Rollback: the switch’s value changes back; SwiftUI posts the value change, so VoiceOver speaks “off” again. We add no extra announcement (consistent with “no error UI” in the pattern); the owner may want one, see questions.</li>
+<li>Stepper keeps the adjustable trait via <code>Stepper(onIncrement:onDecrement:)</code>; the displayed “Turn Off In 30 min” is the accessibility value. <b>Check:</b> range clamping moves into the controller (<code>setTimerMinutes</code> already clamps).</li>
+<li>O4 would announce the flip, then silently never announce the failure.</li>
+<li>Group D: the Prepared Food switch stays <i>off</i> while the confirmation prompt is up, so VoiceOver reads the true state behind the alert.</li>
+</ul>
+
+<h2>5. Comparison</h2>
+<div class="scroll"><table>
+<tr><th></th><th>O1 leave</th><th>O2 shared controls</th><th>O3 writable props</th><th>O4 local state</th></tr>
+<tr><td>HA stays truth (AGENTS)</td><td>yes</td><td>yes</td><td>yes</td><td><b>no</b></td></tr>
+<tr><td>Removes <code>Binding(get:set:)</code> at call sites</td><td>no</td><td>yes (one internal)</td><td>yes</td><td>yes</td></tr>
+<tr><td>Same pixels / timing</td><td>yes</td><td>yes</td><td>yes</td><td>no (failure, drift)</td></tr>
+<tr><td>Fits group B (ignores value) and D (async gate)</td><td>yes</td><td>yes (<code>ActionToggle</code>)</td><td>no</td><td>no</td></tr>
+<tr><td>One place for 44 pt, id, hint, a11y</td><td>no</td><td><b>yes</b></td><td>no</td><td>no</td></tr>
+<tr><td>Honest cost</td><td>review finding stays</td><td>honestly moves the closure into one reviewed place; new tested component</td><td>setters with side effects in HassCore</td><td>re-implements the overlay per view</td></tr>
+<tr><td>HIG</td><td>Toggles/Steppers: state must reflect the real state</td><td>same</td><td>same</td><td>violates it on failure</td></tr>
+</table></div>
+
+<h2>6. Recommendation</h2>
+<p><b>O2, applied per group.</b> A and B and D use the shared controls; C is fixed at the source (draft/model helpers, because local state really is the truth there); the BedSideSheet scope sheet becomes <code>.sheet(item:)</code> over the controller’s <code>scopeRequest</code> or stays as the one sanctioned <code>isPresented</code> forwarder. Then add the O1 paragraph to the pattern doc so the swiftui-pro rule is documented as “satisfied by ControllerToggle”.</p>
+<p>It asks of the app: new <code>HassDesign/Controls/ControllerControls.swift</code>; edits in the ~14 view files above; <code>WakeLight.Alarm</code> draft helpers; update <code>patterns/optimistic-actions.md</code> and the atlas notes for Sprinklers, Humidifier, Vacuums, Climate, Bedroom (no state changes, only source maps). No new motion.</p>
+<p><b>Test plan.</b> Unit (HassDesign hosted UI tests): <code>ControllerToggle</code> shows <code>isOn</code> input regardless of taps until the input changes; tap calls <code>send</code> exactly once with the new value; <code>ActionToggle</code> calls <code>action</code>, not <code>send(!)</code>. Core (existing <code>OptimisticActionsTests</code> with <code>RecordingCaller.failNext</code> + <code>ManualScheduler</code>): rollback on failure, 2 s revert, live-change clear; add a controller-level test per migrated controller that the value read after a failed call equals the old one. UX + accessibility on iPhone, Duo, iPad: toggle round-trip, rejected command ends with switch off (stub caller), AX5 row layout unchanged, 44 pt target, VoiceOver label/value/trait (switch; adjustable for the stepper); Prepared Food stays off behind the prompt. Snapshot of the screens before and after must be identical.</p>
+
+<h2>7. Open questions</h2>
+<ol><li>OK with O2 (hybrid by group), or prefer O1 (document, don’t change) since pixels don’t change?</li>
+<li>Should a rolled-back control also post a VoiceOver announcement (“Rain Delay didn’t change”)? Today: none, per the pattern.</li>
+<li>Use the sheet-item form for the BedSide scope sheet, or keep the single sanctioned <code>isPresented</code> forwarder?</li></ol>
+</div>
+<script>
+(function(){
+var outcome='echo',mode='o2',log=document.getElementById('log'),sws=[].slice.call(document.querySelectorAll('[data-sw]')),timers=[],truth=false,overlay=null;
+function draw(){var shown=mode==='o2'?(overlay!==null?overlay:truth):local;sws.forEach(function(s){s.classList.toggle('on',shown);s.classList.toggle('pend',mode==='o2'&&overlay!==null)})}
+var local=false;
+function say(t,m){log.textContent+='\n'+(t/1000).toFixed(1)+' s  '+m}
+function reset(){timers.forEach(clearTimeout);timers=[];truth=false;overlay=null;local=false;log.textContent='';draw()}
+function at(ms,f){timers.push(setTimeout(f,ms))}
+function run(){reset();var want=true;say(0,'tap → want on');
+ if(mode==='o2'){overlay=true;say(0,'overlay on: switch flips (pending)');}else{local=true;say(0,'local state on: switch flips; onChange sends');}
+ draw();
+ if(outcome==='echo'){at(300,function(){truth=true;overlay=null;local=truth;say(300,'HA echoes on → overlay clears, same value');draw()})}
+ if(outcome==='slow'){at(1200,function(){truth=true;overlay=null;local=truth;say(1200,'HA echoes on (before 2 s) → confirmed');draw()})}
+ if(outcome==='reject'){at(300,function(){say(300,'service call fails');if(mode==='o2'){overlay=null;say(300,'generation rollback: switch back to off')}else{say(300,'nothing reads this: switch STAYS on while the sprinkler is off')}draw()})}
+ if(outcome==='silent'){at(2000,function(){if(mode==='o2'){overlay=null;say(2000,'revertAfter 2 s: switch back to off')}else{say(2000,'no revert path: stays on, wrong forever')}draw()})}
+ if(outcome==='other'){at(500,function(){truth=false;say(500,'other phone turns it OFF (HA: off)');if(mode==='o2'){overlay=null;say(500,'.liveChange clears overlay: switch follows HA → off')}else{say(500,'local copy ignores the live change unless a second onChange mirrors it, and mirroring re-triggers send')}draw()})}
+}
+document.querySelectorAll('[data-o]').forEach(function(b){b.onclick=function(){outcome=b.dataset.o;document.querySelectorAll('[data-o]').forEach(function(x){x.classList.toggle('on',x===b)});reset()}});
+document.querySelectorAll('[data-m]').forEach(function(b){b.onclick=function(){mode=b.dataset.m;document.querySelectorAll('[data-m]').forEach(function(x){x.classList.toggle('on',x===b)});reset()}});
+document.getElementById('go').onclick=run;sws.forEach(function(s){s.onclick=run});
+})();
+</script></body></html>

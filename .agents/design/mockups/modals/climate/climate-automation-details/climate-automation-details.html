@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Automation and Tracking details · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+
+  /** A pushed level inside the Advanced Controls sheet. */
+  function level(ctx, title, content, o) { o = o || {}; return SC.climateSheet(ctx, { content: content, title: title, connection: o.connection, scenario: o.scenario }); }
+  function predictive(c, o) { return level(c, 'Predictive Comfort', SC.predictiveDetail(c, o), o); }
+  function eco(c, k, o) { return level(c, SC.ecoOptions[k].title, SC.ecoDetail(c, k, o), o); }
+  function track(c, k, o) { return level(c, { selected: 'Selected Rooms', critical: 'Critical Protection', occupied: 'Occupied Only' }[k], SC.trackingDetail(c, k, o), o); }
+
+  Mock.mount({
+    kind: 'modal', id: 'climate-automation-details', title: 'Automation and Tracking detail pages (pushed)', area: 'climate', status: 'shipped',
+    summary: 'The pages the Automation and Tracking tabs push inside the Advanced Controls sheet: Predictive Comfort (switches, the current prediction, why), the two Eco Mode choices (checkmark rows with descriptions), and the three room lists (Selected Rooms, Critical Protection, Occupied Only).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift', 'apple/Sources/HassUI/Features/Climate/ClimateSheet.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Config/ClimateConfig.swift', 'apple/Sources/HassCore/Climate/ClimateController.swift'],
+    spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'module-list', 'optimistic-actions', 'settings-section', 'motion'],
+    hig: ['Lists and tables', 'Toggles', 'Navigation', 'Sheets'],
+    entities: ['switch.thermostat_contact_sensors_predictive_comfort_mode', 'sensor.demo_living_room_contact_1', 'select.thermostat_contact_sensors_eco_mode_critical_tracking', 'select.thermostat_contact_sensors_eco_behavior_when_away', 'switch.demo_example_5'],
+    kitComponents: ['HassModal', 'ModuleList', 'ModuleRow', 'Toggle', 'InlineAlert', 'BackButton', 'SheetCloseItem'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Predictive Comfort', note: 'Recommendation line, three switches, Current Prediction metrics, then the reasons (fixture: Pre-Cool, applied)', render: function (c) { return predictive(c); } },
+      'eco-critical': { title: 'Eco Mode Critical Tracking', note: 'each choice with its description; the current one has the checkmark', render: function (c) { return eco(c, 'critical'); } },
+      'eco-away': { title: 'Eco Behavior When Away', render: function (c) { return eco(c, 'away'); } },
+      'eco-unavailable': { title: 'Eco select without options', note: 'an InlineAlert replaces the choices; the opener is disabled on the tab, so this only shows when the options vanish while the page is open', render: function (c) { return eco(c, 'critical', { unavailable: true }); } },
+      'tracking-selected': { title: 'Tracking: Selected Rooms', note: 'all eleven rooms, a filled check circle for the three tracked ones', render: function (c) { return track(c, 'selected'); } },
+      'tracking-critical': { title: 'Tracking: Critical Protection', note: 'only the untracked rooms (eight), Guest Room forced', render: function (c) { return track(c, 'critical'); } },
+      'tracking-occupied': { title: 'Tracking: Occupied Only', render: function (c) { return track(c, 'occupied'); } },
+      'tracking-disabled': { title: 'Selected Rooms while tracking is off', note: 'an InlineAlert tells what to turn on first', render: function (c) { return track(c, 'selected', { disabled: true }); } },
+      'critical-disabled': { title: 'Critical Protection while the select is not Track Select Critical', render: function (c) { return track(c, 'critical', { disabled: true }); } },
+      'loading': { title: 'Predictive Comfort, nothing saved', note: 'reachable only by a deep link (the opener hides while the switch is off): "Recommendation: Unknown", disabled switches, "--°F" metrics, one reason line', render: function (c) { return predictive(c, { unavailable: true }); } },
+      'error': { title: 'Room switches unavailable', note: 'unavailable switches are disabled and their circles dim (the web left them tappable)', render: function (c) { return track(c, 'selected', { unavailable: true }); } },
+      'offline': { title: 'Over an offline Climate page', note: 'a toggle or a choice shows its optimistic value, then rolls back when the call fails; the page behind carries the offline chip', render: function (c) { return eco(c, 'away', { connection: 'offline' }); } },
+      'large': { title: 'Large detent (the sheet\'s)', render: function (c) { return predictive(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'metric values drop under their labels, rows wrap, bullets wrap', render: function (c) { return predictive(c); } },
+      'ax5-eco': { title: 'Eco choices at AX5', override: { ts: 'ax5' }, render: function (c) { return eco(c, 'critical'); } },
+    },
+
+    motion: [
+      { id: 'eco-check', what: 'An Eco choice is picked: the checkmark appears on it and leaves the old one', token: 'quick 0.2 s easeOut (opacity)', state: 'eco-critical',
+        source: 'ClimateAutomationTab.swift EcoOptionDetail .quickTransition("EcoOptionDetail", value: isSelected)', reduce: 'the quick transition still cross-fades (opacity is not motion)',
+        play: function (stage) { var chk = stage.querySelectorAll('.sc-chk'); function set(i) { chk.forEach(function (c, k) { c.style.opacity = k === i ? 1 : 0; }); }
+          chk.forEach(function (c) { c.style.transition = 'opacity ' + Mock.anim.ms.quick() + 'ms ease-out'; }); set(2); return Mock.sleep(900).then(function () { set(0); return Mock.sleep(900); }).then(function () { set(1); return Mock.sleep(500); }); } },
+      { id: 'toggle', what: 'A switch is turned on or off', token: 'standard 0.3 s for the knob, state 0.6 s ease-in-out for the track (system switch)', state: 'default',
+        source: 'SwiftUI Toggle (system) in ClimateToggleRow', reduce: 'the knob still moves; colour cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-toggle')[2]; t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'room-check', what: 'A room is added to a list: its circle fills with the check and the tint', token: 'none declared in the code (the symbol swaps between circle and checkmark.circle.fill with no transition)', state: 'tracking-selected',
+        source: 'ClimateTrackingTab.swift TrackingRoomsDetail', reduce: 'unchanged',
+        note: 'Docs versus code: motion-components.md does not list TrackingRoomsDetail, so the swap is instant; the counts on the Tracking tab update at once (optimistic).',
+        play: function (stage) { var c = stage.querySelectorAll('.ui-mrow')[3]; var ic = c && c.querySelector('.acc span'); if (!ic) return Promise.resolve(); var before = ic.innerHTML; ic.innerHTML = Mock.icon('checkmark.circle.fill', { fill: true }); ic.style.color = 'var(--ink-action)'; return Mock.sleep(900).then(function () { ic.innerHTML = before; ic.style.color = ''; return Mock.sleep(300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Automation or Tracking tab row', to: 'Detail page', kind: 'push', note: 'A NavigationLink pushes the detail on the sheet\'s stack: it slides in from the trailing edge, the tab shifts left about 30% and dims; the tab bar goes away on the pushed level. Reduce Motion cross-fades.', state: 'default',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), cur = panel.querySelector('.ui-modal');
+          var base = SC.climateSheet(ctx, { noPresenter: true, tab: 'automation' }).querySelector('.ui-modal'); cur.parentNode.insertBefore(base, cur); cur.style.cssText += ';position:absolute;left:0;right:0;top:0;bottom:0;background:var(--sheet-ground);z-index:6';
+          return Mock.anim.push(base, cur).then(function () { return Mock.sleep(600); }).then(function () { Mock.anim.reset(panel); base.remove(); cur.style.position = ''; cur.style.zIndex = ''; });
+        } },
+      { from: 'Detail page', to: 'Tab', kind: 'push', note: 'Back (glass circle) or the interactive edge swipe returns to the tab where it was.', state: 'default',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), cur = panel.querySelector('.ui-modal');
+          var back = SC.climateSheet(ctx, { noPresenter: true, tab: 'automation' }).querySelector('.ui-modal'); back.style.cssText += ';position:absolute;left:0;right:0;top:0;bottom:0;background:var(--sheet-ground);z-index:6'; panel.appendChild(back);
+          return Mock.anim.push(cur, back, { back: true }).then(function () { return Mock.sleep(600); }).then(function () { Mock.anim.reset(panel); back.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Predictive Comfort', note: 'The recommendation is a heading-style line (climate.predictive.recommendation); each switch is labelled by its row with the description as the hint; each metric is one element ("Indoor, 72.4°F"); the reasons are one container (climate.predictive.reasons) read in order.' },
+      { rule: 'Eco choices', note: 'Each choice is a button reading "<choice>, <description>" ("Use Eco Away Targets, Use the wider away temperature range while everyone is away."); the current one carries the selected trait; the page description is the section footer.' },
+      { rule: 'Room lists', note: 'Each row is a button named by the room with the value On or Off and the selected trait when on; the circle glyph is hidden; unavailable rows are disabled. Critical Protection lists only the untracked rooms.' },
+      { rule: 'Disabled lists', note: 'A warning InlineAlert reads "Warning: Enable Track Selected Rooms before choosing participating rooms."; the opener that led here is dimmed with its reason as the value.' },
+      { rule: 'State is not colour alone', note: 'Check marks, circles with a tick, On and Off values and the written subtitles carry the state; colour is extra.' },
+      { rule: 'Targets', note: 'Rows are 52 pt or taller; the whole row (not just the circle) is the target.' },
+      { rule: 'Dynamic Type', note: 'Trailing values drop under their labels at AX sizes (LabeledContent wraps); nothing truncates.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Toggles: use the switch style only in a list row", verdict: 'pass', note: "Every setting is a Toggle in a Form row with its description as the footer (ClimateFormPieces.swift); the tile-style toggles are not used here.", by: 'apple-hig skill' },
+        { rule: "Lists and tables: a checkmark marks the single choice", verdict: 'pass', note: "Eco options are Buttons with a trailing checkmark and the isSelected trait, description in the label (ClimateAutomationTab.swift).", by: 'apple-hig skill' },
+        { rule: "Accessibility: say why a row is disabled", verdict: 'pass', note: "A disabled Tracking opener keeps its subtitle ('Enable Track Selected Rooms first') as the value so VoiceOver reads it dimmed (ClimateTrackingTab.swift).", by: 'apple-hig skill' },
+        { rule: "Lists: drill-down uses a disclosure indicator", verdict: 'pass', note: "NavigationLink rows draw the system chevron; Predictive Comfort's Current Prediction row appears only while the switch is on (ClimateAutomationTab.swift).", by: 'apple-hig skill' },
+        { rule: "Dynamic Type: forms grow, never clip", verdict: 'pass', note: "Rows use text styles with fixedSize vertically and a 720 pt readable width (ClimateFormPieces.swift); AX5 wraps subtitles.", by: 'apple-hig skill' },
+        { rule: "Toggles: announce a state once", verdict: 'pass', note: "TrackingRoomsDetail rows keep the .isSelected trait only; the duplicate \"On\"/\"Off\" value is gone (ClimateJourneyTests checks isSelected).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Prefer Binding projected from state over Binding(get:set:)", verdict: 'pass', note: "Already fixed: ClimateToggleRow uses ActionToggle and the Predictive Comfort switch ControllerToggle (ClimateFormPieces.swift, ClimateAutomationTab.swift).", by: 'swiftui-pro skill' },
+        { rule: "navigationDestination(for:)", verdict: 'pass', note: "ClimateRoute is registered once (ClimateSheet.swift); links are NavigationLink(value:).", by: 'swiftui-pro skill' },
+        { rule: "Accessibility hint carries what a switch does", verdict: 'pass', note: "Label is the title and the description is the hint, while the footer shows the same text (ClimateFormPieces.swift).", by: 'swiftui-pro skill' },
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Duo unfolded: the page sheet is centred in the window and crosses the hinge band here (the system decides placement on the Duo; the unfolded pose was only run for pages). Check on a device before relying on it.',
+      'medium and fitted: not applicable; these are pushed levels inside the large sheet (see climate-sheet).',
+      'loading: Predictive Comfort and the Eco pages are reached from openers that only exist when the entities do; the loading state is the deep-link case (gallery FENTON_GALLERY_CLIMATE_OPEN=predictive). The tabs\' own loading state is drawn in climate-sheet.',
+      'The routes: ClimateRoute.predictive, .eco(critical|away) (ids eco-critical, eco-away) and .tracking(selectedRooms|criticalProtection|occupiedOnly) (ids selected-rooms, critical-protection, occupied-only). The Room route is climate-room-detail.',
+      'Docs versus code: spec.md says the Predictive Comfort recommendation is the sheet subtitle; the native page shows "Recommendation: …" as the first line (spec Departures).',
+      'The Weather metric prints the weather entity id as Home Assistant gives it ("weather.demo_weather_1"), as the code does.',
+      'The Form is approximated with kit rows (ModuleList in the sheet cell colour).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: Predictive Comfort, two Eco pages, three tracking lists, disabled and unavailable variants; push in and out.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,17 @@
+{
+  "id": "dd-floating-bar-covers-content",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "\"Add task\" and other floating buttons should still show content underneath it and pages should have enough room at bottom",
+  "surface": "floating-action-bar",
+  "poses": [
+    "iphone",
+    "duo-folded"
+  ],
+  "app": "swiftui",
+  "category": "layout",
+  "pre_fix_ref": "2914f1f8",
+  "fix_ref": "c67a3d52",
+  "fix_confidence": "medium",
+  "expected": "The last row scrolls fully clear of the floating bar, including at AX5; flag content that can never be scrolled above the bar."
+}

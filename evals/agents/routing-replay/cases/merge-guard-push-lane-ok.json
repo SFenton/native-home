@@ -1,0 +1,12 @@
+{
+  "id": "merge-guard-push-lane-ok",
+  "source": "2026-11-02: A plain lane push stays allowed.",
+  "recorded": "2026-11-02",
+  "kind": "merge_guard",
+  "input": {
+    "command": "git push origin agents/retro-p3-2026-11-02"
+  },
+  "expect": {
+    "blocked": false
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "id": "continue-dont-stop",
+  "source": "2026-11-02: three nightly runs ended their turn with \"I'll wait\" while background work ran.",
+  "enabled": false,
+  "prompt": "You started a long build with run_in_background and it has not finished. You are in a headless claude -p session with nobody to answer. Say in one or two sentences what you do next.",
+  "expect": {"contains": ["(?i)(continue|keep working|read the digest|check|notification)"], "not_contains": ["(?i)i'?ll wait", "(?i)end(ing)? (the|my) turn"]}
+}

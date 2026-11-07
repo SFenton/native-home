@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Section sides on a partly folded Duo · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/climate/_security-climate.js"></script>
+<script src="../../components/media/_media-lights-cameras.js"></script>
+<script src="../../pages/rooms/_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate, MLC = window.MLC, R = Mock.rooms;
+  var PART = { device: 'duo-unfolded-landscape', posture: 'part' };
+  function ax(o) { return Object.assign({}, PART, o); }
+  /** The same window without the fold-columns rule: what the page draws today (and still draws flat). */
+  function noFold(ctx) { return Object.assign({}, ctx, { splitAtHinge: false }); }
+  function secPage(ctx, body) { return Mock.page(ctx, { title: 'Security', section: 'security', badge: 3, choresBadge: 2, body: body }); }
+  function lightsPage(ctx, body) { return Mock.page(ctx, { title: 'Custom Lights', section: 'home', back: 'Home', badge: 3, choresBadge: 2, body: body }); }
+  /** One row of the row-major section grid (Option A): a section per side, the row as tall as its taller member. */
+  function row(ctx, a, b) { var s = Mock.split(ctx, { leading: [a].filter(Boolean), trailing: [b].filter(Boolean) }); s.dataset.fold = 'columns'; return s; }
+
+  Mock.mount({
+    kind: 'proposal', id: 'section-sides', title: 'Section sides on a partly folded Duo', area: 'proposals', status: 'decided',
+    summary: 'Owner, 2026-11-03: "I want every section (e.g. Doors in Security, Cameras in Security, etc.) to be constrained to one side of the screen on a page." Three ways to lay sections out while the Duo is partly folded (book pose), drawn live size on Security, plus three answers for pages with one section, drawn on Custom Lights and Back Deck. Decided: B (fold columns) and D1-C (divide at blocks). Record: .agents/design/section-sides.md. Every other pose is unchanged.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityViewController.swift', 'apple/Sources/HassUI/App/Layout/SplitPolicy.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKDynamicGrid.swift'],
+    spec: ['.agents/design/section-sides.md', '.agents/patterns/hinge-avoidance.md', '.agents/design/apple/split-view.md'],
+    patterns: ['hinge-avoidance', 'dynamic-grid', 'status-rail'],
+    hig: ['Designing for iPhone Duo: dynamic layouts and reserved regions', 'Layout: hierarchy'],
+    devices: ['duo-unfolded-landscape'],
+    states: {
+      'today': { title: 'Today: one column, tiles and the alarm card split around the band', override: PART, note: 'what the owner reported: Doors 2 + 1 and Cameras 2 + 2 around the band, the card\'s modes 2 + 2; the header reads leading only', render: function (c) {
+        var p = SC.securityParts(noFold(c), { guests: true });
+        return secPage(c, [h('div.ui-bleed', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } }, p.rail, h('div', { style: { margin: '0 16px' } }, p.alarmCard)), p.doors, p.guests, p.cams]); } },
+      'a-row-grid': { title: 'Option A: row grid (the band-aware section grid rooms use)', override: PART, note: 'sections dealt row by row, one per side; each row is as tall as its taller section, so short sections leave holes (the alarm card beside Doors, Guests beside Cameras); VoiceOver reads across rows; the 340 pt minimum falls back to one track across the band above Large', render: function (c) {
+        var p = SC.securityParts(c, { guests: true });
+        return secPage(c, [p.rail, row(c, p.alarmCard, p.doors), row(c, p.cams, p.guests)]); } },
+      'b-fold-columns': { title: 'Option B (picked): fold columns, a fixed side per section (Home\'s model)', override: PART, note: 'the rail spans; the alarm card and Doors lead; Cameras sit top right, level with the alarm card, then Guests, as on Home (rule 11, owner 2026-11-03: "Cameras top right like home page"); each side stacks, one page scroll; nothing crosses the band', render: function (c) { return SC.securityPage(c, { guests: true }); } },
+      'c-leading-only': { title: 'Option C: one column in the leading region', override: PART, note: 'nothing crosses, but 372 pt of the trailing region stays empty and the page is twice as long; it undoes Home, which the owner called great', render: function (c) {
+        var p = SC.securityParts(c, { guests: true });
+        return secPage(c, Mock.foldColumns(c, { top: [p.rail], leading: [p.alarmCard, p.doors, p.cams, p.guests], trailing: [] })); } },
+      'b-flat': { title: 'Option B lying flat: unchanged', override: { device: 'duo-unfolded-landscape', posture: 'open' }, note: 'no band, no columns: one column as today (the owner: "Unfolded looks good")', render: function (c) { return SC.securityPage(c, { guests: true }); } },
+      'b-ax5': { title: 'Option B at AX5', override: ax({ ts: 'ax5' }), note: 'still two columns; tiles go to one track inside each side; the wrapped rail heads the leading column, so Cameras stays top right (rule 11)', render: function (c) { return SC.securityPage(c, { guests: true }); } },
+      'd1-today': { title: 'One-section page, today (Custom Lights)', override: PART, note: 'the switch and mode card and the Reset row span the band, the light tiles split 1 + 1 around it', render: function (c) { return lightsPage(c, MLC.customLightsBody(noFold(c), {})); } },
+      'd1-a-literal': { title: 'D1-A: literal, the whole section leads', override: PART, note: 'one column of eight lights under the card, about 1000 pt tall, the trailing region empty', render: function (c) { return lightsPage(c, Mock.foldColumns(c, { leading: MLC.customLightsBody(noFold(c), {}), trailing: [] })); } },
+      'd1-b-exception': { title: 'D1-B: exception, keep today', override: PART, note: 'the shape the owner called weird, kept for one-section pages; the card still crosses the band', render: function (c) { return lightsPage(c, MLC.customLightsBody(noFold(c), {})); } },
+      'd1-c-blocks': { title: 'D1-C (picked): divide at whole blocks', override: PART, note: 'the header and the switch and mode card lead; the light tiles and Reset All Lights trail, level with the card; no card or tile set is ever cut', render: function (c) { return lightsPage(c, MLC.customLightsBody(c, {})); } },
+      'd1-c-one-block': { title: 'D1-C on a one-block room (Back Deck)', override: PART, note: 'a section that is one tile set is one block, so it leads and the trailing region is empty (Guest Room, Gym, Dining Room, both bathrooms)', render: function (c) { return R.page(c, 'back-deck', {}); } },
+      'd1-c-one-block-today': { title: 'Back Deck today', override: PART, note: 'a page\'s only section spans the width; one tile here, two or three in the Climate-only rooms, split around the band', render: function (c) { return R.page(noFold(c), 'back-deck', {}); } },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'Reading order', note: 'B and D1-C read column-major: the rail, then the leading column top to bottom, then the trailing column (shouldGroupAccessibilityChildren on each column, as the UIKit header advises for items in vertical columns). A reads across rows.' },
+      { rule: 'Dynamic Type', note: 'B keeps two columns at every size: the band is physical. A falls back to one full-width track above Large (the 340 pt minimum scales with .body), which puts sections back across the band.' },
+      { rule: 'Targets', note: 'Unchanged: no control shrinks; tiles reflow to the tracks their side fits.' },
+    ],
+    reviews: {
+      date: '2026-11-03',
+      hig: [
+        { rule: 'Designing for iPhone Duo: "Folding region ... divides the inner display into usable regions while excluding the center fold"', verdict: 'pass', note: 'B, C and D1-C keep every section inside one region; A does until text grows past Large; today and D1-B do not.', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: "Overlay: ... while partially folded they occupy separate sides"', verdict: 'pass', note: 'B is that arrangement for a page\'s sections: separate sides only while partly folded, one column otherwise.', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: "Avoid extreme changes: move only what\'s necessary ... favor small adjustments over disappearing or dramatically shifting controls"', verdict: 'pass', note: 'B keeps rooms and Media on the sides today\'s grid gives them; C moves everything into half the window.', by: 'apple-hig skill' },
+        { rule: 'Layout: "Place important content toward the top/leading side in reading order ... Group related information/functions using negative space, containers, or separators"', verdict: 'pass', note: 'B puts each page\'s hero (weather, the alarm card, the Whole Home dial) at the top of the leading side, and the band is the separator between groups.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Layout from geometry, never a device name', verdict: 'pass', note: 'Fold columns resolve from SplitPolicy.geometry with isHinge (the band), as HomeColumns does.', by: 'swiftui-pro skill' },
+        { rule: 'Stable identity: no reorder on reopen', verdict: 'pass', note: 'Sides are a fixed list per page; never balanced by live height (cameras loading, Guests appearing).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Decision: 2026-11-03, judged Options A, B and C; picked B. One-section pages: judged D1-A, D1-B and D1-C; picked D1-C. Reasons and the per-page table: .agents/design/section-sides.md.',
+      'Evidence: the Verifier\'s before captures (build/evidence/claude-section-sides/before/duo-partial-fold/*-inner.png: Security, Climate, Living Room, Custom Lights, Sprinklers, Home) and these live-size drawings. Built captures of B follow in the Verifier\'s after pack.',
+      'Kit limit: in the today and D1-B drawings the kit grid rounds to even tracks but draws no band-wide gap, so tiles appear under the band; the app leaves the band empty and splits them around it (see the before captures).',
+      'Devices: only the partly folded Duo changes; the b-flat state shows the flat Duo unchanged. iPhone, folded Duo, unfolded portrait and iPad are unchanged by construction (no band).',
+    ],
+    changelog: [{ date: '2026-11-03', note: 'Proposal and decision (T-section-sides).' }, { date: '2026-11-03', note: 'Amendment, owner after viewing the hub: "Cameras top right like home page" (rule 11). Option B draws Cameras top right at every text size; the losing options stay as judged.' }],
+  });
+})();
+</script></body></html>

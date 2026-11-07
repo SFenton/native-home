@@ -1,0 +1,17 @@
+{
+  "id": "merge-guard-push-alias",
+  "source": "2026-11-02: Bypass shape: an inline alias renames push.",
+  "recorded": "2026-11-02",
+  "kind": "merge_guard",
+  "input": {
+    "command": "git -c alias.p=push p origin main"
+  },
+  "expect": {
+    "blocked": true,
+    "reason": {
+      "has": [
+        "alias"
+      ]
+    }
+  }
+}

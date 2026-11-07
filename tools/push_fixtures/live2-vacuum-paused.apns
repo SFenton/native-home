@@ -1,0 +1,30 @@
+{
+  "Simulator Target Bundle": "com.sfenton.home",
+  "aps": {
+    "timestamp": 1792249200,
+    "event": "update",
+    "content-state": {
+      "v": 2,
+      "phase": "paused",
+      "controls": [
+        {
+          "id": "resume",
+          "title": "Resume"
+        },
+        {
+          "id": "dock",
+          "title": "Dock",
+          "role": "secondary"
+        }
+      ],
+      "headline": "Paused in Kitchen",
+      "short": "Paused"
+    },
+    "relevance-score": 55.0,
+    "stale-date": 1792251000
+  },
+  "fenton": {
+    "v": 2,
+    "tag": "job.vacuum.main_floor"
+  }
+}

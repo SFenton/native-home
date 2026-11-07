@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OptionPickerSheet · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+  function sw(ctx, items, o) { return F.swatches(ctx, items, Object.assign({ surfaces: ['sheet'], min: 300 }, o)); }
+  var cfg = Mock.componentConfig('OptionPickerSheet', { surfaces: ['sheet'] });
+
+  /* Its one caller: Custom Lights, "Lighting Mode" (CustomLightsScreen.swift; modes and swatches from CustomLightsConfig.swift). */
+  var MODES = [{ value: 'Default', label: 'Default' }, { value: 'Custom', label: 'Custom', swatch: ['#FFB347', '#FFE0A3'] }, { value: 'Team Colors', label: 'Team Colors', swatch: ['#00FF00', '#0000FF'] }, { value: 'Valentine\'s Day', label: 'Valentine\'s Day', swatch: ['#FF0000', '#FF00EA'] }];
+  function lights(c2) { return Mock.page(c2, { title: 'Custom Lights', section: 'home', back: 'Home', badge: 3, choresBadge: 2, body: [K.GlassTile({ title: 'Lighting Mode', subtitle: 'Default', symbol: 'lightbulb.2', family: 'lights', isActive: false, kind: 'navigate' })] }); }
+  function sheet(c2, sel) { return Mock.sheet(c2, { title: 'Lighting Mode', detent: 'fitted', size: 'form', trailing: 'close', content: K.OptionPickerSheet({ options: MODES, selected: sel || 'Default' }), presenter: lights(c2) }); }
+
+  Mock.mount(Object.assign(cfg, {
+    id: 'option-picker-sheet', title: 'OptionPickerSheet and GradientSwatch', area: 'design', status: 'shipped',
+    summary: 'A sheet that picks one value from a short list: rows of a label, an optional gradient swatch capsule and a checkmark on the current value. Choosing a new one calls the caller and dismisses; choosing the current one just dismisses. Used for the Lighting Mode of the front yard lights. Opaque grouped ground, system appearance, Close trailing.',
+    source: ['apple/Sources/HassDesign/OptionPickerSheet.swift', 'apple/Sources/HassUI/Features/CustomLights/CustomLightsScreen.swift', 'apple/Sources/HassCore/Config/CustomLightsConfig.swift', 'apple/Sources/HassDesign/HassModal.swift (SheetCloseItem, modalChrome)'],
+    spec: ['.agents/patterns/option-picker.md', '.agents/patterns/modal-sheet.md', '.agents/design/direction-g.md (Controls: Choosing one option)'],
+    patterns: ['option-picker', 'modal-sheet', 'motion'],
+    hig: ['Pickers', 'Lists and tables', 'Sheets', 'Color', 'Dynamic Type'],
+    kitComponents: ['OptionPickerSheet', 'SegmentedChoice', 'HassModal', 'SheetCloseItem', 'GlassTile'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'variants': cfg.states.variants,
+      'selection': { title: 'Selected value and the swatch', render: function (ctx) {
+        return sw(ctx, MODES.slice(0, 4).map(function (m) { return { label: 'selected: ' + m.label, width: 320, render: function () { return K.OptionPickerSheet({ options: MODES, selected: m.value }); } }; })); } },
+      'no-swatch': { title: 'Labels only (Default has no swatch)', note: 'GradientSwatch draws nothing for no colours, so the label keeps the full row', render: function (ctx) {
+        return sw(ctx, [{ label: 'a select with no colours', width: 320, render: function () { return K.OptionPickerSheet({ options: [{ value: 'heat', label: 'Heat' }, { value: 'cool', label: 'Cool' }, { value: 'auto', label: 'Auto' }, { value: 'off', label: 'Off' }], selected: 'cool' }); } }]); } },
+      'in-context': { title: 'In context: Custom Lights, Lighting Mode', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'iPhone: fitted form sheet over Custom Lights', width: 285, render: function () { return F.miniDevice(ctx, 'iphone', function (c2) { return sheet(c2, 'Team Colors'); }, .62); } },
+          { label: 'iPad: 540 pt form sheet', width: 400, render: function () { return F.miniDevice(ctx, 'ipad-portrait', function (c2) { return sheet(c2, 'Custom'); }, .4); } },
+        ]); } },
+      'long-text': { title: 'A long option name', render: function (ctx) {
+        return sw(ctx, [{ label: 'wraps in the row; the swatch keeps its 44 x 20 size', width: 300, render: function () { return K.OptionPickerSheet({ options: [{ value: 'a', label: 'Valentine\'s Day Weekend With Extra Long Name', swatch: ['#FF0000', '#FF00EA'] }, { value: 'b', label: 'Default' }], selected: 'a' }); } }]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'rows grow with the text (44 pt minimum), labels wrap, the swatch stays 44 x 20', render: function (ctx) {
+        return sw(ctx, [{ label: 'Lighting Mode at AX5', width: 440, render: function () { return K.OptionPickerSheet({ options: MODES, selected: 'Custom' }); } }]); } },
+    },
+
+    motion: [
+      { id: 'check-fade', what: 'Choosing an option: the old check fades out, the new one fades in, then the sheet dismisses', token: 'quick 0.2 s ease-out (quickTransition "OptionPickerSheet"); dismiss: the system sheet', state: 'selection',
+        source: 'HassDesign/OptionPickerSheet.swift', reduce: 'an opacity change is not movement; the sheet dismissal follows the system',
+        play: function (stage) { var rows = stage.querySelectorAll('.ui-optrow'); if (rows.length < 3) return Promise.resolve(); return Mock.sleep(400).then(function () { rows[0].classList.remove('sel'); rows[2].classList.add('sel'); return Mock.sleep(Mock.anim.ms.quick() + 700); }); } },
+    ],
+
+    transitions: [
+      { from: 'Lighting Mode tile', to: 'Lighting Mode sheet', kind: 'sheet', state: 'in-context', note: 'A fitted form sheet over Custom Lights; the mode list is present on arrival. Picking a new mode sends input_select.demo_front_yard_1 and dismisses. The system slides the sheet up and scales the page back; Reduce Motion cross-fades.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); if (!host) return Promise.resolve(); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(300); }).then(function () { return Mock.anim.sheet(host, 'in'); }).then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Rows', note: 'Each row is a button of at least 44 pt: the label, the swatch (hidden: decorative) and the check (hidden); the current row has the selected trait. Identifier <prefix>.<value>, "customLights.mode.Seahawks".' },
+      { rule: 'Not colour alone', note: 'The swatch is a preview of the colours, never the only signal: the label names the mode and the check and selected trait mark the current one.' },
+      { rule: 'Close', note: 'Circle x "Close" trailing in the bar (sheet.close); a swipe down also dismisses.' },
+      { rule: 'Contrast', note: 'Rows are primary ink on the sheet\'s list cells over an opaque grouped ground at every detent (the default glass let a page\'s coloured tiles show through at the medium detent and failed text contrast).' },
+      { rule: 'Dynamic Type', note: 'Row labels wrap; the sheet is fitted and grows with the text, large at the cap.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Lists and tables, Pickers: single choice shown with a checkmark on the current row", verdict: "pass", note: "Each row is a 44 pt button with the label, an optional swatch and a trailing checkmark (opacity 1 only on the current value); choosing a new value calls choose and dismisses, tapping the current one just dismisses.", by: "apple-hig skill" },
+
+        { rule: "Color: do not rely on colour alone", verdict: "pass", note: "The 44 by 20 pt gradient capsule is a preview of the lighting mode's colours, hidden from VoiceOver; the label names the mode and the check plus the selected trait mark the current one.", by: "apple-hig skill" },
+
+        { rule: "Sheets: close control, content-fitted height, opaque ground", verdict: "departure", note: "The sheet shows only a trailing circle-x Close (no Cancel, because choosing is the action) and is a fitted form sheet through hassSheet(.form), where option-picker.md calls for medium and large detents; the ground is the opaque grouped background so a page's tiles never show through at a partial detent (OptionPickerSheet.swift lines 88 to 90).", by: "apple-hig skill" },
+
+        { rule: "Typography: Dynamic Type", verdict: "pass", note: "GradientSwatch is @ScaledMetric(relativeTo: .body) 44 by 20 (OptionPickerSheet.swift).", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "Views: use the system control for a choose-one list", verdict: "pass", note: "Not applicable: same as FilterOptionRow, the swatch label needs the custom row and the pattern record keeps it.", by: "swiftui-pro skill" },
+
+        { rule: "Accessibility: row is one button with selected trait and identifier", verdict: "pass", note: "The decorative swatch and check are accessibilityHidden, so VoiceOver reads the label and 'selected'; the identifier is <prefix>.<value>.", by: "swiftui-pro skill" },
+
+        { rule: "Navigation: sheet chrome through the shared container", verdict: "pass", note: "OptionPickerSheet is built on HassModal (title mode, Close, modalChrome and appearance from one container).", by: "swiftui-pro skill" },
+
+        { rule: "Data flow: typed selection and values in, closure out", verdict: "pass", note: "Not applicable: the option values are Home Assistant's own option strings (light effect names) read at runtime, not a closed set, and each row carries its value, so a typo cannot arise; a generic Hashable would add nothing for the one consumer (Custom Lights).", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'Docs vs code: option-picker.md says to present it with presentationDetents([.medium, .large]); the one call site uses .hassSheet(.form) (a fitted form sheet), and the sheet itself sets only the background and appearance.',
+      'The swatch for Custom is the live colours of the eight front yard lights (darkest to brightest); the warm gradient here is a stand-in. Team Colors and Valentine\'s Day are the fixed colours in CustomLightsConfig.swatch.',
+      'The sheet\'s Close uses SheetCloseItem with the default identifier; the picker has no Cancel because choosing is the action.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: labels, swatches, selection, long text, in context on iPhone and iPad, AX5.' }],
+  }));
+})();
+</script></body></html>

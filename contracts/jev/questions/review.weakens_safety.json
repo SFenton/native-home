@@ -1,0 +1,27 @@
+{
+  "id": "review.weakens_safety",
+  "version": 1,
+  "type": "noul-set",
+  "mode": "shadow",
+  "description": "Reviewer hint: does the diff weaken a refusal, filter or guard?",
+  "instructions": "Does the text in `diff` {option}?",
+  "criteria": {
+    "removes_refusal": "remove or skip a check that refuses an action, such as an exit with an error, a blocked command or a failed assertion",
+    "narrows_filter": "narrow a deny list, a protected-path list or a secret-file pattern, or widen an allow list",
+    "bypasses_guard": "add a flag, environment variable, comment or code path that lets a guard, hook or test be skipped",
+    "loosens_threshold": "loosen a threshold, timeout or limit that a safety check depends on"
+  },
+  "state": {
+    "fields": [
+      "diff"
+    ],
+    "max_chars": 12000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.6,
+    "no_below": 0.3
+  },
+  "output": "Reviewer hint line: `weakens safety: <criteria>` for the criteria in `value`. The reviewer decides; nothing blocks.",
+  "evidence": "unmeasured"
+}

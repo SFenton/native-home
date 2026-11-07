@@ -1,0 +1,24 @@
+{
+  "id": "gate-hints-camera-recorded",
+  "source": "2026-11-02 camera case, recorded answers: visible 0.08, needs_owner 0.92 -> the owner line and a decision-note route, and no Designer line.",
+  "recorded": "2026-11-02",
+  "kind": "gate_hints",
+  "input": {
+    "plan": "Keep the stream open for 30 s after the modal closes; owner picks the grace length.",
+    "jev": {
+      "design.user_visible": 0.08,
+      "decision.needs_owner": 0.92
+    }
+  },
+  "expect": {
+    "text": {
+      "has": [
+        "owner's pick looks needed",
+        "decision note, then Coder"
+      ],
+      "lacks": [
+        "send it to the Designer"
+      ]
+    }
+  }
+}

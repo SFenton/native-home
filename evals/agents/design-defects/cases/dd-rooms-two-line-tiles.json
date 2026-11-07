@@ -1,0 +1,16 @@
+{
+  "id": "dd-rooms-two-line-tiles",
+  "date": "2026-10-17",
+  "source": "b2164581",
+  "owner_report": "Rooms should have taller tiles with room for two lines of text; multi-line text can still appear under icon",
+  "surface": "room-card-tile",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "sizing",
+  "pre_fix_ref": "3b0b9c9a",
+  "fix_ref": "347c57c3",
+  "fix_confidence": "high",
+  "expected": "A room tile has height for two lines; single-line names take the bottom line. Test with a long room name and AX5."
+}

@@ -1,0 +1,101 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Duo and iPad Fold Layout</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--screen:#e9ecf1;--card:#fff;--rail:#cfd5df;--hinge:rgba(179,38,30,.35)}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;--screen:#232833;--card:#323947;--rail:#3b4352;--hinge:rgba(255,105,97,.4)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 72px max(16px,env(safe-area-inset-left))}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:48px 0 10px;border-top:1px solid var(--line);padding-top:24px}
+p{margin:0 0 12px;max-width:74ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}.lede{font-size:18px;color:var(--fg2)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start;margin:16px 0}
+figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:360px}figcaption b{display:block;color:var(--fg);font-size:15px}.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+.dev{position:relative;background:var(--screen);border:2px solid #000;border-radius:10px;overflow:hidden}
+.dev>i{position:absolute;display:block;border-radius:4px;background:var(--card);border:1px solid var(--line);font:normal 10px/1.2 system-ui;color:var(--fg2);padding:2px 4px;overflow:hidden}
+.dev>i.rail{background:var(--rail);border-radius:0;border:0}.dev>i.pane{background:transparent;border:1px dashed var(--accent);border-radius:0}
+.dev>i.x{background:var(--bad);color:#fff;border-color:var(--bad)}.dev>i.sheet{background:var(--surface);border:1px solid var(--fg2)}
+.dev>i.hinge{background:var(--hinge);border:0;border-radius:0}.dev>i.ghost{opacity:.35}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tw{overflow-x:auto}.rec{border-left:4px solid var(--ok);padding:4px 14px;background:var(--surface);margin:14px 0}
+.key{font-size:13px;color:var(--fg2)}.key span{display:inline-block;width:12px;height:12px;vertical-align:-1px;margin:0 4px 0 12px;border:1px solid var(--line)}
+.tag{display:inline-block;background:var(--ok);color:#fff;border-radius:6px;padding:2px 10px;font-size:13px;margin-bottom:6px}</style></head><body><div class="wrap">
+<span class="tag">Decided (2026-10-24): every section's recommendation; chore and grocery lists get the detail pane (2B); a single object may sit off-centre on the Duo only; the page-sheet inset ships on the simulator measurement; the compact-iPad menu button ships with it</span>
+<p class="eyebrow">Proposal · 2026-10-23 · branch claude/hig-duo-ipad-e87e83</p>
+<h1>Duo and iPad: lay out around the fold, and cap width</h1>
+<p class="lede">27 review findings share one cause: pages are sized for "a wide window", not for the regions the window really has. On the unfolded Duo in landscape the hinge band is 40.4 pt wide at x 455.3 to 495.7, and text, tiles and sheets land under it. On iPad landscape the same pages stretch past a readable width. Nothing is built; each section asks for a pick.</p>
+<p class="key">Key: <span style="background:var(--hinge)"></span>hinge band <span style="background:var(--rail)"></span>83 pt rail <span style="background:var(--bad)"></span>content under the hinge <span style="border-style:dashed;border-color:var(--accent)"></span>SplitPolicy pane. All frames are drawn to scale (0.5 pt per px) from the measured Duo and the 1194 × 834 iPad.</p>
+
+<h2>Cause and evidence</h2>
+<p><code>SplitPolicy.geometry(container:isRegularWidth:hinge:)</code> already gives the leading pane, the band and the trailing pane, and <code>readsWindowHinge()</code> already reports the hinge. Of the pages in this bucket, only the tab view reads it. Findings cite: <code>FoodHubScreen</code> (equal halves, 24 pt gap), <code>RecipesScreen</code> and <code>InventoryScreen</code> (<code>HStack</code> of two halves), <code>VacuumsScreen</code> (<code>dividerX(hingeMidX: nil)</code>), <code>VacuumSheet</code> (<code>proxy.size.width / 2</code>), <code>TodoPageView</code> (one list, no split), <code>SecurityScreen</code> and <code>ClimateScreen</code> (centred 868 and 720 pt columns, no hinge read), <code>DynamicGridLayout</code> (even columns but a 24 pt gutter, narrower than the 40.4 pt band), <code>RootView</code> (login not under <code>readsWindowHinge</code>), <code>MainTabView</code> (<code>UIDevice.userInterfaceIdiom</code>), <code>VacationComponents</code> and <code>RoomScreen</code> (<code>minCellWidth: 340</code> literal). The atlas notes that none of the hinge behaviour was confirmed on a physical device.</p>
+
+<h2>1 · Two-pane screens ignore the hinge (Food hub, Recipes, Inventory, Vacuums, Vacuum sheet)</h2>
+<p>One answer, no design choice: take the pane widths from <code>SplitPolicy.geometry</code> instead of halving. The trailing pane starts at 495.7 pt, not at the midpoint, and the leading pane ends at 455.3 pt. On iPad the band is 1 pt at the midpoint, so iPad is unchanged. Visible only on the Duo.</p>
+<div class="row" id="s1"></div>
+
+<h2>2 · Chore, grocery and to-do lists are one column across the hinge</h2>
+<p>Six list pages (chores, resident, unassigned, home-improvement, groceries, admin to-do) are a single full-width <code>List</code>, so row titles and the Edit glyphs sit across the band. <code>OnDemandSplitStack</code> exists for this and has no adopter.</p>
+<div class="row" id="s2"></div>
+<div class="tw"><table><tr><th></th><th>A · Today, one column</th><th>B · Reading column in the leading pane, detail trailing (split-view.md)</th><th>C · Two list columns, items flow across the fold</th></tr>
+<tr><td>Owner rules</td><td>Breaks "nothing across the fold"</td><td>Matches the classification table (chore lists → item detail)</td><td>New pattern; item order reads in two directions</td></tr>
+<tr><td>HIG</td><td>Fails Duo: reserved regions</td><td>Passes: divider on the hinge, empty state invites a pick</td><td>Passes, but reading order is ambiguous for VoiceOver</td></tr>
+<tr><td>Cost</td><td>none</td><td>Adopts <code>OnDemandSplitStack</code>; iPad landscape splits at the midpoint too; placeholder copy needed</td><td>Rows have no detail pane, so Edit still opens a sheet</td></tr></table></div>
+<p><b>Recommendation: B</b>, since the doc already specifies it. A short grocery list then no longer leaves the inner display mostly empty.</p>
+
+<h2>3 · Centred columns and grids straddle the fold (Security, Climate, Room, Household admin and guests, Login)</h2>
+<p>These pages centre a fixed-width column (868, 840, 720, 460 pt) in the window, so where the fold lands depends on the column width. On Security the fold crosses the alarm card, the third door tile and the third camera. <code>DynamicGridLayout</code> already rounds to an even column count but keeps a 24 pt gutter.</p>
+<div class="row" id="s3"></div>
+<div class="tw"><table><tr><th></th><th>A · Gutter equals the band</th><th>B · Place the column in the leading pane</th><th>C · Each pane is its own column</th></tr>
+<tr><td>Idea</td><td>Keep the centred column; where the hinge crosses it, <code>DynamicGridLayout</code> widens the gutter at the middle to the band width and non-grid blocks (alarm card, dial) are split or moved off it</td><td>Content occupies the leading pane only; trailing pane left empty</td><td>Sections are dealt into the two panes (Security: alarm, doors | cameras); grids lay out per pane</td></tr>
+<tr><td>Fold</td><td>Clear for grids; single wide cards (alarm, dial) still need a rule</td><td>Always clear</td><td>Always clear</td></tr>
+<tr><td>iPad</td><td>Unchanged apart from the readable-width cap (section 4)</td><td>Would waste half of the iPad; Duo only</td><td>Splits at the midpoint, a larger redesign</td></tr>
+<tr><td>Cost</td><td>Smallest; one shared change in the grid + a hinge environment value</td><td>Half the screen blank</td><td>Per-page section assignment; re-flows on fold</td></tr></table></div>
+<p><b>Recommendation: A for grids</b> (Security, Room, Household admin and guests): one shared change, every consumer inherits it. Single objects that cannot split (alarm card, climate dial, login form) move to the leading pane's centre when the hinge crosses their frame, <b>and only then</b>; elsewhere they stay centred. This is the smallest rule that keeps everything off the band.</p>
+
+<h2>4 · Readable width on iPad landscape</h2>
+<p><code>AlarmPanel</code> caps at 560 pt in its sheet but is unbounded on the Security page: the four mode buttons stretch to about 280 pt each across 1160 pt. Proposal: cap it at 560 pt, centred or leading-aligned with the page's other content. Climate (720) and the grids already cap.</p>
+<div class="row" id="s4"></div>
+
+<h2>5 · Page sheets cross the hinge (Auto-reset, Presence overrides)</h2>
+<p>On the unfolded Duo, system page sheets are centred, so a 540 pt form spans the band. A SwiftUI sheet cannot be offset, only sized (<code>presentationSizing</code>, iOS 18) or given a clear band inside its own content.</p>
+<div class="row" id="s5"></div>
+<p><b>Recommendation: A</b>, a fold-aware inset in the sheet content (rows keep the 40.4 pt band empty, grouped sections break at the fold), because it needs no new presentation API. Option B (a form-width sheet that fits one pane) is cleaner but cannot be placed by the app, so it is not offered. This is the item most worth confirming on a physical Duo.</p>
+
+<h2>6 · Smaller items</h2>
+<div class="tw"><table><tr><th>Finding</th><th>Change</th><th>Visible?</th></tr>
+<tr><td>Header edge fade on the folded Duo (outer display, trailing rail)</td><td>Fade band is the status region only when the bar is a rail, not the full header height</td><td>Yes, subtle: top of content no longer fades under a bar that is not there</td></tr>
+<tr><td>Menu button uses <code>UIDevice.userInterfaceIdiom == .phone</code> (<code>MainTabView</code>)</td><td>Decide from horizontal size class and window shape. A compact iPad window (Split View, Stage Manager) gets the menu button it lacks today</td><td>Yes, only in compact iPad windows. iPhone, Duo and full-screen iPad identical</td></tr>
+<tr><td>Away section grid <code>minCellWidth: 340</code>, Room <code>340</code></td><td><code>@ScaledMetric</code> so sections stack at AX5 instead of two 340 pt columns beside tripled text</td><td>Yes, AX sizes only</td></tr></table></div>
+
+<h2>Recommendation</h2>
+<div class="rec"><p>Take every section's <b>recommended option</b>: pane widths from <code>SplitPolicy.geometry</code> everywhere (1), chore lists adopt <code>OnDemandSplitStack</code> (2), grids use a band-wide gutter and single objects shift into the leading pane only when the hinge crosses them (3), a 560 pt cap on the page alarm card (4), a fold-aware inset in the two page sheets (5), and the three small items (6).</p>
+<p><b>Files:</b> <code>SplitPolicy.swift</code> (a helper returning the band to avoid), <code>DynamicGridLayout.swift</code>, the nine screens named above, <code>TodoPageView.swift</code>, <code>MainTabView.swift</code>, <code>HeaderEdgeFade</code>. <b>Tests:</b> unit tests for the geometry helper and the grid with a band; UX and accessibility journeys on Duo (unfolded landscape), iPad landscape and iPhone (unchanged) at default and AX5; mockups updated to the picked options.</p></div>
+
+<h2>Open questions for the owner</h2>
+<p><b>Decided (2026-10-24):</b> 1. Yes, chore and grocery lists get the detail pane (2B). 2. Yes, a single object may sit off-centre on the Duo only. 3. The page-sheet inset ships on the simulator measurement; re-check on a device run. 4. The compact-iPad menu button ships with this. Built: <code>HingeAvoidance</code> and <code>HingedPanes</code>, the band-aware <code>DynamicGridLayout</code>, <code>avoidsHinge()</code>, <code>clearsHinge()</code>, the todo trailing pane; see <code>.agents/patterns/hinge-avoidance.md</code>.</p>
+<p>1. Do chore and grocery lists get the detail pane (2B), or only a fold-clear single column?<br>2. Section 3: is it acceptable that a single object shifts off-centre on the Duo only?<br>3. Section 5: do you want me to test the page-sheet inset on a physical Duo before it ships? The simulator measurement of 455.3 to 495.7 pt is the only data, and unfolded portrait (horizontal hinge, y 455.3 to 495.7) was not run at all.<br>4. Should the compact-iPad menu button (6) ship with this, or be left as today?</p>
+</div>
+<script>
+var K=.5;
+function dev(W,H,items,hinge){var d=document.createElement('div');d.className='dev';d.style.width=W*K+'px';d.style.height=H*K+'px';
+ items.forEach(function(it){var e=document.createElement('i');e.className=it[0]||'';e.style.left=it[1]*K+'px';e.style.top=it[2]*K+'px';e.style.width=it[3]*K+'px';e.style.height=it[4]*K+'px';e.textContent=it[5]||'';d.appendChild(e)});
+ if(hinge){var h=document.createElement('i');h.className='hinge';h.style.left=455.3*K+'px';h.style.top=0;h.style.width=40.4*K+'px';h.style.height=H*K+'px';d.appendChild(h)}return d}
+function fig(id,cls,d,t,c){var f=document.createElement('figure');f.className=cls;f.appendChild(d);var g=document.createElement('figcaption');g.innerHTML='<b>'+t+'</b>'+c;f.appendChild(g);document.getElementById(id).appendChild(f)}
+var W=951,H=669,R=['rail',0,0,83,H];
+/* 1 */
+fig('s1','bad',dev(W,H,[R,['',99,30,356,H-60,'Grid (half of 868)'],['x',455,30,40,H-60,'pane edge'],['',495,30,356,H-60,'Pane starts at the midpoint 517']].slice(0,3).concat([['',517,30,418,H-60,'Recipe pane: leading edge under the hinge band, 517 vs 495.7']]),true),'Today','Equal halves of 868 pt: the trailing pane begins at 517, and the fold sits inside the leading column and the padding of the trailing one.');
+fig('s1','ok',dev(W,H,[R,['pane',83,0,372.3,H,'Leading 372 pt'],['',99,30,340,H-60,'Grid / list'],['pane',495.7,0,455.3,H,'Trailing 455 pt'],['',511,30,424,H-60,'Recipe / editor / map']],true),'Proposed','Leading pane ends at 455.3, trailing starts at 495.7, nothing inside the band. Both ≥ 360 pt, so the split is allowed.');
+fig('s1','ok',dev(1194,834,[['rail',0,0,0,0],['pane',0,0,596.5,834,'Leading'],['',16,30,565,774],['pane',597.5,0,596.5,834,'Trailing'],['',613,30,565,774]]),'iPad landscape: unchanged','The band is 1 pt at the midpoint; geometry equals today\'s halves.');
+/* 2 */
+fig('s2','bad',dev(W,H,[R,['',99,40,836,60,'Chore title that runs long…                    ✎'],['',99,110,836,60,'Take out recycling                              ✎'],['x',455,40,40,130,''],['',99,180,836,60,'Clean the oven                                   ✎']],true),'A · Today','Full-width rows; the title and the Edit glyph straddle the band.');
+fig('s2','ok',dev(W,H,[R,['pane',83,0,372.3,H],['',99,40,340,60,'Chore title that runs long…'],['',99,110,340,60,'Take out recycling'],['',99,180,340,60,'Clean the oven'],['pane',495.7,0,455.3,H],['',520,300,400,40,'Select a chore (placeholder)']],true),'B · Recommended','List left of the fold; detail or a placeholder right of it.');
+fig('s2','ok',dev(W,H,[R,['',99,40,340,60,'Chore 1'],['',99,110,340,60,'Chore 3'],['',511,40,340,60,'Chore 2'],['',511,110,340,60,'Chore 4']],true),'C · Two columns','Rows flow across; reading order is column-by-column.');
+/* 3 */
+fig('s3','bad',dev(W,H,[R,['',41+83,30,868-0,100,'Alarm card (868)'],['',124,150,270,110,'Door 1'],['x',395,150,270,110,'Door 2 (under the hinge)'],['',665,150,270,110,'Door 3'],['',124,280,270,110,'Cam 1'],['',395,280,270,110,'Cam 2'],['',665,280,270,110,'Cam 3']].map(function(a){return a}),true),'Today','868 pt column centred in the content area: the fold crosses the card and the middle tile of every row.');
+fig('s3','ok',dev(W,H,[R,['',99,150,340,110,'Door 1'],['',511,150,340,110,'Door 2'],['',99,280,340,110,'Cam 1'],['',511,280,340,110,'Cam 2'],['',99,30,340,100,'Alarm card (moved into the leading pane)']],true),'A · Recommended','Four even columns become two + two with a band-wide gutter; the alarm card moves into the leading pane (capped at 560, section 4).');
+/* 4 */
+fig('s4','bad',dev(1194,834,[['',16,30,1162,100,'AlarmPanel: 4 mode buttons, 280 pt each, 1160 wide']]),'Today · iPad landscape','Mode buttons stretch to about 280 pt.');
+fig('s4','ok',dev(1194,834,[['',317,30,560,100,'AlarmPanel capped at 560 (as in the sheet)']]),'Proposed','Same 560 pt cap as the Security System sheet, centred with the rest of the page.');
+/* 5 */
+fig('s5','bad',dev(W,H,[R,['sheet',156,120,640,430,'Page sheet, centred (640 pt): row text crosses the band'],['x',455,120,40,430,'']],true),'Today','The centred sheet spans the hinge.');
+fig('s5','ok',dev(W,H,[R,['sheet',156,120,640,430,'Page sheet'],['',172,150,270,40,'Rows keep clear:'],['',510,150,270,40,'Controls in two groups'],['x',455,120,40,430,'']].slice(0,5),true),'A · Recommended','Sheet stays centred; its content leaves the 40.4 pt band empty, grouping controls on either side.');
+</script></body></html>

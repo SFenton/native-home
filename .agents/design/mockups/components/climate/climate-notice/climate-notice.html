@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClimateNotice · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, SC = window.SecClimate;
+  function N(label, text, o, note) { return { label: label, note: note, width: '420px', surfaces: ['page'], build: function () { return SC.notice(Object.assign({ text: text, symbol: 'house' }, o)); } }; }
+  function S(title, items) { return SC.swatchState(title, { surfaces: ['page'], min: 360, items: items }); }
+  var LONG = 'Unknown Mode. Both phones left the house but the front door lock still reports unlocked, so the thermostat controller is holding home targets until someone confirms who is home.';
+
+  Mock.mount({
+    kind: 'component', id: 'climate-notice', title: 'ClimateNotice', area: 'climate', status: 'shipped', frame: false,
+    summary: 'A notice on the Climate page wallpaper: a glyph and one text on a module, read as one element. The away and mode notices are thin with a blue glyph; the Automatic Thermostat warning is dense with an orange glyph.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateParts.swift', 'apple/Sources/HassUI/Features/Climate/ClimateScreen.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift'],
+    spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/design/direction-g.md'],
+    patterns: ['motion'],
+    hig: ['Color', 'Dynamic Type', 'Materials'],
+    entities: ['sensor.demo_away_1', 'sensor.demo_away_2', 'input_boolean.demo_mode_4', 'input_boolean.demo_contact_1'],
+    kitComponents: [],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'away': S('Away Mode Active', [N('Away Mode', SC.copy.away, {}, 'Effective mode is Away (or the fallback away sensor is on)')]),
+      'vacation': S('Vacation Mode Active', [N('Vacation Mode', SC.copy.vacation, {}, 'input_boolean.demo_mode_4 is on: the same sentence with "Vacation Mode"')]),
+      'unknown': S('Mode without a known state', [N('Unavailable Mode', SC.copy.unavailable, {}, 'effective home/away is unknown or unavailable and no reason sensor: "<state> Mode. <reason>"'), N('Reason from the sensor', 'Unknown Mode. A resident is home, so TCS is using home behavior.', {})]),
+      'warning': S('Automatic Thermostat is off (warning)', [N('Warning', SC.copy.warning, { symbol: 'exclamationmark.triangle', warning: true }, 'dense module, orange glyph')]),
+      'long-text': S('Long text', [N('Long reason', LONG, {}), N('Warning, long', SC.copy.warning + ' Changes made in the sheet apply after the next integration cycle.', { symbol: 'exclamationmark.triangle', warning: true })]),
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: function (ctx) { return SC.swatches(ctx, { surfaces: ['page'], min: 360, items: [N('Away', SC.copy.away, {}), N('Warning', SC.copy.warning, { symbol: 'exclamationmark.triangle', warning: true })] }); } },
+    },
+
+    motion: [
+      { id: 'tone', what: 'Automatic Thermostat is switched off: the notice changes from the thin blue-glyph module to the dense orange-glyph warning', token: 'state 0.6 s ease-in-out, colour only', state: 'away',
+        source: 'ClimateNotice.swift ClimateNotice .stateForeground("ClimateNotice"), .stateColorTransition("ClimateNotice", value: isWarning); motion-components.md Climate row', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var n = stage.querySelector('.sc-notice'); n.style.transition = 'background-color var(--t-state), color var(--t-state)'; n.classList.add('dense', 'warn'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { n.classList.remove('dense', 'warn'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    a11y: [
+      { rule: 'One element', note: 'The glyph (info.circle, house or exclamationmark.triangle) is hidden; the text is the label. Children combine, so VoiceOver reads the sentence once.' },
+      { rule: 'Not colour alone', note: 'A warning is told by its words ("Automatic Thermostat is off") and the triangle glyph; the dense ground and orange are extra.' },
+      { rule: 'Contrast', note: 'White text on the thin or dense module (at least 7:1); the orange glyph #FFB340 and the blue #409CFF are above 3:1 on both grounds.' },
+      { rule: 'Dynamic Type', note: 'The text uses subheadline and wraps (fixedSize vertical); at AX5 it takes many lines and the glyph stays first-baseline aligned. No truncation.' },
+      { rule: 'Targets', note: 'Read-only, not a control; 14 pt vertical padding keeps a 48 pt minimum for one line.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Color: a warning is not colour alone", verdict: 'pass', note: "The warning swaps the glyph to a triangle as well as orange, uses a denser ground, and the text states the problem (ClimateNotice.swift).", by: 'apple-hig skill' },
+        { rule: "Accessibility: one element, glyph decorative", verdict: 'pass', note: "Glyph hidden, glyph and text combined (ClimateNotice.swift).", by: 'apple-hig skill' },
+        { rule: "Typography: .subheadline wraps at AX5", verdict: 'pass', note: "Text is fixedSize vertically with no line limit (lines 42-46).", by: 'apple-hig skill' },
+        { rule: "Materials: fixed white ink on an always-dark page", verdict: 'departure', note: "The notice text is .white (line 44) because the Climate page is always dark (direction-g.md Layers).", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Do not hard-code white", verdict: 'departure', note: "As above; the page background is always the dimmed wallpaper.", by: 'swiftui-pro skill' },
+        { rule: "Use stateColorTransition", verdict: 'pass', note: "Glyph and ground cross-fade when the warning toggles (lines 40, 51).", by: 'swiftui-pro skill' },
+        { rule: "Dynamic Type", verdict: 'pass', note: "A body-relative glyph with text styles; padding is fixed 14 and 16 pt, which is fine for a wrapping row.", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Only the page uses ClimateNotice (Whole Home section). Room detail shows its away notice as a plain Label in a Form cell (climate-room-detail), not this component, so no sheet surface is drawn.',
+      'Docs versus code: spec.md says the away notice appears "when effectively away or the effective state is Away/Unknown/Unavailable", which is what the code does; it also reads "Unavailable Mode." on a first sign-in because a missing sensor counts as Unavailable (see the Climate page, state loading).',
+      'Promote to kit: SecClimate.notice as ClimateNotice.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: away, vacation, mode, warning, long and AX5.' }],
+  });
+})();
+</script></body></html>

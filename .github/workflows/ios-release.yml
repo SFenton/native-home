@@ -1,0 +1,89 @@
+name: ios-release
+# Builds the IPA for an `ios/v<YYMM.DD.NN>` tag and attaches it to that tag's GitHub Release, with the dSYMs and notes
+# from the Release-Note trailers since the previous tag. Runs on the MacBook runner (needs the Apple Distribution identity in
+# its login Keychain). Nothing is uploaded to App Store Connect (export only). A tag pushed with GITHUB_TOKEN does not
+# trigger this workflow, so version-bump.yml dispatches it. Documentation: .agents/workflow/ci.md, versioning.md.
+on:
+  push:
+    tags: ['ios/v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to build, ios/v<YYMM.DD.NN>
+        required: true
+        type: string
+permissions:
+  contents: write   # create the release and upload its assets
+concurrency:
+  group: ios-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+  TAG: ${{ inputs.tag || github.ref_name }}
+defaults:
+  run:
+    shell: bash
+jobs:
+  ios-release:
+    runs-on: [self-hosted, macOS, hass]
+    timeout-minutes: 120
+    steps:
+      - name: Check the tag
+        run: |
+          [[ "$TAG" =~ ^ios/v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]] || { echo "not a version tag: $TAG"; exit 1; }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+          fetch-tags: true
+          clean: false
+      - name: Reset the workspace (keeps the build caches)
+        run: git clean -ffdx -e apple/.build -e build
+      - name: Use the release tooling of the workflow's own commit
+        # A tag may predate these scripts (workflow_dispatch of an older tag): the app source comes from the tag,
+        # the release tooling from the commit this workflow runs at (the same commit for a pushed tag).
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$GITHUB_SHA"
+          git checkout "$GITHUB_SHA" -- tools/release/ios_ipa_build.sh tools/release/ExportOptions-appstore.plist tools/release/versioning.py
+      - name: Disk pre-flight (30 GB free)
+        run: python3 tools/ci_hygiene.py preflight --min-gb 30
+      - name: Archive and export the IPA
+        id: build
+        env:
+          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
+          # The sign-in Server field's default (a repository variable, not a secret); empty leaves the field blank.
+          HASS_DEFAULT_SERVER: ${{ vars.HASS_DEFAULT_SERVER }}
+        run: |
+          set -euo pipefail
+          tools/release/ios_ipa_build.sh "$TAG" "$GITHUB_RUN_NUMBER" | tee "$RUNNER_TEMP/build.out"
+          { echo "ipa=$(sed -n 's/^ipa=//p' "$RUNNER_TEMP/build.out")"; echo "dsyms=$(sed -n 's/^dsyms=//p' "$RUNNER_TEMP/build.out")"; } >> "$GITHUB_OUTPUT"
+      - name: Say what is missing
+        if: failure() && steps.build.outcome == 'failure'
+        run: |
+          echo "::error title=ios-release could not sign::If the log above says BLOCKED, the owner must provide an Apple Distribution certificate for team 3Q9X8JX23S in this Mac's login Keychain and the team's Apple ID signed in to Xcode (or an App Store Connect API key: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH). See .agents/workflow/ci.md."
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IPA: ${{ steps.build.outputs.ipa }}
+          DSYMS: ${{ steps.build.outputs.dsyms }}
+        run: |
+          set -euo pipefail
+          version="${TAG#ios/v}"
+          python3 tools/release/versioning.py notes --tag "$TAG" > "$RUNNER_TEMP/notes.md"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "S+H $version" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            gh release create "$TAG" --verify-tag --title "S+H $version" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
+          gh release upload "$TAG" "$IPA" "$DSYMS" --clobber
+          {
+            echo "### ios-release $TAG"
+            echo "- Release: $(gh release view "$TAG" --json url --jq .url)"
+            echo "- Assets: $(basename "$IPA"), $(basename "$DSYMS")"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Delete this job's DerivedData
+        if: always()
+        env:
+          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
+        run: python3 tools/ci_hygiene.py rm-dir "$FENTON_DERIVED_DATA"

@@ -1,0 +1,23 @@
+{
+  "Simulator Target Bundle": "com.sfenton.home",
+  "aps": {
+    "timestamp": 1792249200,
+    "event": "update",
+    "content-state": {
+      "v": 2,
+      "phase": "done",
+      "controls": [],
+      "value": {
+        "kind": "text",
+        "text": "Complete"
+      },
+      "progress": 1.0
+    },
+    "relevance-score": 10.0,
+    "stale-date": 1792251000
+  },
+  "fenton": {
+    "v": 2,
+    "tag": "job.washer"
+  }
+}

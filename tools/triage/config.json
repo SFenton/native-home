@@ -1,0 +1,269 @@
+{
+  "request_repo": "",
+  "product_repo": "SFenton/Fenton-HASS-Native",
+  "product_base": "main",
+  "authors": [
+    "SFenton"
+  ],
+  "root": "~/hass-agents",
+  "agent": {
+    "command": "claude",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "permission_mode": "auto",
+    "disallowed_tools": [
+      "Artifact",
+      "ArtifactComments",
+      "ArtifactData",
+      "Bash(xcrun simctl shutdown all*)",
+      "Bash(xcrun simctl erase all*)",
+      "Bash(killall*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh api *pulls/*/merge*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(*ack-base*)",
+      "Bash(gh repo delete*)",
+      "Bash(gh secret*)",
+      "Bash(xcrun simctl boot*)",
+      "Bash(xcodebuild test*)",
+      "Bash(xcodebuild build-for-testing*)",
+      "Bash(git push origin main*)",
+      "Bash(git push origin HEAD:main*)",
+      "Bash(git push origin +*)",
+      "Bash(git push origin --force*)",
+      "Bash(git push --force-with-lease*)",
+      "Bash(git push origin --force-with-lease*)",
+      "Bash(git push * main)",
+      "Bash(git push * HEAD:main)",
+      "Bash(gh api * -X PUT*)",
+      "Bash(gh api -X PUT*)",
+      "Bash(gh api --method PUT*)",
+      "Bash(gh api * --method PUT*)",
+      "Bash(gh pr ready*)",
+      "Bash(gh workflow*)",
+      "Bash(gh label*)",
+      "Bash(gh api graphql*)",
+      "Bash(gh api * graphql*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push *+*)",
+      "Bash(git push *:main*)",
+      "Bash(git push *refs/heads/main*)",
+      "Bash(gh api *merges*)",
+      "Bash(gh api *git/refs*)",
+      "Bash(gh api * -X PATCH*)",
+      "Bash(gh api -X PATCH*)",
+      "Bash(gh api *--method*PATCH*)",
+      "Read(~/.config/fenton-hass/**)",
+      "Read(//Users/*/.config/fenton-hass/**)",
+      "Read(//**/typesafe.key)",
+      "Write(~/.config/fenton-hass/**)",
+      "Write(//Users/*/.config/fenton-hass/**)",
+      "Write(//**/typesafe.key)",
+      "Edit(~/.config/fenton-hass/**)",
+      "Edit(//Users/*/.config/fenton-hass/**)",
+      "Edit(//**/typesafe.key)",
+      "Bash(*typesafe.key*)",
+      "Read(//**/*.pem)",
+      "Edit(//**/*.pem)",
+      "Bash(*github-apps*)",
+      "Bash(*.pem*)",
+      "Bash(gh auth token*)",
+      "Bash(gh auth git-credential*)",
+      "Bash(git credential*)",
+      "Bash(*owner-ack*)",
+      "Read(//**/*.p12)",
+      "Write(//**/*.p12)",
+      "Edit(//**/*.p12)",
+      "Read(//**/*.pfx)",
+      "Write(//**/*.pfx)",
+      "Edit(//**/*.pfx)",
+      "Read(//**/*.p8)",
+      "Write(//**/*.p8)",
+      "Edit(//**/*.p8)",
+      "Read(//**/*.mobileprovision)",
+      "Write(//**/*.mobileprovision)",
+      "Edit(//**/*.mobileprovision)",
+      "Read(//**/*.provisionprofile)",
+      "Write(//**/*.provisionprofile)",
+      "Edit(//**/*.provisionprofile)",
+      "Read(//**/*.cer)",
+      "Write(//**/*.cer)",
+      "Edit(//**/*.cer)",
+      "Read(//**/*.certSigningRequest)",
+      "Write(//**/*.certSigningRequest)",
+      "Edit(//**/*.certSigningRequest)",
+      "Read(//**/*.keychain-db)",
+      "Write(//**/*.keychain-db)",
+      "Edit(//**/*.keychain-db)",
+      "Read(//**/AuthKey_*)",
+      "Read(//Users/*/Library/MobileDevice/**)",
+      "Read(//Users/*/Library/Keychains/**)",
+      "Write(//**/AuthKey_*)",
+      "Write(//Users/*/Library/MobileDevice/**)",
+      "Write(//Users/*/Library/Keychains/**)",
+      "Edit(//**/AuthKey_*)",
+      "Edit(//Users/*/Library/MobileDevice/**)",
+      "Edit(//Users/*/Library/Keychains/**)",
+      "Bash(security import*)",
+      "Bash(security export*)",
+      "Bash(security find-identity*)",
+      "Bash(security delete-identity*)",
+      "Bash(security add-certificates*)",
+      "Bash(security dump-keychain*)",
+      "Bash(security unlock-keychain*)",
+      "Bash(security set-key-partition-list*)",
+      "Bash(fastlane match*)",
+      "Bash(fastlane cert*)",
+      "Bash(fastlane sigh*)",
+      "Bash(bundle exec fastlane match*)",
+      "Bash(bundle exec fastlane cert*)",
+      "Bash(bundle exec fastlane sigh*)",
+      "Bash(xcrun altool*)",
+      "Bash(xcrun notarytool*)",
+      "Bash(*ASC_PRIVATE_KEY*)",
+      "Bash(*ASC_KEY_PATH*)",
+      "Bash(*Library/MobileDevice*)",
+      "Bash(*Library/Mobile*)",
+      "Bash(*owner-prompts*)",
+      "Read(//**/owner-prompts/**)",
+      "Write(//**/owner-prompts/**)",
+      "Edit(//**/owner-prompts/**)"
+    ],
+    "agent": "orchestrator",
+    "timeout_minutes": 300,
+    "max_attempts": 2,
+    "allowed_tools": [
+      "Bash(tools/pr_land.sh*)",
+      "Bash(tools/ship.sh*)"
+    ]
+  },
+  "merge": {
+    "label": "Ready to Merge",
+    "failed_label": "Merge Failed",
+    "wait_hours": 168
+  },
+  "testflight_autoupload": true,
+  "workflow_base": "main",
+  "land_tests": "tools/run_tool_tests.sh",
+  "require_checks": false,
+  "denylist_required": false,
+  "land_core_tests": [],
+  "land_full_suite_triggers": [],
+  "protected_paths": [
+    "tools/review/**",
+    "tools/hooks/review_guard.py",
+    "tools/release/**",
+    "tools/hass_creds.sh",
+    "tools/gh_app_token.py",
+    ".github/workflows/ios-release*.yml",
+    "tools/devcap.py",
+    "tools/ci_hygiene.py",
+    "tools/release_closure.py"
+  ],
+  "append_only_paths": [
+    "contracts/jev/derived/labels/**",
+    "contracts/jev/derived/scenarios/**",
+    "contracts/jev/derived/results/**",
+    "evals/**/cases/**"
+  ],
+  "retro": {
+    "timeout_minutes": 90
+  },
+  "budget_hours": 10,
+  "interval_seconds": 60,
+  "labels": {
+    "Bug": [
+      "d73a4a",
+      "Something in the app is broken"
+    ],
+    "Feature": [
+      "a2eeef",
+      "A new feature or change request"
+    ],
+    "From App": [
+      "5319e7",
+      "Filed from the app's Settings"
+    ],
+    "iOS": [
+      "1d76db",
+      "iPhone"
+    ],
+    "iPadOS": [
+      "0e8a16",
+      "iPad"
+    ],
+    "iPhone Duo": [
+      "006b75",
+      "iPhone Duo (folded or unfolded)"
+    ],
+    "In Progress": [
+      "fbca04",
+      "The triage agent is working on it"
+    ],
+    "Merging": [
+      "c2e0c6",
+      "A verified pull request is waiting for review and merge"
+    ],
+    "Blocked": [
+      "b60205",
+      "The agent stopped; comment /retry to try again"
+    ],
+    "Needs Decision": [
+      "d93f0b",
+      "The agent needs the owner's choice"
+    ],
+    "Done": [
+      "0e8a16",
+      "Fixed or built and merged"
+    ],
+    "No Changes": [
+      "cfd3d7",
+      "Closed without code changes"
+    ],
+    "Priority": [
+      "b60205",
+      "Worked before other items"
+    ],
+    "On Hold": [
+      "c5def5",
+      "The agent skips it"
+    ],
+    "Split": [
+      "bfdadc",
+      "Split into separate issues"
+    ],
+    "Workflow": [
+      "5319e7",
+      "How the agents work: Steward-first, autonomous (owner 2026-11-02)"
+    ]
+  },
+  "ledger": {
+    "enforce": false
+  },
+  "schedules": {
+    "steward": {
+      "every_days": 7,
+      "template": "steward.md"
+    },
+    "researcher": {
+      "every_days": 7,
+      "template": "researcher.md"
+    }
+  },
+  "nightly": {
+    "repo": "SFenton/Fenton-HASS-Native",
+    "label": "Nightly Fix",
+    "authors": [
+      "SFenton",
+      "github-actions",
+      "app/github-actions"
+    ],
+    "branch": "nightly",
+    "template": "nightly.md"
+  },
+  "jev": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "id": "change.kind",
+  "version": 1,
+  "type": "choice",
+  "mode": "shadow",
+  "description": "What kind of change is this task or PR?",
+  "instructions": "What kind of change does this task or pull request make?",
+  "criteria": {
+    "ui_visible": {
+      "what": "Changes what a person sees or feels in the app: layout, copy, motion, navigation, a new control",
+      "not_for": "Refactors that leave every pixel the same"
+    },
+    "ui_invisible": {
+      "what": "Changes SwiftUI code but not what appears: a pixel-identical refactor or a rename",
+      "not_for": "Anything a person would notice"
+    },
+    "logic": {
+      "what": "Changes behavior or data handling that is not UI: state, parsing, networking, models",
+      "not_for": "Performance-only work"
+    },
+    "performance": {
+      "what": "Makes something faster or lighter without changing behavior",
+      "not_for": "Bug fixes"
+    },
+    "tests_only": {
+      "what": "Adds or changes tests and nothing else",
+      "not_for": "Changes that also touch product code"
+    },
+    "tooling": {
+      "what": "Scripts, CI, hooks, agents or build tooling",
+      "not_for": "The app itself"
+    },
+    "docs_only": {
+      "what": "Documentation, rules or mockups only",
+      "not_for": "Changes to code"
+    },
+    "ha_config": {
+      "what": "Home Assistant configuration, automations or add-ons outside the app",
+      "not_for": "The native app"
+    },
+    "dependency_or_build": {
+      "what": "A package update, project setting or build setting change",
+      "not_for": "Our own code"
+    },
+    "other": {
+      "what": "None of the above",
+      "not_for": "Anything that fits another option"
+    }
+  },
+  "state": {
+    "fields": [
+      "title",
+      "body",
+      "files"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.7
+  },
+  "output": "Task ledger field `kind`: the orchestrator's input to the autonomy level (L0 for logic, performance, tooling and invisible refactors; design.user_visible may only raise it).",
+  "evidence": "Shadow. First measurement 2026-11-01 (single labeller, inline wording): accuracy 0.80; see contracts/jev/derived/measurements.md. Re-measure with this file's wording before promoting."
+}

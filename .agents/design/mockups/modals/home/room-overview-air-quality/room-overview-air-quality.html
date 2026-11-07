@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Air Quality overview sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_room-overview-data.js"></script>
+<script src="../_room-overview.js"></script>
+</head><body>
+<script>
+(function () {
+  var kind = 'airQuality', room = null;
+  var states = RO.overviewStates(kind, { room: room });
+  delete states.room;
+  Mock.mount({
+    kind: 'modal', id: 'room-overview-air-quality', title: 'Air Quality overview sheet', area: 'home', status: 'shipped',
+    summary: "Opened by the Air Quality chip on Home. Six rooms with an air purifier, each a read-only card showing AQI and PM2.5 with its glyph and rim in the room's AQI colour (the scale is the information, so the colour is not swapped for the air family's teal). Nothing pushes. A full-height page sheet that follows the system appearance.",
+    source: [
+      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift',
+      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift',
+      'apple/Sources/HassCore/Rooms/RoomOverview.swift',
+      'apple/Sources/HassCore/Rooms/RoomGroups.swift',
+      'apple/Sources/HassCore/Rooms/RoomFormat.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift',
+      'apple/Sources/HassDesign/DynamicGridLayout.swift',
+      'apple/Sources/HassDesign/HassModal.swift'
+],
+    spec: [".agents/pages/home/spec.md", ".agents/pages/home/ios.md", ".agents/patterns/room-overview-sheet.md"],
+    patterns: ['room-overview-sheet', 'modal-sheet', 'dynamic-grid', 'entity-tile', 'status-rail'],
+    hig: ['Sheets', 'Toolbars', 'Layout', 'Typography', 'Accessibility'],
+    entities: ["sensor.demo_living_room_2", "sensor.demo_living_room_3", "input_text.demo_living_room_color_6"],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'ChipRail', 'WeatherCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: states,
+    motion: RO.overviewMotion(kind),
+    transitions: RO.transitions(kind, room),
+
+    a11y: [
+      {
+            "rule": "Reading order",
+            "note": "The sheet is modal: focus lands on the title \"Air Quality\" (no subtitle: the cards carry the figures), the \"Rooms\" heading, the six cards in grid order, then Close (identifier overview.airQuality)."
+      },
+      {
+            "rule": "Room cards",
+            "note": "Read-only (kind .state): one grouped element each, label the room, value \"12 • 3.1 µg/m³\", no button trait, no hint. Identifier overview.airQuality.room.<room>. They are not controls, so the 44 pt rule does not apply, but they keep the 72 pt tile height."
+      },
+      {
+            "rule": "State is not colour alone",
+            "note": "The numbers are text (AQI, then PM2.5); the colour (green, yellow, orange) only groups them by AQI band. The band's name (Good, Moderate) is not spoken or drawn: see Reviews."
+      },
+      {
+            "rule": "Unavailable",
+            "note": "A room whose sensors are unavailable reads \"Unavailable • Unavailable\" on the teal fallback colour; there is no dimmed face or Unavailable word beyond the two metrics."
+      },
+      {
+            "rule": "Equal heights and Dynamic Type",
+            "note": "Every card has the height of the tallest; the minimum width scales and the grid is one column of stacked tiles at AX5."
+      },
+      {
+            "rule": "Close",
+            "note": "The circle x is labelled Close for VoiceOver (never \"Done\"); it stays in the bar when a room is pushed, and dismisses the whole sheet from any depth."
+      },
+      {
+            "rule": "Light and dark",
+            "note": "The sheet follows the system appearance (white cells on #F2F2F7, or #2C2C2E on #1C1C1E); family fills and the lit tile are fixed in both. Reduce Transparency draws the solid tile finish."
+      }
+],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Color: do not use colour alone; here the AQI scale is the information", verdict: 'pass', note: "The glyph and rim take the room's AQI colour but the card also prints AQI and PM2.5 as text (AirQualityRoomTile.swift:15, RoomFormat.airSummary), so colour is supplementary.", by: 'apple-hig skill' },
+        { rule: "Accessibility: indicate when something is unavailable", verdict: 'pass', note: "RoomFormat.airSummary returns \"Unavailable\" when both sensors are dead; AirQualityRoomTile draws the neutral face (isActive false) instead of the teal fallback.", by: 'apple-hig skill' },
+        { rule: "Lists and tables: no disclosure indicator where nothing drills down", verdict: 'pass', note: "kind .state: not a button, no chevron, read as label plus value (GlassTile.swift:128-133).", by: 'apple-hig skill' },
+        { rule: "Sheets: full height", verdict: 'departure', note: "Large only (HomeScreen.swift:38) although nothing pushes from this overview; RoomOverviewSheet sizes every kind alike (HassModal.swift:132-136, owner 2026-10-16).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Do not hide state from assistive technology", verdict: 'pass', note: "State tiles ignore children and speak title and subtitle (GlassTile.swift:128-133).", by: 'swiftui-pro skill' },
+        { rule: "Use SwiftUI Color, not UIColor", verdict: 'pass', note: "The AQI colour is built from the helper's RGB text as a SwiftUI Color (RoomOverview.airQualityColor), not UIKit.", by: 'swiftui-pro skill' },
+        { rule: "Layout reflows with type size", verdict: 'pass', note: "@ScaledMetric 140 grid (RoomOverviewGrid.swift:11-15).", by: 'swiftui-pro skill' },
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      "loading: there is no loading state. The sheet reads EntityStore, so the \"loading\" state here is an empty store: every room reads \"Unavailable • Unavailable\" on the teal fallback. No spinner or pending bar exists on these cards.",
+      "Docs versus code: the catalog hint says the room tiles push a detail page, but AirQualityRoomTile is read-only (kind .state): nothing pushes, there is no chevron, and RoomGroupDetail's .airQuality branch is an empty view (dead code). Drawn as the code, so this mockup has no pushed state and no push transition.",
+      "Units are a fixture assumption (AQI unitless, PM2.5 in µg/m³): the app prints whatever unit_of_measurement the sensor reports (RoomFormat.airMetric).",
+      "Colours come from each room's input_text.<room>_aqi_color helper (#rrggbb or rgb()); the web's teal (#009688) stands in while the helper is missing. Fixture colours here are green, yellow and orange.",
+      "Unavailable rooms: the card keeps the teal fallback and reads \"Unavailable • Unavailable\"; it is not dimmed (AirQualityRoomTile passes no isUnavailable).",
+      "medium and fitted: not offered. The sheet is hassSheet(.page, height: .full), so large is the only detent; on iPad and the unfolded Duo it is the 704 pt page sheet. Dismiss is Close or a swipe down (Transitions list); there is no confirmation.",
+      "Docs versus code: direction-g.md says room cards in the chip overviews are \"status tiles, not navigation\", but the code draws them with kind .navigate (a trailing chevron) and pushes the room; patterns/motion.md still lists the overview room tiles as a zoom, but the code is a plain push (owner 2026-10-22, motion.md 4.3, .measuresNavigation(.push)). Drawn as the code.",
+      "Duo unfolded: the page sheet is centred in the window and crosses the hinge band here; a 704 pt sheet gives four even columns. Placement is the system's (the unfolded simulator pose was run for pages only): check on a device.",
+      "Kit gaps (promote to kit): symbols window.vertical.open|closed, figure.stand, desktopcomputer, stove, stairs, bathtub (added at runtime in modals/home/_room-overview.js); TileGrid with equal rows stretches a section header to the tile height and its track overflows a narrow container at AX5 (the helper equalises in JS and caps the track); BrightnessTile prints \"On at 70%\" where the app prints \"70%\".",
+      "Fixture: values are invented; room names, entity ids and the group lists are the app's (HassCore/Rooms/RoomGroups.swift)."
+],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: overview in every state, the pushed room, present and push transitions, light and dark.' }],
+  });
+})();
+</script></body></html>

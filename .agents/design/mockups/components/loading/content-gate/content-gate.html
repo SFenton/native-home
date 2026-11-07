@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ContentGate · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, CM = Mock.cm;
+  function sleep(ms) { return Mock.sleep(ms); }
+  var CARDS = [['Lemon Herb Roast Chicken', '45 min · Serves 4'], ['Slow-Cooked Pulled Pork', '6 h'], ['Weeknight Pasta', '25 min'], ['Sheet-Pan Salmon', '30 min']];
+  function content(n) {
+    return CM.cards(CARDS.slice(0, n || 4).map(function (c) { return K.ImageCard({ title: c[0], subtitle: c[1], scene: 'recipe' }); }), 150, 2);
+  }
+  function gate(phase, label, n) { var g = K.ContentGate({ content: content(n), phase: phase, label: label, minHeight: 200 }); return g; }
+  /* The sequence, parameterised by profile and Reduce Motion (patterns/content-gate.md "Sequence" and "Timing profiles"). */
+  function setPhase(g, label, txt) { g.dataset.phase = label; var c = g.parentNode && g.parentNode.querySelector('[data-readout]'); if (c) c.textContent = txt; }
+  function playGate(g, readout, o) {
+    var page = o.profile === 'page', rm = o.rm, spin = g.querySelector('.spin'), content = g.querySelector('.content'), t0 = performance.now(), loadAt = o.dataAt;
+    function say(t) { readout.textContent = Math.round(performance.now() - t0) + ' ms · ' + t; }
+    g.dataset.phase = 'ready'; [spin, content].forEach(function (e) { e.getAnimations().forEach(function (a) { a.cancel(); }); });
+    content.style.transition = 'none'; spin.style.transition = 'none'; content.style.opacity = 0; content.style.transform = rm ? 'none' : 'translateY(4px)'; spin.style.opacity = 0;
+    say('content laid out, hidden');
+    return sleep(page ? 0 : 150).then(function () { say(page ? 'spinner fades in at once (200 ms)' : 'spinner fades in (200 ms) after the 150 ms delay'); return CM.anim(spin, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-in' }); })
+      .then(function () { var held = page ? Math.max(1000, loadAt) : loadAt; say('data arrives at ' + loadAt + ' ms' + (page && loadAt < 1000 ? '; the spinner stays until 1000 ms' : '')); return sleep(held - (performance.now() - t0) + (page ? 0 : 0)); })
+      .then(function () { var ms = page ? 500 : 140; say('spinner fades out (' + ms + ' ms)'); return CM.anim(spin, [{ opacity: 1 }, { opacity: 0 }], { duration: ms, easing: 'ease-out' }); })
+      .then(function () { say('content fades in over 170 ms' + (rm ? ' (no rise)' : ' and rises 4 pt')); return CM.anim(content, [{ opacity: 0, transform: rm ? 'none' : 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 170, easing: 'ease-out' }); })
+      .then(function () { content.getAnimations().forEach(function (a) { a.cancel(); }); content.style.opacity = 1; content.style.transform = 'none'; say('open: nothing animates'); return sleep(600); });
+  }
+  function card(ctx, title, o) {
+    var g = gate('ready', 'Loading', 4), ro = h('div', { 'data-readout': 'true', style: { font: '12px var(--mono)', minHeight: '1.4em', opacity: .85 } }, 'at rest');
+    var host = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' } }, h('div', { style: { font: '600 12px var(--mono)', opacity: .7 } }, title), g, ro);
+    host.__play = function () { return playGate(g, ro, o); }; host.__gate = g;
+    return host;
+  }
+  function sequence(ctx) {
+    var out = CM.grid(ctx, [
+      { label: 'phase: loading (first 150 ms: nothing)', node: gate('loading', null, 2), min: 300 },
+      { label: 'phase: spinner (after 150 ms)', node: gate('spinner', 'Loading recipes', 2), min: 300 },
+      { label: 'phase: ready (content faded in)', node: gate('ready', null, 2), min: 300 },
+    ], { surfaces: ['page', 'sheet'] });
+    return out;
+  }
+  function plays(ctx) {
+    var cards = {};
+    cards.rn = card(ctx, 'NORMAL · .results profile', { profile: 'results', rm: false, dataAt: 900 });
+    cards.rr = card(ctx, 'REDUCE MOTION · .results', { profile: 'results', rm: true, dataAt: 900 });
+    cards.pn = card(ctx, 'NORMAL · .page profile (data at 300 ms)', { profile: 'page', rm: false, dataAt: 300 });
+    cards.pr = card(ctx, 'REDUCE MOTION · .page', { profile: 'page', rm: true, dataAt: 300 });
+    var wrap = h('div.cm-row', { style: { alignItems: 'flex-start', gap: '16px' }, 'data-gates': 'true' },
+      h('div', { style: { flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '14px' } }, cards.rn, CM.play(function () { return Promise.all([cards.rn.__play(), cards.rr.__play()]); }, 'Play .results'), cards.rr),
+      h('div', { style: { flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '14px' } }, cards.pn, CM.play(function () { return Promise.all([cards.pn.__play(), cards.pr.__play()]); }, 'Play .page'), cards.pr));
+    wrap.__playResults = function () { return Promise.all([cards.rn.__play(), cards.rr.__play()]); };
+    wrap.__playPage = function () { return Promise.all([cards.pn.__play(), cards.pr.__play()]); };
+    wrap.__playReload = function () {
+      var g = cards.rn.__gate, content = g.querySelector('.content'), spin = g.querySelector('.spin'), ro = cards.rn.querySelector('[data-readout]'); var t0 = performance.now();
+      function say(t) { ro.textContent = Math.round(performance.now() - t0) + ' ms · ' + t; }
+      g.dataset.phase = 'ready'; content.style.opacity = 1; content.style.transform = 'none'; say('showing results; a new search starts');
+      return CM.anim(content, [{ opacity: 1 }, { opacity: 0 }], { duration: 170, easing: 'ease-out' }).then(function () { return playGate(g, ro, { profile: 'results', rm: false, dataAt: 700 }); });
+    };
+    return CM.grid(ctx, [{ label: 'Both profiles, with the Reduce Motion variant under each (Play restarts at rest)', node: wrap, w: 780 }], { surfaces: ['page'] });
+  }
+  function timeline(ctx) {
+    function seg(label, ms, color, total) { return h('div', { title: label + ' ' + ms + ' ms', style: { flex: ms + ' 0 0', minWidth: 0, background: color, height: '22px', borderRadius: '4px', color: '#fff', font: '600 10px/22px var(--mono)', padding: '0 4px', overflow: 'hidden', whiteSpace: 'nowrap' } }, label); }
+    function bar(name, segs) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } }, h('span', { style: { font: '600 12px var(--mono)' } }, name), h('div', { style: { display: 'flex', gap: '2px' } }, segs.map(function (s) { return seg(s[0], s[1], s[2]); }))); }
+    var A = 'var(--g-tint-fill)', B = 'var(--fam-water-fill)', G = '#6c6c70', Y = 'var(--fam-occupancy-fill)';
+    var n = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' } },
+      bar('.results (search, sort, filter; Food results)', [['wait 150', 150, G], ['in 200', 200, A], ['loading, data at 900', 550, '#3a3f48'], ['out 140', 140, B], ['content 170', 170, Y]]),
+      bar('.page (first cold load; Food hub, Recipes, inventory pages)', [['in 200', 200, A], ['held to 1000 (min)', 800, '#3a3f48'], ['out 500', 500, B], ['content 170', 170, Y]]),
+      h('p', { style: { margin: 0, font: '12px var(--font)', opacity: .8 } }, 'Widths are proportional to milliseconds (the .page bar is 1670 ms, the .results bar 1210 ms with data at 900 ms). Child timeout: 1500 ms after the data is ready. Load timeout (.page only): 10 s, then the content shows anyway.'));
+    var tbl = h('table.cm-tbl', h('thead', h('tr', ['Value', '.results', '.page'].map(function (t) { return h('th', t); }))), h('tbody', [
+      ['spinnerDelay', '150 ms', '0'], ['spinnerEnter', '200 ms', '200 ms'], ['spinnerExit', '140 ms', '500 ms'], ['contentEnter', '170 ms (+ 4 pt rise)', '170 ms (+ 4 pt rise)'], ['contentExit (reload)', '170 ms', '170 ms'], ['childTimeout', '1500 ms', '1500 ms'], ['minimumLoading', '0', '1000 ms'], ['loadTimeout', 'none', '10 s']].map(function (r) { return h('tr', h('th', { scope: 'row' }, h('code', r[0])), h('td', r[1]), h('td', r[2])); })));
+    return CM.grid(ctx, [{ label: 'Timing profiles (ContentGateModel.Profile)', node: n, w: 620 }, { label: 'Constants', node: tbl, w: 420 }], { surfaces: ['sheet'] });
+  }
+  function snapshot(ctx) {
+    var open = gate('ready', null, 2);
+    return CM.grid(ctx, [{ label: 'A reopen: isReady is true at creation, so no spinner and no fade', node: h('div', open, h('p.cm-note', 'Pass the cached or snapshot state as ready. Never gate a page that reads EntityStore: the store is always ready from the disk snapshot. A gate created ready counts gate.instant in telemetry.')), w: 440 }]);
+  }
+  function inContext(ctx) {
+    var recipes = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' } },
+      h('div.ui-hdr', h('h2', 'Suggested Recipes')), K.ContentGate({ content: content(4), phase: 'spinner', label: 'Loading Suggested Recipes', minHeight: 260 }));
+    var ready = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' } },
+      h('div.ui-hdr', h('h2', 'Suggested Recipes')), K.ContentGate({ content: content(4), phase: 'ready', minHeight: 260 }));
+    return CM.grid(ctx, [{ label: 'Food hub results region, waiting', node: recipes, w: 402 }, { label: 'Ready (images reported as drawn)', node: ready, w: 402 }], { surfaces: ['page'] });
+  }
+  Mock.mount({
+    kind: 'component', id: 'content-gate', title: 'ContentGate (loading gate)', area: 'design', status: 'shipped', frame: false,
+    summary: 'How a network-backed page or sheet with nothing saved waits: the content is laid out but hidden, an arc spinner fades in after 150 ms, and when the data and every reported image are ready the spinner fades out and the content fades in and rises 4 pt. Two timing profiles (.results for regions that reload, .page for a page\'s first cold load).',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift', 'apple/Sources/HassDesign/Loading/ContentGateModel.swift', 'apple/Sources/HassDesign/Loading/ReadinessTracker.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKImageViews.swift', 'apple/Sources/HassDesign/ArcSpinner.swift'],
+    spec: ['.agents/patterns/content-gate.md', '.agents/design/motion.md'],
+    patterns: ['content-gate', 'image-cache', 'motion'],
+    hig: ['Loading', 'Progress indicators', 'Motion'],
+    entities: [],
+    kitComponents: ['ContentGate', 'ArcSpinner', 'ImageCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'The three phases', render: sequence },
+      'loading': { title: 'Both profiles, playable (with Reduce Motion variants)', note: 'Play shows a millisecond readout per step', render: plays },
+      'timeline': { title: 'Timing profiles', render: timeline },
+      'snapshot': { title: 'Reopen: starts ready', render: snapshot },
+      'in-context': { title: 'In the Food hub (Suggested Recipes)', render: inContext },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the spinner label wraps; the gated cards become rows with thumbnails', render: function (ctx) { return CM.grid(ctx, [{ label: 'phase: spinner', node: gate('spinner', 'Loading recipes', 2), min: 340 }, { label: 'phase: ready', node: gate('ready', null, 2), min: 340 }]); } },
+    },
+    motion: [
+      { id: 'results', what: 'A results region loads: a spinner appears only if it takes over 150 ms, then the content arrives', token: '.results: delay 150 ms, in 200 ms, out 140 ms, content 170 ms + 4 pt rise', state: 'loading',
+        source: 'ContentGateModel.Profile.results; patterns/content-gate.md "Sequence"', reduce: 'the content fades in with no 4 pt rise; the spinner keeps turning at half speed',
+        play: function (stage) { return stage.querySelector('[data-gates]').__playResults(); } },
+      { id: 'page', what: 'A page\'s first cold load: the spinner at once, held at least 1 s even when the data is there, out over 500 ms', token: '.page: in 200 ms, minimum 1000 ms, out 500 ms, content 170 ms; load timeout 10 s', state: 'loading',
+        source: 'ContentGateModel.Profile.page (the web DashboardPageLoadGate)', reduce: 'no rise; the spinner at half speed (HIG departure recorded 2026-10-16)',
+        play: function (stage) { return stage.querySelector('[data-gates]').__playPage(); } },
+      { id: 'reload', what: 'A new search: the results fade out in 170 ms, then the .results sequence repeats', token: 'contentExit 170 ms then .results', state: 'loading',
+        source: 'ContentGateModel.becomeLoading()', reduce: 'the same fades; no rise on the way in',
+        play: function (stage) { return stage.querySelector('[data-gates]').__playReload(); } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'Hidden content', note: 'While loading the content has opacity 0, no hit testing and is hidden from VoiceOver; when it appears the gate posts a layoutChanged notification so focus lands on the page.' },
+      { rule: 'The spinner', note: 'One element labelled "Loading" (or "Loading Pantry"), updatesFrequently, not a control. It exists only while it shows, so a fast load never builds it.' },
+      { rule: 'Reduce Motion', note: 'The 4 pt rise is dropped and the fade kept (opacity is allowed); the spinner keeps turning at half speed.' },
+      { rule: 'No waiting past a limit', note: 'One slow image holds the gate for 1.5 s at most; a page whose data never arrives shows its content after 10 s (.page).' },
+      { rule: 'Dynamic Type', note: 'The spinner is fixed at 44 pt; its label and the gated content scale; cards become rows at accessibility sizes.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Loading: show something quickly, or people may think the app is broken", verdict: "departure", note: "The gate hides content entirely instead of showing placeholders; the .results profile waits 150 ms before any spinner and the .page profile holds the spinner at least 1000 ms and times out at 10 s (ContentGateModel.swift Profile.page). Both mirror the web app's page-load behaviour (patterns/content-gate.md, motion.md section 5); live-house pages never use it.", by: "apple-hig skill" },
+        { rule: "Loading: best loading ends before people notice", verdict: "pass", note: "A gate created with isReady already true (disk snapshot or cache) shows content with no animation and builds no spinner; a fast load never shows one.", by: "apple-hig skill" },
+        { rule: "Progress indicators: indeterminate spinner for unquantifiable waits, with a meaningful description", verdict: "pass", note: "Every ContentGate call site passes a label naming the page (MediaRemoteSheet.swift, PerformanceGallery.swift added).", by: "apple-hig skill" },
+        { rule: "Accessibility: Reduce Motion drops positional motion and keeps fades", verdict: "pass", note: "RiseIn is inactive when reduceMotion, so the 4 pt offset disappears while the 170 ms fade stays; the spinner keeps its half-speed turn (arc-spinner mockup).", by: "apple-hig skill" },
+        { rule: "VoiceOver: tell people when content appears; hidden content is not read", verdict: "pass", note: "Content is accessibilityHidden and non-hit-testable until it shows; the gate posts a layoutChanged notification when it reaches idle.", by: "apple-hig skill" },
+        { rule: "Motion: keep animations brief and purposeful", verdict: "pass", note: "Spinner in 200 ms, out 140 ms (500 ms on .page), content in and out 170 ms, all ease-in or ease-out; nothing loops except the spinner itself.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Animation: drive state changes with withAnimation, not delays", verdict: "pass", note: "ContentGateModel sequences phases with withAnimation(.easeIn/.easeOut) on its own state and a testable injected sleep; .task(id:) cancels with the view.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: use the notification that matches the change", verdict: "pass", note: "Not applicable: ContentGate also wraps results reloads, where .screenChanged would steal focus; .layoutChanged keeps focus unless the focused element was hidden, which is the case it exists for.", by: "swiftui-pro skill" },
+        { rule: "Performance: do not build what is not shown", verdict: "departure", note: "The content is laid out while hidden (opacity 0) on purpose so images and children can report readiness through ContentReadiness; only the spinner is built lazily. The cost is a full build of the gated page behind the spinner.", by: "swiftui-pro skill" },
+        { rule: "Data flow: @State model with Equatable task id", verdict: "pass", note: "@State ContentGateModel (an @Observable) is created once in init and task(id: Input(isReady:settled:)) re-runs only when either input changes.", by: "swiftui-pro skill" },
+        { rule: "Resizability: spinner centred in whatever space the page has", verdict: "pass", note: "The spinner takes maxWidth and maxHeight infinity inside the ZStack, so it centres on iPhone, iPad, split columns and the folded Duo without a device check; its 44 pt size is fixed, which is acceptable for an indicator.", by: "swiftui-pro skill" },
+        { rule: "Views: avoid #if os() branches in shared views", verdict: "pass", note: "announceLayoutChange posts AccessibilityNotification.LayoutChanged() with no platform branch (ContentGate.swift:78)" },
+      ],
+    },
+    notes: [
+      'Used by the Food hub, Recipes, the six inventory pages and the recipe results; never by Home, Security, Climate or any page reading EntityStore.',
+      'The phases here are the kit\'s data-phase attribute (loading, spinner, ready); the model\'s fuller set (loading, exiting, spinnerExiting, entering, idle) is what the timeline shows.',
+      'Docs versus code: none found; patterns/content-gate.md and ContentGateModel agree. The gate\'s own .transition(.opacity) on the spinner is an in-place swap listed in the lint allowlist.',
+      'Component mockup: no device frame; Device selects the size class. The recipe photos are kit stand-ins.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: phases, both profiles with Reduce Motion variants, reload, timeline, snapshot start, Food hub context.' }],
+  });
+})();
+</script></body></html>

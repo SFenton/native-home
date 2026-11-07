@@ -1,0 +1,6 @@
+{
+  "kind": "owner_rule",
+  "date": "2026-11-03",
+  "quote": "Should pick the best option- either Jev or operator handles. If we need to implement {n} options and then decide based on screenshots/functionality, that's acceptable.",
+  "note": "Superseded: with no Jev answer the hints still print nothing, but the app-UI gate now prints its fail-safe park lines (see gate-no-jev-parks-failsafe)."
+}

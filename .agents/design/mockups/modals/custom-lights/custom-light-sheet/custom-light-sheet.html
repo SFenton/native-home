@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Custom Light · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, L = MLC.lights;
+  function presenter(ctx, connection) { return MLC.customLightsPage(ctx, { connection: connection }); }
+  /* CustomLightSheet = NavigationStack { ScrollView { BrightnessTile; (colour lights) colour rows + Copy Color From } }, hassSheet(.page): fitted. */
+  function opts(ctx, o) {
+    o = o || {}; var idx = o.light == null ? 3 : o.light, kind = o.kind || 'color', pct = kind === 'off' || kind === 'unavailable' ? 0 : L[idx][1];
+    return { title: L[idx][0], subtitle: MLC.lightSubtitle(kind, pct), detent: o.detent || 'fitted', size: 'page', trailing: 'close', content: MLC.lightSheetBody(ctx, o) };
+  }
+  function sheet(ctx, o) { o = o || {}; return Mock.sheet(ctx, Object.assign(opts(ctx, o), { presenter: o.noPresenter ? null : presenter(ctx, o.connection) })); }
+  var S = function (o) { return function (c) { return sheet(c, o); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'custom-light-sheet', title: 'Custom light sheet', area: 'custom-lights', status: 'shipped',
+    summary: 'One light\'s sheet, opened from its tile: the brightness tile, then for colour lights the system colour picker row, Reset to Warm White, Apply to All Lights, and a circle per other light to copy its colour. Fitted page sheet; follows the system appearance.',
+    source: ['apple/Sources/HassUI/Features/CustomLights/CustomLightSheet.swift', 'apple/Sources/HassUI/Features/CustomLights/CustomLightsScreen.swift', 'apple/Sources/HassCore/Config/CustomLightsConfig.swift', 'apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift'],
+    spec: ['.agents/pages/custom-lights/ios.md', '.agents/pages/custom-lights/spec.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'entity-tile', 'module-list', 'header-edge-fade'],
+    hig: ['Sheets', 'Color wells', 'Lists and tables', 'Buttons'],
+    entities: ['light.demo_front_door_door_8', 'light.demo_front_yard_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ModuleList', 'GlassTile', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Colour light (Bollard 2, red, 71%)', note: 'subtitle "On · 71%"; the colour well shows the light\'s colour', render: S() },
+      'loading': { title: 'No state yet (entity not loaded)', note: 'the sheet reads EntityStore, so there is no spinner: with no state it reads as Unavailable (the unavailable state)', render: S({ kind: 'unavailable' }) },
+      'error': { title: 'Unavailable light', note: 'subtitle "Unavailable"; the tile dims and cannot be touched; with no supported_color_modes there are no colour rows', render: S({ kind: 'unavailable' }) },
+      'offline': { title: 'Over an offline Custom Lights page', note: 'no offline UI of its own: the last known colour and level stay; the page behind carries the offline chip', render: S({ connection: 'offline' }) },
+      'white': { title: 'White-only light (colour temperature only)', note: 'the brightness tile alone: Color, Reset, Apply and Copy Color From need supported_color_modes of hs, rgb, rgbw, rgbww or xy', render: S({ kind: 'white', light: 0 }) },
+      'off': { title: 'Light off', note: 'subtitle "Off", the tile is off; Apply to All Lights is disabled (no colour to copy); the well shows white', render: S({ kind: 'off', light: 7 }) },
+      'medium': { title: 'Medium detent (provisional)', note: 'what a fitted sheet opens at until its content is measured', render: S({ detent: 'medium' }) },
+      'large': { title: 'Large detent', note: 'only when the content is taller than the window (AX sizes); the page then scrolls', render: S({ detent: 'large' }) },
+      'fitted': { title: 'Fitted detent (shipped)', render: S({ detent: 'fitted' }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Custom Lights page the sheet scales back', render: function (c) { return presenter(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the fitted height reaches the large cap and the page scrolls; Copy Color From goes to one column', render: S({ detent: 'fitted' }) },
+    },
+
+    motion: [
+      { id: 'band-glide', what: 'Dragging the tile: it lifts, the band and the % bubble follow the finger', token: 'quick 0.2 s easeOut; a haptic tick every 10%', state: 'default',
+        source: 'HassDesign/BrightnessTile.swift; motion-components.md BrightnessTile (done)', reduce: 'no lift or scale: shadow and bubble fade only; the band jumps',
+        play: function (stage) { return MLC.drag(stage.querySelector('.ui-tile.lit'), [71, 40, 15, 55, 90]); } },
+      { id: 'swatch-colour', what: 'Copy Color From: the open light takes another light\'s colour, its tile band and well follow', token: 'state 0.6 s ease-in-out (stateColorTransition("OtherLightSwatch")); the colour reaches the light about 250 ms after the picker settles', state: 'default',
+        source: 'CustomLightSheet.swift OtherLightSwatch; motion-components.md OtherLightSwatch (done)', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var w = stage.querySelector('.mlc-well'), band = stage.querySelector('.ui-tile.lit .band.tinted'); w.style.transition = 'none'; w.style.setProperty('--wc', 'rgb(255,0,0)');
+          var sw = stage.querySelectorAll('.mlc-sw .d')[2]; sw.style.transition = 'background-color ' + Mock.anim.ms.state() + 'ms ease-in-out'; return Mock.sleep(300).then(function () { sw.style.setProperty('--dc', 'rgb(255,137,14)'); return Mock.sleep(Mock.anim.ms.state() + 300); }).then(function () { sw.style.setProperty('--dc', 'rgb(0,255,0)'); return Mock.sleep(Mock.anim.ms.state() + 200); }); } },
+    ],
+
+    transitions: [
+      { from: 'Custom Lights page', to: 'Custom light sheet', kind: 'sheet', state: 'closed', note: 'A tile tap (not a drag) presents the sheet fitted; the page scales back and dims. Content is present on arrival.',
+        play: function (stage) { return Mock.presentDemo(stage, opts(Mock.current, {}), { hold: 1300 }); } },
+      { from: 'Custom light sheet', to: 'Custom Lights page', kind: 'sheet', state: 'default', note: 'Close (circle x) or swipe down.', play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Color row', to: 'System colour picker', kind: 'overlay', state: 'default', note: 'The row is the system ColorPicker: it opens Apple\'s own picker (wheel, sliders, hex, eyedropper). Not drawn here; a pick is sent 250 ms after it settles.', play: function () { return Mock.sleep(200); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Title (with "On · 71%" as subtitle), the brightness tile, Color, Reset to Warm White, Apply to All Lights, the "Copy Color From" heading, the swatches in order, Close.' },
+      { rule: 'Brightness tile', note: 'One adjustable button: "Bollard 2", value "71%", swipe up or down by 10%, hint "Double-tap to turn off" in the sheet (it has no chevron: tap flips power here).' },
+      { rule: 'Color', note: 'The system colour well: VoiceOver and Switch Control come free (a departure from the web\'s hue wheel, recorded in ios.md). Disabled while unavailable.' },
+      { rule: 'Action rows', note: 'Reset to Warm White and Apply to All Lights are buttons with Ink.action text; disabled rows read in the sheet\'s secondary ink (still 4.5:1) rather than dimming the text.' },
+      { rule: 'Copy Color From', note: 'Each swatch is "Apply Bollard 1 Color"; an off light reads "Off" (or "Unavailable") as its value and ignores taps without being disabled, so its name keeps its contrast on a light sheet. 44 pt circles minimum.' },
+      { rule: 'Dynamic Type', note: 'Circles scale (48 pt metric); the grid\'s minimum 76 pt scales and AX5 shows one column; rows wrap their labels (WrappingRowLabel).' },
+      { rule: 'Light and dark', note: 'Follows the system appearance: white cells on #F2F2F7 or #2C2C2E on #1C1C1E; the circle names read in Ink.secondary (0.72), not the weaker sheet secondary.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Color wells: use the system color picker', verdict: 'pass', note: 'ColorPicker(supportsOpacity: false) (CustomLightSheet.swift:72) gives wheel, sliders, eyedropper and VoiceOver for free; the departure from the web wheel is recorded in ios.md.' },
+        { by: 'apple-hig skill', rule: 'Sheets: as tall as the content', verdict: 'pass', note: '.hassSheet(.page) fitted (CustomLightsScreen.swift:92) with a circle close at the trailing edge (SheetCloseItem).' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets', verdict: 'pass', note: 'Copy-color circles are max(scaled 48 pt, minTarget) (CustomLightSheet.swift:183); action rows are 52 pt.' },
+        { by: 'apple-hig skill', rule: 'Alerts: confirm or allow undo for a bulk action', verdict: 'pass', note: 'Apply to All Lights asks first (AlertCopy.applyToAllLights, CustomLightSheet).' },
+        { by: 'apple-hig skill', rule: 'Accessibility: a control that cannot act reads as unavailable', verdict: 'pass', note: 'CustomLightSheet other-light swatch removes .isButton when the light is off (rgb == nil), so it reads as plain text "Off" while keeping its contrast.' },
+        { by: 'apple-hig skill', rule: 'Materials: sheets draw on the system material', verdict: 'departure', note: 'Opaque sheet ground at every detent (direction-g.md Sheets; modal-sheet.md); the sheet still follows the system appearance.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'api.md: avoid UIKit colors; use Color.resolve(in:)', verdict: 'pass', note: 'Fixed: RGB(color:) converts through Color.resolve(in:).cgColor to sRGB, no UIKit or AppKit import (CustomLightSheet.swift).' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: debounce a continuous control', verdict: 'pass', note: 'A picked color is sent 250 ms after it settles and the pending Task is cancelled on each change (lines 104-118).' },
+        { by: 'swiftui-pro skill', rule: 'resizability.md: grids reflow with type and width', verdict: 'pass', note: 'Swatch width is @ScaledMetric (line 22) and the grid uses DynamicGridLayout; AX5 gives one column.' },
+      ],
+    },
+
+    notes: [
+      'loading: there is no loading state; the sheet reads EntityStore. A light with no state shows exactly as Unavailable.',
+      'In the drawn white-only light the tile has no colour tint; the fixture lights all report colour modes (HomePagesGallery), so the white-only variant is what a colour-temperature-only bulb would show.',
+      'The unfolded Duo centres the page sheet across the hinge band (placement is the system\'s; not run on a device).',
+      'The sheet is a NavigationStack but pushes nothing; the Custom Lights page is the only presenter.',
+      'Kit gap: BrightnessTile in the kit says "On at 71%"; the app says "71%" (BrightnessTile.status). Drawn with MLC.lightTile; promote to kit.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: colour, white-only, off and unavailable lights; three detents; AX5; light and dark.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Food &amp; Recipes hub · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+
+  /* The hub as FoodHubScreen draws it, pushed under Home from Quick Links (HomeRoute.food). Everything comes from Food.hubPage. */
+  function page(ctx, o) { return F.hubPage(ctx, o || {}); }
+  function sheetOver(ctx, o) { return F.detailOver(ctx, o || {}); }
+  function carousel(stage) { return stage.querySelector('[aria-label="Suggested recipes"]'); }
+
+  Mock.mount({
+    kind: 'page', id: 'food-hub', title: 'Food & Recipes hub', area: 'food', status: 'shipped',
+    summary: 'A page pushed under Home: Suggested Recipes (five paged pages of recipe cards), the All Recipes tile, All Food and five Food Spaces tiles in their web colours. It waits behind the page load gate until the suggestions settle. Sample data is fixture data.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Food/UKFoodHubViewController.swift', 'apple/Sources/HassUI/Features/Food/FoodRoute.swift', 'apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassUI/Features/Food/FoodFamilies.swift',
+      'apple/Sources/HassCore/Config/FoodConfig.swift', 'apple/Sources/HassDesign/ImageCard.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift', 'apple/Sources/HassUI/Features/Gallery/FoodGallery.swift'],
+    spec: ['.agents/pages/food/spec.md', '.agents/pages/food/ios.md'],
+    patterns: ['content-gate', 'image-card', 'entity-tile', 'dynamic-grid', 'page-backdrop', 'motion'],
+    hig: ['Collections', 'Page controls', 'Navigation', 'Loading', 'Color', 'Dynamic Type', 'Split views'],
+    entities: ['sensor.demo_expired_items_1', 'sensor.demo_sensor_1', 'sensor.demo_expired_items_1', 'sensor.demo_expired_items_1', 'sensor.demo_expired_items_1', 'sensor.demo_kitchen_2', 'sensor.demo_kitchen_1'],
+    kitComponents: ['PageSectionHeader', 'ImageCard', 'GlassTile', 'TileGrid', 'ContentGate', 'ArcSpinner', 'ModalTabBar', 'HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Ready: five pages of suggestions', render: function (c) { return page(c); } },
+      'loading': { title: 'Cold open: the page load gate', note: '.page profile: the spinner fades in at once (200 ms), stays at least 1 s, the hub stays hidden until the suggestions settle', render: function (c) { return page(c, { gate: 'spinner' }); } },
+      'refreshing': { title: 'Reopened with suggestions in memory', note: 'identical to default by design: a hub that already loaded them opens at once, no gate, no spinner; stale suggestions (5 min) refresh quietly in place', render: function (c) { return page(c); } },
+      'empty': { title: 'Service answered with no suggestions', note: 'no empty UI in the code: the carousel draws its header and nothing under it (one empty page, no "Page n of 5", no dots)', render: function (c) { return page(c, { phase: 'empty' }); } },
+      'error': { title: 'Suggestions failed', note: '"Suggestions Unavailable" in the carousel only; the tiles still work (they read EntityStore, not the service)', render: function (c) { return page(c, { phase: 'failed' }); } },
+      'gave-up': { title: 'Gate gave up after 10 s', note: 'a slow service: the page shows anyway, the carousel as empty modules (five placeholder pages) until the answer lands', render: function (c) { return page(c, { phase: 'loading' }); } },
+      'offline': { title: 'No network', note: 'cards and counts stay; the offline chip sits under the header and Profile gets the cloud badge; recipe photos come from the disk cache', render: function (c) { return page(c, { pageOpts: { connection: 'offline' } }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: function (c) { return page(c, { pageOpts: { connection: 'reconnecting' } }); } },
+      'long-text': { title: 'Long recipe title and large counts', note: 'a three-line card title; "1,284 Items • 12 Expiring Soon" wraps inside its tile; every tile in a row takes the tallest height', render: function (c) {
+        return page(c, { long: true, allFood: '1,284 Items • 12 Expiring Soon', spaces: { dispensa: '412 Items • 3 Expiring Soon', frigo: '158 Items • 9 Expiring Soon' } }); } },
+      'page-3': { title: 'Carousel on page 3 of 5', note: 'the header and dots follow the scroll position; on iPhone the next page peeks into the 16 pt margin', render: function (c) { return page(c, { page: 2 }); } },
+      'recipe-open': { title: 'A recipe open (sheet)', note: 'the hub always opens recipes as a sheet, also where it splits (the Recipes page uses the trailing pane instead)', render: function (c) { return sheetOver(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one card per page row, two rows, titles never truncate; tiles stack glyph over text; header detail stacks under the title', render: function (c) { return page(c); } },
+    },
+
+    motion: [
+      { id: 'content-gate', what: 'The hub arrives behind the page load gate: spinner fades in, holds at least 1 s, fades out over 500 ms, then the hub fades in and rises 4 pt', token: 'gate .page profile: 200 ms in, 1 s minimum, 500 ms out, 170 ms content (ease-out) with a 4 pt rise',
+        state: 'loading', source: 'HassDesign/Loading/ContentGate.swift ContentGateModel.Profile.page; patterns/content-gate.md; motion.md section 5', reduce: 'the fade stays, the 4 pt rise is dropped; the arc keeps turning at half speed',
+        play: function (stage) { var g = stage.querySelector('.ui-gate'); return g ? Mock.anim.gate(g, { profile: 'page' }) : Promise.resolve(); } },
+      { id: 'carousel-page', what: 'Paging the suggestions: the pages slide, "Page n of 5" and the dots follow', token: 'swipe: system scroll (viewport paging); VoiceOver adjustable action: standard 0.3 s smooth', state: 'default',
+        source: 'HassUI/Features/Food/SuggestedRecipesCarousel.swift (scrollPosition, accessibilityAdjustableAction)', reduce: 'the adjustable action jumps to the page (withAnimation(nil)); a finger swipe stays the system scroll',
+        play: function (stage) { var c = carousel(stage); return c.go(1, true).then(function () { return Mock.sleep(600); }).then(function () { return c.go(2, true); }).then(function () { return Mock.sleep(600); }).then(function () { return c.go(0, true); }); } },
+      { id: 'photo-fade', what: 'A recipe photo fades in over the card when it arrives (a different URL cross-fades; a same-key refresh swaps without animation)', token: 'quick 0.2 s ease-out', state: 'default',
+        source: 'HassDesign/Images/CachedImage.swift (.animation(MotionTokens.quick, value: shownKey)); patterns/image-cache.md', reduce: 'not gated on Reduce Motion in the code (a 0.2 s opacity change is not movement)',
+        play: function (stage) { var ph = Array.prototype.slice.call(stage.querySelectorAll('.fd-page[data-page="0"] .ui-img .photo')); ph.forEach(function (p) { p.style.opacity = 0; }); return Mock.sleep(60).then(function () { return Promise.all(ph.map(function (p, i) { return Mock.sleep(i * 40).then(function () { return Mock.anim.fade(p, { ms: Mock.anim.ms.quick() }); }); })); }).then(function () { ph.forEach(function (p) { p.style.opacity = ''; }); }); } },
+    ],
+
+    transitions: [
+      { from: 'Home (Quick Links)', to: 'Food & Recipes', kind: 'push', note: 'Quick Links dismisses and the hub pushes under Home (HomeRoute.food). System push: the new page slides in from the trailing edge, Home shifts left and dims; the edge swipe back is interactive. The hub then waits behind its gate on a cold open.',
+        play: function (stage) { return F.pushInto(stage, F.homeStub); } },
+      { from: 'Suggested recipe card', to: 'Recipe detail sheet', kind: 'sheet', note: 'A SHEET (page, full height), not a zoom: motion.md 3 and 4.3 list the recipe card as a zoom candidate but zoomSource and zoomDestination have no call sites. Content is present on arrival; the detail then loads inside the sheet.',
+        play: function (stage) { return Mock.presentDemo(stage, F.detailOpts(Mock.current, { phase: 'loading' }), { hold: 1100 }); } },
+      { from: 'All Recipes tile', to: 'Recipes', kind: 'push', note: 'The tile sets the hub\'s pushed route and the Food stack pushes Recipes (no zoom: a tile that is a link, not a thumbnail).',
+        play: function (stage) { return F.pushOnto(stage, function (c) { return F.recipesPage(c, { count: 12 }); }); } },
+      { from: 'Food Spaces tile', to: 'Inventory page', kind: 'push', note: 'Pantry, Fridge, Freezer, Spice Rack, Cabinet and All Food push the Inventory lane\'s page (its own mockup in pages/inventory); the destination here is a stand-in title only.',
+        play: function (stage) { return F.pushOnto(stage, function (c) { return Mock.page(c, { title: 'Pantry', section: 'home', back: 'Food & Recipes', badge: 3, choresBadge: 2, body: [] }); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back ("Home"), the reconnecting arc when present, Quick Links, Profile; the title "Food & Recipes" (heading); the "Suggested recipes" group (heading "Suggested Recipes" with value "Page 1 of 5", the cards in reading order, then the "Suggestion page" control); the All Recipes tile; the All Food heading and tile; the Food Spaces heading and five tiles; the tab bar last.' },
+      { rule: 'Cards', note: 'Each card is one element: the caption (label = title, hint "Opens recipe details", button); the photo is decorative and hidden. The whole card is the tap target while VoiceOver reaches it through the caption (audit item 12). Identifiers food.suggestion.<id>.' },
+      { rule: 'Suggestion page control', note: 'Adjustable: label "Suggestion page", value "2 of 5"; swipe up or down moves a page (clamped), at least 44 pt tall; under Reduce Motion it jumps instead of scrolling the pages across. The dots are drawn from the page count and are not elements.' },
+      { rule: 'Tiles', note: 'Buttons named "<title>, <n Items • n Expiring Soon>"; the glyph and chevron are decorative; each space is filled in its own colour with white ink (4.5:1 or better, TileFinishTests) and the title tells the places apart, never colour alone. Identifiers food.allRecipes, food.allFood, food.space.<location>.' },
+      { rule: 'Load gate', note: 'While the gate is up the hub is hidden from VoiceOver and cannot be tapped; the spinner is "Loading Food & Recipes"; when the content appears the gate posts a layout-changed notification.' },
+      { rule: 'Failure', note: '"Suggestions Unavailable" with "Suggested recipes are temporarily unavailable." is one container (food.suggestions.error); nothing steals focus; the tiles stay usable.' },
+      { rule: 'Targets', note: 'Tiles are at least 72 pt tall, cards are far larger, the page control 44 pt, header circles 44 pt.' },
+      { rule: 'Dynamic Type', note: 'At AX sizes cards are 440 pt cells (one column on iPhone, two rows), the card becomes a row with a 72 pt thumbnail and the title never truncates (up to 100 lines); the clipped pages replace the peeking next page; tiles stack and grow together; the header stacks. xxxLarge keeps the card scrim caption.' },
+      { rule: 'Reduce Motion and Transparency', note: 'The gate drops its rise, the page control jumps, the card placeholders and tiles go opaque (the solid finish).' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Loading: show something quickly, stay usable', verdict: 'pass', note: 'FoodHubScreen no longer uses ContentGate(.page): the tiles show on the first frame and only SuggestedRecipesCarousel waits, with placeholder cards and a "Finding suggestions" arc (food.suggestions.loading).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: split columns adapt to the fold', verdict: 'pass', note: 'Fixed: FoodHubScreen\'s landscape columns are HingedPanes (SplitPolicy.columnWidths, 24 pt gutter off the Duo).', by: 'apple-hig skill' },
+        { rule: 'Page controls: tap to move, scrub, keep the count small', verdict: 'pass', note: 'SuggestedRecipesCarousel uses the shared PageIndicator with tap zones and an adjustable action.', by: 'apple-hig skill' },
+        { rule: 'Collections: paging with a peek', verdict: 'pass', note: 'At standard sizes the next page peeks into the 16 pt margin; at accessibility sizes pages clip so the dots carry paging (scrollClipDisabled, :90).', by: 'apple-hig skill' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Each Food Space is filled in its own colour but always carries its title, glyph and count (FoodHubScreen.swift:105-121); card captions sit on a scrim at 4.5:1.', by: 'apple-hig skill' },
+        { rule: 'Navigation bars: pushed page', verdict: 'pass', note: 'Pushed with navigationDestination(item:) under Home with Back and a large title (FoodHubScreen.swift:46-48).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Use task() rather than onAppear for async work', verdict: 'pass', note: 'FoodHubScreen starts suggestions from .task (FoodHubScreen.swift:47)' },
+        { rule: 'Dynamic Type: scaled minimums', verdict: 'pass', note: 'FoodHubScreen.minTileWidth is @ScaledMetric(relativeTo: .subheadline) 150 for both tile grids.', by: 'swiftui-pro skill' },
+        { rule: 'Horizontal paging with scroll APIs', verdict: 'pass', note: 'scrollTargetLayout, scrollPosition(id:) and containerRelativeFrame(.horizontal) drive the pages (SuggestedRecipesCarousel.swift:75-90), in LazyHStack.', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: adjustable control', verdict: 'pass', note: 'The page control is one element "Suggestion page, 2 of 5" with accessibilityAdjustableAction that jumps, not scrolls, under Reduce Motion (:138-145).', by: 'swiftui-pro skill' },
+        { rule: 'Standard styling: ContentUnavailableView for missing data', verdict: 'pass', note: 'A failed carousel shows ContentUnavailableView("Suggestions Unavailable") and leaves the tiles usable (:46-50).', by: 'swiftui-pro skill' },
+        { rule: 'Resizability: keep state above a branch', verdict: 'pass', note: 'openDetail and pushed live in @State above the split/stack branch, so folding does not reset an open recipe (FoodHubScreen.swift:14-20).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'refreshing: identical to default by design (a reopened hub shows what it has; fresh suggestions swap in without a spinner or a re-fade).',
+      'empty and gave-up: the code has no copy for an empty suggestion list; the draw shows the header over nothing. gave-up is the 10 s load timeout of the .page profile (patterns/content-gate.md).',
+      'Docs vs code (1): the catalog hint says "spinner after 150 ms", but the hub uses the .page profile, whose spinner fades in at once (the 150 ms delay is the .results profile used by Recipes reloads).',
+      'Docs vs code (2): motion.md section 3 and 4.3 list the recipe card as a zoom; the code opens a sheet and zoomSource/zoomDestination have no call sites (inventory note 1). Transitions show the sheet.',
+      'Docs vs code (3): ios.md says "8/9 ingredients" for the detail subtitle; the code reads "8 of 9 Ingredients" (RecipeCard.coverageText).',
+      'Docs vs code (4): split-view.md and ios.md say the hub splits on the hinge like Home; FoodHubScreen uses two equal columns with a 24 pt gap and no SplitPolicy.geometry, so the unfolded Duo landscape split puts the hinge band inside the trailing column (by layout arithmetic, drawn as coded; not confirmed on a simulator).',
+      'Hub tiles and counts are the fixture store (143 items, 4 expiring); the web colours are the Food ColorFamilies in direction-g.md. Photos are drawn stand-ins in a hue per recipe.',
+      'Promote to kit: SuggestedRecipesCarousel (Food.carousel), ContentUnavailableView, ten symbols (book, carrot, frying.pan, takeoutbag.and.cup.and.straw, hand.raised, pause.circle, character.bubble, arrow.up.right.square, circle, list.bullet, list.number); all live in pages/food/_food.js.',
+      'The duo-unfolded-portrait pose was not run on a simulator (design/apple/duo.md); its chrome follows AUTHORING.md.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: iPhone, Duo folded and unfolded, iPad; thirteen states, four motion items, four transitions.' }],
+  });
+})();
+</script></body></html>

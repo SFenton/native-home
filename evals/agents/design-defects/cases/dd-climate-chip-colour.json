@@ -1,0 +1,16 @@
+{
+  "id": "dd-climate-chip-colour",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "Climate chip color should be temperature-dependent like web app (and changes should animate color changes, not just sudden transitions)",
+  "surface": "status-chip",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "parity",
+  "pre_fix_ref": "1008f684",
+  "fix_ref": "9583b3e9",
+  "fix_confidence": "high",
+  "expected": "Status chip colours follow the web thresholds, and a change cross-fades rather than snapping."
+}

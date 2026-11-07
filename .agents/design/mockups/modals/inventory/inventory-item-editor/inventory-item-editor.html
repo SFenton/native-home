@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Item editor · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function listPage(ctx, o) { return V.page(ctx, Object.assign({ space: 'all-food', noFab: true }, o)); }
+  /* Where the window may split (iPad landscape, unfolded Duo landscape) the editor is the trailing pane; elsewhere a fitted form sheet. */
+  function screen(ctx, key, o) {
+    o = o || {}; var m = V.models[key || 'milk'];
+    if (ctx.canSplit && !o.forceSheet) {
+      return V.page(ctx, { space: 'all-food', selected: { milk: 'whole milk', beans: 'black beans', soup: 'chicken soup', eggs: 'eggs', honey: 'honey' }[key || 'milk'], split: { editor: V.editorPane(m, o) } });
+    }
+    var opts = Object.assign(V.editorSheet(ctx, m, o), { presenter: listPage(ctx), detent: o.detent || 'fitted' });
+    if (o.prompt) opts.alert = o.prompt;
+    var host = Mock.sheet(ctx, opts);
+    if (o.busy === 'save') { var x = host.querySelector('.ui-mhead .ui-circle.x'); if (x) { x.disabled = true; x.style.opacity = .4; } }
+    return host;
+  }
+  var DRAFT = { drafts: [{ q: 3 }] };
+
+  Mock.mount({
+    kind: 'modal', id: 'inventory-item-editor', title: 'Item editor', area: 'inventory', status: 'shipped',
+    summary: 'A row opens the editor: one group per batch (expiry and place in the header) with Quantity, an optional Expiration Date, Prepared Food and a red Delete row. A form sheet on iPhone and the portrait windows; the trailing pane where the window splits (iPad landscape, unfolded Duo landscape). Edit sheet: circle x Cancel, filled check Save.',
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift', 'apple/Sources/HassCore/Inventory/InventoryEditorModel.swift',
+      'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetSubtitle.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'floating-actions'],
+    hig: ['Sheets', 'Toolbars', 'Steppers', 'Toggles', 'Date pickers', 'Alerts', 'Split views', 'Dynamic Type'],
+    entities: ['todo.demo_todo_1'],
+    kitComponents: ['HassModal', 'SheetCancelItem', 'SheetConfirmItem', 'Toggle', 'InlineAlert', 'Alert', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'One batch (Whole Milk)', note: 'title is the item, the iOS 26 subtitle "Quantity 1 · In the Fridge"; with one batch the group header is the place alone (the title already names the item). Save is disabled until a draft differs', render: function (c) { return screen(c, 'milk'); } },
+      'multiple-batches': { title: 'Several batches (Black Beans)', note: 'each batch is a group headed by its expiry and place, and its controls are qualified for VoiceOver ("Quantity of Black Beans expiring Jun 20, 2027"); the Prepared Food note sits under the first group', render: function (c) { return screen(c, 'beans'); } },
+      'changes': { title: 'Draft changes: quantity 1 to 3', note: 'the footer says what saving does ("Saving adds 2 items to the fridge."), Reset Changes appears as an action-tint row, Save (the check) enables; the pane adds a Save Changes row', render: function (c) { return screen(c, 'milk', DRAFT); } },
+      'prepared': { title: 'Prepared food batch (Chicken Soup)', note: 'the header adds "· Prepared"; flipping Prepared Food applies at once (asks how many above one), an arc replaces the toggle label while it updates', render: function (c) { return screen(c, 'soup'); } },
+      'prepared-updating': { title: 'Prepared Food updating', note: 'the toggle row dims and shows an inline arc; the app expects the new batches at once then re-reads every 1 s for up to 10 s', render: function (c) { return screen(c, 'soup', { busy: 'prepared', drafts: [] }); } },
+      'saving': { title: 'Saving (dismissal blocked)', note: 'the check becomes an inline arc on a blue disc, Cancel is disabled, the grabber hides and interactive dismissal is off until every changed batch is saved', render: function (c) { return screen(c, 'beans', { busy: 'save', drafts: [{ q: 4 }], disabled: true }); } },
+      'deleting': { title: 'Deleting a batch', note: 'the Delete row shows an arc in place of the trash and every control is disabled while it runs', render: function (c) { return screen(c, 'beans', { busy: 'delete', disabled: true }); } },
+      'error': { title: 'Save failed', note: 'an error line ("Unable to update item") heads the form in red; the drafts stay so Save can be tried again. Other messages: "Unable to delete item", "Unable to update prepared food", "Use YYYY-MM-DD or clear the date.", "Enter a number from 1 to 2."', render: function (c) { return screen(c, 'milk', { error: 'Unable to update item', drafts: [{ q: 3 }] }); } },
+      'offline': { title: 'Offline', note: 'the editor has no offline UI: saves and deletes are service calls, so they fail with the service error above; the page behind carries the offline chip', render: function (c) { return screen(c, 'milk', { error: 'Unable to update item', drafts: [{ q: 2 }] }); } },
+      'no-expiry': { title: 'No expiration date (Honey)', note: 'the Expires picker row only exists while the toggle is on; turning it on sets today', render: function (c) { return screen(c, 'honey'); } },
+      'delete-prompt': { title: 'Delete how many (batch with 2)', note: 'above one the Delete row asks first through an alert with a field; a single unit deletes at once with no confirmation (the swipe on the page confirms, the editor does not)', render: function (c) {
+        return screen(c, 'beans', { forceSheet: true, prompt: V.alertField({ title: 'Delete Black Beans expiring Jun 20, 2027', message: 'Choose how many to delete. Enter a number from 1 to 2.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Delete' }] }) }); } },
+      'pane': { title: 'Trailing pane (iPad landscape)', override: { device: 'ipad-landscape' }, note: 'no toolbar: its own header with the name and a Close circle, then the form; Save Changes and Reset Changes are rows once a draft exists; the list stays interactive', render: function (c) { return screen(c, 'soup', { drafts: [{ q: 3 }], page: {} }); } },
+      'medium': { title: 'Medium detent', note: 'what the sheet opens at until its content is measured', render: function (c) { return screen(c, 'milk', { detent: 'medium', forceSheet: true }); } },
+      'fitted': { title: 'Fitted detent (shipped)', note: 'one batch is short; several batches or a prompt grow it up to the large cap', render: function (c) { return screen(c, 'milk', { forceSheet: true }); } },
+      'large': { title: 'Large detent', note: 'a long item (many batches) or AX sizes reach it and the form scrolls', render: function (c) { return screen(c, 'beans', { detent: 'large', forceSheet: true, drafts: [{ q: 4 }] }); } },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the page the sheet scales back', render: function (c) { return listPage(c, {}); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the stepper value and control stack on their own lines, every label wraps; Delete wraps (a Label clipped, so it is Text and a trailing glyph)', render: function (c) { return screen(c, 'milk', { detent: 'large', forceSheet: true, drafts: [{ q: 3 }] }); } },
+    },
+
+    motion: [
+      { id: 'toggle', what: 'A toggle flips (Expiration Date, Prepared Food): knob slides, track fades to green', token: 'standard 0.3 s for the knob, state 0.6 s for the track (system switch, tinted)', state: 'default',
+        source: 'SwiftUI Toggle in Form; kit Toggle; motion.md section 6', reduce: 'the knob still moves (system control); the track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-toggle')[2]; if (!t) return Promise.resolve(); t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { t.classList.toggle('on'); return Mock.sleep(700); }); } },
+      { id: 'save-arc', what: 'Save: the check becomes an inline arc, then the sheet closes when every batch is saved', token: 'ArcSpinner inline 16 pt, 0.82 s a turn; the dismissal is the system sheet', state: 'changes',
+        source: 'SheetEditToolbar.swift SheetConfirmItem(isBusy:); InventoryItemEditor.saveAll', reduce: 'the arc keeps turning at half speed (a still arc reads as frozen)',
+        play: function (stage) { var b = stage.querySelector('.ui-confirm'); if (!b) return Promise.resolve(); var par = b.parentNode, spin = h('span.ui-circle', { style: { width: '28px', height: '28px', margin: '8px', background: '#0071E3', borderRadius: '50%', color: '#fff' } }, K.ArcSpinner({ size: 'inline', label: 'Saving' })); par.replaceChild(spin, b);
+          return Mock.sleep(1500).then(function () { par.replaceChild(b, spin); }); } },
+      { id: 'pane-slide', what: 'Split view: the editor pane slides in from the trailing edge', token: 'standard 0.3 s smooth, .move(edge: .trailing)', state: 'pane',
+        source: 'InventoryScreen.swift transition with motionSafeAnimation(MotionTokens.standard, reduced: MotionTokens.quick)', reduce: 'the pane fades in over 0.2 s instead',
+        play: function (stage) { var pane = stage.querySelector('.inv-pane'); if (!pane || !pane.animate) return Promise.resolve(); var rm = Mock.settings.reduceMotion;
+          return pane.parentNode.animate(rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'translateX(100%)' }, { transform: 'none' }], { duration: rm ? 200 : 300, easing: 'cubic-bezier(.4,0,.2,1)' }).finished.catch(function () {}); } },
+    ],
+    transitions: [
+      { from: 'Inventory row', to: 'Item editor sheet', kind: 'sheet', state: 'closed', note: 'A row tap (or the chevron) presents the form sheet; the system slides it up and the page scales back. In landscape on iPad and the unfolded Duo the pane slides in instead.',
+        play: function (stage) { return Mock.presentDemo(stage, V.editorSheet(Mock.current, V.models.beans)); } },
+      { from: 'Item editor sheet', to: 'Inventory page', kind: 'sheet', state: 'changes', note: 'Save closes it once every changed batch has saved; Cancel (circle x) or a swipe down drops the drafts. Blocked while saving or deleting.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); if (!host) return Promise.resolve(); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(400); }); } },
+      { from: 'Delete row', to: 'How-many alert', kind: 'fade', state: 'default', note: 'More than one in the batch: a system alert with a decimal-pad field over the sheet, Cancel and Delete.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); var sc = h('div.ui-alert-scrim.g-dark', V.alertField({ title: 'Delete Black Beans expiring Jun 20, 2027', message: 'Choose how many to delete. Enter a number from 1 to 2.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Delete' }] })); host.appendChild(sc);
+          return Mock.anim.fade(sc, { ms: 200 }).then(function () { return Mock.sleep(1300); }).then(function () { return Mock.anim.fade(sc, { from: 1, to: 0, ms: 200 }); }).then(function () { sc.remove(); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Sheet title (the item name) with its subtitle, Cancel, Save; then each batch: its header (heading), Quantity, Expiration Date, Expires, Prepared Food, Delete; the footer note; Reset Changes last. The pane reads its header and Close first.' },
+      { rule: 'Qualified labels', note: 'With several batches every control names its batch: "Quantity of Black Beans expiring Jun 20, 2027", "Expiration date for Black Beans without an expiration date", "Prepared food, Chicken Soup prepared", "Delete Black Beans expiring Jun 20, 2027" (it reads "Deleting …" while busy).' },
+      { rule: 'Stepper', note: 'A system Stepper with a LabeledContent: label "Quantity of …", value the draft number, increment and decrement as adjustable actions; minimum is min(1, current), maximum 999.' },
+      { rule: 'Targets', note: 'Rows are at least 44 pt (the Delete row is a 44 pt minimum target); the toolbar circles are 44 pt.' },
+      { rule: 'Destructive', note: 'Delete is red (Ink.danger, 4.5:1) with a trash glyph, not colour alone; above one unit it asks how many before deleting.' },
+      { rule: 'Blocked states', note: 'While saving or deleting, dismissal is disabled (grabber hidden, Cancel dimmed, swipe down ignored) and the controls are disabled; the arc is labelled "Saving" or "Deleting".' },
+      { rule: 'Dynamic Type', note: 'Headers and footers wrap (fixedSize vertical); the Delete label wraps; at AX5 the sheet is at the large cap and scrolls. No label is truncated.' },
+      { rule: 'Error', note: 'The error line is an InlineAlert (red text, "Error: …"); it appears above the first group so it is the first thing read after the title.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: Cancel leading, confirm trailing', verdict: 'pass', note: 'SheetCancelItem and SheetConfirmItem("Save") are disabled until a draft differs and while saving blocks dismissal (InventoryItemEditor.swift:35-39).', by: 'apple-hig skill' },
+        { rule: 'Sheets: unsaved changes on swipe down', verdict: 'pass', note: 'DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask \'Discard changes?\' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). InventoryItemEditor guards changedBatches.', by: 'apple-hig skill' },
+        { rule: 'Alerts: confirm irreversible data loss', verdict: 'pass', note: 'BatchSection asks with the page\'s dialog before a single-unit delete.', by: 'apple-hig skill' },
+        { rule: 'Entering data: one commit model per form', verdict: 'pass', note: 'Prepared Food is now a draft (InventoryEditorModel.preparedDrafts, togglePreparedDraft, savePrepared) saved with Save and dropped by Cancel or Reset; Delete sits in its own group with a footer saying it applies at once and asks first (InventoryItemEditor.BatchSection). Tests: InventoryEditorModelTests prepared drafts.', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: split columns adapt to the fold', verdict: 'pass', note: 'Fixed: InventoryScreen puts the editor pane in HingedPanes (SplitPolicy.columnWidths); the pane starts after the hinge.', by: 'apple-hig skill' },
+        { rule: 'Pickers and steppers: standard controls', verdict: 'pass', note: 'Stepper with a LabeledContent value, a Toggle plus system compact DatePicker, and a red Delete row with a 44 pt minimum (InventoryItemEditor.swift:255-304).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Data flow: many hand-built Binding(get:set:)', verdict: 'pass', note: 'Fixed: quantityBinding, hasExpiryBinding and expiryBinding use ControllerBinding.make over model methods, and prepared goes through ActionToggle + askPrepared (InventoryItemEditor.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: names that include the batch', verdict: 'pass', note: 'Controls are labelled "Quantity of Black Beans expiring Oct 14, 2026" and Delete reads "Deleting ..." while busy (InventoryItemEditor.swift:259-304).', by: 'swiftui-pro skill' },
+        { rule: 'Presentation: block dismissal while saving', verdict: 'pass', note: 'presentationDragIndicator hides and interactiveDismissDisabled applies during a save; Cancel disables with it (:36, 43-44).', by: 'swiftui-pro skill' },
+        { rule: 'Alert with a text field', verdict: 'pass', note: 'The Delete how many and Mark as Prepared prompts use alert with a TextField and a decimal pad (:67-75).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading: none. The editor builds from the card already on the page (InventoryEditorModel(item:list:)), so it opens complete; a mutation shows an arc (the saving, deleting and prepared-updating states).',
+      'offline: the editor has no connection UI of its own; a failed save shows the service error line. Shown as an error variant.',
+      'Docs and code: ios.md matches the code. spec.md describes the web (a Save and Reset per batch, a Prepared checkbox); native has one Save for every changed batch and Reset Changes as a row. In the pane, Save Changes is a row because there is no toolbar.',
+      'The sheet follows the system appearance; the pane sits in the always-dark shell (system grouped colours, black ground), which the kit draws as #000 with #1C1C1E cells: confirm on iPad landscape.',
+      'In landscape on iPad and the unfolded Duo, every state shows the pane (the sheet never appears there); use forceSheet states (delete-prompt, medium, fitted, large, ax5) on a portrait device to see the sheet.',
+      'The Summary sheet\'s Expired Food tab reuses InventoryRow and these row actions (editor as a sheet over a sheet): see the inventory-row component.',
+      'Group headers are FormHeader alone (secondary ink, the system header size); the kit draws them at the 15 Semibold of direction G, so the real headers may be slightly smaller: not measured.',
+      'Date picker is drawn as the compact chip (a stand-in for the system DatePicker); tapping opens the system calendar popover.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: sixteen states, sheet and pane variants, prompt, three detents, AX5, light and dark.' }],
+  });
+})();
+</script></body></html>

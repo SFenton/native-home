@@ -1,0 +1,32 @@
+{
+  "id": "stop-nightly-will-report-back",
+  "source": "2026-11-02: nightly run 2 of 3 ended \"I will report back\".",
+  "recorded": "2026-11-02",
+  "kind": "stop_hook",
+  "input": {
+    "items": [
+      {
+        "type": "user",
+        "message": {
+          "role": "user",
+          "content": "go"
+        }
+      },
+      {
+        "type": "assistant",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Tests are running. I will report back with the result."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "blocked": true
+  }
+}

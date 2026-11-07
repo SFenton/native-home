@@ -1,0 +1,17 @@
+{
+  "id": "dd-title-centred-short-page",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Can still end up in situations where page name is centered in header, even if page is short enough to not be scrollable",
+  "surface": "shell-header-items",
+  "poses": [
+    "iphone",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "cb1e722e",
+  "fix_confidence": "medium",
+  "expected": "A page that does not scroll rests with its large title below the bar; flag a title collapsed into the bar at rest."
+}

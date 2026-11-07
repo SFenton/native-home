@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Location permission · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, LL = Mock.LL;
+  var REVIEW_DATE = '2026-10-23';
+  /* LocationPermissionSheet = LocationPermissionView in a NavigationStack, hassSheet(.page, height: .full), preferredColorScheme(.dark). */
+  var S = function (key, o) { return function (ctx) { return LL.locationSheet(ctx, key, o); }; };
+
+  function swap(stage, key) {
+    var ctx = Mock.current, old = stage.querySelector('.ll-loc'), neu = LL.locationContent(ctx, key);
+    old.replaceWith(neu);
+    var head = stage.querySelector('.ui-mhead'), last = head.lastElementChild;
+    var pre = LL.locationStages[key].preAlert;
+    if (!pre && last.classList.contains('sl')) last.replaceWith(K.SheetCloseItem());
+    if (pre && !last.classList.contains('sl')) last.replaceWith(h('span.sl'));
+    return Mock.sleep(900);
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'location-permission-sheet', title: 'Location permission (stages)', area: 'location', status: 'shipped', alwaysDark: true,
+    summary: 'The explainer that asks for location and shows its status: not asked, While Using, Always, Off and Approximate. The two asking stages are pre-alert screens (one Continue, no Close, no swipe-down); the status stages keep Close. Always dark, a page sheet, full height. Phones only.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKLocation.swift', 'apple/Sources/HassUI/Features/Location/LocationPermissionCopy.swift', 'apple/Sources/HassUI/UIKitPort/Features/Setup/UKSetupParts.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift'],
+    spec: ['.agents/pages/settings/location.md', '.agents/platforms/apple/location.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Privacy', 'Sheets', 'Buttons', 'Dark Mode', 'Dynamic Type'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape'],
+
+    states: {
+      'default': { title: 'Not asked: Know When You\'re Home', note: 'pre-alert: Continue shows iOS\'s While Using alert; no Close, cannot be swiped away', render: S('not-determined') },
+      'when-in-use': { title: 'While Using: Notice When You Leave', note: 'pre-alert: Continue shows the Always alert (iOS shows it once)', render: S('when-in-use') },
+      'when-in-use-asked': { title: 'While Using, Always alert already shown', note: 'canAskForAlways false: Open Settings, and Close returns', render: S('when-in-use-asked') },
+      'always': { title: 'Always: Home and Away Are On', note: 'nothing to do: Close only', render: S('always') },
+      'denied': { title: 'Off: Location Is Off', note: 'icon and status value red; Open Settings', render: S('denied') },
+      'reduced-accuracy': { title: 'Approximate: Precise Location Is Off', note: 'icon and value amber; Open Settings', render: S('reduced-accuracy') },
+      'large': { title: 'Large detent (what ships: full height)', note: 'hassSheet(.page, height: .full): below the status bar on a phone, a page sheet on a regular width', render: S('when-in-use') },
+      'closed': { title: 'Before presenting: Home', note: 'offered once per install after sign-in and the notification alert; never on iPad', render: function (ctx) { return LL.homePage(ctx, { badge: 0 }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'content scrolls; the action is at the end of the content, not pinned', render: S('not-determined') },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Home (after sign-in)', to: 'Location permission', kind: 'sheet', state: 'closed', note: 'LocationCoordinator.isPresentingPermission presents the sheet; the system slides it up and Home scales back. The content is there on arrival, nothing animates inside (motion.md section 4.4).',
+        play: function (stage) { var ctx = Mock.current; return Mock.presentDemo(stage, { title: 'Location', detent: 'large', size: 'page', leading: 'none', trailing: 'none', appearance: 'dark', content: LL.locationContent(ctx, 'not-determined') }, { hold: 1200 }); } },
+      { from: 'Not asked', to: 'While Using', kind: 'cut', state: 'default', note: 'The person answers iOS\'s alert; the permission changes and the same screen re-renders in place: title, message, status and the footnote swap with no animation (there is no animation modifier on the stage).',
+        play: function (stage) { return swap(stage, 'not-determined').then(function () { return swap(stage, 'when-in-use'); }); } },
+      { from: 'While Using', to: 'Always', kind: 'cut', state: 'when-in-use', note: 'Change to Always Allow: the points and Continue disappear and Close appears (a status stage keeps Close).',
+        play: function (stage) { return swap(stage, 'when-in-use').then(function () { return swap(stage, 'always'); }); } },
+      { from: 'Location permission (status stage)', to: 'Home', kind: 'sheet', state: 'always', note: 'Close (circle x) or swipe down. On the asking stages neither exists: the system alert is the only way out.',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The title "Location" is the bar title; then the symbol (hidden), the headline (a heading, identifier location.title), the message, the status row, the three points (asking stages), the footnote, the action. Close, when present, is in the toolbar.' },
+      { rule: 'Status row', note: 'One element: label "Location Access", value the status ("While Using the App", "Always, Approximate"). It stacks the value under the label when they do not fit side by side (AX sizes, the folded Duo).' },
+      { rule: 'Points', note: 'Each point is one element (title and detail read together). The large symbol is decorative.' },
+      { rule: 'Pre-alert rule', note: 'The asking stages offer one Continue and nothing else (HIG Privacy), have no Close and set interactiveDismissDisabled, so a swipe down does nothing. The system alert offers the decline. VoiceOver\'s escape gesture is also blocked on these stages; the way out is Continue.' },
+      { rule: '44 pt targets', note: 'Continue and Open Settings are the 50 pt PrimaryButton; Close is the 44 pt circle.' },
+      { rule: 'Dynamic Type', note: 'Title, message, points and status scale; the symbol scales with the large title; the action is at the end of the scrolling content and not pinned, because a pinned bar covered the last point on an iPad form sheet (measured 3.6:1 through it, 2026-10-14). At AX5 the action is reached by scrolling.' },
+      { rule: 'Contrast', note: 'Always dark: light text on #1C1C1E keeps the secondary copy above 4.5:1 (the light ground measured 4.4:1 on the Duo, 2026-10-14). Red and amber status values carry their words too.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Privacy, pre-alert screens: one Continue and no other way out', verdict: 'pass', note: 'isPreAlert drops Close and sets interactiveDismissDisabled; the button reads Continue, never Allow (LocationPermissionCopy.swift:36; LocationPermissionView.swift:62-67).', by: 'apple-hig skill' },
+        { rule: 'Privacy: explain purpose and where data goes before asking', verdict: 'pass', note: 'Three points: arrivals and departures, only to your server, light on battery (LocationPermissionCopy.swift:110-117), plus a footnote naming the option to pick.', by: 'apple-hig skill' },
+        { rule: 'Sheets: display one sheet at a time', verdict: 'pass', note: 'Share Location pushes LocationPermissionSheet(isPushed:) inside Your Summary\'s stack instead of a second sheet (YourSummarySheet navigationDestination; owner 2026-10-24, sheet-stacking-close Y).', by: 'apple-hig skill' },
+        { rule: 'Sheets: use the smallest detent that shows the content', verdict: 'pass', note: 'LocationPermissionSheet uses .hassSheet(.page), the fitted height.', by: 'apple-hig skill' },
+        { rule: 'Color: status beyond colour', verdict: 'pass', note: 'Off reads red and Approximate amber, and the words "Off" and "Approximate" carry the meaning (LocationStatusRow.swift:38-45).', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: follow the system appearance', verdict: 'departure', note: 'Always dark (.preferredColorScheme(.dark), LocationPermissionView.swift:68-70) so the secondary copy stays above 4.5:1 (location.md Decisions, direction-g-plan Decisions 3); other sheets default to the system appearance (HassModal.swift:243), so this one is the exception.', by: 'apple-hig skill' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'ViewThatFits stacks the status row; the symbol and point glyphs are @ScaledMetric; the action sits at the end of the scroll, not pinned (:118-129).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: toolbar content that depends on state', verdict: 'pass', note: 'SheetCloseItem is added only when !copy.isPreAlert inside .toolbar (LocationPermissionView.swift:61-65).', by: 'swiftui-pro skill' },
+        { rule: 'API: open Settings through the environment', verdict: 'pass', note: 'openURL with UIApplication.openSettingsURLString, or an injected closure (:139-144).', by: 'swiftui-pro skill' },
+        { rule: 'Design: semantic fonts and scaled symbol', verdict: 'pass', note: 'title2.bold, body, footnote; .font(.system(size:)) uses a @ScaledMetric size (:24, :79).', by: 'swiftui-pro skill' },
+        { rule: 'Resizability: presence only on phones', verdict: 'departure', note: 'LocationCoordinator is nil on iPad, so no sheet and no Account row (ProfileTab.swift:16-17: an iPad is not a presence device).', by: 'swiftui-pro skill' },
+        { rule: 'Resizability: page sheet on the unfolded Duo', verdict: 'pass', note: 'LocationPermissionView content uses clearsHinge() like the household page sheets; LocationJourneyTests.testContentStaysOffTheUnfoldedDuoHinge asserts the title and button stay off the hinge band.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading, error and offline: none. The screen reads LocationCoordinator.reporter.permission (a local CoreLocation value), so it never waits on the network and cannot fail; the permission changing is its only dynamic state. The nearest "error" is the Off stage.',
+      'medium and fitted: the sheet has neither. hassSheet(.page, height: .full) is full height at every stage; the large state above is what ships. The kit\'s fitted and medium detents do not apply.',
+      'Phones only: LocationCoordinator is nil on iPad (an iPad is not a presence device), so no sheet, no Account row. The unfolded Duo is a phone and presents the page size (704 pt, centred); that pose was only run for pages, so the placement relative to the hinge is not confirmed.',
+      'The iOS system alerts ("Allow While Using App", "Change to Always Allow") are system UI and are not drawn; the footnote names the option to pick.',
+      'The status cell uses secondarySystemGroupedBackground; in an elevated dark sheet that resolves to #2C2C2E, drawn here with the kit\'s sheet cell. Not measured in the simulator.',
+      'Docs vs code: the owner\'s 2026-10-14 gallery (Location permission screens) still shows a "Report to Home Assistant" toggle in the Account sheet; the code removed it on 2026-10-20 (reporting follows the permission), see components/location/location-account-section.',
+      'Also offered by the Your Summary sheet\'s Profile tab (Share Location row), presented over that sheet as a second page sheet; see flows/sign-out for the sheet\'s other content.',
+      'Symbols location.circle, location.slash, scope and figure.walk.arrival are stand-ins added by the local helper (promote to kit: lib/symbols.js).',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: six stages, the pre-alert rules, AX5, four devices, present and dismiss.' }],
+  });
+})();
+</script></body></html>

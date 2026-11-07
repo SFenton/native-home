@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChipRail · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv, I = Mock.icon;
+  function cap(sym, txt, tint, surface) { return h('span.inv-cap', { style: { minHeight: '36px', padding: '8px 12px 8px 10px', fontWeight: 600, fontSize: 'var(--fs-sub)', gap: '6px' } }, h('span', { html: I(sym), style: { color: tint || 'currentColor' } }), txt); }
+  function order(n, t) { return h('span.inv-cap', { style: { minHeight: '32px', padding: '4px 12px 4px 6px', gap: '8px', fontSize: 'var(--fs-sub)' } }, h('span', { style: { width: '22px', height: '22px', borderRadius: '50%', background: 'var(--ink-action)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 'var(--fs-c1)', fontWeight: 700 } }, String(n)), t); }
+  function recipe(t) { return h('span', { style: { font: '400 var(--fs-foot) var(--font)', color: 'var(--ink-sheet-2)', background: 'color-mix(in srgb, var(--ink-sheet-2) 16%, transparent)', padding: '4px 8px', borderRadius: '999px' } }, t); }
+  function flow(kids, gap, w) { return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: gap + 'px', width: w ? w + 'px' : 'auto', maxWidth: '100%' }, role: 'group' }, kids); }
+
+  var base = Mock.componentConfig('ChipRail', { surfaces: ['page'] });
+  var cfg = Object.assign(base, {
+    states: base.states,
+    id: 'chip-rail', title: 'ChipRail (scroll, wrap)', area: 'design', status: 'shipped',
+    summary: 'A page\'s row of status chips: it scrolls sideways on every width (a UIKit scroller) across the whole page, over the Duo\'s hinge too (owner, 2026-10-26; was: wraps in regular width and stops 24 pt short of the hinge), always starts at the leading margin, and wraps only at accessibility text sizes, where a wrapped rail still stops 24 pt short of a hinge. FlowLayout is the same wrap as a general helper (vacuum status chips, room-order capsules, recipe chips).',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift', 'apple/Sources/HassDesign/ChipRailLayout.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift', 'apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift'],
+    spec: ['.agents/patterns/status-rail.md', '.agents/design/direction-g.md'],
+    patterns: ['status-rail', 'resume-lifecycle'],
+    hig: ['Layout', 'Scroll views', 'Dynamic Type', 'Split views'],
+    kitComponents: ['ChipRail', 'StatusChip', 'PageSectionHeader', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    a11y: [
+      { rule: 'Group and reading order', note: 'The rail is a group (a room rail is named "<Room> status"); chips read in order left to right, wrapped rows top to bottom. In the scroller VoiceOver reads the chips that overlap the viewport; the rest are reached by scrolling or the rotor.' },
+      { rule: 'Chips', note: 'Each StatusChip is a button "<title>, <summary>" (identifier <page>.chip.<sheet>) at least 48 pt tall, opening its sheet; a chip with no sheet is inert text.' },
+      { rule: 'Start at the leading edge', note: 'Chips start at the leading margin whatever the width (a two-chip Security rail is not centred); right to left starts at the right.' },
+      { rule: 'Hinge', note: 'A scrolling rail runs across the fold (no inset, no measuring). A wrapped accessibility-size rail with a vertical hinge ends ChipRailMetrics.hingeGap (24 pt) before the fold so no chip straddles it; a rail in the trailing column is not inset.' },
+      { rule: 'Dynamic Type', note: 'Chips grow with the text; at accessibility sizes (AX1 and up) every rail wraps, a chip per row if needed; nothing truncates.' },
+      { rule: 'Reduce Motion and colour', note: 'A chip\'s fill or glyph colour cross-fades in 0.6 s (0.2 s reduced); the capsule never slides because only colour is animated.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Layout: do not hide content off screen when there is room for it", verdict: "pass", note: "ChipRailMode.resolve scrolls only at compact width and wraps every chip into view at regular width (iPad, unfolded Duo); both start at the leading margin and flip in right-to-left.", by: "apple-hig skill" },
+        { rule: "iPhone Duo: keep content clear of the fold; use reserved-region information, size classes not display checks", verdict: "pass", note: "The rail reads the shell-published windowHinge and trailingInset leaves 24 pt before a vertical hinge; a rail in the trailing column is not inset; compact (folded) versus regular drives the mode.", by: "apple-hig skill" },
+        { rule: "Buttons: 44 pt minimum target", verdict: "pass", note: "StatusChipStyle.minHeight is 48 pt (the web header pill) and the whole capsule is the hit shape.", by: "apple-hig skill" },
+        { rule: "Typography: avoid very small text; support Dynamic Type", verdict: "pass", note: "StatusChipButton state line is .subheadline (StatusRail.swift), option B.", by: "apple-hig skill" },
+        { rule: "Color: contrast of fixed inks on tinted grounds", verdict: "departure", note: "Chip titles are fixed white because a chip's ground is always dark (family fill or the thin module); measured 4.5:1 or better, with summary at full white on a fill (StatusRail.swift comments, direction-g.md Color).", by: "apple-hig skill" },
+        { rule: "Motion: change colour, not layout", verdict: "pass", note: "Only the chip's fill and glyph colour animate (stateForeground), 0.6 s or 0.2 s reduced; the capsule never slides or resizes.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Avoid UIKit unless requested", verdict: "departure", note: "The compact row is a UIKit scroll view (HostedHorizontalScroll) so a drag never touches the page's SwiftUI graph (AGENTS.md: the main thread does not scale with the house; performance.md). The regular and macOS-host paths are SwiftUI.", by: "swiftui-pro skill" },
+        { rule: "Layout protocol for wrapping rows", verdict: "pass", note: "FlowLayout is a Layout that narrows over-wide children and honours layoutDirection, so one component serves ChipRail, vacuum chips and recipe chips.", by: "swiftui-pro skill" },
+        { rule: "Performance: keep layout passes cheap", verdict: "pass", note: "FlowLayout keeps its rows in a Layout cache, so sizeThatFits and placeSubviews at one width measure the children once.", by: "swiftui-pro skill" },
+        { rule: "Performance: geometry reads only when needed", verdict: "pass", note: "onGeometryChange measures only when a hinge exists and sits on a background outside the padding, which stopped the feedback loop that pinned the main thread on the unfolded Duo (ChipRail.swift comments).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: Button with label, no duplicated hint", verdict: "pass", note: "StatusChipButton hint is \"Opens its details\", not the label again.", by: "swiftui-pro skill" },
+        { rule: "Views: avoid computed some View properties for sub-views", verdict: "pass", note: "Fixed: ChipRailArrangement, ChipRailScrollingRow and ChipRailRow are View structs.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'hinge: state "hinge" and the in-context Duo frame show the scrolling rail crossing the fold (was: stopping 24 pt short); "hinge-wrap" keeps the 24 pt gap for a wrapped accessibility-size rail.',
+      'scroll (every width): the scroller is UIKit (HostedHorizontalScroll); the mockup rail scrolls natively; its leading edge is the 16 pt margin.',
+      'FlowLayout uses: ChipRail (regular), the vacuum sheet\'s status chips and room-order capsules (VacuumOrderChip, spacing 6), and RecipeDetail\'s ChipFlow (secondary capsules). They are drawn here as stand-ins of those views; the vacuum and recipe batches own their sheets.',
+      'Chip colours (Lights amber, Security mode fill, Climate gradient, AQI, Occupancy, Contact) come from StatusChipAppearance; see the Home mockup for every chip state.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: scroll, wrap, hinge gap, FlowLayout uses, in context on iPhone, iPad and unfolded Duo, AX5.' }, { date: '2026-10-26', note: 'In flight (fix/duo-tabbar-chip-rail, owner): one scrolling row on every width, across the hinge; wrap only at accessibility sizes; the hinge gap applies to a wrapped rail only.' }],
+  });
+  var six = Mock.chips.home();
+  cfg.states['flow'] = { title: 'FlowLayout (wraps like words)', note: 'every row starts at the leading edge; a child wider than the proposal is narrowed so its text wraps', render: function (c) {
+    var vac = flow([cap('checkmark.circle', 'Docked', 'var(--ink-success)'), cap('battery.100percent', '82%'), cap('house', 'Dock Ready')], 8, 340);
+    var rooms = flow(['Kitchen', 'Living Room', 'Bedroom 1', 'Guest Room', 'Office'].map(function (t, i) { return order(i + 1, t); }), 6, 340);
+    var rec = flow(['Dinner', 'Vegetarian', 'Under 30 minutes', 'Pasta', 'One pot'].map(recipe), 8, 340);
+    return V.grid([V.swatch('sheet', 'vacuum sheet: status chips (sheet cell capsules)', vac, c, 380), V.swatch('sheet', 'vacuum sheet: selected rooms in cleaning order (spacing 6)', rooms, c, 380), V.swatch('sheet', 'recipe detail: ChipFlow', rec, c, 380),
+      V.swatch('page', 'ChipRail wrap at 560 pt', K.ChipRail({ chips: six, mode: 'wrap' }), c, 560)]); } };
+  cfg.states['in-context'] = { title: 'In context: Home, Security, a room, the Duo and iPad', render: function (c) {
+    var home = V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home() }), K.WeatherCard({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38 })] }); }, .6, 'Home, iPhone: scrolls; the sixth chip is past the edge');
+    var sec = V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Security', section: 'security', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: [Mock.chips.security('armed_home'), Mock.chips.contacts('closed', 0)] })] }); }, .6, 'Security: two chips start at the margin');
+    var room = V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Kitchen', back: 'Rooms', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: [Mock.chips.lights(2), Mock.chips.climate('70°F', 70), Mock.chips.occupancy(false)] })] }); }, .6, 'A room page rail (RoomStatusRail)');
+    var duo = V.embed('duo-unfolded-landscape', c, function (cx) { return Mock.page(cx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home() }), Mock.split(cx, { leading: [K.WeatherCard({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38 })], trailing: [h('p', { style: { color: 'var(--g-secondary-on-wallpaper)' } }, 'Cameras and guests lead on the other half')] })] }); }, .55, 'Unfolded Duo landscape: one rail across the whole page, over the fold, above both columns');
+    var ipad = V.embed('ipad-portrait', c, function (cx) { return Mock.page(cx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home() }), K.WeatherCard({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38 })] }); }, .4, 'iPad portrait: one scrolling row, like the phone');
+    return h('div', home, sec, room, duo, ipad); } };
+  cfg.states['ax5'] = { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'chips grow with the text; every rail wraps a chip per row at an accessibility size', render: function (c) { return V.grid([V.swatch('page', 'wrap at AX5, compact width', K.ChipRail({ chips: six.slice(0, 3), mode: 'wrap' }), c, 480), V.swatch('page', 'wrap at AX5, regular width (iPad)', K.ChipRail({ chips: six.slice(0, 3), mode: 'wrap' }), c, 800)]); } };
+  cfg.motion = [
+    { id: 'chip-colour', what: 'A chip fills when the house changes (a door opens: Contact Sensors goes green to amber)', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'states',
+      source: 'HassUI/Features/Home/StatusRail.swift StatusChipStyle.colorAnimation; motion.md section 6', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+      play: function (stage) { var c = stage.querySelector('.ui-chip[data-chip="Contact Sensors"]'); if (!c) return Promise.resolve(); c.style.setProperty('--cf', 'var(--chip-contact-home-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-home-glyph)'); c.querySelector('.su').textContent = '2 Open'; return Mock.sleep(Mock.anim.ms.state() + 300); } },
+    { id: 'rail-reflow', what: 'The rail changes between scroll and wrap when the text size crosses into an accessibility size', token: 'none: a layout switch, no animation', state: 'variants',
+      source: 'ChipRail.swift ChipRailMode.resolve', reduce: 'unchanged', note: 'There is no animation: the rail is rebuilt for the new size class. Chips never reorder on a live update (motion.md section 6).', play: function () { return Mock.sleep(300); } },
+  ];
+  Mock.mount(cfg);
+})();
+</script></body></html>

@@ -1,0 +1,19 @@
+{
+  "id": "record-round-3-blocker-parks",
+  "source": "Rule: a blocker after round 2 parks as Needs Decision, even with a reason.",
+  "recorded": "2026-11-02",
+  "kind": "record_round",
+  "input": {
+    "round": 3,
+    "reason": "one more",
+    "verdict": "blocker"
+  },
+  "expect": {
+    "refused": true,
+    "message": {
+      "has": [
+        "Needs Decision"
+      ]
+    }
+  }
+}

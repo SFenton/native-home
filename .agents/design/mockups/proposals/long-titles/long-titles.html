@@ -1,0 +1,84 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Long Page Titles</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;
+--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 72px max(16px,env(safe-area-inset-left))}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}h3{font-size:16px;margin:22px 0 6px}
+p,li{max-width:74ch}p{margin:0 0 12px}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}.lede{font-size:18px;color:var(--fg2)}
+.row{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;margin-top:14px}figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:280px}
+figcaption b{display:block;color:var(--fg);font-size:15px}.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+table{border-collapse:collapse;width:100%;font-size:14px;max-width:900px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+/* A device is a dark screen with a bar: [lead] [title region] [trail]. Sizes are points at scale --k. */
+.dev{--k:.42;position:relative;overflow:hidden;background:linear-gradient(160deg,#1b2433,#10151f);color:#fff;border:2px solid #000;font-size:calc(17px*var(--k)*1.4)}
+.phone{width:calc(402px*var(--k));height:calc(300px*var(--k)*1.05);border-radius:calc(44px*var(--k))}
+.duo{--k:.5;width:calc(466px*var(--k));height:calc(300px*var(--k)*1.2);border-radius:calc(30px*var(--k))}
+.ipadp{--k:.3;width:calc(834px*var(--k));height:calc(380px*var(--k)*1.05);border-radius:calc(24px*var(--k))}
+.ipadc{--k:.3;width:calc(320px*var(--k)*1.6);height:calc(380px*var(--k)*1.05);border-radius:calc(24px*var(--k))}
+.bar{position:absolute;left:0;right:0;top:calc(52px*var(--k));height:calc(44px*var(--k)*1.15);display:flex;align-items:center;gap:calc(8px*var(--k));padding:0 calc(14px*var(--k))}
+.ipadp .bar,.ipadc .bar{top:calc(24px*var(--k))}.duo .bar{top:calc(20px*var(--k))}
+.btn{flex:none;width:calc(44px*var(--k)*1.15);height:calc(44px*var(--k)*1.15);border-radius:50%;background:rgba(255,255,255,.14)}.btn.me{background:#0a66cc}.gap{flex:1}
+.t{flex:1;min-width:0;overflow:hidden;white-space:nowrap;font-weight:600;position:relative}.t.big{font-size:1.45em;font-weight:700}
+.t.cut{text-overflow:ellipsis}.t.center{text-align:center}
+.t.tick span{display:inline-block;animation:tick 14s linear infinite;padding-left:0}
+.t.tick{-webkit-mask:linear-gradient(90deg,#000 88%,transparent);mask:linear-gradient(90deg,#000 88%,transparent)}
+@keyframes tick{0%,10%{transform:translateX(0)}70%,85%{transform:translateX(var(--to,-55%))}95%,100%{transform:translateX(0)}}
+@media (prefers-reduced-motion:reduce){.t.tick span{animation:none}.t.tick{text-overflow:ellipsis}}
+.large{position:absolute;left:calc(16px*var(--k));right:calc(16px*var(--k));top:calc(120px*var(--k));font-size:calc(34px*var(--k)*1.4);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rows{position:absolute;left:calc(16px*var(--k));right:calc(16px*var(--k));bottom:calc(14px*var(--k));display:grid;gap:calc(10px*var(--k))}.rows i{display:block;height:calc(26px*var(--k));border-radius:calc(8px*var(--k));background:rgba(255,255,255,.08)}
+.pin{font-size:12px}
+</style></head><body><div class="wrap">
+<p class="pin" style="letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px">Proposal · 2026-10-24 · owner: "just do it", so built in the same change</p>
+<h1>Long page titles carousel in the bar</h1>
+<p class="lede">The collapsed title was centred by the system. It now leads the bar beside the menu button or Back, and when it is wider than the room between the bar's items it scrolls like a ticker instead of being cut. Title: "Bedroom 1 Walk-in Wardrobe and Dressing Area".</p>
+
+<h2>Cause</h2>
+<ul>
+<li>Large-title pages (iPhone, iPad with the flyout): once scrolled the system draws a <b>centred</b> inline title.</li>
+<li>Title-in-the-bar pages (iPhone Duo, a compact iPad window; <code>ShellChrome.titleInHeader</code>): the system's large inline title truncates with an ellipsis, and on iPad it also centres once collapsed. On the Duo the system hides the bar title once the page scrolls (baseline measured on iOS 27; unchanged).</li>
+<li>A leading toolbar item gets almost no width from the bar (a 4-letter title cut to "Ho..."), and forcing it wide pushes every header button into a "…" overflow menu. Measured on iPhone 17 Pro, iOS 27.0.</li>
+</ul>
+
+<h2>iPhone and iPad with the flyout: large title below the bar</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="bar"><i class="btn"></i><span class="gap"></span><i class="btn"></i><i class="btn me"></i></div><div class="large">Bedroom 1 Walk-in Wa…</div><div class="rows"><i></i><i></i><i></i></div></div><figcaption><b>Today, at rest</b>The large title truncates. The system draws it, so it stays (the full title is in the bar once scrolled, and spoken by VoiceOver).</figcaption></figure>
+<figure class="bad"><div class="dev phone"><div class="bar"><i class="btn"></i><span class="t center">Bedroom 1 Wa…</span><i class="btn"></i><i class="btn me"></i></div><div class="rows"><i></i><i></i><i></i></div></div><figcaption><b>Today, scrolled</b>Centred and cut.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="bar"><i class="btn"></i><span class="t tick"><span>Bedroom 1 Walk-in Wardrobe and Dressing Area</span></span><i class="btn"></i><i class="btn me"></i></div><div class="rows"><i></i><i></i><i></i></div></div><figcaption><b>Proposed, scrolled</b>Leads the bar, fills the room between the menu button and the header buttons, ticks: 1.5 s hold, 30 pt/s, three passes, then rests at the start.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="bar"><i class="btn"></i><span class="t tick"><span>Bedroom 1 Walk-in Wardrobe and Dressing Area</span></span><i class="btn"></i><i class="btn me"></i></div><div class="rows"><i></i><i></i><i></i></div></div><figcaption><b>Proposed, pushed page</b>Back takes the menu's place; the title leads beside it.</figcaption></figure>
+</div>
+<div class="row">
+<figure class="ok"><div class="dev ipadp"><div class="bar"><i class="btn"></i><span class="t" >Bedroom 1 Walk-in Wardrobe and Dressing Area</span><i class="btn"></i><i class="btn me"></i></div><div class="rows"><i></i><i></i></div></div><figcaption><b>iPad portrait/landscape, scrolled</b>It fits, so it just leads (no ticker): the ticker runs only when the text is wider than its room, measured, never assumed.</figcaption></figure>
+</div>
+
+<h2>iPhone Duo and compact iPad: title in the bar</h2>
+<div class="row">
+<figure class="bad"><div class="dev duo"><div class="bar"><span class="t big cut">Bedroom 1 Walk-in Wardrobe…</span></div><div class="rows"><i></i><i></i><i></i></div></div><figcaption><b>Today, folded Duo</b>Large inline title, cut. The buttons are in the vertical rail.</figcaption></figure>
+<figure class="ok"><div class="dev duo"><div class="bar"><span class="t big tick" style="--to:-45%"><span>Bedroom 1 Walk-in Wardrobe and Dressing Area</span></span></div><div class="rows"><i></i><i></i><i></i></div></div><figcaption><b>Proposed, folded Duo</b>The same ticker at one title size (<code>.title2</code> bold): the system's two sizes cannot carousel.</figcaption></figure>
+<figure class="bad"><div class="dev ipadc"><div class="bar"><span class="t big cut">Bedroom 1 Walk-in Ward…</span><i class="btn"></i><i class="btn me"></i></div><div class="rows"><i></i><i></i></div></div><figcaption><b>Today, compact iPad window</b>Cut at rest; centred once scrolled.</figcaption></figure>
+<figure class="ok"><div class="dev ipadc"><div class="bar"><span class="t big tick" style="--to:-35%"><span>Bedroom 1 Walk-in Wardrobe and Dressing Area</span></span><i class="btn"></i><i class="btn me"></i></div><div class="rows"><i></i><i></i></div></div><figcaption><b>Proposed, compact iPad window</b>Leading from the start, ticks.</figcaption></figure>
+</div>
+
+<h2>Text sizes and Reduce Motion</h2>
+<ul>
+<li><b>Accessibility text sizes (AX1 to AX5):</b> the bar title scales with Dynamic Type (<code>.headline</code> / <code>.title2</code>) and still ticks; it never wraps in the bar and never runs under the header buttons (the bar clamps it). The large title below the bar wraps as the system does.</li>
+<li><b>Reduce Motion:</b> no ticker (<a href="../../../../patterns/ticker.md">ticker rules</a>). In the bar the title holds still on one line and is cut with an ellipsis (<code>truncatesWhenStill</code>), since a bar cannot grow to wrap. VoiceOver speaks the whole title either way; the large title below the bar shows more of it.</li>
+<li><b>VoiceOver:</b> the ticker text is hidden; the bar title is one element with the title as its label and the header trait. At rest on large-title pages the bar has no title (the large title is the heading), so there is never a duplicate.</li>
+</ul>
+
+<h2>Options considered</h2>
+<table><tr><th>Option</th><th>Result</th></tr>
+<tr><td>A. A SwiftUI <code>.topBarLeading</code> toolbar item</td><td>Rejected. The bar gives it almost no width; forcing it wide overflows every header item into "…".</td></tr>
+<tr><td>B. A SwiftUI <code>.principal</code> item</td><td>Rejected. Not clamped to the room between items (an over-wide one overflows under the header buttons), and a flexible one is laid out 0 pt wide on iPad.</td></tr>
+<tr><td><b>C. A UIKit <code>titleView</code> hosting the ticker</b></td><td><b>Chosen.</b> A title view that asks for more than it needs is given exactly the room between the leading and trailing items, left-aligned. The scroll observer is UIKit, so a scroll never updates SwiftUI's graph.</td></tr></table>
+
+<h2>What changes in code</h2>
+<table><tr><th>File</th><th>Change</th></tr>
+<tr><td><code>HassDesign/LeadingCollapsedTitle.swift</code></td><td>New: <code>leadingBarTitle(.collapsing | .inBar)</code>, the title view, the inset-based collapse geometry (<code>LeadingCollapsedTitle</code>).</td></tr>
+<tr><td><code>HassDesign/TickerLabel.swift</code></td><td><code>truncatesWhenStill</code>: Reduce Motion cuts to one line instead of wrapping (for labels in a bar).</td></tr>
+<tr><td><code>HassUI/App/MainTabView.swift</code> (<code>PageChrome</code>)</td><td>Applies <code>leadingBarTitle</code> on every page; <code>.inline</code> display mode where the title is in the bar.</td></tr>
+<tr><td>Patterns, motion, tests</td><td><code>patterns/ticker.md</code> (second consumer, owner-approved), <code>header-edge-fade.md</code> R7, <code>motion.md</code> §9 exception list; <code>LeadingCollapsedTitleTests</code>, <code>PageTitleJourneyTests</code> (iPhone, Duo, iPad).</td></tr></table>
+<h3>Open question</h3>
+<p>None blocking. Known and kept: the large title below the bar still truncates at rest on iPhone (system-drawn).</p>
+</div></body></html>

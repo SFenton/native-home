@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_settings-account.js"></script>
+<script src="../_settings-page.js"></script>
+<!-- Reduce Transparency: SettingsScreen sets listRowBackground(Surface.moduleThin), a fixed 66% tint, so its rows do not go opaque like .module() (review 2026-10-23). -->
+<style>.k-reduce-transparency .ui-page .ui-mlist:not(.sa-solid){background:var(--g-module-thin)}</style>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  /* A pushed Performance page, simplified, for the push transition (the real page is pages/settings/performance-screen). */
+  function perfStub(ctx) {
+    return Mock.page(ctx, { title: 'Performance', back: 'Settings', section: 'settings', badge: 3, choresBadge: 2, body: [SA.wrap(ctx, [
+      SA.section({ rows: [h('div.ui-mrow', h('span.tx', h('span.ti', 'Record Telemetry')), h('span.acc', K.Toggle({ on: true, label: 'Record Telemetry' })))], solid: true, sys: true,
+        footer: 'Measures scrolling, navigation, loading, live updates and images on this device. Nothing leaves the device unless you export it.' })])] });
+  }
+  function haCover(ctx) {
+    return SA.cover(ctx, { title: 'Home Assistant', content: SA.wrap(ctx, [SA.section({ header: 'Server', sys: true, solid: true, rows: [SA.valueRow('Address', SA.fx.server), SA.valueRow('Connection', 'Connected'), SA.valueRow('Version', SA.fx.version)] })]) });
+  }
+  function blurEl(stage) { return stage.querySelector('.sa-col'); }
+  function setBlur(stage, v) {
+    var col = blurEl(stage); if (!col) return;
+    col.querySelector('.v').textContent = v + '%';
+    var s = col.querySelector('.ui-slider'); s.querySelector('.fi').style.width = v + '%'; s.querySelector('.kn').style.left = v + '%'; s.setAttribute('aria-valuenow', v);
+    var wall = stage.querySelector('.ui-wall'); if (wall) wall.style.filter = 'blur(' + (((v - 50) / 50) * 6).toFixed(1) + 'px)';
+    var reset = stage.querySelector('.sa-btnrow .bt'); if (reset) reset.disabled = v === 50;
+  }
+  function drag(stage, from, to) {
+    var v = from, dir = to > from ? 5 : -5;
+    return new Promise(function (res) { (function step() { v += dir; setBlur(stage, v); if (v === to) return res(); setTimeout(step, 110); })(); });
+  }
+
+  /* The Notifications section is drawn in its target form (two entries, shipped in #184); states 'notifications-*' draw the other cases. */
+  var S = function (o) { return function (ctx) { return SA.settingsPage(ctx, Object.assign({ notif: 'granted-ts-on' }, o)); }; };
+
+  Mock.mount({
+    kind: 'page', id: 'settings', title: 'Settings', area: 'settings', status: 'shipped',
+    summary: 'The last tab: Vacation and To-Do, Appearance (Background Blur, count on the app icon, App Icon), the household topics, Home Assistant Settings, Performance, the two Feedback rows and About (Version, tap to copy), as modules on the dimmed house photo.',
+    source: ['apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsEntry.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift',
+      'apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift', 'apple/Sources/HassUI/Features/Settings/AboutSettingsSection.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow.swift',
+      'apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/VacationConfig.swift'],
+    spec: ['.agents/pages/settings/ios.md', '.agents/pages/settings/household.md', '.agents/pages/settings/feedback.md'],
+    patterns: ['settings-section', 'module-list', 'page-backdrop', 'header-edge-fade'],
+    hig: ['Lists and tables', 'Settings', 'Toggles', 'Sliders', 'Tab bars', 'Dark Mode', 'Typography'],
+    entities: ['AppStorage: ChoresModel.viewerDefaultsKey (admin To-Do gate)', 'UserDefaults: backdrop blur, icon badge'],
+    kitComponents: ['ModuleList', 'Toggle', 'Slider', 'TabBar', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Alex viewing (To-Do shown)', render: S({}) },
+      'sam-viewer': { title: 'Sam viewing: To-Do hidden', note: 'ChoresConfig.showsAdminTodo(to:) is false only for Sam; a guest still sees To-Do', render: S({ viewer: 'sam' }) },
+      'blur-changed': { title: 'Background Blur at 75%', note: 'Reset to Default is enabled; at 50% it is disabled', render: S({ blur: 75 }) },
+      'icon-badge-off': { title: 'Show count on app icon off', render: S({ badgeOn: false }) },
+      'icon-changed': { title: 'Another icon installed', note: 'the row\'s preview and name follow the installed icon', render: S({ icon: 'plumLilac' }) },
+      'notifications-off': { title: 'Notifications: Time Sensitive off (in flight)', note: 'bell.slash and "Off" in the status line; both entries open iOS Settings; see proposals/settings-notifications-time-sensitive', render: S({ notif: 'granted-ts-off', scrollTop: 330 }) },
+      'notifications-not-asked': { title: 'Notifications: never asked (today)', note: 'Turn On Notifications asks on a tap; the two entries appear once notifications are allowed', render: S({ notif: 'not-determined', scrollTop: 330 }) },
+      'notifications-refused': { title: 'Notifications: refused (today)', note: 'Open Settings to allow notifications; no Time Sensitive entry', render: S({ notif: 'denied', scrollTop: 330 }) },
+      'icon-unsupported': { title: 'Alternate icons unavailable', note: 'AppIconSettingsRow is not drawn when supportsAlternateIcons is false', render: S({ noIcon: true }) },
+      'reduce-transparency': { title: 'Reduce Transparency on', override: { reduceTransparency: true }, note: 'plain background, modules go solid, footer changes to say the blur has nothing to soften', render: S({}) },
+      'offline': { title: 'No network', note: 'Settings reads no entities, so only the header changes: offline chip under it and the cloud badge on Profile', render: S({ connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: S({ connection: 'reconnecting' }) },
+      'version-copied': { title: 'After tapping Version', note: 'the footer says Copied. for two seconds, then Tap to copy. again; VoiceOver announces Copied. and a success haptic plays', render: S({ copied: true }) },
+      'long-text': { title: 'Long Vacation subtitle', note: 'subtitles wrap; nothing truncates', render: S({ long: true }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the icon moves above each row\'s text; the slider row stacks', render: S({}) },
+    },
+
+    motion: [
+      { id: 'blur-slider', what: 'Dragging Background Blur: the value changes in steps of 5, Reset to Default enables, and the house photo behind every page re-renders softer or sharper live', token: 'no animation token: the backdrop store renders the latest value as fast as a render finishes and keeps the previous picture up meanwhile',
+        source: 'HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift BackdropBlurRows; patterns/page-backdrop.md R9', reduce: 'unchanged (a value render is not motion)',
+        play: function (stage) { return drag(stage, 50, 80).then(function () { return Mock.sleep(600); }).then(function () { return drag(stage, 80, 50); }); } },
+      { id: 'icon-badge-toggle', what: 'Show count on app icon: the system switch knob slides and the track turns green', token: 'standard 0.3 s knob (system), state 0.6 s track colour (0.2 s reduced)',
+        source: 'AppearanceSettingsSection.swift Toggle; direction-g.md Controls: Switches', reduce: 'knob still slides (system); track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-toggle'); t.classList.toggle('on'); return Mock.sleep(900).then(function () { t.classList.toggle('on'); return Mock.sleep(900); }); } },
+    ],
+
+    transitions: [
+      { from: 'Settings', to: 'Performance (and Vacation, To-Do, the household topics)', kind: 'push', note: 'Rows are NavigationLinks or values on the Settings tab\'s own path: the push is the columns\' motion on the single-page layouts (both pages a full width on `standard` over one still wallpaper; single-page-motion.md, owner 2026-11-02), and on the unfolded Duo or iPad landscape the columns. Back is the glass circle or the edge swipe, which follows the finger. Reduce Motion cross-fades. The pushed page is simplified here.',
+        play: function (stage) { return SA.pushDemo(stage, perfStub); } },
+      { from: 'Home Assistant Settings row', to: 'Home Assistant cover', kind: 'sheet', note: 'fullScreenCover: slides up over the whole window with no grabber and nothing scaling back. The server, account and sign-out options live there; it keeps its own Close.',
+        play: function (stage) { return SA.coverDemo(stage, haCover); } },
+      { from: 'Feedback row', to: 'Report an Issue form sheet', kind: 'sheet', note: 'A form sheet (540 pt on iPad), fitted height capped at large; Home slides back and dims on iPhone. Content is present on arrival.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Report an Issue', detent: 'fitted', size: 'form', leading: 'cancel', trailing: 'confirm', confirm: { title: 'Submit', enabled: false },
+          content: SA.wrap(Mock.current, [SA.section({ header: 'Title', sys: true, solid: true, rows: [SA.valueRow('[Bug]', '')] })]) }); } },
+      { from: 'App Icon row', to: 'App Icon sheet', kind: 'sheet', note: 'A fitted form sheet with the eight icons; see modals/settings/app-icon-picker-sheet.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'App Icon', detent: 'fitted', size: 'form', trailing: 'close', content: h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '8px 0 16px', justifyItems: 'center' } }, SA.icons.slice(0, 4).map(function (i) { return SA.appIcon(i.id, 88); })) }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Open Navigation (iPhone, iPad), Quick Links, Profile, then the Settings title (heading), Vacation, To-Do (not for Sam), the Appearance header, Background Blur, Reset to Default, Show count on app icon, App Icon, Appearance footer, the Household header and its four rows, Home Assistant Settings and its footer, Performance, Report an Issue, Request a Feature, the About header, Version ("Version, 2610.26.01, build 57, commit 42edc57", hint "Copies the version to the clipboard."), the Tap to copy footer; tab bar last.' },
+      { rule: 'Row element', note: 'Each SettingsLinkRow is one element (children combined): the title, then the subtitle ("Vacation, Set away dates and prepare the house for vacation."). The glyph is hidden. Rows are buttons or links with identifiers settings.vacation, settings.todo, settings.topic.<id>, settings.homeAssistant, settings.performance, settings.feedback.bug|feature, settings.appIcon, settings.version (a Button; its footer is settings.version.footer).' },
+      { rule: 'Hints', note: 'Home Assistant Settings: "Opens server, account and sign-out options." Feedback rows: "Opens a form that sends it through Home Assistant." App Icon: "Opens the icons you can use on the Home Screen." Reset to Default: "Sets the background blur to match the web dashboard."' },
+      { rule: 'Background Blur', note: 'One adjustable element for the row: label "Background Blur", value "50 percent"; VoiceOver swipe up and down move it in steps of 5 within 0 to 100. The visible title and value belong to it (no separate text elements).' },
+      { rule: 'Targets', note: 'Every row is at least 44 pt (the link row has minHeight 44 plus 4 pt padding either side); Reset to Default is 44 pt tall; the switch is the system 51 x 31 control inside a 52 pt row.' },
+      { rule: 'Selected topic', note: 'On a window that shows a topic beside the list the open household row carries the selected trait; the list itself never splits (Settings is a tab with pushes).' },
+      { rule: 'Section headers', note: 'SettingsSectionHeader carries the header trait; 15 Semibold in white at 85% on the wallpaper (the adaptive secondary measured 3.8:1 there on iPad). Footers use the same ink at 13 pt.' },
+      { rule: 'Dynamic Type', note: 'At AX sizes the glyph (or app icon preview) sits above the title and subtitle so the text keeps the row width; every text wraps (fixedSize vertical). No truncation at AX5.' },
+      { rule: 'Reduce Transparency', note: 'The wallpaper becomes the plain base colour, modules turn solid #1C1C1E, and the Appearance footer says the blur has nothing to soften.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists and tables: group related rows in sections with headers that clarify', verdict: 'departure', note: 'Six sections but only Appearance and Household carry headers; Vacation/To-Do, Performance and Feedback are bare (FeedbackSettingsSection.swift:22 records a 1.2:1 bare-header measurement on the iPad wallpaper, page-backdrop R4). The rows name themselves.', by: 'apple-hig skill' },
+        { rule: 'Lists and tables: a disclosure indicator means the row pushes', verdict: 'pass', note: 'SettingsLinkRow defaults showsChevron to false; Home Assistant (cover), both Feedback rows and App Icon (sheets) draw no chevron.', by: 'apple-hig skill' },
+        { rule: 'Sliders: show the value and make it adjustable', verdict: 'pass', note: 'PercentSliderRow shows "N%" beside the title, steps by 5 and exposes accessibilityAdjustableAction (RecipesScreen.swift:377-420); Reset to Default is a 44 pt button, disabled at the default.', by: 'apple-hig skill' },
+        { rule: 'Color and Accessibility: text contrast of at least 4.5:1 on the wallpaper', verdict: 'pass', note: 'Headers and footers take the fixed Ink.onDarkSecondary (white at 85%) when surface == .page (SettingsSectionHeader.swift:17, SettingsScreen.swift:82) instead of the adaptive secondary that measured 3.8:1 on iPad.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: Reduce Transparency means opaque materials', verdict: 'pass', note: 'SettingsScreen listRowBackground uses Surface.moduleThin(reduceTransparency:), opaque with Reduce Transparency.', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: support both appearances', verdict: 'departure', note: 'Pages are always dark over the dimmed house photo (owner 2026-10-15, direction-g Layers); sheets the list opens follow the system.', by: 'apple-hig skill' },
+        { rule: 'Typography and Layout: Dynamic Type without truncation', verdict: 'pass', note: 'Title and subtitle wrap (fixedSize vertical) and the glyph moves above the text at accessibility sizes (SettingsScreen.swift:121-133); rows keep minHeight 44.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: Button rows that navigate should read as links', verdict: 'pass', note: 'SettingsScreen Household rows and the Home Assistant row add .isLink; Feedback rows open a form to complete an action and stay buttons.', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: combine row children, hide decorative glyphs, 44 pt targets', verdict: 'pass', note: 'SettingsLinkRow combines children, hides the glyph and sets minHeight HassTokens.minTarget (:143-146, :159).', by: 'swiftui-pro skill' },
+        { rule: 'Design: prefer Label over HStack for icon plus text; avoid scattered fontWeight', verdict: 'pass', note: 'Not applicable: the HStack carries the accessibility-size switch; the chevron weight is HassTokens.Typography.footnoteEmphasis.', by: 'swiftui-pro skill' },
+        { rule: 'Data flow: window-specific state in scene storage, not shared defaults', verdict: 'pass', note: 'Not applicable: the viewer id is the signed-in household member (an account-level identity read by the shell, Settings and the badge), not window state; sharing it between windows is correct.', by: 'swiftui-pro skill' },
+        { rule: 'Performance: no state per frame while scrolling', verdict: 'pass', note: 'Rows are static; only the slider writes, to UserDefaults and the backdrop store (AppearanceSettingsSection.swift:21).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Reduce Transparency (corrected in the 2026-10-23 skill review): the rows are drawn at the thin 66% module tint, not solid, because SettingsScreen applies a fixed listRowBackground(Surface.moduleThin) instead of .module(), which would turn opaque. Over the plain background the two look almost the same.',
+      'loading, refreshing, empty and error: Settings reads no entities and loads nothing (the viewer id comes from AppStorage), so none of these states exist. offline and reconnecting only change the header chrome.',
+      'Docs and code: split-view.md still lists Settings as a leading pane beside a detail; the code is a tab with pushes (SettingsTabRoot) and OnDemandSplitStack has no adopter. A topic never splits on any device.',
+      'Unverified: the list width on iPad (drawn centred at 704 pt, an inset-grouped list on the readable guide), the separator inset (drawn at the text), and the row spacing between sections (24 pt). Check in the simulator.',
+      'The kit has no Settings list builder: SA.link, SA.section, SA.sliderRow, SA.appIcon live in pages/settings/_settings-account.js. Promote to kit: SettingsLinkRow, SettingsSectionHeader and the sections; local symbols ladybug, app.fill, gauge.with.dots.needle.67percent.',
+      'Wallpaper, app icon art and glyphs are stand-ins; the icon preview is drawn from the same 100-unit geometry as AppIconArtwork.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: every section and state of the Settings tab root, on six device poses.' },
+      { date: '2026-11-02', note: 'Transitions: the row push uses the columns\' motion on single-page layouts (single-page-motion.md). `in-flight:claude/settings-motion`.' },
+      { date: '2026-10-27', note: 'Draws the Notifications section (it shipped without a mockup) in its in-flight form: two entries with chevrons, bell.fill or bell.slash, status in the row (docs/design/setup-flow.md).' }],
+  });
+})();
+</script></body></html>

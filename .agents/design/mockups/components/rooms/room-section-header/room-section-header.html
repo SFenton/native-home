@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Room section header · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/rooms/_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms;
+  function box(kind, ctx, label, nodes) { return h('div.k-swatch.' + kind + (kind === 'page' ? '.g-dark' : '.in-sheet.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light')), { style: { flex: '1 1 100%' } }, h('div.k-cap', label), nodes); }
+
+  var cfg = Mock.componentConfig('RoomSectionHeader', { surfaces: ['page', 'sheet'] });
+  cfg.states['in-context'] = { title: 'In context', note: 'on a page over a tile grid, in a sheet over a tile grid, and as a heading row inside an equal-height grid', render: function (ctx) {
+    var page = R.section(ctx, { title: 'Climate', cards: [R.card.vents('Vents', {}), R.card.purifier({})] });
+    var sheet = h('div.rm-stack', R.hdr('Lights', true), K.TileGrid({ items: [R.sheet.light('Front Left', 71), R.sheet.light('Back Left', 0)], min: 140, max: 4 }));
+    var grid = R.sheet.climate({ sensors: [{ t: 'Kitchen', v: '70.4°F' }], vents: [{ t: 'Vent', v: 'Open · 60%' }] });
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '18px' } }, box('page', ctx, 'page · RoomSectionView', page), box('sheet', ctx, 'sheet · RoomGroupDetail (inSheet: true)', sheet), box('sheet', ctx, 'sheet · gridHeader() inside one equal-height grid', grid));
+  } };
+  cfg.states.ax5 = { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the 20 pt title scales with Dynamic Type (title3) and wraps rather than truncating', render: cfg.states.states.render };
+
+  Mock.mount(Object.assign(cfg, {
+    states: cfg.states,
+    id: 'room-section-header', title: 'Room section header', area: 'rooms', status: 'shipped',
+    summary: 'The title over a run of tiles: 20 pt bold, a heading for VoiceOver\'s rotor. On a page it is plain; inside a sheet it sits 8 pt lower (inSheet) and can take a whole grid row (gridHeader). Titles are Climate, Devices, Remote, Quick App Launch, Groceries, Lights, Temperature Sensors, Vents, Rooms.',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomSupport.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/dynamic-grid.md', '.agents/patterns/room-overview-sheet.md'],
+    patterns: ['dynamic-grid', 'room-overview-sheet', 'entity-tile'],
+    hig: ['Typography', 'Dynamic Type', 'Accessibility', 'Layout'],
+    entities: [],
+    kitComponents: ['PageSectionHeader', 'TileGrid', 'GlassTile'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    motion: [],
+    a11y: [
+      { rule: 'Heading trait', note: 'RoomSectionHeader carries .isHeader, so the rotor jumps section to section; the page\'s section container is named by the same title.' },
+      { rule: 'Colour and contrast', note: 'Primary ink: white on a page (the wallpaper is always dark), the adaptive label colour in a sheet; far over 4.5:1.' },
+      { rule: 'Dynamic Type', note: 'Title3 bold (20 pt at Large, 49 pt at AX5) in a full-width frame; it wraps, never truncates.' },
+      { rule: 'Layout', note: 'inSheet adds 8 pt above so a heading sits clear of the run above it; a gridHeader takes its own row and does not count in the grid\'s equal heights.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Accessibility: expose headings', verdict: 'pass', note: '.accessibilityAddTraits(.isHeader) on every instance so the rotor jumps by section.' },
+        { rule: 'Typography: heading size over inset lists', verdict: 'departure', note: 'direction-g.md Type: 20 Bold over tile grids in sheets, 15 Semibold only over inset lists.' },
+      ],
+      swiftui: [
+        { rule: 'Use semantic fonts', verdict: 'pass', note: '.font(.title3.bold()) with HassTokens.Ink.primary.' },
+        { rule: 'Reuse shared components', verdict: 'pass', note: 'RoomSectionHeader removed; every call site uses PageSectionHeader(_, inSheet:) (PageSectionHeader.swift:18).' },
+      ],
+    },
+    notes: [
+      'motion: none; the header is static text.',
+      'Docs versus code: direction-g.md calls it "Section headers 20 Bold"; the code is title3.bold (20 pt at the default size, scaling with Dynamic Type).',
+      'Kit gap: inside a mockup stage the atlas page rule ".k-wrap h2" (44 px top margin, 22 px) overrides ".ui-hdr h2", so the kit\'s PageSectionHeader draws with a huge margin; pages/rooms/_rooms.js adds a ".k-wrap .ui-hdr h2" override. Promote the fix to kit.css.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: page, sheet and grid-header usages.' }],
+  }));
+})();
+</script></body></html>

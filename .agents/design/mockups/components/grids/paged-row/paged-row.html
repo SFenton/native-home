@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PagedRow · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+<style>
+  /* local helper CSS (promote to kit): a paged row of equal cells with a page indicator and previous/next controls */
+  .inv-paged { overflow: hidden; width: 100%; position: relative; }
+  .inv-paged .track { display: flex; transition: transform .3s cubic-bezier(.25,.1,.25,1); will-change: transform; }
+  .k-reduce-motion .inv-paged .track { transition: none; }
+  .inv-paged .ui-hours { display: contents; }
+  .inv-paged .hr { flex: 0 0 calc(100% / var(--pp, 6)); min-width: 0; min-height: 72px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding-block: 4px; color: #fff; }
+  .inv-paged .ht { font-size: var(--fs-sub); font-weight: 600; white-space: nowrap; } .inv-paged .hd { font-size: var(--fs-sub); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .inv-paged .gl { width: 26px; height: 26px; }
+  .inv-pg { display: flex; flex-direction: column; gap: 4px; }
+  .inv-pg .stripwrap { position: relative; }
+  .inv-pg .stripwrap.ctl { padding: 0 52px; }
+  .inv-pg .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: .5px solid rgba(255,255,255,.25); background: rgba(0,0,0,.35); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; transition: opacity var(--t-quick) var(--ease-quick); }
+  .inv-pg .nav.prev { left: 0; } .inv-pg .nav.next { right: 0; } .inv-pg .nav[disabled] { opacity: .35; cursor: default; }
+  .inv-pg .dots { display: flex; justify-content: center; align-items: center; gap: 6px; min-height: 44px; background: none; border: 0; width: 100%; cursor: pointer; padding: 0; }
+  .inv-pg .dots i { display: block; height: 7px; width: 7px; border-radius: 99px; background: rgba(255,255,255,.45); transition: width var(--t-quick) var(--ease-quick), background-color var(--t-quick) var(--ease-quick); }
+  .inv-pg .dots i.on { width: 18px; background: #fff; }
+  .inv-pg .cell-lab { font-size: var(--fs-foot); color: rgba(235,235,245,.85); }
+</style>
+</head><body>
+
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv, I = Mock.icon;
+  var HOURS = (function () { var g = ['partly-cloudy', 'sunny', 'sunny', 'partly-cloudy', 'cloudy', 'cloudy', 'rain', 'rain', 'cloudy', 'partly-cloudy', 'sunny', 'sunny'], out = [], t = 48; for (var i = 0; i < 24; i++) { var hr = (10 + i) % 24, ap = hr >= 12 ? 'PM' : 'AM', h12 = hr % 12 || 12; t += [1, 3, 3, 2, 1, 0, -1, -1, -2, -3, -3, -2][i % 12] * (i < 12 ? 1 : -1) / 2; out.push({ t: i === 0 ? 'Now' : h12 + ' ' + ap, g: g[(i + (i > 17 ? 6 : 0)) % 12], d: Math.round(t) + '°' }); } return out; })();
+  function cell(x) { return h('div.hr', { role: 'group', 'aria-label': x.t + ', ' + x.d }, h('span.ht', x.t), K.WeatherGlyph({ kind: x.g }), h('span.hd', x.d)); }
+  function perPage(compact, regular, sizeClass, ts) { var base = sizeClass === 'regular' ? regular : compact, f = { 'default': 1, xxxl: .8, ax5: .34 }[ts] || 1; return Math.max(2, Math.round(base * f)); }
+
+  /** WeatherPagedCarousel: PagedRow + page indicator (+ previous and next on regular width). o: {count, per, page, controls, label} */
+  function carousel(o) {
+    var count = o.count || 24, per = o.per, pages = Math.ceil(count / per), page = Math.min(o.page || 0, pages - 1), items = (o.items || HOURS).slice(0, count);
+    var track = h('div.track', { style: { '--pp': per } }, h('div.ui-hours', items.map(cell)));
+    var strip = h('div.inv-paged', { role: 'group', 'aria-label': o.label, style: { '--pp': per } }, track);
+    var prev = o.controls ? h('button.nav.prev', { type: 'button', 'aria-label': 'Previous ' + o.label, html: I('chevron.left', { weight: 2.4 }) }) : null;
+    var next = o.controls ? h('button.nav.next', { type: 'button', 'aria-label': 'Next ' + o.label, html: I('chevron.right', { weight: 2.4 }) }) : null;
+    var dots = pages > 1 ? h('button.dots', { type: 'button', role: 'slider', 'aria-label': o.label + ' pages' }, Array.apply(null, Array(pages)).map(function () { return h('i'); })) : null;
+    function go(n) {
+      page = Math.max(0, Math.min(pages - 1, n));
+      track.style.transform = 'translateX(' + (-page * 100) + '%)';
+      if (dots) { [].forEach.call(dots.children, function (d, i) { d.classList.toggle('on', i === page); }); dots.setAttribute('aria-valuetext', 'Page ' + (page + 1) + ' of ' + pages); }
+      if (prev) prev.disabled = page === 0; if (next) next.disabled = page >= pages - 1;
+    }
+    if (prev) prev.addEventListener('click', function () { go(page - 1); });
+    if (next) next.addEventListener('click', function () { go(page + 1); });
+    if (dots) dots.addEventListener('click', function (e) { var r = dots.getBoundingClientRect(); go(e.clientX > r.left + r.width / 2 ? page + 1 : page - 1); });
+    var wrap = h('div.stripwrap' + (o.controls ? '.ctl' : ''), strip, prev, next);
+    var root = h('div.inv-pg', { dataset: { pages: pages, per: per } }, wrap, dots);
+    root.go = go; go(page);
+    var dur = track.style.transition; track.style.transition = 'none'; requestAnimationFrame(function () { track.style.transition = ''; });
+    return root;
+  }
+  function card(o) { return h('section.ui-weather', { style: { padding: '12px 16px' } }, h('div.cell-lab', { style: { margin: '0 0 4px 0', fontSize: 'var(--fs-sub)', color: 'rgba(235,235,245,.68)' } }, o.title || 'Next 24 hours'), carousel(o)); }
+  function sw(c, surface, cap, node, w) { return V.swatch(surface, cap, node, c, w || 400); }
+
+  Mock.mount({
+    kind: 'component', id: 'paged-row', title: 'PagedRow (native paging row)', area: 'design', status: 'shipped', frame: false,
+    summary: 'A horizontally paging row of equal-width cells (the hourly weather). Each page holds whole cells; the paging happens in a UIKit scroll view so a swipe writes nothing into the page\'s SwiftUI graph; the row reports the first visible cell once per page. WeatherPagedCarousel adds the page indicator and, on regular width, previous and next buttons. Cells per page shrink at large text sizes.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift', 'apple/Sources/HassDesign/PagedRowMetrics.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCarousel.swift', 'apple/Sources/HassUI/Features/Home/Weather/WeatherCarouselPaging.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift', 'apple/Sources/HassUI/Features/Home/Weather/WeatherCardContent.swift'],
+    spec: ['.agents/patterns/resume-lifecycle.md', '.agents/patterns/status-rail.md'],
+    patterns: ['resume-lifecycle', 'status-rail', 'motion'],
+    hig: ['Scroll views', 'Page controls', 'Dynamic Type', 'Accessibility', 'Motion'],
+    kitComponents: ['WeatherCard', 'WeatherGlyph', 'ChipRail'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'compact': { title: 'Compact: 6 hours a page (card), 5 (sheet)', note: 'the Home card holds 6 cells per page, the Weather sheet 5; 24 hours is 4 or 5 pages; the last page may hold fewer and is still the last page', render: function (c) {
+        return V.grid([sw(c, 'page', 'Home weather card: 6 per page, page 1 of 4', card({ per: 6, label: '24-hour weather forecast' })), sw(c, 'page', 'page 2 of 4', card({ per: 6, page: 1, label: '24-hour weather forecast' })),
+          sw(c, 'page', 'Weather sheet: 5 per page, last page (5 of 5) holds 4 cells', card({ per: 5, page: 4, label: '24-hour conditions' }))]); } },
+      'regular': { title: 'Regular: previous and next buttons', note: 'regular width (iPad, unfolded Duo) shows 44 pt circles beside the row (the web shows them for pointer devices): the row is inset 52 pt each side; 9 per page on the card (6 when narrow), 7 in the sheet', render: function (c) {
+        return V.grid([sw(c, 'page', 'iPad card: 9 per page, controls', card({ per: 9, controls: true, label: '24-hour weather forecast' }), 760), sw(c, 'page', 'narrow regular (a half pane): 6 per page', card({ per: 6, controls: true, page: 1, label: '24-hour weather forecast' }), 520),
+          sw(c, 'page', 'at the first page the Previous button is disabled', card({ per: 7, controls: true, label: '24-hour conditions' }), 640)]); } },
+      'indicator': { title: 'Page indicator', note: 'a capsule per page (18 by 7 current, 7 by 7 others, current white, the rest white at 45%) inside a full 44 pt target; adjustable for VoiceOver ("24-hour weather forecast pages", "Page 2 of 4")', render: function (c) {
+        return V.grid([sw(c, 'page', 'indicator on 4 pages (page 2)', carousel({ per: 6, page: 1, label: '24-hour weather forecast' }), 360), sw(c, 'page', 'no indicator when everything fits one page (the row is not a pager)', carousel({ per: 6, count: 6, label: '6-hour forecast' }), 360)]); } },
+      'loading': { title: 'First sign-in: placeholder cells', note: 'WeatherCardHourPlaceholder cells pulse (0.35 to 1 over 1.4 s; static under Reduce Motion); the row still pages so the layout does not change when data arrives', render: function (c) {
+        function ph(i) { return h('div.hr', h('span.ht', ['Now', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM'][i % 6]), h('span.ui-pending', { style: { position: 'relative', top: 0, width: '22px', height: '22px', borderRadius: '50%' } }), h('span.ui-pending', { style: { position: 'relative', top: 0, width: '26px', height: '10px' } })); }
+        var items = Array.apply(null, Array(24)).map(function (_, i) { return i; });
+        var node = carousel({ per: 6, label: 'Loading 24-hour weather forecast' }); var hrs = node.querySelector('.ui-hours'); hrs.innerHTML = ''; items.forEach(function (i) { hrs.appendChild(ph(i)); });
+        return V.grid([sw(c, 'page', 'placeholders (first sign-in only)', h('section.ui-weather', { style: { padding: '12px 16px' } }, node))]); } },
+      'in-context': { title: 'In context: the Home weather card and the Weather sheet', render: function (c) {
+        return h('div', V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home() }), card({ per: 6, label: '24-hour weather forecast' })] }); }, .6, 'Home: hourly row inside the card (card header omitted here)'),
+          V.embed('iphone', c, function (cx) { return Mock.sheet(cx, { title: 'Weather', subtitle: 'Partly Cloudy', detent: 'large', size: 'page', appearance: 'dark', presenter: Mock.page(cx, { title: 'Home', section: 'home', body: [] }), content: card({ per: 5, title: 'Temperature (°F)', label: '24-hour conditions' }) }); }, .6, 'Weather sheet (always dark): 5 per page'),
+          V.embed('ipad-portrait', c, function (cx) { return Mock.page(cx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [card({ per: 9, controls: true, label: '24-hour weather forecast' })] }); }, .42, 'iPad: 9 per page with previous and next')); } },
+      'ax5': { title: 'Accessibility 5: fewer per page', override: { ts: 'ax5' }, note: 'cells per page scale by 0.8 at xxxLarge, 0.5 at AX1 and AX2, 0.34 at AX3 to AX5, never below 2', render: function (c) {
+        return V.grid([sw(c, 'page', 'AX5: 6 becomes 2 per page, 12 pages', card({ per: perPage(6, 9, 'compact', 'ax5'), label: '24-hour weather forecast' }), 560)]); } },
+    },
+    motion: [
+      { id: 'page-change', what: 'Swiping, tapping Next or the indicator moves to the next page', token: 'UIKit paging (the system scroll view\'s own animation, about 0.3 s), one page at a time', state: 'regular',
+        source: 'HassDesign/PagedRow.swift animatesPaging; HostedHorizontalScroll.swift; WeatherPagedCarousel.swift go(to:)', reduce: 'animatesPaging is false: the row jumps to the page with no scroll',
+        play: function (stage) { var root = stage.querySelector('.inv-pg'); if (!root) return Promise.resolve(); root.go(1); return Mock.sleep(900).then(function () { root.go(2); return Mock.sleep(900); }).then(function () { root.go(0); return Mock.sleep(500); }); } },
+      { id: 'indicator-resize', what: 'The current page capsule grows from 7 to 18 pt and the others shrink', token: 'quick 0.2 s easeOut', state: 'indicator',
+        source: 'WeatherPagedCarousel.swift indicator quickTransition("WeatherPagedCarousel", value: index == current)', reduce: 'unchanged (a width change of a 7 pt capsule; opacity and colour are not motion)',
+        play: function (stage) { var root = stage.querySelector('.inv-pg'); if (!root) return Promise.resolve(); root.go(2); return Mock.sleep(600).then(function () { root.go(0); return Mock.sleep(400); }); } },
+      { id: 'button-fade', what: 'Previous and Next dim at the ends', token: 'quick 0.2 s easeOut (opacity)', state: 'regular', source: 'WeatherPagedCarousel.swift controlButton quickTransition', reduce: 'unchanged',
+        play: function (stage) { var root = stage.querySelector('.inv-pg'); if (!root) return Promise.resolve(); root.go(0); return Mock.sleep(400).then(function () { root.go(1); return Mock.sleep(500); }); } },
+    ],
+    a11y: [
+      { rule: 'Only the page on screen is exposed', note: 'The hosted UIKit scroll view exposes only the cells that overlap its viewport to VoiceOver (accessibilityHidden on SwiftUI cells does not reach UIKit), pages with a three-finger swipe, and announces "Page 2 of 4" when it settles.' },
+      { rule: 'Indicator', note: 'One adjustable element (increment and decrement go to the next and previous page) labelled "<row name> pages" with the value "Page 2 of 4"; its 44 pt frame is the target for Switch Control; the dots themselves are not separate controls.' },
+      { rule: 'Previous and Next', note: 'On regular width only: 44 pt buttons labelled "Previous 24-hour weather forecast" and "Next …", dimmed and disabled at the ends. Compact width pages by swipe, the three-finger swipe or the indicator.' },
+      { rule: 'Dynamic Type', note: 'perPage shrinks with the text (0.8, 0.5, 0.34), never below 2, so each cell keeps room for its time label ("12 PM" does not truncate); the cells\' height follows the text.' },
+      { rule: 'Reduce Motion', note: 'The row jumps to the page instead of scrolling (animatesPaging false); the indicator capsule still resizes (a size and colour change, not travel).' },
+      { rule: 'Cells', note: 'Each cell is a group "11 AM, 52 degrees"; the weather glyph is decorative; a placeholder row reads "Loading 24-hour weather forecast" as one element.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Page controls: one indicator per page, centred, not too many (about 10 dots at most)", verdict: "pass", note: "PageIndicator shows \"n of N\" instead of dots from eleven pages (PageIndicator.dotLimit), so the AX5 hourly row's 12 pages read as a count.", by: "apple-hig skill" },
+        { rule: "Scroll views: pages snap to whole cells; no cell cut in half", verdict: "pass", note: "A page is exactly the viewport wide and holds perPage equal cells (PagedRowMetrics), so a swipe lands on whole pages; the last page may hold fewer and still counts as last.", by: "apple-hig skill" },
+        { rule: "Accessibility: pageable content has an adjustable control and announces its page", verdict: "pass", note: "The indicator is one adjustable element ('<row> pages', value 'Page 2 of 4', increment and decrement page), the row pages with a three-finger swipe and announces 'Page 2 of 4' when it settles; regular width adds 44 pt Previous and Next buttons.", by: "apple-hig skill" },
+        { rule: "iPhone Duo and Layout: keep access to every feature at every size", verdict: "pass", note: "Previous and Next appear only at regular width (the web shows them for pointers), but compact width keeps the swipe, the three-finger swipe and the adjustable indicator, so the folded Duo loses no function.", by: "apple-hig skill" },
+        { rule: "Accessibility: Reduce Motion", verdict: "pass", note: "animatesPaging is false with Reduce Motion, so Previous, Next and the indicator jump to the page; the indicator capsule resizes in 0.2 s (size and colour, not travel).", by: "apple-hig skill" },
+        { rule: "Page controls: avoid colouring indicators; keep custom images simple", verdict: "pass", note: "Kept as owner option A (2026-10-24): the app's indicator follows the card ink and the capsule motion, but is now a button strip with tap zones, adjustable action and 44 pt target (PageIndicator).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Avoid UIKit unless requested; measured justification", verdict: "departure", note: "Paging is a UIKit scroll view hosted by HostedHorizontalScroll because a SwiftUI ScrollView nested in the sheet's own scroll view cost the page's view graph on every swipe (hourly weather 1.1 s to 0.4 to 0.55 s main-thread over an 8 s sweep, PagedRow.swift doc comment); the Suggested Recipes carousel stays SwiftUI because it cost the same.", by: "swiftui-pro skill" },
+        { rule: "Navigation and scrolling: scrollTargetBehavior(.paging) is the supported paging API", verdict: "departure", note: "It is avoided because on iOS 27.0 each ScrollBehaviorModifier leaks its ScrollEnvironmentStorage on every scene-phase change (about 14 objects per carousel per resume, heap census 2026-10-16; NativePaging.swift lines 10 to 17), with isPagingEnabled set on the UIScrollView instead.", by: "swiftui-pro skill" },
+        { rule: "Resilience: do not depend on view-hierarchy internals", verdict: "pass", note: "Not applicable: the UIKit lookup is the workaround for the iOS 27 leak the finding itself says to revisit when it is fixed; the pager-less fallback is a free-scrolling row.", by: "swiftui-pro skill" },
+        { rule: "Data flow: first visible index as a Binding, written once per page", verdict: "pass", note: "firstVisible changes once per page not per frame, so the page around the row updates only when the page changes (PagedRow.swift lines 7 to 9); per-page counts come from pure functions of size class and type size.", by: "swiftui-pro skill" },
+        { rule: "Views: avoid storing escaping closures and unused state reads", verdict: "pass", note: "sizeChanges is now an explicit layoutRevision input of PagedCells instead of a discarded read; the stored cell closure and hostedRevision read remain, documented, for UIKit-hosted content.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: indicator and buttons labelled for their action", verdict: "pass", note: "Buttons say 'Previous 24-hour weather forecast' and 'Next ...', dimmed and disabled at the ends; cells are groups ('11 AM, 52 degrees') with a decorative glyph; the placeholder row reads as one 'Loading 24-hour weather forecast' element.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Used by: the Home weather card (6 per page compact, 9 regular, 6 when narrow) and the Weather sheet\'s hourly panel (5 compact, 7 regular). The row is also the host of the status chips (HostedHorizontalScroll without paging).',
+      'ax5: shown through the scaled per-page count (the mockup does not scale the cell text itself beyond the kit\'s Dynamic Type variables).',
+      'The card header (condition, numeral) is omitted in the swatches; the Home mockup shows the whole card. The weather glyphs are the kit\'s stand-ins.',
+      'The page change animation is the system scroll view\'s; the mockup uses a 0.3 s ease curve as a stand-in.',
+      'Hours are fixtures (time labels and temperatures), not real forecasts.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: compact, regular with controls, indicator, placeholders, Home and Weather in context, AX5, page motion.' }],
+  });
+})();
+</script></body></html>

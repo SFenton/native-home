@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings: Time Sensitive row</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/settings/_settings-account.js"></script>
+<script src="../../pages/settings/_settings-page.js"></script>
+<style>.k-reduce-transparency .ui-page .ui-mlist:not(.sa-solid){background:var(--g-module-thin)}</style>
+</head><body>
+<script>
+(function () {
+  var S = function (notif, o) { return function (ctx) { return SA.settingsPage(ctx, Object.assign({ notif: notif, scrollTop: 330 }, o || {})); }; };
+
+  Mock.mount({
+    kind: 'proposal', id: 'settings-notifications-time-sensitive', title: 'Settings: Time Sensitive row', area: 'settings', status: 'proposed',
+    summary: 'Proposal 2026-10-27, revised after review. The Settings tab as built, with the Notifications section drawn (the shipped Settings mockup does not draw it) and the proposed change: two entries, Notifications and Time Sensitive Notifications, each a row with a glyph, title, status line and chevron, each opening this app\'s notification page in iOS Settings. Shown only once notifications are allowed. Companion to proposals/setup-flow-time-sensitive.',
+    source: ['apple/Sources/HassUI/Features/Notifications/NotificationPermission.swift', 'apple/Sources/HassUI/Features/Settings/SettingsScreen.swift'],
+    spec: ['.agents/pages/settings/ios.md', '.agents/patterns/settings-section.md', '.agents/platforms/apple/push.md'],
+    patterns: ['settings-section', 'module-list'],
+    hig: ['Lists and tables', 'Notifications', 'Settings'],
+    kitComponents: ['ModuleList'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Allowed, Time Sensitive on (recommended layout)', note: 'two entries; full bell when on; each row is one 44 pt+ tap target and opens S+H\'s notification page in iOS Settings', render: S('granted-ts-on') },
+      'ts-off': { title: 'Allowed, Time Sensitive off (recommended layout)', note: 'bell with a slash when off; the status is also in words, so the cue is not the glyph or colour alone', render: S('granted-ts-off') },
+      'split-on': { title: 'Comparison: one section per entry, description as footer', note: 'the iOS Settings style: each entry is a bare row with its description under it; two sections, so two gaps', render: S('split-ts-on') },
+      'split-off': { title: 'Comparison: one section per entry, off', render: S('split-ts-off') },
+      'today-granted': { title: 'Today: allowed (a label, not a control)', note: 'what ships now; the new layout turns this row into an entry that opens Settings', render: S('granted') },
+      'today-not-asked': { title: 'Today: never asked, unchanged', note: 'Turn On Notifications asks on a tap; the two entries appear only once notifications are allowed', render: S('not-determined') },
+      'today-denied': { title: 'Today: refused, unchanged', note: 'Open Settings to allow notifications; no Time Sensitive entry (nothing to be time sensitive about)', render: S('denied') },
+      'ax5': { title: 'Accessibility 5: off state', override: { ts: 'ax5' }, note: 'the glyph moves above the text, rows grow, the status wraps', render: S('granted-ts-off') },
+      'reduce-transparency': { title: 'Reduce Transparency on', override: { reduceTransparency: true }, render: S('granted-ts-on') },
+    },
+
+    notes: [
+      'Why not a switch (owner question, 2026-10-27): the app cannot turn notifications or Time Sensitive on or off. The system alert can be answered once; after that only iOS Settings changes it, and there is no API to set Time Sensitive at all. A switch the app cannot flip would lie about what it controls (HIG Toggles: a switch is for two opposing values that affect state, in a list row). So each entry reads the system value and opens Settings. Before the first answer, Turn On Notifications can still ask.',
+      'Chevron (owner, 2026-10-27): both entries carry a chevron even though they leave the app. That departs from .agents/patterns/settings-section.md ("a chevron means push, and nothing else"; HIG Lists and tables: a disclosure indicator is for drill-down). Recorded as an owner decision; the pattern doc gets the exception when this is built. An SF Symbol such as arrow.up.forward.app is the usual "leaves the app" cue if you ever want to separate the two.',
+      'Glyphs: bell.fill when on, bell.slash when off (SF Symbols). The kit had only an outline bell; this proposal adds the filled bell and bell.slash to lib/symbols.js.',
+      'Title: "Time Sensitive Notifications" is the exact name iOS Settings uses for the switch, so a person who taps through lands on a label they just read.',
+      'Layout question (owner): a footer under one section describes the whole section (the Background Blur footer covers the blur row). Two entries with their own state want their own text, and the repo\'s row anatomy already has it: glyph, title, one status line. So the recommended layout keeps both in one Notifications section with the description in the row, and drops the section footer. The comparison states draw the alternative, one section per entry with the description as a footer.',
+      'Each entry reads the system value (UNNotificationSettings.authorizationStatus and timeSensitiveSetting) every time the app becomes active, so it is right when the person returns from Settings. timeSensitiveSetting notSupported hides the Time Sensitive entry.',
+      'The deep link is UIApplication.openNotificationSettingsURLString (iOS 16 and later; unverified against Apple docs in this session; verify on device), falling back to openSettingsURLString.',
+      'HIG Notifications: the system explains an app\'s first Time Sensitive notification, offers to turn it off and periodically asks people to reevaluate. So the system will also surface this setting on its own; the entry here is the standing way back.',
+      'Same section on iPad: Settings is a single page on every device.',
+      'Atlas gap: pages/settings/settings (shipped) does not draw the Notifications section at all, only this proposal does. When this is built, that mockup gains the section in the same PR. SA.notificationsSection in pages/settings/_settings-page.js draws it and is used only when a page passes notif.',
+    ],
+    a11y: [
+      { rule: 'Row element', note: 'Each entry is one element, children combined: "Time Sensitive Notifications. Off. Urgent alerts wait until your Focus ends." with the hint "Opens Settings." Identifiers settings.notifications and settings.notifications.timeSensitive.' },
+      { rule: '44 pt target', note: 'SettingsLinkRow keeps minHeight HassTokens.minTarget.' },
+      { rule: 'Not colour or glyph alone', note: 'On and Off are words in the status line; the bell changes shape (full or slashed) as well.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the glyph sits above the text and the subtitle wraps (SettingsLinkRow).' },
+    ],
+    reviews: { date: '2026-10-27', hig: [
+      { rule: 'Lists and tables: a disclosure indicator is for drill-down', verdict: 'departure', note: 'Both entries carry a chevron although they open iOS Settings (owner, 2026-10-27); the settings-section pattern gets the exception when built.', by: 'apple-hig skill' },
+      { rule: 'Toggles: switch style in a list row, for a value the app changes', verdict: 'pass', note: 'No switch: the app cannot change either value, so each entry is a row that opens Settings.', by: 'apple-hig skill' },
+    ], swiftui: [
+      { rule: 'API: open Settings through the environment', verdict: 'pass', note: 'The row calls openURL with the notification-settings URL, as NotificationsSettingsSection already does for the refused state.', by: 'swiftui-pro skill' },
+    ] },
+    changelog: [{ date: '2026-10-27', note: 'First pass: Notifications section drawn with the real Settings kit, plus the Time Sensitive row.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,38 @@
+{
+  "configurations": [
+    {
+      "id": "689AA068-D73A-5139-A124-B7F42499FAD6",
+      "name": "Configuration 1",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "defaultTestExecutionTimeAllowance": 300,
+    "maximumTestExecutionTimeAllowance": 900,
+    "codeCoverage": false
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:FentonHome.xcodeproj",
+        "name": "FentonHomeUITests"
+      },
+      "parallelizable": false,
+      "selectedTests": [
+        "AdaptiveLayoutJourneyTests/testRootNavigationOpensHome()",
+        "AdaptiveLayoutJourneyTests/testSecurityDoorTilesStayOffTheHinge()",
+        "ChipAlignmentJourneyTests/testHomeChipsStartAtTheLeadingMargin()",
+        "ChoresPageJourneyTests/testChoresTabPassesAccessibilityAudit()",
+        "ChoresTaskFormJourneyTests/testAddTaskSheetHasSeparateFieldsWithFooters()",
+        "LoginJourneyTests/testAtTheLargestTextTheFormScrollsAndSignInStaysReachable()",
+        "LoginJourneyTests/testLoginScreenPassesAccessibilityAudit()",
+        "ModalSizingJourneyTests/testShortSheetOpensAtContentHeight()",
+        "ModalSizingJourneyTests/testTabBarShowsIconsOnCompactWidthAndNamesThem()",
+        "SheetBottomGapJourneyTests/testQuickLinksHasNoBandUnderItsTiles()",
+        "TileLayoutJourneyTests/testTileLayoutAX5RowKeepsTilesReadable()"
+      ]
+    }
+  ],
+  "version": 1
+}

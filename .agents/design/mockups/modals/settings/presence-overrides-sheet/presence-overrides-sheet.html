@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Presence-Based Overrides · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function sheet(o) { return function (ctx) { return HF.presenceSheet(ctx, o); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'presence-overrides-sheet', title: 'Presence-Based Overrides sheet', area: 'settings', status: 'shipped',
+    summary: 'Opened by "Open Presence-Based Overrides" on Admin Controls. A page sheet at the large detent: one tile per room (14), tinted by the room\'s Presence-Based Lighting mode with the mode as its subtitle. A tile pushes that room\'s four modes inside the sheet (see presence-override-detail). Follows the system appearance; the States gallery shows both.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdSettings.swift', 'apple/Sources/HassCore/Config/HouseholdSettingsConfig.swift', 'apple/Sources/HassCore/Settings/PresenceOverrideState.swift', 'apple/Sources/HassCore/Settings/HouseholdSettingsController.swift',
+      'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift'],
+    spec: ['.agents/pages/settings/household.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'entity-tile', 'dynamic-grid', 'header-edge-fade', 'motion'],
+    hig: ['Sheets', 'Toolbars', 'Color', 'Dynamic Type', 'Dark Mode'],
+    entities: ['switch.<room>_presence_..._presence_allowed (14 rooms)'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Large detent, mixed modes', note: 'Living Room, Kitchen and others Enabled (green), Gym Quieted (violet), Bedroom 1 and Guest Room Paused (amber), Guest Bathroom and Media Room Disabled (slate), Studio Unavailable', render: sheet({}) },
+      'error': { title: 'Every room unavailable', note: 'all 14 tiles read Unavailable in slate with the dimmed glyph; they stay openable (the detail explains and disables its choices)', render: sheet({ unavailable: true }) },
+      'offline': { title: 'Over an offline Admin page', note: 'the sheet has no offline UI of its own: it keeps the last known modes; the page behind carries the offline chip', render: sheet({ connection: 'offline' }) },
+      'reconnecting': { title: 'Over a reconnecting Admin page (arc)', note: 'the arc sits behind the sheet; the sheet shows no connection UI', render: sheet({ connection: 'reconnecting' }) },
+      'pushed': { title: 'A room\'s modes pushed inside the sheet', note: 'Back and Close both show; the title is just the room name (the item presence-override-detail)', render: function (ctx) { return HF.detailSheet(ctx, { room: 'Kitchen', mode: 'enabled' }); } },
+      'large': { title: 'Large detent (shipped)', note: 'hassSheet(.page, height: .full): never fitted, so the height does not change when a room is pushed', render: sheet({}) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Admin page the sheet scales back', render: function (ctx) { return HF.presenter(ctx); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of stacked tiles; the sheet scrolls', render: sheet({}) },
+    },
+
+    motion: [
+      { id: 'room-mode-colour', what: 'A room changes mode (from the detail or from Home Assistant): its tile\'s rim, glyph and subtitle cross-fade to the new mode colour', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'default',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile"); PresenceOverridesSheet; design/motion.md section 6', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) {
+          var t = stage.querySelector('.ui-tile[aria-label^="Kitchen"]'); if (!t) return Promise.resolve();
+          HF.retint(t, 'paused'); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { HF.retint(t, 'quieted'); return Mock.sleep(Mock.anim.ms.state() + 500); }).then(function () { HF.retint(t, 'enabled'); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Admin Controls', to: 'Presence-Based Overrides sheet', kind: 'sheet', state: 'closed', note: 'The opener tile presents the sheet at the large detent; Admin scales back and dims; the 14 tiles are there on arrival (motion.md section 4.4). Reduce Motion cross-fades.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Presence-Based Overrides', detent: 'large', size: 'page', trailing: 'close', content: HF.presenceGrid() }, { hold: 1200 }); } },
+      { from: 'Room tile (Kitchen)', to: 'Kitchen modes (pushed inside the sheet)', kind: 'push', state: 'large', note: 'A plain push inside the sheet\'s own NavigationStack (no zoom inside sheets, owner 2026-10-22): the grid shifts left and dims, the modes slide in with Back and Close. The interactive edge swipe pops it. Reduce Motion cross-fades.',
+        play: function (stage) { return HF.pushInSheet(stage, 'Kitchen', 'enabled', { hold: 1100 }); } },
+      { from: 'Presence-Based Overrides sheet', to: 'Admin Controls', kind: 'sheet', state: 'large', note: 'The circle-X Close dismisses from the grid or from a pushed detail (the sheet\'s own dismiss is passed down, because dismiss read on a pushed page only pops it); a swipe down also dismisses.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Presence-Based Overrides", then the 14 room tiles in the web\'s order (Living Room first, Upper Deck last), and Close in the bar. Escape and the two-finger scrub dismiss.' },
+      { rule: 'Room tile', note: 'One button per room named "<Room>, <Mode>" (identifier presence.room.<entity id>), the glyph decorative. The mode is spoken as a word, not only shown as a colour: Enabled, Disabled, Paused, Quieted or Unavailable.' },
+      { rule: 'State is not colour alone', note: 'Four tints (green, slate, amber, violet) pair with the written mode in every tile; Unavailable is slate with a dimmed glyph and the word.' },
+      { rule: 'Unavailable stays openable', note: 'An unavailable room is at full contrast and opens its detail, which explains "Home Assistant state is unavailable." and disables the four choices; a dimmed, disabled tile would hide why (and fails the contrast audit).' },
+      { rule: 'Close', note: 'The circle-X is labelled Close (identifier household.sheet.done) and is 44 pt; it is on every level so the sheet closes from a pushed room too.' },
+      { rule: 'Targets', note: 'Tiles are at least 72 pt; the grid is 2 columns on iPhone, 4 on an iPad page sheet (min cell 150 pt, max 4).' },
+      { rule: 'Dynamic Type', note: 'At AX5 the grid is one column and each tile stacks glyph over text; room names such as "Downstairs Hallway" wrap instead of truncating. The sheet is full height so its height never changes with a push.' },
+      { rule: 'Light and dark', note: 'The sheet follows the system appearance: tiles are the sheet cell colour with a tinted rim; the tint colours are the web card colours (67/160/71, 84/110/122, 230/154/37, 117/91/180).' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: grabber and full height for a sheet that navigates', verdict: 'pass', note: 'hassSheet(.page, height: .full) with presentationDragIndicator(.visible), so a pushed room never changes the sheet height (AdminSettingsContent.swift:161; HassModal.swift:191).', by: 'apple-hig skill' },
+        { rule: 'Sheets: Back for the parent, Close to exit', verdict: 'pass', note: 'Back appears on the pushed room and Close on both levels (householdSheetDone, :109-114); Back is never used to dismiss.', by: 'apple-hig skill' },
+        { rule: 'Sheets: Close, Cancel or Done', verdict: 'departure', note: 'Close is a trailing circle-X, not Done (owner 2026-10-13, HassModal.swift:3-6), since every tap saves at once.', by: 'apple-hig skill' },
+        { rule: 'Color: state in words as well as tint', verdict: 'pass', note: 'Each tile\'s subtitle is the mode summary (Enabled, Paused, Quieted, Disabled, Unavailable) under four tints (:139-148).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: unavailable items stay reachable', verdict: 'pass', note: 'Unavailable rooms stay openable at full contrast; the detail explains and disables its choices (:145-147).', by: 'apple-hig skill' },
+        { rule: 'Layout: keep controls clear of the fold', verdict: 'pass', note: 'Fixed: PresenceOverridesSheet and PresenceOverrideDetail apply .clearsHinge(); the form uses the wider side of the band. Ships on the simulator measurement; re-check on a device run.', by: 'apple-hig skill' },
+        { rule: 'Materials: sheets on an opaque ground', verdict: 'departure', note: 'SheetGroundModifier sets an opaque grouped ground at every detent because a partial-height iOS 26 sheet is glass and let coloured tiles show through (HassModal.swift:192-194, :257; direction-g.md Sheets).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: NavigationStack(path:) with navigationDestination(for:)', verdict: 'pass', note: 'A typed PresenceRoom path inside the sheet\'s own stack (:123, :133, :157).', by: 'swiftui-pro skill' },
+        { rule: 'API: Close placement by semantic role', verdict: 'pass', note: 'SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).', by: 'swiftui-pro skill' },
+        { rule: 'API: no UIKit colours in SwiftUI', verdict: 'pass', note: 'Sheet ground and ModalBackground read HassTokens.Surface.systemGround (HassModal.swift:257, 271)' },
+        { rule: 'Data: one controller read per tile', verdict: 'pass', note: 'controller.presence(room.presenceEntityId) inside the ForEach; a mode change updates one tile.', by: 'swiftui-pro skill' },
+        { rule: 'Performance: eager grid of 14 tiles', verdict: 'pass', note: 'A non-lazy Layout in a ScrollView is fine at 14 elements; no per-frame state.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading: the sheet has no loading state. It reads EntityStore (always ready from the snapshot); a room never seen reads Unavailable (the error state). refreshing: a mode change from Home Assistant re-tints one tile in place.',
+      'medium and fitted: this sheet has neither. It is full height (.full = the large detent) because it navigates; the provisional medium opening belongs to fitted sheets (see auto-reset-sheet).',
+      'Docs versus code: pages/settings/household.md says the sheets are ".large, drag indicator, Done" and that the page opens inside the Account sheet. The code uses the circle-X Close (SheetCloseItem, identifier household.sheet.done) and the sheet opens from the Admin page on the Settings tab. The mockup draws the code.',
+      'The web has a 2x2 mode grid in the detail; the app uses one column on phones and two where there is room (the detail item).',
+      'Fixture data: the mode of each room is invented; entity ids are shortened with "..." in the source map but are the real switch ids in HouseholdSettingsConfig.',
+      'Duo unfolded: the page sheet is centred and may cross the hinge band; the simulator pose was only run for pages, so check on a device.',
+      'The presenter is a trimmed Admin page (Settings tab push).',
+      'Kit bugs worked around locally (promote the fixes to kit.css): `.ui-grid` tracks overflow at AX5 because the scaled minimum is not capped at the container width (DynamicGridLayout always keeps one column). Both overrides are in pages/settings/_household-forms.js.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: 14 room tiles in four tints plus unavailable, large detent, push into a room, dismissal from any depth, light and dark.' }],
+  });
+})();
+</script></body></html>

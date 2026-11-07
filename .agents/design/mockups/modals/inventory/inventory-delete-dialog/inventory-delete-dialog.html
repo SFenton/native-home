@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delete item confirmation · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function over(ctx, title, o) { return V.page(ctx, Object.assign({ space: 'all-food', noFab: true, overlay: V.askSheet(ctx, title) }, o)); }
+
+  Mock.mount({
+    kind: 'modal', id: 'inventory-delete-dialog', title: 'Delete item confirmation', area: 'inventory', status: 'shipped',
+    summary: 'Deleting a single unit (the trailing swipe or a one-batch card) asks "Delete <item> from the <place>?" in a confirmation dialog: a red Delete and the system Cancel. An action sheet on compact width, a popover on regular width. More than one in stock asks how many instead (see the quantity prompt).',
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift (requestDelete)', 'apple/Sources/HassCore/Inventory/InventoryListModel.swift (delete)'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md'],
+    patterns: ['floating-actions'],
+    hig: ['Action sheets', 'Alerts', 'Popovers', 'Dynamic Type'],
+    entities: ['evershelf.delete_inventory'],
+    kitComponents: [],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'All Food: "from the library"', note: 'the All Food page names the place "library" (the web\'s LOCATION_DELETE_LABELS.all) whatever the card\'s own place; Delete is red, Cancel is added by the system', render: function (c) { return over(c, 'Delete Whole Milk from the library?'); } },
+      'fridge': { title: 'Fridge page: "from the fridge"', note: 'a location page names its own place', render: function (c) { return over(c, 'Delete Whole Milk from the fridge?', { space: 'fridge' }); } },
+      'spice-rack': { title: 'Spice Rack page: "from the spice rack"', render: function (c) { return over(c, 'Delete Smoked Paprika from the spice rack?', { space: 'spice-rack' }); } },
+      'long-text': { title: 'Long item name', note: 'the title wraps; the sheet grows', render: function (c) { return over(c, 'Delete Organic Extra Virgin Cold-Pressed Olive Oil With Basil and Roasted Garlic from the library?'); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the title and both buttons scale and wrap; the system sheet scrolls if taller than the window', render: function (c) { return over(c, 'Delete Whole Milk from the library?'); } },
+      'closed': { title: 'Before the dialog (trailing swipe open)', note: 'the Delete swipe action is what asks', render: function (c) { return V.page(c, { space: 'all-food', noFab: true, swipe: { 'whole milk': 'trail' } }); } },
+    },
+    motion: [
+      { id: 'dialog-in', what: 'The action sheet rises from the bottom (popover on regular width)', token: 'system presentation, not decorated', state: 'closed',
+        source: 'SwiftUI .confirmationDialog; motion.md sections 2 and 4.4', reduce: 'the system cross-fades',
+        play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'); var o = V.askSheet(c, 'Delete Whole Milk from the library?'); page.appendChild(o); var sh = o.querySelector('.sheet') || o.querySelector('.inv-pop'); var rm = Mock.settings.reduceMotion;
+          if (sh && sh.animate) sh.animate(rm || !o.querySelector('.sheet') ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'translateY(110%)' }, { transform: 'none' }], { duration: rm ? 200 : 350, easing: 'cubic-bezier(.32,.72,0,1)' });
+          return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1300); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
+    ],
+    transitions: [
+      { from: 'Delete swipe action', to: 'Confirmation dialog', kind: 'fade', state: 'closed', note: 'Tapping Delete on a swiped row presents the dialog; Cancel dismisses and the row snaps back. Delete calls evershelf.delete_inventory and removes the card locally on success.',
+        play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'); var o = V.askSheet(c, 'Delete Whole Milk from the library?'); page.appendChild(o); return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1300); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The dialog is modal: its title (visible, so it is read), Delete, Cancel. The popover form omits Cancel (tap outside or Escape dismisses).' },
+      { rule: 'Destructive', note: 'Delete has the destructive role: red text and the system "destructive" trait; Cancel is the bold system button. The title names the item and the place so nothing is deleted blind.' },
+      { rule: 'Targets', note: 'System action sheet rows are 56 pt; popover rows 44 pt.' },
+      { rule: 'Dynamic Type', note: 'The system scales and wraps the title and buttons.' },
+      { rule: 'Reduce Motion', note: 'The system presents with a cross-fade.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Action sheets: destructive choice prominent, Cancel present', verdict: 'pass', note: 'confirmationDialog shows a .destructive Delete and the system Cancel, with titleVisibility .visible (InventoryScreen.swift:101-108).', by: 'apple-hig skill' },
+        { rule: 'Action sheets: aim for one-line titles', verdict: 'pass', note: 'AlertCopy.delete moves a name over 28 characters to the message; the place is in the message (InventoryPresentation.deleteSpec).', by: 'apple-hig skill' },
+        { rule: 'Alerts: avoid confirming common, undoable actions', verdict: 'pass', note: 'Only a single remaining unit asks; more than one asks how many instead (InventoryPresentation.requestDelete).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Presentation: attach to the triggering control', verdict: 'pass', note: 'Not applicable to the swipe Delete: its button is gone once the swipe closes, so the dialog sits on the page (inventoryRowActions and InventoryScreen, item-based, AlertCopy wording); the editor Delete anchors its own.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading, error, offline, medium, large, fitted: none. It is a system confirmation with no detents; a failed delete returns the card unchanged and shows the service message as a row error.',
+      'iPad and unfolded Duo: the popover is drawn centred with no arrow; the real placement is the system\'s and was not run (see the fix finding).',
+      'The dialog is presented over the page, so it is always dark (the shell forces dark); the Summary sheet\'s Expired Food tab presents the same dialog over a sheet and follows the sheet\'s appearance.',
+      'Docs and code: spec.md says "Delete {title} from the {location}?" with the row\'s location; the code uses the page\'s phrase (library on All Food). ios.md says single deletes confirm.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: three place phrases, long name, AX5, action sheet and popover forms.' }],
+  });
+})();
+</script></body></html>

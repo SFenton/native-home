@@ -1,0 +1,160 @@
+{
+  "model": "sonnet",
+  "agent": "orchestrator",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/no_poll.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/merge_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/tier_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/kill_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/orchestrator_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/signing_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/review_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/commit_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/owner_prompt_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/worktree_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/worktree_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/research_write_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/signing_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/review_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/owner_prompt_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/signing_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/owner_prompt_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/agent_model.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/mockup_hub_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/stop_continue_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/mockup_hub_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\" --session-start"
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/worktree_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\" --session-start"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/owner_prompt_log.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/subagent_report.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(tools/pr_land.sh:*)",
+      "Bash(tools/ship.sh:*)",
+      "Bash(./tools/pr_land.sh:*)",
+      "Bash(./tools/ship.sh:*)",
+      "Bash(/Users/stephenfenton/repos/Fenton-HASS-Native/tools/pr_land.sh:*)",
+      "Bash(/Users/stephenfenton/repos/Fenton-HASS-Native/tools/ship.sh:*)",
+      "Bash(tools/clean.sh:*)",
+      "Bash(./tools/clean.sh:*)"
+    ]
+  }
+}

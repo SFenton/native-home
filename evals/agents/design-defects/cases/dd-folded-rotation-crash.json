@@ -1,0 +1,16 @@
+{
+  "id": "dd-folded-rotation-crash",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "On Duo, the app crashes when folded portrait, rotate to landscape, and rotating back to portrait.",
+  "surface": "shell-header-items",
+  "poses": [
+    "duo-folded"
+  ],
+  "app": "uikit",
+  "category": "crash",
+  "pre_fix_ref": "9d6e41df",
+  "fix_ref": "ec9fa303",
+  "fix_confidence": "high",
+  "expected": "Rotate-in then rotate-out on the folded Duo three times: the app stays alive and responsive; a layout-pass census must not grow without bound."
+}

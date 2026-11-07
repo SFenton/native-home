@@ -1,0 +1,43 @@
+{
+  "id": "lane-retire-target-still-exists-refused",
+  "source": "Rule: target_removed needs a target that is really gone.",
+  "recorded": "2026-11-02",
+  "kind": "lane_check",
+  "input": {
+    "check": "retired",
+    "exists": [
+      "tools/still_here.py"
+    ],
+    "blobs": {
+      "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr": "{\"kind\": \"target_removed\", \"path\": \"tools/still_here.py\"}"
+    },
+    "rows": [
+      [
+        "D",
+        "evals/agents/routing-replay/cases/old.json",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "0000000000000000000000000000000000000000"
+      ],
+      [
+        "A",
+        "evals/agents/routing-replay/retired/old.json",
+        "0000000000000000000000000000000000000000",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      [
+        "A",
+        "evals/agents/routing-replay/retired/old.json.reason.json",
+        "0000000000000000000000000000000000000000",
+        "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+      ]
+    ]
+  },
+  "expect": {
+    "refused": true,
+    "message": {
+      "has": [
+        "target_removed"
+      ]
+    }
+  }
+}

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cold launch, signed out · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, LL = Mock.LL, A = Mock.anim;
+  var REVIEW_DATE = '2026-10-23';
+  function root(stage) { return stage.querySelector('.ll-root'); }
+  /* Frame of the intro at time t (ms); the launch ground sits over it at `ground` opacity. */
+  function frame(t, ground, reduce) {
+    return function (ctx) {
+      var c = reduce ? Object.assign({}, ctx, { reduceMotion: true }) : ctx;
+      var s = LL.screen(c, { intro: t, glow: 1 });
+      if (ground == null) return s;
+      var g = LL.launchGround(); g.style.opacity = ground; return [s, g];
+    };
+  }
+  function playIntro(stage, reduce) { return LL.run(reduce ? 350 : LL.INTRO_MS, function (t) { LL.introAt(root(stage), t, reduce); }); }
+
+  Mock.mount({
+    kind: 'flow', id: 'launch-cold-signed-out', title: 'Cold launch, signed out (intro)', area: 'shell', status: 'shipped',
+    summary: 'A signed-out phone is opened: the launch ground, then the intro (about 1.2 s): the glow fades up, the header comes in, the form rises. It plays once per session (and again after a sign-out); Reduce Motion shows one 0.35 s cross-fade. No keyboard comes up.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift', 'apple/Sources/HassDesign/Motion/MotionTokens.swift', 'apple/Sources/HassUI/App/Motion/MotionPolicy.swift'],
+    spec: ['.agents/design/motion.md', '.agents/design/direction-g.md', '.agents/platforms/apple/auth.md'],
+    patterns: ['motion', 'telemetry'],
+    hig: ['Launching', 'Motion', 'Dark Mode'],
+    kitComponents: ['PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'launch-ground': { title: '0 s · Launch ground', note: '#121722, the launch screen\'s own colour: the first frame matches it, the intro starts underneath', render: frame(0, 1) },
+      'intro-glow': { title: '0.25 s · Glow fading up', note: 'the ground fades out over 0.2 s (quick) while the glow fades up over 0.5 s (easeOut)', render: frame(250, .0) },
+      'mark-springs-in': { title: '0.55 s · The header comes in (mark settling)', note: 'the mark\'s rise ran from 0.15 s but sits inside the header, whose opacity starts at 0.46 s: you see it fade in while it settles from 1.03 to 1 (see notes)', render: frame(550) },
+      'title-rise': { title: '0.75 s · Title and line rising 10 pt', note: 'header easeOut 0.4 s from 0.46 s; the form is about to start (0.71 s)', render: frame(750) },
+      'form-rise': { title: '0.95 s · Form rising 28 pt', note: 'easeOut 0.45 s from 0.71 s; the footnote rises with it', render: frame(950) },
+      'default': { title: '1.16 s · Intro done: ready to type', note: 'no keyboard has come up', render: frame(LL.INTRO_MS) },
+      'reduce-motion': { title: 'Reduce Motion · 0.17 s into the cross-fade', note: 'everything at about half opacity at once: no rise, no scale, no spring', render: frame(175, null, true) },
+      'reduce-motion-end': { title: 'Reduce Motion · done at 0.35 s', render: frame(350, null, true) },
+      'ax5': { title: 'Accessibility 5 text size (intro done)', override: { ts: 'ax5' }, render: frame(LL.INTRO_MS) },
+    },
+
+    motion: [
+      { id: 'ground-fade', what: 'The launch ground fades out as the intro starts', token: 'quick easeOut 0.2 s', state: 'launch-ground', source: 'HassUI/App/RootView.swift firstFrame (showsLaunchGround)', reduce: 'unchanged (opacity)',
+        play: function (stage) { var g = stage.querySelector('.ll-launch'); LL.run(LL.INTRO_MS, function (t) { LL.introAt(root(stage), t, Mock.settings.reduceMotion); }); return Mock.sleep(300).then(function () { return A.fade(g, { from: 1, to: 0, ms: A.ms.quick() }); }).then(function () { return Mock.sleep(LL.INTRO_MS); }); } },
+      { id: 'intro', what: 'The intro: glow, header, form', token: 'glow easeOut 0.5 s · mark easeOut 0.28 s from 0.15 s then emphasized spring · header easeOut 0.4 s from 0.46 s (+10 pt) · form easeOut 0.45 s from 0.71 s (+28 pt) · ends at 1.16 s', state: 'launch-ground',
+        source: 'HassUI/Features/Login/LoginView.swift playIntro; HassDesign/Motion/MotionTokens.swift Intro', reduce: 'one 0.35 s cross-fade (crossFade), see the next item',
+        note: 'Telemetry.Name.intro is begun in playIntro and ended in the last completion; motion.md section 3 lists it as a once-per-session moment (MotionPolicy.markPlayed(.intro) via onIntroPlayed).',
+        play: function (stage) { return playIntro(stage, Mock.settings.reduceMotion); } },
+      { id: 'intro-reduced', what: 'The intro under Reduce Motion: one cross-fade', token: 'crossFade easeInOut 0.35 s (MotionTokens.reducedMoment)', state: 'launch-ground', source: 'LoginView.swift playIntro, reduceMotion branch', reduce: 'this is the Reduce Motion path',
+        play: function (stage) { return playIntro(stage, true); } },
+    ],
+
+    transitions: [
+      { from: 'Launch ground', to: 'Sign-in intro', kind: 'fade', state: 'launch-ground', note: 'The ground fades out over 0.2 s while the intro plays on the sign-in layer under it. Nothing else is shown first: no splash, no logo.',
+        play: function (stage) { var g = stage.querySelector('.ll-launch'); LL.run(LL.INTRO_MS, function (t) { LL.introAt(root(stage), t, Mock.settings.reduceMotion); }); return Mock.sleep(300).then(function () { return A.fade(g, { from: 1, to: 0, ms: A.ms.quick() }); }).then(function () { return Mock.sleep(LL.INTRO_MS); }); } },
+      { from: 'Intro done', to: 'Typing', kind: 'cut', state: 'default', note: 'The form is a plain screen from here on: tapping a row focuses its field and brings up the keyboard; the intro never plays again this session (MotionPolicy), until a sign-out resets it.',
+        play: function () { return Mock.sleep(600); } },
+    ],
+
+    a11y: [
+      { rule: 'Content is there from the start', note: 'The intro only changes opacity and offset; every element is in the accessibility tree from the first frame, so VoiceOver can read the form while it rises. The sign-in layer announces "Sign in".' },
+      { rule: 'Reduce Motion', note: 'One 0.35 s cross-fade (MotionTokens.reducedMoment): no rise, no scale, no spring. The glow still fades because opacity is not motion.' },
+      { rule: 'No keyboard', note: 'The intro does not focus a field, so the keyboard does not rise into the middle of the animation.' },
+      { rule: 'Flashing', note: 'One glow fade of 0.5 s and no flashes.' },
+      { rule: 'Hidden decoration', note: 'The launch ground, the glow and the mark are accessibilityHidden.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Launching: no splash; match the launch screen', verdict: 'pass', note: 'The first frame is SignInStyle.base, the launch screen colour (RootView.swift:92-101; SignInStyle.swift:12).', by: 'apple-hig skill' },
+        { rule: 'Motion: brief, optional, not repeated', verdict: 'pass', note: 'About 1.2 s once per session; Reduce Motion cross-fades in 0.35 s (LoginView.swift:196-203).', by: 'apple-hig skill' },
+        { rule: 'Motion: do not animate what cannot be seen', verdict: 'pass', note: 'LoginHeader fades the title on its own, so the mark\'s rise is visible from 0.15 s (LoginView passes titleShown/titleRise).', by: 'apple-hig skill' },
+        { rule: 'Entering data: password manager and keyboard flow', verdict: 'pass', note: 'Username and password content types, Next then Go, interactive keyboard dismissal (LoginFields.swift:45-77; LoginView.swift:74).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: announce a failure; stack at accessibility sizes', verdict: 'pass', note: 'AccessibilityNotification.Announcement on a failure (LoginView.swift:88-90); LoginRow stacks label over field at AX sizes (LoginRow.swift:17-21).', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: support both appearances', verdict: 'departure', note: 'Sign-in is always dark like the app it opens (LoginView.swift:80-81; direction-g.md Sign-in).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Screens that assume everything fits scroll', verdict: 'pass', note: 'A ScrollView with a minimum height and a 460 pt column cap handles the Duo\'s short outer display and iPad (LoginView.swift:66-75; SignInStyle.swift:20).', by: 'swiftui-pro skill' },
+        { rule: 'Delay on the animation, chain with completion', verdict: 'pass', note: '.delay(MotionTokens.Intro.*) and withAnimation completion blocks (LoginView.swift:205-217).', by: 'swiftui-pro skill' },
+        { rule: 'Focus helpers keep the field as the accessible control', verdict: 'pass', note: '.onTapGesture only forwards a tap on a row\'s padding to the field (LoginFields.swift:54, 79); the field keeps its own label and role.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Mark in the intro: LoginView applies opacity(stage.title) to the whole LoginHeader and the mark is inside it, so the 0.15 to 0.43 s rise is invisible and the mark appears together with the title (0.46 to 0.86 s) while settling 1.03 to 1. direction-g.md and motion.md say the mark springs in before the title; the code does not show that. Drawn as the code runs.',
+      'refreshing, loading, error, offline: not applicable to the intro itself. The sign-in layer has no connection; a server that cannot be reached is a Sign In result (pages/login, offline state).',
+      'A sign-out resets MotionPolicy, so the same intro plays again on the signed-out screen; a session that expires does the same (AppSession.sessionExpired calls signOut), so the welcome back screen also plays the full intro; see flows/session-expired-welcome-back.',
+      'Debug builds only: FENTON_SKIP_INTRO=1 skips the intro for journeys; FENTON_LAUNCHCOST measures the window.',
+      'Promote to kit: Mock.LL.introAt and LL.run (a sampled timeline: the same maths draws each frame and plays it), LL.launchGround.',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: seven frames of the intro, Reduce Motion, AX5, six devices, play and play (reduced).' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,24 @@
+{
+  "id": "context.precedents",
+  "version": 1,
+  "type": "noul",
+  "mode": "active",
+  "per_item": true,
+  "description": "Rank past merged PRs as precedents for a new task (asked per candidate after a keyword prefilter over the commit log). A ranked hint, never a gate.",
+  "instructions": "Is this past change a useful precedent for the new request (the same behavior, component or failure handled before): {item}?",
+  "state": {
+    "fields": [
+      "title",
+      "body"
+    ],
+    "max_chars": 4000
+  },
+  "accept": {
+    "min_confidence": 0.5
+  },
+  "target": {
+    "precision": 0.5
+  },
+  "output": "Pre-read hint line: past merged PRs worth opening, at most three.",
+  "evidence": "Unmeasured: too few PRs cite an earlier PR to score recall. Shown as an unverified hint (p at least 0.5, at most 3)."
+}

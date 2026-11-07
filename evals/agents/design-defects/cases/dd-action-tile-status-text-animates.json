@@ -1,0 +1,16 @@
+{
+  "id": "dd-action-tile-status-text-animates",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Action tiles (front door, left door, right door, chores tiles for sub-pages) have constantly animating status text?",
+  "surface": "security-door-tiles",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "ec679d73",
+  "fix_ref": "612ed254",
+  "fix_confidence": "high",
+  "expected": "A tile whose state has arrived must stop the pending shimmer; flag a settled tile whose status text keeps animating between two captures."
+}

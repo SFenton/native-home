@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ingredient row · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+  function one(i, checklist) { return K.ModuleList({ hasGlyphs: checklist !== false, rows: [F.ingredientRow(F.ING[i], { checklist: checklist })] }); }
+  function sw(ctx, items, o) { return F.swatches(ctx, items, Object.assign({ surfaces: ['sheet'], min: 300 }, o)); }
+  var W = 360;
+
+  Mock.mount({
+    kind: 'component', id: 'recipe-ingredient-row', title: 'Ingredient row, fact list, chip flow', area: 'food', status: 'shipped', frame: false,
+    summary: 'The rows of the recipe sheet\'s inset lists: an ingredient (mark, title with amount, chips, source and match lines), a fact (glyph, label, trailing value), a plain name (devices and equipment), a numbered step, the source link row, and the Add to Grocery List action in each of its states. All sit on the sheet cell (#2C2C2E dark, white light).',
+    source: ['apple/Sources/HassUI/Features/Food/RecipeDetailView.swift (IngredientRow, ChipFlow, GroceryAction, FactList, Notice)', 'apple/Sources/HassUI/Features/Food/RecipeDetailRows.swift (RecipeFactRow, RecipeLinkRow, RecipeStepRow, RecipeRowMetrics)', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipeDetail.swift', 'apple/Sources/HassCore/Recipes/RecipeFormatting.swift', 'apple/Sources/HassCore/Recipes/RecipeGroceryPolicy.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKModule.swift'],
+    spec: ['.agents/pages/food/spec.md', '.agents/pages/food/ios.md'],
+    patterns: ['module-list', 'modal-sheet', 'optimistic-actions'],
+    hig: ['Lists and tables', 'Buttons', 'Color', 'Dynamic Type', 'Accessibility'],
+    kitComponents: ['ModuleList', 'ModuleRow', 'PrimaryButton', 'InlineAlert', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'ingredient-states': { title: 'Ingredient row: every state', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'on hand: exact match, product', note: 'inStock: green filled check; chips from RecipeFormatting.chips', width: W, render: function () { return one(0); } },
+          { label: 'missing: empty circle', note: 'missing and a quantity caveat', width: W, render: function () { return one(1); } },
+          { label: 'uncertain: question mark', note: 'reads as not on hand; adds "Source:" and "Matched as" lines (only when they say more than the name)', width: W, render: function () { return one(2); } },
+          { label: 'staple', note: 'staples count as on hand', width: W, render: function () { return one(3); } },
+          { label: 'optional, missing', note: 'an "Optional" chip after the inventory label', width: W, render: function () { return one(4); } },
+          { label: 'user override: have it', note: 'an override wins over Pantryhub: green check, "Your override: have it"', width: W, render: function () { return one(5); } },
+        ]); } },
+      'grouped': { title: 'Groups', render: function (ctx) {
+        return sw(ctx, [{ label: 'two groups under their own headers (15 Semibold secondary)', width: 520, render: function () {
+          return h('div.fd-dc', ['Chicken', 'To finish'].map(function (g) { return h('div.fd-block', F.lhead(g), K.ModuleList({ hasGlyphs: true, rows: F.ING.filter(function (i) { return i.group === g; }).map(function (i) { return F.ingredientRow(i); }) })); }));
+        } }]); } },
+      'quantities-only': { title: 'Quantities-only list (no checklist)', note: 'when the capability is not .checklist: no mark column, hairlines at the 16 pt margin, only Optional and the quantity note as chips', render: function (ctx) {
+        return sw(ctx, [{ label: 'checklist: false', width: W, render: function () {
+          var list = [{ title: 'Chicken thighs · 6 pieces', notes: [] }, { title: 'Fresh thyme · a few sprigs', notes: ['Optional'] }, { title: 'Butter · 1–2 tbsp', notes: ['Source quantity is display-only'] }];
+          return K.ModuleList({ hasGlyphs: false, rows: list.map(function (r) { return F.ingredientRow(r, { checklist: false }); }) });
+        } }]); } },
+      'facts': { title: 'Fact rows, name lists, link row, notice', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'RecipeFactRow list: glyph, label, trailing value', width: W, render: function () { return K.ModuleList({ rows: [['Yield', 'Serves 4', 'person.2'], ['Prep Time', '15 min', 'timer'], ['Total Time', '1 hr', 'clock'], ['Difficulty', 'Easy', 'gauge.with.dots.needle.50percent']].map(F.factRow) }); } },
+          { label: 'FactList: a header and plain names', width: W, render: function () { return F.factList('Additional Equipment', ['Baking dish', 'Zester']); } },
+          { label: 'RecipeLinkRow in the action tint', note: '"Open Source Recipe" for a web recipe, "Open in Cookidoo" for Cookidoo; the link trait', width: W, render: function () { return K.ModuleList({ rows: [F.linkRow('Open Source Recipe')] }); } },
+          { label: 'Notice', width: W, render: function () { return F.notice('Servings, time, difficulty, and equipment are not available in the cached Cookidoo metadata.'); } },
+          { label: 'RecipeStepRow: number, text', note: 'Instructions: hairlines at the 16 pt margin, "Step 2. ..." as one element', width: W, render: function () { return K.ModuleList({ hasGlyphs: false, rows: [h('div.fd-step', h('b', '1.'), h('span', 'Heat the oven to 425°F and zest the lemons.')), h('div.fd-step', h('b', '2.'), h('span', 'Toss the chicken with garlic, olive oil, lemon juice and zest.'))] }); } },
+        ]); } },
+      'chip-flow': { title: 'Chip flow wraps', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'one line', width: W, render: function () { return F.chipFlow(['Staple', 'Optional']); } },
+          { label: 'wraps onto new lines (FlowLayout, 8 pt gaps)', width: 280, render: function () { return F.chipFlow(['Missing from Inventory', 'Optional', 'Your override: have it', 'Inventory quantity may be insufficient']); } },
+        ]); } },
+      'grocery': { title: 'Add to Grocery List: states', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'idle: button and its explanation', width: W, render: function () { return F.grocery('idle'); } },
+          { label: 'adding: inline arc, "Adding missing ingredients…"', width: W, render: function () { return F.grocery('adding'); } },
+          { label: 'added: green check and the server\'s sentence', width: W, render: function () { return F.grocery('added'); } },
+          { label: 'failed: button stays, error below', width: W, render: function () { return F.grocery('failed'); } },
+          { label: 'disabled: the reason replaces the explanation', width: W, render: function () { return F.grocery('disabled', 'All missing ingredients have already been added to groceries.'); } },
+        ]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'marks scale with the glyph column, chips and lines wrap whole words, facts put the value under the label', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'ingredient row', width: 420, render: function () { return one(2); } },
+          { label: 'fact row', width: 420, render: function () { return K.ModuleList({ rows: [F.factRow(['Prep Time', '15 min', 'timer'])] }); } },
+          { label: 'grocery action', width: 420, render: function () { return F.grocery('idle'); } },
+        ]); } },
+    },
+
+    motion: [
+      { id: 'grocery-swap', what: 'The button cross-fades into the green check and the result sentence', token: 'state 0.6 s ease-in-out (stateColorTransition "GroceryAction"); the check replaces with symbolEffect(.replace)', state: 'grocery',
+        source: 'HassUI/Features/Food/RecipeDetailView.swift GroceryAction', reduce: 'still cross-fades, shortened to 0.2 s',
+        play: function (stage) { var box = stage.querySelector('.fd-gro'); if (!box) return Promise.resolve(); var next = F.grocery('added'); box.replaceWith(next); return Mock.anim.fade(next, { ms: Mock.anim.ms.state() }).then(function () { return Mock.sleep(500); }); } },
+      { id: 'arc', what: 'The inline arc turns while the add is in flight', token: 'ArcSpinner inline: 0.82 s a turn, linear', state: 'grocery', source: 'HassDesign/ArcSpinner.swift', reduce: 'half speed, never frozen', play: function () { return Mock.sleep(1800); } },
+    ],
+
+    a11y: [
+      { rule: 'Ingredient row', note: 'One element: label = the title ("Lemons · 2"), value = "On hand" or "Not on hand" (a checklist only), hint = every chip and line joined as sentences ("Missing from Inventory. Inventory quantity may be insufficient."). The mark is hidden; its shape (check, question mark, empty circle) mirrors the spoken value. Identifier recipe.ingredient.<position>.' },
+      { rule: 'Fact row', note: 'label = "Prep Time", value = the spoken duration ("15 minutes"), glyph decorative; at accessibility sizes the value sits under the label.' },
+      { rule: 'Steps', note: '"Step 2. Toss the chicken ..." as one element (label), the number visible as "2." in secondary ink.' },
+      { rule: 'Link row', note: 'Button with the link trait; the arrow glyph is decorative; the whole 52 pt row is the target.' },
+      { rule: 'Chips', note: 'Chips are text on a 16% grey capsule in secondary ink (4.5:1 or better on the cell); they carry the same sentences the hint reads.' },
+      { rule: 'Grocery action', note: 'Button "Add to Grocery List", hint = the explanation ("Adds the missing ingredients for this recipe to your shopping list."); disabled it speaks as dimmed and the reason text replaces the hint; success and failure post announcements. 50 pt tall, full width.' },
+      { rule: 'Dynamic Type', note: 'Rows have a 52 pt minimum and grow; the mark column is @ScaledMetric so titles start at the hairline; nothing truncates.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists: row anatomy and Dynamic Type', verdict: 'pass', note: 'Mark, title, chips and source lines in a 52 pt minimum row that grows with its text (IngredientRow, RecipeRowMetrics).', by: 'apple-hig skill' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Filled check, empty circle and question mark differ in shape; chips say what is missing (IngredientRow.mark).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: unsure state is spoken', verdict: 'pass', note: 'RecipeDetailView ingredient row speaks RecipeFormatting.spokenValue, which adds "Match unsure" (RecipeFormattingTests).', by: 'apple-hig skill' },
+        { rule: 'Feedback: announce the result of Add to Grocery List', verdict: 'pass', note: 'The added or failed result is posted as an announcement and the button swaps with a cross-fade (GroceryAction, :421-428).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: hints describe the action', verdict: 'pass', note: 'Ingredient caveats, source and match moved from the hint into the accessibilityValue (RecipeFormatting.spokenValue).', by: 'swiftui-pro skill' },
+        { rule: 'Design: prefer system colours and hierarchical styles', verdict: 'pass', note: 'Fixed: on-hand and the checkmark use Ink.success and the chip fill is .fill.secondary (RecipeDetailView.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Button style and states', verdict: 'pass', note: 'GroceryAction uses PrimaryButtonStyle, disables with a reason line, and shows an inline arc while adding (:372-411).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Docs vs code: ios.md says fact rows drop the glyph at accessibility sizes; the code keeps it (ModuleRow lays out glyph and title in the first row and moves only the trailing value under them).',
+      'The fixture is FoodFixtures.detail: Lemon Garlic Chicken, six ingredients in two groups ("Chicken", "To finish"); chip text is what RecipeFormatting produces for each (quantity caveats included).',
+      'The grocery success sentence is feedback(): "Pantryhub: 2 added. Home Assistant mirror: 2 added." The failure sentence here is the generic one with one failed line.',
+      'Promote to kit: RecipeIngredientRow and ChipFlow (Food.ingredientRow, Food.chipFlow), GroceryAction (Food.grocery), the step row; all in pages/food/_food.js. The kit has no flow layout.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: six ingredient states, groups, quantities-only, facts and lists, chip flow, five grocery states, AX5.' }],
+  });
+})();
+</script></body></html>

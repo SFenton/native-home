@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Suggested recipes carousel · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+  function car(ctx, o) { return F.carousel(Object.assign({ ctx: ctx }, o)); }
+  /* The carousel at width w inside its 16 pt page margin: a next page may peek into the margin and no further (the device edge clips it on the hub). */
+  function box(ctx, o) { return h('div', { style: { width: (o.width + 16) + 'px', overflow: 'hidden' } }, h('div', { style: { width: o.width + 'px' } }, car(ctx, o))); }
+  function sw(ctx, items, o) { return F.swatches(ctx, items, Object.assign({ surfaces: ['page'], min: 300 }, o)); }
+  /* Widths the carousel meets: iPhone 370 (402 less 16 pt margins), the folded Duo 351, a split column on iPad landscape 569, iPad portrait 802, wide 900+ (two rows). */
+  var W = { iphone: 370, duo: 351, split: 569, ipadp: 802, wide: 930 };
+  function at(w) { return w + 16; }   /* the carousel's width plus its 16 pt margin; the swatch adds its own 14 pt padding each side */
+
+  Mock.mount({
+    kind: 'component', id: 'suggested-recipes-carousel', title: 'Suggested recipes carousel (paged)', area: 'food', status: 'shipped', frame: false,
+    summary: 'The Food hub\'s Suggested Recipes: five swipeable pages of compact recipe cards, the section header carrying "Page 1 of 5" (it follows the scroll), and page dots under the cards. Columns follow the width, three rows on narrow windows and two on wide ones, two rows of wider cards at accessibility sizes.',
+    source: ['apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKFoodHubViewController.swift (FoodSection)', 'apple/Sources/HassUI/Features/Food/FoodModels.swift (SuggestedRecipesModel)', 'apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift', 'apple/Sources/HassDesign/ImageCard.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift'],
+    spec: ['.agents/pages/food/spec.md', '.agents/pages/food/ios.md', '.agents/patterns/image-card.md', '.agents/patterns/content-gate.md'],
+    patterns: ['image-card', 'content-gate', 'dynamic-grid'],
+    hig: ['Collections', 'Page controls', 'Scroll views', 'Dynamic Type'],
+    kitComponents: ['ImageCard', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'ready': { title: 'Ready: page 1 of 5 at iPhone width', note: 'two columns by three rows; the next page peeks into the 16 pt margin', render: function (ctx) {
+        return sw(ctx, [{ label: 'iPhone, 370 pt', width: at(W.iphone), render: function () { return box(ctx, { phase: 'ready', width: W.iphone }); } }]); } },
+      'page-3': { title: 'Page 3 of 5', render: function (ctx) {
+        return sw(ctx, [{ label: 'iPhone, page 3: the header and the dots follow the position', width: at(W.iphone), render: function () { return box(ctx, { phase: 'ready', page: 2, width: W.iphone }); } }]); } },
+      'loading': { title: 'Loading: five placeholder pages', note: 'empty modules in the cards\' place so the frame keeps its height; on the hub they are hidden behind the page gate, and show only if the gate gives up after 10 s', render: function (ctx) {
+        return sw(ctx, [{ label: 'phase loading', width: at(W.iphone), render: function () { return box(ctx, { phase: 'loading', width: W.iphone }); } }]); } },
+      'failed': { title: 'Failed: "Suggestions Unavailable"', note: 'no "Page n of 5", no dots; only when nothing was loaded before (an earlier success keeps its cards)', render: function (ctx) {
+        return sw(ctx, [{ label: 'phase failed', width: at(W.iphone), render: function () { return box(ctx, { phase: 'failed', width: W.iphone }); } }]); } },
+      'empty': { title: 'Empty answer: header only', note: 'no copy exists for an empty list: one empty page, no detail and no dots (code)', render: function (ctx) {
+        return sw(ctx, [{ label: 'phase ready, no cards', width: at(W.iphone), render: function () { return box(ctx, { phase: 'empty', width: W.iphone }); } }]); } },
+      'widths': { title: 'Layout by width (web recommendationLayout)', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'folded Duo, 351 pt: 2 columns, 3 rows', width: at(W.duo), render: function () { return box(ctx, { phase: 'ready', width: W.duo }); } },
+          { label: 'split column on iPad landscape, 569 pt: 3 columns, 3 rows, pages clipped to the column', width: at(W.split), render: function () { return box(ctx, { phase: 'ready', width: W.split, clips: true }); } },
+          { label: 'iPad portrait, 802 pt: 4 columns, 3 rows', width: at(W.ipadp), render: function () { return box(ctx, { phase: 'ready', width: W.ipadp }); } },
+          { label: '930 pt and wider: 2 rows', width: at(W.wide), render: function () { return box(ctx, { phase: 'ready', width: W.wide }); } },
+        ], { min: 400 }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'cards are 440 pt cells (one column on iPhone) in two rows; each card is a row with a 72 pt thumbnail; the next page no longer peeks (pages clip, the dots carry the paging)', render: function (ctx) {
+        return sw(ctx, [{ label: 'iPhone at AX5', width: at(W.iphone), render: function () { return box(ctx, { phase: 'ready', width: W.iphone }); } }]); } },
+    },
+
+    motion: [
+      { id: 'paging', what: 'Paging: the pages slide one viewport; "Page n of 5" and the dots follow', token: 'swipe: system scroll with viewport paging; VoiceOver adjustable action: standard 0.3 s smooth', state: 'ready',
+        source: 'HassUI/Features/Food/SuggestedRecipesCarousel.swift (pagesScrollViewByViewport, accessibilityAdjustableAction)', reduce: 'the adjustable action jumps to the page (no animation); a finger swipe stays the system scroll',
+        play: function (stage) { var c = stage.querySelector('[aria-label="Suggested recipes"]'); return c ? c.go(1, true).then(function () { return Mock.sleep(500); }).then(function () { return c.go(2, true); }).then(function () { return Mock.sleep(500); }).then(function () { return c.go(0, true); }) : Promise.resolve(); } },
+      { id: 'photo-fade', what: 'Each photo fades in as it arrives', token: 'quick 0.2 s ease-out', state: 'ready', source: 'HassDesign/Images/CachedImage.swift', reduce: 'not gated on Reduce Motion (opacity only)',
+        play: function (stage) { var ph = Array.prototype.slice.call(stage.querySelectorAll('.fd-page[data-page="0"] .ui-img .photo')); ph.forEach(function (p) { p.style.opacity = 0; }); return Mock.sleep(60).then(function () { return Promise.all(ph.map(function (p, i) { return Mock.sleep(i * 40).then(function () { return Mock.anim.fade(p, { ms: Mock.anim.ms.quick() }); }); })); }).then(function () { ph.forEach(function (p) { p.style.opacity = ''; }); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Container', note: 'The section is a container labelled "Suggested recipes" (identifier food.suggestions) holding the header, the cards and the page control; the header is a heading with the value "Page 1 of 5".' },
+      { rule: 'Cards', note: 'Each card is its caption: label = the title, hint "Opens recipe details", button; identifiers food.suggestion.<id>.' },
+      { rule: 'Page control', note: 'One adjustable element: label "Suggestion page", value "2 of 5"; swipe up goes to the next page and down to the previous, clamped at the ends; the frame is at least 44 pt tall and the whole strip is its hit area; the dots are decorative. Under Reduce Motion the pages jump instead of sliding.' },
+      { rule: 'Failure', note: '"Suggestions Unavailable" with its description is one container, identifier food.suggestions.error.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes cells are 440 pt (one column on iPhone), two rows, ImageCard rows with 72 pt thumbnails and untruncated titles; the unreadable sliver of the next page is replaced by clipping.' },
+      { rule: 'Reduce Transparency', note: 'The placeholder modules go opaque (#1C1C1E).' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Page controls: tap to move, bounded count', verdict: 'pass', note: 'SuggestedRecipesCarousel uses the shared PageIndicator (HassDesign/PageIndicator.swift): a two-zone tap strip, adjustable action kept, "n of N" past ten pages.', by: 'apple-hig skill' },
+        { rule: 'Collections: paging with a peek', verdict: 'pass', note: 'Next page peeks at standard sizes and clips at accessibility sizes (:88-91); columns follow the width, rows 3 or 2.', by: 'apple-hig skill' },
+        { rule: 'Loading: keep the layout stable', verdict: 'pass', note: 'Five placeholder pages draw empty modules so the frame does not jump (:105-111).', by: 'apple-hig skill' },
+        { rule: 'Empty states: say what happened', verdict: 'pass', note: 'SuggestedRecipesCarousel shows "No Suggestions Yet" for a ready phase with no items.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Performance: one top-level view per ForEach element', verdict: 'pass', note: 'Each slot is a SuggestionSlot, one top-level view whatever the phase.', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: adjustable and reduce motion', verdict: 'pass', note: 'accessibilityAdjustableAction pages without animation when Reduce Motion is on (:141-144).', by: 'swiftui-pro skill' },
+        { rule: 'Scroll APIs', verdict: 'pass', note: 'scrollPosition(id:), scrollTargetLayout and containerRelativeFrame replace a GeometryReader for page width (:75-90).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Docs vs code: spec.md says columns clamp(ceil((w + 10) / 230), 2...10) and rows 3 (2 at 900 pt or more): the code agrees (layout()). The catalog hint "five placeholder pages while loading" is exact: loading always draws five pages.',
+      'The swatch width here equals the carousel\'s own width plus the swatch padding; the carousel re-lays itself out from its real width (ResizeObserver), as the app\'s onGeometryChange does.',
+      'On the hub the carousel sits inside a FoodSection (header 20 Bold, 12 pt to content); the inner stack uses 8 pt between the cards and the dots.',
+      'Promote to kit: Food.carousel as SuggestedRecipesCarousel (with .go for the adjustable action).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: ready, page 3, loading, failed, empty, five widths, AX5; paging and photo fade motion.' }],
+  });
+})();
+</script></body></html>

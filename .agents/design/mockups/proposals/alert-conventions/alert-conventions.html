@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alert Conventions</title>
+<style>
+/* One reading column, then a convention table: each surface today beside the proposal, drawn as live-size alerts. */
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--code:#eceef2;--card:rgba(246,246,248,.96);--cardfg:#111;--blue:#0a64d0;--red:#c21717;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;--mono:ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--code:#20242b;--card:rgba(44,46,52,.96);--cardfg:#f2f2f5;--blue:#4da3ff;--red:#ff6961;color-scheme:dark}}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui);margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-right)) 72px max(16px,env(safe-area-inset-left))}
+.col{max-width:70ch}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.1;margin:0 0 12px;text-wrap:balance}
+h2{font-size:24px;margin:48px 0 8px}
+p{margin:0 0 12px}.lede{font-size:18px;color:var(--fg2)}
+code{font-family:var(--mono);font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface)}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg2)}
+.scroll{overflow-x:auto}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--accent);color:var(--accent)}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:12px 0 28px}
+.cell{background:linear-gradient(160deg,#2c4256,#0b1118);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.cell>.cap{color:#c9d3de;font-size:13px}.cell>.cap b{color:#fff}
+.alert{width:270px;max-width:100%;margin:0 auto;border-radius:14px;background:var(--card);color:var(--cardfg);text-align:center;overflow:hidden}
+.alert .bd{padding:18px 16px 14px}.alert .ti{font-weight:600;font-size:17px;line-height:1.25}.alert .ms{font-size:13px;margin-top:4px}
+.alert .btns{display:flex;border-top:1px solid rgba(128,128,128,.35)}
+.alert.ax .btns,.alert.stack .btns{flex-direction:column}
+.alert .btns button{flex:1;font:inherit;font-size:17px;background:none;border:0;color:var(--blue);padding:11px 6px;min-height:44px}
+.alert.ax .btns button+button,.alert.stack .btns button+button{border-top:1px solid rgba(128,128,128,.35)}
+.alert .btns button+button{border-left:1px solid rgba(128,128,128,.35)}
+.alert.ax .btns button+button,.alert.stack .btns button+button{border-left:0}
+.alert .btns .d{color:var(--red)}.alert .btns .b{font-weight:600}
+.alert.ax{width:300px}.alert.ax .ti{font-size:28px}.alert.ax .ms{font-size:22px}.alert.ax .btns button{font-size:28px;min-height:60px}
+.sheet{width:100%;max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.sheet .card{background:var(--card);border-radius:14px;color:var(--cardfg);overflow:hidden;text-align:center}
+.sheet .hd{padding:12px;font-size:13px;color:#8a8a8e;border-bottom:1px solid rgba(128,128,128,.3)}
+.sheet button{display:block;width:100%;font:inherit;font-size:20px;background:none;border:0;color:var(--blue);padding:14px;min-height:44px}
+.sheet button.d{color:var(--red)}
+.rec{border-left:4px solid var(--accent);padding:4px 16px;background:var(--surface)}
+</style></head><body><div class="wrap">
+<span class="tag">Decided (2026-10-24): the table as written, copy in one AlertCopy namespace</span>
+<h1>One convention for alerts and confirmations</h1>
+<div class="col">
+<p class="lede">The same decision is asked in different words, styles and presenters across the app. This proposes one convention and shows each affected surface as it is today beside the proposal. Decided (2026-10-24): adopt the table as written, with all copy in one <code>AlertCopy</code> namespace. Sign Out is an alert in both places and destructive-styled; the grocery-removal confirmation is dropped; Disarm keeps Cancel leading with a plain Disarm as the bold default. Built; see <code>.agents/patterns/alerts.md</code>.</p>
+
+<h2>Cause</h2>
+<p>The mockup atlas review (#144) found 19 findings where one decision is asked two ways, 6 where an irreversible or bulk action asks nothing (or a cheap one asks too much) and 5 where an alert does not say what happened or what to do next. Evidence: Sign Out is an <code>alert</code> titled “Sign Out of Home Assistant?” in the Account sheet (<code>YourSummarySheet.swift</code>) and a <code>confirmationDialog</code> titled “Sign out of Home Assistant?” in Home Assistant settings (<code>HomeAssistantSettingsView.swift</code>); Vacation Mode asks a nine-word title that wraps at larger sizes; Disarm, Turn Off and the vacuum switch carry <code>.destructive</code> on actions the person just chose.</p>
+<p>Presenter attachment (dialogs on the Delete button, failure alert split from the Sign Out button, item-based presentation) is behaviour-preserving and is already built or queued as path A on this branch; it needs no decision.</p>
+</div>
+
+<h2>The convention</h2>
+<div class="scroll"><table>
+<tr><th>Rule</th><th>Today</th><th>Proposed</th><th>HIG</th></tr>
+<tr><td>Which presenter</td><td>Sign Out: alert and dialog. Vacuum switch: dialog and alert.</td><td><b>Alert</b> for a yes/no about a state change or session (Sign Out, Disarm, Turn Off Vacation Mode, Switch to Rooms, End Solo Trip, Reset). <b>Confirmation dialog, on the control that raised it,</b> for deleting a thing (alarm, activity, task, item).</td><td>Alerts: critical information; Action sheets: choices tied to an intentional action</td></tr>
+<tr><td>Title</td><td>Sentence case and Title Case mixed; “Are you sure you want to…”</td><td>Title Case, a short question naming the object: “Turn Off Vacation Mode?”</td><td>Alerts: succinct title, no wrapping past two lines</td></tr>
+<tr><td>Destructive role</td><td>Disarm, Turn Off Vacation, Clear Image Cache</td><td>Only where data is lost: Delete, Sign Out, Reset Measurements. Disarm, Turn Off and Switch to Rooms are plain; the default button is the confirming one.</td><td>Alerts: destructive for actions people did not deliberately choose… never as the default</td></tr>
+<tr><td>Cancel</td><td>Missing on the Activity dialog</td><td>Every alert has Cancel; a dialog has it (compact) and drops it on a popover automatically.</td><td>Action sheets: always a cancel</td></tr>
+<tr><td>Delete button</td><td>“Delete Alarm” ×2, “Delete Activity”, “Delete Task”, “Delete Item”, “Delete”</td><td>“Delete <Noun>” everywhere, title “Delete <name>?”, and a name too long for a title moves to the message.</td><td>Alerts: titles and buttons describe the action</td></tr>
+<tr><td>Failure</td><td>“Sign Out couldn’t complete. Try again.” + OK, two literals</td><td>Title “Couldn’t Sign Out”, message “Check your connection and try again.”, buttons Try Again and Cancel; one shared string.</td><td>Alerts: say what happened and what to do</td></tr>
+<tr><td>Retry label</td><td>Retry (Recipes), Try Again (Inventory, HA web page)</td><td>Try Again</td><td>Consistency</td></tr>
+</table></div>
+
+<h2>Surface by surface: today and proposed</h2>
+<div id="pairs"></div>
+
+<h2>Actions that do not confirm today</h2>
+<div class="scroll"><table>
+<tr><th>Surface</th><th>Today</th><th>Proposed</th></tr>
+<tr><td>Custom Lights: Apply to All Lights, Reset All Lights</td><td>One tap overwrites every light, no undo.</td><td>Alert, plain default: “Apply to All Lights?” / “Reset All Lights?” with the count in the message.</td></tr>
+<tr><td>Performance: Reset Measurements</td><td>Erases the whole log at once.</td><td>Alert with a destructive Reset. Clear Image Cache stays instant (the cache refills).</td></tr>
+<tr><td>Solo Trip: toggle off, End Solo Trip Now</td><td>Cancels the plan at once; Vacation Mode asks.</td><td>Alert “End Solo Trip?”, like Vacation Mode.</td></tr>
+<tr><td>Inventory editor: Delete (single unit)</td><td>Deletes at once; the page asks first.</td><td>The same dialog as the page.</td></tr>
+<tr><td>Groceries: remove an item</td><td>Always asks; items are cheap to re-add.</td><td>No confirmation (the swipe is the deliberate act).</td></tr>
+<tr><td>High AQI Mode (every purifier)</td><td>No alert, no feedback.</td><td>Stays alert-free (reversible); a success haptic belongs to the Feedback bucket.</td></tr>
+</table></div>
+
+<h2>Recommendation</h2>
+<div class="rec">
+<p>Adopt the table as written. It touches <code>VacationConfig</code>, <code>VacationModeScreen</code>, <code>SecuritySystemSheet</code>, <code>VacuumTabs</code>, <code>VacuumMapPanel</code>, both sign-out sites, the three delete editors, <code>CustomLight*</code>, <code>PerformanceScreen</code>, <code>SoloTripScreen</code> and <code>InventoryItemEditor</code>. Copy moves into one <code>AlertCopy</code> namespace (as <code>LoginCopy</code> does), unit tested for strings and roles, with a UX and an accessibility test (name, role, 44 pt buttons, AX5 stacking) on iPhone, Duo and iPad. No new components.</p>
+</div>
+
+<h2>Open questions (answered 2026-10-24)</h2>
+<ul>
+<li>Sign Out as an alert in both places (recommended; Cancel stays visible on iPad) or a dialog in both? <strong>Answer: an alert in both places.</strong></li>
+<li>Is Sign Out destructive-styled (recommended; it discards the session) or plain? <strong>Answer: destructive-styled.</strong></li>
+<li>Drop the grocery-removal confirmation, or keep it for consistency with tasks? <strong>Answer: dropped.</strong></li>
+<li>Should Disarm keep Cancel on the left and a plain Disarm as the bold default? <strong>Answer: yes.</strong></li>
+</ul>
+</div>
+<script>
+function alertEl(a,ax){
+  var d=document.createElement('div');d.className='alert'+(ax?' ax':'')+((a.btns.length>2)?' stack':'');
+  d.setAttribute('role','alertdialog');d.setAttribute('aria-label',a.t);
+  d.innerHTML='<div class="bd"><div class="ti"></div>'+(a.m?'<div class="ms"></div>':'')+'</div><div class="btns"></div>';
+  d.querySelector('.ti').textContent=a.t;if(a.m)d.querySelector('.ms').textContent=a.m;
+  a.btns.forEach(function(b){var x=document.createElement('button');x.type='button';x.textContent=b[0];x.className=(b[1]||'');d.querySelector('.btns').appendChild(x)});
+  return d;}
+function sheetEl(s){
+  var d=document.createElement('div');d.className='sheet';d.setAttribute('role','dialog');d.setAttribute('aria-label',s.t);
+  var c=document.createElement('div');c.className='card';var h=document.createElement('div');h.className='hd';h.textContent=s.t;c.appendChild(h);
+  s.btns.forEach(function(b){var x=document.createElement('button');x.type='button';x.textContent=b[0];x.className=b[1]||'';c.appendChild(x)});
+  d.appendChild(c);var k=document.createElement('div');k.className='card';k.innerHTML='<button type="button" style="font-weight:600">Cancel</button>';d.appendChild(k);return d;}
+function node(x,ax){return x.sheet?sheetEl(x):alertEl(x,ax)}
+var rows=[
+ {n:'Sign out (Account sheet and Home Assistant settings)',
+  o:{t:'Sign out of Home Assistant?',sheet:1,btns:[['Sign Out','d']]},
+  p:{t:'Sign Out of Home Assistant?',m:'You’ll need your username and password to sign in again.',btns:[['Cancel','b'],['Sign Out','d']]}},
+ {n:'Sign out failed',
+  o:{t:'Sign Out couldn’t complete. Try again.',btns:[['OK','b']]},
+  p:{t:'Couldn’t Sign Out',m:'Check your connection and try again.',btns:[['Cancel',''],['Try Again','b']]}},
+ {n:'Turn off Vacation Mode',
+  o:{t:'Are you sure you want to turn off Vacation Mode?',btns:[['Cancel','b'],['Turn Off','d']]},
+  p:{t:'Turn Off Vacation Mode?',m:'Your checklist and helpers reset.',btns:[['Cancel','b'],['Turn Off','b']]}},
+ {n:'Disarm the security system',
+  o:{t:'Disarm the Security System?',btns:[['Cancel','b'],['Disarm','d']]},
+  p:{t:'Disarm the Security System?',btns:[['Cancel',''],['Disarm','b']]}},
+ {n:'Vacuum: leave the drawn area',
+  o:{t:'Switch to Rooms',m:'Your drawn area will be discarded.',btns:[['Cancel','b'],['Continue','']]},
+  p:{t:'Switch to Rooms?',m:'Your drawn area will be discarded.',btns:[['Cancel',''],['Switch to Rooms','b']]}},
+ {n:'Delete an activity (humidifier)',
+  o:{t:'Delete Evening Humidify?',sheet:1,btns:[['Delete Activity','d']]},
+  p:{t:'Delete Evening Humidify?',sheet:1,btns:[['Delete Activity','d']]},
+  note:'Same copy; the dialog now has Cancel and anchors to the Delete button on every editor.'}
+];
+var host=document.getElementById('pairs');
+rows.forEach(function(r){
+  var h=document.createElement('h3');h.textContent=r.n;h.style.margin='20px 0 0';host.appendChild(h);
+  [false,true].forEach(function(ax){
+    var g=document.createElement('div');g.className='pair';
+    [['Today',r.o],['Proposed',r.p]].forEach(function(e){
+      var c=document.createElement('div');c.className='cell';
+      c.innerHTML='<div class="cap"><b>'+e[0]+'</b> · '+(ax?'accessibility size':'default size')+'</div>';
+      c.appendChild(node(e[1],ax));g.appendChild(c);});
+    host.appendChild(g);});
+  if(r.note){var p=document.createElement('p');p.textContent=r.note;host.appendChild(p)}
+});
+</script></body></html>

@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tile rollout: Settings and more · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/settings/_household-forms.js"></script>
+<script src="../../pages/vacation/_vacation-sprinklers.js"></script>
+<script src="../../pages/sprinklers/_vacation-sprinklers.js"></script>
+<script src="../../pages/chores/_chores.js"></script>
+<script src="../../modals/room-devices/_devices-vacuums.js"></script>
+<script src="../../modals/vacuums/_devices-vacuums.js"></script>
+<script src="../action-navigation-tiles/_action-tiles.js"></script>
+<script src="../selection-tiles/_selection.js"></script>
+<script src="_rollout.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, RO = Mock.ro, SEL = Mock.sel, HF = window.HF, V = Mock.VS.V, VC = V.copy, SP = Mock.VS.S, vac = Mock.dv.vac, Chores = window.Chores;
+  var G = HF.GREEN, CT = HF.CONTROL;
+
+  function seq(steps) { return steps.reduce(function (p, s) { return p.then(s); }, Promise.resolve()); }
+  function hold(ms) { return function () { return Mock.sleep(ms); }; }
+  function box(kids) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '78ch' } }, kids); }
+  function table(head, rows, shade) {
+    return h('div.k-table-wrap', h('table.ro-cmp', h('thead', h('tr', head.map(function (x, i) { return h('th' + (shade === i ? '.c' : ''), x); }))),
+      h('tbody', rows.map(function (r) { return h('tr', r.map(function (x, i) { return h('td' + (shade === i ? '.c' : ''), x); })); }))));
+  }
+  function spage(ctx, key, body) { return Mock.page(ctx, { title: HF.PAGES[key].title, section: 'settings', back: 'Settings', badge: 3, choresBadge: 2, body: [HF.col(body)] }); }
+
+  /* ================================================================== 18-22 Admin */
+  var ROOMS = HF.ROOMS, ON = { 'Living Room': 1, 'Kitchen': 1, 'Bedroom 1': 1, 'Bathroom 1': 1, 'Office': 1, 'Hallway': 1 };
+  /** A settings switch as an action tile: text, power disc (green family, the Settings tint). */
+  function pwr(title, on, un, disc) {
+    return RO.act({ title: title, sub: un ? 'Unavailable' : (on ? 'On' : 'Off'), tint: G, active: on && !un, unavailable: un, disc: disc || 'power', discOn: on && !un, label: title });
+  }
+  function admin(ctx, mode, un) {
+    var S = HF.section;
+    return spage(ctx, 'admin', [
+      S('security', RO.pair(mode, { today: [HF.tile({ title: 'Front Door Auto-Lock', symbol: 'lock.shield', on: true, unavailable: un }), HF.tile({ title: 'Front Door Auto-Lock', symbol: 'lock.shield', on: false, unavailable: un })],
+        prop: [pwr('Front Door Auto-Lock', true, un, 'lock.fill'), pwr('Front Door Auto-Lock', false, un, 'lock.open')] }, { min: 240, max: 2 })),
+      S('power', RO.pair(mode, { today: [K.GlassTile({ title: 'Attempt to turn power back on', symbol: 'bolt.fill', tint: G, isActive: true, kind: 'command' }),
+          K.GlassTile({ title: 'Attempt to turn power back on', subtitle: 'Didn\'t Respond', symbol: 'bolt.fill', tint: G, isActive: true, isError: true, kind: 'command' })],
+        prop: [RO.act({ title: 'Attempt to turn power back on', tint: G, active: true, disc: 'bolt.fill', momentary: true, label: 'Run power recovery' }),
+          RO.act({ title: 'Attempt to turn power back on', sub: 'Didn\'t Respond', tint: G, active: true, error: true, disc: 'bolt.fill', momentary: true, label: 'Run power recovery' })] }, { min: 240, max: 2 })),
+      S('relay', [RO.pair(mode, { today: [HF.tile({ title: 'Relay Control Mode', symbol: 'switch.2', on: false, unavailable: un }), HF.tile({ title: 'Relay Control Mode', symbol: 'switch.2', on: true, unavailable: un })],
+        prop: [pwr('Relay Control Mode', false, un), pwr('Relay Control Mode', true, un)] }, { min: 240, max: 2 }),
+        K.InlineAlert({ message: HF.COPY.warning }), RO.note('The warning shows while Relay Control Mode and Guest Room guest mode are both on (unchanged).')]),
+      S('show', RO.pair(mode, { today: [HF.tile({ title: 'Outdoor Faucets', symbol: 'drop', on: true, unavailable: un }), HF.tile({ title: 'Holiday Lights', symbol: 'sparkles', on: false, unavailable: un })],
+        prop: [pwr('Outdoor Faucets', true, un), pwr('Holiday Lights', false, un)] }, { min: 200, max: 2 })),
+    ]);
+  }
+  function autoReset(ctx, mode, un) {
+    var today = ROOMS.map(function (r) { return HF.tile({ title: r[0], symbol: 'arrow.triangle.2.circlepath', on: !!ON[r[0]], unavailable: un }); });
+    var prop = ROOMS.map(function (r) { return pwr(r[0], !!ON[r[0]], un); });
+    return Mock.sheet(ctx, { title: 'Presence Auto-Reset', detent: 'large', size: 'page', trailing: 'close',
+      content: h('div', { style: { padding: '8px 0 0' } }, RO.pair(mode, { today: today, prop: prop }, { min: 150, max: 4 })) });
+  }
+
+  /* ================================================================== 23 High AQI, 24 Guests */
+  var AQI = { title: 'Turn On High AQI Mode?', message: 'This changes every air purifier in the house.', confirm: 'Turn On' };
+  function aqiTiles(on, un) { return { today: [HF.tile({ title: 'High AQI Mode', symbol: 'air.purifier', on: on, unavailable: un })], prop: [pwr('High AQI Mode', on, un)] }; }
+  function aqi(ctx, mode, un) {
+    var a = aqiTiles(false, un), b = aqiTiles(true, un);
+    return spage(ctx, 'special-device-modes', [HF.section('aqi', RO.pair(mode, { today: a.today.concat(b.today), prop: a.prop.concat(b.prop) }, { min: 240, max: 2 }))]);
+  }
+  function aqiAlert(ctx, turningOn) {
+    var t = turningOn ? aqiTiles(false) : aqiTiles(true);
+    var page = spage(ctx, 'special-device-modes', [HF.section('aqi', RO.pair('prop', { prop: t.prop }, { min: 240, max: 2 }))]);
+    return RO.alertOver(page, turningOn ? AQI : { title: 'Turn Off High AQI Mode?', message: AQI.message, confirm: 'Turn Off' }, ctx);
+  }
+  /** Guest Controls drawn like the Home page's guest tiles (occupancy family, power disc, "Guests staying"). */
+  function guestTile(title, on, un) {
+    return RO.act({ title: title, sub: un ? 'Unavailable' : (on ? 'Guests staying' : 'No guests'), family: 'occupancy', active: on && !un, unavailable: un, disc: 'power', discOn: on && !un, label: title });
+  }
+  function guests(ctx, mode, un) {
+    var rooms = [['Guest Room', 'bed.double', true], ['Studio', 'guitars', false], ['Media Room', 'videoprojector', false]];
+    return spage(ctx, 'guests', [HF.section('guests', RO.pair(mode, {
+      today: rooms.map(function (r) { return HF.tile({ title: r[0], symbol: r[1], on: r[2], unavailable: un }); }),
+      prop: rooms.map(function (r) { return guestTile(r[0], r[2], un); }) }, { min: 150, max: 6 }))]);
+  }
+
+  /* ================================================================== 25 car (sub-choice) */
+  function doors(state) {
+    var m = {
+      locked: { sub: 'Locked', active: false, disc: 'lock.fill', on: false, label: 'Unlock' },
+      unlocking: { sub: 'Unlocking…', active: true, disc: 'lock.open', on: true, busy: true, label: 'Unlocking' },
+      unlocked: { sub: 'Unlocked', active: true, disc: 'lock.open', on: true, label: 'Lock' },
+      jammed: { sub: 'Jammed', error: true, disc: 'lock.trianglebadge.exclamationmark', on: true, label: 'Lock' },
+      unavailable: { sub: 'Unavailable', unavailable: true, disc: 'lock.fill', on: false, label: 'Unlock' },
+    }[state];
+    return RO.act({ title: 'Doors', sub: m.sub, tint: CT, active: !!m.active, error: !!m.error, unavailable: !!m.unavailable, disc: m.disc, discOn: !!m.on && !m.error, busy: !!m.busy, label: m.label });
+  }
+  function machTiles(doorsNode) {
+    return [HF.stateTile({ title: 'Charge Status', symbol: 'ev.charger', subtitle: 'Plugged In', active: false }), doorsNode,
+      HF.stateTile({ title: 'Driver\'s Seat', symbol: 'carseat.left', subtitle: 'Off', active: false }), HF.stateTile({ title: 'Passenger Seat', symbol: 'carseat.left', subtitle: 'Heat', active: true }),
+      HF.stateTile({ title: 'Climate', symbol: 'windshield.front.and.heat.waves', subtitle: '72', active: false })];
+  }
+  function machBody(rows) {
+    return h('section.ui-settings', { style: { gap: '8px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, 'Charge Status'), RO.stack(rows));
+  }
+  function machE(ctx, states) {
+    var rows = [{ label: 'Today · option A: keep read-only', kind: 'today', tiles: machTiles(HF.stateTile({ title: 'Doors', symbol: 'lock', subtitle: 'Locked', active: false })), min: 150, max: 4 },
+      { label: 'Option B: Doors acts', kind: 'prop', tag: 'RECOMMENDED', tiles: machTiles(doors('locked')), min: 150, max: 4 }];
+    if (states) rows.push({ label: 'Option B: every Doors state', kind: 'prop', tiles: ['locked', 'unlocking', 'unlocked', 'jammed', 'unavailable'].map(doors), min: 150, max: 4,
+      note: 'Locked, Unlocking (arc in the disc), Unlocked (filled, white disc), Jammed (red, a different glyph), Unavailable (dims in place). Same states as the Security page tile.' });
+    return spage(ctx, 'mach-e', [machBody(rows)]);
+  }
+
+  /* ================================================================== 26 Chores quick links (sub-choice) */
+  function aSub(l, zero) {
+    var c = zero ? { total: 0, overdue: 0 } : Chores.counts(l.page);
+    if (l.grocery) return c.total ? c.total + (c.total === 1 ? ' item' : ' items') : 'No groceries listed';
+    return c.total ? c.total + ' open' + (c.overdue ? ' · ' + c.overdue + ' overdue' : '') : 'Nothing open';
+  }
+  /** variant: 'today' | 'A' (count in the subtitle) | 'B' (count badge beside the chevron). */
+  function links(o, variant) {
+    var sec = Chores.quickLinks(o);
+    if (variant === 'today') return sec;
+    var viewer = o.viewer === undefined ? 'alex' : o.viewer;
+    Array.prototype.slice.call(sec.querySelectorAll('.cz-ql')).forEach(function (w, i) {
+      var l = Chores.LINKS[i], title = Chores.linkTitle(l, viewer), count = o.zero ? 0 : Chores.counts(l.page).total, tile;
+      if (variant === 'A') tile = RO.nav({ title: title, sub: aSub(l, o.zero), symbol: l.symbol, family: l.family, active: true });
+      else {
+        tile = RO.nav({ title: title, sub: Chores.subtitle(l.page, o.zero), symbol: l.symbol, family: l.family, active: true, accessory: count ? h('span.ro-ct', { 'aria-hidden': 'true' }, String(count)) : null, accessoryWidth: 58 });
+        if (count) tile.classList.add('ro-ct-t');
+      }
+      w.textContent = ''; w.appendChild(tile);
+    });
+    return sec;
+  }
+  function chores(ctx, o) {
+    function titled(variant, label, kind, tag) {
+      var s = links(o, variant), hd = s.firstChild; if (hd) s.removeChild(hd);
+      return h('div.ro-pair', RO.cap(label, kind, tag), s);
+    }
+    return Mock.page(ctx, { title: 'Chores', section: 'chores', badge: 3, choresBadge: 3, body: [
+      h('div.ro-gap', [titled('today', 'Today: numeral top-trailing, subtitle spells the split', 'today'),
+        titled('A', 'Placement A: count in the subtitle', 'prop', { text: 'RECOMMENDED' }),
+        titled('B', 'Placement B: count badge beside the chevron', 'prop', { text: 'ALTERNATIVE', alt: true })])] });
+  }
+
+  /* ================================================================== 27 Vacation Mode, 28-29 Solo Trip */
+  function vacTile(kind, o) {
+    var on = !!o.on, pend = !!o.pending, enabled = on || pend, sub = pend ? 'Pending' : o.unavailable ? 'Unavailable' : on ? 'On' : 'Off', tint = pend ? V.tint.pending : V.tint.vacation;
+    if (kind === 'today') return K.GlassTile({ title: VC.modeTitle, subtitle: sub, symbol: 'airplane', tint: tint, isActive: enabled, isUnavailable: !!o.unavailable, kind: 'toggle' });
+    return RO.act({ title: VC.modeTitle, sub: sub, tint: tint, active: enabled, unavailable: !!o.unavailable, disc: 'power', discOn: enabled, label: VC.modeTitle });
+  }
+  function vacation(ctx, mode, o) {
+    o = o || {};
+    var page = Mock.page(ctx, { title: VC.modeTitle, back: 'Settings', section: 'settings', badge: 3, choresBadge: 2, body: V.modeBody(ctx, o) });
+    var tile = page.querySelector('.ui-tile');
+    var states = o.both ? [{ on: false }, { on: true }] : [o];
+    tile.replaceWith(RO.pair(mode, { today: states.map(function (s) { return vacTile('today', s); }), prop: states.map(function (s) { return vacTile('prop', s); }) }, { min: 240, max: 1 }));
+    return page;
+  }
+  function vacationSheet(ctx) {
+    var f = [{ label: VC.starts, value: V.when.now }, { label: VC.ends, value: V.when.plus1 }];
+    return Mock.sheet(ctx, { title: VC.confirmTitle, detent: 'fitted', size: 'form', leading: 'cancel', trailing: 'none',
+      content: h('div.vs-stack', V.dateFields({ fields: f }), V.actionButton(VC.confirmAction, { prominent: true })),
+      presenter: vacation(ctx, 'prop', { pending: true, checks: [true, true, true, true, true] }) });
+  }
+  function vacationAlert(ctx) {
+    return RO.alertOver(vacation(ctx, 'prop', { on: true }), { title: VC.disableTitle, message: VC.disableMessage, confirm: VC.disableConfirm }, ctx);
+  }
+
+  function soloToggle(kind, on, sel) {
+    var sub = on ? 'On' : sel ? 'Off' : VC.toggleDisabled;
+    if (kind === 'today') { var t = K.GlassTile({ title: VC.soloTitle, subtitle: sub, symbol: 'suitcase', tint: V.tint.solo, isActive: on, kind: 'toggle' }); if (!on && !sel) t.classList.add('vs-muteglyph'); return t; }
+    return RO.act({ title: VC.soloTitle, sub: sub, tint: V.tint.solo, active: on, disc: 'power', discOn: on, dim: !on && !sel, label: VC.soloTitle });
+  }
+  function travelerToday(name, mine, trip) {
+    return K.GlassTile({ title: name, subtitle: trip ? (mine ? 'Away' : 'Home') : undefined, symbol: mine ? 'figure.walk.departure' : (trip ? 'house' : 'person'), tint: V.tint.solo, isActive: mine, kind: 'selection', selected: mine });
+  }
+  function travelerProp(id, name, mine, trip) {
+    var c = { family: 'occupancy', multi: false, one: trip ? 'Away' : null };   /* the family gives the filled selected face; tintSel restates it in Solo Trip's own blue */
+    var t = RO.tag(RO.tintSel(SEL.tile('C', { id: id, title: name, sel: mine }, c), V.tint.solo), { n: 1, carry: true, max: 'Home' });
+    if (trip && !mine) t.querySelector('.tx').appendChild(h('span.st', 'Home'));
+    return t;
+  }
+  function solo(ctx, mode, o) {
+    o = o || {};
+    var tg = o.both ? [false, true] : [!!o.trip];
+    var toggles = RO.pair(mode, { today: tg.map(function (on) { return soloToggle('today', on, true); }), prop: tg.map(function (on) { return soloToggle('prop', on, true); }) }, { min: 240, max: 1 });
+    var trav = RO.pair(mode, { today: [travelerToday('Alex', true, !!o.trip), travelerToday('Sam', false, !!o.trip)],
+      prop: [travelerProp('alex', 'Alex', true, !!o.trip), travelerProp('sam', 'Sam', false, !!o.trip)] }, { min: 140, max: 2 });
+    var a = V.section({ content: [h('p.vs-desc', VC.soloDescription), toggles] });
+    var b = V.section({ title: VC.awayTitle, description: VC.awayDescription, content: [trav] });
+    return Mock.page(ctx, { title: VC.soloTitle, back: 'Settings', section: 'settings', badge: 3, choresBadge: 2, body: [V.grid([a, b])] });
+  }
+  function soloEditor(ctx) {
+    var f = [{ label: VC.departs, value: V.when.now }, { label: VC.returns, value: V.when.plus3 }];
+    return Mock.sheet(ctx, { title: VC.editorTitle, detent: 'fitted', size: 'form', leading: 'cancel', trailing: 'none',
+      content: h('div.vs-stack', h('p.vs-desc', { style: { margin: 0, fontSize: 'var(--fs-sub)', color: 'var(--ink-sheet-2)' } }, VC.editorDescription), K.ScheduleDateFields({ fields: f }), V.actionButton(VC.editorConfirm, { prominent: true })),
+      presenter: solo(ctx, 'prop', { trip: false }) });
+  }
+  function soloEnd(ctx) {
+    return RO.alertOver(solo(ctx, 'prop', { trip: true }), { title: 'End Solo Trip?', message: 'The house goes back to its normal automations right away.', confirm: 'End Solo Trip' }, ctx);
+  }
+
+  /* ================================================================== 30 Sprinklers */
+  function sprinklerTile(s) {
+    var watering = s.status === 'watering', un = s.status === 'unavailable';
+    return RO.nav({ title: s.title, sub: SP.fmt.subtitle(s), symbol: 'sprinkler.and.droplets', family: 'water', active: watering, unavailable: un,
+      actions: [{ id: 'stop', symbol: 'stop.fill', label: 'Stop Watering', dim: !watering }] });
+  }
+  /** The card with the tile in place of the module row; the four status pills stay as a module under it. */
+  function sprinklerCard(s) {
+    var old = SP.card(s), pills = old.querySelector('.vs-pills'), warn = old.querySelector('.ui-inline-alert'), kids = [];
+    if (warn) kids.push(warn);
+    kids.push(sprinklerTile(s));
+    kids.push(K.ModuleList({ density: s.batteryLow ? 'dense' : 'thin', rows: [pills] }));
+    return h('div.vs-cardwrap', { role: 'group', 'aria-label': s.title, style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, kids);
+  }
+  function sprinklers(ctx, mode, snaps) {
+    snaps = snaps || [SP.snap('frontYard'), SP.snap('backyard')];
+    function grid(f) { return K.TileGrid({ min: Mock.VS.fit(340, Mock.VS.pageW()), max: 2, gap: 24, equal: false, items: snaps.map(f) }); }
+    var kids = [];
+    if (mode !== 'prop') { kids.push(RO.cap('Today: the module row has no chevron and no action', 'today')); kids.push(grid(function (s) { return SP.card(s); })); }
+    if (mode !== 'today') { kids.push(RO.cap('Proposed: navigation tile, chevron, Stop Watering disc', 'prop')); kids.push(grid(sprinklerCard)); }
+    return Mock.page(ctx, { title: 'Sprinklers', back: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [h('div.ui-section', { style: { gap: '12px' } }, K.PageSectionHeader({ title: 'Controllers' }), h('div.ro-pair', kids))] });
+  }
+
+  /* ================================================================== 31 Vacuums page, 32-33 vacuum sheet */
+  var SYM = { cleaning: 'sparkles', docked: 'house', returning: 'arrow.uturn.left.circle', paused: 'pause.circle', error: 'exclamationmark.circle' };
+  function robotProp(key, sc) {
+    var R = vac.ROBOTS[key], v = vac.V({ robot: key, scenario: sc }), st = v.state, sub = vac.stateLabel(v) + ' • ' + v.battery + '%';
+    return RO.nav({ title: R.title, sub: sub, symbol: SYM[st], family: 'cleaning', active: ['cleaning', 'returning', 'paused'].indexOf(st) >= 0, progress: st === 'cleaning' ? v.battery / 100 : undefined,
+      actions: [{ id: 'startpause', symbol: st === 'cleaning' ? 'pause.fill' : 'play.fill', label: st === 'cleaning' ? 'Pause' : st === 'paused' ? 'Resume' : 'Start' },
+        { id: 'dock', symbol: 'house.fill', label: 'Dock', dim: st === 'docked' }] });
+  }
+  function vacuums(ctx, mode) {
+    var sc = [['main', 'docked'], ['music', 'cleaning'], ['theater', 'paused']];
+    var body = RO.pair(mode, { today: sc.map(function (x) { return vac.robotTile(x[0], x[1]); }), prop: sc.map(function (x) { return robotProp(x[0], x[1]); }) }, { min: 150, max: 6 });
+    return Mock.page(ctx, { title: 'Vacuums', back: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [h('div.ui-section', { style: { gap: '8px' } }, K.PageSectionHeader({ title: 'Robot Vacuums' }), body,
+      RO.note('Main Floor docked (Dock dims), Studio cleaning, Media Room paused. Start/Pause and Dock are the same two discs the room-page vacuum tile has.'))] });
+  }
+
+  var ZONES = ['living_room', 'bedroom_1', 'kitchen', 'office', 'hallway', 'guest_room'], PICK = ['living_room', 'kitchen', 'office'];
+  function roomItems(order) { return ZONES.map(function (id) { var i = order.indexOf(id); return { id: id, title: vac.zoneTitle(id), order: i >= 0 ? i + 1 : 0 }; }); }
+  function roomsSheet(ctx, mode, order) {
+    var c = { family: 'cleaning', multi: true };
+    var today = h('div.vc-rooms.two', { role: 'group', 'aria-label': 'Rooms' }, ZONES.map(function (id) { var i = (order || PICK).indexOf(id); return vac.roomCard(id, { order: i >= 0 ? i + 1 : null }); }));
+    var prop = RO.grid(roomItems(order || PICK).map(function (it) { return RO.tag(SEL.tile('C', it, c), { n: 1, carry: true, max: 'Not included' }); }), 150, 2);
+    var kids = [vac.desc('Rooms are cleaned in the order you select them. The numbered badges show the cleaning sequence.')];
+    if (mode !== 'prop') kids.push(RO.cap('Today: white card with a black order badge', 'today'), today);
+    if (mode !== 'today') kids.push(RO.cap('Proposed: selected face, numbered disc (tap order); the number is the disc', 'prop'), prop);
+    return Mock.sheet(ctx, { title: 'Main Floor Robot Vacuum', subtitle: 'Docked · 87%', detent: 'large', size: 'page', trailing: 'close', content: h('div.vc-gap12', { style: { padding: '8px 0 0' } }, kids) });
+  }
+  /** The Selected Rooms / Full Clean card: today's row in its module beside a navigation tile with a chevron. */
+  function selectedBlock(ctx, picked) {
+    var v = vac.V({ robot: 'main', scenario: 'docked', selected: picked });
+    var todayBlock = vac.controls(v, ctx).querySelector('.vc-selrow').closest('.vc-gap12');
+    var chips = picked.length ? h('div.vc-flow', picked.map(function (id, i) { return vac.orderChip(i + 1, vac.zoneTitle(id)); })) : null;
+    var tile = RO.nav({ title: picked.length ? 'Selected Rooms' : 'Full Clean', sub: picked.length ? null : 'Every mapped area', symbol: picked.length ? 'sparkles' : 'robotic.vacuum', family: 'cleaning', active: picked.length > 0, under: chips });
+    var propBlock = vac.controls(v, ctx).querySelector('.vc-selrow').closest('.vc-gap12');
+    var row = propBlock.querySelector('.vc-selrow'), list = row.parentNode, kids = [tile];
+    if (!picked.length) kids.push(K.InlineAlert({ message: 'No rooms are selected, and no areas are drawn. If you begin cleaning, the robot vacuum will attempt to clean every mapped area.' }));
+    row.remove();
+    propBlock.insertBefore(h('div.ro-gap', kids), propBlock.firstChild);
+    return h('div.ro-gap', [RO.cap(picked.length ? 'Selected Rooms: today' : 'Full Clean: today', 'today'), todayBlock, RO.cap(picked.length ? 'Selected Rooms: proposed (opens the Rooms section)' : 'Full Clean: proposed (opens the Rooms section)', 'prop'), propBlock]);
+  }
+  function selectedSheet(ctx) {
+    return Mock.sheet(ctx, { title: 'Main Floor Robot Vacuum', subtitle: 'Docked · 87%', detent: 'large', size: 'page', trailing: 'close',
+      content: h('div.vc-col', { style: { padding: '8px 0 0' } }, [selectedBlock(ctx, PICK), selectedBlock(ctx, [])]) });
+  }
+
+  /* ================================================================== sections */
+  var ITEMS = [
+    ['18', 'Admin · Front Door Auto-Lock', 'Green toggle tile, leading glyph', 'Action tile, <code>lock.fill</code> / <code>lock.open</code> disc', 'PowerToggleActions with a lock symbol'],
+    ['19', 'Admin · Relay Control Mode', 'Toggle tile', 'Action tile, <code>power</code> disc', 'PowerToggleActions'],
+    ['20', 'Admin · Outdoor Faucets, Holiday Lights', 'Toggle tiles', 'Action tiles, <code>power</code> disc', 'PowerToggleActions'],
+    ['21', 'Admin · Attempt to turn power back on', 'Command tile', 'Momentary action tile, <code>bolt.fill</code> disc; keeps "Didn\'t Respond"', 'new CommandActions (momentary)'],
+    ['22', 'Presence Auto-Reset sheet · 14 rooms', 'Toggle tiles', 'Action tiles, <code>power</code> disc', 'PowerToggleActions ×14'],
+    ['23', 'Special Device Modes · High AQI Mode', 'Toggle tile + alert', 'Action tile, <code>power</code> disc; the alert stays (drawn)', 'PowerToggleActions + confirm'],
+    ['24', 'Guest Controls · 3 guests', 'Toggle tiles', 'Action tiles, <code>power</code> disc, the Home page versions', 'PowerToggleActions (already built on Home)'],
+    ['25', 'Car · Doors', 'Read-only state tile', '<strong>Sub-choice:</strong> keep read-only, or action tile with a lock disc', 'LockActions (already on Security)'],
+    ['26', 'Chores · 5 quick links', 'Filled tile, numeral top-trailing', 'Navigation tile, chevron. <strong>Sub-choice:</strong> count in the subtitle or a badge', 'no new provider'],
+    ['27', 'Vacation Mode card', 'Toggle tile; opens a sheet or an alert', 'Action tile, <code>power</code> disc; a tap still opens the sheet or alert (drawn)', 'PowerToggleActions + the existing gates'],
+    ['28', 'Solo Trip toggle', 'Toggle tile', 'Action tile, <code>power</code> disc; on opens the editor, off asks first (drawn)', 'PowerToggleActions + the existing gates'],
+    ['29', 'Solo Trip travelers', 'Selection tiles with a glyph', 'Selected face + check disc (single choice)', 'selection indicator (selection-tiles C)'],
+    ['30', 'Sprinklers · controller card', 'Module row, no chevron', 'Navigation tile, chevron, Stop Watering disc <code>stop.fill</code>', 'new StopWateringActions'],
+    ['31', 'Vacuums page · robot tiles', 'Navigation tile, chevron only', 'Navigation tile + Start/Pause and Dock discs', 'VacuumActions (already built)'],
+    ['32', 'Vacuum sheet · Rooms cards', 'White card, black order badge', 'Selected face + numbered disc (tap order, renumbers)', 'selection indicator (selection-tiles C)'],
+    ['33', 'Vacuum sheet · Selected Rooms / Full Clean', 'Module row with a chevron', 'Navigation tile with a chevron (order chips under the text)', 'no new provider'],
+  ];
+  function goal() {
+    return box([
+      h('p', 'The owner wants action and navigation tiles on every page ([action-navigation-tiles](../action-navigation-tiles/action-navigation-tiles.html), rollout section of the design record, 2026-10-27). This proposal draws sixteen more surfaces from the audit (items 18 to 33: Settings, Chores, Vacation, Sprinklers, Vacuums), each Today beside Proposed on iPhone, Duo and iPad.'),
+      h('p', 'The rules applied are the owner\'s answers A to D: every navigation tile has a chevron even when it opens a sheet; a disc keeps today\'s confirmation; lights and switches use the ' , h('code', 'power'), ' disc; a tile that chooses uses the selected face with a check disc, and vacuum rooms a numbered disc. Front Door keeps one tap. Each state below puts both versions on one page, so flip the device and the state, not a second mockup.'),
+      h('p', h('strong', 'Two items need the owner\'s pick: 25 (car Doors) and 26 (Chores count placement). '), 'Everything else follows the answers already given; where the owner did not say (the disc glyph for Vacation Mode and Solo Trip, the sprinkler idle state, the card layout) the Open questions list the default drawn.'),
+      h('div.k-table-wrap', h('table.ro-cmp', h('thead', h('tr', ['#', 'Surface', 'Today', 'Proposed', 'Provider'].map(function (x) { return h('th', x); }))),
+        h('tbody', ITEMS.map(function (r) { return h('tr', r.map(function (x, i) { var td = h('td'); td.innerHTML = x; return td; })); })))),
+    ]);
+  }
+  function choice25() {
+    return [
+      h('div.ro-choice', [h('strong', 'Sub-choice 25 · car Doors: read-only (A) or action tile with a lock disc (B).'), h('p', { style: { margin: '6px 0 0' } }, 'The Security page\'s car tile already acts (lock disc, same entity, same lock service). Recommendation: B.')]),
+      h('div.ro-cells', [
+        Mock.ro.swatch('A · Keep read-only (today)', RO.grid([HF.stateTile({ title: 'Doors', symbol: 'lock', subtitle: 'Locked', active: false })], 150, 2)),
+        Mock.ro.swatch('B · Doors acts (recommended)', RO.grid([doors('locked'), doors('unlocked')], 150, 2)),
+      ]),
+      RO.note('B shown locked and unlocked. The page keeps four flat read-only tiles beside it: the shape (disc against none) is what tells the class apart, as in the first decision.'),
+    ];
+  }
+  function choice26() {
+    var o = { viewer: 'alex' };
+    function cell(v, label) { var s = links(o, v); var hd = s.firstChild; if (hd) s.removeChild(hd); return RO.swatch(label, s); }
+    return [
+      h('div.ro-choice', [h('strong', 'Sub-choice 26 · Chores open count: in the subtitle (A) or a badge beside the chevron (B).'), h('p', { style: { margin: '6px 0 0' } }, 'Either drops the numeral from the top-trailing corner, which the chevron now owns. Recommendation: A.')]),
+      h('div.ro-cells', [cell('today', 'Today'), cell('A', 'A · "3 open" in the subtitle (recommended)'), cell('B', 'B · badge beside the chevron')]),
+      RO.note('At a 150 pt half-width tile, B takes about 34 pt from the text; Unassigned Tasks and the longer subtitles wrap earlier. A adds no element, but the subtitle becomes the count plus overdue and the upcoming/undated split moves into the list page (its Past Due, Due Today and Upcoming sections).'),
+    ];
+  }
+  function voiceover() {
+    return [
+      h('p', 'What VoiceOver says. One rule: the tile is one element and says what it is and its state; a single trailing disc repeats the tile and is hidden, while a navigation tile\'s discs are their own elements.'),
+      table(['Surface', 'Today', 'Proposed'], [
+        ['Front Door Auto-Lock', 'Front Door Auto-Lock, On, toggle button', 'Same. The lock disc is decorative and hidden; hint "Turns auto-lock off."'],
+        ['Power recovery', 'Attempt to turn power back on, button. Hint: Runs the Living Room power recovery automation.', 'Same. After a failure: "Attempt to turn power back on, Didn\'t Respond".'],
+        ['High AQI Mode', 'High AQI Mode, Off, toggle button', 'Same, then the alert: "Turn On High AQI Mode? This changes every air purifier in the house." Cancel first.'],
+        ['Car Doors (B)', 'Doors, Locked (group, not a button)', 'Doors, Locked, button. Hint: Unlocks the car. Jammed reads "Doors, Jammed".'],
+        ['Chores link (A)', 'Alex\'s Tasks, 2 overdue tasks · 1 task listed, button (numeral hidden)', 'Alex\'s Tasks, 3 open · 2 overdue, button. Hint: Opens the list.'],
+        ['Chores link (B)', 'as today', 'Alex\'s Tasks, 2 overdue tasks · 1 task listed, button. The badge is hidden (the subtitle already says it); sighted users get a second number VoiceOver users do not need.'],
+        ['Sprinkler card', 'Front Yard, Auto · Next 7:00 AM, button. Hint: Opens the controller.', 'Same for the tile; "Stop Watering, button" (dimmed when idle) is a separate element after it.'],
+        ['Robot tile', 'Main Floor, Docked • 87%, button', 'Same; then "Start, button" and "Dock, button, dimmed". While cleaning "Pause", "Dock".'],
+        ['Vacuum room', 'Kitchen, cleaning order 2, On, toggle', 'Kitchen, cleans second, selected, button (the number is the value, not only drawn)'],
+        ['Traveler', 'Alex, selected, button', 'Alex, selected, button; Sam, button. Hint: Selects the traveler.'],
+      ], null),
+    ];
+  }
+  function comparison() {
+    return [
+      h('p', 'Judged against the owner\'s rules and the HIG, honestly. Only the two sub-choices have real alternatives; the rest follow answers A to D.'),
+      h('h3', '25 · car Doors'),
+      table(['Row', 'A · Keep read-only', 'B · Doors acts (lock disc)'], [
+        ['Consistency with the same lock on Security', 'No: one lock acts, the other is dead', 'Yes: same tile, same states, same service'],
+        ['Page meaning', 'A status board (subtitle says "Controls for the car")', 'One real control and four honest read-only tiles'],
+        ['Owner rule (shape tells the class)', 'Pass', 'Pass: the disc marks the one that acts'],
+        ['Risk', 'None', 'A one-tap unlock of the car from Settings. Mitigation: same as Front Door (one tap, undoable, HIG: no alert for a common undoable action); Security already does it.'],
+        ['Build cost', 'None', 'Tile uses LockActions; the household controller gains a lock call (the Security tile\'s)'],
+      ], 2),
+      h('h3', { style: { marginTop: '20px' } }, '26 · Chores open count'),
+      table(['Row', 'A · In the subtitle', 'B · Badge beside the chevron'], [
+        ['Information', 'Same number, now in text VoiceOver reads', 'Same number as today\'s numeral, still hidden from VoiceOver'],
+        ['Width on a half-width tile (150 pt)', 'Full text width', 'About 34 pt less text; titles and subtitles wrap earlier'],
+        ['HIG', 'Pass', 'Badges mean "something new" (HIG: Badging); a permanent count is not that. Departure.'],
+        ['One trailing element rule', 'Chevron only', 'Chevron and a badge: two things at the trailing edge'],
+        ['Glanceable', 'Smaller, quieter', 'Bold numeral, as the page has today'],
+        ['What it gives up', 'The large numeral; the overdue/upcoming/undated phrase (it moves to the list page)', 'The calm of one trailing mark'],
+      ], 1),
+    ];
+  }
+  function recommendation() {
+    return h('div', { style: { maxWidth: '78ch' } }, [
+      h('div.ro-rec', [h('p', { style: { margin: '0 0 8px' } }, h('strong', 'Recommendation: build items 18 to 33 as drawn, with 25 = B (Doors acts) and 26 = A (count in the subtitle).')),
+        h('p', { style: { margin: 0 } }, '25 B because the same lock already acts on the Security page; a dead copy on another page is a bug-shaped inconsistency, and the convention exists to make "does this do something" readable from the shape. 26 A because the numeral duplicates the subtitle today, and the chevron now owns the trailing edge; moving the count into the text adds no element and VoiceOver finally reads it.')]),
+      h('p', { style: { marginTop: '12px' } }, 'What it asks of the app:'),
+      h('ul', [
+        h('li', 'Files: HassUI Settings/Household (HouseholdToggleTile, MachEContent, the Auto-Reset sheet), Chores/ChoresScreen (QuickLinkFace), Vacation (VacationModeScreen, SoloTripScreen, TravelerTileView), Sprinklers/SprinklersScreen (SprinklerControllerCard), Vacuums (VacuumsScreen, VacuumTabs).'),
+        h('li', 'Providers (HassCore/TileActions): reuse PowerToggleActions (items 18 to 24, 27, 28), LockActions (25 B), VacuumActions (31); add CommandActions (21, momentary) and StopWateringActions (30, wraps SprinklerController.stopWatering). Domain rules stay in providers, never in views.'),
+        h('li', 'Gates stay: High AQI, Vacation Mode (sheet to turn on, alert to turn off) and Solo Trip (editor to turn on, alert to turn off) keep their confirmations; a disc tap and a body tap take the same path. Tests assert that no service call fires before the confirm.'),
+        h('li', 'Shared pieces: the selection indicator from selection-tiles (items 29, 32), the chevron on every sheet-opening tile, a lock symbol variant of the power disc (18).'),
+        h('li', 'Tests: unit tests per provider; a UX test and an accessibility test on iPhone, Duo and iPad for each page (44 pt targets, AX5, order spoken, custom order of discs); the journeys that tap a settings tile now also assert the gate.'),
+        h('li', 'Docs and atlas: patterns/action-tiles.md gains the surfaces; the household, chores, vacation, sprinklers and vacuums mockups move to the chosen option in the same PR.'),
+      ]),
+    ]);
+  }
+  function questions() {
+    var q = [
+      ['25: Car Doors', 'Keep read-only (A) or an action tile with a lock disc (B)? Recommended: B.'],
+      ['26: Chores open count', 'In the subtitle (A) or a badge beside the chevron (B)? Recommended: A; the subtitle then reads "3 open · 2 overdue" and the overdue/upcoming/undated split leaves the tile.'],
+      ['27, 28: disc glyph', 'Vacation Mode and Solo Trip are drawn with the <code>power</code> disc (answer D). The tile loses its airplane and suitcase glyph; the title still names it. Alternative: their own glyph in the disc.'],
+      ['30: Sprinklers idle', 'Drawn with the Stop Watering disc dimmed in place while idle (the set never changes shape, like Dock on a docked vacuum). Alternative: no disc until watering starts. Recommended: dimmed.'],
+      ['24: Guest Controls look', 'Drawn like the Home page tiles (occupancy family, "Guests staying" / "No guests"). Today the Settings page shows green tiles reading On / Off. Recommended: match Home, since they are the same three entities.'],
+      ['30: card layout', 'The tile replaces the module row; the four status pills stay as a module below it. The doc comment says a chevron means push and the sheet is not a push; the owner\'s answer B overrides it. Confirm the stacked layout.'],
+    ];
+    return h('div', { style: { maxWidth: '78ch' } }, q.map(function (x, i) { var p = h('p', { style: { margin: '4px 0 0' } }); p.innerHTML = x[1]; return h('div.ro-q', h('strong', (i + 1) + '. ' + x[0]), p); }));
+  }
+
+  /* ================================================================== mount */
+  function s(fn, mode, a, b) { return function (ctx) { return fn(ctx, mode || 'pair', a, b); }; }
+  Mock.mount({
+    kind: 'proposal', id: 'tile-rollout-settings-more', title: 'Tile rollout: Settings and more', status: 'proposed',
+    summary: 'Proposal · 2026-10-27 · Rolls the action and navigation tile convention out to sixteen more surfaces (audit items 18 to 33): Admin, Auto-Reset, High AQI, Guest Controls, car Doors, Chores quick links, Vacation Mode, Solo Trip, the sprinkler controller card, the Vacuums page and sheet. Today beside Proposed on iPhone, Duo and iPad. Two sub-choices for the owner: 25 (car Doors acts?) and 26 (Chores count placement). Recommendation: 25 B, 26 A.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdSettings.swift', 'apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/HouseholdSettingsConfig.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift',
+      'apple/Sources/HassUI/Features/Sprinklers/SprinklersScreen.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumsScreen.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumTabs.swift',
+      'apple/Sources/HassCore/TileActions/PowerToggleActions.swift', 'apple/Sources/HassCore/TileActions/LockActions.swift', 'apple/Sources/HassCore/TileActions/VacuumActions.swift'],
+    spec: ['.agents/design/action-navigation-tiles.md', '.agents/patterns/action-tiles.md', '.agents/patterns/entity-tile.md', '.agents/pages/settings/household.md', '.agents/pages/vacation/spec.md', '.agents/pages/vacuums/spec.md'],
+    patterns: ['action-tiles', 'entity-tile', 'dynamic-grid', 'tap-feedback', 'motion'],
+    hig: ['Toggles', 'Buttons', 'Lists and tables', 'Alerts', 'Badging', 'Accessibility', 'SF Symbols'],
+    entities: ['input_boolean.demo_front_door_lock_1', 'input_boolean.demo_mode_2', 'input_boolean.demo_mode_1', 'lock.demo_lock_1', 'input_boolean.demo_mode_4'],
+    kitComponents: ['GlassTile', 'TileGrid', 'SettingsSection', 'ModuleList', 'Alert', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'admin': { title: '18 to 21 · Admin: Auto-Lock, power recovery, Relay Control Mode, Show Specific', note: 'Each section is Today above Proposed. Power recovery is the momentary tile (bolt disc) and its "Didn\'t Respond" face keeps the glyph in red.', render: s(admin, 'pair', false) },
+      'auto-reset': { title: '22 · Presence Auto-Reset sheet, 14 room toggles', note: 'Today then Proposed in the sheet, the real grid (150 pt, up to four columns). Six rooms are on.', render: s(autoReset, 'pair', false) },
+      'high-aqi': { title: '23 · High AQI Mode', note: 'Off then on, Today and Proposed. The confirmation is unchanged: see the next two states.', render: s(aqi, 'pair', false) },
+      'high-aqi-alert': { title: '23 · High AQI Mode: the alert on turning on', note: 'A tap on the body or the disc raises the same alert (AlertCopy.highAqiMode); the flip happens on Turn On, not before.', render: function (ctx) { return aqiAlert(ctx, true); } },
+      'high-aqi-alert-off': { title: '23 · High AQI Mode: the alert on turning off', note: 'The alert asks in both directions today and keeps doing so.', render: function (ctx) { return aqiAlert(ctx, false); } },
+      'guests': { title: '24 · Guest Controls, three toggles', note: 'Proposed matches the Home page guest tiles (occupancy family, power disc, "Guests staying" / "No guests").', render: s(guests, 'pair', false) },
+      'mach-e': { title: '25 · car Doors: read-only (A) or acts (B)', note: 'SUB-CHOICE 25. Today is option A. B is the lock-disc tile, with every state below.', render: function (ctx) { return machE(ctx, true); } },
+      'chores': { title: '26 · Chores quick links: count in the subtitle (A) or a badge (B)', note: 'SUB-CHOICE 26. Five links, three versions. The chevron is centred vertically; Groceries still spans two tracks.', render: function (ctx) { return chores(ctx, { viewer: 'alex' }); } },
+      'chores-zero': { title: '26 · Chores quick links, nothing open', note: 'A reads "Nothing open"; B draws no badge at zero and keeps today\'s "No tasks listed".', render: function (ctx) { return chores(ctx, { viewer: 'alex', zero: true }); } },
+      'vacation': { title: '27 · Vacation Mode card, off and on', note: 'A tap on the card or the disc still opens the confirmation sheet when off (or the inline checklist error) and the alert when on.', render: function (ctx) { return vacation(ctx, 'pair', { both: true, checks: [true, true, true, true, true] }); } },
+      'vacation-sheet': { title: '27 · Vacation Mode: the confirmation sheet', note: 'Turning on from the Proposed card: the sheet is unchanged; the card behind it shows Pending until Confirm Vacation.', render: vacationSheet },
+      'vacation-alert': { title: '27 · Vacation Mode: the turn-off alert', note: 'Turning off asks first (AlertCopy.turnOffVacation); Turn Off is plain.', render: vacationAlert },
+      'solo': { title: '28, 29 · Solo Trip toggle and travelers', note: 'The toggle off and on, Today and Proposed; the travelers use the selected face with a check disc (Alex selected).', render: function (ctx) { return solo(ctx, 'pair', { both: true }); } },
+      'solo-trip': { title: '28, 29 · Solo Trip while a trip runs', note: 'Toggle on; Alex is Away and Sam Home. The travelers lock while a trip runs (muted today); selection is not offered.', render: function (ctx) { return solo(ctx, 'pair', { trip: true }); } },
+      'solo-editor': { title: '28 · Solo Trip: turning on opens the editor', note: 'The toggle stays off behind the sheet until Schedule Solo Trip succeeds.', render: soloEditor },
+      'solo-end': { title: '28 · Solo Trip: turning off asks first', note: 'AlertCopy.endSoloTrip; End Solo Trip is plain.', render: soloEnd },
+      'sprinklers': { title: '30 · Sprinklers: idle (Front Yard) and watering (Backyard)', note: 'Today: the module row. Proposed: a navigation tile with a chevron; the Stop Watering disc is dimmed while idle and live while watering. Backyard also shows the low battery alert.', render: s(sprinklers, 'pair') },
+      'vacuums': { title: '31 · Vacuums page: docked, cleaning, paused', note: 'Navigation tiles with Start/Pause and Dock beside the chevron, as on the room page.', render: s(vacuums, 'pair') },
+      'vacuum-rooms': { title: '32 · Vacuum sheet: Rooms cards', note: 'Living Room 1, Kitchen 2, Office 3. Press Play on the Motion section to add Hallway and remove Living Room.', render: s(roomsSheet, 'pair') },
+      'vacuum-selected': { title: '33 · Vacuum sheet: Selected Rooms and Full Clean', note: 'Today is a row in a module; Proposed is a navigation tile with a chevron. Full Clean keeps its warning under the tile.', render: selectedSheet },
+      'unavailable': { title: 'Entities unavailable', note: 'Admin with every entity unavailable: the tiles dim, read "Unavailable" and the discs dim in place.', render: s(admin, 'pair', true) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'The disc drops below the text at accessibility sizes (action-tiles pattern); one column; titles wrap.', render: s(admin, 'pair', false) },
+    },
+
+    motion: [
+      { id: 'room-order', what: 'Vacuum Rooms: tap Hallway and it joins as number 4; tap Living Room and it drops out; the others renumber 1 Kitchen, 2 Office, 3 Hallway. The old white card and black badge are not animated here.',
+        token: 'numeral and check quick 0.2 s; tile fill state 0.6 s', state: 'vacuum-rooms',
+        source: 'HassUI/Features/Vacuums/VacuumTabs.swift (room order); motion.md section 7', reduce: 'cross-fade only',
+        play: function (stage) {
+          function a(list) { return function () { return SEL.apply(stage, list); }; }
+          return seq([hold(500), a([{ id: 'hallway', order: 4 }]), hold(1000),
+            a([{ id: 'living_room', order: 0 }, { id: 'kitchen', order: 1 }, { id: 'office', order: 2 }, { id: 'hallway', order: 3 }]), hold(1000),
+            a([{ id: 'living_room', order: 1 }, { id: 'kitchen', order: 2 }, { id: 'office', order: 3 }, { id: 'hallway', order: 0 }]), hold(600)]);
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Single action tile', note: 'The tile is the one VoiceOver element: label = name, value = On / Off (toggle trait), hint says what it does. The disc is decorative and hidden. Applies to items 18 to 24, 27, 28 and car Doors in B.' },
+      { rule: 'Confirmations', note: 'High AQI, Vacation Mode and Solo Trip keep their gate: the body and the disc raise the same alert or sheet, and no service call fires before the confirm. Cancel is read first.' },
+      { rule: 'Navigation tile with discs', note: 'The tile reads name and state and opens; each disc is a separate element ("Pause", "Dock", "Stop Watering") after it, a dimmed disc reads "dimmed". Reading order: tile, then discs left to right.' },
+      { rule: 'Selection tiles', note: 'Traveler and room tiles read "selected" (isSelected), not "switch"; the vacuum order is the value ("cleans second"). The indicator is hidden from VoiceOver.' },
+      { rule: 'Targets', note: 'Every disc is a 44 x 44 pt target (66 pt at AX5) with 12 pt between discs; the chevron is not a separate target.' },
+      { rule: 'Not colour alone', note: 'State is the fill, the disc fill (white when on), the glyph (lock against lock.open) and the subtitle ("Locked", "Jammed"); an error differs by glyph shape as well as red.' },
+      { rule: 'AX5', note: 'The discs drop below the text, one column, 66 pt discs; nothing truncates.' },
+      { rule: 'Reduce Motion', note: 'The existing colour cross-fade (state token) and glyph replace shorten to the quick token; no new motion is added by this rollout.' },
+    ],
+
+    reviews: {
+      date: '2026-10-27', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Toggles: outside a list row, a toggle-like button with an obvious state change', verdict: 'pass', note: 'The action tile has the toggle trait; the disc fills white when on and the glyph states it.' },
+        { rule: 'Lists and tables: a disclosure indicator means the row pushes a view', verdict: 'departure', note: 'Owner answer B (2026-10-27): the chevron also marks tiles that open a sheet (Auto-Reset, Presence openers, the sprinkler controller, Selected Rooms). Recorded in the design record.' },
+        { rule: 'Alerts: confirm only what is broad or hard to undo', verdict: 'pass', note: 'High AQI, Vacation Mode and Solo Trip keep theirs; Front Door and car Doors stay one tap (common, undoable).' },
+        { rule: 'Badging: a badge means something new needs attention', verdict: 'fix', note: 'Placement B for the Chores count would put a permanent count where a badge reads as unread. A avoids it.' },
+        { rule: 'Buttons: 44 x 44 pt hit region', verdict: 'pass', note: 'Discs are 44 pt, scaled to 66 pt at AX5, 12 pt apart.' },
+        { rule: 'Accessibility: do not rely on colour alone; traits match the control', verdict: 'pass', note: 'Selection tiles say "selected", switches "on / off"; errors change the glyph.' },
+        { rule: 'SF Symbols: numbered symbols for order', verdict: 'pass', note: 'The numbered disc is n.circle.fill (the mock draws a numeral in a ring).' },
+      ],
+      swiftui: [
+        { rule: 'Views: no Button nested in a Button', verdict: 'pass', note: 'The disc and the tile body are siblings in an HStack; the mockup nests them in one element for brevity.' },
+        { rule: 'Accessibility: one element per control', verdict: 'pass', note: 'accessibilityHidden on a single-action disc; discs on a navigation tile are separate elements.' },
+        { rule: 'Design: ScaledMetric for sizes tied to text', verdict: 'pass', note: 'Disc 44 pt scaled and capped at 1.5x; grid minimums scale with the text.' },
+        { rule: 'Animation: Reduce Motion', verdict: 'pass', note: 'No new animation; the existing colour and glyph transitions apply.' },
+        { rule: 'Data flow: domain rules in HassCore, not views', verdict: 'pass', note: 'Confirmation gates stay in the controllers; the views route both taps to the same gate.' },
+      ],
+    },
+
+    sections: [
+      { id: 'goal', title: 'Cause and goal', build: goal },
+      { id: 'choice-25', title: 'Sub-choice 25: Car Doors', build: choice25 },
+      { id: 'choice-26', title: 'Sub-choice 26: Chores open count', build: choice26 },
+      { id: 'voiceover', title: 'What VoiceOver says', build: voiceover },
+      { id: 'comparison', title: 'Comparison of the sub-choices', build: comparison },
+      { id: 'recommendation', title: 'Recommendation', build: recommendation },
+      { id: 'open-questions', title: 'Open questions', build: questions },
+    ],
+
+    notes: [
+      'State keys: this proposal compares tiles, not page loading; loading, refreshing, empty, error, offline, reconnecting and long-text are not drawn. Unavailable and AX5 are.',
+      'Each state puts Today and Proposed on one page so the two can be compared on the same device; the real page has only the proposed tiles.',
+      'Tile widths: grids here use each page\'s own minimum (240 pt for Admin, 150 pt for sheets and rooms) and the kit\'s equal tracks; the content-aware widening and ticker rule from the first decision applies at build and is not redrawn.',
+      'Item 25 B and the car states reuse the Security page tile (LockActions); item 31 reuses VacuumActions; items 29 and 32 reuse the selection-tiles helper (Mock.sel), loaded and not copied.',
+      'The vacuum sheet is drawn with the atlas helper; its Controls tab is cut to the Selected Rooms block, and the Rooms tab to six of the eleven Main Floor rooms.',
+      'The mockup nests the disc in the tile button for brevity; the app draws it as a sibling.',
+    ],
+    changelog: [{ date: '2026-10-27', note: 'First pass: items 18 to 33, Today and Proposed on three device families, sub-choices 25 and 26, alerts and sheets, a recommendation.' }],
+  });
+})();
+</script></body></html>

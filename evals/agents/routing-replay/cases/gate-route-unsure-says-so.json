@@ -1,0 +1,14 @@
+{
+  "id": "gate-route-unsure-says-so",
+  "source": "Rule: a missing answer gives the unsure line, never a guessed route.",
+  "recorded": "2026-11-02",
+  "kind": "gate_route",
+  "input": {
+    "visible": null,
+    "chosen": null,
+    "pick": true
+  },
+  "expect": {
+    "route": "Jev: no route hint (unsure)"
+  }
+}

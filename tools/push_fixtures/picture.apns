@@ -1,0 +1,16 @@
+{
+  "Simulator Target Bundle": "com.sfenton.home",
+  "aps": {
+    "alert": { "title": "Landscapers", "body": "The landscapers arrived." },
+    "sound": "default",
+    "thread-id": "presence",
+    "mutable-content": 1
+  },
+  "fenton": {
+    "v": 1,
+    "tag": "landscapers",
+    "group": "presence",
+    "url": "/sfenton-react-dash/home?path=overview",
+    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Fronalpstock_big.jpg/640px-Fronalpstock_big.jpg"
+  }
+}

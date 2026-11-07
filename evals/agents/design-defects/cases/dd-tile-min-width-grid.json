@@ -1,0 +1,22 @@
+{
+  "id": "dd-tile-min-width-grid",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Rooms chips on pages need a min-width, and then grids can fit up to four elements in a row; tiles can expand to fill",
+  "surface": "dynamic-grid-layout",
+  "poses": [
+    "iphone",
+    "duo-folded",
+    "duo-unfolded-portrait",
+    "duo-unfolded-landscape",
+    "duo-partial-fold",
+    "ipad-portrait",
+    "ipad-landscape"
+  ],
+  "app": "uikit",
+  "category": "sizing",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "4c69e653",
+  "fix_confidence": "high",
+  "expected": "Tiles obey the one rule: 150 pt minimum, up to four per row, equal leading-aligned tracks. Flag a tile under 150 pt, a fifth column, or a short last row that is stretched or centred."
+}

@@ -1,0 +1,498 @@
+name: pr-checks
+# The merge gate (tools/pr_land.sh requires the aggregate job `pr-checks`). Every job with a disk pre-flight, and repo-checks, runs on the
+# MacBook runner (self-hosted, macOS, hass; ~/actions-runner-hass) until hosted runners land: the Mac mini (self-hosted, macOS, host) lacks
+# disk (owner, 2026-11-07). The aggregate job says [self-hosted, macOS] and runs on whichever Mac is idle. Jobs queue while their machine is asleep or off.
+# Heavy compiles take a tools/devcap.py `build` hold. tools/ci_scope.py (an allowlist) sorts a change into docs, tools or app:
+# docs and tools-only changes run the repo checks and the Python tool tests and compile nothing; an app change runs `swift test`
+# (only the suites the diff affects on a pull request, tools/affected_tests.py; everything on a push to main); the Release build
+# runs only when apple/ changes.
+# Two job sets share this file (hosted CI, .agents/workflow/ci.md#hosted-github-actions):
+#   * the self-hosted Mac jobs above (scope, repo-checks, build-release, swift-test) run only while the repo is PRIVATE
+#     (`if: github.event.repository.private`); delete them when the repo goes public;
+#   * the Linux `*-hosted` jobs run only while it is PUBLIC (`if: !github.event.repository.private`); the hosted macOS jobs (swift-test-hosted,
+#     build-release-hosted, sim-smoke) run only when the repository variable HOSTED_MACOS is `on` (unset by default), so nothing bills while private. They run on plain `pull_request` with no secrets, FENTON_CI_HOSTED=1 (tools/ci_hosted.py) and no devcap.
+# denylist-scan runs in both states on a hosted Linux runner, on same-repo events only (it needs a secret). The aggregate `pr-checks`
+# is the one check pr_land.sh requires; it runs on a Mac while private and on Linux once public.
+# Documentation: .agents/workflow/pr-lifecycle.md, .agents/workflow/ci.md.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+defaults:
+  run:
+    shell: bash
+jobs:
+  scope:
+    if: ${{ github.event.repository.private }}
+    runs-on: [self-hosted, macOS, hass]  # MacBook runner until hosted runners land; the mini lacks disk (owner, 2026-11-07)
+    timeout-minutes: 10
+    outputs:
+      app: ${{ steps.scope.outputs.app }}
+      release: ${{ steps.scope.outputs.release }}
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          clean: false
+      - name: Reset the workspace (keeps the build caches)
+        run: git clean -ffdx -e apple/.build -e build
+      - name: Disk pre-flight (30 GB free)
+        run: python3 tools/ci_hygiene.py preflight --min-gb 30
+      - id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # An allowlist (tools/ci_scope.py): docs and tools-only changes compile nothing; a push to main runs everything.
+          if [ -n "${BASE:-}" ]; then
+            result="$(python3 tools/ci_scope.py --base "$BASE")"
+          else
+            result="$(printf 'app=true\nrelease=true\nscope=app\n')"
+          fi
+          echo "$result" >> "$GITHUB_OUTPUT"
+          echo "scope: $(echo "$result" | tr '\n' ' ')" >> "$GITHUB_STEP_SUMMARY"
+
+  repo-checks:
+    needs: scope
+    if: ${{ github.event.repository.private }}
+    runs-on: [self-hosted, macOS, hass]  # MacBook runner until hosted runners land; the mini lacks disk (owner, 2026-11-07)
+    # 150: the tool-test step runs the full suite on the head, and again on the base when the head run fails (tools/ci_new_failures.py); 60 cancelled it (run 42354907297).
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          clean: false
+      - name: Reset the workspace (keeps the build caches)
+        run: git clean -ffdx -e apple/.build -e build
+      - name: Mockups
+        run: |
+          python3 tools/mockups_check.py
+          python3 tools/mockups_index.py --check
+      - name: Pattern and component registry, Jev sync
+        run: |
+          python3 tools/pattern_guard.py
+          python3 tools/components_index.py --check
+          python3 tools/jev_ask.py sync --check
+      - name: House-data lint (no new house data or secret-shaped strings outside the recorded debt)
+        run: python3 tools/house_scan.py
+      - name: Motion lint
+        run: tools/lint_motion.sh
+      - name: Test plans are current (apple/TestPlans from the journey sources)
+        run: python3 tools/test_plans.py --check
+      - name: Test suites resolve (contracts/test-suites.json against the journey sources)
+        run: python3 tools/test_suites.py check
+      - name: Python tool tests (a pull request fails only on failures new versus its base; owner, 2026-11-04)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "${BASE:-}" ]; then
+            python3 tools/ci_new_failures.py --base "$BASE"
+          else
+            tools/run_tool_tests.sh
+          fi
+
+  build-release:
+    needs: [scope, repo-checks]
+    if: ${{ github.event.repository.private && needs.scope.outputs.release == 'true' }}
+    runs-on: [self-hosted, macOS, hass]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          clean: false
+      - name: Reset the workspace (keeps the build caches)
+        run: git clean -ffdx -e apple/.build -e build
+      - name: Disk pre-flight (30 GB free)
+        run: python3 tools/ci_hygiene.py preflight --min-gb 30
+      - name: Release build (generic iOS, unsigned)
+        env:
+          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
+        run: |
+          set -euo pipefail
+          cd apple
+          xcodegen generate --quiet
+          python3 ../tools/devcap.py run --pool build --hold 3600 --purpose "pr-checks release build" -- \
+            xcodebuild build -project FentonHome.xcodeproj -scheme FentonHome -configuration Release \
+              -destination 'generic/platform=iOS' -derivedDataPath "$FENTON_DERIVED_DATA" CODE_SIGNING_ALLOWED=NO
+      - name: Delete this job's DerivedData
+        if: always()
+        env:
+          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
+        run: python3 tools/ci_hygiene.py rm-dir "$FENTON_DERIVED_DATA"
+
+  swift-test:
+    needs: [scope, repo-checks]
+    if: ${{ github.event.repository.private && needs.scope.outputs.app == 'true' }}
+    runs-on: [self-hosted, macOS, hass]  # MacBook runner until hosted runners land; the mini lacks disk (owner, 2026-11-07)
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          clean: false
+      - name: Disk pre-flight (30 GB free)
+        run: python3 tools/ci_hygiene.py preflight --min-gb 30
+      - name: swift test (the affected suites on a pull request, everything on a push to main)
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          RELEASE: ${{ needs.scope.outputs.release }}
+        run: |
+          set -uo pipefail
+          filters=""
+          if [ "$EVENT" = "pull_request" ] && [ "$RELEASE" = "true" ]; then
+            # Selection comes from contracts/test-map.json (tools/affected_tests.py). A file it cannot place (exit 3) widens
+            # to the full suite here: CI never guesses. No affected suite (a journeys-only change) runs no swift test.
+            # Read the code with `|| rc=$?`: the step shell runs with -e, so exit 3 would end the step before a separate read.
+            rc=0
+            filters="$(python3 tools/affected_tests.py --swift --base "origin/$BASE_REF")" || rc=$?
+            if [ "$rc" != "0" ]; then
+              echo "affected_tests.py could not place every changed file (exit $rc): running the full suite" >> "$GITHUB_STEP_SUMMARY"
+              filters="ALL"
+            elif [ -z "$filters" ]; then
+              echo "no Swift package suite is affected by this change: swift test skipped" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          else
+            filters="ALL"
+          fi
+          [ "$filters" = "ALL" ] && filters=""
+          echo "swift test $filters" >> "$GITHUB_STEP_SUMMARY"
+          # shellcheck disable=SC2016
+          python3 tools/devcap.py run --pool build --pool swift-test --hold 3600 --purpose "pr-checks swift test" -- \
+            bash -c 'cd apple && swift test "$@"' _ $filters
+
+  # ---------------------------------------------------------------------------------------------------------------------
+  # Hosted jobs. Linux: public repo only (`!private`). macOS: only when the repository variable HOSTED_MACOS is `on` (unset by default;
+  # set at the public flip, go_public runbook), never keyed on visibility, which is empty on some triggers. Plain pull_request, no secrets, FENTON_CI_HOSTED=1, nothing self-hosted.
+  # ---------------------------------------------------------------------------------------------------------------------
+  scope-hosted:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      app: ${{ steps.scope.outputs.app }}
+      release: ${{ steps.scope.outputs.release }}
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE:-}" ]; then
+            result="$(python3 tools/ci_scope.py --base "$BASE")"
+          else
+            result="$(printf 'app=true\nrelease=true\nscope=app\n')"
+          fi
+          echo "$result" >> "$GITHUB_OUTPUT"
+          echo "scope: $(echo "$result" | tr '\n' ' ')" >> "$GITHUB_STEP_SUMMARY"
+
+  repo-checks-hosted:
+    needs: scope-hosted
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Mockups
+        run: |
+          python3 tools/mockups_check.py
+          python3 tools/mockups_index.py --check
+      - name: Pattern and component registry, Jev sync
+        run: |
+          python3 tools/pattern_guard.py
+          python3 tools/components_index.py --check
+          python3 tools/jev_ask.py sync --check
+      - name: House-data lint
+        run: python3 tools/house_scan.py
+      - name: Motion lint
+        run: tools/lint_motion.sh
+      - name: Test plans are current
+        run: python3 tools/test_plans.py --check
+      - name: Test suites resolve
+        run: python3 tools/test_suites.py check
+
+  tool-tests-hosted:
+    # One job per part of tools/run_tool_tests.sh, in parallel (about 5 minutes in all on Linux, build/evidence/hosted-ci).
+    needs: scope-hosted
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [core, triage, release]
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false   # tests that read history and refs need a real clone
+      - name: Python tool tests (${{ matrix.part }}; a pull request fails only on failures new versus its base, owner 2026-11-04)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          PART: ${{ matrix.part }}
+        run: |
+          if [ -n "${BASE:-}" ]; then
+            python3 tools/ci_new_failures.py --base "$BASE" --part "$PART"
+          else
+            tools/run_tool_tests.sh "$PART"
+          fi
+
+  denylist-scan:
+    # The owner's private house-term list, from a repository secret, counted and never printed. Runs private or public, on same-repo
+    # events only (a fork PR gets no secret). Skips with a notice when the secret is empty; the local pr_land check covers that case.
+    # Lenient while the private tree is still being scrubbed: a pull request fails only on hits NEW versus its base, a push to main
+    # reports the count as a warning. TODO: fail on any hit once go_public_gate passes (then set the repository variable
+    # DENYLIST_STRICT to `on`; that is the whole switch).
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Write the denylist file (mode 600) and mask its terms
+        id: list
+        env:
+          DENYLIST_B64: ${{ secrets.HOUSE_SCAN_DENYLIST_B64 }}
+        run: |
+          set +x
+          if [ -z "$DENYLIST_B64" ]; then
+            echo "::notice::denylist not available (fork PR or secret unset); the local pr_land check covers it"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          umask 077
+          printf '%s' "$DENYLIST_B64" | base64 -d > "$RUNNER_TEMP/house_denylist.txt"
+          python3 tools/ci_denylist.py mask "$RUNNER_TEMP/house_denylist.txt"
+          echo "available=true" >> "$GITHUB_OUTPUT"
+      - name: Denylist scan (counts only)
+        if: steps.list.outputs.available == 'true'
+        env:
+          HOUSE_SCAN_DENYLIST: ${{ runner.temp }}/house_denylist.txt
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          STRICT: ${{ vars.DENYLIST_STRICT }}
+        run: |
+          set +e
+          # main's `house_scan.py denylist` (house-data-gate.md) does the scan. Only its count line is shown: the hit list (path:line) stays out of
+          # the log. A pull request is judged against its base commit with the base's own config (never the tree under review); a push to
+          # main counts every hit and only warns. DENYLIST_STRICT=on counts every hit and fails on any, on every event.
+          args=(--root . --required true)
+          if [ "$EVENT" = pull_request ] && [ "${STRICT:-off}" != on ] && git show "$BASE_SHA:contracts/house_scan.json" > "$RUNNER_TEMP/base_house_scan.json" 2> /dev/null; then
+            args+=(--base-ref "$BASE_SHA" --config "$RUNNER_TEMP/base_house_scan.json")
+          fi
+          rc=0
+          out="$(python3 tools/house_scan.py denylist "${args[@]}" 2> /dev/null)" || rc=$?
+          printf '%s\n' "$out" | grep -E '^house_scan: denylist (loaded|not loaded)'
+          if [ "$rc" = 1 ] && [ "$EVENT" != pull_request ] && [ "${STRICT:-off}" != on ]; then
+            echo "::warning::denylist hits on $EVENT (reported, not failing until DENYLIST_STRICT is on)"
+            exit 0
+          fi
+          exit "$rc"
+      - name: Delete the denylist file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/house_denylist.txt"
+
+  swift-test-hosted:
+    needs: scope-hosted
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.app == 'true' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 90
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare the runner
+        run: tools/ci_hosted_setup.sh
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      - name: Restore SwiftPM caches
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            apple/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: swift test (the affected suites on a pull request, everything on a push to main)
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          RELEASE: ${{ needs.scope-hosted.outputs.release }}
+        run: |
+          set -uo pipefail
+          filters=""
+          if [ "$EVENT" = "pull_request" ] && [ "$RELEASE" = "true" ]; then
+            rc=0
+            filters="$(python3 tools/affected_tests.py --swift --base "origin/$BASE_REF")" || rc=$?
+            if [ "$rc" != "0" ]; then
+              echo "affected_tests.py could not place every changed file (exit $rc): running the full suite" >> "$GITHUB_STEP_SUMMARY"
+              filters="ALL"
+            elif [ -z "$filters" ]; then
+              echo "no Swift package suite is affected by this change: swift test skipped" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          else
+            filters="ALL"
+          fi
+          [ "$filters" = "ALL" ] && filters=""
+          echo "swift test $filters" >> "$GITHUB_STEP_SUMMARY"
+          cd apple
+          # shellcheck disable=SC2086
+          swift test $filters
+      - name: Save SwiftPM caches (main only)
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            apple/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+
+  build-release-hosted:
+    needs: scope-hosted
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.release == 'true' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 90
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+      DERIVED: ${{ runner.temp }}/dd
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare the runner
+        run: tools/ci_hosted_setup.sh
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      - name: Restore DerivedData
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-release-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            dd-release-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Release build (generic iOS, unsigned)
+        run: |
+          set -euo pipefail
+          cd apple
+          xcodegen generate --quiet
+          xcodebuild build -project FentonHome.xcodeproj -scheme FentonHome -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath "$DERIVED" CODE_SIGNING_ALLOWED=NO
+      - name: Save DerivedData (main only)
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-release-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+
+  sim-smoke:
+    # Advisory for now (continue-on-error, not in the aggregate): the Smoke plan plus the journeys the diff reaches, one family per job.
+    # The folded Duo only; Device Hub poses stay on the MacBook until a probe shows they work on a hosted VM.
+    needs: scope-hosted
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.app == 'true' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 90
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [iphone, duo, ipad]
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+      FENTON_DERIVED_DATA: ${{ runner.temp }}/dd
+      FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare the runner
+        run: tools/ci_hosted_setup.sh
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      - name: Restore DerivedData
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Smoke plan on ${{ matrix.family }}
+        run: tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force
+      - name: Journeys the diff reaches on ${{ matrix.family }}
+        if: ${{ github.event_name == 'pull_request' }}
+        run: tools/ios_uitest.sh --only "${{ matrix.family }}" --changed --force
+      - name: Save DerivedData (main only)
+        if: ${{ github.ref == 'refs/heads/main' && matrix.family == 'iphone' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+      - name: Keep the results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: xcresult-${{ matrix.family }}
+          path: apple/.build/uitest-*.xcresult
+          if-no-files-found: ignore
+
+  pr-checks:
+    # The one check pr_land.sh requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
+    # jobs, hosted macOS while HOSTED_MACOS is off, the other visibility's set, the denylist scan on a fork PR. A Mac while private
+    # (nothing bills), Linux once public. sim-smoke is advisory and not listed.
+    if: always()
+    needs: [scope, repo-checks, build-release, swift-test, scope-hosted, repo-checks-hosted, tool-tests-hosted, denylist-scan,
+            swift-test-hosted, build-release-hosted]
+    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","macOS"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Aggregate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          PRIVATE: ${{ github.event.repository.private }}
+          HOSTED_MACOS: ${{ vars.HOSTED_MACOS }}
+        run: python3 tools/ci_aggregate.py | tee -a "$GITHUB_STEP_SUMMARY"

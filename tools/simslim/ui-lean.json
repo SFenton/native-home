@@ -1,0 +1,6 @@
+{
+  "name": "fenton-ui-lean",
+  "description": "ui.json minus widgets / Live Activities (~675 MB per simulator): only for runs that touch none of the widget, Live Activity or Push journeys",
+  "except": ["photos"],
+  "keep": ["com.apple.apsd", "com.apple.linkd"]
+}

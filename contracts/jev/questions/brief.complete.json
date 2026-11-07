@@ -1,0 +1,28 @@
+{
+  "id": "brief.complete",
+  "version": 1,
+  "type": "noul-set",
+  "mode": "shadow",
+  "description": "Lint an agent brief: which of the five required parts does it contain?",
+  "instructions": "Does the text in `brief` {option}?",
+  "criteria": {
+    "objective": "state the objective: the specific change or result the agent must produce",
+    "output_format": "say what the agent must return or write, and in what format (a report, files, a status block)",
+    "boundaries": "name the files or areas the agent owns and what it must not touch",
+    "done_check": "give a check that tells the agent it is finished, such as a command, a test or an observable result",
+    "device_families": "say which device families it applies to (iPhone, iPhone Duo, iPad) or say that none do"
+  },
+  "state": {
+    "fields": [
+      "brief"
+    ],
+    "max_chars": 12000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.6,
+    "no_below": 0.3
+  },
+  "output": "Orchestrator hint line before dispatch: `brief lacks: <parts>` for the parts in `unsure` or absent from `value`. The orchestrator decides; nothing blocks.",
+  "evidence": "unmeasured"
+}

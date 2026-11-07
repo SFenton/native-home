@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings section · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  function sw(items, o) { return function (ctx) { return HF.surfaces(ctx, items, o); }; }
+  var LONG = ['Couples every smart-bulb wall switch to its own relay, so the paddles keep working even if Home Assistant, Zigbee2MQTT, or the host is down. This turns on automatically while Vacation Mode is active, so house-sitters always have a way to get light.', 'While this is on, turning lights off at the wall cuts power to those bulbs, so presence-based lighting can\'t bring them back until the paddle is switched on again.'];
+
+  Mock.mount({
+    kind: 'component', id: 'settings-section-block', title: 'Settings section (title, paragraphs, content)', area: 'settings', status: 'shipped', frame: false,
+    summary: 'SettingsSection: a title3 semibold heading, each description paragraph as its own subheadline text, then the controls (4 pt below). Every household page, Vacation, Sprinklers and the HA settings pages stack these with 24 pt between. On the wallpaper the paragraphs are white; in a sheet they use the sheet\'s secondary ink.',
+    source: ['apple/Sources/HassDesign/SettingsSection.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdSettings.swift', 'apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift'],
+    spec: ['.agents/patterns/settings-section.md', '.agents/patterns/info-box.md'],
+    patterns: ['settings-section', 'info-box'],
+    hig: ['Layout', 'Typography', 'Dynamic Type', 'Accessibility (headings)'],
+    entities: [],
+    kitComponents: ['SettingsSection', 'InlineAlert', 'GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'title-only': { title: 'Title only (a bare header)', note: 'Car draws its own title3 header with no paragraphs and no extra top padding on the content; a SettingsSection with an empty paragraphs array adds 4 pt below the header', render: sw([
+        { label: 'no paragraphs', node: function () { return K.SettingsSection({ title: 'Charge Status', paragraphs: [], content: HF.grid([HF.stateTile({ title: 'Doors', symbol: 'lock', subtitle: 'Locked' })], 150, 4) }); } },
+      ]) },
+      'paragraphs': { title: 'One paragraph', render: sw([
+        { label: 'Security Controls', node: function () { return HF.section('security', HF.grid([HF.tile({ title: 'Front Door Auto-Lock', symbol: 'lock.shield', on: true })], 240, 2)); } },
+        { label: 'High AQI Mode', node: function () { return HF.section('aqi', HF.grid([HF.tile({ title: 'High AQI Mode', symbol: 'air.purifier', on: false })], 240, 2)); } },
+      ]) },
+      'two-paragraphs': { title: 'Two paragraphs and a warning', render: sw([
+        { label: 'Relay Control Mode', wide: true, node: function () { return K.SettingsSection({ title: 'Relay Control Mode', paragraphs: LONG, content: [HF.grid([HF.tile({ title: 'Relay Control Mode', symbol: 'switch.2', on: true })], 240, 2), K.InlineAlert({ message: HF.COPY.warning })] }); } },
+      ], { basis: 420 }) },
+      'stack': { title: 'Sections stacked 24 pt apart (as on a page)', render: sw([
+        { label: 'Admin top three sections', wide: true, node: function () { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '24px' } }, HF.adminBody({ on: { door: true, relay: false } }).slice(0, 3)); } },
+      ], { basis: 520 }) },
+      'ax5': { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'the heading and paragraphs wrap; nothing truncates; the content grid is one column', render: sw([
+        { label: 'Security Controls', node: function () { return HF.section('security', HF.grid([HF.tile({ title: 'Front Door Auto-Lock', symbol: 'lock.shield', on: true })], 240, 2)); } },
+      ]) },
+    },
+
+    motion: [],
+
+    a11y: [
+      { rule: 'Heading', note: 'The title carries the header trait, so the rotor Headings walks a page section by section; the paragraphs and the control follow in reading order.' },
+      { rule: 'Paragraphs', note: 'Each paragraph is its own Text (fixedSize vertical), so they read one after another and wrap rather than truncate.' },
+      { rule: 'Contrast', note: 'On the wallpaper the paragraphs use the fixed white ink (Ink.onDark): the adaptive secondary measured 4.1:1 there, and 85% white 4.3:1 over a bright iPad patch (live Admin page, 2026-10-17). In a sheet they keep the sheet\'s secondary ink (5:1 or better on both grounds).' },
+      { rule: 'Dynamic Type', note: 'title3 and subheadline scale with the text size; at AX5 the header is 49 pt and the paragraphs 49 pt, wrapping across many lines.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Typography: a visible heading with the heading trait', verdict: 'pass', note: 'title3 semibold with .isHeader (SettingsSection.swift:24-27).', by: 'apple-hig skill' },
+        { rule: 'Color: paragraph contrast on the wallpaper', verdict: 'pass', note: 'Paragraphs take the fixed white on the page surface and the sheet\'s secondary in a sheet, after 4.1:1 and 4.3:1 measurements (:31-34).', by: 'apple-hig skill' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'Paragraphs wrap with fixedSize vertical (:35); the content grid drops to one column at AX sizes.', by: 'apple-hig skill' },
+        { rule: 'Alerts and inline messages: icon plus text, severity in words', verdict: 'pass', note: 'InlineAlert warning reads "Warning: …" with a glyph, an error reads "Error: …" in red with a glyph (:68-96).', by: 'apple-hig skill' },
+        { rule: 'Layout: consistent section rhythm', verdict: 'pass', note: 'Sections stack with HassTokens.Spacing.xl between them (HouseholdSettingsPage.swift:88); 4 pt before the content.', by: 'apple-hig skill' },
+        { rule: 'Consistency: one header treatment per page', verdict: 'pass', note: 'MachEContent is now a SettingsSection (HouseholdSettingsPage.swift): the shared header font and gap.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Design: shared type tokens, not scattered weights', verdict: 'pass', note: 'Fixed: the repeated title3 semibold and subheadline semibold are HassTokens.Typography.sectionTitle and rowTitle across SettingsSection, SettingsScreen, SettingsSectionHeader and FeedbackFieldHeader.', by: 'swiftui-pro skill' },
+        { rule: 'Views: store the built content, not a closure', verdict: 'pass', note: '@ViewBuilder content is called once in init and stored as Content (:8, :16-20).', by: 'swiftui-pro skill' },
+        { rule: 'Data: ForEach over constant offsets', verdict: 'pass', note: 'ForEach(Array(paragraphs.enumerated()), id: \\.offset) over a constant array is allowed; paragraphs never reorder (:28).', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: combined label for the inline alert', verdict: 'pass', note: 'accessibilityElement(.combine) plus a "Warning:"/"Error:" label (:83-84, :94-95).', by: 'swiftui-pro skill' },
+        { rule: 'API: manual opacity in place of a hierarchical style', verdict: 'pass', note: 'Fixed: InlineAlert\'s icon is Ink.warning and its wash HassTokens.Wash.alert drawn in that tone, which adapts to appearance and contrast (SettingsSection.swift).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'This component has no motion of its own; its content (tiles, alerts) animates as described on their mockups. The Motion list is empty on purpose.',
+      'Component pages are drawn without a device frame; the Device control picks the size class. Surfaces: the page (dark, over a gradient) and the sheet (follows the Sheet appearance control).',
+      'Docs versus code: patterns/settings-section.md says "each description paragraph in HassTokens.Ink.secondary"; the code uses Ink.onDark on a page and Ink.secondary in a sheet (a contrast fix recorded in a code comment, not the doc).',
+      'Car does not use SettingsSection: it repeats the header styling by hand (MachEContent), without the 4 pt content padding.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: title only, one and two paragraphs, stacked sections, AX5, page and sheet ink.' }],
+  });
+})();
+</script></body></html>

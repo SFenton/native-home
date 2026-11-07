@@ -1,0 +1,16 @@
+{
+  "id": "dd-vacuums-divider-offscreen",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Vacuums page has weird divider line in split view mode unfolded, and right side is off-screen vertically for some reason",
+  "surface": "vacuums",
+  "poses": [
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "66a3fecb",
+  "fix_confidence": "high",
+  "expected": "No divider line except a hairline under Increase Contrast; the trailing pane fits inside the window vertically."
+}

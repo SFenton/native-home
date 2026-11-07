@@ -1,0 +1,6 @@
+{
+  "model": "sonnet",
+  "max_cases": 3,
+  "max_cost_usd": 0.5,
+  "timeout_s": 180
+}

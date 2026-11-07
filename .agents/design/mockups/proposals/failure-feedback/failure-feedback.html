@@ -1,0 +1,52 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Failure feedback</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--tile:#e9ecf1;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;--tile:#2a2f38}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1100px;margin:0 auto;padding:40px 16px 72px}h1{font-size:clamp(28px,4vw,36px);line-height:1.1;margin:0 0 12px}h2{font-size:22px;margin:40px 0 10px}
+p{margin:0 0 12px;max-width:74ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}.lede{font-size:18px;color:var(--fg2)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2)}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 16px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.row{display:flex;flex-wrap:wrap;gap:24px;margin:16px 0}figure{margin:0;width:260px}figcaption{font-size:13px;color:var(--fg2);margin-top:8px}figcaption b{display:block;color:var(--fg);font-size:15px}
+.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.tile{background:var(--tile);border-radius:22px;min-height:84px;padding:12px;display:flex;flex-direction:column;justify-content:center;font-size:15px}
+.tile small{color:var(--fg2);font-size:13px}.tile.err{outline:2px solid var(--bad)}.tile.err small{color:var(--bad)}
+.track{height:10px;border-radius:5px;background:var(--line);position:relative}.track i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--accent)}
+.msg{font-size:13px;color:var(--bad)}.ax{font-size:21px}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:var(--code)}
+</style></head><body><div class="wrap"><p class="eyebrow">Proposal &middot; 2026-10-23 &middot; bucket: Feedback, haptics &amp; failure</p>
+<p class="lede" style="color:var(--ok)"><b>Decided (2026-10-24): option A with the pending spinner. PendingValue/overlay gains a failed state shown for 4 s, exposed through GlassTile.isError, with a caption slot on slider and dial, a VoiceOver announcement and the .error haptic. optimistic-actions' "no error state" rule is reversed. Camera badge copy: "Stream unavailable". Built; see .agents/patterns/optimistic-actions.md (Failure).</b></p>
+
+<h1>When a command fails, say so</h1>
+<p class="lede">21 findings share one cause: a rejected or timed-out service call is swallowed. The tile or handle snaps back and nothing says why, and the sign-in extension and Settings "Not Saved" are only visible for 2 s.</p>
+<h2>Cause</h2>
+<table><tr><th>Where</th><th>Today</th></tr>
+<tr><td><code>ClimateThermostatDial.swift:96-101</code></td><td>Rejected <code>set_temperature</code> rolls the handles back, no message (documented as the optimistic-actions pattern)</td></tr>
+<tr><td><code>HouseholdSettingsController.swift:156-162</code></td><td>Failed flip reverts silently after the overlay; Power Recovery likewise</td></tr>
+<tr><td>Vacuum auto-clean switch</td><td>Snaps back after throw or 8 s with no message</td></tr>
+<tr><td>Guest presence tile</td><td><code>try? await</code> toggle; offline tap does nothing visible</td></tr>
+<tr><td>Security alarm mode</td><td>Roll back silently</td></tr>
+<tr><td>Camera badge</td><td>Signed-out or failed stream draws a black tile, nothing in it</td></tr>
+<tr><td>Settings "Not Saved"</td><td>Resets to idle after 2 s; relies on the announcement</td></tr>
+<tr><td>Time picker with commit delay</td><td>Closing the sheet cancels the pending commit silently</td></tr>
+<tr><td>Rooms page / BedroomDevices</td><td>Fall back quietly; no pending state on picker choices</td></tr></table>
+<p>Logging-only cases (visit count, signed-in user read, image cache writes) are already fixed in code; they need no UI.</p>
+<h2>Options (shown on a tile, a slider and an AX5 tile)</h2>
+<div class="row">
+<figure class="ok"><div class="card"><div class="tile err">Garage Door<small>Didn&rsquo;t respond &middot; tap to retry</small></div><div class="track"><i style="width:60%"></i></div><div class="msg">Couldn&rsquo;t set 21&deg;. Check the connection.</div></div><figcaption><b>A. Inline, in place (recommended)</b>Tiles use the existing error face (red rim, &ldquo;Didn&rsquo;t Respond&rdquo;) for 4 s then revert; sliders and dials show a one-line caption under the control for 4 s. <code>.error</code> haptic and a VoiceOver announcement. Nothing covers the page.</figcaption></figure>
+<figure><div class="card"><div class="tile">Garage Door<small>Closed</small></div><div class="msg" style="background:var(--code);color:var(--fg);padding:8px;border-radius:12px">Couldn&rsquo;t reach Home Assistant</div></div><figcaption><b>B. Banner / toast</b>One global transient banner. One implementation, but it hides content, it is detached from the failed control, and it needs a new shared component.</figcaption></figure>
+<figure class="bad"><div class="card"><div class="tile">Garage Door<small>Closed</small></div></div><figcaption><b>C. Today</b>Snap back, no message.</figcaption></figure>
+<figure><div class="card ax"><div class="tile err ax">Garage Door<small class="ax">Didn&rsquo;t respond &middot; tap to retry</small></div></div><figcaption><b>A at AX5</b>The message wraps inside the tile; the tile grows, no truncation.</figcaption></figure></div>
+<h2>Pending state</h2>
+<p>For calls over ~400 ms (lock, garage, alarm, vacuum, device picker): the control keeps its optimistic colour and the trailing glyph becomes a small spinner until HA confirms. Under Reduce Motion the spinner is a static ellipsis glyph. "Not Saved" persists until the next edit or dismiss rather than 2 s.</p>
+<h2>Comparison</h2>
+<table><tr><th></th><th>HIG (Feedback, Alerts)</th><th>Owner rules</th><th>Cost</th></tr>
+<tr><td>A</td><td>Feedback next to the object; no interruption for a recoverable error</td><td>Reuses the tile&rsquo;s error face and the optimistic overlay; no second state path</td><td>Needs a per-key failure signal on the overlay (<code>PendingValue</code>), tile/dial/slider consumers, tests on iPhone, Duo, iPad incl. AX5</td></tr>
+<tr><td>B</td><td>Toasts are not an Apple pattern; the alert session owns presentation</td><td>New shared component</td><td>Larger, overlaps Alerts bucket</td></tr></table>
+<h2>Recommendation</h2>
+<p><b>A with the pending spinner.</b> Extend <code>PendingValue</code>/overlay with a <code>failed(key)</code> state (4 s), expose it through <code>GlassTile.isError</code> (already exists) and a caption slot on slider/dial, and post a VoiceOver announcement plus the <code>.error</code> haptic from the feedback proposal. Update the optimistic-actions pattern doc, which says &ldquo;no error state between pending and live&rdquo;; that sentence is the departure this reverses.</p>
+<h2>Open questions</h2>
+<p>1. Reverse the optimistic-actions &ldquo;no error state&rdquo; rule? 2. 4 s for the failed face, or until the next tap? 3. Camera badge failure copy: &ldquo;Signed out&rdquo; vs &ldquo;Stream unavailable&rdquo;.</p>
+</div></body></html>

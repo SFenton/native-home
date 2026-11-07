@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Household toggle tile · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  function tiles(ctx) {
+    return HF.surfaces(ctx, [
+      { label: 'toggle · off', node: function () { return HF.tile({ title: 'Outdoor Faucets', symbol: 'drop', on: false }); } },
+      { label: 'toggle · on', node: function () { return HF.tile({ title: 'Outdoor Faucets', symbol: 'drop', on: true }); } },
+      { label: 'toggle · unavailable', node: function () { return HF.tile({ title: 'Outdoor Faucets', symbol: 'drop', unavailable: true }); } },
+      { label: 'toggle · no state subtitle (showsState false)', note: 'Tile.showsState false hides the subtitle; every household tile uses true today', node: function () { return HF.tile({ title: 'Front Door Auto-Lock', symbol: 'lock.shield', on: true, subtitle: null }); } },
+    ]);
+  }
+  function kinds(ctx) {
+    return HF.surfaces(ctx, [
+      { label: 'command (power recovery)', note: 'always lit; runs automation.trigger at once', node: function () { return HF.tile({ title: 'Attempt to turn power back on', symbol: 'bolt.fill', kind: 'command' }); } },
+      { label: 'navigate (opens a sheet)', note: 'chevron; Open Presence-Based Overrides', node: function () { return HF.tile({ title: 'Open Presence-Based Overrides', symbol: 'lightbulb.max', kind: 'navigate' }); } },
+      { label: 'room tile (presence mode: Paused)', note: 'tint is the mode colour; the subtitle is the mode', node: function () { return K.GlassTile({ title: 'Bedroom 1', subtitle: 'Paused', symbol: 'lightbulb', tint: HF.MODES.paused.tint, isActive: true, kind: 'navigate' }); } },
+      { label: 'room tile (Unavailable, still openable)', node: function () { return K.GlassTile({ title: 'Studio', subtitle: 'Unavailable', symbol: 'lightbulb', tint: HF.MODES.unavailable.tint, isActive: false, kind: 'navigate' }); } },
+    ]);
+  }
+  function readonly(ctx) {
+    return HF.surfaces(ctx, [
+      { label: 'GlassStateTile · inactive', node: function () { return HF.stateTile({ title: 'Doors', symbol: 'lock', subtitle: 'Locked', active: false }); } },
+      { label: 'GlassStateTile · active (Heat)', node: function () { return HF.stateTile({ title: 'Passenger Seat', symbol: 'carseat.left', subtitle: 'Heat', active: true }); } },
+      { label: 'GlassStateTile · unavailable', node: function () { return HF.stateTile({ title: 'Climate', symbol: 'windshield.front.and.heat.waves', unavailable: true }); } },
+    ]);
+  }
+  function grids(ctx) {
+    var out = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '18px' } });
+    var defs = [
+      ['Admin / Special Device Modes: minWidth 240, max 2', 240, 2, ['Front Door Auto-Lock', 'Outdoor Faucets', 'Holiday Lights'], 'lock.shield'],
+      ['Guest Controls: minWidth 150, max 6', 150, 6, ['Guest Room', 'Studio', 'Media Room'], 'bed.double'],
+      ['Presence sheets: minWidth 150, max 4 (14 rooms)', 150, 4, ['Living Room', 'Kitchen', 'Hallway', 'Gym', 'Guest Bathroom', 'Guest Room'], 'lightbulb'],
+      ['Car: minWidth 150, max 4 (read-only)', 150, 4, ['Charge Status', 'Doors', 'Driver\'s Seat', 'Passenger Seat', 'Climate'], 'lock'],
+    ];
+    [360, 600, 840].forEach(function (w) {
+      defs.forEach(function (d) {
+        var items = d[3].map(function (t, i) { return d[4] === 'lock' ? HF.stateTile({ title: t, symbol: 'lock', subtitle: i === 3 ? 'Heat' : 'Off', active: i === 3 }) : HF.tile({ title: t, symbol: d[4], on: i % 2 === 0, kind: d[4] === 'lightbulb' ? 'navigate' : 'toggle', subtitle: d[4] === 'lightbulb' ? 'Enabled' : undefined }); });
+        out.appendChild(h('div.k-swatch.page.g-dark', { style: { width: (w + 28) + 'px', maxWidth: '100%', boxSizing: 'border-box' } }, h('div.k-cap', w + ' pt wide · ' + d[0]), h('div.in', HF.grid(items, d[1], d[2]))));
+      });
+    });
+    return out;
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'household-toggle-tile', title: 'Household toggle tile, tile grid and read-only state tile', area: 'settings', status: 'shipped', frame: false,
+    summary: 'The tile every household page uses: HouseholdToggleTile (a GlassTile in the Settings green, subtitle = On / Off / Unavailable), HouseholdTileGrid (DynamicGridLayout with a per-page minimum width and column cap) and GlassStateTile (the same face with no button role, for car). Tiles here are live: tap a toggle.',
+    source: ['apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassCore/Settings/HouseholdSettingsController.swift'],
+    spec: ['.agents/patterns/entity-tile.md', '.agents/patterns/dynamic-grid.md', '.agents/pages/settings/household.md'],
+    patterns: ['entity-tile', 'dynamic-grid', 'settings-section'],
+    hig: ['Toggles', 'Layout', 'Dynamic Type', 'Color'],
+    entities: ['input_boolean.*', 'switch.*_auto_re_enable_presence_lighting', 'sensor / lock / select / number (car)'],
+    kitComponents: ['GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'toggle': { title: 'Toggle tile: off, on, unavailable (and no subtitle)', render: tiles },
+      'kinds': { title: 'Other kinds on household pages: command, navigate, room tiles', render: kinds },
+      'read-only': { title: 'Read-only state tile (car)', note: 'the button trait and hit testing are removed: VoiceOver reads static "<title>, <value>"', render: readonly },
+      'grid': { title: 'HouseholdTileGrid at 360, 600 and 840 pt', note: 'columns follow the width and the per-page minimum: floor((width + 12) / (min + 12)) capped at max; a lone tile stays in the leading column', render: grids },
+      'ax5': { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'the minimum width scales with the text, so every grid is one column and tiles stack glyph over text', render: function (ctx) { return h('div', tiles(ctx), kinds(ctx)); } },
+    },
+
+    motion: [
+      { id: 'tile-colour', what: 'A toggle tile switches: the face fills in the tint, the glyph fills, the subtitle changes', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'toggle',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile"); motion.md section 6', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-tile[aria-pressed]'); if (!t) return Promise.resolve(); var title = t.getAttribute('aria-label').split(',')[0];
+          HF.flipByTitle(t, title); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { HF.flipByTitle(t, title); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'optimistic-revert', what: 'A tap shows the new value at once; with no confirmation after 2 s it reverts', token: '2 s optimistic window (web DEFAULT_OPTIMISTIC_REVERT_MS), then the same state cross-fade', state: 'toggle',
+        source: 'HassCore/Settings/HouseholdSettingsController.swift revertAfter', reduce: 'same timing; the revert cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-tile[aria-pressed]'); if (!t) return Promise.resolve(); var title = t.getAttribute('aria-label').split(',')[0];
+          HF.flipByTitle(t, title); return Mock.sleep(2000).then(function () { HF.flipByTitle(t, title); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'read-only-colour', what: 'A read-only tile follows the entity: Passenger Seat goes from Heat to Off', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'read-only',
+        source: 'GlassStateTile over GlassTile; motion.md section 6', reduce: 'still cross-fades, shortened to 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-tile[aria-label^="Passenger Seat"]'); if (!t) return Promise.resolve(); var on = t.classList.contains('tinted');
+          t.classList.toggle('tinted', !on); t.classList.toggle('off', on); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { t.classList.toggle('tinted', on); t.classList.toggle('off', !on); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Toggle tile', note: 'One button "<title>, <On|Off|Unavailable>" with the toggle trait (selected when on); the glyph is hidden. Identifier household.tile.<entity id>.' },
+      { rule: 'Read-only tile', note: 'No button trait, no hit testing (GlassStateTile): static text "<title>, <value>", so VoiceOver never announces a missing action.' },
+      { rule: 'State is not colour alone', note: 'On or Off is written in the subtitle and the glyph fills; active read-only tiles carry the value word (Heat).' },
+      { rule: 'Targets', note: 'At least 72 pt tall; the whole tile is the target.' },
+      { rule: 'Dynamic Type', note: 'minWidth is scaled with @ScaledMetric(relativeTo: .subheadline): columns drop before a title clips; at AX5 each grid is one column and the tile stacks glyph over text.' },
+      { rule: 'Reduce Motion / Transparency', note: 'Colour cross-fades shorten to 0.2 s; Reduce Transparency draws the solid finish.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Toggles: outside a list use a toggle-like button; state difference obvious', verdict: 'pass', note: 'GlassTile kind .toggle changes fill, glyph and subtitle between On and Off (HouseholdSettingsPage.swift:135-154).', by: 'apple-hig skill' },
+        { rule: 'Color: never colour alone', verdict: 'pass', note: 'The accessibility value and subtitle say On, Off or Unavailable (GlassTile.swift:173-181).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: unavailable stays legible', verdict: 'pass', note: 'An unavailable tile keeps its text at 4.5:1 and mutes only icon and border; VoiceOver still reads it as dimmed (GlassTileButtonStyle comment, GlassTile.swift:128-143).', by: 'apple-hig skill' },
+        { rule: 'Motion: Reduce Motion and Reduce Transparency', verdict: 'pass', note: 'GlassTile reads both (GlassTile.swift:286, :290); the symbol replace effect becomes identity (:404) and the glass goes opaque.', by: 'apple-hig skill' },
+        { rule: 'Layout: responsive grid, even columns around a hinge', verdict: 'pass', note: 'DynamicGridLayout floors (width + gap) / (min + gap) to a capped count and rounds to even on a hinge (DynamicGridLayout.swift:3-38); per-page minimums scale with the text.', by: 'apple-hig skill' },
+        { rule: 'Playing haptics: confirm a toggle', verdict: 'pass', note: 'Fixed in GlassTile.swift: toggle tiles play TapFeedback.tap; a reverted flip shows the failed face with the error haptic (HouseholdToggleTile isError).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: label, value and toggle trait on the Button', verdict: 'pass', note: 'Label, value and .isToggle go on the Button, not a wrapping element, so identifiers and state stay on one element (GlassTile.swift:136-142).', by: 'swiftui-pro skill' },
+        { rule: 'Data: one controller read per tile', verdict: 'pass', note: 'controller.toggle(tile.entityId) in each tile, so a live change re-renders one tile (HouseholdSettingsPage.swift:139-153).', by: 'swiftui-pro skill' },
+        { rule: 'Design: Layout protocol over GeometryReader', verdict: 'pass', note: 'HouseholdTileGrid wraps DynamicGridLayout, a custom Layout, with a @ScaledMetric minimum width (:121-131).', by: 'swiftui-pro skill' },
+        { rule: 'Views: read-only tile as a disabled Button', verdict: 'pass', note: 'Fixed: GlassStateTile draws GlassTile with kind .state, which is not a button and is never dimmed (HouseholdSettingsPage.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Materials: Liquid Glass stays on the navigation layer', verdict: 'pass', note: 'GlassTile draws a tinted content-layer fill with no glassEffect (Module.swift:15-19 explains why; direction-g.md Tile finish).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Component pages are drawn without a device frame; the Device control picks the size class. The surfaces are the page (dark, over a gradient) and the sheet (follows the Sheet appearance control).',
+      'In the app a household page is on the wallpaper and the two presence sheets are sheets; the tile ink on a sheet is the sheet\'s own.',
+      'The catalog hint "GlassStateTile read-only" and "HouseholdTileGrid columns" are the read-only and grid states here.',
+      'Promote to kit: HF.tile (the tinted household tile), HF.stateTile, HF.grid wrappers over GlassTile and TileGrid (pages/settings/_household-forms.js).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: toggle, command, navigate, room and read-only tiles; grids at three widths; AX5.' }],
+  });
+})();
+</script></body></html>

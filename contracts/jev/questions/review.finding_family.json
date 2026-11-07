@@ -1,0 +1,38 @@
+{
+  "id": "review.finding_family",
+  "version": 1,
+  "type": "choice",
+  "mode": "active",
+  "description": "Groups a review finding by kind so a relaunched worker gets one checklist per kind.",
+  "instructions": "What kind of problem does this code-review finding describe?",
+  "criteria": {
+    "tests_missing_or_weak": "A required unit, UX or accessibility test is missing for a device family, or its assertions do not prove the fix",
+    "pattern_rule": "The change breaks a rule of a registered pattern, or grows a parallel implementation of a canonical component",
+    "accessibility_behavior": "Product accessibility behavior is wrong: VoiceOver focus, labels, reading order, traits, 44 pt targets, text scaling",
+    "blast_radius": "The same fix was not applied to the other pages, sheets or device families with the same structure",
+    "web_parity": "Behavior or entity ids diverge from the React dashboard without a recorded decision",
+    "docs_rules": "Agent docs, pattern docs, mockups, contracts or DocC were not updated to match the change",
+    "platform_guidance": "Violates Apple HIG guidance (not accessibility-specific)",
+    "system_api_first": "Custom machinery where a system API on iOS 17, 18 or 26 fits, or a missing rung-0 note",
+    "propose_first": "A visible change without a linked proposal and the owner's pick",
+    "performance_invariant": "Breaks a performance invariant: per-frame state writes, main-thread work scaling with the house, reload on reopen",
+    "correctness": "A logic, state, data or lifecycle bug in the change itself",
+    "process": "Release-Note trailers, CI configuration, secrets, layering or other repository process requirements"
+  },
+  "state": {
+    "fields": [
+      "rule",
+      "file",
+      "finding"
+    ],
+    "max_chars": 3000
+  },
+  "accept": {
+    "min_confidence": 0.8
+  },
+  "target": {
+    "precision": 0.9
+  },
+  "output": "jev_hints.py findings: groups a reviewer's findings into one checklist per kind for the relaunched worker.",
+  "evidence": "Unmeasured on this repo's findings (build/review holds too few). The FestivalNativeApps measurement of the same question over 413 findings had median confidence 0.97. Used only to group findings; every finding still reaches the worker."
+}

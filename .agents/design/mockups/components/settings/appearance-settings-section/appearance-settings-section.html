@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Appearance settings section · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<style>.k-reduce-transparency .k-swatch.page .ui-mlist{background:var(--g-module-thin)}</style>
+</head><body>
+<script>
+(function () {
+  function sw(o) { return function (ctx) { return SA.surfaces(ctx, function () { return SA.appearanceSection(Object.assign({ reduceTransparency: ctx.reduceTransparency }, o)); }); }; }
+  function setBlur(stage, v) {
+    var col = stage.querySelector('.sa-col'); if (!col) return;
+    col.querySelector('.v').textContent = v + '%'; var s = col.querySelector('.ui-slider'); s.querySelector('.fi').style.width = v + '%'; s.querySelector('.kn').style.left = v + '%';
+    var reset = stage.querySelector('.sa-btnrow .bt'); if (reset) reset.disabled = v === 50;
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'appearance-settings-section', title: 'Appearance section (Background Blur, count badge, App Icon)', area: 'settings', status: 'shipped', frame: false,
+    summary: 'The Appearance section of the Settings list: Background Blur (a 0 to 100% slider and Reset to Default), the Show count on app icon switch and, where the system can switch icons, the App Icon row; its footer explains the blur. Drawn on the page (modules over the wallpaper) and in a sheet (debug galleries).',
+    source: ['apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow.swift'],
+    spec: ['.agents/pages/settings/ios.md', '.agents/patterns/page-backdrop.md', '.agents/patterns/settings-section.md'],
+    patterns: ['page-backdrop', 'settings-section'],
+    hig: ['Sliders', 'Toggles', 'Lists and tables', 'Accessibility'],
+    entities: ['UserDefaults: backdrop blur', 'UserDefaults: AppIconBadgeSync.enabledKey'],
+    kitComponents: ['ModuleList', 'Slider', 'Toggle'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Blur at the default 50%', note: 'Reset to Default is disabled while the blur matches the web dashboard', render: sw({}) },
+      'blur-changed': { title: 'Blur at 75%', note: 'Reset to Default is enabled', render: sw({ blur: 75 }) },
+      'reduce-transparency': { title: 'Reduce Transparency on', override: { reduceTransparency: true }, note: 'the footer says pages use a plain background and the blur has nothing to soften; the slider stays', render: sw({}) },
+      'icon-badge-off': { title: 'Show count on app icon off', render: sw({ badgeOn: false }) },
+      'icon-unsupported': { title: 'Alternate icons unavailable', note: 'the App Icon row is not drawn (supportsAlternateIcons is false)', render: sw({ noIcon: true }) },
+      'icon-changed': { title: 'Another icon installed', render: sw({ icon: 'plumLilac' }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the App Icon row stacks the preview above the text; title and value of the slider wrap', render: sw({}) },
+    },
+    motion: [
+      { id: 'blur-drag', what: 'Dragging the slider: the value steps by 5 and Reset to Default enables; the wallpaper re-renders live (on the page)', token: 'no animation token: values render as fast as a render finishes (page-backdrop R9)', source: 'AppearanceSettingsSection.swift BackdropBlurRows; PercentSliderRow (RecipesScreen.swift)',
+        reduce: 'unchanged (a value render is not motion)', play: function (stage) { var v = 50; return new Promise(function (res) { (function step() { v += 5; setBlur(stage, v); if (v >= 80) return res(); setTimeout(step, 110); })(); }).then(function () { return Mock.sleep(500); }); } },
+      { id: 'badge-toggle', what: 'The Show count on app icon switch', token: 'standard 0.3 s knob (system), state 0.6 s track colour', source: 'AppearanceSettingsSection.swift Toggle; direction-g.md Controls: Switches', reduce: 'knob slides; track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-toggle'); t.classList.toggle('on'); return Mock.sleep(900).then(function () { t.classList.toggle('on'); return Mock.sleep(800); }); } },
+    ],
+    a11y: [
+      { rule: 'Background Blur', note: 'PercentSliderRow is one adjustable element: label "Background Blur", value "50 percent", VoiceOver swipes move it in steps of 5 within 0 to 100 (settings.backdropBlur). The visible title and value belong to it; there are no separate text elements.' },
+      { rule: 'Reset to Default', note: 'A 44 pt borderless button with the hint "Sets the background blur to match the web dashboard."; disabled (dimmed, not hidden) at the default (settings.backdropBlur.reset).' },
+      { rule: 'Show count on app icon', note: 'The system switch, labelled by its title (settings.iconBadge); state is the switch position, not colour alone.' },
+      { rule: 'App Icon', note: 'A link row: "App Icon, Navy + Sky" with the hint "Opens the icons you can use on the Home Screen." (settings.appIcon); the preview is decorative.' },
+      { rule: 'Footer', note: 'In the footer’s own ink (white at 85% on the wallpaper, the sheet’s secondary in a sheet) so it stays above 4.5:1; it changes text under Reduce Transparency.' },
+      { rule: 'Dynamic Type', note: 'Title and value stay on one baseline until they cannot; the slider keeps its width; the footer wraps.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sliders: show the value; make it adjustable', verdict: 'pass', note: 'PercentSliderRow shows "N%" beside the title, steps by 5 and exposes accessibilityAdjustableAction (RecipesScreen.swift:377-406).', by: 'apple-hig skill' },
+        { rule: 'Settings: sensible defaults and a way back', verdict: 'pass', note: 'Background Blur defaults to the web dashboard\'s 50% and Reset to Default is disabled at the default (AppearanceSettingsSection.swift:44-50).', by: 'apple-hig skill' },
+        { rule: 'Toggles: identify what the switch affects; switch only in a list row', verdict: 'pass', note: '"Show count on app icon" is a labelled switch in a list row (:22).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: Reduce Transparency', verdict: 'pass', note: 'The footer says the blur has nothing to soften when pages use a plain background (:57-61).', by: 'apple-hig skill' },
+        { rule: 'Color: contrast on the wallpaper', verdict: 'pass', note: 'Footer ink is the fixed white at 85% on the page surface, the sheet\'s secondary elsewhere (:30-31).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: Reduce Transparency means opaque materials', verdict: 'pass', note: 'SettingsScreen listRowBackground uses HassTokens.Surface.moduleThin(reduceTransparency:), opaque with Reduce Transparency.', by: 'apple-hig skill' },
+        { rule: 'Playing haptics: tick through discrete steps', verdict: 'pass', note: 'Fixed in PercentSliderRow.swift: sensoryFeedback(TapFeedback.step) per 5% detent.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Views: shared control in its own file', verdict: 'pass', note: 'PercentSliderRow moved to Controls/PercentSliderRow.swift', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: one adjustable element for title, value and slider', verdict: 'pass', note: 'accessibilityElement(children: .ignore) with label, value "N percent" and an adjustable action (:400-406), after the folded Duo audit flagged separate text.', by: 'swiftui-pro skill' },
+        { rule: 'Data: @Bindable settings and @AppStorage toggle', verdict: 'pass', note: 'BackdropBlurRows binds $settings.sliderValue; the switch binds @AppStorage (AppearanceSettingsSection.swift:13, :41-44).', by: 'swiftui-pro skill' },
+        { rule: 'Views: section header and footer as closures with their own ink', verdict: 'pass', note: 'SettingsSectionHeader and a footer Text carry the surface-dependent ink (:27-32).', by: 'swiftui-pro skill' },
+        { rule: 'Design: LabeledContent for title and slider', verdict: 'pass', note: 'Not applicable: the Background Blur row is PercentSliderRow, the app\'s one slider-with-value row; see the Recipes slider finding.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Reduce Transparency (corrected in the 2026-10-23 skill review): on the page surface the rows stay at the thin 66% tint, because SettingsScreen supplies a fixed listRowBackground(Surface.moduleThin) rather than .module(); only the footer text and the plain background change.',
+      'PercentSliderRow lives in Features/Food/RecipesScreen.swift and is shared with the recipe horizon filter; the kit has Mock.components.SliderRow for it.',
+      'On the sheet surface the module becomes the sheet cell; a Settings list is only ever on the page in the shipped app (the debug galleries show it in a sheet), so the sheet swatch is for completeness.',
+      'Reset to Default, the switch and the App Icon row share one section with no glyphs, so the separators start at the 16 pt margin (drawn); the App Icon row’s preview slot is 34 pt.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

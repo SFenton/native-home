@@ -1,0 +1,22 @@
+{
+  "id": "gate-hints-settings-motion-recorded",
+  "source": "2026-11-02 settings motion case, recorded answers: visible 0.93, target decided 0.9, needs_owner 0.9 -> Designer spec plus a decision note.",
+  "recorded": "2026-11-02",
+  "kind": "gate_hints",
+  "input": {
+    "plan": "Animate the settings sheet; the style is already chosen; the duration still needs a pick.",
+    "jev": {
+      "design.user_visible": 0.93,
+      "decision.needs_owner": 0.9,
+      "design.target_decided": 0.9
+    }
+  },
+  "expect": {
+    "text": {
+      "has": [
+        "reads as visible",
+        "Designer spec"
+      ]
+    }
+  }
+}

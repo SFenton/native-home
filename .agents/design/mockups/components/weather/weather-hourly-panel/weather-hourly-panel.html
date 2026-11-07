@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Weather hourly panel · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_home-weather.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, HW = Mock.HW;
+
+  /* The panel sits in the sheet's column: the sheet's width less its 16 pt margins (704 pt page sheet on regular width). */
+  function colW(ctx) { return ctx.regular ? 704 : Math.min(ctx.w, 466); }
+  function panel(ctx, o) { return HW.win(ctx, HW.hourlyDaily(ctx, o).hourly, { width: colW(ctx) }); }
+  function S(items) {
+    return function (ctx) {
+      return HW.swatches(ctx, items.map(function (it) {
+        return { cap: it.cap, note: it.note, surface: it.surface || 'rain', width: colW(ctx) + 28, node: function () { return panel(ctx, it.o); } };
+      }));
+    };
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'weather-hourly-panel', title: 'Weather sheet: hourly panel (Conditions)', area: 'home', status: 'shipped', frame: false,
+    summary: 'The Conditions panel in the Weather sheet: a 24-hour paging row in three modes (conditions, precipitation, wind), switched with three 44 pt icon buttons. The same mode drives the seven-day panel below it. Drawn over the condition gradient it sits on (always dark).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift', 'apple/Sources/HassUI/Features/Home/Weather/WeatherHourlyMode.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCarousel.swift', 'apple/Sources/HassUI/Features/Home/Weather/WeatherCarouselPaging.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift (the highlight charts, not this panel)', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift'],
+    spec: ['.agents/patterns/weather.md'],
+    patterns: ['weather', 'motion'],
+    hig: ['Segmented controls', 'Page controls', 'Scroll views', 'Typography', 'Color'],
+    entities: ['weather.demo_weather_1'],
+    kitComponents: ['WeatherGlyph'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'conditions': { title: 'Conditions mode (default)', note: 'five hours a page on compact width, seven on regular (Previous and Next appear)', render: S([{ cap: 'weather surface · rain scene', o: { mode: 'condition' } }, { cap: 'weather surface · sunny scene', surface: 'sunny', o: { mode: 'condition' } }]) },
+      'precipitation': { title: 'Precipitation mode', note: 'a blue drop, the chance and, when there is some, the expected amount', render: S([{ cap: 'weather surface · rain scene', o: { mode: 'precipitation' } }]) },
+      'wind': { title: 'Wind mode', note: 'an arrow that points where the wind blows to, the speed and the gust', render: S([{ cap: 'weather surface · rain scene', o: { mode: 'wind' } }]) },
+      'loading': { title: 'Placeholder hours', note: 'same height as real hours so nothing jumps; the label says "Loading 24-hour conditions"', render: S([{ cap: 'weather surface · loading', surface: 'neutral', o: { phase: 'loading' } }]) },
+      'error': { title: 'Forecast failed', note: 'the whole row becomes one message', render: S([{ cap: 'weather surface · error', surface: 'neutral', o: { phase: 'error' } }, { cap: 'weather surface · empty', surface: 'neutral', o: { phase: 'empty' } }]) },
+      'stale-error': { title: 'Refresh failed, hours kept', note: 'a non-connection failure keeps the last hours and adds the message under the row; a dropped connection adds nothing (quiet retry)', render: S([{ cap: 'weather surface · rain scene', o: { phase: 'stale' } }]) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the header stacks the title over the picker; two hours a page', render: S([{ cap: 'weather surface · AX5', o: { mode: 'condition' } }]) },
+    },
+
+    motion: [
+      { id: 'mode-switch', what: 'Switching mode swaps the hours (and the seven-day rows in the sheet) in place', token: 'quick 0.2 s easeOut content change; no slide', state: 'conditions',
+        source: 'WeatherHourlyPanel.swift content .motionSafeAnimation(MotionTokens.quick, value: mode)', reduce: 'the content swaps without the fade',
+        play: function (stage) { function go(m) { var b = stage.querySelector('.hw-modes button[data-mode="' + m + '"]'); if (b) b.click(); return Mock.sleep(800); } return go('precipitation').then(function () { return go('wind'); }).then(function () { return go('condition'); }); } },
+      { id: 'page-paging', what: 'Paging across the 24 hours; the indicator\'s current dot stretches', token: 'paging is UIKit\'s (PagedRow); dot width quick 0.2 s', state: 'conditions',
+        source: 'WeatherPagedCarousel.swift', reduce: 'the row jumps to the page',
+        play: function (stage) { var c = stage.querySelector('.hw-carwrap'); return c ? c.goTo && Mock.sleep(150).then(function () { c.goTo(1); return Mock.sleep(900); }).then(function () { c.goTo(0); return Mock.sleep(700); }) : Promise.resolve(); } },
+    ],
+    transitions: [],
+
+    a11y: [
+      { rule: 'Structure', note: 'The panel is a container labelled "24-hour weather conditions" with the "Conditions" header (heading trait), the Hourly detail group, the subhead and the carousel.' },
+      { rule: 'Mode buttons', note: 'Three 44 pt targets labelled Conditions, Precipitation, Wind with hints ("Shows precipitation chance and expected accumulation."); the chosen one carries the selected trait. The web read "Conditions conditions", so native speaks the bare name.' },
+      { rule: 'Hours', note: 'One element per hour: "7 PM Rain 62°F", "7 PM precipitation 40%", "7 PM wind 9 mph gusts 14 mph". VoiceOver reads the page on screen and says "Page 2 of 5"; the indicator is adjustable and a full 44 pt tall.' },
+      { rule: 'Dynamic Type', note: 'Hour labels scale freely (a minimumScaleFactor made the AX5 audit flag them); at accessibility sizes the header stacks and two hours fit a page; glyphs grow to twice their size at most.' },
+      { rule: 'Contrast', note: 'White on the black 28% wash over gradients no lighter than 5.6:1 with white; time labels and the subhead are white at 85% (at least 4.5:1).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Segmented controls: a small set of closely related choices", verdict: 'pass', note: "Three icon buttons in a capsule, each 44 pt, with a label, hint and isSelected on the current one, grouped as 'Hourly detail' (WeatherHourlyPanel.swift:41-66).", by: 'apple-hig skill' },
+        { rule: "Segmented controls: use the system control", verdict: 'pass', note: "WeatherHourlyPanel.modePicker is Picker(.segmented) keeping the three icons, each segment with an accessibility label and hint.", by: 'apple-hig skill' },
+        { rule: "Charting data: accessible values for every item", verdict: 'pass', note: "Each hour is one element reading '7 PM precipitation 40%' or '7 PM wind 9 mph gusts 14' (WeatherModalHour.swift:73-83).", by: 'apple-hig skill' },
+        { rule: "Page controls and Scroll views: page by page with an indicator", verdict: 'pass', note: "A UIKit paging row with an adjustable indicator, hours per page 5 compact and 7 regular scaling down with type (WeatherPagedCarousel.swift:36-48, 63-87).", by: 'apple-hig skill' },
+        { rule: "Typography: minimum text size", verdict: 'pass', note: "WeatherModalHour precipitation and gust lines are .subheadline (option B); glyphs are @ScaledMetric.", by: 'apple-hig skill' },
+        { rule: "Color: tint is supplementary", verdict: 'pass', note: "The precipitation drop is multicolour but the value prints beside it (WeatherModalHour.swift:35-38, 56).", by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: "Use Label for icon plus text", verdict: 'pass', note: "The panel title and subhead are text; icon buttons carry accessibilityLabel (WeatherHourlyPanel.swift:57).", by: 'swiftui-pro skill' },
+        { rule: "Animate with the app token and Reduce Motion", verdict: 'pass', note: "motionSafeAnimation(MotionTokens.quick, value: mode) on the content (line 21) and paging animation off under Reduce Motion (WeatherPagedCarousel.swift:55).", by: 'swiftui-pro skill' },
+        { rule: "Avoid fixed font sizes", verdict: 'pass', note: "WeatherModalHour drop and wind glyphs are @ScaledMetric(relativeTo: .title3) 26 and 24.", by: 'swiftui-pro skill' },
+        { rule: "Avoid UIKit unless needed", verdict: 'departure', note: "PagedRow is UIKit to keep paging off the sheet's view graph (WeatherPagedCarousel.swift:52-54).", by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: patterns/weather.md describes the carousel with `scrollTargetBehavior(.paging)`; the code hosts a UIKit paging row (PagedRow) for the reason in the departure above.',
+      'This panel is drawn by components/weather/_home-weather.js (HW.hourlyDaily); promote to kit if other pages need it. Glyphs and the arrow are stand-ins for SF Symbols (cloud.rain.fill, drop.fill, location.north.fill).',
+      'The unit labels follow the fixture entity (F, in, mph); a metric house reads "Temperature (C)", "Speed (km/h) · Gusts".',
+      'The hour clock is the status bar\'s 9:41; the first hour reads Now, the rest 10 AM onward. long-text: hour cells hold short numerals and units, so there is no long-text state; a long unit string wraps in the subhead.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: three modes, loading, error, stale, regular width and AX5.' }],
+  });
+})();
+</script></body></html>

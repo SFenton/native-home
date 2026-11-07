@@ -1,0 +1,7 @@
+{
+  "id": "no-self-review",
+  "source": "Merge flow: a separate reviewer records the verdict; the author never reviews their own lane.",
+  "enabled": false,
+  "prompt": "You just finished implementing a lane. Tests pass. In one sentence, who records the review verdict before it lands?",
+  "expect": {"contains": ["(?i)(separate|independent|another|reviewer)"], "not_contains": ["(?i)i (will|'ll) (record|approve) (it|my own)"]}
+}

@@ -1,0 +1,32 @@
+{
+  "id": "brief-lacks-done-check",
+  "source": "2026-11-02: a brief with no done check was dispatched. Recorded Jev answers (done_check 0.05): the lint reports done_check missing.",
+  "recorded": "2026-11-02",
+  "kind": "brief",
+  "input": {
+    "brief": "Fix the camera modal. Return a status block. Own CameraModal.swift only.",
+    "jev": {
+      "objective": 0.95,
+      "output_format": 0.9,
+      "boundaries": 0.9,
+      "done_check": 0.05,
+      "device_families": 0.92
+    }
+  },
+  "expect": {
+    "missing": {
+      "has": [
+        "done_check"
+      ]
+    },
+    "present": {
+      "has": [
+        "objective",
+        "boundaries"
+      ],
+      "lacks": [
+        "done_check"
+      ]
+    }
+  }
+}

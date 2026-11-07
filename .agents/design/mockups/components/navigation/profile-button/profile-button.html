@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profile button · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+  var base = Mock.componentConfig('ProfileButton', { surfaces: ['page'] });
+
+  function swatch(title, node, text) { return h('div', { style: { flex: 'none' } }, h('div.k-swatch.page', { style: { width: '220px' } }, h('div.k-cap', title), h('div.in.row', node)), text ? SN.cap('', text) : null); }
+  /* Before iOS 26 the bar draws no glass: a 44 pt material circle shows behind a 32 pt disc (ProfileButton.Metrics.resolve(liquidGlassBar: false)). */
+  function preGlass(badge) {
+    var disc = h('button.ui-monogram', { type: 'button', 'aria-label': 'Profile, Alex Morgan', style: { width: '32px', height: '32px', fontSize: '13px' } }, 'AD');
+    var ring = h('span', { style: { width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(60,60,64,.55)', border: '.5px solid rgba(255,255,255,.18)', display: 'grid', placeItems: 'center', position: 'relative' } }, disc);
+    if (badge) ring.appendChild(h('span.ui-badge', { 'aria-hidden': 'true', style: { top: '-2px', right: '-4px' } }, String(badge)));
+    return ring;
+  }
+
+
+  /* Avatar fade (AvatarView): the photo layer fades by opacity over the initials; MotionTokens.state 0.6 s, 0.2 s under Reduce Motion. */
+  function avatarFade(stage, selector, seq) {
+    var dur = Mock.settings && Mock.settings.reduceMotion ? 200 : 600, avs = [].slice.call(stage.querySelectorAll(selector));
+    function layers(av) { return [].slice.call(av.querySelectorAll('.ui-photo')); }
+    /* Once a photo is settled the initials disc under it is hidden (AvatarView.discHidden), so a transparent photo shows the bar, not the monogram; it returns before a photo fades out. */
+    function settle(av, on) { av.style.background = on ? 'transparent' : ''; [].slice.call(av.children).forEach(function (c) { if (!c.classList.contains('ui-photo') && !c.classList.contains('ui-photo-hair') && !c.classList.contains('ui-badge')) c.style.visibility = on ? 'hidden' : ''; }); }
+    function show(av, id) { var l = Mock.portraitLayer(id, false); l.style.setProperty('--photo-dur', dur + 'ms'); av.insertBefore(l, av.querySelector('.ui-photo-hair') || av.querySelector('.ui-badge') || null); l.getBoundingClientRect(); l.classList.add('on'); var old = layers(av).filter(function (x) { return x !== l; }); return Mock.sleep(dur + 40).then(function () { old.forEach(function (x) { x.remove(); }); settle(av, true); }); }
+    function hide(av) { settle(av, false); layers(av).forEach(function (l) { l.style.setProperty('--photo-dur', dur + 'ms'); l.classList.remove('on'); }); return Mock.sleep(dur + 40).then(function () { layers(av).forEach(function (l) { l.remove(); }); }); }
+    avs.forEach(function (av) { layers(av).forEach(function (l) { l.remove(); }); });
+    var p = Promise.resolve();
+    seq.forEach(function (raw) { var step = raw && !Array.isArray(raw) ? raw.ids : raw, gap = raw && !Array.isArray(raw) ? raw.gap : 500;
+      p = p.then(function () { return Promise.all(avs.map(function (av, i) { return step === null ? hide(av) : show(av, step[i % step.length]); })); }).then(function () { return Mock.sleep(gap); }); });
+    return p;
+  }
+
+  function swapTab(stage, tab) {
+    var ctx = Mock.current, fresh = SA.summarySheet(ctx, { tab: tab });
+    ['.ui-mscroll', '.ui-mtabs'].forEach(function (sel) { var a = stage.querySelector(sel), b = fresh.querySelector(sel); while (a.firstChild) a.removeChild(a.firstChild); while (b.firstChild) a.appendChild(b.firstChild); });
+  }
+
+
+  var states = {
+    'photo': { title: 'Home Assistant photo', note: 'the person\'s photo replaces the initials on the same 44 pt disc, with a 0.5 pt hairline; label, value and target are unchanged; once the photo settles the initials disc under it is hidden', render: function (ctx) { return h('div.sn-row', swatch('photo', K.ProfileButton({ name: 'Alex Morgan', photo: 'a' }), 'Option A (owner brief 2026-10-27): the photo is the whole disc. A cached photo draws on the first frame, no fade.'), swatch('photo + badge 3 + offline', K.ProfileButton({ name: 'Alex Morgan', photo: 'a', badge: 3, offline: true }), 'Both badges ride on the photo exactly as they do on the initials.')); } },
+    'monogram': { title: 'Monogram, no badge', note: 'the 44 pt disc is the whole button; no glass ring', render: function (ctx) { return h('div.sn-row', swatch('monogram', K.ProfileButton({ name: 'Alex Morgan' }), 'Initials from the first two words, .callout semibold 16 pt, white on #0066CC (5.6:1), capped at xLarge.')); } },
+    'symbol-until-name-known': { title: 'Symbol until the name is known', note: 'person.crop.circle on the bar\'s standard glass circle', render: function (ctx) { return h('div.sn-row', swatch('no name', K.ProfileButton({ name: '' })), swatch('no name + badge 3', K.ProfileButton({ name: '', badge: 3 }), 'The cached name (ShellNavigator.profileName) shows at once on a relaunch, so the button never changes after the first frame.')); } },
+    'badges': { title: 'Attention badge: 1, 9, 9+', note: 'overdue chores plus expired food; "9+" past nine; hidden from VoiceOver, spoken in the value', render: function (ctx) { return h('div.sn-row', [1, 9, 12].map(function (n) { return swatch('badge ' + n + (n > 9 ? ' (9+)' : ''), K.ProfileButton({ badge: n })); })); } },
+    'offline-badge': { title: 'Offline badge (cloud with a slash)', note: 'bottom-trailing, opposite the attention badge; no network path', render: function (ctx) { return h('div.sn-row', swatch('offline', K.ProfileButton({ offline: true })), swatch('offline + badge 3', K.ProfileButton({ offline: true, badge: 3 }), 'The value reads "Alex Morgan, 3 items need attention, Offline".')); } },
+    'rail-person-symbol': { title: 'Duo rail: the person symbol in the shared glass group', note: 'a monogram is a custom view and cannot move into the vertical rail, so the group shows the symbol', render: function (ctx) {
+      return h('div.sn-row', swatch('Duo rail group', K.RailGroup({ badge: 3 })), SN.cap('ShellHeaderGrouping.oneGroup', 'One ToolbarItemGroup, no fixed spacer (owner 2026-10-20). The attention badge rides on the symbol; the monogram stays in the horizontal bar on the folded Duo only when it is not grouped.')); } },
+    'pre-ios26': { title: 'Before iOS 26: 32 pt disc in a 44 pt material circle', note: 'the bar draws no glass, so each header button draws its own circle', render: function (ctx) { return h('div.sn-row', swatch('iOS 17 to 25', preGlass(3), 'Metrics.resolve(liquidGlassBar: false): diameter 32, no overhang, ringed. Quick Links beside it is the same 44 pt material circle (headerCircle()).')); } },
+    'in-header': { title: 'In the header, with Quick Links 12 pt apart', note: 'iOS 27 measured: glass 44, disc 44, gap 12', render: function (ctx) {
+      return h('div.sn-row', SN.stripSwatch({ leading: 'menu', badge: 3, name: 'Alex Morgan' }, 'iPhone, signed in, 3 items', 'ShellHeaderItems on iOS 26+: Quick Links, ToolbarSpacer(.fixed), Profile with its shared glass hidden; the disc overhangs the 10 pt hidden-glass padding.'),
+        SN.stripSwatch({ leading: 'menu', name: '', offline: true }, 'iPhone, name unknown, offline', 'Symbol on glass, offline badge bottom-trailing.')); } },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'a bar item keeps its size: the initials are capped at xLarge so they never outgrow the disc; the Large Content Viewer shows it bigger', render: function (ctx) {
+      return h('div.sn-row', swatch('monogram at AX5', K.ProfileButton({ badge: 3 }), 'Still a 44 pt disc; press and hold shows "Profile" with person.crop.circle.'), swatch('badge 12 at AX5', K.ProfileButton({ badge: 12 })), SN.stripSwatch({ leading: 'menu', badge: 3 }, 'header at AX5')); } },
+  };
+  Object.keys(base.states).forEach(function (k) { states['kit-' + k] = base.states[k]; });
+  states['kit-variants'] = base.states.variants;
+
+  Mock.mount(Object.assign(base, {
+    id: 'profile-button', title: 'Profile button (monogram, attention badge, offline badge)', area: 'shell', status: 'shipped',
+    summary: 'The trailing-most header button on every page: the signed-in person\'s initials on a 44 pt disc (or the person symbol on glass until the name is known), badged with overdue chores plus expired food, and a cloud badge while offline. Opens Your Summary.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/App/Shell/ShellAttention.swift', 'apple/Sources/HassUI/App/Shell/ShellHeaderGrouping.swift', 'apple/Sources/HassUI/App/Shell/ShellNavigator.swift'],
+    spec: ['.agents/design/profile-photos.md', '.agents/design/direction-g.md', '.agents/pages/settings/profile.md', '.agents/design/apple/duo.md', '.agents/platforms/apple/badge.md'],
+    patterns: ['motion'],
+    hig: ['Toolbars', 'Badging', 'Buttons', 'Accessibility'],
+    kitComponents: ['ProfileButton', 'RailGroup', 'QuickLinksButton', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'photo-appears', what: 'The server has a picture and none is cached: it downloads, then the photo fades in over the initials', token: 'MotionTokens.state 0.6 s ease-in-out (0.2 s reduced)',
+        source: 'HassDesign/Avatar/AvatarView.swift', reduce: 'still a cross-fade, 0.2 s', state: 'photo',
+        play: function (stage) { return avatarFade(stage, '.ui-monogram', ['a']); } },
+      { id: 'photo-replaced', what: 'A new picture on the server: the new photo cross-fades over the old one, never through the initials; then it is removed and the initials return', token: 'MotionTokens.state 0.6 s ease-in-out (0.2 s reduced)',
+        source: 'HassDesign/Avatar/AvatarView.swift', reduce: 'still a cross-fade, 0.2 s', state: 'photo',
+        play: function (stage) { return avatarFade(stage, '.ui-monogram', ['a', 'c', null]); } },
+      { id: 'photo-changed-mid-fade', what: 'A newer picture arrives while a fade is running: the running fade finishes, intermediate pictures are dropped, and only the latest plays next, with no pause and never through the initials', token: 'MotionTokens.state 0.6 s ease-in-out (0.2 s reduced), one fade at a time (AvatarFade coalesces)',
+        source: 'HassDesign/Avatar/AvatarFade.swift', reduce: 'still a cross-fade, 0.2 s', state: 'photo',
+        play: function (stage) { return avatarFade(stage, '.ui-monogram', [['a'], { ids: ['c'], gap: 0 }, null]); } },
+    ],
+    transitions: [
+      { from: 'Profile button', to: 'Your Summary sheet', kind: 'sheet', state: 'in-header', note: 'The button asks ShellNavigator for the Account sheet; it hangs on the section\'s stack once (shellSheets), opens at the large detent (hassSheet(.form, height: .full)) and closes the flyout first. Content is present on arrival.',
+        play: function (stage) {
+          // The strip swatches have no page behind them: present over a throwaway device page.
+          var host = h('div', { style: { margin: '16px 0' } }); SN.stageRoot().appendChild(host);
+          var c = SN.ctxFor('iphone', Mock.current), prev = Mock.current; Mock.current = c;
+          var dev = Mock.frame(c, SN.rootPage(c, 'home')); host.appendChild(h('div.sn-z', { style: { zoom: .6 } }, dev)); host.dataset.device = 'iphone'; host.className = 'sn-fig';
+          return Mock.sleep(100).then(function () { return Mock.presentDemo(dev.querySelector('.screen'), SN.accountSheet(c), { hold: 1000 }); }).then(function () { host.remove(); Mock.current = prev; });
+        } },
+    ],
+    a11y: [
+      { rule: 'Name, role, state', note: 'Label "Profile"; value "<name>, <n> items need attention" (singular "1 item needs attention"), plus ", Offline" while offline; hint "Opens your summary and account"; identifier nav.profile. The badges are hidden from VoiceOver and spoken through the value. The offline badge has its own label "Offline" (nav.offline).' },
+      { rule: 'Reading order', note: 'Last in the header: Open Navigation, the reconnecting arc when present, Quick Links, Profile; then the page.' },
+      { rule: 'Targets', note: 'The disc is 44 pt, the hit area a 44 pt circle on every bar; the glass-less pre-iOS 26 form keeps a 44 pt material circle around a 32 pt disc.' },
+      { rule: 'Dynamic Type / AX5', note: 'Bar items do not scale: the initials are capped at xLarge and the badges at xLarge (caption1 bold: 24 x 18 pt for "9+" and 18 x 18 for one digit at the default size, 26-27 x 21 and 21 x 21 at the cap, the header\'s drawn badge matching the rail\'s system badge within 1 pt), so they never outgrow their disc, the 30 pt Duo rail disc included. The Large Content Viewer (accessibilityShowsLargeContentViewer, "Profile", person.crop.circle) shows the enlarged item on press and hold.' },
+      { rule: 'State is not colour alone', note: 'Attention is a number, offline is a cloud-with-slash glyph; the monogram colour never changes.' },
+      { rule: 'Contrast', note: 'White on #0066CC is 5.6:1 in light and dark mode; the badge is white on #D93025.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Toolbars: account access trailing-most, 44 pt', verdict: 'pass', note: 'Monogram or symbol is a 44 pt disc, trailing of Quick Links (ShellHeader.swift:96-120, 273-281).', by: 'apple-hig skill' },
+        { rule: 'Badging: a number only for what needs attention', verdict: 'pass', note: 'Overdue chores plus expired food, "9+" past nine, zero until the viewer is a known resident (ShellHeader.swift:358; ShellAttention.swift:5-10).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: Large Content Viewer and a spoken value for fixed-size bar items', verdict: 'pass', note: 'accessibilityShowsLargeContentViewer, label "Profile", value "Name, 3 items need attention, Offline", hint (ShellHeader.swift:298-304).', by: 'apple-hig skill' },
+        { rule: 'Materials: Liquid Glass behind bar glyphs', verdict: 'departure', note: 'The monogram hides the bar\'s shared glass and fills its place: owner 2026-10-18 option A, FestivalNativeApps parity (ShellHeader.swift:201-202, 136).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: bar items move with the system', verdict: 'departure', note: 'In the vertical rail the person symbol shows, not the monogram, because a custom view stayed 68 pt off the rail\'s column when measured (ShellHeader.swift:213-215, 293).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Do not hard-code small font sizes', verdict: 'pass', note: 'ProfileButton offline glyph is .caption2.weight(.bold) in a @ScaledMetric disc and the count is .caption.bold(); both follow ProfileButton.badgeTypeRange (up to xLarge, the cap the initials follow; Designer 2026-11-04).', by: 'swiftui-pro skill' },
+        { rule: 'Cap Dynamic Type on fixed bar chrome', verdict: 'pass', note: 'Initials use .dynamicTypeSize(...xLarge) and the Large Content Viewer shows the full size (ShellHeader.swift:318-319, 298-300).', by: 'swiftui-pro skill' },
+        { rule: 'Hide a decorative badge, speak its value', verdict: 'pass', note: 'Badge .accessibilityHidden(true); the count is in accessibilityValue (lines 302, 368).', by: 'swiftui-pro skill' },
+        { rule: 'Animate a state change with a token', verdict: 'pass', note: 'ProfileButton badge fades with MotionTokens.quick (motionSafeAnimation on the badge value, .transition(.opacity)); measured by measuresMotion("Profile.badge").', by: 'swiftui-pro skill' },
+        { rule: 'One code path per OS unless needed', verdict: 'departure', note: 'Metrics.resolve(liquidGlassBar:) keeps the 32 pt disc in a material circle for iOS 17 to 25 because the deployment target is iOS 17 (ShellHeader.swift:277-287).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'iOS 26.5 differs from iOS 27 (direction-g.md): the bar gives a hidden-glass custom view a cell 8 pt wider, so Quick Links to Profile is 16 pt there; the mockup draws iOS 27 (12 pt).',
+      'Docs versus code: none; direction-g.md, iphone.md and the code agree on the disc, the badge and the offline badge. The catalog statesHint "badge-1" has no special look: a one-digit badge is the 18 pt capsule.',
+      'The kit stands in for glass with a CSS blur; the app draws system glass. The monogram colour #0066CC is exact.',
+      'Badge position (2026-11-04, .agents/design/profile-badge.md): on iPhone and iPad the header draws its own badge, its trailing edge 4 pt past the disc and 2 pt above it, where the kit draws it; the Duo rail keeps the system badge on the person symbol.',
+      'Motion: none today (no motion on this surface). The 0.2 s badge fade is planned; see patterns/motion.md Departures.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: monogram, symbol, badges, offline, Duo rail group, pre-iOS 26, header context, AX5.' }, { date: '2026-11-04', note: 'Badge size and position rule (T-profile-badge-size): 24 x 18 at default, capped at xLarge, centre on the disc\'s corner point on every bar.' }, { date: '2026-10-27', note: 'Profile photos (in flight): photo state and the two fades; Option A, 0.6 s state fade. See .agents/design/profile-photos.md.' }],
+  }));
+})();
+</script></body></html>

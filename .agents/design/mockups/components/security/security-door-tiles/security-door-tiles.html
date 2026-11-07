@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Door tiles · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+  var LOCK = { kind: 'lock', title: 'Front Door' }, GAR = { kind: 'garage', title: 'Left Door' };
+  function t(base, over) { return function () { return SC.doorTile(Object.assign({}, base, over)); }; }
+  function L(state, label, note) { return { label: label || 'Lock · ' + state, note: note, width: '232px', build: t(LOCK, { state: state }) }; }
+  function G(state, label, o, note) { return { label: label, note: note, width: '232px', build: t(GAR, Object.assign({ state: state }, o)) }; }
+  function S(title, items) { return SC.swatchState(title, { min: 232, items: items }); }
+  function face(stage, o) { var t0 = stage.querySelector('.ui-tile'), n = K.GlassTile(o); t0.className = n.className; t0.dataset.face = n.dataset.face; t0.setAttribute('style', n.getAttribute('style') || ''); t0.innerHTML = n.innerHTML; }
+
+  Mock.mount({
+    kind: 'component', id: 'security-door-tiles', title: 'Door tiles (LockTile, GarageDoorTile)', area: 'security', status: 'shipped', frame: false,
+    summary: 'A lock or a garage door as a tile in the Doors and windows colour family: dark while locked or closed, filled while unlocked, open or moving, the red error face when a lock jams or a garage command fails. The tile is the button. The Security page\'s Doors grid and the garage room cards draw them.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift', 'apple/Sources/HassUI/Features/Security/SecurityTiles.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
+    spec: ['.agents/pages/security/ios.md', '.agents/pages/security/spec.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['entity-tile', 'optimistic-actions', 'dynamic-grid', 'motion'],
+    hig: ['Buttons', 'Color', 'Feedback', 'Dynamic Type'],
+    entities: ['lock.demo_lock_2', 'cover.demo_garage_door_2', 'cover.demo_garage_door_1', 'lock.demo_lock_1'],
+    kitComponents: ['GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'locks': S('Lock states', [L('locked', 'Locked'), L('unlocked', 'Unlocked'), L('unlocking', 'Unlocking'), L('locking', 'Locking'), L('jammed', 'Jammed (error face)'), L('unavailable', 'Unavailable')]),
+      'garage': S('Garage door states', [G('closed', 'Closed', {}), G('opening', 'Opening', {}), G('open', 'Open', {}), G('closing', 'Closing', {}), G('unavailable', 'Unavailable', {})]),
+      'feedback': S('Garage command feedback', [
+        G('opening', 'Sending Open…', { phase: 'sending', opens: true }, 'for 1 s after the tap; taps are ignored for 2 s'),
+        G('closing', 'Sending Close…', { phase: 'sending', opens: false }, 'the door was open, so the tap closes it'),
+        G('closed', 'Error', { phase: 'error', opens: true }, 'after a failed call, no answer in 10 s, offline, or no change in 45 s: red error face for 8 s; the optimistic state is dropped, so the glyph shows the live state'),
+        G('opening', 'Pending', { phase: 'pending', opens: true }, 'acknowledged, waiting for the door: shows the optimistic Opening until Home Assistant reports movement')]),
+      'vehicle': S('Car door lock (hidden in the app)', [{ label: 'Vehicle · locked', width: '232px', build: t({ kind: 'car', title: 'Doors' }, { state: 'locked' }), note: 'SecurityConfig.showsVehicleSection is false; the gallery shows it' }, { label: 'Vehicle · unlocked', width: '232px', build: t({ kind: 'car', title: 'Doors' }, { state: 'unlocked' }) }]),
+      'loading': S('First sign-in: name now, value pending', [{ label: 'Lock · pending', width: '232px', build: t(LOCK, { state: 'unavailable', pending: true }), note: 'GlassTile draws a soft pulsing bar where the state goes while valuesPending is on (nothing saved yet); VoiceOver reads "Loading"' }, { label: 'Garage · pending', width: '232px', build: t(GAR, { state: 'unavailable', pending: true }) }]),
+      'offline': S('Offline: a garage tap fails at once', [G('closed', 'Left Door after a tap while offline', { phase: 'error', opens: true }, 'canSend is false for disconnected, waiting-to-reconnect and rejected, so the request fails immediately and the tile shows Error'), L('locked', 'Lock while offline', 'values stay; a lock tap shows the optimistic state, then rolls back when the call fails')]),
+      'long-text': S('Long titles wrap', [{ label: 'Two-line title', width: '232px', build: function () { return K.GlassTile({ title: 'Bedroom 1 Street Door', subtitle: 'Unlocking', symbol: 'lock.open', family: 'contact', isActive: true, kind: 'command' }); }, note: 'device tiles keep the Row layout; the title wraps under the glyph column' }]),
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: function (ctx) { return SC.swatches(ctx, { min: 232, items: [L('locked', 'Locked'), G('opening', 'Sending Open…', { phase: 'sending', opens: true })] }); } },
+    },
+
+    motion: [
+      { id: 'fill', what: 'A door opens or a lock turns: the tile fills with the Doors and windows colour and its glyph swaps', token: 'state 0.6 s ease-in-out for colour; the glyph replaces itself with a symbol effect (identity under Reduce Motion)', state: 'locks',
+        source: 'GlassTile (GlassTileFace) .stateColorTransition("GlassTile"), glyph .contentTransition(.symbolEffect(.replace)); motion.md section 6', reduce: 'colour cross-fades at 0.2 s; the glyph swaps with no effect',
+        play: function (stage) {
+          function lock(sub, sym, active) { face(stage, { title: 'Front Door', subtitle: sub, symbol: sym, family: 'contact', isActive: active, kind: 'command' }); }
+          lock('Unlocking', 'lock.open', true); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { lock('Unlocked', 'lock.open', true); return Mock.sleep(700); }).then(function () { lock('Locked', 'lock', false); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+      { id: 'error-face', what: 'A garage command fails: the tile takes the red error face and says Error, then settles back after 8 s', token: 'state 0.6 s ease-in-out for the face; hold 8 s from GarageDoorController.Timing.failureHold', state: 'garage',
+        source: 'GarageDoorTile (isError: phase == .error), GarageDoorController', reduce: 'cross-fades at 0.2 s; the VoiceOver announcement "Left Door, Error" is unchanged',
+        play: function (stage) {
+          function g(sub, o) { face(stage, Object.assign({ title: 'Left Door', subtitle: sub, symbol: 'door.garage.closed', family: 'contact', kind: 'command' }, o)); }
+          g('Sending Open…', { symbol: 'door.garage.open', isActive: true }); return Mock.sleep(1100).then(function () { g('Error', { isError: true }); return Mock.sleep(Mock.anim.ms.state() + 900); }).then(function () { g('Closed', { isActive: false }); return Mock.sleep(Mock.anim.ms.state() + 200); });
+        } },
+      { id: 'pending-pulse', what: 'First sign-in: a soft bar breathes where the state will go', token: 'opacity 0.35 to 1 over 1.4 s, repeating until live data lands', state: 'loading',
+        source: 'HassDesign/PendingValue.swift; motion.md section 5', reduce: 'static at 65% opacity', play: function () { return Mock.sleep(2800); } },
+    ],
+
+    a11y: [
+      { rule: 'Name, value, hint', note: 'One button per tile: label the door, value its state ("Front Door, Locked"), hint what a tap does ("Unlocks", "Locks", "Opens the door", "Closes the door"); no hint while unavailable. Identifier security.tile.<entity id>.' },
+      { rule: 'Garage feedback', note: '"Sending Open…", "Opening", "Error" are announced with AccessibilityNotification.Announcement ("Left Door, Sending Open…") without moving focus.' },
+      { rule: 'State is not colour alone', note: 'Every state has words and a glyph: padlock, open padlock, closed or open garage; the red error face adds the word Error (or Jammed).' },
+      { rule: 'Targets', note: 'Tiles are 72 pt tall at the default size (one column at AX sizes), 140 pt scaled minimum width.' },
+      { rule: 'Unavailable', note: 'Disabled; the glyph dims to 50% but the title and "Unavailable" keep 4.5:1 and the ground stays full strength (a whole-face fade measured 2.4:1 once).' },
+      { rule: 'Dynamic Type', note: 'At AX5 the tile stacks glyph over text and the grid is one column; long titles wrap, never truncate.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Color: state beyond colour", verdict: 'pass', note: "Words Locked, Unlocked, Jammed, Opening, Closing, Error and glyphs that open; the red error face adds the word Error (SecurityTiles.swift:76-83, SecurityDoorTile.swift:73-77).", by: 'apple-hig skill' },
+        { rule: "Feedback: communicate that a command is on its way", verdict: 'pass', note: "The garage says 'Sending Open…' then the live state, and announces each phase to VoiceOver without moving focus (SecurityTiles.swift:76-83, 116-120); locks show the tapped state until Home Assistant reports.", by: 'apple-hig skill' },
+        { rule: "Playing haptics: confirm a physical action", verdict: 'pass', note: "Fixed: LockTile and GarageDoorTile draw through GlassTile, which plays TapFeedback.tap; a failed lock command shows the failed face (LockTile failed) and a garage error face plays the error haptic. No heavier impact for doors (owner decision).", by: 'apple-hig skill' },
+        { rule: "Alerts: avoid an alert for a common undoable action", verdict: 'departure', note: "Locks and garage doors act on one tap with no confirmation (.agents/pages/security/ios.md Safety: 'garage doors open on tap with no confirmation'); only Disarm asks.", by: 'apple-hig skill' },
+        { rule: "Layout: equal heights and a scaled minimum", verdict: 'pass', note: "@ScaledMetric 140 and equalRowHeights so a long name lifts the row, one column at AX5 (SecurityScreen.swift:56, 107-112).", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Tile is the Button with a hint", verdict: 'pass', note: "GlassTile .command with hints 'Locks', 'Unlocks', 'Opens the door', 'Closes the door' (SecurityDoorTile.swift:63, SecurityTiles.swift:61, 71-74).", by: 'swiftui-pro skill' },
+        { rule: "Use sensoryFeedback for haptics", verdict: 'pass', note: "Fixed: GlassTile applies tapFeedback and failureFeedback (TapFeedback.swift), used by LockTile and GarageDoorTile.", by: 'swiftui-pro skill' },
+        { rule: "Hygiene: remove unused code", verdict: 'pass', note: "Fixed: the unread SecurityConfig.Tone colour extension and GarageDoorTile.tone(for:) are gone with their tests; HassCore SecurityConfig.Tone stays.", by: 'swiftui-pro skill' },
+        { rule: "Controller owns timers, view stays thin", verdict: 'pass', note: "GarageDoorController is unit-tested with a manual clock; the view forwards liveDidChange and connection changes (SecurityTiles.swift:102-121).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      "Built on claude/action-nav-tiles: each tile reads text . disc (SC.doorTile uses the kit GlassTile behavior/actions); lock isOn = unlocked, jammed offers Lock, garage disc morphs (no Stop: our doors do not support it), car drops its car glyph for the lock disc.",
+      'Tones in SecurityConfig.Tone (secure green, active blue, danger red) are the web\'s; the native tile uses the Doors and windows family instead (dark closed, family fill when open), per direction-g.md Security Doors are tiles (owner 2026-10-16).',
+      'Docs versus code: SecurityTiles.swift still defines SecurityConfig.Tone colours and GarageDoorTile.tone(for:), but no view reads them; the tile face comes from GlassTile alone.',
+      'Garage room cards (RoomCardView.garageTile) draw the same GarageDoorTile with the card\'s title.',
+      'Promote to kit: SecClimate.doorTile as GlassTile helpers (lock and garage).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: lock, garage, feedback, vehicle, loading, offline and AX5 variants.' }, { date: '2026-10-27', note: "Action tiles (claude/action-nav-tiles): each tile reads text . disc (SC.doorTile uses the kit GlassTile behavior/actions); lock isOn = unlocked, jammed offers Lock, garage disc morphs (no Stop: our doors do not support it), car drops its" }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,18 @@
+{
+  "id": "gate-route-camera-pick-no-design",
+  "source": "2026-11-02: the camera grace case: not visible + the owner must pick -> a decision note, not the Designer.",
+  "recorded": "2026-11-02",
+  "kind": "gate_route",
+  "input": {
+    "visible": false,
+    "chosen": null,
+    "pick": true
+  },
+  "expect": {
+    "route": {
+      "has": [
+        "decision note, then Coder (L2 policy)"
+      ]
+    }
+  }
+}

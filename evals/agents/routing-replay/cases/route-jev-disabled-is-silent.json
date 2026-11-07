@@ -1,0 +1,25 @@
+{
+  "id": "route-jev-disabled-is-silent",
+  "source": "Rule: jev.enabled false means no Jev call at all and no raise.",
+  "recorded": "2026-11-02",
+  "kind": "route",
+  "input": {
+    "labels": [
+      "Bug"
+    ],
+    "title": "[Bug] Camera y",
+    "body": "x",
+    "cfg": {
+      "jev": {
+        "enabled": false
+      }
+    },
+    "jev": {
+      "design.user_visible": 0.99
+    }
+  },
+  "expect": {
+    "raise": null,
+    "final": "L0"
+  }
+}
