@@ -50,12 +50,12 @@ class HistorySecretScanTests(unittest.TestCase):
         path.chmod(0o755)
         Path(str(path) + ".mode").write_text(mode)
 
-    def run_script(self, path: str):
+    def run_script(self, path: str, cwd=None):
         env = {**os.environ, "PATH": path, "HISTORY_SCAN_OUT": str(self.out)}
-        return subprocess.run(["bash", str(SCRIPT)], capture_output=True, text=True, env=env)
+        return subprocess.run(["bash", str(SCRIPT)], capture_output=True, text=True, env=env, cwd=cwd)
 
-    def with_stub(self):
-        return self.run_script(f"{self.bin}:/usr/bin:/bin")
+    def with_stub(self, cwd=None):
+        return self.run_script(f"{self.bin}:/usr/bin:/bin", cwd=cwd)
 
     def test_missing_gitleaks_stops_with_exit_2_and_installs_nothing(self):
         if subprocess.run(["bash", "-c", "PATH=/usr/bin:/bin command -v gitleaks"], capture_output=True).returncode == 0:
@@ -83,16 +83,27 @@ class HistorySecretScanTests(unittest.TestCase):
         self.assertIn("0 finding(s)", proc.stdout)
 
     def test_the_triaged_ignore_file_is_passed_and_lists_only_fingerprints(self):
-        """Fails if: the scan stops honouring the repo-root .gitleaksignore, or the file holds anything but comments and
-        fingerprints (a secret value pasted into it)."""
+        """Fails if: the scan stops honouring a repo-root .gitleaksignore, or the file (when the repo has one) holds anything
+        but comments and fingerprints (a secret value pasted into it). The public snapshot has no such file."""
         self.stub("clean")
-        self.with_stub()
+        with tempfile.TemporaryDirectory() as cwd:
+            (Path(cwd) / ".gitleaksignore").write_text("# triaged\n" + "a" * 40 + ":f.txt:generic-api-key:1\n")
+            self.with_stub(cwd)
         self.assertIn("--gitleaks-ignore-path .gitleaksignore", (self.bin / "gitleaks.args").read_text())
         ignore = SCRIPT.parents[1] / ".gitleaksignore"
-        lines = [line for line in ignore.read_text().splitlines() if line and not line.startswith("#")]
-        self.assertTrue(lines)
-        for line in lines:
-            self.assertRegex(line, r"^[0-9a-f]{40}:[^:\s]+:[a-z0-9-]+:\d+$")
+        if ignore.exists():
+            lines = [line for line in ignore.read_text().splitlines() if line and not line.startswith("#")]
+            self.assertTrue(lines)
+            for line in lines:
+                self.assertRegex(line, r"^[0-9a-f]{40}:[^:\s]+:[a-z0-9-]+:\d+$")
+
+    def test_a_repo_without_an_ignore_file_ignores_nothing(self):
+        """Fails if: the scan passes --gitleaks-ignore-path when there is no .gitleaksignore (the public snapshot has none)."""
+        self.stub("clean")
+        with tempfile.TemporaryDirectory() as cwd:
+            proc = self.with_stub(cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("--gitleaks-ignore-path", (self.bin / "gitleaks.args").read_text())
 
     def test_the_config_is_passed_and_allowlists_only_existing_files_per_rule(self):
         """Fails if: the scan stops passing .gitleaks.toml, the config drops the default rules, an allowlist has no rule

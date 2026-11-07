@@ -26,7 +26,10 @@ mkdir -p "$OUT"
 REPORT="$OUT/report.json"
 rm -f "$REPORT"
 
-gitleaks git --redact --no-banner --config .gitleaks.toml --gitleaks-ignore-path .gitleaksignore --log-opts="--all" --report-format json --report-path "$REPORT" --exit-code 3 >"$OUT/gitleaks.log" 2>&1
+# No .gitleaksignore (the public snapshot leaves it out: its fingerprints name private commits) means nothing is ignored.
+IGNORE_ARGS=()
+[ -f .gitleaksignore ] && IGNORE_ARGS=(--gitleaks-ignore-path .gitleaksignore)
+gitleaks git --redact --no-banner --config .gitleaks.toml ${IGNORE_ARGS[@]+"${IGNORE_ARGS[@]}"} --log-opts="--all" --report-format json --report-path "$REPORT" --exit-code 3 >"$OUT/gitleaks.log" 2>&1
 CODE=$?
 if [ "$CODE" -ne 0 ] && [ "$CODE" -ne 3 ]; then
   echo "history_secret_scan: gitleaks failed (exit $CODE); see $OUT/gitleaks.log" >&2
