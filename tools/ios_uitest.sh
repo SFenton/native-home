@@ -270,7 +270,10 @@ sim_healthy() {  # udid -> 0 when the simulator booted and can draw a frame
   local udid="$1" shot
   shot="$(mktemp "${TMPDIR:-/tmp}/fenton-health.XXXXXX")"
   python3 "$ROOT/tools/xc_watch.py" --wall 120 --label "simctl bootstatus" -- xcrun simctl bootstatus "$udid" -b >/dev/null 2>&1 \
-    && python3 "$ROOT/tools/xc_watch.py" --wall 20 --label "simctl screenshot" -- xcrun simctl io "$udid" screenshot --type=png "$shot" >/dev/null 2>&1
+    && { python3 "$ROOT/tools/xc_watch.py" --wall 20 --label "simctl screenshot" -- xcrun simctl io "$udid" screenshot --type=png "$shot" >/dev/null 2>&1 \
+         || python3 "$ROOT/tools/xc_watch.py" --wall 20 --label "simctl screenshot (primary display)" -- xcrun simctl io "$udid" screenshot --display=primary --type=png "$shot" >/dev/null 2>&1; }
+  # The Duo has two displays (primary and primary-1): a bare `screenshot` fails with "Cannot choose between 2 displays" (exit 22),
+  # so the health check retries on the primary display (the flag tools/uikit_shot.sh uses).
   local ok=$?
   rm -f "$shot"
   return $ok
