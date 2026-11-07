@@ -8,7 +8,7 @@
 set -uo pipefail
 export PATH="${PATH:-/usr/bin:/bin}:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/sbin"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REPO="${HASS_NIGHTLY_REPO:-SFenton/Fenton-HASS-Native}"
+REPO="${HASS_NIGHTLY_REPO:-SFenton/native-home}"
 KILL="${HASS_NIGHTLY_KILL_FILE:-$HOME/.config/fenton-hass/NO_NIGHTLY}"
 
 stamp() { date '+%Y-%m-%d %H:%M:%S'; }
