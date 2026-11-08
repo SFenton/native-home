@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hass_triage as ht  # noqa: E402
 from test_hass_triage import Base, FakeGitHub  # noqa: E402
 
-PR = "https://github.com/SFenton/Fenton-HASS-Native/pull/50"
+PR = "https://github.com/SFenton/native-home/pull/50"
 
 
 class TestFlightTests(Base):
@@ -27,7 +27,7 @@ class TestFlightTests(Base):
 
     def test_app_change_on_main_dispatches_once_an_hour(self):
         self.assertTrue(self.r.testflight_after(["apple/HassUI/A.swift"], "main", "lane x"))
-        self.assertEqual(self.dispatches(), [("dispatch", "SFenton/Fenton-HASS-Native", "ios-release-build.yml", "main")])
+        self.assertEqual(self.dispatches(), [("dispatch", "SFenton/native-home", "ios-release-build.yml", "main")])
         self.assertFalse(self.r.testflight_after(["apple/B.swift"], "main", "lane y"))
         self.assertEqual(len(self.dispatches()), 1)
         self.r.state.data["testflight"]["last_epoch"] -= ht.TESTFLIGHT_MIN_SECONDS + 1

@@ -272,7 +272,7 @@ def product_slug() -> str:
         value = json.loads((REPO / "tools" / "triage" / "config.json").read_text()).get("product_repo")
     except (OSError, ValueError):
         value = None
-    return str(value or "SFenton/Fenton-HASS-Native").lower()
+    return str(value or "SFenton/native-home").lower()
 
 
 def go_public_whole(command: str) -> Optional[str]:
