@@ -596,7 +596,8 @@ AUTOMERGE_AUTHOR = "SFenton"
 SHA40 = re.compile(r"^[0-9a-fA-F]{40}$")
 AUTOMERGE_FLAGS = {"--squash", "-s", "--auto"}
 AUTOMERGE_VALUE_FLAGS = {"-R", "--repo", "--match-head-commit", "--subject", "-t", "--body", "-b", "--body-file", "-F"}
-AUTOMERGE_UNSAFE = re.compile(r"[$`;&|<>(){}\n\r\\]")
+#: The only characters the allowed form may contain, quoted or not: no expansion (``$`` backtick glob ``~``), separator, redirect, comment, history or newline.
+AUTOMERGE_SAFE = re.compile(r"[A-Za-z0-9 ._,:/=@+'\"-]+")
 PR_NUMBER = re.compile(r"[0-9]+")
 #: True while a nested command string (``eval``, ``bash -c``) is scanned: the allowed merge is a top-level command only.
 _NESTED = False
@@ -631,8 +632,8 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
         return None
     if words[:3] != ["gh", "pr", "merge"]:
         return None
-    # No substitution, backslash, separator, redirect or newline anywhere, quoted or not (use --body-file for rich text).
-    if AUTOMERGE_UNSAFE.search(text):
+    # An allowlist over the whole raw command, quoted or not (use --body-file for rich text); unbalanced quotes fail shlex above.
+    if not AUTOMERGE_SAFE.fullmatch(text):
         return None
     found: Dict[str, str] = {}
     flags = set()

@@ -134,6 +134,17 @@ class AutoMergeTests(unittest.TestCase):
         self.assertIsNotNone(self.verdict(f"{GOOD} --subject 'Tests; docs'", comments=[passing()]))
         self.assertIsNotNone(self.verdict(f"{GOOD} --subject 'a (b)'", comments=[passing()]))
 
+    def test_glob_and_other_expanding_characters_refuse(self):
+        for tail in ("--body-file *", "--subject */*", "--body-file ../*", "--subject ?", "--subject [a-z]", "--body-file ~/x", "--body-file ~",
+                     "--subject #x", "--subject !x", "--subject 'a?b'", "--subject \"*\"", "--subject {a,b}", "--subject x\ty"):
+            with self.subTest(tail=tail):
+                self.assertIsNotNone(self.verdict(f"{GOOD} {tail}", comments=[passing()]))
+
+    def test_unbalanced_quotes_refuse(self):
+        for tail in ("--subject 'x", "--subject \"x", "--subject 'x\"", "--body 'a' '"):
+            with self.subTest(tail=tail):
+                self.assertIsNotNone(self.verdict(f"{GOOD} {tail}", comments=[passing()]))
+
     def test_only_the_owner_account_can_speak_for_the_review(self):
         self.assertIsNotNone(self.verdict(GOOD, comments=[passing(login="mallory")]))
         self.assertIsNotNone(self.verdict(GOOD, comments=[failing(), passing(login="mallory", at="2026-11-08T12:00:00Z")]))
