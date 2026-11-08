@@ -478,7 +478,21 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+      - name: Author check
+        # GitHub is the merge gate: only SFenton's own branches in this repository merge. A fork pull request, or one from another
+        # account, fails the aggregate (and so the required check) however green the rest is.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          if [ "$AUTHOR" != "SFenton" ] || [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "pr-checks failed: pull request by $AUTHOR from $HEAD_REPO; only SFenton's branches in $THIS_REPO merge" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
       - name: Aggregate
+        if: ${{ !cancelled() }}
         env:
           NEEDS: ${{ toJSON(needs) }}
           HOSTED_MACOS: ${{ vars.HOSTED_MACOS }}

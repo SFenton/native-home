@@ -46,7 +46,14 @@ Write the JSON to a file and record it with `tools/review/record.py verdict.json
 
 `record.py` adds `round` and `head`, writes `build/review/<branch>.json` and puts the summary in the PR body.
 
-**native-home PRs (owner, 2026-11-08).** Post the verdict as a PR comment for `merge_guard`. `Head:` is the SHA you actually reviewed: note `gh pr view N -R SFenton/native-home --json headRefOid` at the start and check it again right before posting. If it moved, post `Verdict: fail` saying the head moved (`Head:` is the reviewed SHA) or post nothing; never a pass for a head nobody reviewed. Write a file whose lines include exactly `Verdict: pass` (or `Verdict: fail`) and `Head: <the full 40-hex reviewed SHA>`, then run `gh pr review N -R SFenton/native-home --comment --body-file FILE`. Only the owner's account counts; a later push makes the comment stale.
+**native-home PRs (owner, 2026-11-08).** GitHub is the merge gate: the ruleset needs one approving review from an account other than the author, and `pr-checks` green. You are that other account. After recording the verdict as above, give it to GitHub as the reviewer account (never as the owner's own login, which cannot approve its own PR): note `gh pr view N -R SFenton/native-home --json headRefOid` at the start and check it again right before posting. If the head moved, review again or post nothing. Write the findings (a pass says which head you reviewed) to a file, then run one of
+
+```
+GH_CONFIG_DIR="$HOME/.config/gh-sh-reviewer" gh pr review N -R SFenton/native-home --approve --body-file FILE
+GH_CONFIG_DIR="$HOME/.config/gh-sh-reviewer" gh pr review N -R SFenton/native-home --request-changes --body-file FILE
+```
+
+`--approve` for a `pass` verdict; `--request-changes` for `changes` or `blocker`. A later push dismisses the approval, so the next head needs a new review. Auto-merge is already armed by `tools/ship.sh` when the ruleset allows it; you never merge.
 
 ## Ending
 

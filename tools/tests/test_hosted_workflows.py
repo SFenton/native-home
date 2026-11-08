@@ -245,5 +245,18 @@ class ScopeFilterTests(unittest.TestCase):
         self.assertIn("base: ${{ inputs.scope_base }}", text)
 
 
+class MergeGateTests(unittest.TestCase):
+    def test_the_aggregate_fails_a_pull_request_not_from_sfenton_in_this_repository(self):
+        text = jobs("pr-checks.yml")["pr-checks"]
+        step = text.split("- name: Author check", 1)[1].split("- name: Aggregate", 1)[0]
+        self.assertIn("github.event_name == 'pull_request'", step)
+        self.assertIn("github.event.pull_request.user.login", step)
+        self.assertIn("github.event.pull_request.head.repo.full_name", step)
+        self.assertIn("github.repository", step)
+        self.assertIn('"$AUTHOR" != "SFenton"', step)
+        self.assertIn("exit 1", step)
+        self.assertIn("if: ${{ !cancelled() }}", text.split("- name: Aggregate", 1)[1])  # both steps run, so the summary shows both
+
+
 if __name__ == "__main__":
     unittest.main()
