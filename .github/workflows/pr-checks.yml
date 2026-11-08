@@ -430,7 +430,8 @@ jobs:
     needs: scope-hosted
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    timeout-minutes: 90
+    # The Duo leg is shorter: a lost runner then frees its capacity and reports sooner (build/research/duo-hosted-ci.md).
+    timeout-minutes: ${{ matrix.family == 'duo' && 60 || 90 }}
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -443,6 +444,9 @@ jobs:
       # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
       FENTON_HEALTH_SHOT_WALL: "180"
       FENTON_HEALTH_BOOT_WALL: "300"
+      # Hosted-only build settings (the products script adds them to the cache key, so hosted products have their own key):
+      # host architecture only, no index store. Local builds never see these.
+      FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -451,34 +455,27 @@ jobs:
       - name: Derived data path (runner context is not allowed in job env)
         run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        run: tools/ci_hosted_setup.sh
+        run: |
+          tools/ci_hosted_setup.sh
+          # Spotlight indexing competes with the compile for 3 cores; best effort (needs sudo).
+          sudo mdutil -a -i off || true
       - name: Selected Xcode (cache key)
         id: xcode
         run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      # The dd-sim-arm64 prefix follows FENTON_HOSTED_BUILD_SETTINGS (host architecture only): change both together.
       - name: Restore DerivedData
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/dd
-          key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
-            dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: Warm the ${{ matrix.family }} simulator (first boot of a runtime on a fresh VM can exceed the 120 s health check)
+            dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Build the test products first (no simulator booted; a Duo first boot beside a compile killed two runners)
+        run: tools/ci_heartbeat.sh run -- tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force --build-only
+      - name: Boot the ${{ matrix.family }} simulator and wait for the load to settle (first boot of a runtime on a fresh VM)
         continue-on-error: true
-        env:
-          FAMILY: ${{ matrix.family }}
-        run: |
-          case "$FAMILY" in
-            iphone) name="${FENTON_SIM_IPHONE:-iPhone 17}" ;;
-            duo) name="${FENTON_SIM_DUO:-iPhone Duo}" ;;
-            ipad) name="${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
-          esac
-          udid="$(xcrun simctl list devices available -j | jq -r --arg n "$name" '[.devices[][] | select(.name == $n)][0].udid // empty')"
-          [ -n "$udid" ] || { echo "no simulator named $name"; xcrun simctl list devices; exit 1; }
-          xcrun simctl boot "$udid" || true
-          time xcrun simctl bootstatus "$udid" -b
-          # The Duo has two displays, so a bare screenshot fails (exit 22, after minutes); name the primary one first.
-          { xcrun simctl io "$udid" screenshot --display=primary --type=png "$RUNNER_TEMP/warm.png" || xcrun simctl io "$udid" screenshot --type=png "$RUNNER_TEMP/warm.png"; } && echo "screenshot ok"
+        run: tools/ci_heartbeat.sh run -- tools/sim_settle.sh "${{ matrix.family }}"
       - name: Smoke plan on ${{ matrix.family }}
         run: tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force
       - name: Journeys the diff reaches on ${{ matrix.family }}
@@ -503,7 +500,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/dd
-          key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
       - name: Simulator diagnostics
         if: failure()
         continue-on-error: true
