@@ -425,14 +425,18 @@ jobs:
           key: dd-release-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
 
   sim-smoke:
-    # Advisory for now (continue-on-error, not in the aggregate): the Smoke plan plus the journeys the diff reaches, one family per job.
+    # Required (owner decision 2026-11-08, build/decisions/native-home-smoke-gate.md): listed in the pr-checks aggregate, no job-level
+    # continue-on-error. A matrix job reports one `needs.sim-smoke.result` for all legs: `failure` if any leg fails (fail-fast is off, so
+    # the rest still finish), `cancelled` if cancelled, `skipped` when its `if` is false. tools/ci_aggregate.py fails the first two and
+    # lets the third pass only when HOSTED_MACOS is off or the scope says no app change.
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
+    # The Smoke plan plus the journeys the diff reaches, one family per job.
     # The folded Duo only; Device Hub poses stay on the MacBook until a probe shows they work on a hosted VM.
     needs: scope-hosted
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
     # The Duo leg is shorter: a lost runner then frees its capacity and reports sooner (build/research/duo-hosted-ci.md).
     timeout-minutes: ${{ matrix.family == 'duo' && 60 || 90 }}
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -525,10 +529,10 @@ jobs:
   pr-checks:
     # The one check pr_land.sh requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
     # jobs, hosted macOS while HOSTED_MACOS is off, the other visibility's set, the denylist scan on a fork PR. A Mac while private
-    # (nothing bills), Linux once public. sim-smoke is advisory and not listed.
+    # (nothing bills), Linux once public. sim-smoke is listed: a failed or cancelled leg fails the aggregate.
     if: always()
     needs: [scope, repo-checks, build-release, swift-test, scope-hosted, repo-checks-hosted, tool-tests-hosted, denylist-scan,
-            swift-test-hosted, build-release-hosted]
+            swift-test-hosted, build-release-hosted, sim-smoke]
     runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","macOS"]') || 'ubuntu-24.04' }}
     timeout-minutes: 5
     steps:

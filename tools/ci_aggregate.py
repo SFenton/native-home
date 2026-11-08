@@ -4,7 +4,8 @@
 A job that was skipped passes only when it was allowed to skip: scope-gated jobs (`build-release*`, `swift-test*`) whose scope output
 says there was nothing to run, hosted macOS jobs while the repo variable ``HOSTED_MACOS`` is not ``on``, the jobs of the other
 visibility set, and the denylist scan on a fork pull request. A core job that should have run and was skipped fails the aggregate,
-so a wrong ``if`` can never turn it green with nothing run. Failed and cancelled jobs always fail.
+so a wrong ``if`` can never turn it green with nothing run. ``sim-smoke`` (the device Smoke plan, a matrix whose
+single result is ``failure`` when any leg fails) is one of the gated jobs. Failed and cancelled jobs always fail.
 
     NEEDS='<toJSON(needs)>' PRIVATE=true|false HOSTED_MACOS=on|'' python3 tools/ci_aggregate.py
 
@@ -26,10 +27,11 @@ GATED = {
     "swift-test": ("scope", "app", False),
     "build-release-hosted": ("scope-hosted", "release", True),
     "swift-test-hosted": ("scope-hosted", "app", True),
+    "sim-smoke": ("scope-hosted", "app", True),
 }
 #: Jobs that run in both states; only a fork pull request skips the denylist scan.
 BOTH = ("denylist-scan",)
-OTHER_SET_PRIVATE = ("scope-hosted", "repo-checks-hosted", "tool-tests-hosted", "swift-test-hosted", "build-release-hosted")
+OTHER_SET_PRIVATE = ("scope-hosted", "repo-checks-hosted", "tool-tests-hosted", "swift-test-hosted", "build-release-hosted", "sim-smoke")
 OTHER_SET_PUBLIC = ("scope", "repo-checks", "build-release", "swift-test")
 
 

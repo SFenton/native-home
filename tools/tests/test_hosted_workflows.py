@@ -84,7 +84,8 @@ class RuleTests(unittest.TestCase):
         for needed in ("scope", "repo-checks", "build-release", "swift-test", "repo-checks-hosted", "tool-tests-hosted", "denylist-scan",
                        "swift-test-hosted", "build-release-hosted"):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
-        self.assertNotIn("sim-smoke", text.split("steps:")[0].split("needs:")[1])
+        self.assertRegex(text, r"[\[ ,]sim-smoke[,\]\s]")
+        self.assertNotRegex(jobs("pr-checks.yml")["sim-smoke"].split("steps:")[0], r"(?m)^    continue-on-error:")
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
         self.assertIn("toJSON(needs)", text)
         self.assertIn("python3 tools/ci_aggregate.py", text)

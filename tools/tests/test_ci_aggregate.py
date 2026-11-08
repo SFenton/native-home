@@ -79,6 +79,18 @@ class AggregateTests(unittest.TestCase):
             self.assertTrue(agg.problems(private_run(swift_test=state), True, False))
             self.assertTrue(agg.problems(public_run(tool_tests_hosted=state), False, True))
 
+    def test_sim_smoke_gates_the_aggregate(self):
+        """A failed or cancelled device leg fails it; skipped passes only when HOSTED_MACOS is off or the scope has no app change."""
+        for state in ("failure", "cancelled"):
+            self.assertTrue(agg.problems(public_run(sim_smoke=state), False, True))
+        self.assertEqual(agg.problems(public_run(sim_smoke="success"), False, True), [])
+        self.assertEqual(agg.problems(public_run(macos="skipped", sim_smoke="skipped"), False, False), [])
+        self.assertTrue(agg.problems(public_run(sim_smoke="skipped"), False, True))
+        run = public_run(macos="skipped", sim_smoke="skipped")
+        run["scope-hosted"]["outputs"] = {"app": "false", "release": "false"}
+        self.assertEqual(agg.problems(run, False, True), [])
+        self.assertEqual(agg.problems(private_run(sim_smoke="skipped"), True, False), [])
+
     def test_main_reads_the_context_and_exits_nonzero_on_a_problem(self):
         for run, private, code in ((private_run(), "true", 0), (private_run(repo_checks="skipped"), "true", 1)):
             old = dict(os.environ)
