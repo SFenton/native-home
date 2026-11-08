@@ -462,14 +462,15 @@ jobs:
       - name: Selected Xcode (cache key)
         id: xcode
         run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      # The dd-sim-arm64 prefix follows FENTON_HOSTED_BUILD_SETTINGS (host architecture only): change both together.
       - name: Restore DerivedData
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/dd
-          key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
-            dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+            dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
       - name: Build the test products first (no simulator booted; a Duo first boot beside a compile killed two runners)
         run: tools/ci_heartbeat.sh run -- tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force --build-only
       - name: Boot the ${{ matrix.family }} simulator and wait for the load to settle (first boot of a runtime on a fresh VM)
@@ -499,7 +500,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/dd
-          key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
       - name: Simulator diagnostics
         if: failure()
         continue-on-error: true

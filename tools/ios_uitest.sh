@@ -38,6 +38,8 @@
 #   nightly tier, never a fallback. It also sets the map's `changedEnvironment` (FENTON_UITEST_SPACES=all-food: the Inventory pages
 #   audit covers one space) unless the caller already exported it as TEST_RUNNER_NAME; a run without --changed covers all six.
 #   A (tree hash of apple/, filter, device) run that already passed is skipped with a notice (record: build/testruns/); --force reruns it.
+#   --build-only builds (or reuses) the test products and exits before any simulator is picked or booted; the hosted workflow
+#     builds first and boots after, because a Duo first boot beside a compile killed hosted runners (.agents/workflow/ci.md).
 #   --quick skips `xcodegen` when project.yml is unchanged (the compile is skipped by the products cache whenever the code is
 #   unchanged). Use it when iterating on one test. The device hold is sized from the selected test count (tools/uitest_support.py): 120 s per test method + 5 minutes,
 #   at least 10 minutes, at most 7200 s (FENTON_DEVCAP_HOLD overrides).

@@ -6,7 +6,8 @@
 #
 #   tools/sim_settle.sh FAMILY            boot the family's simulator and wait (iphone|duo|ipad)
 #   tools/sim_settle.sh --decide L1 L5    exit 0 when load L1 (1 min) and L5 (5 min) count as settled, else 1
-# Env: FENTON_SETTLE_CAP (seconds, default 900), FENTON_SETTLE_POLL (seconds, default 30).
+# Boot and bootstatus run under xc_watch walls (FENTON_HEALTH_BOOT_WALL); no decision before FENTON_SETTLE_DWELL seconds (default 90 Duo, 15
+# others) and two settled polls in a row. Env: FENTON_SETTLE_CAP (default 900), FENTON_SETTLE_POLL (default 30), FENTON_SETTLE_UDID (tests).
 set -uo pipefail
 
 settled() {  # l1 l5
@@ -22,18 +23,32 @@ case "$family" in
   ipad) name="${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
   *) echo "usage: sim_settle.sh iphone|duo|ipad | --decide L1 L5" >&2; exit 2 ;;
 esac
-udid="$(xcrun simctl list devices available -j | jq -r --arg n "$name" '[.devices[][] | select(.name == $n)][0].udid // empty')"
+udid="${FENTON_SETTLE_UDID:-$(xcrun simctl list devices available -j | jq -r --arg n "$name" '[.devices[][] | select(.name == $n)][0].udid // empty')}"
 [[ -n "$udid" ]] || { echo "settle: no simulator named $name"; xcrun simctl list devices; exit 1; }
 
 cap="${FENTON_SETTLE_CAP:-900}"; poll="${FENTON_SETTLE_POLL:-30}"
-echo "settle: booting the $family simulator"
-xcrun simctl boot "$udid" 2>&1 | tail -1 || true
-start=$SECONDS
+# The 1-minute load average lags: right after `simctl boot` it still shows the state before the boot, so no decision is made before a
+# minimum dwell (the Duo's storm needs minutes to show; an iPhone or iPad warms in about 90 s and is cheap) and two settled polls in a row.
+case "$family" in duo) dwell_default=90 ;; *) dwell_default=15 ;; esac
+dwell="${FENTON_SETTLE_DWELL:-$dwell_default}"
+wall="${FENTON_HEALTH_BOOT_WALL:-120}"
+watch=(python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/xc_watch.py" --wall "$wall")
+
+echo "settle: booting the $family simulator (wall ${wall}s)"
+"${watch[@]}" --label "simctl boot" -- xcrun simctl boot "$udid" 2>&1 | tail -2
+# An already-booted simulator makes `boot` fail harmlessly; bootstatus -b decides whether it is usable.
+if ! "${watch[@]}" --label "simctl bootstatus" -- xcrun simctl bootstatus "$udid" -b > /dev/null 2>&1; then
+  echo "settle: boot failed or timed out after ${wall}s; the health check will retry"; exit 1
+fi
+start=$SECONDS; good=0
+echo "settle: booted; dwelling ${dwell}s before the first decision"
 while true; do
   read -r l1 l5 _ < <(sysctl -n vm.loadavg | tr -d '{}')
   mp="$(memory_pressure 2>/dev/null | grep -i 'free percentage' | head -1 | xargs)"
-  echo "settle: $((SECONDS - start))s load1=$l1 load5=$l5 ${mp:-memory_pressure unavailable}"
-  if settled "${l1:-0}" "${l5:-0}"; then echo "settle: settled after $((SECONDS - start))s"; exit 0; fi
-  if (( SECONDS - start >= cap )); then echo "settle: gave up after ${cap}s; the health check decides"; exit 0; fi
+  elapsed=$((SECONDS - start))
+  if settled "${l1:-0}" "${l5:-0}"; then good=$((good + 1)); else good=0; fi
+  echo "settle: ${elapsed}s load1=$l1 load5=$l5 settled-polls=$good ${mp:-memory_pressure unavailable}"
+  if (( elapsed >= dwell && good >= 2 )); then echo "settle: settled after ${elapsed}s"; exit 0; fi
+  if (( elapsed >= cap )); then echo "settle: gave up after ${cap}s; the health check decides"; exit 0; fi
   sleep "$poll"
 done

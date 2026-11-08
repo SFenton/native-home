@@ -24,7 +24,10 @@ case "${1:-}" in
   run)
     shift
     interval=15
-    if [[ "${1:-}" == "-i" ]]; then interval="$2"; shift 2; fi
+    if [[ "${1:-}" == "-i" ]]; then
+      [[ "${2:-}" =~ ^[1-9][0-9]*$ ]] || { echo "ci_heartbeat: -i needs a positive whole number of seconds" >&2; exit 2; }
+      interval="$2"; shift 2
+    fi
     [[ "${1:-}" == "--" ]] && shift
     [[ $# -gt 0 ]] || { echo "ci_heartbeat: run needs a command" >&2; exit 2; }
     ( while true; do beat; sleep "$interval"; done ) &
