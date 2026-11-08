@@ -5,7 +5,7 @@ import Foundation
 public enum TileActionCatalog {
     /// One configured tile and what it is.
     public struct Entry: Equatable, Sendable, Identifiable {
-        /// `rooms.living-room.Fan`, `security.cover.garage_left_door`, ...
+        /// `rooms.living-room.Fan`, `security.cover.demo_garage_door_1`, ...
         public var id: String
         public var hasDestination: Bool
         public var kind: TileActionKind

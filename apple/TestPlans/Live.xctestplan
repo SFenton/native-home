@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "id": "0853308E-9CC5-5239-A935-35DF57FE6F93",
+      "id": "9228B5B9-ACE3-5050-845C-1196DECD6020",
       "name": "Configuration 1",
       "options": {}
     }
@@ -102,8 +102,8 @@
         "HouseLayoutStatesJourneyTests/testTheActionOpensTheHomeAssistantModalWithThePagePushed()",
         "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensAdminAndAudit()",
         "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensGuests()",
-        "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensMachE()",
         "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensSpecialDeviceModes()",
+        "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensVehicle()",
         "InventoryLiveJourneyTests",
         "LightAppearanceAccountSheetJourneyTests",
         "LightAppearanceLightsJourneyTests/testLightsOverviewSheetPassesAuditInLight()",

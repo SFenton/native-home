@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "id": "875416BB-9D23-5431-A214-9D97B7D532B4",
+      "id": "7059A9B8-AA7F-5671-B9BB-761F956C8326",
       "name": "Configuration 1",
       "options": {}
     }
@@ -89,18 +89,18 @@
         "HouseholdSettingsJourneyTests/testCaptureHouseholdAutoResetInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdGuests()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdGuestsInIPadLandscape()",
-        "HouseholdSettingsJourneyTests/testCaptureHouseholdMachE()",
-        "HouseholdSettingsJourneyTests/testCaptureHouseholdMachEInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceDetail()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceDetailInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceOverrides()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceOverridesInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdSpecialDeviceModes()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdSpecialDeviceModesInIPadLandscape()",
+        "HouseholdSettingsJourneyTests/testCaptureHouseholdVehicle()",
+        "HouseholdSettingsJourneyTests/testCaptureHouseholdVehicleInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensAdminAndAudit()",
         "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensGuests()",
-        "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensMachE()",
         "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensSpecialDeviceModes()",
+        "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensVehicle()",
         "InventoryLiveJourneyTests",
         "LaunchPerformanceTests",
         "LayoutChangePerformanceTests",

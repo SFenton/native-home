@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "id": "1982ECBB-2971-513F-BD48-A9D0EF385695",
+      "id": "9B7FF0BF-D499-555C-B91F-5D8389B6F105",
       "name": "Configuration 1",
       "options": {}
     }
@@ -98,14 +98,14 @@
         "HouseholdSettingsJourneyTests/testCaptureHouseholdAutoResetInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdGuests()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdGuestsInIPadLandscape()",
-        "HouseholdSettingsJourneyTests/testCaptureHouseholdMachE()",
-        "HouseholdSettingsJourneyTests/testCaptureHouseholdMachEInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceDetail()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceDetailInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceOverrides()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdPresenceOverridesInIPadLandscape()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdSpecialDeviceModes()",
         "HouseholdSettingsJourneyTests/testCaptureHouseholdSpecialDeviceModesInIPadLandscape()",
+        "HouseholdSettingsJourneyTests/testCaptureHouseholdVehicle()",
+        "HouseholdSettingsJourneyTests/testCaptureHouseholdVehicleInIPadLandscape()",
         "LightSheetCaptureTests",
         "MediaRemoteJourneyTests/testCaptureRemoteApps()",
         "MediaRemoteJourneyTests/testCaptureRemoteAppsInIPadLandscape()",

@@ -1,6 +1,6 @@
-# Fenton HASS Native
+# S+H
 
-**S+H** (public name; repo and bundle id keep "Fenton HASS Native" and `com.sfenton.home`): native iOS, iPadOS and watchOS apps for the Fenton household's Home Assistant (`https://homeassistant.sfenton-server.com`), modeled on the React dashboard in [`SFenton/ha-sfenton-react-dash`](https://github.com/SFenton/ha-sfenton-react-dash). Built with SwiftUI on top of [HAKit](https://github.com/home-assistant/HAKit).
+**S+H**: native iOS, iPadOS and watchOS apps for a Home Assistant house, modeled on the React dashboard in [`SFenton/ha-sfenton-react-dash`](https://github.com/SFenton/ha-sfenton-react-dash). Built with UIKit on top of [HAKit](https://github.com/home-assistant/HAKit); SwiftUI only where Apple requires it (widgets, Live Activities and watchOS).
 
 **Status:** scaffold. Sign-in, the websocket connection, the cached entity store and the Home screen exist; other tabs are placeholders.
 

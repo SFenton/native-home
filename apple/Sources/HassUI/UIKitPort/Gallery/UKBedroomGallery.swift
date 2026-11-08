@@ -5,7 +5,7 @@ import UIKit
 
 /// `FENTON_GALLERY=bedroom`: the wake-light and both bed tiles on fixture state with a recording caller that answers like Home Assistant
 /// (`BedroomGallery`). `FENTON_GALLERY_SCENARIO` picks a fixture (`default`, `ringing`, `solo-trip`, `unavailable`, `waking`, `hot-flash`),
-/// `FENTON_GALLERY_SHEET` opens `wake-light`, `stephens-bed` or `stephs-bed` at launch, `FENTON_GALLERY_TAB` picks its first tab.
+/// `FENTON_GALLERY_SHEET` opens `wake-light`, `alexs-bed` or `sams-bed` at launch, `FENTON_GALLERY_TAB` picks its first tab.
 @MainActor
 final class UKBedroomGalleryViewController: UKPageViewController {
     private enum OpenSheet: Equatable {

@@ -553,11 +553,11 @@
       "weight": 1.5
     },
     {
-      "id": "household-mach-e",
+      "id": "household-car",
       "kind": "page",
       "area": "settings",
       "title": "Car",
-      "path": "pages/settings/household-mach-e",
+      "path": "pages/settings/household-car",
       "sources": [
         "apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift"
       ],
@@ -583,7 +583,7 @@
       "motionHint": [],
       "inFlight": null,
       "owner": "household-forms",
-      "mockup": "pages/settings/household-mach-e/household-mach-e.html",
+      "mockup": "pages/settings/household-car/household-car.html",
       "status": "shipped",
       "weight": 1.5
     },

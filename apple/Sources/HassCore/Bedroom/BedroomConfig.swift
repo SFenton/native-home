@@ -75,7 +75,7 @@ public struct WakeLightConfig: Hashable, Sendable, Identifiable, Codable {
 
 /// One side of the SleepyPod Eight Pod (web `EightSleepSideConfig`, sleepypod adapter fields only).
 public struct BedSideConfig: Hashable, Sendable, Identifiable, Codable {
-    /// `stephens-bed` (the web hash without `#`).
+    /// `alexs-bed` (the web hash without `#`).
     public var id: String
     /// `Alex's Bed`.
     public var title: String

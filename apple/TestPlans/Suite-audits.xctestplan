@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "id": "088D14E4-8F0F-5D49-AC5E-8CFFFC68C414",
+      "id": "7EEBC712-B3F2-5F5B-90F3-4F183EA079F6",
       "name": "Configuration 1",
       "options": {}
     }
@@ -124,10 +124,10 @@
         "HouseholdSettingsJourneyTests/testHouseholdAdminPassesAccessibilityAudit()",
         "HouseholdSettingsJourneyTests/testHouseholdAutoResetSheetPassesAccessibilityAudit()",
         "HouseholdSettingsJourneyTests/testHouseholdGuestsPassesAccessibilityAudit()",
-        "HouseholdSettingsJourneyTests/testHouseholdMachEPassesAccessibilityAudit()",
         "HouseholdSettingsJourneyTests/testHouseholdPresenceDetailPassesAccessibilityAudit()",
         "HouseholdSettingsJourneyTests/testHouseholdPresenceOverridesSheetPassesAccessibilityAudit()",
         "HouseholdSettingsJourneyTests/testHouseholdSpecialDeviceModesPassesAccessibilityAudit()",
+        "HouseholdSettingsJourneyTests/testHouseholdVehiclePassesAccessibilityAudit()",
         "HouseholdSettingsJourneyTests/testLiveSettingsRowOpensAdminAndAudit()",
         "InventoryEditorJourneyTests/testEditorForABatchedItemPassesAudit()",
         "InventoryEditorJourneyTests/testEditorForASingleItemPassesAudit()",

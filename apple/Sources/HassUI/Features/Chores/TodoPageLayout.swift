@@ -69,7 +69,7 @@ enum TodoPageLayout {
 
     #if DEBUG
     /// `FENTON_GALLERY_OPEN=edit-task|new-task`: the form a gallery opens as soon as the page appears (screenshots and the loading
-    /// sequence). Edit Task opens a fixture task (use `FENTON_GALLERY_TODO_PAGE=stephens-chores`).
+    /// sequence). Edit Task opens a fixture task (use `FENTON_GALLERY_TODO_PAGE=alexs-chores`).
     static func galleryLaunchSheet(page: ChoresConfig.Page) -> TodoSheet? {
         switch ProcessInfo.processInfo.environment["FENTON_GALLERY_OPEN"] {
         case "edit-task":

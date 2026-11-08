@@ -57,7 +57,7 @@ public enum ChoresConfig {
 
     /// A page of todo lists (web `TodoPageConfig`).
     public struct Page: Hashable, Sendable, Identifiable, Codable {
-        /// Route path, e.g. `stephens-chores`.
+        /// Route path, e.g. `alexs-chores`.
         public var id: String
         public var title: String
         public var lists: [TodoList]

@@ -82,7 +82,7 @@ public enum RoomDeviceSheet: Hashable, Sendable {
     case humidifier(powerEntityId: String)
     case grill(entityId: String)
     case wakeLight(statusEntityId: String)
-    /// An Eight Sleep side, by its sheet id (`stephens-bed`, `stephs-bed`).
+    /// An Eight Sleep side, by its sheet id (`alexs-bed`, `sams-bed`).
     case bed(sheet: String, climateEntityId: String)
     case vacuum(entityId: String)
     case bathroomFan(powerEntityId: String)
