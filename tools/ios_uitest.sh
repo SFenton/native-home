@@ -74,6 +74,7 @@ SUITE_SPEC=""
 TESTS_SPEC=""
 IMPACT_DIR=""
 HOSTED=0
+BUILD_ONLY=0
 EXTRA=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -88,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     --parallel-families) PARALLEL=1; shift ;;
     --impact) IMPACT_DIR="$2"; shift 2 ;;
     --hosted) HOSTED=1; shift ;;
+    --build-only) BUILD_ONLY=1; shift ;;
     --plan) PLAN="$2"; PLAN_GIVEN=1; shift 2 ;;
     --suite) SUITE_SPEC="${SUITE_SPEC:+$SUITE_SPEC,}$2"; shift 2 ;;
     --tests) TESTS_SPEC="${TESTS_SPEC:+$TESTS_SPEC,}$2"; shift 2 ;;
@@ -230,6 +232,11 @@ SETTINGS=()
 for arg in ${EXTRA[@]+"${EXTRA[@]}"}; do
   [[ "$arg" =~ ^[A-Z_][A-Z0-9_]*= ]] && SETTINGS+=("$arg")
 done
+# Hosted only: FENTON_HOSTED_BUILD_SETTINGS (space separated NAME=value, set by the workflow) joins the settings, so hosted products
+# get their own cache key and local builds are unchanged (ARCHS=arm64 halves the compile on a 3-vCPU runner).
+if [[ $CI_HOSTED == 1 && -n "${FENTON_HOSTED_BUILD_SETTINGS:-}" ]]; then
+  for arg in $FENTON_HOSTED_BUILD_SETTINGS; do [[ "$arg" =~ ^[A-Z_][A-Z0-9_]*= ]] && SETTINGS+=("$arg"); done
+fi
 LANE="$(basename "$ROOT")"
 FULL_SUITE=1
 FILTERS=(); SKIPS=()
@@ -454,6 +461,8 @@ python3 "$ROOT/tools/products_cache.py" ensure --key "$PRODUCTS_KEY" --dir "$PRO
     -destination 'generic/platform=iOS Simulator' ${DERIVED[@]+"${DERIVED[@]}"} ${SETTINGS[@]+"${SETTINGS[@]}"} \
     -enableCodeCoverage $COVERAGE -testProductsPath @PARTIAL@
 export FENTON_TESTPRODUCTS
+# --build-only: the products are built (or hit) and no simulator was touched; the hosted workflow builds first, boots after.
+if [[ $BUILD_ONLY == 1 ]]; then echo "== build-only: products ready"; exit 0; fi
 
 # One family: pick a simulator, hold it, run, record a pass. Prints its status; the parent collects it.
 # Under --parallel-families it runs in the background with its output in its own log.

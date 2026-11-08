@@ -139,6 +139,25 @@ class RuleTests(unittest.TestCase):
         for name in ("pr-checks.yml", "runtimes.yml", "tool-tests.yml"):
             self.assertRegex((WORKFLOWS / name).read_text(encoding="utf-8"), r"\npermissions:\n  contents: read\n")
 
+    def test_sim_smoke_builds_before_it_boots_and_settles_with_a_heartbeat(self):
+        text = jobs("pr-checks.yml")["sim-smoke"]
+        build = text.index("--build-only")
+        settle = text.index("tools/sim_settle.sh")
+        smoke = text.index("- name: Smoke plan on")
+        self.assertLess(build, settle)
+        self.assertLess(settle, smoke)
+        self.assertNotIn("simctl boot", text)  # no simulator boots outside sim_settle.sh, after the build
+        self.assertEqual(text.count("tools/ci_heartbeat.sh run --"), 2)
+        self.assertIn("timeout-minutes: ${{ matrix.family == 'duo' && 60 || 90 }}", text)
+
+    def test_sim_smoke_hosted_build_settings_come_from_the_workflow_env_only(self):
+        text = jobs("pr-checks.yml")["sim-smoke"]
+        self.assertIn('FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"', text)
+        self.assertIn("sudo mdutil -a -i off || true", text)
+        script = (Path(__file__).resolve().parents[1] / "ios_uitest.sh").read_text(encoding="utf-8")
+        self.assertIn("$CI_HOSTED == 1 && -n \"${FENTON_HOSTED_BUILD_SETTINGS:-}\"", script)
+        self.assertNotIn("ARCHS=arm64", script)
+
 
 if __name__ == "__main__":
     unittest.main()
