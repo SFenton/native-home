@@ -233,7 +233,7 @@ for arg in ${EXTRA[@]+"${EXTRA[@]}"}; do
   [[ "$arg" =~ ^[A-Z_][A-Z0-9_]*= ]] && SETTINGS+=("$arg")
 done
 # Hosted only: FENTON_HOSTED_BUILD_SETTINGS (space separated NAME=value, set by the workflow) joins the settings, so hosted products
-# get their own cache key and local builds are unchanged (ARCHS=arm64 halves the compile on a 3-vCPU runner).
+# get their own cache key and local builds are unchanged (host-architecture-only halves the compile on a 3-vCPU runner).
 if [[ $CI_HOSTED == 1 && -n "${FENTON_HOSTED_BUILD_SETTINGS:-}" ]]; then
   for arg in $FENTON_HOSTED_BUILD_SETTINGS; do [[ "$arg" =~ ^[A-Z_][A-Z0-9_]*= ]] && SETTINGS+=("$arg"); done
 fi
