@@ -111,7 +111,8 @@ struct DesignTokensAndFieldsTests {
         #expect(failure.count == 1)
         failure.show("Again")
         #expect(failure.count == 2)
-        let deadline = ContinuousClock.now + .seconds(2)
+        // Polls until the timer fires; the deadline only bounds a real failure (a loaded hosted runner starved the main actor for 2 s+).
+        let deadline = ContinuousClock.now + .seconds(30)
         while failure.message != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
         #expect(failure.message == nil)
         #expect(TransientFailure.duration == .seconds(4))

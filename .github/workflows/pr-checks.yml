@@ -40,7 +40,7 @@ jobs:
       release: ${{ steps.scope.outputs.release }}
       scope: ${{ steps.scope.outputs.scope }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           clean: false
@@ -69,7 +69,7 @@ jobs:
     # 150: the tool-test step runs the full suite on the head, and again on the base when the head run fails (tools/ci_new_failures.py); 60 cancelled it (run 42354907297).
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           clean: false
@@ -108,7 +108,7 @@ jobs:
     runs-on: [self-hosted, macOS, hass]
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           clean: false
@@ -138,7 +138,7 @@ jobs:
     runs-on: [self-hosted, macOS, hass]  # MacBook runner until hosted runners land; the mini lacks disk (owner, 2026-11-07)
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           clean: false
@@ -187,7 +187,7 @@ jobs:
       release: ${{ steps.scope.outputs.release }}
       scope: ${{ steps.scope.outputs.scope }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -212,7 +212,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -247,7 +247,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false   # tests that read history and refs need a real clone
@@ -272,7 +272,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -328,7 +328,7 @@ jobs:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -390,12 +390,13 @@ jobs:
     env:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
-      DERIVED: ${{ runner.temp }}/dd
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Derived data path (runner context is not allowed in job env)
+        run: echo "DERIVED=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
         run: tools/ci_hosted_setup.sh
       - name: Selected Xcode (cache key)
@@ -438,13 +439,14 @@ jobs:
     env:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
-      FENTON_DERIVED_DATA: ${{ runner.temp }}/dd
       FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Derived data path (runner context is not allowed in job env)
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
         run: tools/ci_hosted_setup.sh
       - name: Selected Xcode (cache key)
@@ -458,6 +460,21 @@ jobs:
           key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Warm the ${{ matrix.family }} simulator (first boot of a runtime on a fresh VM can exceed the 120 s health check)
+        continue-on-error: true
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          case "$FAMILY" in
+            iphone) name="${FENTON_SIM_IPHONE:-iPhone 17}" ;;
+            duo) name="${FENTON_SIM_DUO:-iPhone Duo}" ;;
+            ipad) name="${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
+          esac
+          udid="$(xcrun simctl list devices available -j | jq -r --arg n "$name" '[.devices[][] | select(.name == $n)][0].udid // empty')"
+          [ -n "$udid" ] || { echo "no simulator named $name"; xcrun simctl list devices; exit 1; }
+          xcrun simctl boot "$udid" || true
+          time xcrun simctl bootstatus "$udid" -b
+          xcrun simctl io "$udid" screenshot --type=png "$RUNNER_TEMP/warm.png" && echo "screenshot ok"
       - name: Smoke plan on ${{ matrix.family }}
         run: tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force
       - name: Journeys the diff reaches on ${{ matrix.family }}
@@ -469,9 +486,16 @@ jobs:
         with:
           path: ${{ runner.temp }}/dd
           key: dd-sim-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+      - name: Simulator diagnostics
+        if: failure()
+        continue-on-error: true
+        run: |
+          xcrun simctl list devices
+          df -h / | tail -1
+          log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
       - name: Keep the results
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-${{ matrix.family }}
           path: apple/.build/uitest-*.xcresult
@@ -487,7 +511,7 @@ jobs:
     runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","macOS"]') || 'ubuntu-24.04' }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
       - name: Aggregate

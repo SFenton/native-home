@@ -220,7 +220,7 @@ class LandTests(unittest.TestCase):
         """A bare origin whose ``main`` holds ``tools/lane_land.py`` (the trusted copy the gate runs), added as ``origin``."""
         bare = Path(self.tmp.name) / "origin.git"
         seed = Path(self.tmp.name) / "seed"
-        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
         subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], cwd=self.tmp.name, env=ENV, check=True)
         (seed / "tools").mkdir()
         (seed / "tools" / "lane_land.py").write_text(lane_land_text or (TOOLS / "lane_land.py").read_text())
@@ -287,7 +287,7 @@ class LandTests(unittest.TestCase):
         self.assertIn("blocked #7: app-UI gate", out)  # the base copy of the gate refuses an app view with no design record
         self.assertNotIn("example.invalid", out)  # this checkout's own (wrong) origin remote was never used
         self.assertFalse(self.merged())
-        trusted = Path(self.tmp.name) / "hass-agents" / "gate-trusted" / "Fenton-HASS-Native" / "tools" / "lane_land.py"
+        trusted = Path(self.tmp.name) / "hass-agents" / "gate-trusted" / "native-home" / "tools" / "lane_land.py"
         self.assertNotIn("PWNED", trusted.read_text())  # what ran is the base copy
 
     def merged(self):
@@ -470,7 +470,7 @@ class LandTests(unittest.TestCase):
         for exit_code, expected in ((1, 1), (0, 0)):
             with self.subTest(exit_code=exit_code), TemporaryDirectory() as tmp:
                 bare = Path(tmp) / "b.git"
-                subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+                subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
                 seed = Path(tmp) / "seed"
                 subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], env=ENV, check=True)
                 (seed / "tools").mkdir()
@@ -648,8 +648,8 @@ class UiGateInLandTests(unittest.TestCase):
                 fcntl.flock(after, fcntl.LOCK_EX | fcntl.LOCK_NB)  # released afterwards
 
     def test_expected_origin_is_the_hard_coded_product_repo(self):
-        self.assertEqual(pr_land.PRODUCT_REPO, "SFenton/Fenton-HASS-Native")
-        self.assertEqual(pr_land.expected_origin({"product_repo": pr_land.PRODUCT_REPO}), "https://github.com/SFenton/Fenton-HASS-Native.git")
+        self.assertEqual(pr_land.PRODUCT_REPO, "SFenton/native-home")
+        self.assertEqual(pr_land.expected_origin({"product_repo": pr_land.PRODUCT_REPO}), "https://github.com/SFenton/native-home.git")
         # the checked-in config agrees, so a config edit that disagrees is the thing that gets refused
         self.assertEqual(json.loads((TOOLS / "triage" / "config.json").read_text())["product_repo"], pr_land.PRODUCT_REPO)
         for cfg in ({}, {"product_repo": ""}, {"product_repo": "evil/Fenton-HASS-Native"}, {"product_repo": "o/r.x-y"},

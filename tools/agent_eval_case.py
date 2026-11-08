@@ -241,7 +241,7 @@ def _merge_guard(ctx: Ctx, data: Dict[str, Any], tmp: Path) -> Dict[str, Any]:
     guard = ctx.load("tools/hooks/merge_guard.py")
     env = {"FENTON_HEADLESS": "1"} if data.get("headless", True) else {}
     real = guard.git_out
-    url = data.get("origin_url", "git@github.com:SFenton/Fenton-HASS-Native.git")
+    url = data.get("origin_url", "git@github.com:SFenton/native-home.git")
 
     def git_out(top: str, *args: str) -> str:
         """``git remote get-url [--push] origin`` answers the product URL; any other remote name fails, as in a repo without it."""

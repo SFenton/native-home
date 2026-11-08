@@ -420,7 +420,7 @@ def gate_lock(root: Path):
 
 #: The trusted origin and the bases the app-UI gate will judge, hard-coded so editing ``tools/triage/config.json`` cannot point the
 #: trusted clone at a fork. Change them here, in a reviewed PR, when the product moves.
-PRODUCT_REPO = "SFenton/Fenton-HASS-Native"
+PRODUCT_REPO = "SFenton/native-home"
 ALLOWED_BASES = ("main",)
 
 
