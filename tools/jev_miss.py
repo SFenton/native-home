@@ -157,6 +157,15 @@ def probability(row: Dict[str, Any]) -> Optional[float]:
 
 # MARK: - Outcome sources
 
+def product_repo() -> str:
+    """The product repository (``owner/name``) from ``tools/triage/config.json``, read at runtime."""
+    try:
+        value = json.loads((Path(__file__).resolve().parent / "triage" / "config.json").read_text(encoding="utf-8")).get("product_repo")
+    except (OSError, ValueError):
+        value = ""
+    return value if isinstance(value, str) and value else "-"
+
+
 class Outcomes:
     """Lazy lookups of the independent outcome sources under one root; each degrades to None when unavailable."""
 
@@ -194,7 +203,7 @@ class Outcomes:
         """PR numbers the task's ledger entry names (``pr``, ``pr_number`` or a product-repo ``/pull/N`` URL)."""
         ledger = self.ledger(task) or {}
         found = [str(ledger[k]) for k in ("pr", "pr_number") if ledger.get(k)]
-        found += re.findall(r"github\.com/[^/\s]+/[^/\s]+/pull/(\d+)", json.dumps(ledger))
+        found += re.findall(r"github\.com/" + re.escape(product_repo()) + r"/pull/(\d+)", json.dumps(ledger))
         return sorted(set(found))
 
     def invisible(self, number: str) -> Optional[bool]:
