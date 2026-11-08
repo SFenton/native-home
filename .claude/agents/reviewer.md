@@ -50,6 +50,8 @@ tools/review/record.py verdict.json --pr N
 
 `record.py` adds `round` and `head`, writes `build/review/<branch>.json` and puts the summary in the PR body. Then reply as described under Ending.
 
+**native-home PRs (owner, 2026-11-08).** Post the verdict as a PR comment for `merge_guard`: write a file whose lines include exactly `Verdict: pass` (or `Verdict: fail`) and `Head: <the full 40-hex head SHA>`, then run `gh pr review N -R SFenton/native-home --comment --body-file FILE`. Take the SHA from `gh pr view N -R SFenton/native-home --json headRefOid` right before posting. A later push makes the comment stale; review again.
+
 ## Ending
 
 After the verdict is recorded, reply with the verdict and findings in under 150 words, then end with the status block from [agent-roster](../../.agents/workflow/agent-roster.md#contracts): a fenced block tagged `status` with `status` (`done` when the review is recorded, whatever the verdict; `blocked` when you could not review), `task`, `summary`, `artifacts` (`build/review/<branch>.json`), `acceptance` (`pass|fail|not_run` per check id; the verdict is not a failure of your task) and `question` for `needs_*`. The `SubagentStop` hook (`tools/hooks/subagent_report.py`) sends you back once if it is missing.
