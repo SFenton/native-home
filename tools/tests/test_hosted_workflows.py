@@ -16,6 +16,13 @@ def jobs(name):
     return {parts[i]: parts[i + 1] for i in range(1, len(parts), 2)}
 
 
+def needs_list(text):
+    """The names in a job's own `needs:` key, comments stripped (a comment naming a job must not count)."""
+    code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    match = re.search(r"^    needs:\s*(\[[^\]]*\]|\S+)", code, flags=re.M)
+    return [n.strip() for n in match.group(1).strip("[]").split(",")] if match else []
+
+
 def all_files():
     return sorted(WORKFLOWS.glob("*.yml"))
 
@@ -166,13 +173,14 @@ class RuleTests(unittest.TestCase):
         self.assertLess(script.index("--build-only"), script.index("$SETTLE"))
         self.assertIn("timeout-minutes:", text)
 
-    def test_smoke_is_advisory_and_the_build_and_swift_test_are_required(self):
+    def test_every_macos_step_is_required_except_the_diagnostics(self):
         text = jobs("pr-checks.yml")["macos"]
         steps = re.split(r"\n      - ", text)
         by_name = {s.split("\n", 1)[0]: s for s in steps if s.startswith("name: ")}
         for name, body in by_name.items():
-            advisory = name.startswith(("name: Smoke on", "name: Journeys the diff"))
-            self.assertEqual("continue-on-error: true" in body, advisory or name == "name: Simulator diagnostics", name)
+            self.assertEqual("continue-on-error: true" in body, name == "name: Simulator diagnostics", name)
+        head = text.split("    steps:\n", 1)[0]
+        self.assertNotRegex(head, r"(?m)^    continue-on-error:")
         self.assertIn("name: Build the test products", by_name)
         self.assertIn("name: swift test", by_name)
         self.assertNotIn("affected_tests.py --swift", (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8"))
@@ -262,3 +270,11 @@ class MergeGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NeedsListTests(unittest.TestCase):
+    def test_the_aggregate_lists_the_macos_job_and_the_list_parser_ignores_comments(self):
+        self.assertEqual(needs_list("    # needs: [sim-smoke]\n    needs: [a, b]\n"), ["a", "b"])
+        listed = needs_list(jobs("pr-checks.yml")["pr-checks"])
+        for needed in ("macos", "build-release", "linux-checks", "tool-tests-core"):
+            self.assertIn(needed, listed)

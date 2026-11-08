@@ -4,7 +4,9 @@
 A job that was skipped passes only when it was allowed to skip: scope-gated jobs (`macos`, `build-release`) whose
 scope output says there was nothing to run, hosted macOS jobs while the repo variable ``HOSTED_MACOS`` is not ``on``, and the denylist
 scan on a fork pull request. A core job that should have run and was skipped fails the aggregate,
-so a wrong ``if`` can never turn it green with nothing run. Failed and cancelled jobs always fail.
+so a wrong ``if`` can never turn it green with nothing run. A gated job missing from the workflow's ``needs`` fails it too, so dropping
+one cannot let the aggregate pass blind. The macOS job includes the Smoke steps (a failed device step fails the job). Failed and
+cancelled jobs always fail.
 
     NEEDS='<toJSON(needs)>' HOSTED_MACOS=on|'' EVENT=pull_request|push|... python3 tools/ci_aggregate.py
 
@@ -40,6 +42,9 @@ def problems(needs: Mapping[str, Mapping], hosted_macos: bool, event: str = "pul
     for name in CORE:
         if result.get(name) != "success" and result.get(name) not in ("failure", "cancelled"):
             found.append("%s: %s (a core job that should run must succeed)" % (name, result.get(name, "missing")))
+    for name in GATED:
+        if name not in result:
+            found.append("%s: missing from needs (the aggregate must list every gated job)" % name)
     for name, (scope_job, key, macos) in GATED.items():
         if name not in result or result[name] != "skipped":
             continue

@@ -235,8 +235,8 @@ jobs:
 
   macos:
     # One macOS job per app change: the test products are built once and shared by every device, then Smoke runs on iPhone, iPhone Duo
-    # and iPad, then the full swift test. The build and swift test are required; the Smoke and journey steps are advisory
-    # (continue-on-error per step, not in the aggregate). Poses that need Device Hub stay on the MacBook.
+    # and iPad, then the full swift test. The build, the Smoke and journey steps and swift test are all required (owner decision
+    # 2026-11-08, build/decisions/native-home-smoke-gate.md): no step is continue-on-error except the diagnostics. Poses that need Device Hub stay on the MacBook.
     # The simulators boot after the build, not during it: a first Duo boot beside a compile killed two runners (the Duo is also
     # settled before it is used, tools/sim_settle.sh).
     name: macOS - build, Smoke on three devices, swift test
@@ -295,35 +295,29 @@ jobs:
       - name: Smoke on iPhone
         id: iphone
         if: ${{ !cancelled() }}
-        continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
         run: |
           tools/ci_macos.sh smoke iphone
       - name: Journeys the diff reaches on iPhone
         id: iphone_journeys
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        continue-on-error: true
         run: tools/ci_macos.sh journeys iphone
       - name: Smoke on iPhone Duo
         id: duo
         if: ${{ !cancelled() }}
-        continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
         run: |
           tools/ci_macos.sh smoke duo
       - name: Journeys the diff reaches on iPhone Duo
         id: duo_journeys
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        continue-on-error: true
         run: tools/ci_macos.sh journeys duo
       - name: Smoke on iPad
         id: ipad
         if: ${{ !cancelled() }}
-        continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
         run: |
           tools/ci_macos.sh smoke ipad
       - name: Journeys the diff reaches on iPad
         id: ipad_journeys
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        continue-on-error: true
         run: tools/ci_macos.sh journeys ipad
       - name: swift test
         if: ${{ !cancelled() }}
@@ -434,7 +428,7 @@ jobs:
 
   pr-checks:
     # The one check GitHub requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
-    # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. The Smoke steps of the macos job are advisory.
+    # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. A failed Smoke step fails the macos job and so the aggregate.
     if: always()
     needs: [scope, linux-checks, tool-tests-core, denylist-scan, macos, build-release]
     runs-on: ubuntu-24.04

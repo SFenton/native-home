@@ -54,6 +54,18 @@ class AggregateTests(unittest.TestCase):
     def test_the_macos_job_may_not_skip_on_a_pull_request_that_needs_it(self):
         self.assertTrue(agg.problems(run_of(macos="skipped"), True, "pull_request"))
 
+    def test_a_failed_or_cancelled_macos_job_fails_the_aggregate(self):
+        """The Smoke steps are part of the macos job and required: a failed device step fails the job and so this."""
+        for state in ("failure", "cancelled"):
+            self.assertTrue(agg.problems(run_of(macos=state), True))
+
+    def test_a_gated_job_missing_from_needs_fails(self):
+        """Dropping a job from the workflow's `needs` must not let the aggregate pass blind."""
+        for gone in ("macos", "build-release"):
+            run = run_of()
+            del run[gone]
+            self.assertTrue(agg.problems(run, True), gone)
+
     def test_the_denylist_scan_may_skip_for_a_fork_pull_request_only(self):
         self.assertEqual(agg.problems(run_of(denylist_scan="skipped"), False), [])
         self.assertTrue(agg.problems(run_of(denylist_scan="failure"), False))
