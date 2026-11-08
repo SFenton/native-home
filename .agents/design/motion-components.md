@@ -2,7 +2,7 @@
 
 > **What:** the per-component motion checklist. It covers every shared and screen-level component, what changes its look, what animates today, what the rule in [motion.md](motion.md) says it must do, and the test that holds it there. **Read when:** you add a component, give one a new state, or touch its colours. Add a row in the same PR.
 
-Owner, 2026-10-18: "make sure background color changes are animated, and that every single shared (or individual) component is checked for behavior and mocked/tested/validated." The inventory was taken on `main` @ `1750fac0` (146 components; 36 had state-driven background colours that changed with no animation). The mockup is board 12 of the motion canvas (`https://claude.ai/artifact/TpbCczywEXhMtJ7hsYdoo9`).
+Owner, 2026-10-18: "make sure background color changes are animated, and that every single shared (or individual) component is checked for behavior and mocked/tested/validated." The inventory was taken on `main` @ `1750fac0` (146 components; 36 had state-driven background colours that changed with no animation). The mockup is board 12 of the motion canvas (the owner's private mockup gallery, link kept outside the repo).
 
 ## The rule, per component
 

@@ -2,7 +2,7 @@
 
 > **What:** the app-wide rules for movement in S+H. They cover the launch and sign-in moments, switching tabs, opening pages and modals, loading, live updates and user actions. They also cover when *not* to animate, how motion is measured, and the components that enforce all of it. **Read when:** you add or change any animation, transition, navigation path, loading state or sheet, or review a PR that does.
 
-Owner decision, 2026-10-18. Design: the canvas **S+H Launch and sign-in motion** (`https://claude.ai/artifact/TpbCczywEXhMtJ7hsYdoo9`), boards 1–11. The pattern record (components, API, tests) is [patterns/motion.md](../patterns/motion.md).
+Owner decision, 2026-10-18. Design: the canvas **S+H Launch and sign-in motion** (the owner's private mockup gallery, link kept outside the repo), boards 1–11. The pattern record (components, API, tests) is [patterns/motion.md](../patterns/motion.md).
 
 ## 1. The idea in one paragraph
 

@@ -2,7 +2,7 @@
 
 > **What:** while the iPhone Duo is partly folded (book pose), every section of a page sits wholly on the leading or the trailing side of the hinge; the per-page side table, the one-section rule and the exceptions. **Read when:** you add or reorder a section on any page, add a page with sections, or touch `UKFoldColumns`, Home's columns or a page grid on the Duo.
 
-Task T-section-sides. Mockups: [proposal](mockups/proposals/section-sides/section-sides.html) (Options A, B, C and D1-A, B, C, live size), and the `duo-part-fold` states of the atlas pages Security, Climate, Room page, Kitchen, Bedroom 1, Custom Lights, Sprinklers, Media and Home (the model). Hub: https://claude.ai/artifact/D566bWMJYibs3HJZSD6Jba.
+Task T-section-sides. Mockups: [proposal](mockups/proposals/section-sides/section-sides.html) (Options A, B, C and D1-A, B, C, live size), and the `duo-part-fold` states of the atlas pages Security, Climate, Room page, Kitchen, Bedroom 1, Custom Lights, Sprinklers, Media and Home (the model). Hub: the owner's private mockup gallery (link kept outside the repo).
 
 ## The request
 

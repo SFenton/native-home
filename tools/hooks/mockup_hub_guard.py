@@ -37,7 +37,22 @@ from pathlib import Path
 from typing import Dict, List
 
 MOCKUPS = ".agents/design/mockups/"
-HUB_URL = "https://claude.ai/artifact/D566bWMJYibs3HJZSD6Jba"
+
+
+def hub_link() -> str:
+    """Where the owner opens the hub, from local config only (the link is private and never lives in the repo).
+
+    Reads the ``SH_MOCKUP_HUB_URL`` environment variable, then the first line of the file named by
+    ``SH_MOCKUP_HUB_URL_FILE``; with neither, a neutral phrase.
+    """
+    value = os.environ.get("SH_MOCKUP_HUB_URL", "").strip()
+    path = os.environ.get("SH_MOCKUP_HUB_URL_FILE", "")
+    if not value and path:
+        try:
+            value = Path(path).read_text().splitlines()[0].strip()
+        except (OSError, IndexError):
+            value = ""
+    return value or "the owner's private mockup gallery link (kept outside the repo)"
 
 
 def _lines(root: Path, *args: str) -> List[str]:
@@ -173,7 +188,7 @@ def main(argv: List[str] | None = None) -> int:
     print(
         f"Blocked: this session changed .agents/design/mockups/ but {reason}. Mockups are always republished to the hub "
         f"Artifact without being asked, and the owner gets the hub link, never HTML or a file path. Follow "
-        f".agents/skills/mockup-hub/SKILL.md, then give the owner {HUB_URL}. "
+        f".agents/skills/mockup-hub/SKILL.md, then give the owner {hub_link()}."
         "No Artifact tool in this session? Say in the PR that the hub republish is pending and stop again.",
         file=sys.stderr,
     )

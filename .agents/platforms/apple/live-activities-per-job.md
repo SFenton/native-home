@@ -4,7 +4,7 @@
 
 Status: spec, owner-approved design (2026-10-17). **The app lane (§11, §12) is built** on `claude/live-activities-v2-app` (see the app-lane notes at the end of §11); the engine and relay lane (§9) and the Home Assistant config (§10) are not. It **supersedes** [live-activities.md](live-activities.md) §1 ("one activity, not many"), §3 (content state v1), §4 (presentation) and §6 (engine rules), and **retires** [live-activities-ha-automations.md](live-activities-ha-automations.md) once the engine ships. Everything else in those files (the token plumbing in §0, privacy, the Phase 1 targets) still holds.
 
-Design source: the canvas **S+H Live Activity** (`https://claude.ai/artifact/ToY74UpYgCganecAfGTg3x`), boards 5 to 8: "Two jobs" and "Four jobs" stacks, "Corner mark follows your app icon", "Vacuum, one room per card", "Expanded island on every camera width", "Problem cards". The boards are the visual contract; this file is the behavioural one.
+Design source: the canvas **S+H Live Activity** (the owner's private mockup gallery, link kept outside the repo), boards 5 to 8: "Two jobs" and "Four jobs" stacks, "Corner mark follows your app icon", "Vacuum, one room per card", "Expanded island on every camera width", "Problem cards". The boards are the visual contract; this file is the behavioural one.
 
 ## 0. Decisions (owner, 2026-10-17)
 

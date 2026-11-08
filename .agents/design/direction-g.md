@@ -2,7 +2,7 @@
 
 > **What:** the visual language for every page and sheet (owner choice, 2026-10-13: Apple system components on the blurred house photo, after rejecting custom looks as "very Android and too far removed from Apple"). **Read when:** building or restyling any screen, tile, chip, sheet or spinner.
 
-Mockups of every screen live on the owner's private gallery (https://claude.ai/artifact/WucowN61kBaBEdLVTP6JFb); the HTML sources are in the project's shared folder, not this public repo. Owner decisions win over this file, and HIG *must* rules win over both. The build order is in [direction-g-plan.md](direction-g-plan.md).
+Mockups of every screen live on the owner's private gallery (the owner's private mockup gallery, link kept outside the repo); the HTML sources are in the project's shared folder, not this public repo. Owner decisions win over this file, and HIG *must* rules win over both. The build order is in [direction-g-plan.md](direction-g-plan.md).
 
 ## The idea
 

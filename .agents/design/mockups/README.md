@@ -2,7 +2,7 @@
 
 > **What:** the atlas of every page, modal, component and flow in S+H as the app draws it today, on iPhone, iPhone Duo and iPad, in every state, with its motion playable; plus the owner-review proposals. **Read when:** before you change or add anything visible (look the surface up here first), when you need to know how a screen looks or moves, or when you propose a change ([propose-first](../../workflow/propose-first.md)).
 
-**In the Claude app:** the whole atlas, proposals and kit gallery are one private hub Artifact: https://claude.ai/artifact/D566bWMJYibs3HJZSD6Jba. It is built from this folder by `tools/mockups_hub.py` and published to that one link ([skills/mockup-hub](../../skills/mockup-hub/SKILL.md)); never edit it by hand and never publish a mockup as its own Artifact. A repo-only mockup cannot be opened in the app, so a mockup is not done until it is in the hub.
+**In the Claude app:** the whole atlas, proposals and kit gallery are one private hub Artifact: the owner's private mockup gallery (link kept outside the repo). It is built from this folder by `tools/mockups_hub.py` and published to that one link ([skills/mockup-hub](../../skills/mockup-hub/SKILL.md)); never edit it by hand and never publish a mockup as its own Artifact. A repo-only mockup cannot be opened in the app, so a mockup is not done until it is in the hub.
 
 ## Find the mockup
 

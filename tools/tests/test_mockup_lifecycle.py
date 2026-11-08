@@ -66,7 +66,7 @@ class HubGuardTests(unittest.TestCase):
                     mock.patch.object(mockup_hub_guard, "changed_mockups", return_value=[page]), redirect_stderr(err):
                 self.assertEqual(mockup_hub_guard.main(), 2)
             self.assertIn("mockup-hub/SKILL.md", err.getvalue())
-            self.assertIn("claude.ai/artifact/", err.getvalue())
+            self.assertIn("kept outside the repo", err.getvalue())
 
 
 def run_git(root: Path, *args: str) -> None:

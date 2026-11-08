@@ -2,7 +2,7 @@
 
 > **What:** the layout for the Home weather card's header (glyph, condition, range, temperature), chosen 2026-10-22 after the temperature clipped to "4…" beside long conditions. **Read when:** touching `WeatherCardContent.header` or any condition label.
 
-Mockups: [weather-card-header.html](mockups/proposals/weather-card-header/weather-card-header.html) (self-contained, open in a browser; also on the owner's gallery, https://claude.ai/artifact/EMActh2ZvDe8bjY2N7wQLv). It compares four options (A to D) at Large, xxxLarge and Accessibility 2; **D** is the decision.
+Mockups: [weather-card-header.html](mockups/proposals/weather-card-header/weather-card-header.html) (self-contained, open in a browser; also on the owner's gallery, the owner's private mockup gallery (link kept outside the repo)). It compares four options (A to D) at Large, xxxLarge and Accessibility 2; **D** is the decision.
 
 ## The bug
 

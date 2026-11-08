@@ -6,7 +6,7 @@ description: Publishes the mockup atlas, proposals and kit gallery as the one hu
 
 > **What:** how the mockup atlas, proposals and kit gallery are published as one multi-page Artifact the owner opens in the Claude app. **Read when:** you add, change or propose a mockup, or the owner asks where to view one.
 
-Hub (private, owner's claude.ai): https://claude.ai/artifact/D566bWMJYibs3HJZSD6Jba
+Hub (private, owner's claude.ai): the owner's private mockup gallery (link kept outside the repo)
 
 **Always republish (owner, 2026-10-28).** Any change under `.agents/design/mockups/` ends with steps 3 to 5 below, without being asked, and you give the owner the hub link, never HTML or a file path. The Stop hook `tools/hooks/mockup_hub_guard.py` blocks ending a session that changed mockups until the hub has been rebuilt and marked published. It only counts files changed since this session started (a SessionStart stamp), so another session's dirty files never block you; subagents are not covered.
 

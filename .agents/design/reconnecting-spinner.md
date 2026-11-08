@@ -2,7 +2,7 @@
 
 > **What:** the reconnecting sign is a white arc spinner in the header, left of Quick Links, replacing the "Reconnecting…" chip (owner request 2026-10-23). **Read when:** touching `ReconnectingArc`, `ReconnectingIndicator`, `ShellHeaderItems` or any connection-lost UI.
 
-Mockups: [reconnecting-spinner.html](mockups/proposals/reconnecting-spinner/reconnecting-spinner.html) (self-contained; also on the owner's gallery, https://claude.ai/artifact/JMobQzLeGBHnAYc7wgdirS).
+Mockups: [reconnecting-spinner.html](mockups/proposals/reconnecting-spinner/reconnecting-spinner.html) (self-contained; also on the owner's gallery, the owner's private mockup gallery (link kept outside the repo)).
 
 ## The bug
 
