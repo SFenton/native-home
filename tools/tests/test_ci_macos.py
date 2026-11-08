@@ -20,7 +20,7 @@ class CiMacosTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.dir = Path(self.tmp.name)
-        for name, body in (("uitest", STUB), ("settle", STUB), ("heartbeat", HEARTBEAT), ("affected", AFFECTED)):
+        for name, body in (("uitest", STUB), ("settle", STUB), ("heartbeat", HEARTBEAT), ("affected", AFFECTED), ("release", STUB), ("swift", STUB)):
             (self.dir / name).write_text(body)
             (self.dir / name).chmod(0o755)
         self.log = self.dir / "log"
@@ -29,7 +29,7 @@ class CiMacosTests(unittest.TestCase):
     def run_script(self, *args, **extra):
         env = {"CI_MACOS_UITEST": str(self.dir / "uitest"), "CI_MACOS_SETTLE": str(self.dir / "settle"),
                "CI_MACOS_HEARTBEAT": str(self.dir / "heartbeat"), "CI_MACOS_AFFECTED": str(self.dir / "affected"),
-               "CI_MACOS_TIMINGS": str(self.timings), "STUB_LOG": str(self.log), "STUB_FAIL": "", "STUB_RUNNABLE": "", "STUB_ALL": "",
+               "CI_MACOS_TIMINGS": str(self.timings), "CI_MACOS_RELEASE": str(self.dir / "release"), "CI_MACOS_SWIFT": str(self.dir / "swift"), "FENTON_AFFECTED_BASE": "", "STUB_LOG": str(self.log), "STUB_FAIL": "", "STUB_RUNNABLE": "", "STUB_ALL": "",
                "GITHUB_STEP_SUMMARY": str(self.dir / "summary")}
         env.update(extra)
         with mock.patch.dict("os.environ", env):
@@ -97,6 +97,24 @@ class CiMacosTests(unittest.TestCase):
     def test_a_crash_of_the_selection_tool_fails_the_step(self):
         out, _ = self.run_script("journeys", "iphone", STUB_AFFECTED_RC="2")
         self.assertEqual(out.returncode, 2)
+
+    def test_each_device_starts_on_an_idle_runner_and_swift_test_too(self):
+        _, log = self.run_script("smoke", "duo")
+        self.assertLess(log.index("release"), log.index("settle duo"))
+        _, log = self.run_script("swift-test")
+        self.assertIn("release", log)
+        self.assertIn("swift test", log)
+
+    def test_swift_test_on_a_pull_request_runs_the_affected_suites_only(self):
+        out, log = self.run_script("swift-test", FENTON_AFFECTED_BASE="origin/main", STUB_ALL="--filter A")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("swift test --filter A", log)
+
+    def test_swift_test_on_a_pull_request_is_skipped_when_no_suite_is_reached(self):
+        out, log = self.run_script("swift-test", FENTON_AFFECTED_BASE="origin/main", STUB_ALL="")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("skipped", out.stdout)
+        self.assertNotIn("swift test", log)
 
     def test_summary_prints_a_table_of_the_phases(self):
         self.timings.write_text("build\t120\t0\nsmoke-duo\t150\t1\n")

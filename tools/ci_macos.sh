@@ -10,7 +10,11 @@
 #
 # `all` is the parallel layout: one ios_uitest.sh run with --parallel-families on slimmed simulators. A phase appends
 # "NAME<TAB>SECONDS<TAB>EXIT" to the timings file (CI_MACOS_TIMINGS, default $RUNNER_TEMP/ci-timings.tsv).
-# Test seams: CI_MACOS_UITEST, CI_MACOS_AFFECTED, CI_MACOS_SETTLE and CI_MACOS_HEARTBEAT replace the scripts they name.
+# Test seams: CI_MACOS_UITEST, CI_MACOS_AFFECTED, CI_MACOS_SETTLE, CI_MACOS_HEARTBEAT, CI_MACOS_RELEASE and CI_MACOS_SWIFT replace the scripts they name.
+# One VM runs all three devices in turn, and ios_uitest.sh leaves a simulator booted (warm) when its run ends. Left running, the earlier
+# devices hold the 3 vCPUs and 7 GB: the second and third boots took 19 to 20 minutes with load 600 to 900 and swap in use (run
+# 42520889460), against 6 to 15 on a fresh VM. So each device starts, and swift test runs, with every simulator and any hung
+# xcodebuild or xctest of the earlier devices shut down first.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UITEST="${CI_MACOS_UITEST:-$ROOT/tools/ios_uitest.sh}"
@@ -18,6 +22,8 @@ AFFECTED=(python3 "$ROOT/tools/affected_tests.py")
 [[ -n "${CI_MACOS_AFFECTED:-}" ]] && AFFECTED=("$CI_MACOS_AFFECTED")
 SETTLE="${CI_MACOS_SETTLE:-$ROOT/tools/sim_settle.sh}"
 HEARTBEAT="${CI_MACOS_HEARTBEAT:-$ROOT/tools/ci_heartbeat.sh}"
+SWIFT=("${CI_MACOS_SWIFT:-swift}")
+RELEASE="${CI_MACOS_RELEASE:-$ROOT/tools/ci_release_sims.sh}"
 TIMINGS="${CI_MACOS_TIMINGS:-${RUNNER_TEMP:-/tmp}/ci-timings.tsv}"
 FAMILIES=(iphone duo ipad)
 
@@ -67,6 +73,7 @@ case "$cmd" in
     if [[ "$target" == all ]]; then
       phase smoke-all "$UITEST" --plan Smoke --force --parallel-families
     else
+      "$RELEASE" || true
       # The first boot of a runtime on a fresh VM holds the runner at a high load for minutes (the Duo above all); wait for it to settle.
       phase "boot-$target" "$HEARTBEAT" run -- "$SETTLE" "$target" || true
       phase "smoke-$target" "$UITEST" --only "$target" --plan Smoke --force
@@ -88,8 +95,26 @@ case "$cmd" in
     phase "journeys-$target" "$UITEST" $(scope_args "$target") --changed --force
     ;;
   swift-test)
+    "$RELEASE" || true
+    # A pull request runs the Swift package suites its diff reaches (as the old swift-test-hosted job did), a push to main and a
+    # manual run run everything. A file the selection cannot place runs everything; a diff that reaches no suite runs nothing.
+    filters=()
+    if [[ -n "${FENTON_AFFECTED_BASE:-}" ]]; then
+      rc=0; picked="$("${AFFECTED[@]}" --swift --base "$FENTON_AFFECTED_BASE")" || rc=$?
+      if [[ "$rc" != 0 ]]; then
+        echo "affected_tests.py could not place every changed file (exit $rc): running the full suite"
+      elif [[ -z "$picked" ]]; then
+        echo "no Swift package suite is affected by this change: swift test skipped"
+        printf 'swift-test\t0\t0\n' >> "$TIMINGS"
+        exit 0
+      else
+        # shellcheck disable=SC2206  # the selection is a list of --filter arguments
+        filters=($picked)
+      fi
+    fi
+    echo "swift test ${filters[*]:-}"
     # shellcheck disable=SC2016
-    phase swift-test bash -c 'cd "$1/apple" && swift test' _ "$ROOT"
+    phase swift-test bash -c 'cd "$1/apple" && shift && "$@"' _ "$ROOT" "${SWIFT[@]}" test ${filters[@]+"${filters[@]}"}
     ;;
   summary)
     {
