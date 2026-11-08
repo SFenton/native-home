@@ -19,6 +19,10 @@ on:
         description: "Head commit for scope_base (default: this ref)"
         required: false
         default: ""
+      report_dry_run:
+        description: "Test the red-run report: print the Workflow issue instead of filing it (runs even when the tests are green)"
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -81,44 +85,12 @@ jobs:
         run: |
           echo "scope - app=$APP release=$RELEASE (filter $FILTER)" | tee -a "$GITHUB_STEP_SUMMARY"
 
-  repo-checks-hosted:
+  linux-checks:
+    # The repo checks and the small tool-test parts in one job: three short Linux jobs cost three runner starts.
+    name: Repo checks and tool tests (triage, release)
     needs: scope
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Mockups
-        run: |
-          python3 tools/mockups_check.py
-          python3 tools/mockups_index.py --check
-      - name: Pattern and component registry, Jev sync
-        run: |
-          python3 tools/pattern_guard.py
-          python3 tools/components_index.py --check
-          python3 tools/jev_ask.py sync --check
-      - name: House-data lint
-        run: python3 tools/house_scan.py
-      - name: Motion lint
-        run: tools/lint_motion.sh
-      - name: Test plans are current
-        run: python3 tools/test_plans.py --check
-      - name: Test suites resolve
-        run: python3 tools/test_suites.py check
-
-  tool-tests-hosted:
-    # One job per part of tools/run_tool_tests.sh, in parallel (about 5 minutes in all on Linux, build/evidence/hosted-ci).
-    needs: scope
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        part: [core, triage, release]
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -126,16 +98,98 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false   # tests that read history and refs need a real clone
-      - name: Python tool tests (${{ matrix.part }}; a pull request fails only on failures new versus its base, owner 2026-11-04)
+      - name: Mockups
+        if: ${{ !cancelled() }}
+        run: |
+          python3 tools/mockups_check.py
+          python3 tools/mockups_index.py --check
+      - name: Pattern and component registry, Jev sync
+        if: ${{ !cancelled() }}
+        run: |
+          python3 tools/pattern_guard.py
+          python3 tools/components_index.py --check
+          python3 tools/jev_ask.py sync --check
+      - name: House-data lint
+        if: ${{ !cancelled() }}
+        run: python3 tools/house_scan.py
+      - name: Motion lint
+        if: ${{ !cancelled() }}
+        run: tools/lint_motion.sh
+      - name: Test plans are current
+        if: ${{ !cancelled() }}
+        run: python3 tools/test_plans.py --check
+      - name: Test suites resolve
+        if: ${{ !cancelled() }}
+        run: python3 tools/test_suites.py check
+      - name: Tool tests - triage
+        if: ${{ !cancelled() }}
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          PART: ${{ matrix.part }}
+          PART: triage
         run: |
+          # A pull request fails only on failures new versus its base (owner, 2026-11-04). Main and manual runs run the whole part
+          # and keep the log for the Workflow issue.
+          set -o pipefail
           if [ -n "${BASE:-}" ]; then
             python3 tools/ci_new_failures.py --base "$BASE" --part "$PART"
           else
-            tools/run_tool_tests.sh "$PART"
+            tools/run_tool_tests.sh "$PART" 2>&1 | tee "$RUNNER_TEMP/tool-tests-$PART.log"
           fi
+      - name: Tool tests - release
+        if: ${{ !cancelled() }}
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          PART: release
+        run: |
+          # A pull request fails only on failures new versus its base (owner, 2026-11-04). Main and manual runs run the whole part
+          # and keep the log for the Workflow issue.
+          set -o pipefail
+          if [ -n "${BASE:-}" ]; then
+            python3 tools/ci_new_failures.py --base "$BASE" --part "$PART"
+          else
+            tools/run_tool_tests.sh "$PART" 2>&1 | tee "$RUNNER_TEMP/tool-tests-$PART.log"
+          fi
+      - name: Keep the logs
+        if: ${{ failure() && github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: tool-tests-log-linux-checks
+          path: ${{ runner.temp }}/tool-tests-*.log
+          if-no-files-found: ignore
+
+  tool-tests-core:
+    # The long part (about 5 minutes) gets its own job so it runs beside the other checks.
+    name: Tool tests (core)
+    needs: scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false   # tests that read history and refs need a real clone
+      - name: Tool tests - core
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          PART: core
+        run: |
+          # A pull request fails only on failures new versus its base (owner, 2026-11-04). Main and manual runs run the whole part
+          # and keep the log for the Workflow issue.
+          set -o pipefail
+          if [ -n "${BASE:-}" ]; then
+            python3 tools/ci_new_failures.py --base "$BASE" --part "$PART"
+          else
+            tools/run_tool_tests.sh "$PART" 2>&1 | tee "$RUNNER_TEMP/tool-tests-$PART.log"
+          fi
+      - name: Keep the logs
+        if: ${{ failure() && github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: tool-tests-log-core
+          path: ${{ runner.temp }}/tool-tests-core.log
+          if-no-files-found: ignore
 
   denylist-scan:
     # The owner's private house-term list, from a repository secret, counted and never printed. Runs private or public, on same-repo
@@ -401,7 +455,7 @@ jobs:
     # The one check GitHub requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
     # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. sim-smoke is advisory and not listed.
     if: always()
-    needs: [scope, repo-checks-hosted, tool-tests-hosted, denylist-scan, swift-test-hosted, build-release-hosted]
+    needs: [scope, linux-checks, tool-tests-core, denylist-scan, swift-test-hosted, build-release-hosted]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -413,3 +467,47 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           HOSTED_MACOS: ${{ vars.HOSTED_MACOS }}
         run: python3 tools/ci_aggregate.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+  report-red-main:
+    # A red tool-test run on main files (or updates) one issue labelled Workflow, so it cannot go unseen. Push to main only; a manual
+    # run reaches it too, with report_dry_run it prints the issue instead of filing it (and runs even when the tests are green).
+    needs: [linux-checks, tool-tests-core]
+    if: ${{ always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (inputs.report_dry_run || contains(needs.*.result, 'failure')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        continue-on-error: true   # a green dry run has no logs
+        with:
+          pattern: tool-tests-log-*
+          path: ${{ runner.temp }}/logs
+          merge-multiple: true
+      - name: File or update the Workflow issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRY_RUN: ${{ inputs.report_dry_run }}
+          REPO: ${{ github.repository }}
+        run: |
+          failing="$(cat "$RUNNER_TEMP"/logs/*.log 2>/dev/null | grep -E '^(FAIL|ERROR): ' | sort -u | head -40 || true)"
+          [ -n "$failing" ] || failing="(no failing test ids in the logs; see the run)"
+          fence="$(printf '\140\140\140')"
+          body="$(printf 'The full tool suite is red on %s at %s.\n\nRun: %s\n\nFailing tests:\n\n%s\n%s\n%s\n' "$BRANCH" "$HEAD_SHA" "$RUN_URL" "$fence" "$failing" "$fence")"
+          title="Tool tests red on ${BRANCH}"
+          if [ "$DRY_RUN" = "true" ]; then
+            { echo "Dry run: would file or update the issue \"$title @ ${HEAD_SHA:0:10}\" (label Workflow) in $REPO with:"; echo; echo "$body"; } | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh label create Workflow --color 5319e7 --description "How the agents work" 2>/dev/null || true
+          number="$(gh issue list --state open --label Workflow --search "\"$title\" in:title" --json number,title --jq "[.[] | select(.title | startswith(\"$title\"))][0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+            gh issue edit "$number" --title "$title @ ${HEAD_SHA:0:10}"
+          else
+            gh issue create --label Workflow --title "$title @ ${HEAD_SHA:0:10}" --body "$body"
+          fi

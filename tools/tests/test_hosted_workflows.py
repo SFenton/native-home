@@ -65,7 +65,7 @@ class RuleTests(unittest.TestCase):
                     self.assertIn("'xcode-27'", runs_on(text))
 
     def test_no_pr_or_main_job_runs_on_a_self_hosted_runner(self):
-        for name in ("pr-checks.yml", "tool-tests.yml"):
+        for name in ("pr-checks.yml",):
             for job, text in jobs(name).items():
                 self.assertNotIn("self-hosted", runs_on(text), "%s/%s" % (name, job))
                 self.assertNotIn("repository.private", text, "%s/%s" % (name, job))
@@ -73,7 +73,7 @@ class RuleTests(unittest.TestCase):
     def test_the_aggregate_keeps_its_name_and_covers_both_sets(self):
         text = jobs("pr-checks.yml")["pr-checks"]
         self.assertIn("if: always()", text)
-        for needed in ("scope", "repo-checks-hosted", "tool-tests-hosted", "denylist-scan", "swift-test-hosted", "build-release-hosted"):
+        for needed in ("scope", "linux-checks", "tool-tests-core", "denylist-scan", "swift-test-hosted", "build-release-hosted"):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
         self.assertNotIn("sim-smoke", text.split("steps:")[0].split("needs:")[1])
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
@@ -82,9 +82,9 @@ class RuleTests(unittest.TestCase):
         self.assertNotIn("success|skipped", text)
 
     def test_python_tool_test_jobs_leave_hosted_mode_off_and_compare_against_the_base(self):
-        for name, job in (("pr-checks.yml", "repo-checks-hosted"), ("pr-checks.yml", "tool-tests-hosted"), ("tool-tests.yml", "tool-tests-hosted")):
-            self.assertNotIn("FENTON_CI_HOSTED", jobs(name)[job], "%s/%s" % (name, job))
-        self.assertIn("tools/ci_new_failures.py --base", jobs("pr-checks.yml")["tool-tests-hosted"])
+        for job in ("linux-checks", "tool-tests-core"):
+            self.assertNotIn("FENTON_CI_HOSTED", jobs("pr-checks.yml")[job], job)
+            self.assertIn("tools/ci_new_failures.py --base", jobs("pr-checks.yml")[job])
 
     def test_hosted_macos_jobs_use_the_hosted_mode_and_no_devcap(self):
         for job in ("swift-test-hosted", "build-release-hosted", "sim-smoke"):
@@ -116,10 +116,35 @@ class RuleTests(unittest.TestCase):
         self.assertRegex(text, r"Delete the denylist file\n\s+if: always\(\)")
         self.assertNotRegex(text, r"\bcat\b|echo \"?\$DENYLIST")
 
-    def test_least_privilege_in_tool_tests(self):
-        text = (WORKFLOWS / "tool-tests.yml").read_text(encoding="utf-8")
+    def test_tool_tests_live_in_pr_checks_and_only_the_report_job_may_write_issues(self):
+        self.assertFalse((WORKFLOWS / "tool-tests.yml").exists())
+        text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
         self.assertRegex(text.split("\njobs:\n", 1)[0], r"permissions:\n  contents: read\n(?!  issues)")
-        self.assertIn("issues: write", jobs("tool-tests.yml")["report-hosted"])
+        for job, body in jobs("pr-checks.yml").items():
+            if job == "report-red-main":
+                self.assertIn("issues: write", body)
+            else:
+                self.assertNotIn("issues:", body, job)
+
+    def test_the_red_run_report_is_main_and_manual_only_with_a_dry_run(self):
+        body = jobs("pr-checks.yml")["report-red-main"]
+        condition = re.search(r"^    if: (.*)$", body, re.M).group(1)
+        self.assertIn("github.event_name == 'push'", condition)
+        self.assertIn("github.event_name == 'workflow_dispatch'", condition)
+        self.assertNotIn("pull_request", condition)
+        self.assertIn("inputs.report_dry_run", condition)
+        self.assertIn('if [ "$DRY_RUN" = "true" ]', body)
+        self.assertLess(body.index('"$DRY_RUN" = "true"'), body.index("gh issue create"))
+        self.assertNotIn("report-red-main", jobs("pr-checks.yml")["pr-checks"].split("steps:")[0])
+
+    def test_linux_checks_merge_the_small_jobs_and_core_stays_apart(self):
+        text = jobs("pr-checks.yml")
+        self.assertIn("tools/run_tool_tests.sh", text["linux-checks"])
+        self.assertIn("PART: triage", text["linux-checks"])
+        self.assertIn("PART: release", text["linux-checks"])
+        self.assertNotIn("PART: core", text["linux-checks"])
+        self.assertIn("PART: core", text["tool-tests-core"])
+        self.assertNotIn("matrix", text["linux-checks"] + text["tool-tests-core"])
 
     def test_self_hosted_jobs_never_trigger_on_pull_requests_without_the_private_gate(self):
         for name in ("nightly.yml", "ios-release.yml", "ios-release-build.yml"):
@@ -127,7 +152,7 @@ class RuleTests(unittest.TestCase):
             self.assertNotIn("pull_request", text.split("\njobs:\n", 1)[0].replace("pull_request_target", ""), name)
 
     def test_permissions_are_read_only_at_the_top(self):
-        for name in ("pr-checks.yml", "runtimes.yml", "tool-tests.yml"):
+        for name in ("pr-checks.yml", "runtimes.yml"):
             self.assertRegex((WORKFLOWS / name).read_text(encoding="utf-8"), r"\npermissions:\n  contents: read\n")
 
     def test_sim_smoke_builds_before_it_boots_and_settles_with_a_heartbeat(self):

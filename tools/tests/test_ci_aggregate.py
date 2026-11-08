@@ -21,7 +21,7 @@ def needs(**results):
 
 
 def run_of(macos="success", **overrides):
-    base = needs(scope="success", repo_checks_hosted="success", tool_tests_hosted="success", denylist_scan="success",
+    base = needs(scope="success", linux_checks="success", tool_tests_core="success", denylist_scan="success",
                  swift_test_hosted=macos, build_release_hosted=macos)
     base["scope"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
@@ -34,8 +34,8 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual(agg.problems(run_of(macos="skipped"), False), [])
 
     def test_a_skipped_core_job_fails(self):
-        self.assertTrue(agg.problems(run_of(tool_tests_hosted="skipped"), False))
-        self.assertTrue(agg.problems(run_of(repo_checks_hosted="skipped"), True))
+        self.assertTrue(agg.problems(run_of(tool_tests_core="skipped"), False))
+        self.assertTrue(agg.problems(run_of(linux_checks="skipped"), True))
         self.assertTrue(agg.problems(run_of(scope="skipped"), True))
 
     def test_hosted_macos_may_skip_only_while_the_variable_is_off_or_the_scope_says_so(self):
@@ -52,10 +52,10 @@ class AggregateTests(unittest.TestCase):
     def test_failures_and_cancellations_always_fail(self):
         for state in ("failure", "cancelled"):
             self.assertTrue(agg.problems(run_of(swift_test_hosted=state), True))
-            self.assertTrue(agg.problems(run_of(tool_tests_hosted=state), True))
+            self.assertTrue(agg.problems(run_of(tool_tests_core=state), True))
 
     def test_main_reads_the_context_and_exits_nonzero_on_a_problem(self):
-        for run, code in ((run_of(), 0), (run_of(repo_checks_hosted="skipped"), 1)):
+        for run, code in ((run_of(), 0), (run_of(linux_checks="skipped"), 1)):
             with mock.patch.dict(os.environ, {"NEEDS": json.dumps(run), "HOSTED_MACOS": "on"}):
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(agg.main(), code)
