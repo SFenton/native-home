@@ -1148,7 +1148,7 @@ class HookTests(unittest.TestCase):
         self.addCleanup(merge_guard._REQUEST_REPO.clear)
         os.environ.pop("LANE_LAND", None)
         real = merge_guard.git_out  # origin resolves to this repository (the push-remote rule); everything else is real git
-        origin = mock.patch.object(merge_guard, "git_out", side_effect=lambda top, *a: "git@github.com:SFenton/Fenton-HASS-Native.git"
+        origin = mock.patch.object(merge_guard, "git_out", side_effect=lambda top, *a: "git@github.com:SFenton/native-home.git"
                                    if a[:2] == ("remote", "get-url") else real(top, *a))
         origin.start()
         self.addCleanup(origin.stop)
@@ -1382,9 +1382,9 @@ class RequestRepoGuardTests(unittest.TestCase):
                 self.assertTrue((self.why(cmd) or "").startswith("request-repo"), cmd)
 
     def test_issue_edit_elsewhere_is_untouched(self):
-        for cmd in ("gh issue edit 5 --title x", "gh issue edit 5 -R SFenton/Fenton-HASS-Native --title x",
-                    f"gh issue edit 5 -R SFenton/Fenton-HASS-Native --body 'see {self.R}#3'",
-                    f"gh issue edit 5 --title 'about {self.R}'", f"GH_REPO=SFenton/Fenton-HASS-Native gh issue edit 5 --body x",
+        for cmd in ("gh issue edit 5 --title x", "gh issue edit 5 -R SFenton/native-home --title x",
+                    f"gh issue edit 5 -R SFenton/native-home --body 'see {self.R}#3'",
+                    f"gh issue edit 5 --title 'about {self.R}'", f"GH_REPO=SFenton/native-home gh issue edit 5 --body x",
                     f"gh issue edit 5 -R other/repo --repo {self.R}x", "echo gh issue edit 5"):
             with self.subTest(cmd=cmd):
                 # -R other/repo with a later --repo of the request repo is the last word in gh; the guard reads all -R/--repo values
@@ -1414,12 +1414,12 @@ class RequestRepoGuardTests(unittest.TestCase):
             self.assertTrue((self.why(cmd) or "").startswith("request-repo"), cmd)
 
     def test_issue_create_elsewhere_and_other_issue_commands_are_untouched(self):
-        for cmd in ("gh issue create --title t", "gh issue create -R SFenton/Fenton-HASS-Native --title t",
+        for cmd in ("gh issue create --title t", "gh issue create -R SFenton/native-home --title t",
                     f"gh issue create --title 'see {self.R}#4' --body b", f"gh issue view 5 -R {self.R}",
                     f"gh issue list -R {self.R}", f"gh issue status -R {self.R}", f"gh repo view {self.R}",
                     f"gh api repos/{self.R}/issues/5", f"gh api repos/{self.R}/issues", f"gh api -X GET repos/{self.R}/issues/5/labels",
                     "gh issue comment 5 --body hi", "gh issue close 5", "gh label list", "gh label create x",
-                    "gh issue comment 5 -R SFenton/Fenton-HASS-Native --body x", "gh api repos/SFenton/Fenton-HASS-Native/issues/5 -X PATCH -f state=closed"):
+                    "gh issue comment 5 -R SFenton/native-home --body x", "gh api repos/SFenton/native-home/issues/5 -X PATCH -f state=closed"):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.why(cmd), cmd)
 
@@ -1439,7 +1439,7 @@ class RequestRepoGuardTests(unittest.TestCase):
                     f"gh api -X POST repos/{R}/issues/5/labels -f 'labels[]=x'", f"gh api --method PATCH repos/{R}/labels/Workflow -f name=x",
                     f"gh api -X DELETE repos/{R}/labels/Workflow", f"gh api -X PUT repos/{R}", f"gh api repos/{R}/issues/5/lock -X PUT",
                     f"gh label edit Workflow --name X -R {R}", f"gh label delete Workflow -R {R} --yes", f"gh label create x -R {R}",
-                    f"gh label clone SFenton/Fenton-HASS-Native -R {R}",
+                    f"gh label clone SFenton/native-home -R {R}",
                     "gh api graphql -f query='mutation { deleteIssue(input: {issueId: \"x\"}) { clientMutationId } }'",
                     "gh api graphql -F query=@q.graphql", "gh api graphql --input q.json",
                     f"gh repo set-default {R} && gh issue edit 5", f"gh repo set-default {R}", "gh repo set-default other/repo",
@@ -1450,11 +1450,11 @@ class RequestRepoGuardTests(unittest.TestCase):
                     "gh issue edit 5 -R \"$(cat repo)\"", "gh issue edit 5 -R `cat repo`", "gh issue edit 5 -R ${REPO}", "gh issue edit 5 -R SFenton/fenton-*",
                     "gh issue edit $URL", "gh issue edit $(cat url)",
                     f"gh issue edit https://github.com/{R}/issues/5 -R other/repo", f"gh issue edit -R other/repo https://github.com/{R}/issues/5",
-                    f"gh issue edit 5 -R SFenton/Fenton-HASS-Native --repo {R}",
+                    f"gh issue edit 5 -R SFenton/native-home --repo {R}",
                     f"find . -name x -exec gh issue edit 5 -R {R} \\;", "find . -name x -exec gh issue edit {} \\;",
                     f"find . -exec gh issue close 5 -R {R} \\;", f"ls | xargs -I{{}} gh issue edit {{}} -R {R}",
                     f"gh issue close 5 -R {R}", f"gh issue close 5 -R {R} --reason completed", f"gh issue delete 5 -R {R} --yes",
-                    f"gh issue transfer 5 SFenton/Fenton-HASS-Native -R {R}", f"gh issue comment 5 -R {R} --body x",
+                    f"gh issue transfer 5 SFenton/native-home -R {R}", f"gh issue comment 5 -R {R} --body x",
                     f"gh issue reopen 5 -R {R}", f"gh issue lock 5 -R {R}", f"gh issue pin 5 -R {R}", f"gh issue unpin 5 -R {R}",
                     f"gh issue develop 5 -R {R}", f"gh issue create -R {R} --title t", f"gh issue edit 5 -R {R} --add-label Workflow",
                     f"bash -c 'gh issue delete 5 -R {R}'", f"timeout 9 gh label delete Workflow -R {R}"):
@@ -1474,9 +1474,9 @@ class RequestRepoGuardTests(unittest.TestCase):
 
     def test_other_repositories_keep_working(self):
         for cmd in ("gh issue edit 5 --title x", "gh issue close 5", "gh label create x", "gh issue comment 5 --body x",
-                    "gh issue edit 5 -R SFenton/Fenton-HASS-Native --add-label Bug", "GH_REPO=SFenton/Fenton-HASS-Native gh issue close 5",
-                    "export GH_REPO=SFenton/Fenton-HASS-Native; gh issue edit 5 --title x",
-                    "gh api -X PATCH repos/SFenton/Fenton-HASS-Native/issues/5 -f state=closed",
+                    "gh issue edit 5 -R SFenton/native-home --add-label Bug", "GH_REPO=SFenton/native-home gh issue close 5",
+                    "export GH_REPO=SFenton/native-home; gh issue edit 5 --title x",
+                    "gh api -X PATCH repos/SFenton/native-home/issues/5 -f state=closed",
                     "gh api graphql -f query='mutation { x }'".replace("mutation { x }", "query { y }")):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.why(cmd), cmd)
@@ -1549,7 +1549,7 @@ class RequestRepoGuardTests(unittest.TestCase):
 
 
     def test_false_positives_stay_open(self):
-        for cmd in ('gh issue comment 5 --body "$(cat notes.md)"', 'gh issue comment 5 --body "$(git log -1)" -R SFenton/Fenton-HASS-Native',
+        for cmd in ('gh issue comment 5 --body "$(cat notes.md)"', 'gh issue comment 5 --body "$(git log -1)" -R SFenton/native-home',
                     "gh search repos --owner SFenton", "gh search issues foo --owner SFenton --limit 5", "gh repo list --owner SFenton"):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.why(cmd), cmd)
@@ -1595,7 +1595,7 @@ class PrGateTests(Repo):
     RECORD = ".agents/design/chip.md"
     GOOD = DesignRecordTests.GOOD
     AGENT = {"FENTON_HEADLESS": "1", "HASS_TRIAGE_ISSUE": "99"}
-    CFG = {"authors": ["SFenton"], "request_repo": "example/private-requests", "product_repo": "SFenton/Fenton-HASS-Native"}
+    CFG = {"authors": ["SFenton"], "request_repo": "example/private-requests", "product_repo": "SFenton/native-home"}
 
     def setUp(self):
         super().setUp()
@@ -1730,7 +1730,7 @@ class PrGateTests(Repo):
         cases = {"a Workflow issue": ("Closes #12", {**owner, "labels": [{"name": "Workflow"}]}),
                  "a Nightly Fix issue": ("Closes #12", {**owner, "labels": [{"name": "Nightly Fix"}]}),
                  "another author": ("Closes #12", {**owner, "author": {"login": "stranger"}}),
-                 "a product-repo slug": ("Closes SFenton/Fenton-HASS-Native#4", owner),
+                 "a product-repo slug": ("Closes SFenton/native-home#4", owner),
                  "an unreadable issue": ("Closes #12", None)}
         for name, (body, data) in cases.items():
             with self.subTest(name):

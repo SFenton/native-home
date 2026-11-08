@@ -430,11 +430,11 @@ class GoPublicGuardTests(unittest.TestCase):
             repo = Path(name) / "repo"
             repo.mkdir()
             subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
-            g(repo, "remote", "add", "origin", "git@github.com:SFenton/Fenton-HASS-Native.git")
+            g(repo, "remote", "add", "origin", "git@github.com:SFenton/native-home.git")
             g(repo, "remote", "add", "pub", "https://github.com/SFenton/pub.git")
             g(repo, "remote", "add", "web", "https://github.com/sfenton/fenton-hass-native")
             for command in ("git push pub HEAD:agents/x", "git push pub --all", "git push --mirror pub", "git push https://github.com/SFenton/pub.git HEAD",
-                            "git push git@github.com:SFenton/pub.git HEAD:agents/x", "git push --repo=pub", "git push --repo pub", "git push /tmp/elsewhere.git HEAD",
+                            "git push git@github.com:SFenton/pub.git HEAD:agents/x", "git push --repo=pub", "git push --repo pub", "git push git@github.com:SFenton/Fenton-HASS-Native.git HEAD", "git push /tmp/elsewhere.git HEAD",
                             "git -C ../other push origin HEAD", "git push '$R' HEAD", "git push web agents/z"):
                 cwd = repo
                 if command.startswith("git -C ../other"):

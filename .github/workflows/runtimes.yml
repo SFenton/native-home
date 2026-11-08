@@ -33,12 +33,13 @@ jobs:
     env:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
-      FENTON_DERIVED_DATA: ${{ runner.temp }}/dd
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Derived data path (runner context is not allowed in job env)
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
         run: tools/ci_hosted_setup.sh
       - name: Selected Xcode
@@ -62,7 +63,7 @@ jobs:
         run: tools/ios_uitest.sh --only iphone --plan Smoke --force
       - name: Keep the results
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-ios-${{ matrix.ios }}
           path: apple/.build/uitest-*.xcresult

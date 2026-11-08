@@ -373,8 +373,9 @@ struct SheetChromeTests {
         model.setSafeInsets(top: 70, bottom: 34)
         model.report(SheetFit.Reading(content: 380), from: page)
         #expect(model.contentHeight == 483, "Not yet: the reading has not stood still")
-        // Wait for the delayed accept rather than a fixed sleep: parallel suites can keep the main actor busy past it.
-        let deadline = ContinuousClock.now + .seconds(2)
+        // Wait for the delayed accept rather than a fixed sleep: parallel suites can keep the main actor busy past it (a hosted
+        // runner starved it for over 2 s). The poll returns the moment the condition holds; the deadline only bounds a real failure.
+        let deadline = ContinuousClock.now + .seconds(30)
         while model.contentHeight != 450, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
         #expect(model.contentHeight == 450)
         #expect(accepted == [450])

@@ -199,8 +199,8 @@ class HygieneTests(unittest.TestCase):
     def test_runner_plist_follows_the_runner_running_the_job(self):
         agents = Path.home() / "Library" / "LaunchAgents"
         self.assertEqual(h.runner_plist_path({"RUNNER_NAME": "host-mini"}),
-                         agents / "actions.runner.SFenton-Fenton-HASS-Native.host-mini.plist")
-        self.assertEqual(h.runner_plist_path({}), agents / "actions.runner.SFenton-Fenton-HASS-Native.hass-mac.plist")
+                         agents / "actions.runner.SFenton-native-home.host-mini.plist")
+        self.assertEqual(h.runner_plist_path({}), agents / "actions.runner.SFenton-native-home.hass-mac.plist")
         self.assertEqual(h.runner_plist_path({"RUNNER_NAME": "host-mini", "HASS_RUNNER_PLIST": "/tmp/x.plist"}),
                          Path("/tmp/x.plist"))
 

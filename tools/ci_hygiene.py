@@ -46,7 +46,7 @@ def free_gb(path: str = "/") -> float:
     return usage.free / 1e9
 
 
-RUNNER_PLIST = "actions.runner.SFenton-Fenton-HASS-Native.{name}.plist"
+RUNNER_PLIST = "actions.runner.SFenton-native-home.{name}.plist"
 
 
 def runner_plist_path(env: Optional[dict] = None) -> Path:

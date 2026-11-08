@@ -1,6 +1,6 @@
 {
   "request_repo": "",
-  "product_repo": "SFenton/Fenton-HASS-Native",
+  "product_repo": "SFenton/native-home",
   "product_base": "main",
   "authors": [
     "SFenton"
@@ -253,7 +253,7 @@
     }
   },
   "nightly": {
-    "repo": "SFenton/Fenton-HASS-Native",
+    "repo": "SFenton/native-home",
     "label": "Nightly Fix",
     "authors": [
       "SFenton",
