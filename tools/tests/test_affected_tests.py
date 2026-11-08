@@ -278,6 +278,64 @@ class LedgerTests(unittest.TestCase):
             self.assertNotEqual(affected_tests.tree_hash(root), edited)
 
 
+class PlanFilterTests(unittest.TestCase):
+    """``--journeys --plan``: a class the plan skips whole matches nothing, which xcodebuild reports as EMPTY."""
+
+    def write_plan(self, folder, name, **target):
+        entry = {"target": {"name": "FentonHomeUITests", "containerPath": "container:FentonHome.xcodeproj"}, **target}
+        (Path(folder) / f"{name}.xctestplan").write_text(json.dumps({"testTargets": [entry]}))
+
+    def test_skipped_tests_drop_a_whole_class_only(self):
+        with TemporaryDirectory() as folder:
+            self.write_plan(folder, "Gate", skippedTests=["ShellJourneyTests", "SecurityJourneyTests/testCapture()"])
+            runs = lambda name: affected_tests.plan_runs("Gate", "FentonHomeUITests", name, Path(folder))
+            self.assertFalse(runs("ShellJourneyTests"))
+            self.assertTrue(runs("SecurityJourneyTests"))  # one method skipped, the rest run
+            self.assertTrue(runs("ModalSizingJourneyTests"))
+
+    def test_selected_tests_keep_only_the_named_classes(self):
+        with TemporaryDirectory() as folder:
+            self.write_plan(folder, "Smoke", selectedTests=["SheetBottomGapJourneyTests/testQuickLinks()"])
+            runs = lambda name: affected_tests.plan_runs("Smoke", "FentonHomeUITests", name, Path(folder))
+            self.assertTrue(runs("SheetBottomGapJourneyTests"))
+            self.assertFalse(runs("SheetBottomGap"))
+            self.assertFalse(runs("ShellJourneyTests"))
+
+    def test_a_missing_plan_runs_everything(self):
+        with TemporaryDirectory() as folder:
+            self.assertTrue(affected_tests.plan_runs("Nope", "FentonHomeUITests", "ShellJourneyTests", Path(folder)))
+
+    def test_journey_args_filter_to_the_plan(self):
+        with TemporaryDirectory() as folder:
+            self.write_plan(folder, "Gate", skippedTests=["ShellJourneyTests"])
+            result = {"target": "FentonHomeUITests", "journeys": ["ShellJourneyTests", "ModalSizingJourneyTests"]}
+            self.assertEqual(affected_tests.journey_args(result, plan="Gate", plans_dir=Path(folder)),
+                             "-only-testing:FentonHomeUITests/ModalSizingJourneyTests")
+            result["journeys"] = ["ShellJourneyTests"]
+            self.assertEqual(affected_tests.journey_args(result, plan="Gate", plans_dir=Path(folder)), "")
+
+    def test_the_committed_gate_plan_skips_the_shell_journeys(self):
+        # The hosted iPhone failure (run 42451291334): the shell class is a Live-plan class, so Gate runs none of it.
+        self.assertFalse(affected_tests.plan_runs("Gate", "FentonHomeUITests", "ShellJourneyTests"))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = affected_tests.main(["--journeys", "--plan", "Gate", "--files", "apple/Apps/iOSUITests/ShellJourneyTests.swift"])
+        self.assertEqual(code, 0)
+        self.assertEqual(out.getvalue().strip(), "")
+
+    def test_a_class_skipped_method_by_method_runs_nothing(self):
+        with TemporaryDirectory() as folder:
+            self.write_plan(folder, "Gate", skippedTests=["A/testOne()", "A/testTwo()", "B/testOne()"])
+            runs = lambda name, methods: affected_tests.plan_runs("Gate", "FentonHomeUITests", name, Path(folder), methods)
+            self.assertFalse(runs("A", ["testOne", "testTwo"]))
+            self.assertTrue(runs("B", ["testOne", "testTwo"]))
+
+    def test_a_disabled_target_runs_nothing(self):
+        with TemporaryDirectory() as folder:
+            self.write_plan(folder, "Gate", enabled=False, skippedTests=[])
+            self.assertFalse(affected_tests.plan_runs("Gate", "FentonHomeUITests", "ModalSizingJourneyTests", Path(folder)))
+
+
 class CommandLineTests(unittest.TestCase):
     def run_main(self, *argv):
         out, err = io.StringIO(), io.StringIO()
