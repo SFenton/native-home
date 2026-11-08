@@ -187,6 +187,76 @@ class PrePushTests(unittest.TestCase):
         done = self.repo.push(head, ZERO, name="native")
         self.assertIn("1 commit(s) scanned", done.stdout)
 
+    def _tracked(self, name="origin"):
+        """Add remote ``name``; return a denylisted-author commit placed on its tracking ref."""
+        self.repo.git("remote", "add", name, "https://example.com/o")
+        self.repo.git("config", "user.name", "zorblax7 person")
+        theirs = self.repo.commit("theirs.txt", "clean\n", "public squash")
+        self.repo.git("config", "user.name", "tester")
+        self.repo.git("update-ref", f"refs/remotes/{name}/main", theirs)
+        return theirs
+
+    def test_known_sha_merge_of_tracked_commit_with_denylisted_author_pushes(self):
+        theirs = self._tracked()
+        self.repo.git("checkout", "-q", "-b", "pr", self.base)
+        mine = self.repo.commit("mine.txt", "clean\n", "pr work")
+        self.repo.git("merge", "-q", "--no-ff", "-m", "merge main", theirs)
+        head = self.repo.git("rev-parse", "HEAD")
+        done = self.repo.push(head, mine)  # remote_sha known: the branch exists on the destination
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("1 commit(s) scanned, 0 hit(s)", done.stdout)  # only the local merge commit
+
+    def test_new_branch_merge_of_tracked_commit_with_denylisted_author_pushes(self):
+        theirs = self._tracked()
+        self.repo.git("checkout", "-q", "-b", "pr", self.base)
+        self.repo.commit("mine.txt", "clean\n", "pr work")
+        self.repo.git("merge", "-q", "--no-ff", "-m", "merge main", theirs)
+        done = self.repo.push(self.repo.git("rev-parse", "HEAD"), ZERO)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("2 commit(s) scanned, 0 hit(s)", done.stdout)
+
+    def test_known_sha_new_commit_with_denylisted_author_is_refused(self):
+        theirs = self._tracked()
+        self.repo.git("checkout", "-q", "-b", "pr", theirs)
+        self.repo.git("config", "user.name", "zorblax8 person")
+        head = self.repo.commit("mine.txt", "clean\n", "pr work")
+        done = self.repo.push(head, theirs)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{head[:8]}:author denylist", done.stdout)
+
+    def test_known_sha_new_commit_with_denylisted_blob_is_refused(self):
+        theirs = self._tracked()
+        self.repo.git("checkout", "-q", "-b", "pr", theirs)
+        head = self.repo.commit("mine.txt", "the zorblax9 room\n", "pr work")
+        done = self.repo.push(head, theirs)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("mine.txt:1 denylist", done.stdout)
+
+    def test_new_branch_new_commit_with_denylisted_author_or_blob_is_refused(self):
+        theirs = self._tracked()
+        self.repo.git("checkout", "-q", "-b", "pr", theirs)
+        blob = self.repo.commit("mine.txt", "the zorblax9 room\n", "pr work")
+        self.assertEqual(self.repo.push(blob, ZERO).returncode, 1)
+        self.repo.git("config", "user.name", "zorblax8 person")
+        author = self.repo.commit("other.txt", "clean\n", "more")
+        done = self.repo.push(author, ZERO)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{author[:8]}:author denylist", done.stdout)
+
+    def test_commit_on_another_local_branch_only_is_still_scanned(self):
+        self._tracked()
+        self.repo.git("checkout", "-q", "-b", "other", self.base)
+        stray = self.repo.commit("stray.txt", "zorblax10\n", "stray")  # on a local branch, not on any tracking ref
+        self.repo.git("checkout", "-q", "-b", "pr", self.base)
+        mine = self.repo.commit("mine.txt", "clean\n", "pr work")
+        self.repo.git("merge", "-q", "--no-ff", "-m", "merge other", stray)
+        head = self.repo.git("rev-parse", "HEAD")
+        for remote in (mine, ZERO):
+            with self.subTest(remote=remote[:8]):
+                done = self.repo.push(head, remote)
+                self.assertEqual(done.returncode, 1)
+                self.assertIn("stray.txt:1 denylist", done.stdout)
+
     def test_annotated_tag_message_is_scanned(self):
         self.repo.git("tag", "-a", "v1", "-m", "release zorblax5", self.base)
         tag = self.repo.git("rev-parse", "v1")
