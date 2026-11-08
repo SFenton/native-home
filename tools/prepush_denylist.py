@@ -5,8 +5,8 @@ Git feeds ``<local ref> <local sha> <remote ref> <remote sha>`` lines on stdin a
 
 What is scanned, per pushed ref (deletes are skipped):
 
-- the commits the push adds: ``remote_sha..local_sha``, or for a new branch every commit reachable from the local sha that is not on
-  the **destination's own** tracking refs (``refs/remotes/<name>/*``; none, or a push by URL, means all of them);
+- the commits the push adds: every commit reachable from the local sha that is not on the **destination's own** tracking refs
+  (``refs/remotes/<name>/*``; none, or a push by URL, means all of them) and, for a known remote sha, not reachable from it;
 - per commit: message, author and committer name and email, every changed path, every changed blob;
 - tag objects (message and tagger, nested tags too) and a tag or ref that points straight at a tree or blob.
 
@@ -140,13 +140,16 @@ def redact(path: str, matcher: Matcher) -> str:
 
 
 def new_commits(local: str, remote: str, remote_name: str) -> List[str]:
-    """Commits a push adds. A known remote sha gives ``remote..local``; a new branch gives everything not on the destination's tracking refs."""
+    """Commits a push adds: reachable from ``local``, not from the destination's own tracking refs, and (a known remote sha) not from it.
+
+    Commits on ``refs/remotes/<name>/*`` are already on the destination, so a branch that merged the destination's main is not
+    rescanned for main's own commits. Nothing is fetched: only refs already in the clone count. No such remote (a push by URL) excludes nothing.
+    """
     known = remote != ZERO and subprocess.run(["git", "cat-file", "-e", remote + "^{commit}"], capture_output=True).returncode == 0
-    if known:
-        return git("rev-list", f"{remote}..{local}").decode().split()
-    named = remote_name in git("remote").decode().split()
     args = ["rev-list", local]
-    if named:
+    if known:
+        args.append(f"^{remote}")
+    if remote_name in git("remote").decode().split():
         args += ["--not", f"--remotes={remote_name}"]
     return git(*args).decode().split()
 
