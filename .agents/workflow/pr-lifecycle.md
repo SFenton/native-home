@@ -103,7 +103,7 @@ The [triage runner](triage-agent.md) works the same way: its worker follows step
 |---|---|
 | `blocked: no review recorded` | Run the reviewer (step 4) |
 | `blocked: review is for <sha>` | You pushed after the review; review again |
-| `blocked: still running or missing: pr-checks` | A runner is queued, busy or offline: the aggregate runs on either Mac; `scope`, `repo-checks`, `tool-tests`, `swift-test` and `build-release` run on `hass-mac` (MacBook) until hosted runners land (the mini lacks disk, owner 2026-11-07) ([ci](ci.md#the-runners)); `gh api repos/SFenton/Fenton-HASS-Native/actions/runners` shows which. Wait for the monitor to wake you |
+| `blocked: still running or missing: pr-checks` | A runner is queued, busy or offline: the aggregate runs on either Mac; `scope`, `repo-checks`, `tool-tests`, `swift-test` and `build-release` run on `hass-mac` (MacBook) until hosted runners land (the mini lacks disk, owner 2026-11-07) ([ci](ci.md#the-runners)); `gh api repos/$PRIVATE_APP_REPO/actions/runners` shows which. Wait for the monitor to wake you |
 | `blocked: failing: <check>` | Fix and push; the monitor wakes you, or ask `get_status` |
 | `blocked: ... blocker(s)` | Fix, or report to the owner if it needs a decision |
 | `blocked: merge conflicts` | Merge `origin/main`, test the touched area, push, review again |

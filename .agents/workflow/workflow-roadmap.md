@@ -141,7 +141,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P1. CI on pushes to the workflow base (#277, owner-only)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/277>
+**Issue.** private app repo issue #277
 
 **Why.** `.github/workflows/pr-checks.yml` triggers `push` only on `main` (`branches: [main]`), and the workflow base is `claude/uikit-port` (`tools/triage/config.json` `workflow_base`). Nothing tests the base. On 2026-11-03 it had drifted to 636 mockup problems, 76 `pattern_guard` errors and 11 tool-test failures before anyone noticed, and every PR into it inherited the red until #270 fixed it. That is the largest avoidable cost in section 2: a red base makes every lane merge it, which moves every PR head (P6), and hides which failures a lane caused (P5).
 
@@ -163,7 +163,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P2. `ShipDraftTests` is broken on the base (#288)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/288>
+**Issue.** private app repo issue #288
 
 **Why.** `tools/tests/test_pr_land.py` `ShipDraftTests.test_pr_is_always_a_draft_and_needs_no_review_file` fails on `origin/claude/uikit-port` with `tools/ship.sh: line 37: tools/ship_guard.sh: No such file or directory`. `f8fda7ed` split the safety checks into `tools/ship_guard.sh`; `ship.sh` finds it with `"$(dirname "$0")/ship_guard.sh"`, which is fine in the repo, but the test builds a temp repo and copies only `tools/ship.sh` into it (`shutil.copy(TOOLS / "ship.sh", clone / "tools/ship.sh")`). So the issue's "relative path that does not resolve" is the fixture, not `ship.sh`. `lane_land` tolerates the failure because the base fails the same way, but every lane's tool-test run now shows one red test, and a known red test teaches agents to ignore red.
 
@@ -183,7 +183,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P3. Refuse a selector the plan skips (#283)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/283>
+**Issue.** private app repo issue #283
 
 **Why.** `apple/TestPlans/Gate.xctestplan` lists `MotionJourneyTests` under `skippedTests`, so `-only-testing:FentonHomeUITests/MotionJourneyTests` under the Gate plan matches nothing. `tools/ios_uitest.sh` already fails EMPTY afterwards (`xc_watch.py --require-tests`), but only after a 1 to 6 minute build and simulator boot. In T-section-sides that happened in seven `duo-sides` runs and in `r2-ipad-home`, about 20 minutes (section 2). The fix is a check that runs before the build.
 
@@ -205,7 +205,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P4. Coverage classifier follow-ups (#286)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/286>
+**Issue.** private app repo issue #286
 
 **Why.** Lane A2 (`7f74a52a`) added `tools/coverage_classify.py` and `tools/coverage_phases.sh` so a coverage run that fails tests reruns only the failed ids uninstrumented and prints `coverage-only:`, `real:` and `timeout:`. Its review found four loose ends:
 
@@ -226,7 +226,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P5. Record the base commit's red test set (#284)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/284>
+**Issue.** private app repo issue #284
 
 **Why.** The classifier needs to know whether a failing test is inherited. Eight coverage digests over six SHAs in T-section-sides showed nearly the same failing set, and nobody could say whether the base had it too (post-mortem, "Not verified"). Since the issue was written, `90a1a645`, `bc49ce5b` and `f1fd2a55` landed `tools/lane_base.py` (origin only until P0): it resolves the branch the work came from, `build/baselines/<sha>.json` stores failures keyed by family, and a run prints `inherited / new / unaccounted`. That covers the **local** store. What is missing is the **shared** record: a run on the base itself, on a schedule or on a push, writing the failing ids per base sha somewhere every lane can read.
 
@@ -246,7 +246,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P6. Keep a pass verdict across a base-only merge (#278, owner-only)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/278>
+**Issue.** private app repo issue #278
 
 **Why.** `pr_land.py` `review_state` requires the recorded review to be for exactly the PR head (`recorded != head` gives "review again"). Every merge of the base into a reviewed PR moves the head and forces a new review round: #270 needed four and #275 needed three, against a cap of two. The upstream cause was the red base (P1), which forced base merges into each PR, but even with a green base a PR that waits for a runner will meet a moving base.
 
@@ -268,7 +268,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P7. `merge_guard` reads commands, and every agent gets the simctl boot guard (#279, owner-only)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/279>
+**Issue.** private app repo issue #279
 
 **Why.** Two separate gaps:
 
@@ -292,7 +292,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P8. `mockup_hub_guard`: block once per file set (#281)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/281>
+**Issue.** private app repo issue #281
 
 **Why.** The Stop hook blocks ending a session that changed mockups without republishing the hub. It fired more than 20 times in T-section-sides while a publish was correctly deferred (no Artifact tool in the lane), because it read `cwd`, which drifts into subagent worktrees, and decided by file mtimes, so a fresh checkout or a base merge looked new. **Part of this has landed:** `773f1651` and `23e313a1` decide by SHA-256 content against a SessionStart snapshot stored outside the worktree, fall back to dirty files and commits since the transcript began when the session started in another checkout, and `stop_hook_active` lets a second stop through. What is still open from the issue:
 
@@ -317,7 +317,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P9. `tier_guard` ignores quoted and heredoc text (#282)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/282>
+**Issue.** private app repo issue #282
 
 **Why.** A quoted or heredoc `gh issue create` body that named the UI test runner was blocked, because `tier_guard.reason()` splits the raw command on newlines and `;` (`SPLIT`) and a body line that starts with `ios_uitest.sh` looks like a command.
 
@@ -337,7 +337,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P10. A gate route for interactive owner requests (#280, owner-only, partly landed)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/280>
+**Issue.** private app repo issue #280
 
 **Why.** The app-UI gate (`design.matches_request`) vouched for a request only through a request-repo issue (`Owner-Request:`). An owner request made in an interactive session has none, so Jev answered `unsure` and #270 and #275 needed `--owner-ack`, which only the owner can type at a terminal. **`7a862403` landed most of the proposal:** a `UserPromptSubmit` hook (`tools/hooks/owner_prompt_log.py`, with `owner_prompt_guard.py`) logs the owner's typed prompts outside every worktree, and a PR's `Owner's request: "<quote>"` line counts when the quote appears in a prompt from the last 14 days and is at least 20 characters. The hook, the log folder and the matcher are protected paths. The owner's own words come from the harness, not from the agent, which was the requirement.
 
@@ -357,7 +357,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P11. Protect `tools/ci_*.py` and the coverage quarantine file (#285, owner-only)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/285>
+**Issue.** private app repo issue #285
 
 **Why.** Every CI workflow runs `tools/ci_hygiene.py`, and the workflows are protected. The script now deletes worktrees and simulators on the owner's machines (A3, `630d9f20`). [ci](ci.md)'s security section says a change to `tools/ci_*` needs the owner's eye. **Part of this changed since the issue:** `83c587db` put `tools/ci_hygiene.py` in `protected_paths` in `tools/triage/config.json`, so the lander treats it as protected. What remains outside the fixed set:
 
@@ -378,7 +378,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 ### P12. Jev: one rule for question versions (#276)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/276>
+**Issue.** private app repo issue #276
 
 **Why.** Two rules disagree.
 
@@ -406,7 +406,7 @@ Option 2 keeps the tool's rule true and weakens only the version number in the t
 
 ### P13. Motion gallery: lower cards move 52 pt (#271)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/271>
+**Issue.** private app repo issue #271
 
 **Why.** `MotionJourneyTests` runs only under the Capture plan (Gate skips the class). On iPhone with Capture it executed 37 tests: 26 passed and 11 failed, all with one pattern. On the lower gallery cards (`controllerToggle`, `pagedRow`, `pageIndicator`, `percentSlider`, `scheduleFields`, each in the normal and the Reduce Motion variant) the card's y differs by 52 pt after the toggle tap. The journey requires the card not to move (`assertSameFrame` in `toggle(_:in:)`). Before #270 every journey failed on SwiftUI ids, so these 11 are the first real signal; #270 landed with the class as is (decision note `T-catalog-uikit-sources`). The issue names ten (five cards, two variants); take the eleventh from the first Capture run's log.
 
@@ -432,7 +432,7 @@ Option 2 keeps the tool's rule true and weakens only the version number in the t
 
 ### P14. Vacuums pane: translucent header covers the first switch (#272)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/272>
+**Issue.** private app repo issue #272
 
 **Why.** Found by the section-sides Verifier and confirmed by the Designer (verdict V3, 2026-11-04); already broken before that change. On a partly folded iPhone Duo the Vacuums trailing pane shows a translucent header bar. Its "Auto-Clean" title is blurred and unreadable, and the bar covers the switch in Main Floor's first row. Evidence in the section-sides worktree: `build/evidence/claude-section-sides/before/` and `build/evidence/claude-section-sides/after/duo-partial-fold/vacuums--uikit-inner.png` (and `vacuums--scrolled--uikit-inner.png`).
 
@@ -453,7 +453,7 @@ Option 2 keeps the tool's rule true and weakens only the version number in the t
 
 ### P15. One status chip (#273)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/273>
+**Issue.** private app repo issue #273
 
 **Why.** Two implementations of the status chip exist: `UKStatusChipView` (`apple/Sources/HassUI/UIKitPort/Design/UKStatusChipView.swift`, a `UIControl`) and `UKRoomChipView` (`apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomsParts.swift`, also a `UIControl`). The pattern-first rule calls for one canonical component per pattern ([status-rail](../patterns/status-rail.md)). The T-section-sides design verdict V1 gave both the same wrap and corner rules, so they now match by copy, which is the drift risk: the next rule change lands in one and not the other.
 
@@ -475,7 +475,7 @@ Option 2 keeps the tool's rule true and weakens only the version number in the t
 
 ### P16. Fix the two capture paths (#274)
 
-**Issue.** <https://github.com/SFenton/Fenton-HASS-Native/issues/274>
+**Issue.** private app repo issue #274
 
 **Why.** The T-section-sides Verifier found two capture paths that do not work (2026-11-04):
 

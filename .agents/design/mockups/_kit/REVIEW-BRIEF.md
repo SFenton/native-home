@@ -2,7 +2,7 @@
 
 > **What:** how a reviewer replaces a mockup's author self-check with a review done through the `apple-hig` and `swiftui-pro` skills. **Read when:** you were handed a review group (`_review-groups.json`, keys R1 to R8).
 
-Worktree: `/Users/dev/repos/Fenton-HASS-Native-mockups` (branch `claude/mockup-atlas`). Seven other reviewers work at the same time on other groups. One more agent is fixing `_kit/`; do not edit `_kit/`.
+Worktree: `/Users/dev/repos/<app-repo>-mockups` (branch `claude/mockup-atlas`). Seven other reviewers work at the same time on other groups. One more agent is fixing `_kit/`; do not edit `_kit/`.
 
 ## Method
 

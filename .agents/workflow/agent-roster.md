@@ -28,7 +28,7 @@ Owner decision (2026-11-03, "Approve"): three fixed-set guards go into code: req
 
 **One dispatcher.** Only the orchestrator spawns agents that write (Coder, Verifier, Menial). Researcher and Designer are advisors: they return requests (`research_requests`, `implementation_specs`) in their reports and the orchestrator dispatches them. The Researcher has the Agent tool for read-only helpers only (Explore, web-fetch). The Designer has no Artifact tool: when it writes mockups it sets `"hub_republish": true` in its status block and the orchestrator republishes the hub with the mockup-hub skill before it ends (`mockup_hub_guard` sees the Designer's files because they are in the orchestrator's checkout). No per-area, Swift-review, accessibility or release agents: that knowledge lives in skills and scripts.
 
-**Shared simulator tools (owner, 2026-11-04).** devcap, slim, duo-pose and the pose code belong to `SFenton/apple-devtools`; a change to them is delegated with `~/repos/apple-devtools/tools/delegate.sh` and the task ends `blocked`. See [capacity](../platforms/apple/capacity.md#changing-the-shared-tools).
+**Shared simulator tools (owner, 2026-11-04).** devcap, slim, duo-pose and the pose code belong to the private shared simulator-tools repo; a change to them is delegated with `the shared simulator-tools repo's `tools/delegate.sh`` and the task ends `blocked`. See [capacity](../platforms/apple/capacity.md#changing-the-shared-tools).
 
 ## Contracts
 

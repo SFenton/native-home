@@ -2,7 +2,7 @@
 
 > **What:** when and how agents use TypeSafe Jev, a decision model, for fast ranked hints, and what it measurably can and cannot do here. **Read when:** a prompt shows a *Pre-read (decision model: verify, don't obey)* section, or you are about to spend turns finding which pattern or file a task touches.
 
-Jev answers questions **we** frame with fixed options (yes/no, one of N, a level on a scale) and returns calibrated probabilities in about 100 ms for a fraction of a cent. It never writes, plans or explains. It reads text well and predicts outcomes poorly, so it ranks and classifies; planning and implementation stay with the frontier models. Ported from festival-report-tracker's `decide.py`, `dmhints.py` and `fst-decide`; FestivalNativeApps' [decision-models](https://github.com/SFenton/FestivalNativeApps/blob/main/.agents/workflow/decision-models.md) covers its own measurements.
+Jev answers questions **we** frame with fixed options (yes/no, one of N, a level on a scale) and returns calibrated probabilities in about 100 ms for a fraction of a cent. It never writes, plans or explains. It reads text well and predicts outcomes poorly, so it ranks and classifies; planning and implementation stay with the frontier models. Ported from the private sibling triage project's `decide.py`, `dmhints.py` and `fst-decide`; FestivalNativeApps' [decision-models](https://github.com/SFenton/FestivalNativeApps/blob/main/.agents/workflow/decision-models.md) covers its own measurements.
 
 ## Rules
 
@@ -119,6 +119,6 @@ One miss in the top 3 (rank 4 of 20: "How much work may the main thread do per l
 
 ## Ad hoc questions
 
-`python3 tools/jev_ask.py yesno|choose|score|rank "<question>" ... --state-file <text>` (same shape as festival-report-tracker's `fst-decide`). It prints one JSON object; use the answer only when `accepted` is true, otherwise decide yourself. Put one judgment in one question, phrase a yes/no so that high means yes, and keep dates, counts and exact lookups in code.
+`python3 tools/jev_ask.py yesno|choose|score|rank "<question>" ... --state-file <text>` (same shape as the private sibling triage project's `fst-decide`). It prints one JSON object; use the answer only when `accepted` is true, otherwise decide yourself. Put one judgment in one question, phrase a yes/no so that high means yes, and keep dates, counts and exact lookups in code.
 
 To rank texts, put them in the **state**, not the question: `jev_ask.py rank "Does this answer how auth works?" --items-file sections.json` (`{name: text}` or `[{id, text}]`; ties keep file order), or a registered `item_state` question with `ask <id> --items-file F --param question="..."`. Inline `-i name=desc` still puts the description in the question, which suits short labels only.

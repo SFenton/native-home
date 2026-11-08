@@ -5,7 +5,7 @@ model: opus
 tools: Read, Grep, Glob, Bash, Skill, WebFetch
 ---
 
-You are the final reviewer for one pull request in Fenton-HASS-Native. You review; you do not edit code. Read `AGENTS.md` and `.agents/workflow/pr-lifecycle.md` first. Spawn prompts must carry `opus-ok: final review` (`tools/hooks/agent_model.py`); the prompt names the PR number and branch, and the round.
+You are the final reviewer for one pull request in the private app repo. You review; you do not edit code. Read `AGENTS.md` and `.agents/workflow/pr-lifecycle.md` first. Spawn prompts must carry `opus-ok: final review` (`tools/hooks/agent_model.py`); the prompt names the PR number and branch, and the round.
 
 ## Inputs
 

@@ -63,19 +63,19 @@ Done by the owner; nothing here creates, reads or prints a key. State on 2026-10
 
 1. App Store Connect → Users and Access → Integrations → App Store Connect API → generate a **Team Key** with the **Admin** role (cloud-managed signing needs it). Download `AuthKey_<KEYID>.p8` **once**; note the Key ID and the Issuer ID shown above the table.
 2. Create the environment and restrict it to `main`:
-   `gh api -X PUT repos/SFenton/Fenton-HASS-Native/environments/testflight`, then
-   `gh api -X PUT repos/SFenton/Fenton-HASS-Native/environments/testflight -F 'deployment_branch_policy[protected_branches]=false' -F 'deployment_branch_policy[custom_branch_policies]=true'` and
-   `gh api -X POST repos/SFenton/Fenton-HASS-Native/environments/testflight/deployment-branch-policies -f name=main`.
+   `gh api -X PUT repos/$PRIVATE_APP_REPO/environments/testflight`, then
+   `gh api -X PUT repos/$PRIVATE_APP_REPO/environments/testflight -F 'deployment_branch_policy[protected_branches]=false' -F 'deployment_branch_policy[custom_branch_policies]=true'` and
+   `gh api -X POST repos/$PRIVATE_APP_REPO/environments/testflight/deployment-branch-policies -f name=main`.
    (Environments on a private repo need a paid GitHub plan. If GitHub refuses, say so: the fallback is repository secrets with the workflow's own `github.ref == 'refs/heads/main'` guard, which a branch workflow could bypass, so it is weaker.)
 3. Store the three secrets in the environment:
-   `gh secret set ASC_KEY_ID --env testflight --repo SFenton/Fenton-HASS-Native`, `gh secret set ASC_ISSUER_ID --env testflight --repo SFenton/Fenton-HASS-Native`, `gh secret set ASC_PRIVATE_KEY --env testflight --repo SFenton/Fenton-HASS-Native < AuthKey_<KEYID>.p8`. Then delete the `.p8` from Downloads (or keep it in your password manager).
+   `gh secret set ASC_KEY_ID --env testflight --repo "$PRIVATE_APP_REPO"`, `gh secret set ASC_ISSUER_ID --env testflight --repo "$PRIVATE_APP_REPO"`, `gh secret set ASC_PRIVATE_KEY --env testflight --repo "$PRIVATE_APP_REPO" < AuthKey_<KEYID>.p8`. Then delete the `.p8` from Downloads (or keep it in your password manager).
 4. Mac runner: the runner's user must be logged in with an unlocked login keychain ([ci](../../workflow/ci.md), "Keychain on the runner"); with the API key, Apple holds the distribution certificate, the Mac only needs an Apple Development identity for the archive, which Xcode reuses or creates.
-5. Dry run once (above), then `gh variable set HASS_TESTFLIGHT_ENABLED --body true --repo SFenton/Fenton-HASS-Native`. The next green merge that changes app code bumps, builds and uploads. `HASS_VERSION_BUMP_ENABLED` is already `true`; set it to `false` to stop tagging, `HASS_TESTFLIGHT_ENABLED` to `false` to stop uploading (tags keep being cut; the queue uploads them when re-enabled, oldest first, starting after the newest ledger entry).
+5. Dry run once (above), then `gh variable set HASS_TESTFLIGHT_ENABLED --body true --repo "$PRIVATE_APP_REPO"`. The next green merge that changes app code bumps, builds and uploads. `HASS_VERSION_BUMP_ENABLED` is already `true`; set it to `false` to stop tagging, `HASS_TESTFLIGHT_ENABLED` to `false` to stop uploading (tags keep being cut; the queue uploads them when re-enabled, oldest first, starting after the newest ledger entry).
 6. To upload the very first build now without waiting for a merge: Run workflow with no inputs on `main` (newest tag), or with `version_tag`.
 
 ### Default server variable
 
-The sign-in Server field's default is the repository **variable** `HASS_DEFAULT_SERVER` (not a secret), set by the owner: `gh variable set HASS_DEFAULT_SERVER --body <server url> --repo SFenton/Fenton-HASS-Native`. `ios-release.yml` and `ios-release-build.yml` read it as `vars.HASS_DEFAULT_SERVER` into the environment, and `ios_ipa_build.sh` / `testflight_upload.sh` pass it to `xcodebuild` as the build setting `HASS_DEFAULT_SERVER` when it is non-empty (it lands in Info.plist, [auth](auth.md#default-server-hass_default_server)). Unset, new installs start with a blank Server field; existing installs keep their server from the Keychain. No signing, key or profile step reads it.
+The sign-in Server field's default is the repository **variable** `HASS_DEFAULT_SERVER` (not a secret), set by the owner: `gh variable set HASS_DEFAULT_SERVER --body <server url> --repo "$PRIVATE_APP_REPO"`. `ios-release.yml` and `ios-release-build.yml` read it as `vars.HASS_DEFAULT_SERVER` into the environment, and `ios_ipa_build.sh` / `testflight_upload.sh` pass it to `xcodebuild` as the build setting `HASS_DEFAULT_SERVER` when it is non-empty (it lands in Info.plist, [auth](auth.md#default-server-hass_default_server)). Unset, new installs start with a blank Server field; existing installs keep their server from the Keychain. No signing, key or profile step reads it.
 
 ## Privacy manifests
 

@@ -58,7 +58,7 @@ A `Layout` implementation, the system extension point. No system wrapping layout
 
 ## Follow-ups (filed, label `follow-up`)
 
-1. **Header fade on iOS 26**: proposal for `scrollEdgeEffectStyle(.soft, for: .top)` (above). [#192](https://github.com/SFenton/Fenton-HASS-Native/issues/192)
-2. **Target bump to iOS 18**: retire the `#available(iOS 18)` branches in `ScrollOffsetReader`, `HeaderEdgeFadeModifier` and `HassModal`'s sizing. `SheetFit`'s measured detent stays. [#193](https://github.com/SFenton/Fenton-HASS-Native/issues/193)
-3. **Page indicator spike**: `UIPageControl` against the existing accessibility test. [#194](https://github.com/SFenton/Fenton-HASS-Native/issues/194)
-4. **Re-measure** `HostedHorizontalScroll`, `PagedRow` and `NativePaging` on each iOS release; replace when the system path matches. [#195](https://github.com/SFenton/Fenton-HASS-Native/issues/195)
+1. **Header fade on iOS 26**: proposal for `scrollEdgeEffectStyle(.soft, for: .top)` (above). #192 (private app repo)
+2. **Target bump to iOS 18**: retire the `#available(iOS 18)` branches in `ScrollOffsetReader`, `HeaderEdgeFadeModifier` and `HassModal`'s sizing. `SheetFit`'s measured detent stays. #193 (private app repo)
+3. **Page indicator spike**: `UIPageControl` against the existing accessibility test. #194 (private app repo)
+4. **Re-measure** `HostedHorizontalScroll`, `PagedRow` and `NativePaging` on each iOS release; replace when the system path matches. #195 (private app repo)

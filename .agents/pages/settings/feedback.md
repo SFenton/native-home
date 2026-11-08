@@ -11,7 +11,7 @@ Ported from FestivalNativeApps' in-app feedback form (`.agents/controls/feedback
 | Festival | Here | Why |
 |---|---|---|
 | The app posts to its own service | The app posts to the integration on the signed-in Home Assistant, with its Home Assistant access token | Home Assistant is the app's only server; a token shipped in the app is forbidden (AGENTS.md) |
-| Public tracker, anonymous bodies | Private request repo `SFenton/request-repo`; the integration names the Home Assistant user who sent it | Screenshots show the house; the household is trusted |
+| Public tracker, anonymous bodies | Private request repo (name kept outside the repo); the integration names the Home Assistant user who sent it | Screenshots show the house; the household is trusted |
 | Service transcodes media | `FeedbackMediaFitter` shrinks each file to GitHub's 10 MB attachment limit on the device; each file goes in its own request | Home Assistant's request body limit |
 | Rows hidden until `/api/features` says so | Rows always shown; the form shows a setup notice when the integration is missing | Discoverable for the owner who installs it |
 | Polls a job for the issue number | Synchronous: uploads, then files, then shows `#N` with View on GitHub | The integration answers directly |
