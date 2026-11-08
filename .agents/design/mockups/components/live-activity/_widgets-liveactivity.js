@@ -329,7 +329,7 @@
     switch (name) {
       case 'fan': r = fan(282); break;
       case 'fan-long': r = fan(3882, 'Bedroom 1 Closet Fan'); r.attrs.tag = 'job.fan.master'; break;
-      case 'fan-xlong': r = fan(282, 'Bedroom 1 Walk-In Closet Ceiling Exhaust Fan'); r.attrs.tag = 'job.fan.master'; break;
+      case 'fan-xlong': r = fan(282, 'Bedroom 1 Washroom Wardrobe Fans'); r.attrs.tag = 'job.fan.master'; break;
       case 'fan-pending': r = awaiting(fan(282), 'stop'); break;
       case 'fan-pending-stale': r = awaiting(fan(282), 'stop'); r.isStale = true; break;
       case 'fan-notice': r = fan(282); r.state.notice = "Couldn't reach Home"; break;
@@ -352,7 +352,7 @@
       case 'vacuum-paused': r = vac('Paused in Kitchen', 'Paused', 'cleaning'); r.state.phase = 'paused'; r.state.controls = [ct('resume', 'Resume'), ct('dock', 'Dock', 'secondary')]; break;
       case 'hotflash-cooling': r = flash('Your side'); r.state.value = { kind: 'text', text: 'Cooling' }; r.state.progress = 0.45; break;
       case 'hotflash-holding': r = flash('Your side'); break;
-      case 'hotflash-alex-bysam': r = flash("Alex's side · started by Sam from the Home app"); break;
+      case 'hotflash-alex-bysam': r = flash("Alex's side · started by Samuel"); break;
       case 'hotflash-bysam': r = flash('Your side · by Sam'); break;
       case 'hotflash-byhome': r = flash('Your side · by Home'); break;
       case 'hotflash-wholebed': r = flash('Whole bed', 845); break;

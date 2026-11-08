@@ -491,7 +491,7 @@ struct JourneyExpectations {
         .personSecondEntity: "person.demo_sam",
         .bedSecondTitle: "Sam's Bed",
         .tileClosetTitle: "Bedroom 1 Closet",
-        .tileClosetFanTitle: "Bedroom 1 Walk-In Closet Ceiling Exhaust Fan",
+        .tileClosetFanTitle: "Bedroom 1 Washroom Wardrobe Fans",
         .longPageTitle: "Bedroom 1 Walk-in Wardrobe and Dressing Area",
         .remoteComputerTitle: "Media Room Computer",
         // Sprinklers
