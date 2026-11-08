@@ -32,7 +32,7 @@ def private_run(**overrides):
 def public_run(macos="success", **overrides):
     base = needs(scope="skipped", repo_checks="skipped", build_release="skipped", swift_test="skipped", scope_hosted="success",
                  repo_checks_hosted="success", tool_tests_hosted="success", denylist_scan="success", swift_test_hosted=macos,
-                 build_release_hosted=macos)
+                 build_release_hosted=macos, sim_smoke=macos)
     base["scope-hosted"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
@@ -90,6 +90,15 @@ class AggregateTests(unittest.TestCase):
         run["scope-hosted"]["outputs"] = {"app": "false", "release": "false"}
         self.assertEqual(agg.problems(run, False, True), [])
         self.assertEqual(agg.problems(private_run(sim_smoke="skipped"), True, False), [])
+
+    def test_a_gated_job_missing_from_needs_fails(self):
+        """Dropping a job from the workflow's `needs` must not let the aggregate pass blind."""
+        run = public_run()
+        del run["sim-smoke"]
+        self.assertTrue(agg.problems(run, False, True))
+        run = private_run()
+        del run["swift-test"]
+        self.assertTrue(agg.problems(run, True, False))
 
     def test_main_reads_the_context_and_exits_nonzero_on_a_problem(self):
         for run, private, code in ((private_run(), "true", 0), (private_run(repo_checks="skipped"), "true", 1)):

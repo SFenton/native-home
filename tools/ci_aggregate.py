@@ -46,6 +46,9 @@ def problems(needs: Mapping[str, Mapping], private: bool, hosted_macos: bool) ->
         if result.get(name) != "success" and result.get(name) not in ("failure", "cancelled"):
             found.append("%s: %s (a core job that should run must succeed)" % (name, result.get(name, "missing")))
     other = OTHER_SET_PRIVATE if private else OTHER_SET_PUBLIC
+    for name in GATED:
+        if name not in other and name not in result:
+            found.append("%s: missing from needs (the aggregate must list every gated job of the active set)" % name)
     for name, (scope_job, key, macos) in GATED.items():
         if name in other or name not in result or result[name] != "skipped":
             continue

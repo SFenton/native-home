@@ -19,6 +19,13 @@ def jobs(name):
     return {parts[i]: parts[i + 1] for i in range(1, len(parts), 2)}
 
 
+def needs_list(text):
+    """The names in a job's own `needs:` key, comments stripped (a comment naming a job must not count)."""
+    code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    match = re.search(r"^    needs:\s*(\[[^\]]*\]|\S+)", code, flags=re.M)
+    return [n.strip() for n in match.group(1).strip("[]").split(",")] if match else []
+
+
 def all_files():
     return sorted(WORKFLOWS.glob("*.yml"))
 
@@ -84,8 +91,7 @@ class RuleTests(unittest.TestCase):
         for needed in ("scope", "repo-checks", "build-release", "swift-test", "repo-checks-hosted", "tool-tests-hosted", "denylist-scan",
                        "swift-test-hosted", "build-release-hosted"):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
-        self.assertRegex(text, r"[\[ ,]sim-smoke[,\]\s]")
-        self.assertNotRegex(jobs("pr-checks.yml")["sim-smoke"].split("steps:")[0], r"(?m)^    continue-on-error:")
+        self.assertIn("sim-smoke", needs_list(text))
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
         self.assertIn("toJSON(needs)", text)
         self.assertIn("python3 tools/ci_aggregate.py", text)
@@ -139,6 +145,21 @@ class RuleTests(unittest.TestCase):
     def test_permissions_are_read_only_at_the_top(self):
         for name in ("pr-checks.yml", "runtimes.yml", "tool-tests.yml"):
             self.assertRegex((WORKFLOWS / name).read_text(encoding="utf-8"), r"\npermissions:\n  contents: read\n")
+
+    def test_no_sim_smoke_step_or_job_is_continue_on_error_except_the_settle_and_diagnostics(self):
+        """A failed device step must fail the job; only the boot settle and the diagnostics steps may carry the flag."""
+        text = jobs("pr-checks.yml")["sim-smoke"]
+        head, steps = text.split("    steps:\n", 1)
+        self.assertNotRegex(head, r"(?m)^    continue-on-error:")
+        for block in re.split(r"(?m)^      - ", steps)[1:]:
+            if "continue-on-error" in block:
+                self.assertRegex(block, r"^(name: (Boot the|Simulator diagnostics)|uses: )", block[:80])
+        for block in re.split(r"(?m)^      - ", steps)[1:]:
+            if "name: Smoke plan on" in block or "--build-only" in block:
+                self.assertNotIn("continue-on-error", block)
+
+    def test_the_aggregate_needs_list_ignores_comments(self):
+        self.assertEqual(needs_list("    # needs: [sim-smoke]\n    needs: [a, b]\n"), ["a", "b"])
 
     def test_sim_smoke_builds_before_it_boots_and_settles_with_a_heartbeat(self):
         text = jobs("pr-checks.yml")["sim-smoke"]
