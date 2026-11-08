@@ -299,6 +299,48 @@ class PrePushTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1)
         self.assertIn(f"{theirs[:8]}:author denylist", done.stdout)
 
+    def test_rewritten_url_scans_everything(self):
+        """``insteadOf`` makes git push somewhere other than the URL the hook was given: nothing is trusted."""
+        bare = self._bare()
+        theirs = self._public(bare)
+        mine, head = self._merged(theirs)
+        elsewhere = self._bare("elsewhere")
+        self.repo.git("config", f"url.{elsewhere}.insteadOf", bare)
+        done = self.repo.push(head, mine, url=bare)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{theirs[:8]}:author denylist", done.stdout)
+
+    def test_ls_remote_timeout_kills_the_whole_process_group(self):
+        """A hung ``ls-remote`` (and its ssh child) is killed on timeout; the result is ``None`` (scan everything)."""
+        sys.path.insert(0, str(ROOT / "tools"))
+        import prepush_denylist as hook
+        fake = os.path.join(self.repo.dir, "fakebin")
+        os.mkdir(fake)
+        pidfile = os.path.join(self.repo.dir, "child.pid")
+        script = Path(fake, "git")
+        script.write_text('#!/bin/sh\n'
+                          'case "$*" in *--get-url*) echo "$4"; exit 0;; esac\n'
+                          f'sleep 60 &\necho $! > {pidfile}\nwait\n')
+        script.chmod(0o755)
+        old_path, old_timeout = os.environ["PATH"], hook.LS_REMOTE_TIMEOUT
+        os.environ["PATH"] = fake + os.pathsep + old_path
+        hook.LS_REMOTE_TIMEOUT = 1
+        try:
+            self.assertIsNone(hook.ls_remote("https://example.com/x"))
+        finally:
+            os.environ["PATH"], hook.LS_REMOTE_TIMEOUT = old_path, old_timeout
+        child = int(Path(pidfile).read_text())
+        for _ in range(50):
+            try:
+                os.kill(child, 0)
+            except ProcessLookupError:
+                break
+            import time
+            time.sleep(0.1)
+        else:
+            os.kill(child, 9)
+            self.fail("the sleeping child outlived the timeout")
+
     def test_annotated_tag_message_is_scanned(self):
         self.repo.git("tag", "-a", "v1", "-m", "release zorblax5", self.base)
         tag = self.repo.git("rev-parse", "v1")

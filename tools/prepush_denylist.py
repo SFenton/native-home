@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -144,19 +145,43 @@ def redact(path: str, matcher: Matcher) -> str:
 LS_REMOTE_TIMEOUT = 20
 
 
+def ls_remote(target: str) -> Optional[bytes]:
+    """``git ls-remote -- <target>`` stdout, or ``None`` when it fails, times out, or the URL is rewritten.
+
+    A configured ``insteadOf`` / ``pushInsteadOf`` rewrite means the hook is asked about a different place than git pushes to, so
+    nothing is trusted. The child runs in its own session with prompts off; on timeout the whole group (ssh included) is killed.
+    """
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": ""}
+    try:
+        resolved = subprocess.run(["git", "ls-remote", "--get-url", "--", target], capture_output=True, env=env, timeout=LS_REMOTE_TIMEOUT)
+        if resolved.returncode != 0 or resolved.stdout.decode("utf-8", "replace").strip() != target.strip():
+            return None
+        proc = subprocess.Popen(["git", "ls-remote", "--", target], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                env=env, start_new_session=True)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    try:
+        out, _ = proc.communicate(timeout=LS_REMOTE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        proc.communicate()
+        return None
+    return out if proc.returncode == 0 else None
+
+
 def advertised_shas(target: str) -> List[str]:
     """Object ids the destination advertises right now (``git ls-remote <target>``) that exist in this clone, commits and tags only.
 
     Any failure or timeout returns ``[]``: nothing is excluded and the push is scanned in full. Local tracking refs are never
     consulted, because they can be stale (after a rewrite or prune) or fetched from a different URL than the push target.
     """
-    try:
-        done = subprocess.run(["git", "ls-remote", target], capture_output=True, timeout=LS_REMOTE_TIMEOUT)
-    except (OSError, subprocess.SubprocessError):
+    out = ls_remote(target)
+    if out is None:
         return []
-    if done.returncode != 0:
-        return []
-    shas = list(dict.fromkeys(line.split()[0].decode() for line in done.stdout.splitlines()
+    shas = list(dict.fromkeys(line.split()[0].decode() for line in out.splitlines()
                               if line.split() and re.fullmatch(rb"[0-9a-f]{40,64}", line.split()[0])))
     if not shas:
         return []
