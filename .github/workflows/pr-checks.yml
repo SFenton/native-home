@@ -440,6 +440,9 @@ jobs:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
       FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+      # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
+      FENTON_HEALTH_SHOT_WALL: "180"
+      FENTON_HEALTH_BOOT_WALL: "300"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -474,8 +477,8 @@ jobs:
           [ -n "$udid" ] || { echo "no simulator named $name"; xcrun simctl list devices; exit 1; }
           xcrun simctl boot "$udid" || true
           time xcrun simctl bootstatus "$udid" -b
-          # The Duo has two displays, so a bare screenshot fails (exit 22); name the primary one.
-          { xcrun simctl io "$udid" screenshot --type=png "$RUNNER_TEMP/warm.png" || xcrun simctl io "$udid" screenshot --display=primary --type=png "$RUNNER_TEMP/warm.png"; } && echo "screenshot ok"
+          # The Duo has two displays, so a bare screenshot fails (exit 22, after minutes); name the primary one first.
+          { xcrun simctl io "$udid" screenshot --display=primary --type=png "$RUNNER_TEMP/warm.png" || xcrun simctl io "$udid" screenshot --type=png "$RUNNER_TEMP/warm.png"; } && echo "screenshot ok"
       - name: Smoke plan on ${{ matrix.family }}
         run: tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force
       - name: Journeys the diff reaches on ${{ matrix.family }}
