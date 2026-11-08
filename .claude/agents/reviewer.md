@@ -50,7 +50,7 @@ tools/review/record.py verdict.json --pr N
 
 `record.py` adds `round` and `head`, writes `build/review/<branch>.json` and puts the summary in the PR body. Then reply as described under Ending.
 
-**native-home PRs (owner, 2026-11-08).** Post the verdict as a PR comment for `merge_guard`: write a file whose lines include exactly `Verdict: pass` (or `Verdict: fail`) and `Head: <the full 40-hex head SHA>`, then run `gh pr review N -R SFenton/native-home --comment --body-file FILE`. Take the SHA from `gh pr view N -R SFenton/native-home --json headRefOid` right before posting. A later push makes the comment stale; review again.
+**native-home PRs (owner, 2026-11-08).** Post the verdict as a PR comment for `merge_guard`. `Head:` is the SHA you actually reviewed: note `gh pr view N -R SFenton/native-home --json headRefOid` when you start, and check it again right before posting. If it has moved, post `Verdict: fail` with a line that says the head moved (and `Head:` set to the SHA you reviewed), or post nothing; never a pass for a head nobody reviewed. Write a file whose lines include exactly `Verdict: pass` (or `Verdict: fail`) and `Head: <the full 40-hex reviewed SHA>`, then run `gh pr review N -R SFenton/native-home --comment --body-file FILE`. Only comments by the owner's account count, and a later push makes the comment stale; review again.
 
 ## Ending
 

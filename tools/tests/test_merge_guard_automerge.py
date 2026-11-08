@@ -18,12 +18,12 @@ def pr(author="SFenton", base="main", head=SHA):
     return {"user": {"login": author}, "base": {"ref": base}, "head": {"sha": head}}
 
 
-def passing(sha=SHA, at="2026-11-08T10:00:00Z"):
-    return {"body": f"Reviewed.\nVerdict: pass\nHead: {sha}\n", "created_at": at, "submitted_at": at}
+def passing(sha=SHA, at="2026-11-08T10:00:00Z", login="SFenton", **extra):
+    return {"body": f"Reviewed.\nVerdict: pass\nHead: {sha}\n", "created_at": at, "submitted_at": at, "user": {"login": login}, **extra}
 
 
-def failing(sha=SHA, at="2026-11-08T11:00:00Z"):
-    return {"body": f"Verdict: fail\nHead: {sha}", "created_at": at, "submitted_at": at}
+def failing(sha=SHA, at="2026-11-08T11:00:00Z", login="SFenton"):
+    return {"body": f"Verdict: fail\nHead: {sha}", "created_at": at, "submitted_at": at, "user": {"login": login}}
 
 
 def stub(pull=None, comments=(), reviews=(), error=False):
@@ -52,7 +52,7 @@ class AutoMergeTests(unittest.TestCase):
         self.assertIsNone(self.verdict(url, comments=[passing()]))
 
     def test_case_insensitive_keys_and_a_later_pass_after_a_fail(self):
-        text = {"body": f"VERDICT: Pass\nhead: {SHA}", "created_at": "2026-11-08T12:00:00Z"}
+        text = {"body": f"VERDICT: Pass\nhead: {SHA}", "created_at": "2026-11-08T12:00:00Z", "user": {"login": "SFenton"}}
         self.assertIsNone(self.verdict(GOOD, comments=[failing(), text]))
 
     def test_wrong_or_missing_repo_refuses(self):
@@ -77,8 +77,8 @@ class AutoMergeTests(unittest.TestCase):
     def test_no_pass_comment_or_a_pass_for_another_head_refuses(self):
         self.assertIsNotNone(self.verdict(GOOD))
         self.assertIsNotNone(self.verdict(GOOD, comments=[passing(OTHER)]))
-        self.assertIsNotNone(self.verdict(GOOD, comments=[{"body": f"Verdict: pass\nHead: {SHA} extra", "created_at": "1"}]))
-        self.assertIsNotNone(self.verdict(GOOD, comments=[{"body": f"Head: {SHA}", "created_at": "1"}]))
+        self.assertIsNotNone(self.verdict(GOOD, comments=[{"body": f"Verdict: pass\nHead: {SHA} extra", "created_at": "1", "user": {"login": "SFenton"}}]))
+        self.assertIsNotNone(self.verdict(GOOD, comments=[{"body": f"Head: {SHA}", "created_at": "1", "user": {"login": "SFenton"}}]))
 
     def test_a_later_fail_refuses_and_a_fail_for_another_head_does_not(self):
         self.assertIsNotNone(self.verdict(GOOD, comments=[passing(), failing()]))
@@ -115,6 +115,12 @@ class AutoMergeTests(unittest.TestCase):
                     f"command {GOOD}",
                     f"bash -c '{GOOD}; gh pr merge 3'",
                     f"eval \"{GOOD}; gh pr merge 3 --admin\"",
+                    f"eval \"{GOOD}\"",
+                    f"bash -c '{GOOD}'",
+                    f"sh -c '{GOOD}'",
+                    "gh pr merge 12 -R SFenton/native-home --squash --auto --subject \"a'$(gh pr merge 3 --admin)\" --body \"'\" " + f"--match-head-commit {SHA}",
+                    "gh pr merge 12 -R SFenton/native-home --squash --auto --subject \"a'`gh pr merge 3 --admin`\" --body \"'\" " + f"--match-head-commit {SHA}",
+                    "gh pr merge 12 -R SFenton/native-home --squash --auto --subject \"a'$(X=gh; $X pr merge 3 --admin)\" --body \"'\" " + f"--match-head-commit {SHA}",
                     f"{GOOD}\ngh pr merge 3 --admin",
                     f"{GOOD} --subject x\\\n --admin",
                     f"echo hi; {GOOD}",
@@ -123,9 +129,47 @@ class AutoMergeTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNotNone(self.verdict(cmd, **facts))
 
-    def test_quoted_prose_in_the_subject_is_allowed(self):
-        cmd = f"{GOOD} --subject 'Tidy the guard (native-home)' --body 'Tests; docs & more'"
-        self.assertIsNone(self.verdict(cmd, comments=[passing()]))
+    def test_quoted_prose_is_allowed_but_not_metacharacters(self):
+        self.assertIsNone(self.verdict(f"{GOOD} --subject 'Tidy the guard' --body 'Tests and docs'", comments=[passing()]))
+        self.assertIsNotNone(self.verdict(f"{GOOD} --subject 'Tests; docs'", comments=[passing()]))
+        self.assertIsNotNone(self.verdict(f"{GOOD} --subject 'a (b)'", comments=[passing()]))
+
+    def test_only_the_owner_account_can_speak_for_the_review(self):
+        self.assertIsNotNone(self.verdict(GOOD, comments=[passing(login="mallory")]))
+        self.assertIsNotNone(self.verdict(GOOD, comments=[failing(), passing(login="mallory", at="2026-11-08T12:00:00Z")]))
+        self.assertIsNotNone(self.verdict(GOOD, comments=[passing(author_association="CONTRIBUTOR")]))
+        self.assertIsNotNone(self.verdict(GOOD, comments=[{"body": f"Verdict: pass\nHead: {SHA}", "created_at": "1"}]))
+        self.assertIsNone(self.verdict(GOOD, comments=[passing(author_association="OWNER")]))
+
+    def test_pending_dismissed_and_untimed_reviews_do_not_count(self):
+        self.assertIsNotNone(self.verdict(GOOD, reviews=[passing(state="PENDING")]))
+        self.assertIsNotNone(self.verdict(GOOD, reviews=[passing(state="DISMISSED")]))
+        self.assertIsNone(self.verdict(GOOD, reviews=[passing(state="COMMENTED")]))
+        self.assertIsNotNone(self.verdict(GOOD, reviews=[{"body": f"Verdict: pass\nHead: {SHA}", "user": {"login": "SFenton"}}]))
+        # a dismissed fail does not block a pass either
+        self.assertIsNone(self.verdict(GOOD, comments=[passing()], reviews=[dict(failing(), state="DISMISSED")]))
+
+    def test_a_fail_wins_a_timestamp_tie(self):
+        at = "2026-11-08T10:00:00Z"
+        self.assertIsNotNone(self.verdict(GOOD, comments=[passing(at=at), failing(at=at)]))
+        self.assertIsNotNone(self.verdict(GOOD, comments=[failing(at=at), passing(at=at)]))
+
+    def test_the_pr_number_is_ascii_digits(self):
+        self.assertIsNotNone(self.verdict(GOOD.replace("12", "\u0661\u0662"), comments=[passing()]))
+        self.assertIsNotNone(self.verdict(GOOD.replace("12", "1_2"), comments=[passing()]))
+
+    def test_disarming_is_allowed_on_native_home_only(self):
+        ok = "gh pr merge 12 -R SFenton/native-home --disable-auto"
+        self.assertIsNone(self.verdict(ok, error=True))
+        self.assertIsNotNone(self.verdict("gh pr merge 12 -R SFenton/Fenton-HASS-Native --disable-auto"))
+        self.assertIsNotNone(self.verdict("gh pr merge 12 --disable-auto"))
+        self.assertIsNotNone(self.verdict(ok + " --admin"))
+        self.assertIsNotNone(self.verdict(ok + " --squash"))
+        self.assertIsNotNone(self.verdict(ok + "; gh pr merge 3 --admin"))
+
+    def test_the_refusal_message_names_the_allowed_form(self):
+        self.assertIn("-R SFenton/native-home", merge_guard.MESSAGE)
+        self.assertIn("tools/pr_land.sh", merge_guard.MESSAGE)
 
     def test_the_other_routes_stay_closed(self):
         for cmd in ("gh api repos/SFenton/native-home/pulls/12/merge -X PUT",
