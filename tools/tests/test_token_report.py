@@ -44,9 +44,9 @@ class TokenReportTests(unittest.TestCase):
             lines.append(turn("m1", "2026-10-11T10:01:00Z", "claude-opus-5-5", 100_000, command=poll))
             lines.append(turn("m2", "2026-10-11T10:11:00Z", "claude-opus-5-5", 0, write=100_000))
             lines += [turn(f"x{i}", "2026-10-11T10:12:00Z", "claude-opus-5-5", 100_000) for i in range(210)]
-            write(root / "-Users-x-Fenton-HASS-Native" / "aaaa1111.jsonl", lines)
+            write(root / "-Users-x-private-app" / "aaaa1111.jsonl", lines)
             write(root / "-Users-x-Other" / "bbbb2222.jsonl", [turn("o", "2026-10-11T10:00:00Z", "claude-opus-5-5", 1)])
-            text = token_report.report(token_report.find_sessions(root, "*Fenton-HASS-Native*", None))
+            text = token_report.report(token_report.find_sessions(root, "*private-app*", None))
             self.assertIn("2026-10-11  opus", text)
             self.assertIn("sessions over 200 turns: 1 of 1", text)
             self.assertIn("poll turns (sleep loops): 1", text)
@@ -63,11 +63,11 @@ class TokenReportTests(unittest.TestCase):
     def test_since_filters_turns_and_cli(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write(root / "Fenton-HASS-Native" / "s.jsonl", [turn("a", "2026-10-01T10:00:00Z", "claude-opus-5-5", 10),
+            write(root / "private-app" / "s.jsonl", [turn("a", "2026-10-01T10:00:00Z", "claude-opus-5-5", 10),
                                                             turn("b", "2026-10-12T10:00:00Z", "claude-haiku-5-5", 10)])
             buffer = io.StringIO()
             with redirect_stdout(buffer):
-                self.assertEqual(token_report.main(["--root", str(root), "--since", "2026-10-10"]), 0)
+                self.assertEqual(token_report.main(["--root", str(root), "--projects", "*private-app*", "--since", "2026-10-10"]), 0)
             self.assertIn("2026-10-12  haiku", buffer.getvalue())
             self.assertNotIn("2026-10-01", buffer.getvalue())
             self.assertEqual(token_report.main(["--root", str(root), "--projects", "nope*"]), 1)

@@ -164,7 +164,7 @@ class PrePushTests(unittest.TestCase):
                     "https://github.com/SFenton/native-home.git/", "git@github.com:SFenton/native-home.git", "ssh://git@github.com/SFenton/native-home"):
             with self.subTest(url=url):
                 self.assertTrue(hook.is_public(url))
-        for url in (OTHER, "https://github.com/SFenton/native-home-private", "https://github.com/SFenton/Fenton-HASS-Native.git"):
+        for url in (OTHER, "https://github.com/SFenton/native-home-private", "https://github.com/owner/private-app.git"):
             with self.subTest(url=url):
                 self.assertFalse(hook.is_public(url))
 

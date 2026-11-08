@@ -34,7 +34,7 @@ def make_apps_dir(root: Path, roles=("verifier",)) -> Path:
         subprocess.run(["openssl", "genrsa", "-out", str(folder / f"{role}.pem"), "2048"], check=True,
                        capture_output=True)
         apps[role] = {"app_id": 100 + n, "installation_id": 200 + n}
-    (folder / "apps.json").write_text(json.dumps({"repo": "SFenton/Fenton-HASS-Native", "apps": apps}))
+    (folder / "apps.json").write_text(json.dumps({"repo": "owner/private-app", "apps": apps}))
     return folder
 
 
@@ -228,7 +228,7 @@ class AsRoleTests(Base):
         self.assertNotIn("@SFenton", c["body"])
         self.assertNotIn(TOKEN, json.dumps(c) + self.log.read_text())
         posts = [r for r in self.rest if r[0] == "POST" and "comments" in r[1]]
-        self.assertEqual(posts[0][1], "repos/SFenton/Fenton-HASS-Native/issues/7/comments")
+        self.assertEqual(posts[0][1], "repos/owner/private-app/issues/7/comments")
 
     def test_app_edits_its_own_comment_then_is_unchanged(self):
         self.post("verdict", "### V\none", "1", "--as", "verifier")

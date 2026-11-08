@@ -220,7 +220,7 @@ class ReplayTests(unittest.TestCase):
 
 class SelectionTests(unittest.TestCase):
     def make(self, root, name, first, later="", age=100):
-        directory = root / "-Users-x-repos-Fenton-HASS-Native"
+        directory = root / "-Users-x-repos-private-app"
         directory.mkdir(exist_ok=True)
         path = directory / f"{name}.jsonl"
         lines = [json.dumps({"type": "user", "message": {"content": first}}),
@@ -236,7 +236,7 @@ class SelectionTests(unittest.TestCase):
             built = self.make(root, "builder", "implement T-9", age=500)
             self.make(root, "caller", "run phase_cost --task T-9", age=10)
             self.make(root, "writing-now", "T-9", age=-5)
-            found = phase_cost.find_task_session(root, ["*Fenton-HASS-Native*"], "T-9", exclude=["caller"])
+            found = phase_cost.find_task_session(root, ["*private-app*"], "T-9", exclude=["caller"])
         self.assertEqual(found, built)
 
     def test_first_user_turn_beats_a_later_mention(self):
@@ -244,14 +244,14 @@ class SelectionTests(unittest.TestCase):
             root = Path(directory)
             owner = self.make(root, "owner", "work on T-9", age=900)
             self.make(root, "chatter", "something else", later="T-9 was discussed", age=50)
-            found = phase_cost.find_task_session(root, ["*Fenton-HASS-Native*"], "T-9")
+            found = phase_cost.find_task_session(root, ["*private-app*"], "T-9")
         self.assertEqual(found, owner)
 
     def test_default_globs_cover_the_runner_sessions(self):
-        self.assertIn("-Users-stephenfenton-hass-agents-worktrees-*", phase_cost.DEFAULT_PROJECTS)
+        self.assertIn(str(Path.home()).replace("/", "-") + "-hass-agents-worktrees-*", phase_cost.DEFAULT_PROJECTS)
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            runner = root / "-Users-stephenfenton-hass-agents-worktrees-3"
+            runner = root / (str(Path.home()).replace("/", "-") + "-hass-agents-worktrees-3")
             runner.mkdir()
             path = runner / "r.jsonl"
             path.write_text(json.dumps({"type": "user", "message": {"content": "issue T-9"}}) + "\n")

@@ -432,9 +432,9 @@ class GoPublicGuardTests(unittest.TestCase):
             subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
             g(repo, "remote", "add", "origin", "git@github.com:SFenton/native-home.git")
             g(repo, "remote", "add", "pub", "https://github.com/SFenton/pub.git")
-            g(repo, "remote", "add", "web", "https://github.com/sfenton/fenton-hass-native")
+            g(repo, "remote", "add", "web", "https://github.com/owner/private-app")
             for command in ("git push pub HEAD:agents/x", "git push pub --all", "git push --mirror pub", "git push https://github.com/SFenton/pub.git HEAD",
-                            "git push git@github.com:SFenton/pub.git HEAD:agents/x", "git push --repo=pub", "git push --repo pub", "git push git@github.com:SFenton/Fenton-HASS-Native.git HEAD", "git push /tmp/elsewhere.git HEAD",
+                            "git push git@github.com:SFenton/pub.git HEAD:agents/x", "git push --repo=pub", "git push --repo pub", "git push git@github.com:owner/private-app.git HEAD", "git push /tmp/elsewhere.git HEAD",
                             "git -C ../other push origin HEAD", "git push '$R' HEAD", "git push web agents/z"):
                 cwd = repo
                 if command.startswith("git -C ../other"):
@@ -517,8 +517,11 @@ class GoPublicGuardTests(unittest.TestCase):
         with TemporaryDirectory() as name:
             snap = Path(name) / "snap"
             snap.mkdir()
-            for target in ("not-a-slug", "SFenton/Fenton-HASS-Native", "sfenton/fenton-hass-" + "requests", "a/b/c"):
-                proc = subprocess.run(["bash", str(TOOLS / "go_public.sh"), str(snap), target], capture_output=True, text=True)
+            origin = subprocess.run(["git", "-C", str(ROOT), "remote", "get-url", "origin"], capture_output=True, text=True).stdout
+            own = origin.strip().split("github.com", 1)[-1].lstrip(":/").removesuffix(".git") or "owner/own-repo"
+            for target in ("not-a-slug", own, "Owner/Private-Requests", "a/b/c"):
+                proc = subprocess.run(["bash", str(TOOLS / "go_public.sh"), str(snap), target], capture_output=True, text=True,
+                                      env=dict(os.environ, FENTON_REQUEST_REPO="owner/private-requests"))
                 with self.subTest(target=target):
                     self.assertEqual(proc.returncode, 2, proc.stderr)
 

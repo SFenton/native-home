@@ -652,7 +652,7 @@ class UiGateInLandTests(unittest.TestCase):
         self.assertEqual(pr_land.expected_origin({"product_repo": pr_land.PRODUCT_REPO}), "https://github.com/SFenton/native-home.git")
         # the checked-in config agrees, so a config edit that disagrees is the thing that gets refused
         self.assertEqual(json.loads((TOOLS / "triage" / "config.json").read_text())["product_repo"], pr_land.PRODUCT_REPO)
-        for cfg in ({}, {"product_repo": ""}, {"product_repo": "evil/Fenton-HASS-Native"}, {"product_repo": "o/r.x-y"},
+        for cfg in ({}, {"product_repo": ""}, {"product_repo": "evil/private-app"}, {"product_repo": "o/r.x-y"},
                     {"product_repo": "https://evil.example/x"}):
             with self.subTest(cfg=cfg), self.assertRaises(pr_land.GateRefused):
                 pr_land.expected_origin(cfg)

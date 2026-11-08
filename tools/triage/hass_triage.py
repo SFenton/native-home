@@ -7,7 +7,7 @@ session in its own worktree reproduces, fixes or builds, tests on iPhone, iPhone
 pull request on the product repository. The worker lands its own pull request through ``tools/pr_land.sh`` (review and checks gate); when it could not, the runner labels the verified pull request
 ``Ready to Merge`` and closes the request once the owner (or the project's coordinator) has merged it. Contract:
 ``.agents/workflow/triage-agent.md``. Small single-host port of FestivalNativeApps' release machine
-(``SFenton/festival-report-tracker``).
+(a private sibling project).
 
     hass_triage.py tick [--dry-run] [--max-items N]   # the per-minute entry point (launchd)
     hass_triage.py run-issue N [--dry-run]            # work one issue now

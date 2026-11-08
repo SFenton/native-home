@@ -2,7 +2,7 @@
   "domain": "fenton_demo",
   "name": "S+H demo entities",
   "codeowners": [],
-  "documentation": "https://github.com/SFenton/Fenton-HASS-Native",
+  "documentation": "https://github.com/SFenton/native-home",
   "integration_type": "service",
   "iot_class": "calculated",
   "requirements": [],

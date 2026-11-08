@@ -194,7 +194,7 @@ class Outcomes:
         """PR numbers the task's ledger entry names (``pr``, ``pr_number`` or a product-repo ``/pull/N`` URL)."""
         ledger = self.ledger(task) or {}
         found = [str(ledger[k]) for k in ("pr", "pr_number") if ledger.get(k)]
-        found += re.findall(r"github\.com/SFenton/(?:native-home|Fenton-HASS-Native)/pull/(\d+)", json.dumps(ledger))
+        found += re.findall(r"github\.com/[^/\s]+/[^/\s]+/pull/(\d+)", json.dumps(ledger))
         return sorted(set(found))
 
     def invisible(self, number: str) -> Optional[bool]:

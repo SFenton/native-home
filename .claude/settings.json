@@ -151,8 +151,8 @@
       "Bash(tools/ship.sh:*)",
       "Bash(./tools/pr_land.sh:*)",
       "Bash(./tools/ship.sh:*)",
-      "Bash(/Users/stephenfenton/repos/Fenton-HASS-Native/tools/pr_land.sh:*)",
-      "Bash(/Users/stephenfenton/repos/Fenton-HASS-Native/tools/ship.sh:*)",
+      "Bash($CLAUDE_PROJECT_DIR/tools/pr_land.sh:*)",
+      "Bash($CLAUDE_PROJECT_DIR/tools/ship.sh:*)",
       "Bash(tools/clean.sh:*)",
       "Bash(./tools/clean.sh:*)"
     ]

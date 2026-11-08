@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Installs (or removes) the LaunchAgent that dispatches the nightly run at 02:00 local time (DST-safe, so 2 AM Pacific).
 # Usage: tools/nightly_install.sh [--uninstall] [--script PATH] [--dry-run]
-#   The plist runs tools/nightly_dispatch.sh from the triage clone (~/hass-agents/repos/Fenton-HASS-Native, which the triage
+#   The plist runs tools/nightly_dispatch.sh from the triage clone (~/hass-agents/repos/<app repo>, which the triage
 #   runner keeps at origin/main) so the schedule always runs main's script; --script overrides the path.
 #   --dry-run prints the plist and writes nothing. Label: com.sfenton.hass-nightly.
 set -euo pipefail
 LABEL=com.sfenton.hass-nightly
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-SCRIPT="$HOME/hass-agents/repos/Fenton-HASS-Native/tools/nightly_dispatch.sh"
+APP_REPO="$(basename "$(dirname "$(git -C "$(dirname "$0")" rev-parse --path-format=absolute --git-common-dir)")")"  # this repository's directory name, read at runtime
+SCRIPT="$HOME/hass-agents/repos/$APP_REPO/tools/nightly_dispatch.sh"
 UNINSTALL=0
 DRY=0
 while [[ $# -gt 0 ]]; do

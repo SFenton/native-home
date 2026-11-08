@@ -55,7 +55,7 @@ COST_FLOOR = 10_000_000.0
 """A phase is flagged only above this absolute weighted cost (``token_report.weighted`` units), so a small session never
 flags. Calibrated on the real sessions (owner "Yep", 2026-11-05); the old 35 percent share condition is gone."""
 SNIPPET_CHARS = 160
-DEFAULT_PROJECTS = ("*Fenton-HASS-Native*", "-Users-stephenfenton-hass-agents-worktrees-*")
+DEFAULT_PROJECTS = (token_report.default_project_glob(), str(Path.home()).replace("/", "-") + "-hass-agents-worktrees-*")
 """Transcript folders under ``~/.claude/projects``: interactive sessions and the triage runner's per-issue sessions."""
 
 #: Script path suffix -> phase kind. A marker is an *execution*: the script is the first word of a simple command.

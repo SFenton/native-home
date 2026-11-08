@@ -3,7 +3,7 @@
 
 Jev is a System One model: it takes a `state` plus named, typed questions and returns calibrated probabilities.
 It never writes, plans or explains. Use it to rank or classify what a text says, then verify the answer yourself;
-frontier models still plan and implement. Ported from festival-report-tracker's `fst-decide` (`decide.py`).
+frontier models still plan and implement. Ported from a private sibling project's decision tool (`decide.py`).
 
     jev_ask.py ask context.patterns --context '{"title": "...", "body": "..."}'    # a registered question
     jev_ask.py ask context.precedents --context-file task.json --item 190="Mockup hub guard" --item 189="Test tiers"

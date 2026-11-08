@@ -112,7 +112,7 @@ BLOCKED = [
     "pkill -P 1,2 xctest",
     "pkill -P 2,1",
     # a cd/pushd/popd changes what $PWD means (the 2026-10-30 incident, as the runner would have run it)
-    'cd ~/actions-runner-hass/_work/Fenton-HASS-Native/Fenton-HASS-Native && pkill -f "$PWD/apple/.build"',
+    'cd ~/actions-runner-hass/_work/private-app/private-app && pkill -f "$PWD/apple/.build"',
     'cd "$CLAUDE_PROJECT_DIR" && pkill -f "$PWD/.claude/worktrees"',
     f'pushd {MAIN}/.claude/worktrees/agent-2 && pkill -f "$(pwd)/build"',
     f'(cd {MAIN}/.claude/worktrees/agent-2; pkill -f "${{PWD}}/build")',

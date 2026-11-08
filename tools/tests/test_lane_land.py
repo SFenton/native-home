@@ -1744,7 +1744,7 @@ class PrGateTests(Repo):
                     return json.dumps(data)
                 self.gate({**self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD}), "body": body}, 0.05, gh=gh)
                 self.assertEqual([c[0] for c in self.calls], ["design.app_wide"])
-                self.assertFalse([a for a in seen if "Fenton-HASS-Native" in " ".join(a)], "the product repo is never read")
+                self.assertFalse([a for a in seen if "private-app" in " ".join(a)], "the product repo is never read")
 
     def test_jev_unavailable_and_a_moved_head_fail_closed(self):
         info = self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD})

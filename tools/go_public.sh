@@ -19,9 +19,15 @@ TARGET="${2:?usage: tools/go_public.sh SNAPSHOT_DIR OWNER/REPO}"
 [[ -d "$SNAPSHOT" ]] || { echo "go_public: $SNAPSHOT is not a directory" >&2; exit 2; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SNAPSHOT="$(cd "$SNAPSHOT" && pwd -P)"
-case "$(printf '%s' "$TARGET" | tr '[:upper:]' '[:lower:]')" in
-  sfenton/fenton-hass-native|sfenton/fenton-hass-req*) echo "go_public: $TARGET is a private repository of this project (the product or its request repository), not a new public one" >&2; exit 2 ;;
-esac
+# Private repositories of this project, read at runtime and never written here: this checkout's origin and the request repository.
+LOWER_TARGET="$(printf '%s' "$TARGET" | tr '[:upper:]' '[:lower:]')"
+ORIGIN="$(git -C "$HERE/.." remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#\.git$##' | tr '[:upper:]' '[:lower:]' || true)"
+REQUEST="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import request_repo; print((request_repo.resolve() or "").lower())' "$HERE" 2>/dev/null || true)"
+for PRIVATE in "$ORIGIN" "$REQUEST"; do
+  if [[ -n "$PRIVATE" && "$LOWER_TARGET" == "$PRIVATE" ]]; then
+    echo "go_public: $TARGET is a private repository of this project (the product or its request repository), not a new public one" >&2; exit 2
+  fi
+done
 
 git -C "$HERE/.." fetch -q origin main  # the gate reads the trusted house_scan config from origin/main
 python3 "$HERE/go_public_gate.py" "$SNAPSHOT" --base-ref origin/main

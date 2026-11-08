@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""App versions, version tags and release-note trailers for S+H (the Fenton HASS Native app).
+"""App versions, version tags and release-note trailers for S+H (the app in this repository).
 
 Ported from FestivalNativeApps ``tools/release/versioning.py`` (iOS only; What's New, TestFlight notes and
 store text are not ported because this repo has no release pipeline yet).

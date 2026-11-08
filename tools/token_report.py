@@ -25,6 +25,21 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+def default_project_glob() -> str:
+    """The transcript-folder glob for this repository: its name, taken at runtime from the shared git directory.
+
+    Claude Code names a project folder after the working directory, so a primary checkout and its worktrees all contain
+    the primary checkout's folder name. Falls back to every project (``*``) outside a git checkout."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--path-format=absolute",
+                              "--git-common-dir"], capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    name = Path(out).parent.name if out else ""
+    return f"*{name}*" if name else "*"
+
+
 MODEL_WEIGHT = {"opus": 5.0, "sonnet": 1.0, "haiku": 0.33}
 POLL = re.compile(r"\b(?:until|while)\b.{0,400}?\bdo\b.{0,300}?\bsleep\s+[0-9$]|\bfor\s+\w+\s+in\b[^;\n]*\bseq\b.{0,400}?\bdo\b.{0,300}?\bsleep\s+[0-9$]|\bsleep\s+(?:[3-9]\d|\d{3,})\b", re.S)
 LONG_SESSION_TURNS = 200
@@ -165,7 +180,7 @@ def report(sessions: List[Session], top: int = 8) -> str:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--projects", default="*Fenton-HASS-Native*", help="glob of project directories under --root")
+    parser.add_argument("--projects", default=default_project_glob(), help="glob of project directories under --root")
     parser.add_argument("--since", help="only turns on or after this date (YYYY-MM-DD)")
     parser.add_argument("--top", type=int, default=8)
     parser.add_argument("--root", type=Path, default=Path(os.path.expanduser("~/.claude/projects")))

@@ -43,7 +43,16 @@ NEW_APP_URL = "https://github.com/settings/apps/new"
 #: Base of the manifest conversion endpoint; tests point it at a local stub.
 CONVERT_BASE = "https://api.github.com"
 INSTALL_URL = "https://github.com/apps/{slug}/installations/new"
-REPO_URL = "https://github.com/SFenton/Fenton-HASS-Native"
+
+
+def repo_url() -> str:
+    """The App homepage: this checkout's GitHub repository (``gh_app_token.default_repo``), else the GitHub root."""
+    try:
+        return "https://github.com/" + gh_app_token.default_repo()
+    except gh_app_token.AppError:
+        return "https://github.com"
+
+
 PERMISSIONS = {"issues": "write", "pull_requests": "read", "metadata": "read"}
 _SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,99}$")
 _PEM = re.compile(r"^-----BEGIN [A-Z ]*PRIVATE KEY-----")
@@ -79,9 +88,9 @@ def manifest(role: str, port: int = DEFAULT_PORT) -> Dict[str, Any]:
     (``setup_on_update`` repeats that after a permission update)."""
     name, description, _extra = ROLE_TABLE[role]
     base = f"http://{HOST}:{port}"
-    return {"name": name, "description": description, "url": REPO_URL, "public": False,
+    return {"name": name, "description": description, "url": repo_url(), "public": False,
             "redirect_url": f"{base}/created?role={role}", "setup_url": f"{base}/installed?role={role}",
-            "setup_on_update": True, "hook_attributes": {"url": REPO_URL, "active": False},
+            "setup_on_update": True, "hook_attributes": {"url": repo_url(), "active": False},
             "default_permissions": dict(PERMISSIONS)}
 
 
@@ -139,7 +148,10 @@ def record(role: str, **fields: Any) -> None:
     entry.update(fields)
     apps[role] = entry
     data["apps"] = apps
-    data.setdefault("repo", gh_app_token.DEFAULT_REPO)
+    try:
+        data.setdefault("repo", gh_app_token.default_repo())
+    except gh_app_token.AppError:
+        pass
     _atomic_write(folder / "apps.json", (json.dumps(data, indent=2, sort_keys=True) + "\n").encode())
 
 
@@ -251,7 +263,7 @@ def render_page(port: int, state: str, notice: str = "") -> str:
         name, description, extra = ROLE_TABLE[role]
         st = role_state(role)
         entry = (gh_app_token.config().get("apps") or {}).get(role) or {}
-        where = "Fenton-HASS-Native" + (f" (and optionally {extra})" if extra else "")
+        where = "the main repository" +(f" (and optionally {extra})" if extra else "")
         if st == "not created":
             data = html.escape(json.dumps(manifest(role, port)), quote=True)
             action = (f'<form method="post" action="{NEW_APP_URL}?state={urllib.parse.quote(state)}" id="{role}">'

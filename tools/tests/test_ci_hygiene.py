@@ -376,10 +376,10 @@ class HygieneTests(unittest.TestCase):
         with redirect_stderr(StringIO()):
             self.assertEqual(h.rm_dir("/Users/someone/Library/Developer/Xcode/DerivedData"), 1)
             self.assertEqual(h.rm_dir("/Users/someone/actions-runner-hass/_work"), 1)
-            self.assertEqual(h.rm_dir("/Users/someone/actions-runner-hass/_work/Fenton-HASS-Native"), 1)
+            self.assertEqual(h.rm_dir("/Users/someone/actions-runner-hass/_work/private-app"), 1)
         with tempfile.TemporaryDirectory() as tmp:
-            keep = Path(tmp) / "a" / "_work" / "Fenton-HASS-Native"
-            target = Path(tmp) / "a" / "_work" / "Fenton-HASS-Native" / "dd-1-x"
+            keep = Path(tmp) / "a" / "_work" / "private-app"
+            target = Path(tmp) / "a" / "_work" / "private-app" / "dd-1-x"
             target.mkdir(parents=True)
             with redirect_stdout(StringIO()):
                 self.assertEqual(h.rm_dir(str(target)), 0)
@@ -567,8 +567,8 @@ class PruneWorktreeTests(unittest.TestCase):
         self.assertIn("not a directory", why)
 
     def test_origin_urls_compare_across_ssh_and_https(self):
-        self.assertEqual(h._norm_url("git@github.com:SFenton/Fenton-HASS-Native.git"),
-                         h._norm_url("https://github.com/SFenton/Fenton-HASS-Native"))
+        self.assertEqual(h._norm_url("git@github.com:owner/private-app.git"),
+                         h._norm_url("https://github.com/owner/private-app"))
 
     def test_prune_worktrees_skips_with_a_message_when_no_primary_is_configured(self):
         out = StringIO()

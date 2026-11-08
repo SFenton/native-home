@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
-PORT=/Users/stephenfenton/repos/Fenton-HASS-Native/.claude/worktrees/uikit-port
+PORT=20 20 12 61 79 80 81 701 33 98 100 204 250 395 398 399 400git rev-parse --show-toplevel)
 P="$PORT/apple/build/dd-FentonHome/Build/Products/Debug-iphonesimulator"
 SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
 OUT=$(mktemp -d "${TMPDIR:-/tmp}/uikit-tc.XXXXXX")

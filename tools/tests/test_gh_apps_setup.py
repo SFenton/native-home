@@ -60,7 +60,7 @@ class Base(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.folder = Path(self.tmp.name) / "github-apps"
-        for patcher in (mock.patch.dict(os.environ, {"FENTON_HASS_APPS_DIR": str(self.folder), "HOME": self.tmp.name}),):
+        for patcher in (mock.patch.dict(os.environ, {"FENTON_HASS_APPS_DIR": str(self.folder), "HOME": self.tmp.name, "GITHUB_REPOSITORY": "owner/private-app"}),):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.fake = http.server.HTTPServer(("127.0.0.1", 0), FakeGitHub)
@@ -152,7 +152,7 @@ class ServerTests(Base):
         self.assertEqual(key.read_text(), FAKE_KEY)
         self.assertEqual(stat.S_IMODE(key.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(self.folder.stat().st_mode), 0o700)
-        self.assertEqual(self.config(), {"repo": "SFenton/Fenton-HASS-Native",
+        self.assertEqual(self.config(), {"repo": "owner/private-app",
                                          "apps": {"coder": {"app_id": 4242, "slug": "s-h-coder-x", "client_id": "Iv1.abc"}}})
         self.assertEqual([p.name for p in self.folder.iterdir() if p.name.startswith(".")], [])
 

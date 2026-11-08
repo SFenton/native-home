@@ -223,7 +223,7 @@ def document(name: str, selected: Optional[List[str]], skipped: Optional[List[st
     if units:
         targets.insert(0, target(UNIT_TARGET, parallelizable=False))
     return {
-        "configurations": [{"id": str(uuid.uuid5(uuid.NAMESPACE_URL, "fenton-hass-native/testplan/" + name)).upper(),
+        "configurations": [{"id": str(uuid.uuid5(uuid.NAMESPACE_URL, "sh-app/testplan/" + name)).upper(),
                             "name": "Configuration 1", "options": {}}],
         "defaultOptions": dict(TEST_OPTIONS, codeCoverage=False),
         "testTargets": targets,

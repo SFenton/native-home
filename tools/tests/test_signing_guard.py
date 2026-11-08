@@ -215,7 +215,7 @@ class AppKeyTests(unittest.TestCase):
                 self.assertIsNotNone(self.why(cmd), cmd)
 
     def test_normal_work_with_absolute_repo_paths_passes(self):
-        root = "/Users/stephenfenton/repos/Fenton-HASS-Native"
+        root = "/Users/x/repos/private-app"
         for cmd in ("set -euo pipefail; echo ok", "set -x; make", "bash -c 'set -euo pipefail; ls'", "tools/hass_creds.sh",
                     "tools/ios_uitest.sh --changed --env shell", "python3 tools/jev_hints.py review --pr 12", f"grep -n 'foo$' {root}/tools/redact.py",
                     f"grep -nE '^Release-Note:.*$' {root}/x", f"sed -n '1,$p' {root}/a", f"grep -rn 'token' {root}/tools/hooks",
@@ -278,7 +278,7 @@ class CommandPositionTests(unittest.TestCase):
                     "echo 'run env; then export; declare'", "echo hi # env ; set",
                     "cat <<'EOF' > notes.md\nwe block env; and set; and export\nEOF",
                     "cat <<'EOF'\nuse .config here, and run (env) or printenv\nEOF",
-                    "ls /Users/stephenfenton/repos/Fenton-HASS-Native/.claude/worktrees/x"):
+                    "ls /Users/x/repos/private-app/.claude/worktrees/x"):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.why(cmd), cmd)
 

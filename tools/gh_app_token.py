@@ -5,7 +5,7 @@ Each role (see ``ROLES``) can post PR comments as its own GitHub App. Setup live
 ``~/.config/fenton-hass/github-apps/`` (override the folder with ``FENTON_HASS_APPS_DIR`` for tests):
 
 - ``<role>.pem``: the App's private key (mode 600), downloaded once by the owner.
-- ``apps.json``: non-secret ids, ``{"repo": "SFenton/Fenton-HASS-Native", "apps": {"<role>": {"app_id": 1,
+- ``apps.json``: non-secret ids, ``{"repo": "<owner>/<name>", "apps": {"<role>": {"app_id": 1,
   "slug": "s-h-coder", "client_id": "Iv1...", "installation_id": 2}}}``. ``tools/gh_apps_setup.py serve`` writes the key and
   this file (manifest flow); ``slug`` is what ``pr_note`` uses for the author check (``s-h-<role>`` when absent).
 - A missing, unknown (404) or foreign installation id is replaced by ``GET /app/installations`` (the SFenton
@@ -28,6 +28,7 @@ import base64
 import http.client
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -39,7 +40,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 ROLES = ("orchestrator", "researcher", "designer", "coder", "verifier", "reviewer", "steward", "menial", "triage")
 API = "https://api.github.com"
-DEFAULT_REPO = "SFenton/Fenton-HASS-Native"
 PERMISSIONS = {"issues": "write", "pull_requests": "read"}
 TIMEOUT = 20
 #: Shorter limit for the identity probe, so a dead network falls back to the owner quickly.
@@ -122,9 +122,29 @@ def has_recorded_slug(role: str) -> bool:
     return bool(isinstance(entry.get("slug"), str) and entry.get("slug"))
 
 
+def default_repo() -> str:
+    """``owner/name`` of the repository this checkout belongs to: ``GITHUB_REPOSITORY``, else the ``origin`` remote.
+
+    Raises:
+        AppError: Neither names a GitHub repository. No repository name is written in this file.
+    """
+    named = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", named):
+        return named
+    try:
+        url = subprocess.run(["git", "-C", str(Path(__file__).resolve().parents[1]), "remote", "get-url", "origin"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        url = ""
+    match = re.search(r"github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?/?$", url)
+    if not match:
+        raise AppError('no repository: set GITHUB_REPOSITORY or the "repo" key of apps.json')
+    return match.group(1)
+
+
 def repo() -> str:
-    """``owner/name`` of the repository the apps are installed on."""
-    return str(config().get("repo") or DEFAULT_REPO)
+    """``owner/name`` of the repository the apps are installed on (``apps.json``, else :func:`default_repo`)."""
+    return str(config().get("repo") or default_repo())
 
 
 def available(role: str) -> bool:
