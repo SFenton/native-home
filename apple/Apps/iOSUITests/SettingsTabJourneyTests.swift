@@ -9,7 +9,7 @@ final class SettingsTabJourneyTests: JourneyTestCase {
     /// then the two feedback rows (`FeedbackKind` raw values) and the About section's Version row.
     private static let rows = [
         "settings.vacation", "settings.topic.admin", "settings.topic.specialDeviceModes", "settings.topic.guests",
-        "settings.topic.machE", "settings.homeAssistant", "settings.performance", "settings.feedback.bug", "settings.feedback.feature",
+        "settings.topic.car", "settings.homeAssistant", "settings.performance", "settings.feedback.bug", "settings.feedback.feature",
         "settings.version",
     ]
 

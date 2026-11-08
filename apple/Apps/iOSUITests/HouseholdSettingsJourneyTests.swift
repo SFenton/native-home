@@ -1,13 +1,13 @@
 import XCTest
 
-/// Household Settings pages (Admin, Special Device Modes, Guest Controls, Mach-E). Controls are exercised in the
+/// Household Settings pages (Admin, Special Device Modes, Guest Controls, Car). Controls are exercised in the
 /// debug gallery (`FENTON_GALLERY=household-settings`) on fixture state with a recording caller, so no journey
 /// switches anything in the house; the signed-in journey only opens the live pages and audits them.
 @MainActor
 final class HouseholdSettingsJourneyTests: JourneyTestCase {
     // MARK: - Helpers
 
-    /// Opens the gallery on `page` (`admin`, `specialDeviceModes`, `guests`, `machE`). Goes through app reuse (`startApp`): the gallery
+    /// Opens the gallery on `page` (`admin`, `specialDeviceModes`, `guests`, "car"). Goes through app reuse (`startApp`): the gallery
     /// builds its store and recording caller per gallery, so a reset is a clean page; the AX5 launches carry arguments and so relaunch by
     /// their launch signature (`.agents/testing/apple/app-reuse.md`).
     private func launch(_ page: String, unavailable: Bool = false, arguments: [String] = [], clean: Bool = false) -> XCUIApplication {
@@ -229,9 +229,9 @@ final class HouseholdSettingsJourneyTests: JourneyTestCase {
         XCTAssertTrue(waitForValue(guest(guests[1]), "Guests staying"), "second guest value is \(guest(guests[1]).value ?? "nil")")
     }
 
-    /// The Mach-E readings stay unpressable: Charge Status is no button (audit item 25).
-    func testMachEReadingsStayReadOnly() {
-        let app = launch("machE")
+    /// The Car readings stay unpressable: Charge Status is no button (audit item 25).
+    func testVehicleReadingsStayReadOnly() {
+        let app = launch("car")
         let doors = tile(app, expectations[.householdVehicleDoors])
         XCTAssertTrue(doors.appears(timeout: 5))
         XCTAssertFalse(app.buttons["household.tile.\(expectations[.householdVehicleCharge])"].exists, "Charge Status must not be a button")
@@ -239,8 +239,8 @@ final class HouseholdSettingsJourneyTests: JourneyTestCase {
     }
 
     /// Doors is the one action tile (audit item 25: the lock disc): a switch (its disc is toggle-styled) that unlocks.
-    func testMachEDoorsActs() {
-        let app = launch("machE")
+    func testVehicleDoorsActs() {
+        let app = launch("car")
         let doorsID = "household.tile.\(expectations[.householdVehicleDoors])"
         let doors = tile(app, expectations[.householdVehicleDoors])
         XCTAssertTrue(doors.appears(timeout: 5))
@@ -310,7 +310,7 @@ final class HouseholdSettingsJourneyTests: JourneyTestCase {
     func testHouseholdAdminPassesAccessibilityAudit() throws { try auditPage("admin") }
     func testHouseholdSpecialDeviceModesPassesAccessibilityAudit() throws { try auditPage("specialDeviceModes") }
     func testHouseholdGuestsPassesAccessibilityAudit() throws { try auditPage("guests") }
-    func testHouseholdMachEPassesAccessibilityAudit() throws { try auditPage("machE") }
+    func testHouseholdVehiclePassesAccessibilityAudit() throws { try auditPage("car") }
     func testHouseholdPresenceOverridesSheetPassesAccessibilityAudit() throws { try auditAdminSheet("presenceOverrides") }
     func testHouseholdAutoResetSheetPassesAccessibilityAudit() throws { try auditAdminSheet("autoReset") }
 
@@ -391,8 +391,8 @@ final class HouseholdSettingsJourneyTests: JourneyTestCase {
     func testCaptureHouseholdSpecialDeviceModesInIPadLandscape() throws { try capturePage("specialDeviceModes", pose: .iPadLandscape) }
     func testCaptureHouseholdGuests() throws { try capturePage("guests", pose: .upright) }
     func testCaptureHouseholdGuestsInIPadLandscape() throws { try capturePage("guests", pose: .iPadLandscape) }
-    func testCaptureHouseholdMachE() throws { try capturePage("machE", pose: .upright) }
-    func testCaptureHouseholdMachEInIPadLandscape() throws { try capturePage("machE", pose: .iPadLandscape) }
+    func testCaptureHouseholdVehicle() throws { try capturePage("car", pose: .upright) }
+    func testCaptureHouseholdVehicleInIPadLandscape() throws { try capturePage("car", pose: .iPadLandscape) }
     func testCaptureHouseholdAdminLower() throws { try captureAdminLower(pose: .upright) }
     func testCaptureHouseholdAdminLowerInIPadLandscape() throws { try captureAdminLower(pose: .iPadLandscape) }
     func testCaptureHouseholdPresenceOverrides() throws { try capturePresenceOverrides(pose: .upright) }
@@ -420,7 +420,7 @@ final class HouseholdSettingsJourneyTests: JourneyTestCase {
 
     func testLiveSettingsRowOpensSpecialDeviceModes() throws { _ = try openLiveRow("specialDeviceModes") }
     func testLiveSettingsRowOpensGuests() throws { _ = try openLiveRow("guests") }
-    func testLiveSettingsRowOpensMachE() throws { _ = try openLiveRow("machE") }
+    func testLiveSettingsRowOpensVehicle() throws { _ = try openLiveRow("car") }
 
     /// Admin: the live state loads, then the page is audited (the audit relaunches at AX5 for the Dynamic Type check).
     func testLiveSettingsRowOpensAdminAndAudit() throws {

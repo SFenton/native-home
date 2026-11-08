@@ -155,7 +155,7 @@ final class UKGarageDoorTileBinder {
 
 // MARK: - Section
 
-/// A titled grid of lock and garage door tiles (owner, 2026-10-16: doors as tiles, not rows): the Security page's Doors and Mach-E
+/// A titled grid of lock and garage door tiles (owner, 2026-10-16: doors as tiles, not rows): the Security page's Doors and Car
 /// sections. Tiles share one height, set by the tallest, and reflow to one column at accessibility sizes.
 @MainActor
 final class UKSecurityTileSection: UIView, UKGridMeasuring {

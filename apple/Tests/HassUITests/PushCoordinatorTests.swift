@@ -330,6 +330,6 @@ struct PushNavigationTests {
         #expect(HomeRoute(pushPath: "grocery-list") == .groceryList)
         #expect(HomeRoute(pushPath: "pantry") == .food)
         #expect(HomeRoute(pushPath: "recipes") == .food)
-        #expect(HomeRoute(pushPath: "mach-e") == nil)
+        #expect(HomeRoute(pushPath: "car") == nil)
     }
 }

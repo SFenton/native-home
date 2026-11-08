@@ -166,7 +166,7 @@ public enum TileActionCatalog {
         // The household Settings pages (audit items 18 to 25): Guest Controls reuses the guest toggles above.
         let settingsTiles = HouseholdSettingsConfig.Admin.securityTiles + HouseholdSettingsConfig.Admin.relayTiles
             + HouseholdSettingsConfig.Admin.showSpecificTiles + HouseholdSettingsConfig.Admin.autoResetTiles
-            + [HouseholdSettingsConfig.SpecialDeviceModes.highAqiTile] + HouseholdSettingsConfig.MachE.tiles
+            + [HouseholdSettingsConfig.SpecialDeviceModes.highAqiTile] + HouseholdSettingsConfig.Vehicle.tiles
         for tile in settingsTiles {
             entries.append(Entry(id: "settings.\(tile.entityId)", hasDestination: false, kind: HouseholdTileActions.kind(of: tile),
                                  classification: HouseholdTileActions.classification(of: tile)))

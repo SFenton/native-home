@@ -99,12 +99,12 @@
   function machBody(rows) {
     return h('section.ui-settings', { style: { gap: '8px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, 'Charge Status'), RO.stack(rows));
   }
-  function machE(ctx, states) {
+  function vehicle(ctx, states) {
     var rows = [{ label: 'Today · option A: keep read-only', kind: 'today', tiles: machTiles(HF.stateTile({ title: 'Doors', symbol: 'lock', subtitle: 'Locked', active: false })), min: 150, max: 4 },
       { label: 'Option B: Doors acts', kind: 'prop', tag: 'RECOMMENDED', tiles: machTiles(doors('locked')), min: 150, max: 4 }];
     if (states) rows.push({ label: 'Option B: every Doors state', kind: 'prop', tiles: ['locked', 'unlocking', 'unlocked', 'jammed', 'unavailable'].map(doors), min: 150, max: 4,
       note: 'Locked, Unlocking (arc in the disc), Unlocked (filled, white disc), Jammed (red, a different glyph), Unavailable (dims in place). Same states as the Security page tile.' });
-    return spage(ctx, 'mach-e', [machBody(rows)]);
+    return spage(ctx, 'car', [machBody(rows)]);
   }
 
   /* ================================================================== 26 Chores quick links (sub-choice) */
@@ -357,7 +357,7 @@
         h('p', { style: { margin: 0 } }, '25 B because the same lock already acts on the Security page; a dead copy on another page is a bug-shaped inconsistency, and the convention exists to make "does this do something" readable from the shape. 26 A because the numeral duplicates the subtitle today, and the chevron now owns the trailing edge; moving the count into the text adds no element and VoiceOver finally reads it.')]),
       h('p', { style: { marginTop: '12px' } }, 'What it asks of the app:'),
       h('ul', [
-        h('li', 'Files: HassUI Settings/Household (HouseholdToggleTile, MachEContent, the Auto-Reset sheet), Chores/ChoresScreen (QuickLinkFace), Vacation (VacationModeScreen, SoloTripScreen, TravelerTileView), Sprinklers/SprinklersScreen (SprinklerControllerCard), Vacuums (VacuumsScreen, VacuumTabs).'),
+        h('li', 'Files: HassUI Settings/Household (HouseholdToggleTile, VehicleContent, the Auto-Reset sheet), Chores/ChoresScreen (QuickLinkFace), Vacation (VacationModeScreen, SoloTripScreen, TravelerTileView), Sprinklers/SprinklersScreen (SprinklerControllerCard), Vacuums (VacuumsScreen, VacuumTabs).'),
         h('li', 'Providers (HassCore/TileActions): reuse PowerToggleActions (items 18 to 24, 27, 28), LockActions (25 B), VacuumActions (31); add CommandActions (21, momentary) and StopWateringActions (30, wraps SprinklerController.stopWatering). Domain rules stay in providers, never in views.'),
         h('li', 'Gates stay: High AQI, Vacation Mode (sheet to turn on, alert to turn off) and Solo Trip (editor to turn on, alert to turn off) keep their confirmations; a disc tap and a body tap take the same path. Tests assert that no service call fires before the confirm.'),
         h('li', 'Shared pieces: the selection indicator from selection-tiles (items 29, 32), the chevron on every sheet-opening tile, a lock symbol variant of the power disc (18).'),
@@ -401,7 +401,7 @@
       'high-aqi-alert': { title: '23 · High AQI Mode: the alert on turning on', note: 'A tap on the body or the disc raises the same alert (AlertCopy.highAqiMode); the flip happens on Turn On, not before.', render: function (ctx) { return aqiAlert(ctx, true); } },
       'high-aqi-alert-off': { title: '23 · High AQI Mode: the alert on turning off', note: 'The alert asks in both directions today and keeps doing so.', render: function (ctx) { return aqiAlert(ctx, false); } },
       'guests': { title: '24 · Guest Controls, three toggles', note: 'Proposed matches the Home page guest tiles (occupancy family, power disc, "Guests staying" / "No guests").', render: s(guests, 'pair', false) },
-      'mach-e': { title: '25 · car Doors: read-only (A) or acts (B)', note: 'SUB-CHOICE 25. Today is option A. B is the lock-disc tile, with every state below.', render: function (ctx) { return machE(ctx, true); } },
+      'car': { title: '25 · car Doors: read-only (A) or acts (B)', note: 'SUB-CHOICE 25. Today is option A. B is the lock-disc tile, with every state below.', render: function (ctx) { return vehicle(ctx, true); } },
       'chores': { title: '26 · Chores quick links: count in the subtitle (A) or a badge (B)', note: 'SUB-CHOICE 26. Five links, three versions. The chevron is centred vertically; Groceries still spans two tracks.', render: function (ctx) { return chores(ctx, { viewer: 'alex' }); } },
       'chores-zero': { title: '26 · Chores quick links, nothing open', note: 'A reads "Nothing open"; B draws no badge at zero and keeps today\'s "No tasks listed".', render: function (ctx) { return chores(ctx, { viewer: 'alex', zero: true }); } },
       'vacation': { title: '27 · Vacation Mode card, off and on', note: 'A tap on the card or the disc still opens the confirmation sheet when off (or the inline checklist error) and the alert when on.', render: function (ctx) { return vacation(ctx, 'pair', { both: true, checks: [true, true, true, true, true] }); } },

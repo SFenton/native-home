@@ -37,7 +37,7 @@ public final class HouseholdSettingsController {
     /// Optimistic toggle states, and presence modes under ``presenceKey(_:)``.
     public let overlay: OptimisticOverlay
 
-    /// Where service calls go; Mach-E Doors runs its lock call through `OptimisticActions` on the same caller.
+    /// Where service calls go; Car Doors runs its lock call through `OptimisticActions` on the same caller.
     @ObservationIgnored public let caller: any HassServiceCalling
     /// Told when a command fails, with a sentence to show or speak (the view announces it). A failed tap otherwise only
     /// reverts after ``revertAfter`` with no word to say why.

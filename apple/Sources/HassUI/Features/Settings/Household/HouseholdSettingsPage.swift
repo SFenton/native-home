@@ -8,7 +8,8 @@ import SwiftUI
 /// `SETTINGS_PAGE_ITEMS`; copy from `settings.json` `items.*`). Raw values match the topic ids of the
 /// Settings navigation shell, so `settings.topic.<id>` identifies the row everywhere.
 enum HouseholdSettingsPage: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
-    case admin, specialDeviceModes, guests, machE
+    case admin, specialDeviceModes, guests
+    case vehicle = "car"
 
     var id: String { rawValue }
 
@@ -18,7 +19,7 @@ enum HouseholdSettingsPage: String, CaseIterable, Identifiable, Hashable, Codabl
         case .admin: "Admin Controls"
         case .specialDeviceModes: "Special Device Modes"
         case .guests: "Guest Controls"
-        case .machE: "Mach-E"
+        case .vehicle: "Car"
         }
     }
 
@@ -28,17 +29,17 @@ enum HouseholdSettingsPage: String, CaseIterable, Identifiable, Hashable, Codabl
         case .admin: "Presence-Based Toggles, Automation Overrides, and More"
         case .specialDeviceModes: "Allows enabling special device modes, such as High AQI Mode."
         case .guests: "Toggle automations when guests stay over."
-        case .machE: "Controls for the Mustang Mach-E."
+        case .vehicle: "Controls for the car."
         }
     }
 
-    /// The page's navigation title (web route titles: Admin, Special Device Modes, Guest Controls, Mach-E).
+    /// The page's navigation title (web route titles: Admin, Special Device Modes, Guest Controls, Car).
     var pageTitle: String {
         switch self {
         case .admin: HouseholdSettingsConfig.Admin.pageTitle
         case .specialDeviceModes: HouseholdSettingsConfig.SpecialDeviceModes.pageTitle
         case .guests: HouseholdSettingsConfig.Guests.pageTitle
-        case .machE: HouseholdSettingsConfig.MachE.pageTitle
+        case .vehicle: HouseholdSettingsConfig.Vehicle.pageTitle
         }
     }
 
@@ -48,7 +49,7 @@ enum HouseholdSettingsPage: String, CaseIterable, Identifiable, Hashable, Codabl
         case .admin: "person.badge.shield.checkmark"
         case .specialDeviceModes: "slider.vertical.3"
         case .guests: "person.2"
-        case .machE: "car.side"
+        case .vehicle: "car.side"
         }
     }
 }

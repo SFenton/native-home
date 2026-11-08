@@ -59,7 +59,7 @@
         { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'Paragraphs wrap with fixedSize vertical (:35); the content grid drops to one column at AX sizes.', by: 'apple-hig skill' },
         { rule: 'Alerts and inline messages: icon plus text, severity in words', verdict: 'pass', note: 'InlineAlert warning reads "Warning: …" with a glyph, an error reads "Error: …" in red with a glyph (:68-96).', by: 'apple-hig skill' },
         { rule: 'Layout: consistent section rhythm', verdict: 'pass', note: 'Sections stack with HassTokens.Spacing.xl between them (HouseholdSettingsPage.swift:88); 4 pt before the content.', by: 'apple-hig skill' },
-        { rule: 'Consistency: one header treatment per page', verdict: 'pass', note: 'MachEContent is now a SettingsSection (HouseholdSettingsPage.swift): the shared header font and gap.', by: 'apple-hig skill' },
+        { rule: 'Consistency: one header treatment per page', verdict: 'pass', note: 'VehicleContent is now a SettingsSection (HouseholdSettingsPage.swift): the shared header font and gap.', by: 'apple-hig skill' },
       ],
       swiftui: [
         { rule: 'Design: shared type tokens, not scattered weights', verdict: 'pass', note: 'Fixed: the repeated title3 semibold and subheadline semibold are HassTokens.Typography.sectionTitle and rowTitle across SettingsSection, SettingsScreen, SettingsSectionHeader and FeedbackFieldHeader.', by: 'swiftui-pro skill' },
@@ -74,7 +74,7 @@
       'This component has no motion of its own; its content (tiles, alerts) animates as described on their mockups. The Motion list is empty on purpose.',
       'Component pages are drawn without a device frame; the Device control picks the size class. Surfaces: the page (dark, over a gradient) and the sheet (follows the Sheet appearance control).',
       'Docs versus code: patterns/settings-section.md says "each description paragraph in HassTokens.Ink.secondary"; the code uses Ink.onDark on a page and Ink.secondary in a sheet (a contrast fix recorded in a code comment, not the doc).',
-      'Car does not use SettingsSection: it repeats the header styling by hand (MachEContent), without the 4 pt content padding.',
+      'Car does not use SettingsSection: it repeats the header styling by hand (VehicleContent), without the 4 pt content padding.',
     ],
     changelog: [{ date: '2026-10-23', note: 'First pass: title only, one and two paragraphs, stacked sections, AX5, page and sheet ink.' }],
   });

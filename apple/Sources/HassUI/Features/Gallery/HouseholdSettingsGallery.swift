@@ -49,7 +49,7 @@ enum HouseholdSettingsFixtures {
         typealias Config = HouseholdSettingsConfig
         let admin = Config.Admin.self
         if unavailable {
-            let ids = Config.toggleEntityIds + [admin.powerRecoveryAutomation] + admin.presenceRooms.map(\.presenceEntityId) + Config.MachE.tiles.map(\.entityId)
+            let ids = Config.toggleEntityIds + [admin.powerRecoveryAutomation] + admin.presenceRooms.map(\.presenceEntityId) + Config.Vehicle.tiles.map(\.entityId)
             return ids.map { EntityState(entityId: $0, state: "unavailable") }
         }
         var states: [EntityState] = []
@@ -82,8 +82,8 @@ enum HouseholdSettingsFixtures {
             }
             add(room.autoReenableEntityId, index.isMultiple(of: 3) ? "off" : "on")
         }
-        let mache = Config.MachE.tiles
-        add(mache, ["ChargingAC", "locked", "off", "heated_low", "72"])
+        let vehicleTiles = Config.Vehicle.tiles
+        add(vehicleTiles, ["ChargingAC", "locked", "off", "heated_low", "72"])
         return states
     }
 }

@@ -194,16 +194,16 @@ struct HouseholdSettingsTests {
         }
     }
 
-    @Test func machETilesComeFromTheDocumentsVehicleTiles() {
+    @Test func vehicleTilesComeFromTheDocumentsVehicleTiles() {
         var house = DemoHouse.config
         house.household.vehicleTiles = [.init(title: "Doors", entityId: "lock.demo_car", icon: "mdi:car-door-lock")]
         let source = HouseConfigSource()
         source.set(house)
         HouseConfigSource.$scoped.withValue(source) {
-            #expect(Config.MachE.tiles == house.household.vehicleTiles)
+            #expect(Config.Vehicle.tiles == house.household.vehicleTiles)
         }
         HouseConfigSource.$scoped.withValue(HouseConfigSource()) {
-            #expect(Config.MachE.tiles.isEmpty)
+            #expect(Config.Vehicle.tiles.isEmpty)
         }
     }
 
@@ -260,8 +260,8 @@ struct HouseholdSettingsTests {
                                        data: ["entity_id": "automation.demo_living_room_power_1"])])
     }
 
-    @Test func machETilesFormatLikeTheWeb() {
-        let tiles = Config.MachE.tiles
+    @Test func vehicleTilesFormatLikeTheWeb() {
+        let tiles = Config.Vehicle.tiles
         let (settings, _, _, _) = controller([
             tiles[0].entityId: "ChargingAC",
             tiles[1].entityId: "locked",

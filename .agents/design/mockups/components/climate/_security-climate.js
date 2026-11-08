@@ -503,17 +503,17 @@
   /**
    * The Security page body (SecurityPage): status rail (Security and Contact Sensors), the alarm card on a module, "Doors" tiles, guests (while a toggle is on), cameras, car (hidden:
    * showsVehicleSection is false; the debug gallery shows it). One column, except a partly folded Duo, where the sections sit wholly in the leading or trailing region (fold columns).
-   * o: {alarm, since, chips, front, left, right, guests, cams:[states], mach, pending, unavailable, contacts:['closed',0]}
+   * o: {alarm, since, chips, front, left, right, guests, cams:[states], vehicle, pending, unavailable, contacts:['closed',0]}
    */
   SC.securityBody = function (ctx, o) {
     var p = SC.securityParts(ctx, o);
     /* Partly folded Duo (section-sides.md, claude/section-sides): the rail spans the top; the alarm card, Doors and car lead; Cameras then Guests trail, as on Home. */
-    var fold = Mock.foldColumns(ctx, { top: [p.rail], leading: [p.alarmCard, p.doors, p.mach], trailing: [p.cams, p.guests] });
+    var fold = Mock.foldColumns(ctx, { top: [p.rail], leading: [p.alarmCard, p.doors, p.vehicle], trailing: [p.cams, p.guests] });
     if (fold) return fold;
     var top = h('div.ui-bleed', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } }, p.rail, h('div', { style: { margin: '0 16px' } }, p.alarmCard));
-    return [top, p.doors, p.guests, p.cams, p.mach].filter(Boolean);
+    return [top, p.doors, p.guests, p.cams, p.vehicle].filter(Boolean);
   };
-  /** The Security page's pieces, unplaced: {rail, alarmCard, doors, guests, cams, mach} (guests and mach are null unless asked for). The proposal section-sides lays them out its own ways. */
+  /** The Security page's pieces, unplaced: {rail, alarmCard, doors, guests, cams, vehicle} (guests and vehicle are null unless asked for). The proposal section-sides lays them out its own ways. */
   SC.securityParts = function (ctx, o) {
     o = o || {};
     var alarm = o.alarm || 'armed_home', un = !!o.unavailable;
@@ -525,8 +525,8 @@
     var g = o.guests ? guests() : null;
     var cs = o.cams || ['live', 'live', 'live', 'live'], names = [['Front Door', 'front-door'], ['Driveway', 'driveway'], ['Upper Deck', 'upper-deck'], ['Lower Deck', 'lower-deck']];
     var cams = section('Cameras', K.TileGrid({ min: appMin(160), max: 4, equal: false, items: names.map(function (n, i) { return K.CameraTile({ title: n[0], scene: n[1], state: cs[i] }); }) }));
-    var mach = o.mach ? section('Car', K.TileGrid({ min: 140, max: 4, items: [t({ kind: 'car', title: 'Doors' }, { state: 'locked' })] })) : null;
-    return { rail: rail, alarmCard: alarmCard, doors: doors, guests: g, cams: cams, mach: mach };
+    var vehicle = o.vehicle ? section('Car', K.TileGrid({ min: 140, max: 4, items: [t({ kind: 'car', title: 'Doors' }, { state: 'locked' })] })) : null;
+    return { rail: rail, alarmCard: alarmCard, doors: doors, guests: g, cams: cams, vehicle: vehicle };
   };
   SC.securityPage = function (ctx, o) {
     o = o || {};

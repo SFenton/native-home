@@ -20,14 +20,14 @@ struct HouseholdTileActionsTests {
             #expect(HouseholdTileActions.kind(of: tile) == .power, Comment(rawValue: tile.entityId))
             #expect(HouseholdTileActions.classification(of: tile) == .action(1), Comment(rawValue: tile.entityId))
         }
-        for tile in Config.MachE.tiles where tile.entityId != SecurityConfig.vehicleLockEntityId {
+        for tile in Config.Vehicle.tiles where tile.entityId != SecurityConfig.vehicleLockEntityId {
             #expect(HouseholdTileActions.kind(of: tile) == .none && HouseholdTileActions.classification(of: tile) == .state, Comment(rawValue: tile.title))
         }
         #expect(switches.count == 1 + 1 + 2 + 14 + 1, "Auto-Lock, Relay, two Show Specific, 14 Auto-Reset rooms, High AQI")
     }
 
-    @Test func machEDoorsActsWithTheLockDiscAndPowerRecoveryIsMomentary() {
-        let doors = Config.MachE.tiles.first { $0.title == "Doors" }!
+    @Test func vehicleDoorsActsWithTheLockDiscAndPowerRecoveryIsMomentary() {
+        let doors = Config.Vehicle.tiles.first { $0.title == "Doors" }!
         #expect(HouseholdTileActions.kind(of: doors) == .lock && HouseholdTileActions.classification(of: doors) == .action(1))
         #expect(HouseholdTileActions.doors.entityId == SecurityConfig.vehicleLockEntityId)
         #expect(HouseholdTileActions.powerRecoveryClassification == .action(1))
@@ -35,7 +35,7 @@ struct HouseholdTileActionsTests {
 
     @Test func theCatalogListsEverySettingsTileOnce() {
         let entries = TileActionCatalog.allConfiguredTiles.filter { $0.id.hasPrefix("settings.") }
-        #expect(entries.count == switches.count + Config.MachE.tiles.count + 1)
+        #expect(entries.count == switches.count + Config.Vehicle.tiles.count + 1)
         #expect(entries.first { $0.id == "settings.\(Config.Admin.powerRecoveryAutomation)" }?.kind == .momentaryCommand)
         #expect(entries.first { $0.id == "settings.\(SecurityConfig.vehicleLockEntityId)" }?.kind == .lock)
         #expect(entries.filter { $0.kind == .power }.count == switches.count)

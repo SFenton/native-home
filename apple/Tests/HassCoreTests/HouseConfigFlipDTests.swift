@@ -95,7 +95,7 @@ struct HouseConfigFlipDTests {
             #expect(HouseholdSettingsConfig.Admin.securityTiles.isEmpty)
             #expect(HouseholdSettingsConfig.Admin.presenceRooms.isEmpty)
             #expect(HouseholdSettingsConfig.SpecialDeviceModes.highAqiTile.entityId.isEmpty)
-            #expect(HouseholdSettingsConfig.MachE.tiles.isEmpty)
+            #expect(HouseholdSettingsConfig.Vehicle.tiles.isEmpty)
         }
     }
 

@@ -19,7 +19,7 @@ Source: `ha-sfenton-react-dash@9ac2a46:src/components/hass/SecurityDashboard.tsx
 
 4. Guest presence section while a guest toggle is on (shared with Home).
 5. Cameras (shared with Home).
-6. Section "Vehicle": Doors (`lock.demo_lock_1`). **Hidden**, as on the web (`SHOW_MACHE_SECTION = false`); the native gallery shows it so it stays tested.
+6. Section "Vehicle": Doors (`lock.demo_lock_1`). **Hidden**, as on the web (`vehicle-section flag = false`); the native gallery shows it so it stays tested.
 
 Tile tones: closed/locked/disarmed green, armed or moving blue, open/unlocked/jammed/failed red, unavailable dimmed.
 

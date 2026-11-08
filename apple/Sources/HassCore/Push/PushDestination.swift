@@ -17,7 +17,7 @@ public enum PushDestination: Equatable, Sendable {
         case "thermostat", "climate": self = .section(.climate)
         case "chores", "groceries": self = .section(.chores)
         case _ where path.hasSuffix("-chores"): self = .section(.chores)
-        case "settings", "admin", "guests-staying-over", "mach-e", "solo-trip", "special-device-modes", "to-do",
+        case "settings", "admin", "guests-staying-over", "car", "solo-trip", "special-device-modes", "to-do",
              "vacation", "vacation-mode":
             self = .section(.settings)
         default: self = .homePage(path)

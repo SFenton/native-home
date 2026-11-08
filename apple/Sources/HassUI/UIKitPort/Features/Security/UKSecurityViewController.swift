@@ -29,7 +29,7 @@ class UKSecurityViewController: UKPageViewController {
     ///   - caller: Where commands go.
     ///   - canSend: Whether a command can go out now (`SecurityScreen.canSend`); read inside an observation, so it follows the connection.
     ///   - showsCameras: False in the gallery, where cameras need a live connection.
-    ///   - showsVehicle: Whether the Mach-E section shows.
+    ///   - showsVehicle: Whether the Car section shows.
     ///   - pool: The camera stream pool; the app's shared one by default.
     init(context: UKContext, caller: any HassServiceCalling, canSend: @escaping () -> Bool, showsCameras: Bool, showsVehicle: Bool,
          pool: CameraStreamPool = .shared) {
@@ -93,7 +93,7 @@ class UKSecurityViewController: UKPageViewController {
             sections.append(.init(UKSecurityInsetView(cameras, insets: sideInsets), side: .trailing, splitRank: 0))
         }
         if showsVehicle {
-            let vehicle = UKSecurityTileSection("Mach-E", tiles: SecurityConfig.vehicleTiles, context: context, caller: caller, canSend: canSend)
+            let vehicle = UKSecurityTileSection("Car", tiles: SecurityConfig.vehicleTiles, context: context, caller: caller, canSend: canSend)
             tileSections.append(vehicle)
             sections.append(.init(UKSecurityInsetView(vehicle, insets: sideInsets), side: .leading))
         }

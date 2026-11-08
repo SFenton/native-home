@@ -95,7 +95,7 @@
     admin: { title: 'Admin', row: 'Admin Controls', sub: 'Presence-Based Toggles, Automation Overrides, and More', symbol: 'person.badge.shield.checkmark' },
     'special-device-modes': { title: 'Special Device Modes', row: 'Special Device Modes', sub: 'Allows enabling special device modes, such as High AQI Mode.', symbol: 'slider.vertical.3' },
     guests: { title: 'Guest Controls', row: 'Guest Controls', sub: 'Toggle automations when guests stay over.', symbol: 'person.2' },
-    'mach-e': { title: 'Car', row: 'Car', sub: 'Controls for the car.', symbol: 'car.side' },
+    'car': { title: 'Car', row: 'Car', sub: 'Controls for the car.', symbol: 'car.side' },
   };
   var MODES = {
     enabled: { label: 'Enable Presence-Based Lighting', summary: 'Enabled', detail: 'Presence and occupancy can control the lights.', icon: 'lightbulb', tint: '#43A047' },
@@ -151,7 +151,7 @@
     var un = !!o.unavailable;
     return K.GlassTile({ title: o.title, subtitle: un ? 'Unavailable' : o.subtitle, symbol: o.symbol, tint: CONTROL, isActive: !un && !!o.active, isUnavailable: un, kind: 'state' });
   };
-  /** Car Doors (MachEDoorsTile, rollout S item 25): an action tile in the Settings blue with the lock disc, the Security page tile's states. state: locked | unlocking | unlocked | jammed. */
+  /** Car Doors (VehicleDoorsTile, rollout S item 25): an action tile in the Settings blue with the lock disc, the Security page tile's states. state: locked | unlocking | unlocked | jammed. */
   HF.doorsTile = function (o) {
     o = o || {}; var un = !!o.unavailable, st = o.state || 'locked';
     var m = { locked: ['Locked', false, 'lock.fill', 'Unlock'], unlocking: ['Unlocking', true, 'lock.open', 'Lock'], unlocked: ['Unlocked', true, 'lock.open', 'Lock'],
@@ -197,8 +197,8 @@
       HF.tile({ title: 'Studio', symbol: 'guitars', on: r.music, unavailable: un, guest: true }),
       HF.tile({ title: 'Media Room', symbol: 'videoprojector', on: r.theater, unavailable: un, guest: true })], 150, 6))];
   };
-  /** Car has no SettingsSection: a title3 header over the tiles, 8 pt apart (MachEContent). Doors is the one action tile. o: {unavailable, long, doors} */
-  HF.machEBody = function (o) {
+  /** Car has no SettingsSection: a title3 header over the tiles, 8 pt apart (VehicleContent). Doors is the one action tile. o: {unavailable, long, doors} */
+  HF.vehicleBody = function (o) {
     o = o || {}; var un = !!o.unavailable;
     var tiles = [
       { title: 'Charge Status', symbol: 'ev.charger', subtitle: o.long ? 'Plugged In, Scheduled Charging Waiting For Off-Peak Window' : 'Plugged In', active: false },
@@ -211,7 +211,7 @@
       HF.grid(tiles.map(function (t) { return t.title === 'Doors' ? HF.doorsTile({ state: o.doors, unavailable: un }) : HF.stateTile({ title: t.title, symbol: t.symbol, subtitle: t.subtitle, active: t.active, unavailable: un }); }), 150, 4));
     return [sec];
   };
-  HF.bodies = { admin: HF.adminBody, 'special-device-modes': HF.specialBody, guests: HF.guestsBody, 'mach-e': HF.machEBody };
+  HF.bodies = { admin: HF.adminBody, 'special-device-modes': HF.specialBody, guests: HF.guestsBody, 'car': HF.vehicleBody };
 
   /** The page column: ScrollView content, readable width 840 pt, 24 pt between sections. */
   HF.col = function (kids) { return h('div.hf-col', kids); };
@@ -356,7 +356,7 @@
           HF.flipByTitle(t, title); return Mock.sleep(2000).then(function () { HF.flipByTitle(t, title); return Mock.sleep(Mock.anim.ms.state() + 300); }); } });
     } else {
       m.push({ id: 'value-colour', what: 'A read-only tile follows the car: Passenger Seat goes from Heat (active, tinted) to Off, or the reverse', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'default',
-        source: 'HassDesign/GlassTile.swift via GlassStateTile; MachEContent; design/motion.md section 6 (live value change)', reduce: 'still cross-fades, shortened to 0.2 s',
+        source: 'HassDesign/GlassTile.swift via GlassStateTile; VehicleContent; design/motion.md section 6 (live value change)', reduce: 'still cross-fades, shortened to 0.2 s',
         play: function (stage) {
           var t = stage.querySelector('.ui-tile[aria-label^="Passenger Seat"]'); if (!t) return Promise.resolve();
           var on = t.classList.contains('tinted'); t.classList.toggle('tinted', !on); t.classList.toggle('off', on); t.querySelector('.st').textContent = on ? 'Off' : 'Heat';

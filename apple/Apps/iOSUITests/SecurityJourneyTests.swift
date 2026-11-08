@@ -121,7 +121,7 @@ final class SecurityJourneyTests: JourneyTestCase {
             XCTAssertEqual(element.value as? String, value, label)
             assertTarget(element)
         }
-        XCTAssertTrue(app.staticTexts["Doors"].exists && app.staticTexts["Mach-E"].exists, "Section headers")
+        XCTAssertTrue(app.staticTexts["Doors"].exists && app.staticTexts["Car"].exists, "Section headers")
         XCTAssertTrue(app.buttons["security.chip.security"].exists)
         XCTAssertTrue(app.buttons["security.chip.contacts"].exists)
     }

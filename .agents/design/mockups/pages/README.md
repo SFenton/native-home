@@ -80,7 +80,7 @@
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
 | [Admin Controls](settings/household-admin/household-admin.html) | `household-admin` | shipped | iphone, duo, ipad | from `settings`; opens `presence-overrides-sheet`, `auto-reset-sheet` |
-| [Car](settings/household-mach-e/household-mach-e.html) | `household-mach-e` | shipped | iphone, duo, ipad | from `settings` |
+| [Car](settings/household-car/household-car.html) | `household-car` | shipped | iphone, duo, ipad | from `settings` |
 | [Guest Controls](settings/household-guests/household-guests.html) | `household-guests` | shipped | iphone, duo, ipad | from `settings` |
 | [Home Assistant web page (pushed in the settings cover)](settings/ha-web-page/ha-web-page.html) | `ha-web-page` | shipped | iphone, duo, ipad | from `ha-settings` |
 | [Performance (diagnostics)](settings/performance-screen/performance-screen.html) | `performance-screen` | shipped | iphone, duo, ipad |  |

@@ -9,7 +9,7 @@
 <script>
 (function () {
   Mock.mount({
-    kind: 'page', id: 'household-mach-e', title: 'Car', area: 'settings', status: 'shipped',
+    kind: 'page', id: 'household-car', title: 'Car', area: 'settings', status: 'shipped',
     summary: 'Settings > Household > car. A "Charge Status" header over five tiles for the car: Charge Status, Doors, Driver\'s Seat, Passenger Seat, Climate. Rollout S (2026-10-28, owner pick 25 B): Doors is an action tile with the lock disc (LockActions, the Security page tile\'s states); the other four show state only and are not buttons (the web gives them no action).',
     source: ['apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/HouseholdSettingsConfig.swift', 'apple/Sources/HassCore/Settings/HouseholdSettingsController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
     spec: ['.agents/pages/settings/household.md', '.agents/pages/security/ios.md', '.agents/patterns/entity-tile.md'],
@@ -19,7 +19,7 @@
     kitComponents: ['GlassTile', 'TileGrid'],
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
 
-    states: HF.pageStates('mach-e', {
+    states: HF.pageStates('car', {
       base: {},
       defaultTitle: 'Plugged in, doors locked, passenger seat heated',
       extra: {
@@ -33,8 +33,8 @@
       longNote: 'Charge Status shows the sensor\'s raw text (a long fixture value) and wraps; the other tiles wrap their titles',
     }),
 
-    motion: HF.pageMotion('mach-e', false),
-    transitions: HF.pageTransitions('mach-e'),
+    motion: HF.pageMotion('car', false),
+    transitions: HF.pageTransitions('car'),
 
     a11y: [
       { rule: 'Reading order', note: 'Back (or Open Navigation), Quick Links, Profile; the title "Car"; the heading "Charge Status"; then Charge Status, Doors, Driver\'s Seat, Passenger Seat, Climate.' },
@@ -60,7 +60,7 @@
       ],
       swiftui: [
         { rule: 'Accessibility: removing the button trait from a Button', verdict: 'pass', note: 'GlassStateTile now uses GlassTile\'s .state kind (a plain element, never a Button) instead of a hit-test-disabled command tile.', by: 'swiftui-pro skill' },
-        { rule: 'Views: reuse SettingsSection', verdict: 'pass', note: 'Fixed: MachEContent uses SettingsSection (HouseholdSettingsPage.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Views: reuse SettingsSection', verdict: 'pass', note: 'Fixed: VehicleContent uses SettingsSection (HouseholdSettingsPage.swift).', by: 'swiftui-pro skill' },
         { rule: 'Views: let in ViewBuilder with ForEach', verdict: 'pass', note: 'ForEach(config.tiles) with an inline let display is one tile per element (:203-214).', by: 'swiftui-pro skill' },
         { rule: 'Data: view reads one derived value per tile', verdict: 'pass', note: 'controller.readOnly(tile) returns a small struct, so a change updates one tile.', by: 'swiftui-pro skill' },
         { rule: 'Design: tokens for tint', verdict: 'pass', note: 'HassTokens.Tint.settingsControl (:113); no raw colours in the view.', by: 'swiftui-pro skill' },
@@ -69,7 +69,7 @@
 
     notes: [
       'loading: no loading UI; the tiles read the saved snapshot. With nothing saved they read Unavailable (the error state). refreshing: a new value from the car updates one tile in place. empty: the five tiles are config, so the page is never empty.',
-      'Docs versus code: pages/settings/household.md places the row in the Account sheet; the code pushes it on the Settings tab path. This page has no SettingsSection: a bare title3 header over the grid (8 pt apart, MachEContent).',
+      'Docs versus code: pages/settings/household.md places the row in the Account sheet; the code pushes it on the Settings tab path. This page has no SettingsSection: a bare title3 header over the grid (8 pt apart, VehicleContent).',
       'Fixture data: the values (Plugged In, Locked, Off, Heat, 72) are invented. The sensor shows its raw text, a select or number shows title-cased state (compactState). Entity ids are shortened with "..." where the real ones embed the vehicle identifier.',
       'Charge Status\'s real value set is not documented in the repo; "Plugged In" is a stand-in.',
       'Pages never split: one centred 840 pt column on wide windows; the Duo grid rounds to even columns around the hinge.',

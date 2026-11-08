@@ -1,6 +1,6 @@
 import Foundation
 
-/// What the household Settings tiles (Admin, Auto-Reset, Special Device Modes, Guest Controls, Mach-E) show and run as action
+/// What the household Settings tiles (Admin, Auto-Reset, Special Device Modes, Guest Controls, Car) show and run as action
 /// tiles (rollout lane S, audit items 18 to 25; pattern: `.agents/patterns/action-tiles.md`). Pure rules: the views feed them the
 /// shown state (``HouseholdSettingsController`` owns the optimistic value and the failure face) and run the spec.
 public enum HouseholdTileActions {
@@ -58,8 +58,8 @@ public enum HouseholdTileActions {
         return isOn ? "Guests staying" : "No guests"
     }
 
-    // MARK: - Mach-E Doors
+    // MARK: - Car Doors
 
-    /// The vehicle's door lock: the lock disc (Unlock, Lock), the same provider as the Security page's Mach-E tile.
+    /// The vehicle's door lock: the lock disc (Unlock, Lock), the same provider as the Security page's Car tile.
     public static var doors: LockActions { LockActions(entityId: SecurityConfig.vehicleLockEntityId) }
 }

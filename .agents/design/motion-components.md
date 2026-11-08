@@ -109,7 +109,7 @@ Owner, 2026-10-18: "make sure background color changes are animated, and that ev
 | **Security** `SecurityDoorTile`, `LockTile`, `GarageDoorTile` | open/closed, locked/jammed | `GlassTile` | Inherits | `GlassTileFace`; lock glyph `.symbolEffect(.replace)` | `SecurityTilesTests` |
 | **Security** `AlarmModeButton` | selected, mode | Fill and ink jump | Fix | `state` (the selected fill carries `.tintedGlassEdge`, which fades with it) | `SecuritySystemSheetTests` |
 | **Security** `AlarmPanel` | alarm state, triggered | Overlay jumps | Fix | `state` (no pulse: the triggered colour holds steady) | `SecuritySystemSheetTests` |
-| **Settings** `HouseholdActionTile`, `MachEDoorsTile`, `GlassStateTile` | active | `GlassTile` | Inherits | `GlassTileFace` | — |
+| **Settings** `HouseholdActionTile`, `VehicleDoorsTile`, `GlassStateTile` | active | `GlassTile` | Inherits | `GlassTileFace` | — |
 | **Settings** `AppIconChoiceButton` | selected | Check jumps | Fix | `quick` | `AppIconTests` |
 | **Settings** `SettingsLinkRow`, `FeedbackAttachmentTile` | none | — | Static | — | — |
 | **Sprinklers** `DayPicker` | day on | Fill jumps | Fix | `state` | `SprinklerControllerTests` |

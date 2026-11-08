@@ -1,10 +1,10 @@
 import Foundation
 
 /// Entities and copy for the household Settings pages: Admin Controls, Special Device Modes, Guest Controls
-/// and Mach-E (`.agents/pages/settings/household.md`).
+/// and Car (`.agents/pages/settings/household.md`).
 ///
 /// Source: `ha-sfenton-react-dash@9ac2a46:src/constants/portedDashboard.ts` (`ADMIN_*` 206-304,
-/// `SETTINGS_PAGE_ITEMS` 306, `GUEST_CONTROL_ITEMS` 391, `CONTROL_PAGES['mach-e']` 718) and copy from
+/// `SETTINGS_PAGE_ITEMS` 306, `GUEST_CONTROL_ITEMS` 391, `CONTROL_PAGES` vehicle page 718) and copy from
 /// `src/i18n/locales/en/pages/{settings,admin,specialDeviceModes,guests}.json`.
 public enum HouseholdSettingsConfig {
     // MARK: - Types
@@ -142,13 +142,13 @@ public enum HouseholdSettingsConfig {
         }
     }
 
-    // MARK: - Mach-E
+    // MARK: - Car
 
-    /// Mach-E page (`CONTROL_PAGES['mach-e']`): read-only tiles, since the web gives them no action.
+    /// Car page (`CONTROL_PAGES` vehicle page): read-only tiles, since the web gives them no action.
     /// Charge Status shows its value too (the web hides it, leaving a tile that says nothing; departure recorded
     /// in `.agents/pages/settings/household.md`).
-    public enum MachE {
-        public static let pageTitle = "Mach-E"
+    public enum Vehicle {
+        public static let pageTitle = "Car"
         public static let sectionTitle = "Charge Status"
         /// The page's tiles: the document's `household.vehicleTiles`.
         public static var tiles: [Tile] { HouseConfigSource.active.read { $0.household.vehicleTiles } ?? [] }
@@ -165,7 +165,7 @@ public enum HouseholdSettingsConfig {
     /// Every MDI icon the pages use, so a test can prove each maps to a real SF Symbol.
     public static var icons: Set<String> {
         let tiles = Admin.securityTiles + Admin.relayTiles + Admin.showSpecificTiles + Admin.autoResetTiles
-            + [SpecialDeviceModes.highAqiTile] + Guests.tiles + MachE.tiles
+            + [SpecialDeviceModes.highAqiTile] + Guests.tiles + Vehicle.tiles
         return Set(tiles.map(\.icon) + ["mdi:flash", "mdi:lightbulb-auto"] + PresenceOverrideState.allCases.map(\.icon))
     }
 }

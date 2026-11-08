@@ -59,7 +59,7 @@ enum UKHouseholdTiles {
         return view
     }
 
-    /// Mach-E Doors as an action tile with the lock disc (`MachEDoorsTile`, `LockActions`, tracked): Unlock while locked, Lock while
+    /// Car Doors as an action tile with the lock disc (`VehicleDoorsTile`, `LockActions`, tracked): Unlock while locked, Lock while
     /// unlocked or jammed. A tap shows the lock's own transitional state ("Unlocking") until it reports, and a rejected call shows
     /// "Didn't Respond" (the Security page's lock tile rules, on the Settings blue).
     static func doors(_ tile: HouseholdSettingsConfig.Tile, controller: HouseholdSettingsController, environment: UKTileEnvironment,
@@ -137,7 +137,7 @@ enum UKHouseholdTiles {
 
 // MARK: - Page
 
-/// A household Settings topic (`HouseholdSettingsPageView`): Admin Controls, Special Device Modes, Guest Controls or Mach-E,
+/// A household Settings topic (`HouseholdSettingsPageView`): Admin Controls, Special Device Modes, Guest Controls or Car,
 /// one scrolling column of titled sections, at most 840 pt wide.
 @MainActor
 final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
@@ -170,7 +170,7 @@ final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
         case .admin: buildAdmin()
         case .specialDeviceModes: buildSpecialDeviceModes()
         case .guests: buildGuests()
-        case .machE: buildMachE()
+        case .vehicle: buildVehicle()
         }
     }
 
@@ -246,8 +246,8 @@ final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
         section(config.section, UKHouseholdTiles.grid(toggles(config.tiles, face: .guest)))
     }
 
-    private func buildMachE() {
-        let config = HouseholdSettingsConfig.MachE.self
+    private func buildVehicle() {
+        let config = HouseholdSettingsConfig.Vehicle.self
         // Doors is the one action tile (owner, 2026-10-27, item 25: the Security page's lock tile, same entity, same lock service).
         let tiles = config.tiles.map { tile in
             HouseholdTileActions.kind(of: tile) == .lock

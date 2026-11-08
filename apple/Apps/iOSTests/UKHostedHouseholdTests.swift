@@ -4,7 +4,7 @@ import UIKit
 import XCTest
 @testable import HassUI
 
-/// The household topics (Admin, Special Device Modes, Guests, Mach-E) and the Location permission walk-through, hosted.
+/// The household topics (Admin, Special Device Modes, Guests, Car) and the Location permission walk-through, hosted.
 @MainActor
 final class UKHostedHouseholdTests: DemoHouseTestCase {
     private func topic(_ page: HouseholdSettingsPage, unavailable: Bool = false) -> (UIViewController, HouseholdGalleryRecorder, UIWindow) {
