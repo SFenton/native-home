@@ -77,6 +77,12 @@ class CiMacosTests(unittest.TestCase):
         self.assertIn("skipped", out.stdout)
         self.assertNotIn("uitest", log)
 
+    def test_journeys_skip_when_the_diff_reaches_no_journey_at_all(self):
+        out, log = self.run_script("journeys", "iphone", STUB_RUNNABLE="", STUB_ALL="")
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("skipped", out.stdout)
+        self.assertNotIn("uitest", log)
+
     def test_journeys_with_a_file_needing_a_pick_still_go_to_the_runner(self):
         """Exit 3 from the selection tool falls through: the runner fails on it, CI never guesses."""
         out, log = self.run_script("journeys", "ipad", STUB_RUNNABLE="", STUB_ALL="", STUB_AFFECTED_RC="3")

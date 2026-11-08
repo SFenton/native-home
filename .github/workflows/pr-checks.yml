@@ -31,7 +31,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
+  # A manual run has its own group per layout and dry-run flag, so dispatching both smoke layouts does not cancel one with the other
+  # (the first parallel-slim run was cancelled that way); a new push still cancels the pull request's older run.
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}-{1}', inputs.smoke_layout, inputs.report_dry_run) || '' }}
   cancel-in-progress: true
 defaults:
   run:
@@ -274,6 +276,8 @@ jobs:
       # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
       FENTON_HEALTH_SHOT_WALL: "180"
       FENTON_HEALTH_BOOT_WALL: "300"
+      # simslim's own wall for one boot-and-reconfigure (default 10m) is short for a cold hosted Duo.
+      SIMSLIM_BOOT_TIMEOUT: 20m
       # Hosted-only build settings (the products script adds them to the cache key, so hosted products have their own key):
       # host architecture only, no index store. Local builds never see these.
       FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
@@ -292,6 +296,14 @@ jobs:
           tools/ci_hosted_setup.sh
           # Spotlight indexing competes with the compile for 3 cores; best effort (needs sudo).
           sudo mdutil -a -i off || true
+      - name: Verify simslim (parallel-slim)
+        # The layout under test is simslim; the step fails the job when the binary is not on PATH or does not run.
+        if: ${{ inputs.smoke_layout == 'parallel-slim' }}
+        run: |
+          command -v simslim || { echo "::error::simslim is not on PATH after the install"; exit 1; }
+          simslim --version
+          echo "FENTON_REQUIRE_SIMSLIM=${FENTON_REQUIRE_SIMSLIM:-unset}"
+          [ "${FENTON_REQUIRE_SIMSLIM:-}" = 1 ] || { echo "::error::FENTON_REQUIRE_SIMSLIM was not exported by the install"; exit 1; }
       - name: Selected Xcode (cache key)
         id: xcode
         run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"

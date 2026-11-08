@@ -25,6 +25,11 @@ if [[ "${FENTON_INSTALL_SIMSLIM:-}" == 1 ]]; then
   echo "$SIMSLIM_SHA256  $bin/simslim.tar.gz" | shasum -a 256 -c -
   tar -xzf "$bin/simslim.tar.gz" -C "$bin" simslim
   chmod +x "$bin/simslim"
-  [[ -n "${GITHUB_PATH:-}" ]] && echo "$bin" >> "$GITHUB_PATH"
-  "$bin/simslim" --version || true
+  # Loud, never a warning: the parallel-slim layout on stock simulators would measure the wrong thing. Any failure above stops the
+  # step (set -e); these two make sure the later steps can find the binary and that it runs.
+  [[ -n "${GITHUB_PATH:-}" ]] || { echo "ci_hosted_setup: GITHUB_PATH is not set; simslim would not reach the later steps" >&2; exit 1; }
+  echo "$bin" >> "$GITHUB_PATH"
+  "$bin/simslim" --version || { echo "ci_hosted_setup: the installed simslim does not run" >&2; exit 1; }
+  # sim_slim.sh fails instead of leaving a simulator stock, and the later steps know simslim was asked for.
+  [[ -z "${GITHUB_ENV:-}" ]] || echo "FENTON_REQUIRE_SIMSLIM=1" >> "$GITHUB_ENV"
 fi

@@ -190,6 +190,23 @@ class RuleTests(unittest.TestCase):
         self.assertRegex(setup, r'SIMSLIM_SHA256="[0-9a-f]{64}"')
         self.assertIn("shasum -a 256 -c", setup)
         self.assertIn("--parallel-families", (Path(__file__).resolve().parents[1] / "ci_macos.sh").read_text(encoding="utf-8"))
+        # The install is loud: no `|| true` on the version check, and the later steps are told simslim is required.
+        self.assertNotIn("--version || true", setup)
+        self.assertIn("FENTON_REQUIRE_SIMSLIM=1", setup)
+        self.assertIn("name: Verify simslim (parallel-slim)", macos)
+
+    def test_manual_runs_of_different_layouts_do_not_cancel_each_other(self):
+        text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
+        group = re.search(r"^  group: (.*)$", text, re.M).group(1)
+        self.assertIn("inputs.smoke_layout", group)
+        self.assertIn("inputs.report_dry_run", group)
+
+    def test_the_red_run_report_files_only_from_a_push_to_main(self):
+        text = jobs("pr-checks.yml")["report-red-main"]
+        cond = re.search(r"^    if: (.*)$", text, re.M).group(1)
+        self.assertIn("github.event_name == 'push' && contains(needs.*.result, 'failure')", cond)
+        self.assertIn("github.event_name == 'workflow_dispatch' && inputs.report_dry_run", cond)
+        self.assertIn("DRY_RUN: ${{ github.event_name != 'push' && 'true' || 'false' }}", text)
 
     def test_the_release_build_runs_on_a_push_to_main_only(self):
         text = jobs("pr-checks.yml")["build-release"]

@@ -41,15 +41,17 @@ check_family() {
 
 # runnable FAMILY: the Gate-plan journeys the diff reaches on a family, and whether Gate runs any of them.
 # --changed runs the Gate plan. A class Gate skips whole (the Live-plan shell journeys need the real house) matches nothing there,
-# and xcodebuild reports EMPTY, a failure. Skip only when the diff reaches journeys and Gate runs none of them. A crash of the
+# and xcodebuild reports EMPTY, a failure. Skip when Gate runs none of the journeys the diff reaches, which includes a diff that reaches none. A crash of the
 # selection tool fails the step; exit 3 (a file needing a pick) falls through to the runner, which fails on it.
 journeys_for() {
   local family="$1" rc=0 runnable all
   runnable="$("${AFFECTED[@]}" --journeys --device "$family" --plan Gate)" || rc=$?
   case "$rc" in 0 | 3) ;; *) echo "affected_tests.py failed (exit $rc)" >&2; return "$rc" ;; esac
   all="$("${AFFECTED[@]}" --journeys --device "$family")" || true
-  if [[ -n "$all" && -z "$runnable" ]]; then
-    echo "no journey the diff reaches runs in the Gate plan on $family (selected: $all)"
+  # Exit 3: a changed file needs a pick; the runner fails on it, CI never guesses.
+  [[ "$rc" == 3 ]] && return 0
+  if [[ -z "$runnable" ]]; then
+    echo "no journey the diff reaches runs in the Gate plan on $family (selected: ${all:-none})"
     return 10
   fi
   return 0
