@@ -10,9 +10,8 @@
 #             touch no LiveActivity, Widget or Push journey; switching back to ui.json later costs one reboot
 #
 # FENTON_SIM_SLIM=0 skips slimming (stock simulator, for A/B perf runs); FENTON_SIM_LEAN=1 means --lean. A missing
-# simslim is a warning, not a failure: the run goes ahead on a stock simulator. FENTON_REQUIRE_SIMSLIM=1 (the hosted parallel-slim
-# layout, tools/ci_hosted_setup.sh) turns every one of those quiet fallbacks into a failure with simslim's own output printed: a
-# measurement of the slim layout on stock simulators would be a wrong number.
+# simslim is a warning, not a failure: the run goes ahead on a stock simulator. On a GitHub-hosted runner
+# (FENTON_CI_HOSTED=1) it does nothing: simslim is not installed there, and the measured hosted layout is stock simulators, one at a time.
 # See .agents/platforms/apple/capacity.md.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,15 +25,10 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-REQUIRE=0; [[ "${FENTON_REQUIRE_SIMSLIM:-0}" == 1 ]] && REQUIRE=1
-# fallback MESSAGE: stock-simulator fallback, or a failure when simslim is required.
-fallback() {
-  if [[ $REQUIRE == 1 ]]; then echo "sim_slim: $1 (FENTON_REQUIRE_SIMSLIM=1: failing)" >&2; exit 1; fi
-  echo "sim_slim: $1; continuing stock" >&2; exit 0
-}
 [[ -n "$UDID" ]] || { echo "usage: sim_slim.sh [--lean] [--profile FILE] UDID" >&2; exit 2; }
+[[ "${FENTON_CI_HOSTED:-}" == 1 ]] && { echo "sim_slim: hosted runner, leaving $UDID stock"; exit 0; }
 [[ "${FENTON_SIM_SLIM:-1}" == 0 ]] && { echo "sim_slim: FENTON_SIM_SLIM=0, leaving $UDID stock"; exit 0; }
-command -v simslim > /dev/null || fallback "simslim not installed (brew install mobai-app/tap/simslim) for $UDID"
+command -v simslim > /dev/null || { echo "sim_slim: simslim not installed (brew install mobai-app/tap/simslim); leaving $UDID stock" >&2; exit 0; }
 
 xcrun simctl bootstatus "$UDID" -b > /dev/null 2>&1 || { echo "sim_slim: $UDID would not boot" >&2; exit 1; }
 name="$(basename "$PROFILE")"
@@ -45,13 +39,9 @@ else
   # No-reboot only moves toward more-disabled; a daemon the profile wants back on (ui.json after ui-lean.json) needs `on`.
   simslim on "$UDID" --no-reboot --profile "$PROFILE" > /dev/null 2>&1 || true
   if ! simslim verify "$UDID" --profile "$PROFILE" > /dev/null 2>&1; then
-    on_out="$(simslim on "$UDID" --profile "$PROFILE" 2>&1)" || { [[ $REQUIRE == 1 ]] && echo "$on_out" | tail -20 >&2; fallback "simslim on failed for $UDID"; }
+    simslim on "$UDID" --profile "$PROFILE" > /dev/null 2>&1 || { echo "sim_slim: simslim on failed for $UDID; continuing stock" >&2; exit 0; }
     xcrun simctl bootstatus "$UDID" -b > /dev/null 2>&1 || true
-    if [[ $REQUIRE == 1 ]] && ! simslim verify "$UDID" --profile "$PROFILE" > /dev/null 2>&1; then
-      simslim verify "$UDID" --profile "$PROFILE" 2>&1 | tail -20 >&2
-      fallback "$UDID is not slim after simslim on"
-    fi
   fi
 fi
-simslim doctor "$UDID" --requires push > /dev/null || { [[ $REQUIRE == 1 ]] && fallback "doctor reports push broken on $UDID"; echo "sim_slim: doctor reports push broken on $UDID" >&2; }
+simslim doctor "$UDID" --requires push > /dev/null || echo "sim_slim: doctor reports push broken on $UDID" >&2
 exit 0

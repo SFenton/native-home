@@ -3,12 +3,12 @@
 # Hosted mode only (FENTON_CI_HOSTED=1 on a GitHub-hosted runner); the journey runner refuses anywhere else.
 #
 #   tools/ci_macos.sh build                  build the test products once (no simulator booted: a first Duo boot beside a compile killed runners)
-#   tools/ci_macos.sh smoke FAMILY|all       Smoke plan on iphone|duo|ipad (one at a time, each booted and settled first), or all three at once
-#   tools/ci_macos.sh journeys FAMILY|all    the journeys the diff reaches (pull requests only; skips when Gate runs none of them)
-#   tools/ci_macos.sh swift-test             the full swift test
-#   tools/ci_macos.sh summary                the timing table and, when simslim is installed, its memory and swap figures
+#   tools/ci_macos.sh smoke FAMILY           Smoke plan on iphone|duo|ipad (one at a time on stock simulators, each booted and settled first)
+#   tools/ci_macos.sh journeys FAMILY         the journeys the diff reaches (pull requests only; skips when Gate runs none of them)
+#   tools/ci_macos.sh swift-test             swift test (the affected suites on a pull request, everything otherwise)
+#   tools/ci_macos.sh summary                the timing table and the runner's swap and memory
 #
-# `all` is the parallel layout: one ios_uitest.sh run with --parallel-families on slimmed simulators. A phase appends
+# A phase appends
 # "NAME<TAB>SECONDS<TAB>EXIT" to the timings file (CI_MACOS_TIMINGS, default $RUNNER_TEMP/ci-timings.tsv).
 # Test seams: CI_MACOS_UITEST, CI_MACOS_AFFECTED, CI_MACOS_SETTLE, CI_MACOS_HEARTBEAT, CI_MACOS_RELEASE and CI_MACOS_SWIFT replace the scripts they name.
 # One VM runs all three devices in turn, and ios_uitest.sh leaves a simulator booted (warm) when its run ends. Left running, the earlier
@@ -25,7 +25,6 @@ HEARTBEAT="${CI_MACOS_HEARTBEAT:-$ROOT/tools/ci_heartbeat.sh}"
 SWIFT=("${CI_MACOS_SWIFT:-swift}")
 RELEASE="${CI_MACOS_RELEASE:-$ROOT/tools/ci_release_sims.sh}"
 TIMINGS="${CI_MACOS_TIMINGS:-${RUNNER_TEMP:-/tmp}/ci-timings.tsv}"
-FAMILIES=(iphone duo ipad)
 
 # phase NAME CMD...: run CMD, record its wall time and exit status, return its status.
 phase() {
@@ -36,13 +35,8 @@ phase() {
   return "$rc"
 }
 
-# scope_args FAMILY|all: the ios_uitest.sh arguments that pick the devices.
-scope_args() {
-  if [[ "$1" == all ]]; then echo "--parallel-families"; else echo "--only $1"; fi
-}
-
 check_family() {
-  case "$1" in iphone | duo | ipad) ;; all) [[ "$2" == 1 ]] || { echo "ci_macos: 'all' is not valid here" >&2; exit 2; } ;; *) echo "ci_macos: unknown family '$1'" >&2; exit 2 ;; esac
+  case "$1" in iphone | duo | ipad) ;; *) echo "ci_macos: unknown family '$1'" >&2; exit 2 ;; esac
 }
 
 # runnable FAMILY: the Gate-plan journeys the diff reaches on a family, and whether Gate runs any of them.
@@ -70,29 +64,16 @@ case "$cmd" in
     ;;
   smoke)
     target="${2:-}"; check_family "$target" 1
-    if [[ "$target" == all ]]; then
-      phase smoke-all "$UITEST" --plan Smoke --force --parallel-families
-    else
-      "$RELEASE" || true
-      # The first boot of a runtime on a fresh VM holds the runner at a high load for minutes (the Duo above all); wait for it to settle.
-      phase "boot-$target" "$HEARTBEAT" run -- "$SETTLE" "$target" || true
-      phase "smoke-$target" "$UITEST" --only "$target" --plan Smoke --force
-    fi
+    "$RELEASE" || true
+    # The first boot of a runtime on a fresh VM holds the runner at a high load for minutes (the Duo above all); wait for it to settle.
+    phase "boot-$target" "$HEARTBEAT" run -- "$SETTLE" "$target" || true
+    phase "smoke-$target" "$UITEST" --only "$target" --plan Smoke --force
     ;;
   journeys)
     target="${2:-}"; check_family "$target" 1
-    if [[ "$target" == all ]]; then list=("${FAMILIES[@]}"); else list=("$target"); fi
-    reach=0
-    for family in "${list[@]}"; do
-      jrc=0; journeys_for "$family" || jrc=$?
-      case "$jrc" in 0) reach=1 ;; 10) ;; *) exit "$jrc" ;; esac
-    done
-    if [[ "$reach" == 0 ]]; then
-      echo "skipped: no journey the diff reaches runs in the Gate plan on $target"
-      exit 0
-    fi
-    # shellcheck disable=SC2046
-    phase "journeys-$target" "$UITEST" $(scope_args "$target") --changed --force
+    jrc=0; journeys_for "$target" || jrc=$?
+    case "$jrc" in 0) ;; 10) echo "skipped: no journey the diff reaches runs in the Gate plan on $target"; exit 0 ;; *) exit "$jrc" ;; esac
+    phase "journeys-$target" "$UITEST" --only "$target" --changed --force
     ;;
   swift-test)
     "$RELEASE" || true
@@ -124,15 +105,9 @@ case "$cmd" in
       echo "|---|---|---|"
       [[ -f "$TIMINGS" ]] && awk -F'\t' '{ printf "| %s | %s | %s |\n", $1, $2, $3 }' "$TIMINGS"
       echo
-      echo "Layout: \`${FENTON_SMOKE_LAYOUT:-sequential}\`"
-      echo
       echo '```'
       echo "swap: $(sysctl -n vm.swapusage 2> /dev/null || echo unknown)"
       vm_stat 2> /dev/null | head -12
-      if command -v simslim > /dev/null; then
-        echo
-        simslim measure 2>&1 | head -40 || true
-      fi
       echo '```'
     } | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
     ;;

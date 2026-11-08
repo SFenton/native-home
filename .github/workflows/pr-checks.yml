@@ -11,19 +11,6 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      scope_base:
-        description: "Test the job filter: compare scope_base..scope_head instead of running everything (empty = run everything)"
-        required: false
-        default: ""
-      scope_head:
-        description: "Head commit for scope_base (default: this ref)"
-        required: false
-        default: ""
-      smoke_layout:
-        description: "How the macOS job runs the three devices: sequential (stock simulators, one at a time) or parallel-slim (simslim, all at once)"
-        type: choice
-        options: [sequential, parallel-slim]
-        default: sequential
       report_dry_run:
         description: "Test the red-run report: print the Workflow issue instead of filing it (runs even when the tests are green)"
         type: boolean
@@ -31,9 +18,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  # A manual run has its own group per layout and dry-run flag, so dispatching both smoke layouts does not cancel one with the other
-  # (the first parallel-slim run was cancelled that way); a new push still cancels the pull request's older run.
-  group: pr-checks-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}-{1}', inputs.smoke_layout, inputs.report_dry_run) || '' }}
+  # A manual run has its own group per dry-run flag; a new push still cancels the pull request's older run.
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}', inputs.report_dry_run) || '' }}
   cancel-in-progress: true
 defaults:
   run:
@@ -55,18 +41,10 @@ jobs:
       app: ${{ steps.filter.outcome == 'skipped' && 'true' || (steps.filter.outputs.app_code == 'true' || steps.filter.outputs.app_tools == 'true') }}
       release: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.release }}
     steps:
-      # Only the manual run compares commits itself (scope_base..scope_head), so it needs the history.
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.scope_base != '' }}
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - id: filter
-        if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.scope_base != '') }}
+        if: ${{ github.event_name == 'pull_request' }}
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          base: ${{ inputs.scope_base }}
-          ref: ${{ inputs.scope_head }}
           # `every` applies to all filters: a file must match every pattern of a filter, so app_code subtracts with its negations and
           # the other two filters are one brace pattern each.
           # app_code: every path that is not documentation or Python tooling.
@@ -270,14 +248,9 @@ jobs:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
       FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
-      # sequential (default): one device at a time on stock simulators. parallel-slim: all three at once on simslim-slimmed simulators.
-      # Chosen by the manual run's smoke_layout input; the winner of the measurement becomes the default.
-      FENTON_SMOKE_LAYOUT: ${{ inputs.smoke_layout || 'sequential' }}
       # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
       FENTON_HEALTH_SHOT_WALL: "180"
       FENTON_HEALTH_BOOT_WALL: "300"
-      # simslim's own wall for one boot-and-reconfigure (default 10m) is short for a cold hosted Duo.
-      SIMSLIM_BOOT_TIMEOUT: 20m
       # Hosted-only build settings (the products script adds them to the cache key, so hosted products have their own key):
       # host architecture only, no index store. Local builds never see these.
       FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
@@ -290,20 +263,10 @@ jobs:
         # The runner context is not allowed in job env.
         run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        env:
-          FENTON_INSTALL_SIMSLIM: ${{ inputs.smoke_layout == 'parallel-slim' && '1' || '0' }}
         run: |
           tools/ci_hosted_setup.sh
           # Spotlight indexing competes with the compile for 3 cores; best effort (needs sudo).
           sudo mdutil -a -i off || true
-      - name: Verify simslim (parallel-slim)
-        # The layout under test is simslim; the step fails the job when the binary is not on PATH or does not run.
-        if: ${{ inputs.smoke_layout == 'parallel-slim' }}
-        run: |
-          command -v simslim || { echo "::error::simslim is not on PATH after the install"; exit 1; }
-          simslim --version
-          echo "FENTON_REQUIRE_SIMSLIM=${FENTON_REQUIRE_SIMSLIM:-unset}"
-          [ "${FENTON_REQUIRE_SIMSLIM:-}" = 1 ] || { echo "::error::FENTON_REQUIRE_SIMSLIM was not exported by the install"; exit 1; }
       - name: Selected Xcode (cache key)
         id: xcode
         run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
@@ -331,47 +294,37 @@ jobs:
         run: tools/ci_macos.sh build
       - name: Smoke on iPhone
         id: iphone
-        if: ${{ !cancelled() && inputs.smoke_layout != 'parallel-slim' }}
+        if: ${{ !cancelled() }}
         continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
         run: |
           tools/ci_macos.sh smoke iphone
       - name: Journeys the diff reaches on iPhone
         id: iphone_journeys
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout != 'parallel-slim' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         continue-on-error: true
         run: tools/ci_macos.sh journeys iphone
       - name: Smoke on iPhone Duo
         id: duo
-        if: ${{ !cancelled() && inputs.smoke_layout != 'parallel-slim' }}
+        if: ${{ !cancelled() }}
         continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
         run: |
           tools/ci_macos.sh smoke duo
       - name: Journeys the diff reaches on iPhone Duo
         id: duo_journeys
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout != 'parallel-slim' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         continue-on-error: true
         run: tools/ci_macos.sh journeys duo
       - name: Smoke on iPad
         id: ipad
-        if: ${{ !cancelled() && inputs.smoke_layout != 'parallel-slim' }}
+        if: ${{ !cancelled() }}
         continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
         run: |
           tools/ci_macos.sh smoke ipad
       - name: Journeys the diff reaches on iPad
         id: ipad_journeys
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout != 'parallel-slim' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         continue-on-error: true
         run: tools/ci_macos.sh journeys ipad
-      - name: Smoke on all three devices (parallel-slim)
-        id: parallel
-        if: ${{ !cancelled() && inputs.smoke_layout == 'parallel-slim' }}
-        continue-on-error: true
-        run: tools/ci_macos.sh smoke all
-      - name: Journeys the diff reaches on all three devices (parallel-slim)
-        id: parallel_journeys
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout == 'parallel-slim' }}
-        continue-on-error: true
-        run: tools/ci_macos.sh journeys all
       - name: swift test
         if: ${{ !cancelled() }}
         run: tools/ci_macos.sh swift-test
@@ -379,14 +332,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: tools/ci_macos.sh summary
       - name: Simulator diagnostics
-        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.duo.outcome == 'failure' || steps.ipad.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure' || steps.duo_journeys.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.duo.outcome == 'failure' || steps.ipad.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure' || steps.duo_journeys.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure') }}
         continue-on-error: true
         run: |
           xcrun simctl list devices
           df -h / | tail -1
           log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
       - name: Keep the iphone results
-        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-iphone
@@ -398,7 +351,7 @@ jobs:
             apple/.build/uitest-iphone.log
           if-no-files-found: ignore
       - name: Keep the duo results
-        if: ${{ !cancelled() && (steps.duo.outcome == 'failure' || steps.duo_journeys.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.duo.outcome == 'failure' || steps.duo_journeys.outcome == 'failure') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-duo
@@ -410,7 +363,7 @@ jobs:
             apple/.build/uitest-duo.log
           if-no-files-found: ignore
       - name: Keep the ipad results
-        if: ${{ !cancelled() && (steps.ipad.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.ipad.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-ipad

@@ -177,28 +177,19 @@ class RuleTests(unittest.TestCase):
         self.assertIn("name: swift test", by_name)
         self.assertNotIn("affected_tests.py --swift", (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8"))
 
-    def test_the_smoke_layout_input_picks_sequential_or_parallel_slim_with_sequential_the_default(self):
+    def test_the_macos_job_runs_one_device_at_a_time_on_stock_simulators(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
-        self.assertRegex(text, r"smoke_layout:\n(?:.*\n)*?        options: \[sequential, parallel-slim\]\n        default: sequential")
+        for gone in ("smoke_layout", "parallel-slim", "simslim", "SIMSLIM", "scope_base", "scope_head"):
+            self.assertNotIn(gone, text.replace("tools/simslim/**", ""))
         macos = jobs("pr-checks.yml")["macos"]
-        self.assertIn("FENTON_INSTALL_SIMSLIM: ${{ inputs.smoke_layout == 'parallel-slim' && '1' || '0' }}", macos)
-        self.assertIn("tools/ci_macos.sh smoke all", macos)
         for family in ("iphone", "duo", "ipad"):
+            self.assertIn("tools/ci_macos.sh smoke %s" % family, macos)
             self.assertIn("name: xcresult-%s" % family, macos)
-        setup = (Path(__file__).resolve().parents[1] / "ci_hosted_setup.sh").read_text(encoding="utf-8")
-        self.assertIn("simslim-v0.14.0-macos-arm64.tar.gz", setup)
-        self.assertRegex(setup, r'SIMSLIM_SHA256="[0-9a-f]{64}"')
-        self.assertIn("shasum -a 256 -c", setup)
-        self.assertIn("--parallel-families", (Path(__file__).resolve().parents[1] / "ci_macos.sh").read_text(encoding="utf-8"))
-        # The install is loud: no `|| true` on the version check, and the later steps are told simslim is required.
-        self.assertNotIn("--version || true", setup)
-        self.assertIn("FENTON_REQUIRE_SIMSLIM=1", setup)
-        self.assertIn("name: Verify simslim (parallel-slim)", macos)
+        self.assertNotIn("simslim", (Path(__file__).resolve().parents[1] / "ci_hosted_setup.sh").read_text(encoding="utf-8"))
 
-    def test_manual_runs_of_different_layouts_do_not_cancel_each_other(self):
+    def test_manual_runs_with_different_dry_run_flags_do_not_cancel_each_other(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
         group = re.search(r"^  group: (.*)$", text, re.M).group(1)
-        self.assertIn("inputs.smoke_layout", group)
         self.assertIn("inputs.report_dry_run", group)
 
     def test_the_red_run_report_files_only_from_a_push_to_main(self):
@@ -254,12 +245,6 @@ class ScopeFilterTests(unittest.TestCase):
             self.assertIn(negation, text)
         self.assertIn("steps.filter.outcome == 'skipped' && 'true'", text)
         self.assertIn("predicate-quantifier: every", text)
-
-    def test_the_manual_run_can_test_the_filter_on_given_commits(self):
-        text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
-        self.assertIn("scope_base:", text)
-        self.assertIn("scope_head:", text)
-        self.assertIn("base: ${{ inputs.scope_base }}", text)
 
 
 class MergeGateTests(unittest.TestCase):

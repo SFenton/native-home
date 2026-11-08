@@ -60,11 +60,9 @@ class CiMacosTests(unittest.TestCase):
         self.assertEqual(out.returncode, 1)
         self.assertEqual(self.phases()[-1][2], "1")
 
-    def test_all_runs_the_three_devices_at_once_with_no_separate_boot(self):
-        out, log = self.run_script("smoke", "all")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("uitest --plan Smoke --force --parallel-families", log)
-        self.assertNotIn("settle", log)
+    def test_all_is_not_a_device(self):
+        self.assertEqual(self.run_script("smoke", "all")[0].returncode, 2)
+        self.assertEqual(self.run_script("journeys", "all")[0].returncode, 2)
 
     def test_journeys_run_when_the_diff_reaches_a_runnable_one(self):
         out, log = self.run_script("journeys", "iphone", STUB_RUNNABLE="A", STUB_ALL="A")
@@ -88,11 +86,6 @@ class CiMacosTests(unittest.TestCase):
         out, log = self.run_script("journeys", "ipad", STUB_RUNNABLE="", STUB_ALL="", STUB_AFFECTED_RC="3")
         self.assertEqual(out.returncode, 0)
         self.assertIn("uitest --only ipad --changed --force", log)
-
-    def test_journeys_for_all_run_parallel_when_any_device_reaches_one(self):
-        out, log = self.run_script("journeys", "all", STUB_RUNNABLE="A", STUB_ALL="A")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("uitest --parallel-families --changed --force", log)
 
     def test_a_crash_of_the_selection_tool_fails_the_step(self):
         out, _ = self.run_script("journeys", "iphone", STUB_AFFECTED_RC="2")
@@ -118,11 +111,11 @@ class CiMacosTests(unittest.TestCase):
 
     def test_summary_prints_a_table_of_the_phases(self):
         self.timings.write_text("build\t120\t0\nsmoke-duo\t150\t1\n")
-        out, _ = self.run_script("summary", FENTON_SMOKE_LAYOUT="sequential")
+        out, _ = self.run_script("summary")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("| build | 120 | 0 |", out.stdout)
         self.assertIn("| smoke-duo | 150 | 1 |", out.stdout)
-        self.assertIn("sequential", (self.dir / "summary").read_text())
+        self.assertIn("Timing by phase", (self.dir / "summary").read_text())
 
     def test_an_unknown_command_or_device_is_a_usage_error(self):
         self.assertEqual(self.run_script("nothing")[0].returncode, 2)
