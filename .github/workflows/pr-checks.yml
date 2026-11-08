@@ -1,18 +1,8 @@
 name: pr-checks
-# The merge gate (tools/pr_land.sh requires the aggregate job `pr-checks`). Every job with a disk pre-flight, and repo-checks, runs on the
-# MacBook runner (self-hosted, macOS, hass; ~/actions-runner-hass) until hosted runners land: the Mac mini (self-hosted, macOS, host) lacks
-# disk (owner, 2026-11-07). The aggregate job says [self-hosted, macOS] and runs on whichever Mac is idle. Jobs queue while their machine is asleep or off.
-# Heavy compiles take a tools/devcap.py `build` hold. tools/ci_scope.py (an allowlist) sorts a change into docs, tools or app:
-# docs and tools-only changes run the repo checks and the Python tool tests and compile nothing; an app change runs `swift test`
-# (only the suites the diff affects on a pull request, tools/affected_tests.py; everything on a push to main); the Release build
-# runs only when apple/ changes.
-# Two job sets share this file (hosted CI, .agents/workflow/ci.md#hosted-github-actions):
-#   * the self-hosted Mac jobs above (scope, repo-checks, build-release, swift-test) run only while the repo is PRIVATE
-#     (`if: github.event.repository.private`); delete them when the repo goes public;
-#   * the Linux `*-hosted` jobs run only while it is PUBLIC (`if: !github.event.repository.private`); the hosted macOS jobs (swift-test-hosted,
-#     build-release-hosted, sim-smoke) run only when the repository variable HOSTED_MACOS is `on` (unset by default), so nothing bills while private. They run on plain `pull_request` with no secrets, FENTON_CI_HOSTED=1 (tools/ci_hosted.py) and no devcap.
-# denylist-scan runs in both states on a hosted Linux runner, on same-repo events only (it needs a secret). The aggregate `pr-checks`
-# is the one check pr_land.sh requires; it runs on a Mac while private and on Linux once public.
+# The merge gate: the aggregate job `pr-checks` (GitHub requires it by name). Everything runs on GitHub-hosted runners.
+# Linux: the repo checks, the Python tool tests, the denylist scan and the aggregate. macOS (only while the repository variable
+# HOSTED_MACOS is `on`): swift test, the Release build and the Smoke simulators. All of them run on plain `pull_request` with no
+# secrets (except the denylist scan), FENTON_CI_HOSTED=1 (tools/ci_hosted.py) and no devcap.
 # Documentation: .agents/workflow/pr-lifecycle.md, .agents/workflow/ci.md.
 on:
   pull_request:
@@ -25,161 +15,15 @@ permissions:
 concurrency:
   group: pr-checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-env:
-  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 defaults:
   run:
     shell: bash
 jobs:
-  scope:
-    if: ${{ github.event.repository.private }}
-    runs-on: [self-hosted, macOS, hass]  # MacBook runner until hosted runners land; the mini lacks disk (owner, 2026-11-07)
-    timeout-minutes: 10
-    outputs:
-      app: ${{ steps.scope.outputs.app }}
-      release: ${{ steps.scope.outputs.release }}
-      scope: ${{ steps.scope.outputs.scope }}
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          clean: false
-      - name: Reset the workspace (keeps the build caches)
-        run: git clean -ffdx -e apple/.build -e build
-      - name: Disk pre-flight (30 GB free)
-        run: python3 tools/ci_hygiene.py preflight --min-gb 30
-      - id: scope
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          # An allowlist (tools/ci_scope.py): docs and tools-only changes compile nothing; a push to main runs everything.
-          if [ -n "${BASE:-}" ]; then
-            result="$(python3 tools/ci_scope.py --base "$BASE")"
-          else
-            result="$(printf 'app=true\nrelease=true\nscope=app\n')"
-          fi
-          echo "$result" >> "$GITHUB_OUTPUT"
-          echo "scope: $(echo "$result" | tr '\n' ' ')" >> "$GITHUB_STEP_SUMMARY"
-
-  repo-checks:
-    needs: scope
-    if: ${{ github.event.repository.private }}
-    runs-on: [self-hosted, macOS, hass]  # MacBook runner until hosted runners land; the mini lacks disk (owner, 2026-11-07)
-    # 150: the tool-test step runs the full suite on the head, and again on the base when the head run fails (tools/ci_new_failures.py); 60 cancelled it (run 42354907297).
-    timeout-minutes: 150
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          clean: false
-      - name: Reset the workspace (keeps the build caches)
-        run: git clean -ffdx -e apple/.build -e build
-      - name: Mockups
-        run: |
-          python3 tools/mockups_check.py
-          python3 tools/mockups_index.py --check
-      - name: Pattern and component registry, Jev sync
-        run: |
-          python3 tools/pattern_guard.py
-          python3 tools/components_index.py --check
-          python3 tools/jev_ask.py sync --check
-      - name: House-data lint (no new house data or secret-shaped strings outside the recorded debt)
-        run: python3 tools/house_scan.py
-      - name: Motion lint
-        run: tools/lint_motion.sh
-      - name: Test plans are current (apple/TestPlans from the journey sources)
-        run: python3 tools/test_plans.py --check
-      - name: Test suites resolve (contracts/test-suites.json against the journey sources)
-        run: python3 tools/test_suites.py check
-      - name: Python tool tests (a pull request fails only on failures new versus its base; owner, 2026-11-04)
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ -n "${BASE:-}" ]; then
-            python3 tools/ci_new_failures.py --base "$BASE"
-          else
-            tools/run_tool_tests.sh
-          fi
-
-  build-release:
-    needs: [scope, repo-checks]
-    if: ${{ github.event.repository.private && needs.scope.outputs.release == 'true' }}
-    runs-on: [self-hosted, macOS, hass]
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          clean: false
-      - name: Reset the workspace (keeps the build caches)
-        run: git clean -ffdx -e apple/.build -e build
-      - name: Disk pre-flight (30 GB free)
-        run: python3 tools/ci_hygiene.py preflight --min-gb 30
-      - name: Release build (generic iOS, unsigned)
-        env:
-          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
-        run: |
-          set -euo pipefail
-          cd apple
-          xcodegen generate --quiet
-          python3 ../tools/devcap.py run --pool build --hold 3600 --purpose "pr-checks release build" -- \
-            xcodebuild build -project FentonHome.xcodeproj -scheme FentonHome -configuration Release \
-              -destination 'generic/platform=iOS' -derivedDataPath "$FENTON_DERIVED_DATA" CODE_SIGNING_ALLOWED=NO
-      - name: Delete this job's DerivedData
-        if: always()
-        env:
-          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
-        run: python3 tools/ci_hygiene.py rm-dir "$FENTON_DERIVED_DATA"
-
-  swift-test:
-    needs: [scope, repo-checks]
-    if: ${{ github.event.repository.private && needs.scope.outputs.app == 'true' }}
-    runs-on: [self-hosted, macOS, hass]  # MacBook runner until hosted runners land; the mini lacks disk (owner, 2026-11-07)
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          clean: false
-      - name: Disk pre-flight (30 GB free)
-        run: python3 tools/ci_hygiene.py preflight --min-gb 30
-      - name: swift test (the affected suites on a pull request, everything on a push to main)
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          RELEASE: ${{ needs.scope.outputs.release }}
-        run: |
-          set -uo pipefail
-          filters=""
-          if [ "$EVENT" = "pull_request" ] && [ "$RELEASE" = "true" ]; then
-            # Selection comes from contracts/test-map.json (tools/affected_tests.py). A file it cannot place (exit 3) widens
-            # to the full suite here: CI never guesses. No affected suite (a journeys-only change) runs no swift test.
-            # Read the code with `|| rc=$?`: the step shell runs with -e, so exit 3 would end the step before a separate read.
-            rc=0
-            filters="$(python3 tools/affected_tests.py --swift --base "origin/$BASE_REF")" || rc=$?
-            if [ "$rc" != "0" ]; then
-              echo "affected_tests.py could not place every changed file (exit $rc): running the full suite" >> "$GITHUB_STEP_SUMMARY"
-              filters="ALL"
-            elif [ -z "$filters" ]; then
-              echo "no Swift package suite is affected by this change: swift test skipped" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-          else
-            filters="ALL"
-          fi
-          [ "$filters" = "ALL" ] && filters=""
-          echo "swift test $filters" >> "$GITHUB_STEP_SUMMARY"
-          # shellcheck disable=SC2016
-          python3 tools/devcap.py run --pool build --pool swift-test --hold 3600 --purpose "pr-checks swift test" -- \
-            bash -c 'cd apple && swift test "$@"' _ $filters
-
   # ---------------------------------------------------------------------------------------------------------------------
-  # Hosted jobs. Linux: public repo only (`!private`). macOS: only when the repository variable HOSTED_MACOS is `on` (unset by default;
-  # set at the public flip, go_public runbook), never keyed on visibility, which is empty on some triggers. Plain pull_request, no secrets, FENTON_CI_HOSTED=1, nothing self-hosted.
+  # Hosted jobs. macOS: only when the repository variable HOSTED_MACOS is `on`, never keyed on visibility, which is empty on some
+  # triggers. Plain pull_request, no secrets, FENTON_CI_HOSTED=1, nothing self-hosted.
   # ---------------------------------------------------------------------------------------------------------------------
   scope-hosted:
-    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -206,7 +50,6 @@ jobs:
 
   repo-checks-hosted:
     needs: scope-hosted
-    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -237,7 +80,6 @@ jobs:
   tool-tests-hosted:
     # One job per part of tools/run_tool_tests.sh, in parallel (about 5 minutes in all on Linux, build/evidence/hosted-ci).
     needs: scope-hosted
-    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -523,13 +365,11 @@ jobs:
           if-no-files-found: warn
 
   pr-checks:
-    # The one check pr_land.sh requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
-    # jobs, hosted macOS while HOSTED_MACOS is off, the other visibility's set, the denylist scan on a fork PR. A Mac while private
-    # (nothing bills), Linux once public. sim-smoke is advisory and not listed.
+    # The one check GitHub requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
+    # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. sim-smoke is advisory and not listed.
     if: always()
-    needs: [scope, repo-checks, build-release, swift-test, scope-hosted, repo-checks-hosted, tool-tests-hosted, denylist-scan,
-            swift-test-hosted, build-release-hosted]
-    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","macOS"]') || 'ubuntu-24.04' }}
+    needs: [scope-hosted, repo-checks-hosted, tool-tests-hosted, denylist-scan, swift-test-hosted, build-release-hosted]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -538,6 +378,5 @@ jobs:
       - name: Aggregate
         env:
           NEEDS: ${{ toJSON(needs) }}
-          PRIVATE: ${{ github.event.repository.private }}
           HOSTED_MACOS: ${{ vars.HOSTED_MACOS }}
         run: python3 tools/ci_aggregate.py | tee -a "$GITHUB_STEP_SUMMARY"

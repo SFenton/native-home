@@ -5,10 +5,7 @@ import unittest
 from pathlib import Path
 
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
-HOSTED = "!github.event.repository.private"
 MACOS_GUARD = "vars.HOSTED_MACOS == 'on'"
-#: Linux jobs that deliberately run in both repo states.
-BOTH_STATES = {"denylist-scan", "pr-checks"}
 
 
 def jobs(name):
@@ -67,22 +64,16 @@ class RuleTests(unittest.TestCase):
                     self.assertIn("startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-')", runs_on(text), "%s/%s" % (path.name, job))
                     self.assertIn("'xcode-27'", runs_on(text))
 
-    def test_hosted_linux_jobs_skip_while_the_repo_is_private_and_self_hosted_jobs_only_while_private(self):
+    def test_no_pr_or_main_job_runs_on_a_self_hosted_runner(self):
         for name in ("pr-checks.yml", "tool-tests.yml"):
             for job, text in jobs(name).items():
-                label = runs_on(text)
-                if "ubuntu" in label and "self-hosted" in label:
-                    continue  # the aggregate: a Mac while private, Linux once public
-                if "self-hosted" in label:
-                    self.assertRegex(text, r"if: \$\{\{ github\.event\.repository\.private( &&| \}\})", "%s/%s" % (name, job))
-                elif not is_hosted_macos(label) and job not in BOTH_STATES:
-                    self.assertIn(HOSTED, text, "%s/%s is hosted without the public-only gate" % (name, job))
+                self.assertNotIn("self-hosted", runs_on(text), "%s/%s" % (name, job))
+                self.assertNotIn("repository.private", text, "%s/%s" % (name, job))
 
     def test_the_aggregate_keeps_its_name_and_covers_both_sets(self):
         text = jobs("pr-checks.yml")["pr-checks"]
         self.assertIn("if: always()", text)
-        for needed in ("scope", "repo-checks", "build-release", "swift-test", "repo-checks-hosted", "tool-tests-hosted", "denylist-scan",
-                       "swift-test-hosted", "build-release-hosted"):
+        for needed in ("scope-hosted", "repo-checks-hosted", "tool-tests-hosted", "denylist-scan", "swift-test-hosted", "build-release-hosted"):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
         self.assertNotIn("sim-smoke", text.split("steps:")[0].split("needs:")[1])
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
