@@ -500,10 +500,11 @@ jobs:
         run: python3 tools/ci_aggregate.py | tee -a "$GITHUB_STEP_SUMMARY"
 
   report-red-main:
-    # A red tool-test run on main files (or updates) one issue labelled Workflow, so it cannot go unseen. Push to main only; a manual
-    # run reaches it too, with report_dry_run it prints the issue instead of filing it (and runs even when the tests are green).
+    # A red tool-test run on main files (or updates) one issue labelled Workflow, so it cannot go unseen. A push to main only. A manual
+    # run reaches it only with report_dry_run, and then only prints the issue (it runs even when the tests are green); a manual run
+    # never files one.
     needs: [linux-checks, tool-tests-core]
-    if: ${{ always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (inputs.report_dry_run || contains(needs.*.result, 'failure')) }}
+    if: ${{ always() && ((github.event_name == 'push' && contains(needs.*.result, 'failure')) || (github.event_name == 'workflow_dispatch' && inputs.report_dry_run)) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -522,8 +523,10 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
           BRANCH: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          DRY_RUN: ${{ inputs.report_dry_run }}
+          # Only a push to main files; every other event prints, whatever the input says.
+          DRY_RUN: ${{ github.event_name != 'push' && 'true' || 'false' }}
           REPO: ${{ github.repository }}
+          GH_REPO: ${{ github.repository }}   # no checkout in this job, so gh needs the repository named
         run: |
           failing="$(cat "$RUNNER_TEMP"/logs/*.log 2>/dev/null | grep -E '^(FAIL|ERROR): ' | sort -u | head -40 || true)"
           [ -n "$failing" ] || failing="(no failing test ids in the logs; see the run)"
