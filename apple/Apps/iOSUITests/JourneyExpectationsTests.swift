@@ -79,6 +79,6 @@ final class JourneyExpectationsTests: XCTestCase {
 
     func testTintParsesAsAnRGBTriple() {
         let tint = JourneyExpectations.gallery.rgb(.choresFirstLinkTint)
-        XCTAssertEqual([tint.0, tint.1, tint.2], [0, 96, 120])
+        XCTAssertEqual([tint.0, tint.1, tint.2], [0, 34, 204])
     }
 }
