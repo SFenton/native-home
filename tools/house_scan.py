@@ -94,6 +94,14 @@ def request_repo_pattern() -> "re.Pattern[str] | None":
 
 
 REPO_NAME = request_repo_pattern()
+#: Printed (to stderr, no value) when the request-repository rule is off, so a quiet pass is never mistaken for coverage.
+REPO_RULE_OFF = ("house_scan: request-repo rule off: no FENTON_REQUEST_REPO or local file; "
+                 "the denylist must carry it")
+
+
+def repo_rule_notice(pattern: "re.Pattern[str] | None") -> Optional[str]:
+    """The one warning line when ``pattern`` (see :func:`request_repo_pattern`) is ``None``, else ``None``."""
+    return REPO_RULE_OFF if pattern is None else None
 #: Escapes that spell a character in source text: ``\\uXXXX`` (JSON, JavaScript, Python), ``\\u{X...}`` (Swift), ``\\xHH``
 #: (Python, JavaScript) and the numeric HTML references ``&#46;`` and ``&#x2e;``. A copy of the line with them decoded is scanned
 #: too, so an escaped dot cannot hide an id.
@@ -594,6 +602,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--mode", choices=("text", "denylist", "all"), default="denylist", help="denylist: which files are read (all: every suffix)")
     parser.add_argument("--min-terms", type=int, default=0, help="denylist: refuse a term list shorter than this")
     args = parser.parse_args(argv)
+    notice = repo_rule_notice(REPO_NAME)
+    if notice:
+        print(notice, file=sys.stderr)
     root = Path(args.root)
     config = Path(args.config) if args.config else None
     if args.command == "denylist":

@@ -2,7 +2,7 @@
 
 > **What:** one folder per web route with a platform-neutral spec and per-platform notes. **Read when:** porting or changing a page.
 
-Full screen map: [dashboard inventory](the owner's private mockup gallery (link kept outside the repo)).
+Full screen map: the coordinator's private dashboard inventory (link kept outside the repo).
 
 | Page | Web route | Spec | Native status |
 |---|---|---|---|

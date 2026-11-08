@@ -89,6 +89,31 @@ class DetectionTests(unittest.TestCase):
             self.assertEqual(rules(f"Owner/{REPO.upper()}"), [])
         self.assertEqual(rules("example-owner/example-requests"), [])
 
+    def test_the_rule_resolves_through_request_repo_and_warns_when_off(self):
+        with tempfile.TemporaryDirectory() as home:
+            base = {"HOME": home, "PATH": "/usr/bin:/bin"}
+            with mock.patch.dict(os.environ, {**base, "FENTON_REQUEST_REPO": f"owner/{REPO}"}, clear=True):
+                pattern = house_scan.request_repo_pattern()
+                self.assertIsNotNone(pattern)
+                self.assertIsNone(house_scan.repo_rule_notice(pattern))
+                with mock.patch.object(house_scan, "REPO_NAME", pattern):
+                    self.assertEqual(rules(f"x {REPO.upper()}"), ["reponame"])
+            with mock.patch.dict(os.environ, base, clear=True):
+                off = house_scan.request_repo_pattern()
+                self.assertIsNone(off)
+                self.assertEqual(house_scan.repo_rule_notice(off), house_scan.REPO_RULE_OFF)
+                self.assertNotIn(REPO, house_scan.REPO_RULE_OFF)
+
+    def test_main_prints_the_warning_when_the_rule_is_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "a.md").write_text("nothing here\n")
+            for pattern, expected in ((None, True), (house_scan.re.compile("x"), False)):
+                err = io.StringIO()
+                with mock.patch.object(house_scan, "REPO_NAME", pattern), contextlib.redirect_stderr(err), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    house_scan.main(["report", "--root", tmp])
+                self.assertEqual(house_scan.REPO_RULE_OFF in err.getvalue(), expected)
+
     def test_in_code_an_id_counts_only_inside_a_string(self):
         self.assertEqual(rules("let a = light.isOn", path="a.swift"), [])
         self.assertEqual(rules(f'let a = "{ATTIC}"', path="a.swift"), ["entity"])

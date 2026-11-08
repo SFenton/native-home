@@ -151,8 +151,6 @@
       "Bash(tools/ship.sh:*)",
       "Bash(./tools/pr_land.sh:*)",
       "Bash(./tools/ship.sh:*)",
-      "Bash(./tools/pr_land.sh:*)",
-      "Bash(./tools/ship.sh:*)",
       "Bash(tools/clean.sh:*)",
       "Bash(./tools/clean.sh:*)"
     ]
