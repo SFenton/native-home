@@ -5,8 +5,9 @@ Git feeds ``<local ref> <local sha> <remote ref> <remote sha>`` lines on stdin a
 
 What is scanned, per pushed ref (deletes are skipped):
 
-- the commits the push adds: every commit reachable from the local sha that is not on the **destination's own** tracking refs
-  (``refs/remotes/<name>/*``; none, or a push by URL, means all of them) and, for a known remote sha, not reachable from it;
+- the commits the push adds: every commit reachable from the local sha that is not reachable from the known remote sha nor from
+  any object **advertised by the destination at push time** (``git ls-remote <push url>``, once per push, 20 s bound; a failure
+  excludes nothing, so the whole history is scanned). Local ``refs/remotes/*`` are never trusted;
 - per commit: message, author and committer name and email, every changed path, every changed blob;
 - tag objects (message and tagger, nested tags too) and a tag or ref that points straight at a tree or blob.
 
@@ -139,19 +140,43 @@ def redact(path: str, matcher: Matcher) -> str:
     return "/".join("…" if matcher.text(part) else part for part in path.split("/"))
 
 
-def new_commits(local: str, remote: str, remote_name: str) -> List[str]:
-    """Commits a push adds: reachable from ``local``, not from the destination's own tracking refs, and (a known remote sha) not from it.
+#: Seconds ``git ls-remote`` may take before the push is scanned in full.
+LS_REMOTE_TIMEOUT = 20
 
-    Commits on ``refs/remotes/<name>/*`` are already on the destination, so a branch that merged the destination's main is not
-    rescanned for main's own commits. Nothing is fetched: only refs already in the clone count. No such remote (a push by URL) excludes nothing.
+
+def advertised_shas(target: str) -> List[str]:
+    """Object ids the destination advertises right now (``git ls-remote <target>``) that exist in this clone, commits and tags only.
+
+    Any failure or timeout returns ``[]``: nothing is excluded and the push is scanned in full. Local tracking refs are never
+    consulted, because they can be stale (after a rewrite or prune) or fetched from a different URL than the push target.
+    """
+    try:
+        done = subprocess.run(["git", "ls-remote", target], capture_output=True, timeout=LS_REMOTE_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if done.returncode != 0:
+        return []
+    shas = list(dict.fromkeys(line.split()[0].decode() for line in done.stdout.splitlines()
+                              if line.split() and re.fullmatch(rb"[0-9a-f]{40,64}", line.split()[0])))
+    if not shas:
+        return []
+    try:
+        checked = git("cat-file", "--batch-check=%(objecttype) %(objectname)", data=("\n".join(shas) + "\n").encode()).decode().splitlines()
+    except ScanError:
+        return []
+    return [line.split()[1] for line in checked if line.split()[0] in ("commit", "tag")]
+
+
+def new_commits(local: str, remote: str, advertised: Sequence[str]) -> List[str]:
+    """Commits a push adds: reachable from ``local`` but not from the destination's known sha nor from anything it advertised at push time.
+
+    A branch that merged the destination's main is thus not rescanned for main's own commits. With ``advertised`` empty
+    (``ls-remote`` failed, or a new, empty destination) only the known remote sha is excluded.
     """
     known = remote != ZERO and subprocess.run(["git", "cat-file", "-e", remote + "^{commit}"], capture_output=True).returncode == 0
-    args = ["rev-list", local]
-    if known:
-        args.append(f"^{remote}")
-    if remote_name in git("remote").decode().split():
-        args += ["--not", f"--remotes={remote_name}"]
-    return git(*args).decode().split()
+    exclude = list(advertised) + ([remote] if known else [])
+    stdin = "".join(f"^{sha}\n" for sha in dict.fromkeys(exclude)).encode()
+    return git("rev-list", local, "--stdin", data=stdin).decode().split()
 
 
 def commit_hits(sha: str, matcher: Matcher) -> List[str]:
@@ -235,7 +260,7 @@ def scan_files(label: str, files: Sequence[Tuple[str, str]], matcher: Matcher, s
     return hits
 
 
-def scan_object(sha: str, remote: str, remote_name: str, matcher: Matcher, seen: Set[str]) -> Tuple[List[str], int]:
+def scan_object(sha: str, remote: str, advertised: Sequence[str], matcher: Matcher, seen: Set[str]) -> Tuple[List[str], int]:
     """Hits and the commit count of one pushed object: a commit, a (nested) tag, a tree or a blob."""
     hits: List[str] = []
     for _depth in range(16):
@@ -257,7 +282,7 @@ def scan_object(sha: str, remote: str, remote_name: str, matcher: Matcher, seen:
         return hits + scan_files(sha[:8], tree_files(sha), matcher, seen), 0
     if kind != "commit":
         raise ScanError(f"unexpected object type {kind}")
-    commits = new_commits(sha, remote, remote_name)
+    commits = new_commits(sha, remote, advertised)
     for commit in commits:
         hits.extend(commit_hits(commit, matcher))
         hits.extend(scan_files(commit[:8], tree_changes(commit), matcher, seen))
@@ -294,6 +319,14 @@ def main(argv: Optional[List[str]] = None, stdin=None) -> int:
         hits: List[str] = []
         scanned = 0
         seen: Set[str] = set()
+        cache: List[List[str]] = []
+
+        def advertised() -> List[str]:
+            """The destination's advertised shas, asked once per push."""
+            if not cache:
+                cache.append(advertised_shas(argv[1] if len(argv) > 1 else remote_name))
+            return cache[0]
+
         for local_ref, local, remote_ref, remote in pushes:
             # a ref name is pushed too (a branch or lightweight tag named after a term), deletes included
             for name in dict.fromkeys((local_ref, remote_ref)):
@@ -301,7 +334,7 @@ def main(argv: Optional[List[str]] = None, stdin=None) -> int:
                     hits.append(f"ref:{redact(name, matcher)}")
             if local == ZERO:
                 continue  # a delete adds nothing
-            found, commits = scan_object(local, remote, remote_name, matcher, seen)
+            found, commits = scan_object(local, remote, advertised(), matcher, seen)
             hits.extend(found)
             scanned += commits
     except (ScanError, OSError, ValueError) as exc:
