@@ -199,12 +199,15 @@ def swift_args(result: Dict) -> str:
     return " ".join(f"--filter {name}" for name in result["swift"])
 
 
-def plan_runs(plan: str, target: str, name: str, plans_dir: Optional[Path] = None) -> bool:
+def plan_runs(plan: str, target: str, name: str, plans_dir: Optional[Path] = None,
+              methods: Optional[Sequence[str]] = None) -> bool:
     """Whether test plan ``plan`` runs at least part of class ``name`` of ``target``.
 
     A plan lists either ``selectedTests`` (only those run) or ``skippedTests`` (all others run); an entry is ``Class`` or
     ``Class/method()``. A class the plan skips whole (a bare ``Class`` entry), or one a selecting plan does not name, matches
-    nothing under ``-only-testing:`` and xcodebuild reports no tests. A missing plan file runs everything (the scheme's own selection).
+    nothing under ``-only-testing:`` and xcodebuild reports no tests. A target entry with ``"enabled": false`` runs nothing.
+    A class whose every method is skipped one by one runs nothing either: ``methods`` (default: scanned from the UI test
+    sources by ``tools/test_plans.py``) names its methods. A missing plan file runs everything (the scheme's own selection).
     """
     path = (plans_dir or ROOT / "apple" / "TestPlans") / f"{plan}.xctestplan"
     if not path.is_file():
@@ -212,9 +215,22 @@ def plan_runs(plan: str, target: str, name: str, plans_dir: Optional[Path] = Non
     for entry in json.loads(path.read_text()).get("testTargets", []):
         if entry.get("target", {}).get("name") != target:
             continue
+        if entry.get("enabled") is False:
+            return False
         if "selectedTests" in entry:
             return any(item == name or item.startswith(name + "/") for item in entry["selectedTests"])
-        return name not in entry.get("skippedTests", [])
+        skipped = entry.get("skippedTests", [])
+        if name in skipped:
+            return False
+        single = {item[len(name) + 1:].rstrip("()") for item in skipped if item.startswith(name + "/")}
+        if single:
+            if methods is None:
+                sys.path.insert(0, str(Path(__file__).resolve().parent))
+                import test_plans
+                methods = list(test_plans.scan().get(name, {}))
+            if methods and set(methods) <= single:
+                return False
+        return True
     return False
 
 

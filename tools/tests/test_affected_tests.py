@@ -317,8 +317,23 @@ class PlanFilterTests(unittest.TestCase):
     def test_the_committed_gate_plan_skips_the_shell_journeys(self):
         # The hosted iPhone failure (run 42451291334): the shell class is a Live-plan class, so Gate runs none of it.
         self.assertFalse(affected_tests.plan_runs("Gate", "FentonHomeUITests", "ShellJourneyTests"))
-        code = affected_tests.main(["--journeys", "--plan", "Gate", "--files", "apple/Apps/iOSUITests/ShellJourneyTests.swift"])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = affected_tests.main(["--journeys", "--plan", "Gate", "--files", "apple/Apps/iOSUITests/ShellJourneyTests.swift"])
         self.assertEqual(code, 0)
+        self.assertEqual(out.getvalue().strip(), "")
+
+    def test_a_class_skipped_method_by_method_runs_nothing(self):
+        with TemporaryDirectory() as folder:
+            self.write_plan(folder, "Gate", skippedTests=["A/testOne()", "A/testTwo()", "B/testOne()"])
+            runs = lambda name, methods: affected_tests.plan_runs("Gate", "FentonHomeUITests", name, Path(folder), methods)
+            self.assertFalse(runs("A", ["testOne", "testTwo"]))
+            self.assertTrue(runs("B", ["testOne", "testTwo"]))
+
+    def test_a_disabled_target_runs_nothing(self):
+        with TemporaryDirectory() as folder:
+            self.write_plan(folder, "Gate", enabled=False, skippedTests=[])
+            self.assertFalse(affected_tests.plan_runs("Gate", "FentonHomeUITests", "ModalSizingJourneyTests", Path(folder)))
 
 
 class CommandLineTests(unittest.TestCase):

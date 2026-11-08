@@ -111,6 +111,8 @@ The CI house-data job (landing in #380) will read the private denylist from the 
 
 Background and sources: `build/research/hosted-ci.md`. The workflows hold two job sets, picked by the repo's visibility, so the repo works as it does today while private and moves to GitHub-hosted runners the day it goes public.
 
+**sim-smoke journeys step.** `--changed` runs the Gate plan, so a selected class Gate skips whole (the Live-plan `ShellJourneyTests`) runs 0 tests and fails as EMPTY. The step asks `affected_tests.py --journeys --plan Gate` first and skips with a log line only when the diff reaches journeys and Gate runs none; a tool crash fails it and exit 3 still fails in the runner. The failure upload sets `include-hidden-files: true` because `apple/.build` is hidden (upload-artifact v4.4+ skips hidden files).
+
 | Workflow | Private (today) | Public |
 |---|---|---|
 | [`pr-checks.yml`](../../.github/workflows/pr-checks.yml) | the self-hosted jobs above (`scope`, `repo-checks`, `build-release`, `swift-test`), gated `if: github.event.repository.private`. Delete them at the flip. | `scope-hosted`, `repo-checks-hosted`, `tool-tests-hosted` (matrix `core`, `triage`, `release`) on `ubuntu-24.04`; Each carries `if: ${{ !github.event.repository.private }}`. `swift-test-hosted`, `build-release-hosted` and `sim-smoke` (iphone, duo, ipad; advisory, not in the aggregate) run on the hosted Mac image (`vars.HOSTED_XCODE_LABEL` if it starts with `xcode-` or `macos-`, else `xcode-27`) and carry `if: vars.HOSTED_MACOS == 'on'`. |
