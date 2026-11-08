@@ -188,7 +188,7 @@ def main(argv: List[str] | None = None) -> int:
     print(
         f"Blocked: this session changed .agents/design/mockups/ but {reason}. Mockups are always republished to the hub "
         f"Artifact without being asked, and the owner gets the hub link, never HTML or a file path. Follow "
-        f".agents/skills/mockup-hub/SKILL.md, then give the owner {hub_link()}."
+        f".agents/skills/mockup-hub/SKILL.md, then give the owner {hub_link()}. "
         "No Artifact tool in this session? Say in the PR that the hub republish is pending and stop again.",
         file=sys.stderr,
     )

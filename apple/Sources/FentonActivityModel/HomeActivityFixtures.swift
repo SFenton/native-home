@@ -203,7 +203,7 @@ public enum HomeActivityFixtures {
     /// A vacuum room as the engine sends it: no `value` and no `progress` (no time and no bar anywhere), the headline as the
     /// big line and `short` for the compact island.
     private static func vacuum(headline: String, short: String, tint: String) -> Base {
-        (HomeActivityAttributes(tag: "job.vacuum.main_floor", title: "Main Floor Vacuum", kind: "vacuum", symbol: "vacuum", tint: tint),
+        (HomeActivityAttributes(tag: "job.vacuum.demo_vacuum_1", title: "Main Floor Vacuum", kind: "vacuum", symbol: "vacuum", tint: tint),
          HomeActivityState(headline: headline, short: short,
                            controls: [ActivityControl(id: "pause", title: "Pause"), ActivityControl(id: "dock", title: "Dock", role: .secondary)],
                            url: "/sfenton-react-dash/home?path=vacuums"))
@@ -239,7 +239,7 @@ public enum HomeActivityFixtures {
         var hasTask: Bool
         var chips: [String] = []
         var device = "Main Floor Vacuum"
-        var tag = "job.vacuum.main_floor"
+        var tag = "job.vacuum.demo_vacuum_1"
         var kind = "vacuum"
         var symbol = "vacuum"
 
@@ -272,7 +272,7 @@ public enum HomeActivityFixtures {
                    message: "Attach the mop pads, or it vacuums only.", buttons: [("vacuum_only", "Vacuum Only")], hasTask: true),
         ProblemRow(code: "mop.vacuum_only_fallback", severity: .warning, icon: "mop", problem: "Vacuuming only",
                    message: "Mopping isn't available. Check the mop attachment, water tanks and pads.", buttons: [], hasTask: false,
-                   device: "Music Room Vacuum", tag: "job.vacuum.music_room"),
+                   device: "Music Room Vacuum", tag: "job.vacuum.demo_vacuum_2"),
         ProblemRow(code: "dock.cover_open", severity: .warning, icon: "bag", problem: "Dock cover open",
                    message: "Check the dust bag is in, then close the cover.", buttons: [], hasTask: true),
         ProblemRow(code: "dock.dustbag_blocked", severity: .warning, icon: "bag", problem: "Dust bag full",

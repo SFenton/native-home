@@ -33,7 +33,7 @@
     },
     "attributes-type": "HomeActivityAttributes",
     "attributes": {
-      "tag": "job.vacuum.main_floor",
+      "tag": "job.vacuum.demo_vacuum_1",
       "title": "Main Floor Vacuum",
       "kind": "problem",
       "symbol": "vacuum",
@@ -50,6 +50,6 @@
   },
   "fenton": {
     "v": 2,
-    "tag": "job.vacuum.main_floor"
+    "tag": "job.vacuum.demo_vacuum_1"
   }
 }

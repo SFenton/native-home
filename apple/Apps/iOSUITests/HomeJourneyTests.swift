@@ -67,9 +67,9 @@ final class HomeJourneyTests: JourneyTestCase {
     func testLightsRoomPushesItsLights() throws {
         let app = try FentonHomeApp.launchSignedIn()
         openGuestRoomLights(app)
-        XCTAssertTrue(app.descendants(matching: .any)["room.light.light.guest_room_tv_light"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["room.light.light.guest_room_bed_light"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["room.lightGroup.light.guest_room"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["room.light.light.demo_guest_room_light_1"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["room.light.light.demo_guest_room_light_2"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["room.lightGroup.light.demo_guest_room_item_1"].exists)
         goBack(in: app)
         XCTAssertTrue(app.buttons["overview.lights.room.Guest Room"].appears(timeout: 5))
         app.buttons["Close"].tap()
@@ -171,7 +171,7 @@ final class HomeJourneyTests: JourneyTestCase {
     func testLightsSheetTogglesAGroup() throws {
         let app = try FentonHomeApp.launchSignedIn()
         openGuestRoomLights(app)
-        let tile = app.descendants(matching: .any)["room.lightGroup.light.guest_room"]
+        let tile = app.descendants(matching: .any)["room.lightGroup.light.demo_guest_room_item_1"]
         XCTAssertTrue(tile.appears(timeout: 5))
         XCTAssertTrue(tile.wait(for: \.isHittable, toEqual: true, timeout: 5), "Sheet still presenting")
         let before = try XCTUnwrap(tile.value as? String)
@@ -189,7 +189,7 @@ final class HomeJourneyTests: JourneyTestCase {
     func testLightsSheetDragSetsBrightness() throws {
         let app = try FentonHomeApp.launchSignedIn()
         openGuestRoomLights(app)
-        let tile = app.descendants(matching: .any)["room.lightGroup.light.guest_room"]
+        let tile = app.descendants(matching: .any)["room.lightGroup.light.demo_guest_room_item_1"]
         XCTAssertTrue(tile.appears(timeout: 5))
         XCTAssertTrue(tile.wait(for: \.isHittable, toEqual: true, timeout: 5), "Sheet still presenting")
         // The sheet can open before the guest room light's state has arrived: wait on the state rather than read the

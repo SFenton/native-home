@@ -35,7 +35,7 @@
     },
     "attributes-type": "HomeActivityAttributes",
     "attributes": {
-      "tag": "job.vacuum.music_room",
+      "tag": "job.vacuum.demo_vacuum_2",
       "title": "Studio Vacuum",
       "kind": "problem",
       "symbol": "vacuum",
@@ -52,6 +52,6 @@
   },
   "fenton": {
     "v": 2,
-    "tag": "job.vacuum.music_room"
+    "tag": "job.vacuum.demo_vacuum_2"
   }
 }

@@ -79,8 +79,21 @@ _HEX = re.compile(r"(?<![0-9A-Za-z@])(?:[0-9a-f]{40}|[0-9a-f]{32})(?![0-9A-Za-z]
 _ENTITY = re.compile(r"(?<![\w.])(" + "|".join(sorted(DOMAINS, key=len, reverse=True)) + r")\.([a-z0-9][a-z0-9_]*)\b"
                      r"(?!\.(?:md|json|swift|py|sh|yml|yaml|txt|png|html|plist)\b)")
 _STRING = re.compile(r"\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'|`[^`\n]*`")
-#: The private request repository's name, assembled so the tool's own source does not carry it.
-REPO_NAME = re.compile("fenton-hass-" + "requests", re.I)
+def request_repo_pattern() -> "re.Pattern[str] | None":
+    """A pattern for the private request repository's name, read from local configuration (``tools/request_repo.py``) at
+    run time, so this source carries no name. ``None`` when none is configured."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import request_repo
+        name = (request_repo.resolve() or "").split("/")[-1]
+    except Exception:  # noqa: BLE001  an unreadable setting means no pattern, never a failed scan
+        name = ""
+    finally:
+        sys.path.pop(0)
+    return re.compile(re.escape(name), re.I) if name else None
+
+
+REPO_NAME = request_repo_pattern()
 #: Escapes that spell a character in source text: ``\\uXXXX`` (JSON, JavaScript, Python), ``\\u{X...}`` (Swift), ``\\xHH``
 #: (Python, JavaScript) and the numeric HTML references ``&#46;`` and ``&#x2e;``. A copy of the line with them decoded is scanned
 #: too, so an escaped dot cannot hide an id.
@@ -263,7 +276,7 @@ def _line_hits(path: str, number: int, line: str, suffix: str, cfg: Config, deny
             continue  # a placeholder such as forty of one digit, or a path whose hex strings are known non-secrets
         if token not in cfg.hex_values and token not in known:
             hits.append(Hit(path, number, "hex"))
-    if "requests" in lowered:
+    if REPO_NAME is not None:
         hits.extend(Hit(path, number, "reponame") for _ in REPO_NAME.finditer(line))
     for pattern in denylist:
         hits.extend(Hit(path, number, "denylist") for _ in pattern.finditer(line))

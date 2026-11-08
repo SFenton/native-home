@@ -57,7 +57,7 @@ Rules:
   3. token reports.
 - **The foreground director and `HomeJobDeriver` are deleted.**
   - The app no longer starts activities locally. iOS 17.0 and 17.1 lose Live Activities; push-to-start needs 17.2. The owner runs iOS 27.
-- **Tags.** One tag per job, `job.<job_id>`. Examples: `job.fan.guest`, `job.fan.master`, `job.dishwasher`, `job.dryer`, `job.washer`, `job.vacuum.main_floor`, `job.vacuum.music_room`, `job.vacuum.media_room`.
+- **Tags.** One tag per job, `job.<job_id>`. Examples: `job.fan.guest`, `job.fan.master`, `job.dishwasher`, `job.dryer`, `job.washer`, `job.vacuum.demo_vacuum_1`, `job.vacuum.demo_vacuum_2`, `job.vacuum.media_room`.
   - A device's problem state rides on **the same tag**: the card turns into a problem card and back. A problem with no running job, for example "Dust bag full" while docked, starts that device's tag on its own.
   - So a device never has two cards.
 - **One attributes type.** `HomeActivityAttributes` stays. Core holds one push-to-start token per registration (`app_data.start_live_activity_token`), and the type name is the wire `attributes-type`. Renaming it would orphan the token.
@@ -70,7 +70,7 @@ All new keys decode with defaults, so Phase 1 pushes still decode.
 
 | Key | Type | Example | Notes |
 |---|---|---|---|
-| `tag` | String | `job.vacuum.main_floor` | |
+| `tag` | String | `job.vacuum.demo_vacuum_1` | |
 | `title` | String | `Main Floor Vacuum` | The device. It never changes for the life of the activity |
 | `kind` | String | `fan` · `dishwasher` · `dryer` · `washer` · `vacuum` · `problem` · `generic` | `home` is still decoded (Phase 1) |
 | `symbol` | String | `fan` | Glyph id from the app's own set (§8), not an SF Symbol name on the wire |

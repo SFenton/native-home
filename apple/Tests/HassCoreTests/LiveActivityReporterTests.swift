@@ -106,7 +106,7 @@ struct LiveActivityTokenReporterTests {
         let (reporter, client, webhook, _) = make()
         reporter.start()
         #expect(await eventually { client.isWatching })
-        let vacuum = HomeActivityAttributes(tag: "job.vacuum.music_room", title: "Music Room Vacuum", kind: "vacuum")
+        let vacuum = HomeActivityAttributes(tag: "job.vacuum.demo_vacuum_2", title: "Music Room Vacuum", kind: "vacuum")
         let first = client.startFromPush(attributes: vacuum, state: state)
         #expect(await eventually { client.isWatching(activity: first.id) })
         let second = client.startFromPush(attributes: vacuum, state: state)

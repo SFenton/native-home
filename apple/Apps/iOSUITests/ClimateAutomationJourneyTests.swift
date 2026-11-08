@@ -8,12 +8,12 @@ final class ClimateAutomationJourneyTests: ClimateJourneyTestCase {
     /// Automation: toggles are system switches that send `homeassistant.toggle`.
     func testAutomationEcoModeToggle() {
         let app = launch(open: "automation")
-        let eco = reveal(element("climate.toggle.switch.thermostat_contact_sensors_eco_mode", in: app), in: app)
+        let eco = reveal(element("climate.toggle.switch.demo_contact_1", in: app), in: app)
         XCTAssertEqual(eco.label, "Eco Mode")
         XCTAssertEqual(value(eco), "1")
         flip(eco)
         XCTAssertTrue(hasValue(eco, "0"))
-        waitForCall("homeassistant.toggle entity_id=switch.thermostat_contact_sensors_eco_mode", in: app)
+        waitForCall("homeassistant.toggle entity_id=switch.demo_contact_1", in: app)
     }
 
     /// An Eco option page selects with `select.select_option` and its row shows the new value. Enters from the Automation tab, as a
@@ -30,7 +30,7 @@ final class ClimateAutomationJourneyTests: ClimateJourneyTestCase {
         XCTAssertTrue(targets.label.hasSuffix("Use the wider away temperature range while everyone is away."), targets.label)
         targets.tap()
         XCTAssertTrue(targets.wait(for: \.isSelected, toEqual: true, timeout: 3))
-        waitForCall("select.select_option entity_id=select.thermostat_contact_sensors_eco_behavior_when_away option=Use Eco Away Targets", in: app)
+        waitForCall("select.select_option entity_id=select.demo_contact_1 option=Use Eco Away Targets", in: app)
         back(app)
         XCTAssertTrue(hasValue(reveal(element("climate.eco.eco-away", in: app), in: app), "Use Eco Away Targets"))
     }
@@ -45,7 +45,7 @@ final class ClimateAutomationJourneyTests: ClimateJourneyTestCase {
         reveal(element("climate.predictive.reasons", in: app), in: app)
         XCTAssertTrue(header("Why This Prediction", in: app).exists)
         XCTAssertTrue(app.staticTexts["Predicted indoor temperature is 75.1°F, above your 71.0°F - 74.0°F comfort band."].exists)
-        let allowAway = reveal(element("climate.toggle.switch.thermostat_contact_sensors_predictive_allow_away", in: app), in: app)
+        let allowAway = reveal(element("climate.toggle.switch.demo_contact_2", in: app), in: app)
         XCTAssertEqual(allowAway.label, "Predictive Comfort While Away")
         XCTAssertEqual(value(allowAway), "0")
         back(app)
@@ -59,11 +59,11 @@ final class ClimateAutomationJourneyTests: ClimateJourneyTestCase {
         XCTAssertEqual(value(predictive), "1")
         let power = reveal(element("climate.predictive", in: app), in: app)
         flip(power)
-        waitForCall("switch.turn_off entity_id=switch.thermostat_contact_sensors_predictive_comfort_mode", in: app)
+        waitForCall("switch.turn_off entity_id=switch.demo_contact_4", in: app)
         XCTAssertTrue(hasValue(power, "0"))
         XCTAssertFalse(element("climate.predictive.open", in: app).exists, "Current Prediction hides while off")
         flip(power)
-        waitForCall("switch.turn_on entity_id=switch.thermostat_contact_sensors_predictive_comfort_mode", in: app)
+        waitForCall("switch.turn_on entity_id=switch.demo_contact_4", in: app)
     }
 
     func testAutomationTabPassesAudit() throws { try audit(open: "automation") }

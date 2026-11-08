@@ -207,7 +207,7 @@ final class LiveActivityJourneyTests: JourneyTestCase {
     func testVacuumCardPauseTapSendsAction() {
         let app = launch("vacuum", identifier: "liveactivity.lockscreen")
         element("liveactivity.lockscreen", in: app).buttons["Pause Main Floor Vacuum"].tap()
-        XCTAssertEqual(lastAction(app), "pause job.vacuum.main_floor")
+        XCTAssertEqual(lastAction(app), "pause job.vacuum.demo_vacuum_1")
     }
 
     // MARK: Names, roles and order
@@ -315,7 +315,7 @@ final class LiveActivityJourneyTests: JourneyTestCase {
         let app = launch("problem-navigation-stuck", identifier: "liveactivity.lockscreen")
         let lock = element("liveactivity.lockscreen", in: app)
         lock.buttons["Done Main Floor Vacuum"].tap()
-        XCTAssertEqual(lastAction(app), "done job.vacuum.main_floor")
+        XCTAssertEqual(lastAction(app), "done job.vacuum.demo_vacuum_1")
         XCTAssertTrue(lock.staticTexts["Completing…"].appears(timeout: 5))
     }
 

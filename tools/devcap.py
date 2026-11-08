@@ -5,7 +5,7 @@ Every repository and lane on one Mac shares the same simulator, device and
 compile capacity. ``devcap`` hands out that capacity FIFO, so parallel lanes
 wait their turn instead of booting more simulators (or compiling more apps)
 than the machine can carry. It is the one capacity mechanism for
-SFenton/FestivalNativeApps and this app (its private sibling); the canonical copy
+SFenton/FestivalNativeApps and SFenton/Fenton-HASS-Native; the canonical copy
 lives in FestivalNativeApps at ``tools/devcap.py`` and other repositories
 vendor it byte for byte (see ``VERSION``).
 

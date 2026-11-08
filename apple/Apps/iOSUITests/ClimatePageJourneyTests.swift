@@ -18,7 +18,7 @@ final class ClimatePageJourneyTests: ClimateJourneyTestCase {
         XCTAssertEqual(value(element("climate.hub.fan", in: app)), "Auto")
         XCTAssertFalse(element("climate.awayNotice", in: app).exists, "Home shows no away notice")
         XCTAssertFalse(element("climate.integrationWarning", in: app).exists)
-        let window = element("climate.contact.binary_sensor.office_window_contact_sensor_contact", in: app)
+        let window = element("climate.contact.binary_sensor.demo_office_contact_2", in: app)
         XCTAssertTrue(window.exists)
         XCTAssertEqual(window.label, "Office Window")
         XCTAssertEqual(value(window), "Open")

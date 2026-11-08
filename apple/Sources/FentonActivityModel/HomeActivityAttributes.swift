@@ -19,7 +19,7 @@ public struct HomeActivityAttributes: Codable, Hashable, Sendable {
     /// `title` at most.
     public static let maxTitleLength = 32
 
-    /// `job.<id>`, for example `job.vacuum.main_floor`. It is also the `tag` Home Assistant's `mobile_app` keys the
+    /// `job.<id>`, for example `job.vacuum.demo_vacuum_1`. It is also the `tag` Home Assistant's `mobile_app` keys the
     /// update token by.
     public var tag: String
     /// The device ("Main Floor Vacuum"). It never changes for the life of the activity.

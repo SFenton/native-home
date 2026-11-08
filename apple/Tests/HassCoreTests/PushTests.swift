@@ -769,7 +769,7 @@ struct PushLinkTests {
             ("thermostat", .section(.climate)), ("chores", .section(.chores)), ("sams-chores", .section(.chores)),
             ("groceries", .section(.chores)), ("admin", .section(.settings)), ("to-do", .section(.settings)),
             ("master-bedroom", .homePage("master-bedroom")), ("grocery-list", .homePage("grocery-list")),
-            ("all-food", .homePage("all-food")),
+            ("all-food", .homePage("all-food")), ("car", .section(.settings)),
         ]
         for (path, destination) in cases {
             #expect(PushDestination(dashboardPath: path) == destination, "\(path)")

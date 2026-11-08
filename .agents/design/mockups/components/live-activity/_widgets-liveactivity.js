@@ -287,7 +287,7 @@
   function fan(left, title) { return { attrs: A('job.fan.guest', title || 'Guest Bath Fan', 'fan', 'fan', 'air'), state: S({ value: down(left, 300), controls: [ct('stop', 'Stop')], url: '/sfenton-react-dash/home?path=guest-bathroom' }) }; }
   function dish() { return { attrs: A('job.dishwasher', 'Dishwasher', 'dishwasher', 'dishwasher', 'cleaning'), state: S({ value: down(2520, 8000), controls: [ct('stop', 'Stop')], url: '/sfenton-react-dash/home?path=kitchen' }) }; }
   function laundry(kind, title, elapsed) { return { attrs: A('job.' + kind, title, kind, kind, 'cleaning'), state: S({ value: up(elapsed), url: '/sfenton-react-dash/home?path=laundry' }) }; }
-  function vac(headline, short, tint) { return { attrs: A('job.vacuum.main_floor', 'Main Floor Vacuum', 'vacuum', 'vacuum', tint), state: S({ headline: headline, short: short, controls: [ct('pause', 'Pause'), ct('dock', 'Dock', 'secondary')], url: '/sfenton-react-dash/home?path=vacuums' }) }; }
+  function vac(headline, short, tint) { return { attrs: A('job.vacuum.demo_vacuum_1', 'Main Floor Vacuum', 'vacuum', 'vacuum', tint), state: S({ headline: headline, short: short, controls: [ct('pause', 'Pause'), ct('dock', 'Dock', 'secondary')], url: '/sfenton-react-dash/home?path=vacuums' }) }; }
   function flash(line, remaining) { return { attrs: A('job.hot_flash', 'Hot Flash', 'hot_flash', 'hot_flash', 'cooling'), state: S({ detail: line, value: down(remaining || 760, 140), controls: [ct('stop', 'Stop')], url: '/sfenton-react-dash/home?path=master-bedroom' }) }; }
   function done(b) { b = clone(b); b.state.phase = 'done'; b.state.value = { kind: 'text', text: 'Complete' }; b.state.progress = 1; b.state.controls = []; return b; }
   function awaiting(b, control) { b = clone(b); b.state.notice = null; b.state.pending = { control: control, label: PEND[control] || 'Working…' }; return b; }
@@ -305,7 +305,7 @@
     { code: 'mop.clean_water_empty', sev: 'warning', icon: 'water', problem: 'Clean water tank empty', message: 'Refill the clean water tank on the dock, then tap Resume.', buttons: [['resume', 'Resume']], task: true },
     { code: 'mop.dirty_water_unavailable', sev: 'warning', icon: 'waste', problem: 'Wastewater tank full or missing', message: 'Empty the wastewater tank and seat it firmly.', buttons: [['resume', 'Resume']], task: true },
     { code: 'mop.attachment_missing', sev: 'warning', icon: 'mop', problem: 'Mop pads missing', message: 'Attach the mop pads, or it vacuums only.', buttons: [['vacuum_only', 'Vacuum Only']], task: true },
-    { code: 'mop.vacuum_only_fallback', sev: 'warning', icon: 'mop', problem: 'Vacuuming only', message: "Mopping isn't available. Check the mop attachment, water tanks and pads.", buttons: [], task: false, device: 'Studio Vacuum', tag: 'job.vacuum.music_room' },
+    { code: 'mop.vacuum_only_fallback', sev: 'warning', icon: 'mop', problem: 'Vacuuming only', message: "Mopping isn't available. Check the mop attachment, water tanks and pads.", buttons: [], task: false, device: 'Studio Vacuum', tag: 'job.vacuum.demo_vacuum_2' },
     { code: 'dock.cover_open', sev: 'warning', icon: 'bag', problem: 'Dock cover open', message: 'Check the dust bag is in, then close the cover.', buttons: [], task: true },
     { code: 'dock.dustbag_blocked', sev: 'warning', icon: 'bag', problem: 'Dust bag full', message: 'Replace the dust bag in the dock.', buttons: [], task: true },
     { code: 'vendor.unknown_error_88', sev: 'critical', icon: 'question', problem: 'Stopped with an error', message: 'Check the robot, then tap Resume.', buttons: [['resume', 'Resume'], ['dock', 'Dock']], task: false, chips: ['Error 88'] },
@@ -317,7 +317,7 @@
   function problemFx(row, hasTask) {
     var controls = row.buttons.map(function (b) { return ct(b[0], b[1]); });
     if (hasTask) controls.push(ct('done', 'Done'));
-    return { attrs: A(row.tag || 'job.vacuum.main_floor', row.device || 'Main Floor Vacuum', row.kind || 'vacuum', row.symbol || 'vacuum', 'cleaning'),
+    return { attrs: A(row.tag || 'job.vacuum.demo_vacuum_1', row.device || 'Main Floor Vacuum', row.kind || 'vacuum', row.symbol || 'vacuum', 'cleaning'),
       state: S({ phase: 'problem', value: { kind: 'text', text: row.sev === 'critical' ? 'Needs help' : 'Attention' }, controls: controls,
         problem: { severity: row.sev, code: row.code, icon: row.icon, problem: row.problem, message: row.message, chips: row.chips || [], taskId: hasTask ? 'task-1042' : null }, url: '/sfenton-react-dash/home?path=vacuums' }) };
   }

@@ -23,13 +23,13 @@ public enum SecurityConfig {
     public static var rightGarageDoorEntityId: String {
         read { $0.garageDoors["right"] }.flatMap { $0 } ?? ""
     }
-    /// The car's door lock (`vehicle tiles constant`).
+    /// The car's door lock (the web's security vehicle tiles).
     public static var vehicleLockEntityId: String { read { $0.vehicleLockEntityId } ?? "" }
     /// Contact sensor group the Contact Sensors chip summarizes.
     public static var contactSensorsEntityId: String { read { $0.contactSensorsEntityId } ?? "" }
 
 
-    /// The web hides the Vehicle section (`vehicle-section flag = false`, SecurityDashboard.tsx:31); the native
+    /// The web hides the Vehicle section (a flag the web sets to false, SecurityDashboard.tsx:31); the native
     /// page follows it. The debug gallery shows the section so its tile stays tested.
     public static var showsVehicleSection: Bool { read { $0.showsVehicleSection } ?? false }
 
@@ -60,7 +60,7 @@ public enum SecurityConfig {
     /// `SECURITY_CONTROL_TILES`, in web order: the server's document.
     public static var controlTiles: [Tile] { read { $0.controlTiles } ?? [] }
 
-    /// `vehicle tiles constant`: the server's document.
+    /// The web's security vehicle tiles: the server's document.
     public static var vehicleTiles: [Tile] { read { $0.vehicleTiles } ?? [] }
 
     // MARK: - Tone

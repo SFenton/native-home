@@ -308,7 +308,7 @@ final class HomePagesJourneyTests: JourneyTestCase {
         guard element("customLights.resetAll", in: app).frame.maxY > app.windows.firstMatch.frame.maxY else { return }
         let manual = element("customLights.manual", in: app)
         let before = manual.frame.minY
-        let onTile = element("customLights.light.light.front_door_exterior_left_light", in: app)
+        let onTile = element("customLights.light.light.demo_front_door_door_1", in: app)
             .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         onTile.press(forDuration: 0.05, thenDragTo: onTile.withOffset(CGVector(dx: 0, dy: -200)), withVelocity: .slow,
                      thenHoldForDuration: 0.2)

@@ -4,7 +4,7 @@ import Foundation
 /// and Car (`.agents/pages/settings/household.md`).
 ///
 /// Source: `ha-sfenton-react-dash@9ac2a46:src/constants/portedDashboard.ts` (`ADMIN_*` 206-304,
-/// `SETTINGS_PAGE_ITEMS` 306, `GUEST_CONTROL_ITEMS` 391, `CONTROL_PAGES` vehicle page 718) and copy from
+/// `SETTINGS_PAGE_ITEMS` 306, `GUEST_CONTROL_ITEMS` 391, the control-pages vehicle entry 718) and copy from
 /// `src/i18n/locales/en/pages/{settings,admin,specialDeviceModes,guests}.json`.
 public enum HouseholdSettingsConfig {
     // MARK: - Types
@@ -144,7 +144,7 @@ public enum HouseholdSettingsConfig {
 
     // MARK: - Car
 
-    /// Car page (`CONTROL_PAGES` vehicle page): read-only tiles, since the web gives them no action.
+    /// Car page (the web's control-pages vehicle entry): read-only tiles, since the web gives them no action.
     /// Charge Status shows its value too (the web hides it, leaving a tile that says nothing; departure recorded
     /// in `.agents/pages/settings/household.md`).
     public enum Vehicle {

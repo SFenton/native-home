@@ -30,7 +30,7 @@ final class ClimateTrackingJourneyTests: ClimateJourneyTestCase {
         XCTAssertTrue(isSelected(reveal(element("climate.track.critical-protection.guest_room", in: app), in: app)))
         back(app)
 
-        let track = reveal(element("climate.toggle.switch.thermostat_contact_sensors_only_track_selected_rooms", in: app), in: app)
+        let track = reveal(element("climate.toggle.switch.demo_contact_6", in: app), in: app)
         flip(track)
         XCTAssertTrue(hasValue(track, "0"))
         let disabled = reveal(element("climate.tracking.selected-rooms", in: app), in: app)

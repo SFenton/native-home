@@ -8,7 +8,7 @@ final class VacuumRoomsJourneyTests: VacuumJourneyTestCase {
         let app = launch(Self.mainFloor)
         tab("Rooms", in: app)
         // Rooms are selection tiles: "selected" when chosen, never "switch", with the order in the label.
-        let office = element("vacuum.room.input_boolean.roborock_office_toggle", in: app)
+        let office = element("vacuum.room.input_boolean.demo_office_1", in: app)
         XCTAssertTrue(office.appears(timeout: 10))
         reveal(office, in: app)
         assertTarget(office)

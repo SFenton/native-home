@@ -43,6 +43,7 @@ import argparse
 import calendar
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -157,13 +158,26 @@ def probability(row: Dict[str, Any]) -> Optional[float]:
 
 # MARK: - Outcome sources
 
-def product_repo() -> str:
-    """The product repository (``owner/name``) from ``tools/triage/config.json``, read at runtime."""
+def product_repos() -> List[str]:
+    """Every ``owner/name`` whose pull-request links belong to this project, read at run time and never written here.
+
+    The ``product_repo`` of ``tools/triage/config.json``, this checkout's ``origin`` remote (which names the former
+    repository in the private clone) and the comma-separated ``JEV_MISS_EXTRA_REPOS`` environment variable."""
+    names: List[str] = []
     try:
-        value = json.loads((Path(__file__).resolve().parent / "triage" / "config.json").read_text(encoding="utf-8")).get("product_repo")
+        configured = json.loads((Path(__file__).resolve().parent / "triage" / "config.json").read_text(encoding="utf-8")).get("product_repo")
     except (OSError, ValueError):
-        value = ""
-    return value if isinstance(value, str) and value else "-"
+        configured = ""
+    names.append(configured if isinstance(configured, str) else "")
+    try:
+        url = subprocess.run(["git", "-C", str(Path(__file__).resolve().parent), "remote", "get-url", "origin"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        url = ""
+    remote = re.search(r"github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?/?$", url)
+    names.append(remote.group(1) if remote else "")
+    names.extend(os.environ.get("JEV_MISS_EXTRA_REPOS", "").split(","))
+    return sorted({n.strip() for n in names if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", n.strip())})
 
 
 class Outcomes:
@@ -203,7 +217,7 @@ class Outcomes:
         """PR numbers the task's ledger entry names (``pr``, ``pr_number`` or a product-repo ``/pull/N`` URL)."""
         ledger = self.ledger(task) or {}
         found = [str(ledger[k]) for k in ("pr", "pr_number") if ledger.get(k)]
-        found += re.findall(r"github\.com/" + re.escape(product_repo()) + r"/pull/(\d+)", json.dumps(ledger))
+        found += re.findall(r"github\.com/" + "(?:" + "|".join(re.escape(n) for n in product_repos() or ["-"]) + ")" + r"/pull/(\d+)", json.dumps(ledger))
         return sorted(set(found))
 
     def invisible(self, number: str) -> Optional[bool]:

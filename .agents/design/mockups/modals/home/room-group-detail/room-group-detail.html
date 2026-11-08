@@ -64,11 +64,11 @@
       { id: 'vent-opens', what: 'A vent opens: its tile fills the Vents blue and reads "Open · 40%"', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'climate',
         source: 'RoomGroupDetail.swift sensorTile (ClimateLogic.isVentOpen); motion.md section 6',
         reduce: 'still cross-fades, at 0.2 s',
-        play: function (stage) { var t = stage.querySelector('[data-id="room.entity.cover.guest_room_vent_vent"]'); return RO.flipTile(t, true, { symbol: 'fan', subtitle: 'Open · 40%' }).then(function () { return Mock.sleep(600); }).then(function () { return RO.flipTile(t, false, { symbol: 'fan', subtitle: 'Closed' }); }); } },
+        play: function (stage) { var t = stage.querySelector('[data-id="room.entity.cover.demo_guest_room_vent_1"]'); return RO.flipTile(t, true, { symbol: 'fan', subtitle: 'Open · 40%' }).then(function () { return Mock.sleep(600); }).then(function () { return RO.flipTile(t, false, { symbol: 'fan', subtitle: 'Closed' }); }); } },
       { id: 'sensor-fills', what: 'A presence sensor detects someone: its tile fills green and reads Detected', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced); glyph .symbolEffect(.replace), identity under Reduce Motion', state: 'occupancy',
         source: 'RoomGroupDetail.swift sensorTile; motion.md section 6',
         reduce: 'colour still cross-fades at 0.2 s; the glyph swaps without the effect',
-        play: function (stage) { var t = stage.querySelector('[data-id="room.entity.binary_sensor.living_room_fireplace_presence_sensor_presence"]'); return RO.flipTile(t, true, { symbol: 'figure.walk.motion', subtitle: 'Detected' }).then(function () { return Mock.sleep(600); }).then(function () { return RO.flipTile(t, false, { symbol: 'figure.stand', subtitle: 'Clear' }); }); } },
+        play: function (stage) { var t = stage.querySelector('[data-id="room.entity.binary_sensor.demo_living_room_presence_1"]'); return RO.flipTile(t, true, { symbol: 'figure.walk.motion', subtitle: 'Detected' }).then(function () { return Mock.sleep(600); }).then(function () { return RO.flipTile(t, false, { symbol: 'figure.stand', subtitle: 'Clear' }); }); } },
     ],
 
     transitions: [

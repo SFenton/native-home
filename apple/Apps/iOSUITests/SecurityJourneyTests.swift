@@ -213,7 +213,7 @@ final class SecurityJourneyTests: JourneyTestCase {
         XCTAssertTrue(entryway.appears(timeout: 10))
         entryway.tap()
         XCTAssertTrue(app.navigationBars["Entryway Contact Sensors"].appears(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any)["room.entity.binary_sensor.front_door_contact_sensor_contact"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["room.entity.binary_sensor.demo_front_door_contact_1"].exists)
         app.buttons["Close"].firstMatch.tap()
     }
 

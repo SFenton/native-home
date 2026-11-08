@@ -36,7 +36,7 @@ PUBLIC_IP = ".".join(["8", "8", "8", "8"])
 VIN = "1HGCM" + "82633A" + "004352"
 SHA = "a1b2c3d4e5" * 4
 MD5 = "0123456789abcdef" * 2
-REPO = "fenton-hass-" + "requests"
+REPO = "private-requests-fixture"
 SECRET_TERM = "zebrafish"  # a made-up denylist term, not a real name
 
 
@@ -83,7 +83,10 @@ class DetectionTests(unittest.TestCase):
             CFG.object_id_prefixes, CFG.object_id_words, CFG.object_ids, CFG.hosts, set(), ("fx/",), (), [])), [])
 
     def test_the_private_request_repository_name_is_flagged(self):
-        self.assertEqual(rules(f"Owner/{REPO.upper()}"), ["reponame"])
+        with mock.patch.object(house_scan, "REPO_NAME", house_scan.re.compile(house_scan.re.escape(REPO), house_scan.re.I)):
+            self.assertEqual(rules(f"Owner/{REPO.upper()}"), ["reponame"])
+        with mock.patch.object(house_scan, "REPO_NAME", None):
+            self.assertEqual(rules(f"Owner/{REPO.upper()}"), [])
         self.assertEqual(rules("example-owner/example-requests"), [])
 
     def test_in_code_an_id_counts_only_inside_a_string(self):

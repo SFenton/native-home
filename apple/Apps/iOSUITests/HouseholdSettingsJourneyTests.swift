@@ -367,7 +367,7 @@ final class HouseholdSettingsJourneyTests: JourneyTestCase {
     private func capturePresenceDetail(pose: Pose) throws {
         try capture(pose: pose) { app in
             openSheet(app, "presenceOverrides")
-            app.buttons["presence.room.switch.hallway_presence_hallway_lights_presence_allowed"].tap()
+            app.buttons["presence.room.switch.demo_hallway_presence_2"].tap()
             XCTAssertTrue(app.buttons["presence.option.enabled"].appears(timeout: 5))
             settleScreen()
             keepScreenshot(app, "presence-detail-\(suffix(pose))")

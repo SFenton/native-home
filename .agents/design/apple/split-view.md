@@ -76,6 +76,6 @@ From FestivalNativeApps `split-view.md`: a page starts full width; selecting an 
 | Sheet, content-fitted | Camera viewer (dark; video beside controls in iPad landscape) |
 | Full-screen modal | Home Assistant backend settings (web view), sign-in |
 
-The full screen map is the coordinator's dashboard inventory: https://claude.ai/code/artifact/bba4d82d-2e8f-4aee-b216-8256aa97f47c
+The full screen map is the coordinator's dashboard inventory: the owner's private mockup gallery (link kept outside the repo)
 
 **Tests per family.** The split suites keep their pose, split or wide class in the test map's `layout_journeys` (and in `layoutJourneys`), so an edit of a split surface runs that class on Duo and iPad and the rest of the suite on iPhone only ([testing](../../testing/apple/README.md)). A new split surface adds its class to its rule's `layout_journeys`.
