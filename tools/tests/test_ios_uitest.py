@@ -185,6 +185,58 @@ class SuiteSelectionTests(unittest.TestCase):
         self.assertNotIn("nightly/release tier", out.stderr)
 
 
+class SimHealthyTests(unittest.TestCase):
+    """``sim_healthy`` screenshots the primary display first and takes its walls from the environment."""
+
+    def run_health(self, tmp, fail_primary=False, **env):
+        """Source only ``sim_healthy`` against a stub xc_watch.py that logs its arguments; returns the logged lines."""
+        tmp = Path(tmp)
+        (tmp / "tools").mkdir()
+        log = tmp / "calls.log"
+        (tmp / "tools" / "xc_watch.py").write_text(
+            "import sys\n"
+            f"open({str(log)!r}, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+            f"sys.exit(1 if {fail_primary!r} and '--display=primary' in sys.argv else 0)\n"
+        )
+        text = SCRIPT.read_text()
+        start = text.index("sim_healthy() {")
+        body = text[start:text.index("\nrun_family()", start)]
+        run_env = {k: v for k, v in os.environ.items() if not k.startswith("FENTON_HEALTH")}
+        run_env.update(env)
+        subprocess.run(["bash", "-c", f'ROOT="{tmp}"\n{body}\nsim_healthy UDID'], env=run_env, check=True)
+        return log.read_text().splitlines()
+
+    def test_the_primary_display_is_screenshotted_first_and_alone_when_it_works(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = self.run_health(tmp)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("bootstatus", calls[0])
+        self.assertIn("--display=primary", calls[1])
+
+    def test_the_bare_screenshot_is_only_a_fallback(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = self.run_health(tmp, fail_primary=True)
+        self.assertEqual(len(calls), 3)
+        self.assertIn("--display=primary", calls[1])
+        self.assertNotIn("--display", calls[2])
+
+    def test_walls_default_to_the_local_values(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = self.run_health(tmp)
+        self.assertIn("--wall 120", calls[0])
+        self.assertIn("--wall 20", calls[1])
+
+    def test_walls_come_from_the_environment(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = self.run_health(tmp, FENTON_HEALTH_SHOT_WALL="180", FENTON_HEALTH_BOOT_WALL="300")
+        self.assertIn("--wall 300", calls[0])
+        self.assertIn("--wall 180", calls[1])
+
+
 if __name__ == "__main__":
     unittest.main()
 
