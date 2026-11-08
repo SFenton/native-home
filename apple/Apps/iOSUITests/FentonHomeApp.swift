@@ -388,6 +388,16 @@ enum FentonHomeApp {
             /// The AX5 evidence on `large`: what stays open.
             func judge(_ large: XCUIApplication) -> [String] {
                 var result: [String] = []
+                // Hosted run 42448367681 (iPhone Duo, 2026-11-08): the audit itself finished in about 30 s, then this relaunched
+                // page's first element query (the collection view probe below) timed out three times at 30 s each ("Failed to get
+                // matching snapshots") until the 5-minute test allowance ended the run. The relaunch's "Wait for idle" had
+                // returned, but the accessibility tree of the cold two-display simulator was not serving snapshots yet. Wait here,
+                // for a bounded 90 s, until the page has a window, so a slow first frame is absorbed and a page that never comes
+                // up fails in 90 s with a message instead of hanging the whole test. Every family takes this path; it only waits
+                // when the page is not up, so the iPhone and iPad audits are unchanged.
+                guard large.windows.firstMatch.waitForExistence(timeout: 90) else {
+                    return ["the AX5 page showed no window within 90 s of the relaunch"]
+                }
                 // AX5 pushes rows below the fold (the folded iPhone Duo shows one or two), so scroll the
                 // page to measure every text this audit needs, until the page stops moving.
                 var largeHeights: [String: CGFloat] = [:]

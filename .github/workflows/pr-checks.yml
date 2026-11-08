@@ -502,8 +502,12 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-${{ matrix.family }}
-          path: apple/.build/uitest-*.xcresult
-          if-no-files-found: ignore
+          # An .xcresult is a directory: upload-artifact matches files only, and a bare directory glob matched none on the
+          # Duo failure (run 42448367681, "No files were found"). The trailing /** names the files inside.
+          path: |
+            apple/.build/uitest-*.xcresult/**
+            apple/.build/uitest-*.log
+          if-no-files-found: warn
 
   pr-checks:
     # The one check pr_land.sh requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
