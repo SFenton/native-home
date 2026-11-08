@@ -5,8 +5,9 @@ Git feeds ``<local ref> <local sha> <remote ref> <remote sha>`` lines on stdin a
 
 What is scanned, per pushed ref (deletes are skipped):
 
-- the commits the push adds: ``remote_sha..local_sha``, or for a new branch every commit reachable from the local sha that is not on
-  the **destination's own** tracking refs (``refs/remotes/<name>/*``; none, or a push by URL, means all of them);
+- the commits the push adds: every commit reachable from the local sha that is not reachable from the known remote sha nor from
+  any object **advertised by the destination at push time** (``git ls-remote <push url>``, once per push, 20 s bound; a failure
+  excludes nothing, so the whole history is scanned). Local ``refs/remotes/*`` are never trusted;
 - per commit: message, author and committer name and email, every changed path, every changed blob;
 - tag objects (message and tagger, nested tags too) and a tag or ref that points straight at a tree or blob.
 
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -139,16 +141,67 @@ def redact(path: str, matcher: Matcher) -> str:
     return "/".join("…" if matcher.text(part) else part for part in path.split("/"))
 
 
-def new_commits(local: str, remote: str, remote_name: str) -> List[str]:
-    """Commits a push adds. A known remote sha gives ``remote..local``; a new branch gives everything not on the destination's tracking refs."""
+#: Seconds ``git ls-remote`` may take before the push is scanned in full.
+LS_REMOTE_TIMEOUT = 20
+
+
+def ls_remote(target: str) -> Optional[bytes]:
+    """``git ls-remote -- <target>`` stdout, or ``None`` when it fails, times out, or the URL is rewritten.
+
+    A configured ``insteadOf`` / ``pushInsteadOf`` rewrite means the hook is asked about a different place than git pushes to, so
+    nothing is trusted. The child runs in its own session with prompts off; on timeout the whole group (ssh included) is killed.
+    """
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": ""}
+    try:
+        resolved = subprocess.run(["git", "ls-remote", "--get-url", "--", target], capture_output=True, env=env, timeout=LS_REMOTE_TIMEOUT)
+        if resolved.returncode != 0 or resolved.stdout.decode("utf-8", "replace").strip() != target.strip():
+            return None
+        proc = subprocess.Popen(["git", "ls-remote", "--", target], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                env=env, start_new_session=True)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    try:
+        out, _ = proc.communicate(timeout=LS_REMOTE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        proc.communicate()
+        return None
+    return out if proc.returncode == 0 else None
+
+
+def advertised_shas(target: str) -> List[str]:
+    """Object ids the destination advertises right now (``git ls-remote <target>``) that exist in this clone, commits and tags only.
+
+    Any failure or timeout returns ``[]``: nothing is excluded and the push is scanned in full. Local tracking refs are never
+    consulted, because they can be stale (after a rewrite or prune) or fetched from a different URL than the push target.
+    """
+    out = ls_remote(target)
+    if out is None:
+        return []
+    shas = list(dict.fromkeys(line.split()[0].decode() for line in out.splitlines()
+                              if line.split() and re.fullmatch(rb"[0-9a-f]{40,64}", line.split()[0])))
+    if not shas:
+        return []
+    try:
+        checked = git("cat-file", "--batch-check=%(objecttype) %(objectname)", data=("\n".join(shas) + "\n").encode()).decode().splitlines()
+    except ScanError:
+        return []
+    return [line.split()[1] for line in checked if line.split()[0] in ("commit", "tag")]
+
+
+def new_commits(local: str, remote: str, advertised: Sequence[str]) -> List[str]:
+    """Commits a push adds: reachable from ``local`` but not from the destination's known sha nor from anything it advertised at push time.
+
+    A branch that merged the destination's main is thus not rescanned for main's own commits. With ``advertised`` empty
+    (``ls-remote`` failed, or a new, empty destination) only the known remote sha is excluded.
+    """
     known = remote != ZERO and subprocess.run(["git", "cat-file", "-e", remote + "^{commit}"], capture_output=True).returncode == 0
-    if known:
-        return git("rev-list", f"{remote}..{local}").decode().split()
-    named = remote_name in git("remote").decode().split()
-    args = ["rev-list", local]
-    if named:
-        args += ["--not", f"--remotes={remote_name}"]
-    return git(*args).decode().split()
+    exclude = list(advertised) + ([remote] if known else [])
+    stdin = "".join(f"^{sha}\n" for sha in dict.fromkeys(exclude)).encode()
+    return git("rev-list", local, "--stdin", data=stdin).decode().split()
 
 
 def commit_hits(sha: str, matcher: Matcher) -> List[str]:
@@ -232,7 +285,7 @@ def scan_files(label: str, files: Sequence[Tuple[str, str]], matcher: Matcher, s
     return hits
 
 
-def scan_object(sha: str, remote: str, remote_name: str, matcher: Matcher, seen: Set[str]) -> Tuple[List[str], int]:
+def scan_object(sha: str, remote: str, advertised: Sequence[str], matcher: Matcher, seen: Set[str]) -> Tuple[List[str], int]:
     """Hits and the commit count of one pushed object: a commit, a (nested) tag, a tree or a blob."""
     hits: List[str] = []
     for _depth in range(16):
@@ -254,7 +307,7 @@ def scan_object(sha: str, remote: str, remote_name: str, matcher: Matcher, seen:
         return hits + scan_files(sha[:8], tree_files(sha), matcher, seen), 0
     if kind != "commit":
         raise ScanError(f"unexpected object type {kind}")
-    commits = new_commits(sha, remote, remote_name)
+    commits = new_commits(sha, remote, advertised)
     for commit in commits:
         hits.extend(commit_hits(commit, matcher))
         hits.extend(scan_files(commit[:8], tree_changes(commit), matcher, seen))
@@ -291,6 +344,14 @@ def main(argv: Optional[List[str]] = None, stdin=None) -> int:
         hits: List[str] = []
         scanned = 0
         seen: Set[str] = set()
+        cache: List[List[str]] = []
+
+        def advertised() -> List[str]:
+            """The destination's advertised shas, asked once per push."""
+            if not cache:
+                cache.append(advertised_shas(argv[1] if len(argv) > 1 else remote_name))
+            return cache[0]
+
         for local_ref, local, remote_ref, remote in pushes:
             # a ref name is pushed too (a branch or lightweight tag named after a term), deletes included
             for name in dict.fromkeys((local_ref, remote_ref)):
@@ -298,7 +359,7 @@ def main(argv: Optional[List[str]] = None, stdin=None) -> int:
                     hits.append(f"ref:{redact(name, matcher)}")
             if local == ZERO:
                 continue  # a delete adds nothing
-            found, commits = scan_object(local, remote, remote_name, matcher, seen)
+            found, commits = scan_object(local, remote, advertised(), matcher, seen)
             hits.extend(found)
             scanned += commits
     except (ScanError, OSError, ValueError) as exc:

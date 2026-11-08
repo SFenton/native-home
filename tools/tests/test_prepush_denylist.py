@@ -33,7 +33,8 @@ class Repo:
         if terms is not None:
             Path(self.list).write_text("\n".join(terms) + "\n")
         self.env = {**os.environ, "HOME": self.dir, "HOUSE_SCAN_DENYLIST": self.list if terms is not None else os.path.join(self.dir, "none.txt"),
-                    "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+                    "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull,
+                    "GIT_ALLOW_PROTOCOL": "file", "GIT_TERMINAL_PROMPT": "0"}  # ls-remote of a non-file URL fails fast
         self.git("init", "-q", "-b", "main")
         self.git("config", "user.email", "t@example.com")
         self.git("config", "user.name", "tester")
@@ -103,15 +104,6 @@ class PrePushTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1)
         self.assertIn(":author denylist", done.stdout)
 
-    def test_new_branch_scans_only_its_new_commits(self):
-        self.repo.git("remote", "add", "origin", "https://example.com/o")
-        old = self.repo.commit("old.txt", "zorblax5 here\n", "old hit")
-        self.repo.git("update-ref", "refs/remotes/origin/main", old)  # already on the remote
-        head = self.repo.commit("new.txt", "clean\n", "new work")
-        done = self.repo.push(head, ZERO)
-        self.assertEqual(done.returncode, 0, done.stdout)
-        self.assertIn("1 commit(s) scanned", done.stdout)
-
     def test_new_branch_hit_in_new_commit_is_refused(self):
         old = self.repo.commit("old.txt", "clean\n", "old")
         self.repo.git("update-ref", "refs/remotes/origin/main", old)
@@ -179,13 +171,175 @@ class PrePushTests(unittest.TestCase):
         by_url = self.repo.push(head, ZERO, name=PUBLIC)
         self.assertEqual(by_url.returncode, 1)
 
-    def test_new_branch_excludes_only_the_destination_tracking_refs(self):
-        self.repo.git("remote", "add", "native", "https://example.com/n")
-        old = self.repo.commit("old.txt", "clean\n", "old")
-        self.repo.git("update-ref", "refs/remotes/native/main", old)
+    def _bare(self, name="SFenton"):
+        """A bare repo at ``<tmp>/<name>/native-home.git``: a public URL (``is_public``) that ``ls-remote`` reaches offline."""
+        path = os.path.join(self.repo.dir, name, "native-home.git")
+        os.makedirs(os.path.dirname(path))
+        subprocess.run(["git", "init", "-q", "--bare", path], check=True, env=self.repo.env)
+        return path
+
+    def _public(self, bare, author="zorblax7 person", blob="clean\n", branch="main"):
+        """Commit on top of the base with a denylisted author, publish it to ``bare`` (it really has it), return its sha."""
+        self.repo.git("checkout", "-q", "-B", "tmp-" + branch, self.base)
+        self.repo.git("config", "user.name", author)
+        theirs = self.repo.commit("theirs.txt", blob, "public squash")
+        self.repo.git("config", "user.name", "tester")
+        self.repo.git("push", "-q", bare, f"{theirs}:refs/heads/{branch}")
+        return theirs
+
+    def _merged(self, theirs):
+        """A ``pr`` branch from the base with one commit and a merge of ``theirs``; return (pr commit, merge head)."""
+        self.repo.git("checkout", "-q", "-B", "pr", self.base)
+        mine = self.repo.commit("mine.txt", "clean\n", "pr work")
+        self.repo.git("merge", "-q", "--no-ff", "-m", "merge main", theirs)
+        return mine, self.repo.git("rev-parse", "HEAD")
+
+    def test_new_branch_scans_only_its_new_commits(self):
+        bare = self._bare()
+        old = self._public(bare, blob="zorblax5 here\n")  # the destination really has it
+        self.repo.git("checkout", "-q", "-B", "pr", old)
         head = self.repo.commit("new.txt", "clean\n", "new work")
-        done = self.repo.push(head, ZERO, name="native")
+        done = self.repo.push(head, ZERO, url=bare)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn("1 commit(s) scanned", done.stdout)
+
+    def test_known_sha_merge_of_advertised_commit_with_denylisted_author_pushes(self):
+        bare = self._bare()
+        theirs = self._public(bare)
+        mine, head = self._merged(theirs)
+        done = self.repo.push(head, mine, url=bare)  # remote_sha known: the branch exists on the destination
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("1 commit(s) scanned, 0 hit(s)", done.stdout)  # only the local merge commit
+
+    def test_new_branch_merge_of_advertised_commit_with_denylisted_author_pushes(self):
+        bare = self._bare()
+        theirs = self._public(bare)
+        _mine, head = self._merged(theirs)
+        done = self.repo.push(head, ZERO, url=bare)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("2 commit(s) scanned, 0 hit(s)", done.stdout)
+
+    def test_known_sha_new_commit_with_denylisted_author_or_blob_is_refused(self):
+        bare = self._bare()
+        theirs = self._public(bare)
+        self.repo.git("checkout", "-q", "-B", "pr", theirs)
+        blob = self.repo.commit("mine.txt", "the zorblax9 room\n", "pr work")
+        done = self.repo.push(blob, theirs, url=bare)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("mine.txt:1 denylist", done.stdout)
+        self.repo.git("config", "user.name", "zorblax8 person")
+        author = self.repo.commit("other.txt", "clean\n", "more")
+        done = self.repo.push(author, theirs, url=bare)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{author[:8]}:author denylist", done.stdout)
+
+    def test_new_branch_new_commit_with_denylisted_author_or_blob_is_refused(self):
+        bare = self._bare()
+        theirs = self._public(bare)
+        self.repo.git("checkout", "-q", "-B", "pr", theirs)
+        blob = self.repo.commit("mine.txt", "the zorblax9 room\n", "pr work")
+        self.assertEqual(self.repo.push(blob, ZERO, url=bare).returncode, 1)
+        self.repo.git("config", "user.name", "zorblax8 person")
+        author = self.repo.commit("other.txt", "clean\n", "more")
+        done = self.repo.push(author, ZERO, url=bare)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{author[:8]}:author denylist", done.stdout)
+
+    def test_commit_on_another_local_branch_only_is_still_scanned(self):
+        bare = self._bare()
+        self._public(bare)
+        self.repo.git("checkout", "-q", "-b", "other", self.base)
+        stray = self.repo.commit("stray.txt", "zorblax10\n", "stray")  # a local branch only: the destination lacks it
+        mine, head = self._merged(stray)
+        for remote in (mine, ZERO):
+            with self.subTest(remote=remote[:8]):
+                done = self.repo.push(head, remote, url=bare)
+                self.assertEqual(done.returncode, 1)
+                self.assertIn("stray.txt:1 denylist", done.stdout)
+
+    def test_stale_tracking_ref_is_not_trusted(self):
+        """A tracking ref at a commit the destination no longer has (rewritten history) hides nothing, in both paths."""
+        bare = self._bare()
+        self.repo.git("remote", "add", "origin", bare)
+        self.repo.git("checkout", "-q", "-B", "gone", self.base)
+        purged = self.repo.commit("purged.txt", "the zorblax11 room\n", "purged")
+        self.repo.git("update-ref", "refs/remotes/origin/main", purged)  # stale: the bare repo never had it
+        self.repo.git("push", "-q", bare, f"{self.base}:refs/heads/main")
+        self.repo.git("checkout", "-q", "-B", "pr", purged)
+        head = self.repo.commit("mine.txt", "clean\n", "pr work")
+        for remote in (self.base, ZERO):
+            with self.subTest(remote=remote[:8]):
+                done = self.repo.push(head, remote, url=bare, name="origin")
+                self.assertEqual(done.returncode, 1, done.stdout)
+                self.assertIn("purged.txt:1 denylist", done.stdout)
+
+    def test_split_pushurl_is_refused_when_the_push_target_lacks_the_commit(self):
+        """``origin`` fetches from a private repo that has the commit; the push goes to a public one that does not."""
+        fetch_from = self._bare("private")
+        push_to = self._bare()
+        theirs = self._public(fetch_from, blob="the zorblax12 room\n")
+        self.repo.git("remote", "add", "origin", fetch_from)
+        self.repo.git("config", "remote.origin.pushurl", push_to)
+        self.repo.git("fetch", "-q", "origin")
+        self.repo.git("push", "-q", push_to, f"{self.base}:refs/heads/main")
+        self.repo.git("checkout", "-q", "-B", "pr", theirs)
+        head = self.repo.commit("mine.txt", "clean\n", "pr work")
+        for remote in (self.base, ZERO):
+            with self.subTest(remote=remote[:8]):
+                done = self.repo.push(head, remote, url=push_to, name="origin")
+                self.assertEqual(done.returncode, 1, done.stdout)
+                self.assertIn("theirs.txt:1 denylist", done.stdout)
+
+    def test_ls_remote_failure_scans_everything(self):
+        bare = self._bare()
+        theirs = self._public(bare)
+        mine, head = self._merged(theirs)
+        missing = os.path.join(self.repo.dir, "absent", "SFenton", "native-home.git")  # ls-remote fails
+        done = self.repo.push(head, mine, url=missing)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{theirs[:8]}:author denylist", done.stdout)
+
+    def test_rewritten_url_scans_everything(self):
+        """``insteadOf`` makes git push somewhere other than the URL the hook was given: nothing is trusted."""
+        bare = self._bare()
+        theirs = self._public(bare)
+        mine, head = self._merged(theirs)
+        elsewhere = self._bare("elsewhere")
+        self.repo.git("config", f"url.{elsewhere}.insteadOf", bare)
+        done = self.repo.push(head, mine, url=bare)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"{theirs[:8]}:author denylist", done.stdout)
+
+    def test_ls_remote_timeout_kills_the_whole_process_group(self):
+        """A hung ``ls-remote`` (and its ssh child) is killed on timeout; the result is ``None`` (scan everything)."""
+        sys.path.insert(0, str(ROOT / "tools"))
+        import prepush_denylist as hook
+        fake = os.path.join(self.repo.dir, "fakebin")
+        os.mkdir(fake)
+        pidfile = os.path.join(self.repo.dir, "child.pid")
+        script = Path(fake, "git")
+        script.write_text('#!/bin/sh\n'
+                          'case "$*" in *--get-url*) echo "$4"; exit 0;; esac\n'
+                          f'sleep 60 &\necho $! > {pidfile}\nwait\n')
+        script.chmod(0o755)
+        old_path, old_timeout = os.environ["PATH"], hook.LS_REMOTE_TIMEOUT
+        os.environ["PATH"] = fake + os.pathsep + old_path
+        hook.LS_REMOTE_TIMEOUT = 1
+        try:
+            self.assertIsNone(hook.ls_remote("https://example.com/x"))
+        finally:
+            os.environ["PATH"], hook.LS_REMOTE_TIMEOUT = old_path, old_timeout
+        child = int(Path(pidfile).read_text())
+        for _ in range(50):
+            try:
+                os.kill(child, 0)
+            except ProcessLookupError:
+                break
+            import time
+            time.sleep(0.1)
+        else:
+            os.kill(child, 9)
+            self.fail("the sleeping child outlived the timeout")
 
     def test_annotated_tag_message_is_scanned(self):
         self.repo.git("tag", "-a", "v1", "-m", "release zorblax5", self.base)
