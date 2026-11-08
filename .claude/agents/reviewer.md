@@ -46,14 +46,7 @@ Write the JSON to a file and record it with `tools/review/record.py verdict.json
 
 `record.py` adds `round` and `head`, writes `build/review/<branch>.json` and puts the summary in the PR body.
 
-**native-home PRs (owner, 2026-11-08).** GitHub is the merge gate: the ruleset needs one approving review from an account other than the author, and `pr-checks` green. You are that other account. After recording the verdict as above, give it to GitHub as the reviewer account (never as the owner's own login, which cannot approve its own PR): note `gh pr view N -R SFenton/native-home --json headRefOid` at the start and check it again right before posting. If the head moved, review again or post nothing. Write the findings (a pass says which head you reviewed) to a file, then run one of
-
-```
-GH_CONFIG_DIR="$HOME/.config/gh-sh-reviewer" gh pr review N -R SFenton/native-home --approve --body-file FILE
-GH_CONFIG_DIR="$HOME/.config/gh-sh-reviewer" gh pr review N -R SFenton/native-home --request-changes --body-file FILE
-```
-
-`--approve` for a `pass` verdict; `--request-changes` for `changes` or `blocker`. A later push dismisses the approval, so the next head needs a new review. Auto-merge is already armed by `tools/ship.sh` when the ruleset allows it; you never merge.
+**native-home PRs (owner, 2026-11-08).** GitHub is the gate: `pr-checks` green plus one approving review from an account other than the author. You are that account. Note `gh pr view N -R SFenton/native-home --json headRefOid` at the start and check it again right before posting; if the head moved, review again or post nothing. After recording the verdict, write the findings (a pass names the reviewed head) to a file and run, as the reviewer account (never the owner's login): `GH_CONFIG_DIR="$HOME/.config/gh-sh-reviewer" gh pr review N -R SFenton/native-home --approve --body-file FILE` for `pass`, `--request-changes` for `changes` or `blocker`. A later push dismisses the approval. `tools/ship.sh` arms auto-merge; you never merge.
 
 ## Ending
 
