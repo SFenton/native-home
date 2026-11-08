@@ -5,6 +5,7 @@
 ``affected_tests.py --swift``         `--filter A --filter B` for `swift test`
 ``affected_tests.py --journeys``      `-only-testing:FentonHomeUITests/Class …` for `tools/ios_uitest.sh` (the iPhone list)
 ``affected_tests.py --journeys --device duo``  the journeys one family runs (iphone: all of them; duo, ipad: the layout ones)
+``affected_tests.py --journeys --plan Gate``  only the classes that plan runs (a class the plan skips whole, or does not select, would match nothing: xcodebuild "EMPTY")
 ``affected_tests.py --families``      device families that run the affected journeys (iphone duo ipad)
 ``affected_tests.py --smoke-families``  families that run only the Smoke plan (`ios_uitest.sh --only F --plan Smoke`)
 ``affected_tests.py --environment``   `NAME=value` lines a `--changed` run gives the journeys (``changedEnvironment`` of the map)
@@ -198,9 +199,33 @@ def swift_args(result: Dict) -> str:
     return " ".join(f"--filter {name}" for name in result["swift"])
 
 
-def journey_args(result: Dict, family: str = "") -> str:
-    """`-only-testing:Target/Class …` for ios_uitest.sh: the iPhone list, or ``family``'s own list."""
+def plan_runs(plan: str, target: str, name: str, plans_dir: Optional[Path] = None) -> bool:
+    """Whether test plan ``plan`` runs at least part of class ``name`` of ``target``.
+
+    A plan lists either ``selectedTests`` (only those run) or ``skippedTests`` (all others run); an entry is ``Class`` or
+    ``Class/method()``. A class the plan skips whole (a bare ``Class`` entry), or one a selecting plan does not name, matches
+    nothing under ``-only-testing:`` and xcodebuild reports no tests. A missing plan file runs everything (the scheme's own selection).
+    """
+    path = (plans_dir or ROOT / "apple" / "TestPlans") / f"{plan}.xctestplan"
+    if not path.is_file():
+        return True
+    for entry in json.loads(path.read_text()).get("testTargets", []):
+        if entry.get("target", {}).get("name") != target:
+            continue
+        if "selectedTests" in entry:
+            return any(item == name or item.startswith(name + "/") for item in entry["selectedTests"])
+        return name not in entry.get("skippedTests", [])
+    return False
+
+
+def journey_args(result: Dict, family: str = "", plan: str = "", plans_dir: Optional[Path] = None) -> str:
+    """`-only-testing:Target/Class …` for ios_uitest.sh: the iPhone list, or ``family``'s own list.
+
+    With ``plan`` only the classes that plan runs are kept (see ``plan_runs``).
+    """
     names = result.get("journeys_by_family", {}).get(family, result["journeys"]) if family else result["journeys"]
+    if plan:
+        names = [name for name in names if plan_runs(plan, result["target"], name, plans_dir)]
     return " ".join(f"-only-testing:{result['target']}/{name}" for name in names)
 
 
@@ -284,6 +309,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--environment", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--device", default="")
+    parser.add_argument("--plan", default="", help="with --journeys: keep only the classes this test plan runs (e.g. Gate)")
     parser.add_argument("--filter", default="")
     parser.add_argument("--tree", default="")
     parser.add_argument("--result", default="pass", choices=("pass", "skipped"))
@@ -309,7 +335,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.swift:
         print(swift_args(result))
     elif args.journeys:
-        print(journey_args(result, args.device))
+        print(journey_args(result, args.device, args.plan))
     elif args.families:
         print(" ".join(result["families"]))
     elif args.smoke_families:

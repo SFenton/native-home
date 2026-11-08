@@ -483,7 +483,19 @@ jobs:
         run: tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force
       - name: Journeys the diff reaches on ${{ matrix.family }}
         if: ${{ github.event_name == 'pull_request' }}
-        run: tools/ios_uitest.sh --only "${{ matrix.family }}" --changed --force
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          # --changed runs the Gate plan. A class Gate skips whole (the Live-plan shell journeys need the real house) matches nothing
+          # there, and xcodebuild reports EMPTY, a failure. When no affected journey is in Gate, skip the step and say so.
+          # Smoke already ran above, and the other families only ever run Smoke for such a change.
+          runnable="$(python3 tools/affected_tests.py --journeys --device "$FAMILY" --plan Gate)" || true
+          all="$(python3 tools/affected_tests.py --journeys --device "$FAMILY")" || true
+          if [ -z "$runnable" ]; then
+            echo "skipped: no journey the diff reaches runs in the Gate plan on $FAMILY (selected: ${all:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          tools/ios_uitest.sh --only "$FAMILY" --changed --force
       - name: Save DerivedData (main only)
         if: ${{ github.ref == 'refs/heads/main' && matrix.family == 'iphone' && steps.cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -504,6 +516,8 @@ jobs:
           name: xcresult-${{ matrix.family }}
           # An .xcresult is a directory: upload-artifact matches files only, and a bare directory glob matched none on the
           # Duo failure (run 42448367681, "No files were found"). The trailing /** names the files inside.
+          # apple/.build is a hidden directory, and upload-artifact v4.4+ skips hidden files unless told otherwise.
+          include-hidden-files: true
           path: |
             apple/.build/uitest-*.xcresult/**
             apple/.build/uitest-*.log
