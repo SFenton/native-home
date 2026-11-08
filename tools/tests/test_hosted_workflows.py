@@ -73,7 +73,7 @@ class RuleTests(unittest.TestCase):
     def test_the_aggregate_keeps_its_name_and_covers_both_sets(self):
         text = jobs("pr-checks.yml")["pr-checks"]
         self.assertIn("if: always()", text)
-        for needed in ("scope-hosted", "repo-checks-hosted", "tool-tests-hosted", "denylist-scan", "swift-test-hosted", "build-release-hosted"):
+        for needed in ("scope", "repo-checks-hosted", "tool-tests-hosted", "denylist-scan", "swift-test-hosted", "build-release-hosted"):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
         self.assertNotIn("sim-smoke", text.split("steps:")[0].split("needs:")[1])
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
@@ -148,6 +148,47 @@ class RuleTests(unittest.TestCase):
         script = (Path(__file__).resolve().parents[1] / "ios_uitest.sh").read_text(encoding="utf-8")
         self.assertIn("$CI_HOSTED == 1 && -n \"${FENTON_HOSTED_BUILD_SETTINGS:-}\"", script)
         self.assertNotIn("ARCHS=arm64", script)
+
+
+class ScopeFilterTests(unittest.TestCase):
+    """The `scope` job selects jobs with dorny/paths-filter (pinned by SHA); tools/ci_scope.py is gone."""
+
+    def text(self):
+        return jobs("pr-checks.yml")["scope"]
+
+    def test_the_filter_is_pinned_and_the_old_script_is_gone(self):
+        self.assertRegex(self.text(), r"uses: dorny/paths-filter@[0-9a-f]{40} # v\d+\.\d+\.\d+")
+        self.assertFalse((WORKFLOWS.parents[1] / "tools" / "ci_scope.py").exists())
+        self.assertNotIn("ci_scope", (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8"))
+
+    def test_only_the_scope_job_may_read_pull_requests(self):
+        self.assertIn("pull-requests: read", self.text())
+        for job, text in jobs("pr-checks.yml").items():
+            if job != "scope":
+                self.assertNotIn("pull-requests", text, job)
+
+    def test_the_ios_driving_tools_count_as_app(self):
+        pattern = re.search(r"app_tools: '(\{[^']*\})'", self.text()).group(1)
+        for needed in ("tools/ios_uitest.sh", "tools/affected_tests.py", "tools/sim_*.sh", "tools/simslim/**", "tools/ci_hosted*",
+                       "tools/products_cache.py", "tools/xc_watch.py"):
+            self.assertIn(needed, pattern)
+        script = (WORKFLOWS.parents[1] / "tools" / "ios_uitest.sh").read_text(encoding="utf-8")
+        for called in ("products_cache.py", "xc_watch.py", "affected_tests.py", "test_suites.py", "uitest_support.py", "lane_base.py"):
+            self.assertIn(called, script)
+            self.assertIn(called, pattern)
+
+    def test_docs_and_tools_do_not_count_and_a_push_to_main_runs_everything(self):
+        text = self.text()
+        for negation in ("!**/*.md", "!.agents/**", "!tools/**", "!contracts/test-map*"):
+            self.assertIn(negation, text)
+        self.assertIn("steps.filter.outcome == 'skipped' && 'true'", text)
+        self.assertIn("predicate-quantifier: every", text)
+
+    def test_the_manual_run_can_test_the_filter_on_given_commits(self):
+        text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
+        self.assertIn("scope_base:", text)
+        self.assertIn("scope_head:", text)
+        self.assertIn("base: ${{ inputs.scope_base }}", text)
 
 
 if __name__ == "__main__":

@@ -18,11 +18,11 @@ import sys
 from typing import Dict, List, Mapping
 
 #: Jobs that must succeed.
-CORE = ("scope-hosted", "repo-checks-hosted", "tool-tests-hosted")
+CORE = ("scope", "repo-checks-hosted", "tool-tests-hosted")
 #: job -> (scope job that decides it, output key, hosted macOS?). Skipping is allowed when that output is not 'true'.
 GATED = {
-    "build-release-hosted": ("scope-hosted", "release", True),
-    "swift-test-hosted": ("scope-hosted", "app", True),
+    "build-release-hosted": ("scope", "release", True),
+    "swift-test-hosted": ("scope", "app", True),
 }
 #: Jobs that only a fork pull request skips.
 BOTH = ("denylist-scan",)

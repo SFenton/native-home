@@ -21,9 +21,9 @@ def needs(**results):
 
 
 def run_of(macos="success", **overrides):
-    base = needs(scope_hosted="success", repo_checks_hosted="success", tool_tests_hosted="success", denylist_scan="success",
+    base = needs(scope="success", repo_checks_hosted="success", tool_tests_hosted="success", denylist_scan="success",
                  swift_test_hosted=macos, build_release_hosted=macos)
-    base["scope-hosted"]["outputs"] = {"app": "true", "release": "true"}
+    base["scope"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
 
@@ -36,13 +36,13 @@ class AggregateTests(unittest.TestCase):
     def test_a_skipped_core_job_fails(self):
         self.assertTrue(agg.problems(run_of(tool_tests_hosted="skipped"), False))
         self.assertTrue(agg.problems(run_of(repo_checks_hosted="skipped"), True))
-        self.assertTrue(agg.problems(run_of(scope_hosted="skipped"), True))
+        self.assertTrue(agg.problems(run_of(scope="skipped"), True))
 
     def test_hosted_macos_may_skip_only_while_the_variable_is_off_or_the_scope_says_so(self):
         self.assertEqual(agg.problems(run_of(macos="skipped"), False), [])
         self.assertTrue(agg.problems(run_of(macos="skipped"), True))
         run = run_of(macos="skipped")
-        run["scope-hosted"]["outputs"] = {"app": "false", "release": "false"}
+        run["scope"]["outputs"] = {"app": "false", "release": "false"}
         self.assertEqual(agg.problems(run, True), [])
 
     def test_the_denylist_scan_may_skip_for_a_fork_pull_request_only(self):

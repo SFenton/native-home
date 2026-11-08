@@ -10,6 +10,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      scope_base:
+        description: "Test the job filter: compare scope_base..scope_head instead of running everything (empty = run everything)"
+        required: false
+        default: ""
+      scope_head:
+        description: "Head commit for scope_base (default: this ref)"
+        required: false
+        default: ""
 permissions:
   contents: read
 concurrency:
@@ -23,33 +32,57 @@ jobs:
   # Hosted jobs. macOS: only when the repository variable HOSTED_MACOS is `on`, never keyed on visibility, which is empty on some
   # triggers. Plain pull_request, no secrets, FENTON_CI_HOSTED=1, nothing self-hosted.
   # ---------------------------------------------------------------------------------------------------------------------
-  scope-hosted:
+  scope:
+    # Which jobs a change needs, from GitHub's own changed-file list (dorny/paths-filter): the files of the pull request, not a diff against
+    # a base commit that may have moved. Unknown paths count as app, and a push to main runs everything.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read   # the filter lists a pull request's files through the API
     outputs:
-      app: ${{ steps.scope.outputs.app }}
-      release: ${{ steps.scope.outputs.release }}
-      scope: ${{ steps.scope.outputs.scope }}
+      app: ${{ steps.filter.outcome == 'skipped' && 'true' || (steps.filter.outputs.app_code == 'true' || steps.filter.outputs.app_tools == 'true') }}
+      release: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.release }}
     steps:
+      # Only the manual run compares commits itself (scope_base..scope_head), so it needs the history.
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.scope_base != '' }}
         with:
           fetch-depth: 0
           persist-credentials: false
-      - id: scope
+      - id: filter
+        if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.scope_base != '') }}
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          base: ${{ inputs.scope_base }}
+          ref: ${{ inputs.scope_head }}
+          # `every` applies to all filters: a file must match every pattern of a filter, so app_code subtracts with its negations and
+          # the other two filters are one brace pattern each.
+          # app_code: every path that is not documentation or Python tooling.
+          # app_tools: the tools and contracts that drive the iOS jobs, which `tools/**` would otherwise hide.
+          predicate-quantifier: every
+          filters: |
+            app_code:
+              - '**'
+              - '!**/*.md'
+              - '!.agents/**'
+              - '!.claude/**'
+              - '!docs/**'
+              - '!tools/**'
+              - '!contracts/test-map*'
+              - '!contracts/test-suites*'
+            app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
+            release: 'apple/**'
+      - name: Summary
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          APP: ${{ steps.filter.outcome == 'skipped' && 'true' || (steps.filter.outputs.app_code == 'true' || steps.filter.outputs.app_tools == 'true') }}
+          RELEASE: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.release }}
+          FILTER: ${{ steps.filter.outcome }}
         run: |
-          set -euo pipefail
-          if [ -n "${BASE:-}" ]; then
-            result="$(python3 tools/ci_scope.py --base "$BASE")"
-          else
-            result="$(printf 'app=true\nrelease=true\nscope=app\n')"
-          fi
-          echo "$result" >> "$GITHUB_OUTPUT"
-          echo "scope: $(echo "$result" | tr '\n' ' ')" >> "$GITHUB_STEP_SUMMARY"
+          echo "scope - app=$APP release=$RELEASE (filter $FILTER)" | tee -a "$GITHUB_STEP_SUMMARY"
 
   repo-checks-hosted:
-    needs: scope-hosted
+    needs: scope
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -79,7 +112,7 @@ jobs:
 
   tool-tests-hosted:
     # One job per part of tools/run_tool_tests.sh, in parallel (about 5 minutes in all on Linux, build/evidence/hosted-ci).
-    needs: scope-hosted
+    needs: scope
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -162,8 +195,8 @@ jobs:
         run: rm -f "$RUNNER_TEMP/house_denylist.txt"
 
   swift-test-hosted:
-    needs: scope-hosted
-    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.app == 'true' }}
+    needs: scope
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
     timeout-minutes: 90
     env:
@@ -193,7 +226,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-          RELEASE: ${{ needs.scope-hosted.outputs.release }}
+          RELEASE: ${{ needs.scope.outputs.release }}
         run: |
           set -uo pipefail
           filters=""
@@ -225,8 +258,8 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
 
   build-release-hosted:
-    needs: scope-hosted
-    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.release == 'true' }}
+    needs: scope
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.release == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
     timeout-minutes: 90
     env:
@@ -269,8 +302,8 @@ jobs:
   sim-smoke:
     # Advisory for now (continue-on-error, not in the aggregate): the Smoke plan plus the journeys the diff reaches, one family per job.
     # The folded Duo only; Device Hub poses stay on the MacBook until a probe shows they work on a hosted VM.
-    needs: scope-hosted
-    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope-hosted.outputs.app == 'true' }}
+    needs: scope
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
     # The Duo leg is shorter: a lost runner then frees its capacity and reports sooner (build/research/duo-hosted-ci.md).
     timeout-minutes: ${{ matrix.family == 'duo' && 60 || 90 }}
@@ -368,7 +401,7 @@ jobs:
     # The one check GitHub requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
     # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. sim-smoke is advisory and not listed.
     if: always()
-    needs: [scope-hosted, repo-checks-hosted, tool-tests-hosted, denylist-scan, swift-test-hosted, build-release-hosted]
+    needs: [scope, repo-checks-hosted, tool-tests-hosted, denylist-scan, swift-test-hosted, build-release-hosted]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
