@@ -19,6 +19,11 @@ on:
         description: "Head commit for scope_base (default: this ref)"
         required: false
         default: ""
+      smoke_layout:
+        description: "How the macOS job runs the three devices: sequential (stock simulators, one at a time) or parallel-slim (simslim, all at once)"
+        type: choice
+        options: [sequential, parallel-slim]
+        default: sequential
       report_dry_run:
         description: "Test the red-run report: print the Workflow issue instead of filing it (runs even when the tests are green)"
         type: boolean
@@ -75,7 +80,7 @@ jobs:
               - '!tools/**'
               - '!contracts/test-map*'
               - '!contracts/test-suites*'
-            app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
+            app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/ci_macos.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
             release: 'apple/**'
       - name: Summary
         env:
@@ -248,26 +253,59 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/house_denylist.txt"
 
-  swift-test-hosted:
+  macos:
+    # One macOS job per app change: the test products are built once and shared by every device, then Smoke runs on iPhone, iPhone Duo
+    # and iPad, then the full swift test. The build and swift test are required; the Smoke and journey steps are advisory
+    # (continue-on-error per step, not in the aggregate). Poses that need Device Hub stay on the MacBook.
+    # The simulators boot after the build, not during it: a first Duo boot beside a compile killed two runners (the Duo is also
+    # settled before it is used, tools/sim_settle.sh).
+    name: macOS - build, Smoke on three devices, swift test
     needs: scope
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    timeout-minutes: 90
+    timeout-minutes: 150
     env:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+      FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+      # sequential (default): one device at a time on stock simulators. parallel-slim: all three at once on simslim-slimmed simulators.
+      # Chosen by the manual run's smoke_layout input; the winner of the measurement becomes the default.
+      FENTON_SMOKE_LAYOUT: ${{ inputs.smoke_layout || 'sequential' }}
+      # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
+      FENTON_HEALTH_SHOT_WALL: "180"
+      FENTON_HEALTH_BOOT_WALL: "300"
+      # Hosted-only build settings (the products script adds them to the cache key, so hosted products have their own key):
+      # host architecture only, no index store. Local builds never see these.
+      FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Derived data path
+        # The runner context is not allowed in job env.
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        run: tools/ci_hosted_setup.sh
+        env:
+          FENTON_INSTALL_SIMSLIM: ${{ inputs.smoke_layout == 'parallel-slim' && '1' || '0' }}
+        run: |
+          tools/ci_hosted_setup.sh
+          # Spotlight indexing competes with the compile for 3 cores; best effort (needs sudo).
+          sudo mdutil -a -i off || true
       - name: Selected Xcode (cache key)
         id: xcode
         run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
-      - name: Restore SwiftPM caches
+      # The dd-sim-arm64 prefix follows FENTON_HOSTED_BUILD_SETTINGS (host architecture only): change both together.
+      - name: Restore DerivedData
         id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Restore SwiftPM caches
+        id: spm
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -276,34 +314,109 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: swift test (the affected suites on a pull request, everything on a push to main)
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          RELEASE: ${{ needs.scope.outputs.release }}
+      - name: Build the test products
+        id: build
+        run: tools/ci_macos.sh build
+      - name: Smoke on iPhone
+        id: iphone
+        if: ${{ !cancelled() && inputs.smoke_layout != 'parallel-slim' }}
+        continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
         run: |
-          set -uo pipefail
-          filters=""
-          if [ "$EVENT" = "pull_request" ] && [ "$RELEASE" = "true" ]; then
-            rc=0
-            filters="$(python3 tools/affected_tests.py --swift --base "origin/$BASE_REF")" || rc=$?
-            if [ "$rc" != "0" ]; then
-              echo "affected_tests.py could not place every changed file (exit $rc): running the full suite" >> "$GITHUB_STEP_SUMMARY"
-              filters="ALL"
-            elif [ -z "$filters" ]; then
-              echo "no Swift package suite is affected by this change: swift test skipped" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-          else
-            filters="ALL"
-          fi
-          [ "$filters" = "ALL" ] && filters=""
-          echo "swift test $filters" >> "$GITHUB_STEP_SUMMARY"
-          cd apple
-          # shellcheck disable=SC2086
-          swift test $filters
-      - name: Save SwiftPM caches (main only)
+          tools/ci_macos.sh smoke iphone
+      - name: Journeys the diff reaches on iPhone
+        id: iphone_journeys
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout != 'parallel-slim' }}
+        continue-on-error: true
+        run: tools/ci_macos.sh journeys iphone
+      - name: Smoke on iPhone Duo
+        id: duo
+        if: ${{ !cancelled() && inputs.smoke_layout != 'parallel-slim' }}
+        continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
+        run: |
+          tools/ci_macos.sh smoke duo
+      - name: Journeys the diff reaches on iPhone Duo
+        id: duo_journeys
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout != 'parallel-slim' }}
+        continue-on-error: true
+        run: tools/ci_macos.sh journeys duo
+      - name: Smoke on iPad
+        id: ipad
+        if: ${{ !cancelled() && inputs.smoke_layout != 'parallel-slim' }}
+        continue-on-error: true   # Smoke is advisory until it has passed 5 runs in a row on main
+        run: |
+          tools/ci_macos.sh smoke ipad
+      - name: Journeys the diff reaches on iPad
+        id: ipad_journeys
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout != 'parallel-slim' }}
+        continue-on-error: true
+        run: tools/ci_macos.sh journeys ipad
+      - name: Smoke on all three devices (parallel-slim)
+        id: parallel
+        if: ${{ !cancelled() && inputs.smoke_layout == 'parallel-slim' }}
+        continue-on-error: true
+        run: tools/ci_macos.sh smoke all
+      - name: Journeys the diff reaches on all three devices (parallel-slim)
+        id: parallel_journeys
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && inputs.smoke_layout == 'parallel-slim' }}
+        continue-on-error: true
+        run: tools/ci_macos.sh journeys all
+      - name: swift test
+        if: ${{ !cancelled() }}
+        run: tools/ci_macos.sh swift-test
+      - name: Timing summary
+        if: ${{ !cancelled() }}
+        run: tools/ci_macos.sh summary
+      - name: Simulator diagnostics
+        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.duo.outcome == 'failure' || steps.ipad.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure' || steps.duo_journeys.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        continue-on-error: true
+        run: |
+          xcrun simctl list devices
+          df -h / | tail -1
+          log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
+      - name: Keep the iphone results
+        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-iphone
+          # An .xcresult is a directory: upload-artifact matches files only, so the trailing /** names the files inside.
+          # apple/.build is hidden, and upload-artifact v4.4+ skips hidden files unless told otherwise.
+          include-hidden-files: true
+          path: |
+            apple/.build/uitest-iphone.xcresult/**
+            apple/.build/uitest-iphone.log
+          if-no-files-found: ignore
+      - name: Keep the duo results
+        if: ${{ !cancelled() && (steps.duo.outcome == 'failure' || steps.duo_journeys.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-duo
+          # An .xcresult is a directory: upload-artifact matches files only, so the trailing /** names the files inside.
+          # apple/.build is hidden, and upload-artifact v4.4+ skips hidden files unless told otherwise.
+          include-hidden-files: true
+          path: |
+            apple/.build/uitest-duo.xcresult/**
+            apple/.build/uitest-duo.log
+          if-no-files-found: ignore
+      - name: Keep the ipad results
+        if: ${{ !cancelled() && (steps.ipad.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure' || steps.parallel.outcome == 'failure' || steps.parallel_journeys.outcome == 'failure') }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-ipad
+          # An .xcresult is a directory: upload-artifact matches files only, so the trailing /** names the files inside.
+          # apple/.build is hidden, and upload-artifact v4.4+ skips hidden files unless told otherwise.
+          include-hidden-files: true
+          path: |
+            apple/.build/uitest-ipad.xcresult/**
+            apple/.build/uitest-ipad.log
+          if-no-files-found: ignore
+      - name: Save DerivedData (main only)
         if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+      - name: Save SwiftPM caches (main only)
+        if: ${{ github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -311,9 +424,10 @@ jobs:
             ~/Library/Caches/org.swift.swiftpm
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
 
-  build-release-hosted:
+  build-release:
+    # The Release build runs on a push to main only; a pull request is covered by the macOS job's build and swift test.
     needs: scope
-    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.release == 'true' }}
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.release == 'true' && github.event_name == 'push' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
     timeout-minutes: 90
     env:
@@ -353,109 +467,11 @@ jobs:
           path: ${{ runner.temp }}/dd
           key: dd-release-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
 
-  sim-smoke:
-    # Advisory for now (continue-on-error, not in the aggregate): the Smoke plan plus the journeys the diff reaches, one family per job.
-    # The folded Duo only; Device Hub poses stay on the MacBook until a probe shows they work on a hosted VM.
-    needs: scope
-    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
-    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    # The Duo leg is shorter: a lost runner then frees its capacity and reports sooner (build/research/duo-hosted-ci.md).
-    timeout-minutes: ${{ matrix.family == 'duo' && 60 || 90 }}
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        family: [iphone, duo, ipad]
-    env:
-      FENTON_CI_HOSTED: "1"
-      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
-      FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
-      # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
-      FENTON_HEALTH_SHOT_WALL: "180"
-      FENTON_HEALTH_BOOT_WALL: "300"
-      # Hosted-only build settings (the products script adds them to the cache key, so hosted products have their own key):
-      # host architecture only, no index store. Local builds never see these.
-      FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Derived data path (runner context is not allowed in job env)
-        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
-      - name: Prepare the runner
-        run: |
-          tools/ci_hosted_setup.sh
-          # Spotlight indexing competes with the compile for 3 cores; best effort (needs sudo).
-          sudo mdutil -a -i off || true
-      - name: Selected Xcode (cache key)
-        id: xcode
-        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
-      # The dd-sim-arm64 prefix follows FENTON_HOSTED_BUILD_SETTINGS (host architecture only): change both together.
-      - name: Restore DerivedData
-        id: cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/dd
-          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
-          restore-keys: |
-            dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: Build the test products first (no simulator booted; a Duo first boot beside a compile killed two runners)
-        run: tools/ci_heartbeat.sh run -- tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force --build-only
-      - name: Boot the ${{ matrix.family }} simulator and wait for the load to settle (first boot of a runtime on a fresh VM)
-        continue-on-error: true
-        run: tools/ci_heartbeat.sh run -- tools/sim_settle.sh "${{ matrix.family }}"
-      - name: Smoke plan on ${{ matrix.family }}
-        run: tools/ios_uitest.sh --only "${{ matrix.family }}" --plan Smoke --force
-      - name: Journeys the diff reaches on ${{ matrix.family }}
-        if: ${{ github.event_name == 'pull_request' }}
-        env:
-          FAMILY: ${{ matrix.family }}
-        run: |
-          # --changed runs the Gate plan. A class Gate skips whole (the Live-plan shell journeys need the real house) matches nothing
-          # there, and xcodebuild reports EMPTY, a failure. Skip only when the diff reaches journeys and Gate runs none of them.
-          # A crash of the selection tool fails the step; exit 3 (a file needing a pick) falls through to the runner, which fails on it.
-          rc=0
-          runnable="$(python3 tools/affected_tests.py --journeys --device "$FAMILY" --plan Gate)" || rc=$?
-          case "$rc" in 0|3) ;; *) echo "affected_tests.py failed (exit $rc)"; exit "$rc" ;; esac
-          all="$(python3 tools/affected_tests.py --journeys --device "$FAMILY")" || true
-          if [ -n "$all" ] && [ -z "$runnable" ]; then
-            echo "skipped: no journey the diff reaches runs in the Gate plan on $FAMILY (selected: $all)" | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          tools/ios_uitest.sh --only "$FAMILY" --changed --force
-      - name: Save DerivedData (main only)
-        if: ${{ github.ref == 'refs/heads/main' && matrix.family == 'iphone' && steps.cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/dd
-          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
-      - name: Simulator diagnostics
-        if: failure()
-        continue-on-error: true
-        run: |
-          xcrun simctl list devices
-          df -h / | tail -1
-          log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
-      - name: Keep the results
-        if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: xcresult-${{ matrix.family }}
-          # An .xcresult is a directory: upload-artifact matches files only, and a bare directory glob matched none on the
-          # Duo failure (run 42448367681, "No files were found"). The trailing /** names the files inside.
-          # apple/.build is a hidden directory, and upload-artifact v4.4+ skips hidden files unless told otherwise.
-          include-hidden-files: true
-          path: |
-            apple/.build/uitest-*.xcresult/**
-            apple/.build/uitest-*.log
-          if-no-files-found: warn
-
   pr-checks:
     # The one check GitHub requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
-    # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. sim-smoke is advisory and not listed.
+    # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. The Smoke steps of the macos job are advisory.
     if: always()
-    needs: [scope, linux-checks, tool-tests-core, denylist-scan, swift-test-hosted, build-release-hosted]
+    needs: [scope, linux-checks, tool-tests-core, denylist-scan, macos, build-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -466,6 +482,7 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
           HOSTED_MACOS: ${{ vars.HOSTED_MACOS }}
+          EVENT: ${{ github.event_name }}
         run: python3 tools/ci_aggregate.py | tee -a "$GITHUB_STEP_SUMMARY"
 
   report-red-main:

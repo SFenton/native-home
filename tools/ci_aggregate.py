@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """The verdict of the `pr-checks` aggregate job (hosted CI, .agents/workflow/ci.md).
 
-A job that was skipped passes only when it was allowed to skip: scope-gated jobs (`build-release-hosted`, `swift-test-hosted`) whose
+A job that was skipped passes only when it was allowed to skip: scope-gated jobs (`macos`, `build-release`) whose
 scope output says there was nothing to run, hosted macOS jobs while the repo variable ``HOSTED_MACOS`` is not ``on``, and the denylist
 scan on a fork pull request. A core job that should have run and was skipped fails the aggregate,
 so a wrong ``if`` can never turn it green with nothing run. Failed and cancelled jobs always fail.
 
-    NEEDS='<toJSON(needs)>' HOSTED_MACOS=on|'' python3 tools/ci_aggregate.py
+    NEEDS='<toJSON(needs)>' HOSTED_MACOS=on|'' EVENT=pull_request|push|... python3 tools/ci_aggregate.py
 
 Stdlib only (macOS system Python 3.9 and Linux).
 """
@@ -21,14 +21,16 @@ from typing import Dict, List, Mapping
 CORE = ("scope", "linux-checks", "tool-tests-core")
 #: job -> (scope job that decides it, output key, hosted macOS?). Skipping is allowed when that output is not 'true'.
 GATED = {
-    "build-release-hosted": ("scope", "release", True),
-    "swift-test-hosted": ("scope", "app", True),
+    "build-release": ("scope", "release", True),
+    "macos": ("scope", "app", True),
 }
+#: Gated jobs that run on a push to main only: a pull request or manual run may skip them.
+PUSH_ONLY = ("build-release",)
 #: Jobs that only a fork pull request skips.
 BOTH = ("denylist-scan",)
 
 
-def problems(needs: Mapping[str, Mapping], hosted_macos: bool) -> List[str]:
+def problems(needs: Mapping[str, Mapping], hosted_macos: bool, event: str = "pull_request") -> List[str]:
     """Why the aggregate must fail, one line per job; empty when it may pass."""
     result: Dict[str, str] = {name: str(job.get("result", "")) for name, job in needs.items()}
     found: List[str] = []
@@ -40,6 +42,8 @@ def problems(needs: Mapping[str, Mapping], hosted_macos: bool) -> List[str]:
             found.append("%s: %s (a core job that should run must succeed)" % (name, result.get(name, "missing")))
     for name, (scope_job, key, macos) in GATED.items():
         if name not in result or result[name] != "skipped":
+            continue
+        if name in PUSH_ONLY and event != "push":
             continue
         outputs = needs.get(scope_job, {}).get("outputs", {}) or {}
         wanted = outputs.get(key) == "true"
@@ -57,7 +61,8 @@ def main() -> int:
     settings = dict(os.environ)
     needs = json.loads(settings.get("NEEDS", "{}"))
     hosted_macos = settings.get("HOSTED_MACOS", "") == "on"
-    found = problems(needs, hosted_macos)
+    event = settings.get("EVENT", "pull_request")
+    found = problems(needs, hosted_macos, event)
     summary = " ".join("%s=%s" % (n, j.get("result")) for n, j in sorted(needs.items()))
     print("job results: %s" % summary)
     if found:

@@ -22,7 +22,7 @@ def needs(**results):
 
 def run_of(macos="success", **overrides):
     base = needs(scope="success", linux_checks="success", tool_tests_core="success", denylist_scan="success",
-                 swift_test_hosted=macos, build_release_hosted=macos)
+                 macos=macos, build_release=macos)
     base["scope"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
@@ -45,13 +45,22 @@ class AggregateTests(unittest.TestCase):
         run["scope"]["outputs"] = {"app": "false", "release": "false"}
         self.assertEqual(agg.problems(run, True), [])
 
+    def test_the_release_build_may_skip_off_main_but_not_on_a_push(self):
+        run = run_of(build_release="skipped")
+        self.assertEqual(agg.problems(run, True, "pull_request"), [])
+        self.assertEqual(agg.problems(run, True, "workflow_dispatch"), [])
+        self.assertTrue(agg.problems(run, True, "push"))
+
+    def test_the_macos_job_may_not_skip_on_a_pull_request_that_needs_it(self):
+        self.assertTrue(agg.problems(run_of(macos="skipped"), True, "pull_request"))
+
     def test_the_denylist_scan_may_skip_for_a_fork_pull_request_only(self):
         self.assertEqual(agg.problems(run_of(denylist_scan="skipped"), False), [])
         self.assertTrue(agg.problems(run_of(denylist_scan="failure"), False))
 
     def test_failures_and_cancellations_always_fail(self):
         for state in ("failure", "cancelled"):
-            self.assertTrue(agg.problems(run_of(swift_test_hosted=state), True))
+            self.assertTrue(agg.problems(run_of(macos=state), True))
             self.assertTrue(agg.problems(run_of(tool_tests_core=state), True))
 
     def test_main_reads_the_context_and_exits_nonzero_on_a_problem(self):
