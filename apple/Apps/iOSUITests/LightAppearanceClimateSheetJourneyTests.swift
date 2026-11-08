@@ -20,5 +20,5 @@ final class LightAppearanceClimateSheetJourneyTests: LightAppearanceJourneyTestC
     func testClimateSheetAutomationPassesAuditInLight() throws { try auditClimate("automation") }
 
     /// Thermostat · Advanced Controls: a room's dial.
-    func testClimateSheetMasterBedroomPassesAuditInLight() throws { try auditClimate("room:master_bedroom") }
+    func testClimateSheetMasterBedroomPassesAuditInLight() throws { try auditClimate("room:bedroom_1") }
 }

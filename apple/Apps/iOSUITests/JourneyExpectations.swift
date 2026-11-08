@@ -361,7 +361,7 @@ struct JourneyExpectations {
         case sprinklerFirstZoneValve
         /// Program switch of the first controller's first zone.
         case sprinklerFirstProgram
-        /// Valve of the second controller's first zone.
+        /// Valve of the second controller's running zone (its second zone).
         case sprinklerSecondZoneValve
     }
 
@@ -384,13 +384,13 @@ struct JourneyExpectations {
         .choresAdminTodoCompletionScript: "script.demo_script_1",
         .choresFirstPageId: "alexs-chores",
         .choresFirstPageTitle: "Alex's Chores",
-        .choresFirstLinkTint: "0,96,120",
+        .choresFirstLinkTint: "0,34,204",
         .choresSecondPageId: "sams-chores",
-        .choresSecondLinkTitle: "Sam's Tasks",
-        .choresSecondLinkTint: "212,108,0",
-        .choresUnassignedLinkTint: "81,58,126",
-        .choresHomeLinkTint: "64,143,154",
-        .choresGroceriesLinkTint: "155,67,72",
+        .choresSecondLinkTitle: "Sam's Chores",
+        .choresSecondLinkTint: "180,16,174",
+        .choresUnassignedLinkTint: "194,18,122",
+        .choresHomeLinkTint: "102,0,204",
+        .choresGroceriesLinkTint: "128,34,0",
         // Climate
         .climateHub: "climate.demo_climate_3",
         // Custom lights
@@ -453,7 +453,7 @@ struct JourneyExpectations {
         .mediaConsoleCard: "media.card.studio.game-console",
         .mediaConsoleScript: "script.demo_studio_console",
         .mediaHandheldCard: "media.card.media-room.handheld-console",
-        .mediaHandheldScript: "script.demo_media_room_handheld_switch",
+        .mediaHandheldScript: "script.demo_room_console_2",
         .mediaServerCard: "media.card.studio.server",
         .mediaStreamerCard: "media.card.media-room.media-streamer",
         .remoteLivingRoomId: "living-room-streamer",
@@ -491,13 +491,13 @@ struct JourneyExpectations {
         .personSecondEntity: "person.demo_sam",
         .bedSecondTitle: "Sam's Bed",
         .tileClosetTitle: "Bedroom 1 Closet",
-        .tileClosetFanTitle: "Bedroom 1 Closet Exhaust Fan",
+        .tileClosetFanTitle: "Bedroom 1 Walk-In Closet Ceiling Exhaust Fan",
         .longPageTitle: "Bedroom 1 Walk-in Wardrobe and Dressing Area",
         .remoteComputerTitle: "Media Room Computer",
         // Sprinklers
         .sprinklerFirstRainDelay: "switch.demo_front_yard_1",
         .sprinklerFirstZoneValve: "valve.demo_front_yard_zone_item_1",
         .sprinklerFirstProgram: "switch.demo_front_yard_program_1",
-        .sprinklerSecondZoneValve: "valve.demo_backyard_zone_1",
+        .sprinklerSecondZoneValve: "valve.demo_backyard_zone_2",
     ]
 }

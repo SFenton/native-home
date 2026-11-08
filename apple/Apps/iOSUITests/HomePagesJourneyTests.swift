@@ -236,7 +236,7 @@ final class HomePagesJourneyTests: JourneyTestCase {
     func testCustomLightOtherLightColour() {
         let app = launchLightSheet()
         tap("customLight.other.\(expectations[.customLightsSecondLight])", in: app)
-        expectCall("light.turn_on entity_id=\(expectations[.customLightsFirstLight]) rgb_color=[0,255,0]", in: app)
+        expectCall("light.turn_on entity_id=\(expectations[.customLightsFirstLight]) rgb_color=[0,0,255]", in: app)
     }
 
     func testCustomLightReset() {

@@ -203,7 +203,7 @@ struct MediaRemoteConfigTests {
 
     @Test func mediaRoomCalls() throws {
         let config = try remote("media-room-streamer")
-        #expect(config.power.action == .service("script", "demo_toggle_on_off_media_room"))
+        #expect(config.power.action == .service("script", "demo_room_power_toggle"))
         #expect(config.volumeMute.action == .service("media_player", "demo_volume_mute", target: "media_player.demo_media_player_5", data: ["is_volume_muted": true]))
         #expect(config.showVolumeWhenOff)
         #expect(config.apps[0].action == .service("script", "demo_launch_app_on_media_player", data: [

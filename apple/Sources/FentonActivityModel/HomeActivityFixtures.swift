@@ -73,7 +73,7 @@ public enum HomeActivityFixtures {
         switch name {
         case "fan": return job(name, fan(t, end: 282))
         case "fan-long": return job(name, fan(t, end: 3_882, room: "master", title: "Bedroom 1 Closet Fan"))
-        case "fan-xlong": return job(name, fan(t, end: 282, room: "master", title: "Bedroom 1 Closet Exhaust Fan"))
+        case "fan-xlong": return job(name, fan(t, end: 282, room: "master", title: "Bedroom 1 Walk-In Closet Ceiling Exhaust Fan"))
         case "fan-pending":
             let base = fan(t, end: 282)
             return ActivityFixture(name: name, attributes: base.0, state: base.1.awaiting(control: "stop", now: now))
@@ -139,7 +139,7 @@ public enum HomeActivityFixtures {
             state.progress = 0.45
             return ActivityFixture(name: name, attributes: attributes, state: state)
         case "hotflash-holding": return job(name, hotFlash(t, line: "Your side"))
-        case "hotflash-alex-bysam": return job(name, hotFlash(t, line: "Alex's side · by Sam"))
+        case "hotflash-alex-bysam": return job(name, hotFlash(t, line: "Alex's side · started by Sam from the Home app"))
         case "hotflash-bysam": return job(name, hotFlash(t, line: "Your side · by Sam"))
         case "hotflash-byhome": return job(name, hotFlash(t, line: "Your side · by Home"))
         case "hotflash-wholebed": return job(name, hotFlash(t, line: "Whole bed", remaining: 845))

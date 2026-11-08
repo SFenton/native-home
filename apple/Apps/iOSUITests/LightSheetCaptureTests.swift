@@ -63,7 +63,7 @@ final class LightSheetCaptureTests: JourneyTestCase {
         capture("climate-rooms", page: "climate", environment: ["FENTON_GALLERY_CLIMATE_OPEN": "rooms", "FENTON_GALLERY_CLEAN": "1"]) {
             $0.buttons["Close"]
         }
-        capture("climate-room", page: "climate", environment: ["FENTON_GALLERY_CLIMATE_OPEN": "room:master_bedroom", "FENTON_GALLERY_CLEAN": "1"]) {
+        capture("climate-room", page: "climate", environment: ["FENTON_GALLERY_CLIMATE_OPEN": "room:bedroom_1", "FENTON_GALLERY_CLEAN": "1"]) {
             $0.buttons["Close"]
         }
     }

@@ -12,7 +12,7 @@ final class ClimateRoomsJourneyTests: ClimateJourneyTestCase {
         settleScreen()
         keepScreenshot(app, "climate-rooms-tab-\(FentonHomeApp.family)")
         let capture = try XCTUnwrap(RenderedContrast.Capture.screen())
-        let expected: [String: UInt32] = ["living_room": 0x8A6F44, "office": 0x007E94, "master_bedroom": 0x3E3EB7]
+        let expected: [String: UInt32] = ["living_room": 0x8A6F44, "office": 0x007E94, "bedroom_1": 0x3E3EB7]
         for (key, fill) in expected {
             let tile = element("climate.room.\(key)", in: app)
             XCTAssertTrue(tile.appears(timeout: 5), key)
@@ -52,5 +52,5 @@ final class ClimateRoomsJourneyTests: ClimateJourneyTestCase {
 
     func testRoomsTabPassesAudit() throws { try audit(open: "rooms") }
 
-    func testRoomDetailPassesAudit() throws { try audit(open: "room:master_bedroom") }
+    func testRoomDetailPassesAudit() throws { try audit(open: "room:bedroom_1") }
 }

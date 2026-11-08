@@ -97,7 +97,7 @@ final class ClimatePageJourneyTests: ClimateJourneyTestCase {
         XCTAssertTrue(element("climate.sheet.rooms", in: app).appears(timeout: 5))
         // Forms load rows as they scroll: the first and the last room.
         XCTAssertTrue(element("climate.room.living_room", in: app).appears(timeout: 5))
-        XCTAssertTrue(reveal(element("climate.room.theater_room", in: app), in: app).exists)
+        XCTAssertTrue(reveal(element("climate.room.media_room", in: app), in: app).exists)
         app.buttons["Close"].tap()
         XCTAssertTrue(element("climate.wholeHome", in: app).appears(timeout: 5))
     }

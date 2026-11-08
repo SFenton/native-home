@@ -76,7 +76,7 @@ enum ClimateFixtures {
             states.append(entity(sensor.entityId, !away && sensor.title == "Office Window" ? "on" : "off"))
         }
         let temperatures = [70.9, 76.1, 72.3, 73.3, 69.9, 71.4, 68.8, 71.6, 75.4, 71.7, 72.1]
-        let tracked: Set<String> = ["living_room", "office", "master_bedroom"]
+        let tracked: Set<String> = ["living_room", "office", "bedroom_1"]
         for (index, room) in C.rooms.enumerated() {
             let occupied = !away && index < 3
             states.append(entity(room.climateEntityId, "heat_cool", range(71, 74, current: temperatures[index].rounded(), action: "idle",
@@ -85,7 +85,7 @@ enum ClimateFixtures {
             states.append(entity(room.occupancyEntityId, occupied ? (index == 0 ? "occupied" : "active") : "inactive"))
             states.append(entity(room.trackEntityId, tracked.contains(room.key) ? "on" : "off"))
             states.append(entity(room.forceCriticalEntityId, room.key == "guest_room" ? "on" : "off"))
-            states.append(entity(room.occupiedOnlyEntityId, ["master_bathroom", "guest_bathroom"].contains(room.key) ? "on" : "off"))
+            states.append(entity(room.occupiedOnlyEntityId, ["bathroom_1", "guest_bathroom"].contains(room.key) ? "on" : "off"))
             for (ventIndex, vent) in room.ventEntityIds.enumerated() {
                 let closed = room.key == "office" || (room.key == "dining_room" && ventIndex == 0)
                 // Open vents report a position (the second living-room vent is half open), so the tiles show it.

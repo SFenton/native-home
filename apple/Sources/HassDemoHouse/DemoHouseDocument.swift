@@ -2819,7 +2819,7 @@ extension DemoHouse {
        "call": {
         "data": {},
         "domain": "script",
-        "service": "demo_toggle_on_off_media_room"
+        "service": "demo_room_power_toggle"
        },
        "optimistic": [],
        "type": "service"

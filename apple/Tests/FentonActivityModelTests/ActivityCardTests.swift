@@ -37,9 +37,9 @@ struct ActivityCardTests {
     @Test func theHeaderLineAddsTheDetailAfterTheTitle() throws {
         #expect(try card("hotflash-bysam").detail == "Your side · by Sam")
         #expect(try card("hotflash-bysam").headerLine == "Hot Flash · Your side · by Sam")
-        #expect(try card("hotflash-alex-bysam").headerLine == "Hot Flash · Alex's side · by Sam")
+        #expect(try card("hotflash-alex-bysam").headerLine == "Hot Flash · Alex's side · started by Sam from the Home app")
         #expect(try card("fan").detail == nil && (try card("fan")).headerLine == "Guest Bath Fan")
-        #expect(try card("fan-xlong").headerLine == "Bedroom 1 Closet Exhaust Fan")
+        #expect(try card("fan-xlong").headerLine == "Bedroom 1 Walk-In Closet Ceiling Exhaust Fan")
         var blank = try card("fan").state
         blank.detail = ""
         #expect(ActivityCard(attributes: try card("fan").attributes, state: blank).detail == nil)

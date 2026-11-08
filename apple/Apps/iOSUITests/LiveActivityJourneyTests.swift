@@ -142,7 +142,7 @@ final class LiveActivityJourneyTests: JourneyTestCase {
     }
 
     func testLongTitleWrapsHotFlash() {
-        assertTitleWraps(scenario: "hotflash-alex-bysam", label: "Hot Flash · Alex's side · by Sam")
+        assertTitleWraps(scenario: "hotflash-alex-bysam", label: "Hot Flash · Alex's side · started by Sam from the Home app")
     }
 
     /// The vacuum's long headline wraps too.

@@ -80,7 +80,7 @@ final class RoomsPageJourneyTests: RoomsJourneyTestCase {
     /// Studio sources are selections that share the remote's optimistic state.
     func testMusicRoomSources() {
         let app = launch(room: expectations[.roomStudioId])
-        let xbox = element("room.card.Xbox", in: app)
+        let xbox = element("room.card.Game Console", in: app)
         reveal(xbox, in: app)
         xbox.tap()
         XCTAssertNotEqual(app.staticTexts["gallery.lastCall"].firstMatch.label, "Last call: None")
