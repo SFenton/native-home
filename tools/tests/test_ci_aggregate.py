@@ -32,7 +32,7 @@ def private_run(**overrides):
 def public_run(macos="success", **overrides):
     base = needs(scope="skipped", repo_checks="skipped", build_release="skipped", swift_test="skipped", scope_hosted="success",
                  repo_checks_hosted="success", tool_tests_hosted="success", denylist_scan="success", swift_test_hosted=macos,
-                 build_release_hosted=macos)
+                 build_release_hosted=macos, sim_smoke=macos)
     base["scope-hosted"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
@@ -78,6 +78,27 @@ class AggregateTests(unittest.TestCase):
         for state in ("failure", "cancelled"):
             self.assertTrue(agg.problems(private_run(swift_test=state), True, False))
             self.assertTrue(agg.problems(public_run(tool_tests_hosted=state), False, True))
+
+    def test_sim_smoke_gates_the_aggregate(self):
+        """A failed or cancelled device leg fails it; skipped passes only when HOSTED_MACOS is off or the scope has no app change."""
+        for state in ("failure", "cancelled"):
+            self.assertTrue(agg.problems(public_run(sim_smoke=state), False, True))
+        self.assertEqual(agg.problems(public_run(sim_smoke="success"), False, True), [])
+        self.assertEqual(agg.problems(public_run(macos="skipped", sim_smoke="skipped"), False, False), [])
+        self.assertTrue(agg.problems(public_run(sim_smoke="skipped"), False, True))
+        run = public_run(macos="skipped", sim_smoke="skipped")
+        run["scope-hosted"]["outputs"] = {"app": "false", "release": "false"}
+        self.assertEqual(agg.problems(run, False, True), [])
+        self.assertEqual(agg.problems(private_run(sim_smoke="skipped"), True, False), [])
+
+    def test_a_gated_job_missing_from_needs_fails(self):
+        """Dropping a job from the workflow's `needs` must not let the aggregate pass blind."""
+        run = public_run()
+        del run["sim-smoke"]
+        self.assertTrue(agg.problems(run, False, True))
+        run = private_run()
+        del run["swift-test"]
+        self.assertTrue(agg.problems(run, True, False))
 
     def test_main_reads_the_context_and_exits_nonzero_on_a_problem(self):
         for run, private, code in ((private_run(), "true", 0), (private_run(repo_checks="skipped"), "true", 1)):
