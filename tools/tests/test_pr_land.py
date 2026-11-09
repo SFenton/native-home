@@ -721,7 +721,7 @@ class MergeGuardExemptionTests(unittest.TestCase):
 
     def test_each_exemption_condition_is_needed(self):
         for command in ("grep x f; gh pr merge 5", "grep x f | bash", "FOO=1 grep owner-ack f", "env grep owner-ack f",
-                        "find . -name owner-ack", "sed -n 1p owner-ack", "awk 1 owner-ack", "xargs grep owner-ack",
+                        "find . -name owner-ack", "sed -i 1p owner-ack", "sed -n -e 1p owner-ack", "awk 1 owner-ack", "xargs grep owner-ack",
                         "python3 -c 'print(1)' owner-ack", "python3 tools/nowhere.py owner-ack", "cat /dev/stdin owner-ack",
                         "echo $(cat owner-ack)", "git -c alias.x=y log --grep owner-ack", "git commit -c abc -m owner-ack",
                         "rg --pre ./x owner-ack", "python3 tools/bg_run.py x -- gh pr merge 5", "python3 tools/devcap.py run -- gh pr merge 5",

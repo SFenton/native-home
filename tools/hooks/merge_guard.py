@@ -5,6 +5,11 @@ On a private Free repository GitHub enforces no rulesets, so `pr_land.sh` (the c
 gate and this hook closes the bypasses: ``gh pr merge``, ``gh api …/pulls/N/merge`` (and ``…/merges``), the GraphQL
 merge mutations, a PUT or DELETE on ``/contents/`` and a ``git push`` that lands on main or master.
 
+Arming auto-merge is ``tools/pr_land.sh N`` only (owner, 2026-11-09): the raw ``gh pr merge N --auto ...`` form is refused like any other
+``gh pr merge`` (``--admin`` has its own reason); the one allowed ``gh pr merge`` is ``N -R SFenton/native-home --disable-auto`` on the agent's own PR.
+Repo-admin writes are refused in every session: a ``gh api`` write to rulesets, ``branches/*/protection``, the repository settings
+(``repos/OWNER/NAME``) or App installations, a GraphQL ruleset or branch-protection mutation, and ``gh repo edit`` of the merge settings.
+
 A command that is exactly ``tools/pr_land.sh ARGS`` (also ``./tools/…`` or this repository's absolute path) with no
 shell metacharacters is allowed. Any other command is scanned whole: it is split into simple commands on ``; && || | &``,
 parentheses, braces, backticks, ``$(`` and the keywords ``then do else elif if while until``; wrappers (``env``,
@@ -38,8 +43,8 @@ form, from a checkout whose ``go_public.sh``, ``go_public_gate.py``, ``house_sca
 One exemption (owner decision 2026-11-04, merge-guard false positives): the raw scan above stays the decision for everything, and
 a block is dropped only when ``exempt`` holds: every simple command of the whole input is a grep, rg, cat, head, tail, less, ls,
 wc, echo, mkdir, ``git log|show|diff|status|commit``, ``gh pr view|list`` or ``python3`` of a script in ``EXEMPT_SCRIPTS`` (tools/tasks.py
-and a few more that never run their arguments), and the input has no ``$'``/``$"``/``${``/``printf -v``, substitution, subshell, ``/dev/stdin``, shell, other interpreter, ``find``,
-``sed``, ``awk``, ``xargs``, ``env`` or other wrapper, and no heredoc but ``cat > file <<WORD``, ``cat <<WORD > file``, ``git commit -F - <<WORD`` and ``gh pr create|comment --body-file - <<WORD`` (whose body is then data).
+and a few more that never run their arguments), and the input has no ``$'``/``$"``/``${``/``printf -v``, substitution (in the command, or in the body of a heredoc the shell expands; a quoted-delimiter ``cat`` body is literal text), subshell, ``/dev/stdin``, shell, other interpreter, ``find``,
+``sed`` (but ``sed -n N,Mp`` is a read), ``awk``, ``xargs``, ``env`` or other wrapper, and no heredoc but ``cat > file <<WORD``, ``cat <<WORD > file``, ``git commit -F - <<WORD`` and ``gh pr create|comment --body-file - <<WORD`` (whose body is then data).
 Anything else, and any parse failure, keeps the raw verdict.
 
 Out of scope (the model could still reach a merge): ``curl``, interpreters (``python -c``) and script files that call
@@ -342,6 +347,46 @@ def push_remote_reason(operands: List[str], workdir: Optional[str]) -> Optional[
 # MARK: - Request-repo writes (headless)
 
 _REQUEST_REPO: Dict[str, str] = {}
+
+
+# MARK: - Repo-admin writes (the ruleset is the server-side gate; an agent runs as an admin and must not weaken it)
+
+#: A ``gh api`` path argument that names merge-gate or App configuration: rulesets, branch protection, App and installation settings.
+ADMIN_PATH = re.compile(r"(?:^|/)(?:rulesets(?:/|$)|branches/\S+/protection|app/hook|app/installations|app-manifests|user/installations"
+                        r"|installation/repositories|installations/\d+)")
+#: The repository root itself (``repos/OWNER/NAME``): a write there changes repository settings (auto-merge, merge methods, visibility).
+REPO_ROOT = re.compile(r"^(?:https://api\.github\.com)?/?repos/[^/\s]+/[^/\s]+/?$")
+ADMIN_GRAPHQL = re.compile(r"\b(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)\b")
+#: ``gh repo edit`` flags that change how the repository merges.
+REPO_EDIT_MERGE = re.compile(r"^--(?:enable-(?:auto|squash|merge|rebase)-merge|delete-branch-on-merge|default-branch)\b")
+
+
+def repo_admin_reason(command: str) -> Optional[str]:
+    """Why ``command`` writes repository administration (any session), or ``None``: a ``gh api`` write to rulesets, branch protection,
+    the repository settings or App installations, a GraphQL ruleset or branch-protection mutation, or ``gh repo edit`` of the merge
+    settings. Reads (``gh api repos/O/N/rulesets/1``, ``gh ruleset list``) stay allowed. Checked per simple command, quote-aware, so a
+    path in a comment, a quoted field or another command of the same line is not mistaken for the call."""
+    for _op, raw in _tokenize(command):
+        words = strip_wrappers(raw)
+        if not words:
+            continue
+        at = next((i for i, w in enumerate(words) if os.path.basename(w) == "gh"), None)
+        if at is None:
+            continue
+        args = words[at + 1:]
+        if "repo" in args[:3] and "edit" in args[:4] and any(REPO_EDIT_MERGE.match(a) for a in args):
+            return "repo admin: gh repo edit of the merge settings (the ruleset and settings are not for a session to change)"
+        if "api" not in args[:3]:
+            continue
+        args = args[args.index("api") + 1:]
+        if ADMIN_GRAPHQL.search(" ".join(args)):
+            return "repo admin: a GraphQL ruleset or branch-protection mutation"
+        if api_method(args) == "GET":
+            continue
+        paths = [a for a in args if not a.startswith("-")]
+        if any(ADMIN_PATH.search(a) or REPO_ROOT.match(a) for a in paths):
+            return "repo admin: a gh api write to rulesets, branch protection, repository settings or App installations"
+    return None
 
 
 def request_repo() -> str:
@@ -806,7 +851,7 @@ EXEMPT_PLAIN = {"grep", "rg", "cat", "head", "tail", "less", "ls", "wc", "echo",
 EXEMPT_GIT = {"log", "show", "diff", "status", "commit"}
 EXEMPT_GIT_BAD_ARGS = {"-c", "--config-env", "--ext-diff", "--output", "--textconv"}
 #: ``cat > file <<WORD`` or ``cat <<WORD > file``: the body is data written to a file (#370). A bare ``cat <<WORD`` is not covered.
-CAT_HEREDOC = re.compile(r"^\s*cat(?:\s+>>?\s*([\w./~+-]+)\s*<<\s*(['\"]?)(\w+)\2|\s*<<\s*(['\"]?)(\w+)\4\s*>>?\s*([\w./~+-]+))\s*$")
+CAT_HEREDOC = re.compile(r"^\s*cat(?:\s+>>?\s*([\w./~+-]+)\s*<<\s*(['\"]?)(\w+)\2|\s*<<\s*(['\"]?)(\w+)\4\s*>>?\s*([\w./~+-]+))(?:\s*(?:&&|;)\s*(\S.*))?\s*$")
 #: ``git commit ... -F - <<WORD`` and ``gh pr create|comment ... --body-file - <<WORD``: the body is a message, not code (#370).
 BODY_HEREDOC = re.compile(r"^\s*(?:git\s+commit|gh\s+(?:pr|issue)\s+(?:create|comment|edit))\b[^<>|;&$`]*\s(?:-F|--file|--body-file)(?:\s+|=)-\s*<<\s*(['\"]?)(\w+)\1\s*$")
 EXEMPT_OPS = {"", ";", "&&", "||", "|"}
@@ -824,10 +869,14 @@ def lexes(text: str) -> bool:
     return True
 
 
-def drop_cat_heredocs(command: str) -> Optional[str]:
+def drop_cat_heredocs(command: str, expanded: Optional[List[str]] = None) -> Optional[str]:
     """``command`` without the bodies of its ``cat > file <<WORD`` heredocs, or ``None`` when any other heredoc or here-string is in it,
     a body is never closed, a quote or a backslash carries over a line end (so a marker could be inside a quote), or the file name
-    is not a plain path."""
+    is not a plain path. A command chained on the heredoc line (``cat > f <<'EOF' && next``) is kept as its own line.
+
+    The body of a ``cat`` heredoc whose delimiter is quoted is literal text and is dropped. A body the shell would expand (an
+    unquoted delimiter) and every ``git commit -F -`` / ``gh ... --body-file -`` body are appended to ``expanded`` for the caller's
+    substitution scan."""
     lines = command.split("\n")
     kept: List[str] = []
     i = 0
@@ -841,12 +890,22 @@ def drop_cat_heredocs(command: str) -> Optional[str]:
             if not (marker or body) or any(".git" in t or ".." in t for t in targets):  # not a hook or config the next command could run
                 return None
             word = (marker.group(3) or marker.group(5)) if marker else body.group(2)
+            literal = bool(marker.group(2) or marker.group(4)) if marker else False
+            start = i
             while i < len(lines) and lines[i] != word:
                 i += 1
             if i >= len(lines):
                 return None
+            if expanded is not None and not literal:
+                expanded.append("\n".join(lines[start:i]))
             i += 1
+            tail = marker.group(7) if marker else None
             line = line[:line.index("<<")]
+            if tail:
+                if tail.rstrip().endswith("\\") or not lexes(tail):
+                    return None
+                kept.append(line)
+                line = tail
         if line.rstrip().endswith("\\") or not lexes(line):
             return None
         kept.append(line)
@@ -893,17 +952,31 @@ def exempt_words(words: List[str], cwd: Optional[str]) -> bool:
         return args[:2] in (["pr", "view"], ["pr", "list"])
     if program == "python3":
         return bool(args) and repo_script(args[0], cwd)
+    if program == "sed":
+        return sed_prints(args)
     return False
+
+
+#: Shell expansion that could run a command: ANSI-C quotes, ``${``, backticks, ``$(``, process substitution, ``printf -v``.
+EXPANDS = re.compile(r"\$'|\$\"|\$\{|[`]|\$\(|[<>]\(|\b(?:printf|print)\s+-v")
+#: ``sed -n`` script that only prints lines: ``N``, ``N,M`` or ``N,$`` then ``p``.
+SED_PRINT = re.compile(r"^\d+(?:,(?:\d+|\$))?p$")
+
+
+def sed_prints(args: List[str]) -> bool:
+    """Is ``args`` exactly ``-n SCRIPT [FILE...]`` with a print-lines script (no ``-i``, ``-s``, ``-e``, ``-f``, no ``w`` or ``e`` command)?"""
+    return len(args) >= 2 and args[0] == "-n" and bool(SED_PRINT.match(args[1])) and not any(a.startswith("-") for a in args[2:])
 
 
 def exempt(command: str, cwd: Optional[str] = None) -> bool:
     """Is every simple command of ``command`` a non-executing one, so the raw scan's block is a false positive? Narrow on purpose:
     ANSI-C quotes, substitutions, subshells, heredocs other than ``cat > file <<WORD``, ``/dev/stdin``, shells, interpreters,
     ``find``, ``sed``, ``awk``, ``xargs``, ``env`` and every other wrapper keep the raw verdict, as does any parse failure."""
-    if "$'" in command or '$"' in command or "${" in command or re.search(r"[`]|\$\(|[<>]\(|\b(?:printf|print)\s+-v", command):
-        return False
-    text = drop_cat_heredocs(command)
+    scanned: List[str] = []
+    text = drop_cat_heredocs(command, scanned)
     if text is None or "<<" in text:
+        return False
+    if any(EXPANDS.search(part) for part in (text, *scanned)):
         return False
     segments = _tokenize(text)
     return bool(segments) and all(op in EXEMPT_OPS and exempt_words(words, cwd) for op, words in segments)
@@ -937,6 +1010,9 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
             return "gh api graphql merge"
         if "/contents/" in command and WRITE_METHOD.search(command):
             return "gh api write to /contents/"
+    admin = repo_admin_reason(command)
+    if admin:
+        return admin
     public = go_public_whole(command)
     if public:
         return public
