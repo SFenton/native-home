@@ -84,14 +84,14 @@ extension DemoHouse {
      "alarmLabel": "Alex's Alarm",
      "alarmsLabel": "Alex's Alarms",
      "bedId": "alexs-bed",
-     "id": "bed:left",
+     "id": "sleepypod:left",
      "side": "left"
     },
     {
      "alarmLabel": "Sam's Alarm",
      "alarmsLabel": "Sam's Alarms",
      "bedId": "sams-bed",
-     "id": "bed:right",
+     "id": "sleepypod:right",
      "side": "right"
     }
    ],
