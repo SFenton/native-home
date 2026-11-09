@@ -116,11 +116,7 @@ pinned_name() {
 }
 device_name() {
   if [[ $CI_HOSTED == 1 ]]; then  # the xcode-27 image's devices (ci_hosted.py DEFAULT_SIMS)
-    case "$1" in
-      iphone) echo "${FENTON_SIM_IPHONE:-iPhone 17}" ;;
-      duo) echo "${FENTON_SIM_DUO:-iPhone Duo}" ;;
-      ipad) echo "${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
-    esac
+    sim_pool_hosted_name "$1"
     return
   fi
   case "$1" in
