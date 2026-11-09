@@ -217,7 +217,7 @@ case "$1 $2" in
 esac
 exit 0
 """
-BOTH = ('[{"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true}}, '
+BOTH = ('[{"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true, "require_last_push_approval": true}}, '
         '{"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}]')
 
 

@@ -11,7 +11,8 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ruleset_gate as gate  # noqa: E402
 
-PULL = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": True}}
+PULL = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": True,
+                                                                            "require_last_push_approval": True}}
 CHECKS = {"type": "required_status_checks", "ruleset_id": 7,
           "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}
 NEVER = {"7": {"current_user_can_bypass": "never"}}
@@ -29,10 +30,10 @@ class RulesetGateTests(unittest.TestCase):
     def test_zero_approvals_do_not_arm(self):
         zero = {"type": "pull_request", "parameters": {"required_approving_review_count": 0}}
         self.assertEqual(gate.problems([zero, CHECKS], NEVER)[:1], ["the ruleset does not require an approving review"])
-        self.assertEqual(len(gate.problems([zero, CHECKS], NEVER)), 2)  # no dismiss either
+        self.assertEqual(len(gate.problems([zero, CHECKS], NEVER)), 3)  # no dismiss or last-push approval either
 
     def test_a_missing_pull_request_rule_or_check_does_not_arm(self):
-        self.assertEqual(len(gate.problems([CHECKS], NEVER)), 2)
+        self.assertEqual(len(gate.problems([CHECKS], NEVER)), 3)
         self.assertEqual(len(gate.problems([PULL], NEVER)), 1)
         other = {"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [{"context": "x"}]}}
         self.assertEqual(len(gate.problems([PULL, other], NEVER)), 1)
@@ -40,10 +41,17 @@ class RulesetGateTests(unittest.TestCase):
 
     def test_stale_reviews_must_be_dismissed_on_push(self):
         for value in (False, None, "true"):
-            pull = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": value}}
+            pull = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": value, "require_last_push_approval": True}}
             found = gate.problems([pull, CHECKS], NEVER)
             self.assertEqual(len(found), 1, value)
             self.assertIn("dismiss stale reviews", found[0])
+
+    def test_last_push_approval_must_be_required(self):
+        for value in (False, None, "true"):
+            pull = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": True, "require_last_push_approval": value}}
+            found = gate.problems([pull, CHECKS], NEVER)
+            self.assertEqual(len(found), 1, value)
+            self.assertIn("most recent push", found[0])
 
     def test_the_check_must_come_from_github_actions(self):
         for check in ({"context": "pr-checks"}, {"context": "pr-checks", "integration_id": 1}, {"context": "pr-checks", "integration_id": None}):
