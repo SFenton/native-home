@@ -3,7 +3,7 @@
 
 The gate on SFenton/native-home is review-before-push (owner, 2026-11-09; .agents/workflow/ci.md#merge-gate): nothing an agent pushes
 reaches the repository without a ``pass`` for the commit it pushes. The verdicts are the records ``tools/review/record.py --lane BRANCH`` writes to the
-trusted store ``~/hass-agents/reviews/<branch with / as __>-<sha12>.json`` (the same file ``tools/lane_land.py`` trusts), never a file in a worktree.
+trusted store ``<account home>/hass-agents/reviews/<branch with / as __>-<sha12>.json`` (the same file ``tools/lane_land.py`` trusts), never a file in a worktree.
 
 A record counts only when it is a JSON object, carries a reviewer identity (``agent_type`` ``reviewer`` and a session id), says ``pass``,
 names the full 40-character sha as its ``head`` and holds no ``major`` or ``blocker`` finding. Anything else, an unreadable store
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import pwd
 import re
 import sys
 from pathlib import Path
@@ -33,8 +34,9 @@ _SCP = re.compile(r"^(?:[^/@\s:]+@)?[A-Za-z0-9.-]+:(?P<owner>[\w.-]+)/(?P<repo>[
 
 
 def reviews_dir() -> Path:
-    """The trusted verdict store, ``~/hass-agents/reviews``."""
-    return Path.home() / "hass-agents" / "reviews"
+    """The trusted verdict store: ``hass-agents/reviews`` in the account's home from the password database, never ``$HOME``
+    (a command line can set ``HOME``; it cannot change who the process runs as)."""
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / "hass-agents" / "reviews"
 
 
 def remote_kind(url: str) -> str:

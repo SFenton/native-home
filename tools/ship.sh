@@ -16,8 +16,9 @@
 #   Without --pr only the branch is pushed.
 #   Review before push (owner, 2026-11-09; ci.md#merge-gate): on SFenton/native-home nothing is pushed, opened or armed without an independent
 #   `pass` for the exact HEAD in the trusted store (tools/review_verdict.py, the reviewer's `record.py --lane`). Commit, get the pass, then ship;
-#   a ship that has to commit new changes stops at the push, because the new HEAD has no pass yet. Which guard covers which step: this check and
-#   tools/hooks/push_guard.py (a raw `git push`) cover the push; tools/ruleset_gate.py (live ruleset: PR required, `pr-checks` from Actions
+#   a ship that has to commit new changes stops at the push, because the new HEAD has no pass yet. Which guard covers which step: git's own pre-push
+#   hook (.githooks/pre-push, tools/prepush_review.py, which sees every sha really pushed) enforces the push, this script only gives the early
+#   message, and tools/hooks/push_guard.py stops a command going around the hook; tools/ruleset_gate.py (live ruleset: PR required, `pr-checks` from Actions
 #   integration 15368, no bypass) covers the arm; tools/hooks/merge_guard.py covers a raw auto-merge (same verdict, same ruleset, author and fork check).
 #   After the PR opens ship.sh marks it ready (auto-merge needs that) and arms the squash auto-merge pinned to HEAD (--match-head-commit), only when the
 #   verdict and the ruleset both hold. GitHub then merges when pr-checks is green; a CI failure means fix, re-review, push. Otherwise it prints a notice.
@@ -92,8 +93,9 @@ if [[ -f "$HS" ]]; then
   esac
 fi
 
-# Review before push: the exact commit being pushed needs an independent pass. `remote` classifies the origin URL: native-home is gated,
-# an unreadable one (or a missing helper) fails closed, another GitHub repository or a local path is not gated.
+# Review before push. Git's own pre-push hook (.githooks/pre-push -> tools/prepush_review.py) is the enforcement: it sees the url and every
+# sha really pushed. This block is the early, friendly message only: for a native-home origin it needs the hook installed (tools/setup.sh) and a
+# pass for HEAD in the trusted store; an origin it cannot read is refused here as the hook would refuse it. Other origins are left to the hook.
 HEAD_SHA="$(git rev-parse HEAD)"
 RV="$(dirname "$0")/review_verdict.py"
 ORIGIN_KIND="unknown"
@@ -101,6 +103,7 @@ if [[ -f "$RV" ]]; then ORIGIN_KIND="$(python3 "$RV" remote "$(git remote get-ur
 case "$ORIGIN_KIND" in
   other|local) ;;
   native-home)
+    [[ "$(git config core.hooksPath || true)" == ".githooks" ]] || { echo "ship: nothing was pushed; core.hooksPath is not .githooks, so git's pre-push hook would not run. Run tools/setup.sh." >&2; exit 1; }
     python3 "$RV" pass "$HEAD_SHA" || { echo "ship: nothing was pushed; ${HEAD_SHA:0:12} needs the reviewer's pass first (review before push)." >&2; exit 1; } ;;
   *) echo "ship: origin is not a readable GitHub URL (or review_verdict.py is missing); nothing was pushed." >&2; exit 1 ;;
 esac

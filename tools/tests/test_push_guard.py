@@ -1,4 +1,4 @@
-"""``tools/hooks/push_guard.py`` and ``tools/review_verdict.py``: review-before-push for SFenton/native-home."""
+"""``tools/review_verdict.py`` (the verdict reader) and ``tools/hooks/push_guard.py`` (the token scan that keeps commands from going around git's pre-push hook)."""
 
 import contextlib
 import io
@@ -91,148 +91,70 @@ class VerdictTests(unittest.TestCase):
 
     def test_cli(self):
         record(self.dir, self.SHA)
-        env = {**ENV, "HOME": self.tmp.name}
-        (Path(self.tmp.name) / "hass-agents").mkdir()
-        os.replace(self.dir, Path(self.tmp.name) / "hass-agents" / "reviews")
-        run = lambda *a: subprocess.run([sys.executable, str(TOOLS / "review_verdict.py"), *a], env=env, capture_output=True, text=True)
-        self.assertEqual(run("pass", self.SHA).returncode, 0)
-        self.assertEqual(run("pass", "b" * 40).returncode, 1)
-        self.assertIn("no independent pass", run("pass", "b" * 40).stderr)
-        self.assertEqual(run("remote", NATIVE).stdout.strip(), "native-home")
-        self.assertEqual(run().returncode, 2)
+        with mock.patch.object(review_verdict, "reviews_dir", return_value=self.dir):
+            self.assertEqual(review_verdict.main(["pass", self.SHA]), 0)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(review_verdict.main(["pass", "b" * 40]), 1)
+                self.assertEqual(review_verdict.main([]), 2)
+            self.assertIn("no independent pass", err.getvalue())
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            review_verdict.main(["remote", NATIVE])
+        self.assertEqual(out.getvalue().strip(), "native-home")
 
 
-class PushGuardTests(unittest.TestCase):
-    """Real throwaway repositories; the store is replaced by a set of passed shas."""
+SETTINGS = json.loads((TOOLS.parent / ".claude" / "settings.json").read_text())
 
-    def setUp(self):
-        self.tmp = TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.repo = Path(self.tmp.name) / "repo"
-        self.repo.mkdir()
-        git(self.repo, "init", "-q", "-b", "ci/x")
-        (self.repo / "a").write_text("1")
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "one")
-        self.head = git(self.repo, "rev-parse", "HEAD")
-        (self.repo / "a").write_text("2")
-        git(self.repo, "commit", "-qam", "two")
-        self.tip = git(self.repo, "rev-parse", "HEAD")
-        git(self.repo, "remote", "add", "origin", NATIVE)
-        git(self.repo, "remote", "add", "fest", "https://github.com/SFenton/Fenton-HASS-Native.git")
-        git(self.repo, "remote", "add", "disk", "/srv/git/x.git")
-        git(self.repo, "remote", "add", "weird", "nonsense")
-        self.passed = {self.tip}
 
-    def why(self, command, passed=None, cwd=None):
-        shas = self.passed if passed is None else passed
-        return push_guard.command_reason(command, str(cwd or self.repo), verdict=lambda sha: sha in shas)
+class TokenScanTests(unittest.TestCase):
+    """push_guard is a token scan: a match anywhere in the command text is a refusal."""
 
-    def test_a_pass_for_the_pushed_head_is_allowed(self):
-        for command in ("git push", "git push -u origin ci/x", "git push origin HEAD", "git push origin ci/x:ci/x", "git push -q origin HEAD:refs/heads/ci/y",
-                        "git push --force-with-lease origin +HEAD:ci/x", f"git push origin {self.tip}:refs/heads/ci/z", "git push --set-upstream origin ci/x",
-                        "cd %s && git push" % self.repo, "git -C %s push origin ci/x" % self.repo, "bash -c 'git push origin ci/x'",
-                        "git push --repo=%s HEAD" % NATIVE, "git push git@github.com:SFenton/native-home.git ci/x"):
+    def why(self, command):
+        return push_guard.command_reason(command)
+
+    def test_each_way_around_the_hook_is_refused(self):
+        for command in ("git push --no-verify origin x", "git push --no-verif", "git push --no-v origin", "git push origin x --no-verify",
+                        "echo 'git push --no-verify'", "git -c core.hooksPath=/dev/null push", "git -c core.hookspath=/x push", "git config core.hooksPath /x",
+                        "git config --global core.hooksPath /x", "git config --unset core.hooksPath",
+                        "GIT_CONFIG_PARAMETERS=\"'core.hookspath=/x'\" git push", "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath git push",
+                        "GIT_CONFIG_GLOBAL=/tmp/c git push", "git --config-env=core.hooksPath=V push", "git send-pack /x HEAD", "git-send-pack /x", "git http-push x",
+                        "GIT_DIR=/x git push", "git --git-dir=/x push origin", "git --git-dir /x push origin", "FOO=1 GIT_DIR=/x git push",
+                        "gh api -X PUT repos/o/r/git/refs/heads/x", "gh api repos/o/r/git/refs -f ref=refs/heads/x -f sha=1", "gh api --method POST repos/o/r/merges -f base=x",
+                        "gh api repos/o/r/contents/a.txt -X PUT -f message=m", "gh api repos/o/r/contents/a -F content=@f", "gh api repos/o/r/git/refs/heads/x --method=DELETE",
+                        "gh api repos/o/r/git/refs/heads/x --input body.json", "gh -R o/r api repos/o/r/merges -X POST", "gh repo sync", "gh repo sync o/r --force", "gh -R o/r repo sync"):
             with self.subTest(command=command):
-                self.assertIsNone(self.why(command, cwd="/" if "-C" in command or "cd " in command else None))
+                self.assertTrue(self.why(command), command)
 
-    def test_no_record_a_changes_verdict_or_another_sha_is_refused(self):
-        for passed in (set(), {self.head}):
-            for command in ("git push", "git push origin HEAD", "git push -u origin ci/x", "git push origin ci/x:ci/y", "bash -c 'sh -c \"git push\"'"):
-                with self.subTest(command=command, passed=passed):
-                    self.assertIn(self.tip[:12], self.why(command, passed) or "")
-        self.assertIsNone(self.why("git push origin %s:ci/old" % self.head, passed={self.head}))
-        self.assertIsNotNone(self.why("git push origin HEAD~1:ci/old"))
-
-    def test_other_remotes_and_non_push_commands_are_allowed(self):
-        for command in ("git push fest ci/x", "git push https://github.com/SFenton/Fenton-HASS-Native.git HEAD", "git status", "git fetch origin",
-                        "echo git push origin", "git commit -m 'git push origin'", "ls"):
+    def test_ordinary_commands_pass(self):
+        for command in ("git push origin HEAD", "git push -u origin ci/x", "git status", "git commit -m 'Add x'", "ls -la", "python3 tools/run_tool_tests.sh",
+                        "gh api repos/o/r/git/refs/heads/x", "gh api repos/o/r/contents/a.txt", "gh api repos/o/r/pulls/1", "gh api repos/o/r/issues -f title=x",
+                        "gh pr view 1", "gh repo view o/r", "git diff --no-index a b", "git log --no-merges", "echo hi", "GIT_DIR=/x git status", "git --git-dir=/x log"):
             with self.subTest(command=command):
-                self.assertIsNone(self.why(command, passed=set()))
+                self.assertEqual(self.why(command), "", command)
 
-    def test_unreadable_remotes_are_refused(self):
-        for command in ("git push disk ci/x", "git push weird ci/x", "git push nosuch ci/x", "git push /srv/git/x.git", "git push ssh://host"):
-            with self.subTest(command=command):
-                self.assertIsNotNone(self.why(command))
-
-    def test_deleting_a_branch_is_allowed_but_main_is_not(self):
-        self.assertIsNone(self.why("git push origin :ci/old", passed=set()))
-        self.assertIsNone(self.why("git push origin --delete ci/old", passed=set()))
-        self.assertIsNone(self.why("git push -d origin ci/old", passed=set()))
-        for command in ("git push origin :main", "git push origin --delete main", "git push origin HEAD:main", "git push origin HEAD:refs/heads/master",
-                        "git push origin main", "git push origin --delete"):
-            with self.subTest(command=command):
-                self.assertIsNotNone(self.why(command))
-
-    def test_pushes_that_name_no_single_commit_are_refused(self):
-        for command in ("git push --all origin", "git push --mirror origin", "git push origin --tags", "git push --prune origin", "git push origin 'refs/heads/*:refs/heads/*'",
-                        "git push origin $BRANCH", "git push origin `git rev-parse HEAD`", "git push origin nosuchref", "git push origin ..",
-                        "git -c url.x.insteadOf=y push origin HEAD", "git --git-dir=/x push origin HEAD", "git push origin tag v1", "$G push origin HEAD"):
-            with self.subTest(command=command):
-                self.assertIsNotNone(self.why(command), command)
-
-    def test_bare_push_uses_the_branch_remote_and_a_detached_head_is_refused(self):
-        git(self.repo, "config", "branch.ci/x.pushRemote", "fest")
-        self.assertIsNone(self.why("git push", passed=set()))
-        git(self.repo, "config", "--unset", "branch.ci/x.pushRemote")
-        git(self.repo, "config", "remote.pushDefault", "fest")
-        self.assertIsNone(self.why("git push", passed=set()))
-        git(self.repo, "config", "--unset", "remote.pushDefault")
-        self.assertIsNotNone(self.why("git push", passed=set()))
-        git(self.repo, "checkout", "-q", "--detach")
-        self.assertIn("detached", self.why("git push", passed={self.tip}))
-
-    def test_a_pushurl_to_native_home_is_gated(self):
-        git(self.repo, "remote", "set-url", "--push", "fest", NATIVE)
-        self.assertIsNotNone(self.why("git push fest ci/x", passed=set()))
-
-    def test_deep_nesting_and_ship_with_a_moved_home_are_refused(self):
-        deep = "git push origin ci/x"
-        for _ in range(5):
-            deep = "bash -c %s" % json.dumps(deep)
-        self.assertIn("nested", self.why(deep))
-        self.assertIn("HOME", self.why("HOME=/tmp/x tools/ship.sh 'Add a' --pr"))
-        self.assertIsNone(self.why("tools/ship.sh 'Add a' --pr"))
-
-    def test_outside_a_repository_a_gated_push_is_refused(self):
-        outside = Path(self.tmp.name) / "outside"
-        outside.mkdir()
-        self.assertIsNotNone(self.why("git push origin HEAD", cwd=outside))
-        self.assertIsNone(self.why("git push https://github.com/SFenton/Fenton-HASS-Native.git HEAD", cwd=outside))
+    def test_the_push_is_not_parsed_here(self):
+        """No refspec, remote or sha logic: the pre-push hook decides (tools/prepush_review.py)."""
+        for name in ("check_push", "operands", "remote_url", "default_remote", "run_git", "review_verdict"):
+            self.assertFalse(hasattr(push_guard, name), name)
 
 
 class HookProcessTests(unittest.TestCase):
     """The hook as Claude runs it: a JSON payload on stdin, exit 0 to allow and 2 to refuse, never 1."""
 
-    def setUp(self):
-        self.tmp = TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.home = Path(self.tmp.name) / "home"
-        self.home.mkdir()
-        self.repo = Path(self.tmp.name) / "repo"
-        self.repo.mkdir()
-        git(self.repo, "init", "-q", "-b", "ci/x")
-        (self.repo / "a").write_text("1")
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "one")
-        git(self.repo, "remote", "add", "origin", NATIVE)
-        self.head = git(self.repo, "rev-parse", "HEAD")
-
-    def run_hook(self, stdin):
-        env = {**ENV, "HOME": str(self.home)}
-        return subprocess.run([sys.executable, str(TOOLS / "hooks" / "push_guard.py")], input=stdin, env=env, capture_output=True, text=True)
+    def run_hook(self, stdin, script=None):
+        return subprocess.run([sys.executable, str(script or TOOLS / "hooks" / "push_guard.py")], input=stdin, capture_output=True, text=True)
 
     def payload(self, command, tool="Bash"):
-        return json.dumps({"tool_name": tool, "tool_input": {"command": command}, "cwd": str(self.repo)})
+        return json.dumps({"tool_name": tool, "tool_input": {"command": command}})
 
-    def test_end_to_end_with_the_real_store(self):
-        refused = self.run_hook(self.payload("git push origin HEAD"))
-        self.assertEqual(refused.returncode, 2)
-        self.assertIn("independent `pass`", refused.stderr)
-        record(self.home / "hass-agents" / "reviews", self.head)
+    def test_allow_and_refuse(self):
         self.assertEqual(self.run_hook(self.payload("git push origin HEAD")).returncode, 0)
-        self.assertEqual(self.run_hook(self.payload("git push origin HEAD", tool="Read")).returncode, 0)
-        self.assertEqual(self.run_hook(self.payload("ls")).returncode, 0)
+        self.assertEqual(self.run_hook(self.payload("git push --no-verify")).returncode, 2)
+        self.assertEqual(self.run_hook(self.payload("git push --no-verify", tool="Read")).returncode, 0)
+        refused = self.run_hook(self.payload("git -c core.hooksPath=/x push"))
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("pre-push hook", refused.stderr)
 
     def test_malformed_input_is_refused_never_exit_one(self):
         for stdin in ("", "not json", "[]", "null", "5", json.dumps({"tool_name": "Bash"}), json.dumps({"tool_name": "Bash", "tool_input": []}),
@@ -242,16 +164,12 @@ class HookProcessTests(unittest.TestCase):
                 self.assertEqual(done.returncode, 2)
                 self.assertNotIn("Traceback", done.stderr)
 
-    def test_deep_and_odd_commands_are_refused_without_a_traceback(self):
-        deep = "git push origin HEAD"
-        for _ in range(8):  # each level doubles the escaping
-            deep = "bash -c %s" % json.dumps(deep)
-        for command in (deep, "git push origin 'HEAD", "git push " + "x " * 5000, "git push \x00 origin"):
+    def test_huge_and_odd_commands_do_not_crash(self):
+        for command in ("git push " + "x " * 20000, "git push \x00 origin", "git " * 5000 + "push --no-verify"):
             with self.subTest(command=command[:30]):
                 done = self.run_hook(self.payload(command))
                 self.assertIn(done.returncode, (0, 2))
                 self.assertNotIn("Traceback", done.stderr)
-        self.assertEqual(self.run_hook(self.payload(deep)).returncode, 2)
 
     def test_main_reports_an_internal_error_as_a_refusal(self):
         err = io.StringIO()
@@ -259,6 +177,46 @@ class HookProcessTests(unittest.TestCase):
                 contextlib.redirect_stderr(err):
             self.assertEqual(push_guard.main(), 2)
         self.assertIn("could not be checked", err.getvalue())
+
+
+class SettingsWiringTests(unittest.TestCase):
+    """The command .claude/settings.json runs: a missing or broken push_guard.py is exit 2, never a silent pass or exit 1."""
+
+    def command(self):
+        for group in SETTINGS["hooks"]["PreToolUse"]:
+            for hook in group["hooks"]:
+                if "push_guard.py" in hook["command"]:
+                    return hook["command"]
+        self.fail("push_guard is not wired")
+
+    def run_wired(self, project):
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project)}
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git push --no-verify"}})
+        return subprocess.run(["sh", "-c", self.command()], input=payload, env=env, capture_output=True, text=True)
+
+    def test_wired_to_the_real_script_and_refuses(self):
+        done = self.run_wired(TOOLS.parent)
+        self.assertEqual(done.returncode, 2, done.stderr)
+
+    def test_a_missing_script_fails_closed(self):
+        with TemporaryDirectory() as tmp:
+            done = self.run_wired(tmp)
+            self.assertEqual(done.returncode, 2)
+            self.assertIn("missing", done.stderr)
+
+    def test_an_import_or_syntax_error_in_the_script_fails_closed(self):
+        with TemporaryDirectory() as tmp:
+            (Path(tmp) / "tools" / "hooks").mkdir(parents=True)
+            (Path(tmp) / "tools" / "hooks" / "push_guard.py").write_text("import nonexistent_module_x\n")
+            self.assertEqual(self.run_wired(tmp).returncode, 2)
+            (Path(tmp) / "tools" / "hooks" / "push_guard.py").write_text("def broken(:\n")
+            self.assertEqual(self.run_wired(tmp).returncode, 2)
+
+    def test_the_script_itself_imports_only_the_standard_library(self):
+        text = (TOOLS / "hooks" / "push_guard.py").read_text()
+        for line in text.splitlines():
+            if line.startswith(("import ", "from ")) and "__future__" not in line:
+                self.assertEqual(line.split()[1], "sys", line)
 
 
 if __name__ == "__main__":
