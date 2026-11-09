@@ -453,7 +453,7 @@ class ApiCall:
     @property
     def writes(self) -> bool:
         """The last ``-X``/``--method`` wins; with none, any ``-f``/``-F``/``--input`` makes it a POST."""
-        return self.method != "GET"
+        return self.method not in ("GET", "HEAD")
 
 
 def json_strings(value: object) -> List[str]:
@@ -564,8 +564,8 @@ def repo_admin_reason(command: str) -> Optional[str]:
             if ADMIN_GRAPHQL.search(text):
                 return "repo admin: a GraphQL ruleset, branch-protection or repository-settings mutation"
             continue
-        # A settings write to the repository root is PATCH, PUT or DELETE; a POST there is not one.
-        if call.writes and (ADMIN_PATH.search(endpoint) or (REPO_ROOT.match(endpoint) and call.method in ("PATCH", "PUT", "DELETE"))):
+        # Any write method on the bare repository root changes settings (GitHub accepts POST in place of PATCH there); only GET and HEAD pass.
+        if call.writes and (ADMIN_PATH.search(endpoint) or REPO_ROOT.match(endpoint)):
             return "repo admin: a gh api write to rulesets, branch protection, repository settings or App installations"
     return None
 

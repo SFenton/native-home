@@ -191,7 +191,8 @@ class TripwireHardeningTests(unittest.TestCase):
     def test_table(self):
         """Fails if: a `\\u` escape in an `--input` JSON body hides the mutation name, stdin or `/dev/*` or a variable path or an unknown
         directory is trusted, `cd` or `env -C` is ignored when resolving a relative file, a merge or ref mutation passes, a merge-setting
-        flag of `gh repo edit` passes, or `X-HTTP-Method-Override` turns a guarded POST into a read."""
+        flag of `gh repo edit` passes, `X-HTTP-Method-Override` turns a guarded POST into a read, or an explicit or implicit (-f/-F/--input)
+        POST on the bare repo root passes (GitHub accepts POST there as a settings write)."""
         R = REPO
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, "esc.json").write_text(ESCAPED)
@@ -231,8 +232,12 @@ class TripwireHardeningTests(unittest.TestCase):
                 ("repo edit description", "gh repo edit --description x", False),
                 ("repo root PUT", f"gh api -X PUT {R} -f a=b", True),
                 ("repo root DELETE", f"gh api -X DELETE {R}", True),
-                ("repo root POST is not a settings write", f"gh api -X POST {R} -f a=b", False),
-                ("repo root implicit POST", f"gh api {R} -f a=b", False),
+                ("repo root explicit POST", f"gh api -X POST {R} -f allow_auto_merge=true", True),
+                ("repo root implicit POST from -f", f"gh api {R} -f allow_auto_merge=true", True),
+                ("repo root implicit POST from -F", f"gh api {R} -F allow_auto_merge=true", True),
+                ("repo root implicit POST from --input", f"gh api {R} --input s.json", True),
+                ("repo root HEAD", f"gh api -X HEAD {R}", False),
+                ("repo root GET with fields", f"gh api -X GET {R} -f a=b", False),
                 ("graphql -f value starting with @ is literal", f"gh api graphql -f query='{QUERY}' -f body=@someone", False),
                 ("graphql -f query=@file is literal", f"gh api graphql -f query=@{tmp}/m.graphql", False),
                 ("graphql -F query=@file still reads", f"gh api graphql -F query=@{tmp}/m.graphql", True),
@@ -256,6 +261,12 @@ class TripwireHardeningTests(unittest.TestCase):
                             f"gh api /graphql -F query=@{tmp}/{name}.graphql"):
                     with self.subTest(cmd=cmd):
                         self.assertIsNotNone(verdict(cmd), cmd)
+
+    def test_graphql_message_split(self):
+        """Fails if: the messages swap: `updateRepository` (can change visibility) must say going public, `updateRepositoryRuleset` repo admin."""
+        base = "gh api graphql -f query='mutation { %s(input: {}) { clientMutationId } }'"
+        self.assertTrue((verdict(base % "updateRepository") or "").startswith("going public"))
+        self.assertTrue((verdict(base % "updateRepositoryRuleset") or "").startswith("repo admin"))
 
     def test_going_public_keeps_its_own_message(self):
         """Fails if: the repo-admin check runs before the going-public check, so a visibility change through the repo root gets the generic
