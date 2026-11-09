@@ -2,7 +2,7 @@
 """Arm auto-merge on a pull request (``tools/pr_land.sh N``) after the gates GitHub cannot run.
 
 On SFenton/native-home GitHub is the merge gate: ruleset ``main-checks`` requires a pull request and the checks on the exact head
-(``pr-checks`` today, ``ai-review`` once the owner adds it), and merges when they pass. This script runs only what GitHub cannot, then arms
+(``pr-checks`` and ``ai-review``, both required), and merges when they pass. This script runs only what GitHub cannot, then arms
 ``gh pr merge N --auto --squash --match-head-commit <head>``: the kill switch, ``Needs Decision``, conflicts, the app-UI gate (which holds the
 owner-kept set), the house denylist, the author and fork check, an independent reviewer pass for that head
 (:func:`review_verdict.has_pass`), the live ruleset (:mod:`ruleset_gate`) and the ``main`` base. ``tools/ship.sh`` calls it after the PR opens.
@@ -272,7 +272,7 @@ def arm(number: str, head: str) -> Tuple[int, str]:
     if after.get("state") == "MERGED":
         return 0, f"merged #{number} at {short}"
     if after.get("autoMergeRequest"):
-        return 0, f"armed #{number} at {short}: GitHub merges when its required checks pass on this head"
+        return 0, f"armed #{number} at {short}: GitHub merges when pr-checks and ai-review pass on this head"
     return 2, f"failed #{number}: gh pr merge returned but the pull request is neither merged nor armed"
 
 

@@ -20,8 +20,8 @@
 #   hook (.githooks/pre-push, tools/prepush_review.py, which sees every sha really pushed) enforces the push, this script only gives the early
 #   message, and tools/hooks/push_guard.py stops a command going around the hook.
 #   After the PR opens ship.sh runs tools/pr_land.py N on native-home: it runs the gates GitHub cannot (kill switch, app-UI gate, denylist, author and fork,
-#   the pass for HEAD, the live ruleset) and arms the squash auto-merge pinned to HEAD. GitHub then merges when its required checks pass; a CI
-#   failure means fix, re-review, push. A refusal prints a notice and never changes ship's exit code.
+#   the pass for HEAD, the live ruleset) and arms the squash auto-merge pinned to HEAD. GitHub then merges when the required checks pr-checks and ai-review pass; a CI
+#   failure means fix, re-review, push. It then prints the ci_wait.py command for the orchestrator to start in the background. A refusal prints a notice and never changes ship's exit code.
 set -euo pipefail
 
 SUBJECT="${1:-}"
@@ -125,11 +125,7 @@ if [[ $PR == 1 ]]; then
 }$FOOTER" --assignee "${SHIP_ASSIGNEE:-SFenton}")
   ARGS+=(--draft)
   gh "${ARGS[@]}"
-  # Informational only: can the gated path land this PR? Never changes ship's exit code (pr-lifecycle.md, step 1b).
   PR_NUM="$(gh pr view "$BRANCH" --json number --jq .number 2>/dev/null || true)"
-  if [[ -n "$PR_NUM" && -f "$(dirname "$0")/land_preflight.py" ]]; then
-    python3 "$(dirname "$0")/land_preflight.py" --pr "$PR_NUM" || echo "ship: preflight exit $? (pr-lifecycle.md step 1b)" >&2
-  fi
   # native-home: arm through pr_land.py, which runs what GitHub cannot (kill switch, app-UI gate and owner-kept set, denylist, author and fork,
   # the reviewer's pass for the exact head, the live ruleset) and pins the auto-merge to the head. A UI PR may be parked by the app-UI gate
   # here (no design record yet): a notice, armed later with tools/pr_land.sh N. Never changes ship's exit code.
@@ -137,6 +133,7 @@ if [[ $PR == 1 ]]; then
     REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
     if [[ "$REPO" == "SFenton/native-home" ]]; then
       python3 "$(dirname "$0")/pr_land.py" "$PR_NUM" || echo "ship: not armed (see above); land it with tools/pr_land.sh $PR_NUM" >&2
+      echo "ship: start the waiter: tools/bg_run.py ci-$PR_NUM --timeout 7200 -- python3 tools/ci_wait.py $PR_NUM"
     fi
   fi
   [[ -n "${SHIP_TASK:-}" ]] && python3 "$(git rev-parse --show-toplevel)/tools/pr_note.py" init --task "$SHIP_TASK" || true
