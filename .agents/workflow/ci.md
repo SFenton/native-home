@@ -102,10 +102,10 @@ GitHub is the gate for native-home (owner, 2026-11-08, proposal A). Four parts, 
 
 1. **Ruleset `main-checks`** (id 26774461; this is the **target**, see below: it is not applied yet): a pull request is required; one approving review; stale approvals dismissed on push; squash only; the status check `pr-checks` pinned to GitHub Actions (`integration_id` 15368). Rulesets cannot filter on a PR's author, so parts 2 and 4 do.
 2. **`pr-checks` author check.** The aggregate fails unless the PR is authored by `SFenton` and comes from this repository (pull_request events only). This step is advisory, not the gate: on `pull_request` the workflow file comes from the PR, so a fork PR can delete the step, and `workflow_dispatch` skips it. The gate is the approval (the reviewer refuses to approve a PR not authored by `SFenton` from this repository) plus `merge_guard`, which refuses to arm auto-merge unless `gh pr view` shows that author and head.
-3. **The reviewer account.** `.claude/agents/reviewer.md` ends with `GH_CONFIG_DIR="$HOME/.config/gh-sh-reviewer" gh pr review N -R SFenton/native-home --approve` (or `--request-changes`), a second, machine account with write access that the owner creates and logs in with `gh`; GitHub refuses an author's approval of their own PR, so the approver is always someone else. The credential is the owner's.
+3. **The reviewer app.** `.claude/agents/reviewer.md` ends with `python3 tools/gh_app_token.py review N --repo SFenton/native-home --event APPROVE --body-file FILE --commit SHA` (or `REQUEST_CHANGES`), which posts the review as the **S+H Reviewer** GitHub App (installed on native-home with Pull requests: read and write, Contents: read-only; the key and ids are the owner's, outside the repo). The command mints a separate review-only token (`pull_requests: write`, `contents: read`, `native-home` only) in-process, never prints it, and refuses a wrong author, a fork head, another repository or a head that is not `--commit`, and re-reads the head after posting, dismissing the review if it moved (GitHub accepts a review on an older commit and only marks it outdated; `require_last_push_approval` is the backstop); GitHub refuses an author's approval of their own PR, so the approver is always someone else. **Unverified:** whether GitHub counts an App's approval toward `required_approving_review_count`; the owner checks it before applying the ruleset (open the next PR, have the reviewer approve it, confirm `s-h-reviewer[bot]` APPROVED on the head in `gh api repos/SFenton/native-home/pulls/N/reviews`, apply the ruleset, then `gh pr view N --json reviewDecision,mergeStateStatus` should show APPROVED and not BLOCKED; if it stays BLOCKED for want of review, set the review count back to 0 and fall back to a machine account).
 4. **Arming.** `tools/ship.sh` marks the PR ready and runs `gh pr merge N -R SFenton/native-home --auto --squash` as `SFenton` after the PR opens, only while `tools/ruleset_gate.py` finds, on `main` (`gh api repos/SFenton/native-home/rules/branches/main`, then `rulesets/ID`), at least one required approval, `dismiss_stale_reviews_on_push`, `pr-checks` with `integration_id` 15368 and `current_user_can_bypass` `never`; on any error, malformed answer or missing property it prints a notice and arms nothing. `merge_guard` allows the same form under the same check ([pr-lifecycle](pr-lifecycle.md)). The merge is made by `SFenton`, not `GITHUB_TOKEN`, so the `push` run on `main` and `version-bump` still fire.
 
-**The target ruleset (the target, NOT applied yet; the live one differs).** The owner creates the reviewer account first; applying this earlier would block every merge, because nothing could approve. Until it is applied the live ruleset requires no approval, `ruleset_gate.py` reports it, and `ship.sh` arms nothing. Then apply it:
+**The target ruleset (the target, NOT applied yet; the live one differs).** The owner verifies that the S+H Reviewer app's approval counts first; applying this earlier would block every merge, because nothing could approve. Until it is applied the live ruleset requires no approval, `ruleset_gate.py` reports it, and `ship.sh` arms nothing. Then apply it:
 
 ```json
 {
@@ -121,7 +121,7 @@ GitHub is the gate for native-home (owner, 2026-11-08, proposal A). Four parts, 
       "required_approving_review_count": 1,
       "dismiss_stale_reviews_on_push": true,
       "require_code_owner_review": false,
-      "require_last_push_approval": false,
+      "require_last_push_approval": true,
       "required_review_thread_resolution": false,
       "allowed_merge_methods": ["squash"]
     }},
@@ -138,7 +138,7 @@ GitHub is the gate for native-home (owner, 2026-11-08, proposal A). Four parts, 
 gh api -X PUT repos/SFenton/native-home/rulesets/26774461 --input main-checks.json
 ```
 
-After applying, check the gate: a PR armed at open stays open while `pr-checks` is green and has no approval; it merges after the reviewer account approves; a push after the approval dismisses it and the PR waits again; a fork PR fails the aggregate.
+After applying, check the gate: a PR armed at open stays open while `pr-checks` is green and has no approval; it merges after the reviewer app approves; a push after the approval dismisses it and the PR waits again; a fork PR fails the aggregate.
 
 ## House-data lint and the history secret scan
 

@@ -13,12 +13,15 @@ Each role (see ``ROLES``) can post PR comments as its own GitHub App. Setup live
 
 Flow: RS256 JWT (``iat`` 60 s back, ``exp`` 9 minutes ahead, ``iss`` the app id) signed by ``openssl dgst -sha256
 -sign`` (no key bytes in argv, env or logs), exchanged at ``POST /app/installations/{id}/access_tokens`` for a token
-narrowed to ``issues: write`` and ``pull_requests: read``. The token is cached in this process until a minute before
+narrowed to ``issues: write`` and ``pull_requests: read`` (``review`` mints its own token for
+``native-home`` only: ``pull_requests: write`` and ``contents: read``, see ``REVIEWER_PERMISSIONS``). The token is cached in this process until a minute before
 it expires and is never written to disk. Research: ``build/research/github-app-identities.md``.
 
 CLI::
 
     gh_app_token.py check ROLE      # key present? app reachable? Prints status only.
+    gh_app_token.py review N --repo SFenton/native-home --event APPROVE|REQUEST_CHANGES --body-file FILE --commit SHA
+        # reviewer role only: posts a PR review in-process, pinned to SHA. Prints the review id and state only.
 """
 
 from __future__ import annotations
@@ -41,6 +44,12 @@ ROLES = ("orchestrator", "researcher", "designer", "coder", "verifier", "reviewe
 API = "https://api.github.com"
 DEFAULT_REPO = "SFenton/Fenton-HASS-Native"
 PERMISSIONS = {"issues": "write", "pull_requests": "read"}
+#: The token ``review`` mints (its own cache key, never used for comments): ``pull_requests: write`` and
+#: ``contents: read`` on the one repository ``native-home``.
+REVIEWER_PERMISSIONS = {"pull_requests": "write", "contents": "read"}
+#: The one repository ``review`` posts to, and the only PR author and head repository it approves.
+REVIEW_REPO = "SFenton/native-home"
+REVIEW_AUTHOR = "SFenton"
 TIMEOUT = 20
 #: Shorter limit for the identity probe, so a dead network falls back to the owner quickly.
 PROBE_TIMEOUT = 5
@@ -242,18 +251,33 @@ def installation_id(role: str, timeout: float = TIMEOUT) -> int:
     return _discover(role, timeout)
 
 
-def token(role: str, timeout: float = TIMEOUT) -> str:
-    """An installation token for the role, minted at most once per process until it nears expiry."""
-    cached = _CACHE.get(role)
+def permissions(role: str) -> Dict[str, str]:
+    """The permissions a comment token for the role is narrowed to (the same for every role)."""
+    check_role(role)
+    return dict(PERMISSIONS)
+
+
+def token(role: str, timeout: float = TIMEOUT, scope: str = "") -> str:
+    """An installation token for the role, minted at most once per process until it nears expiry.
+
+    ``scope="review"`` (reviewer role only) mints the separate ``REVIEWER_PERMISSIONS`` token limited to
+    ``native-home``; the plain token keeps today's narrowing."""
+    if scope == "review" and role != "reviewer":
+        raise AppError("only the reviewer role can review")
+    key = f"{role}:{scope}" if scope else role
+    cached = _CACHE.get(key)
     if cached and cached[1] - 60 > time.time():
         return cached[0]
     installation = installation_id(role, timeout=timeout)
+    body: Dict[str, Any] = {"permissions": permissions(role)}
+    if scope == "review":
+        body = {"permissions": dict(REVIEWER_PERMISSIONS), "repositories": [REVIEW_REPO.split("/")[1]]}
     reply = api_request("POST", f"app/installations/{installation}/access_tokens", jwt(role, timeout=timeout),
-                        {"permissions": PERMISSIONS}, timeout=timeout)
+                        body, timeout=timeout)
     value = reply.get("token") if isinstance(reply, dict) else None
     if not value or not isinstance(value, str):
         raise AppError("GitHub returned no installation token")
-    _CACHE[role] = (value, _expiry(reply.get("expires_at")))
+    _CACHE[key] = (value, _expiry(reply.get("expires_at")))
     return value
 
 
@@ -275,12 +299,72 @@ def check(role: str) -> Tuple[bool, bool]:
         return True, False
 
 
+def review(number: int, event: str, body: str, commit: str, repo_name: str = REVIEW_REPO,
+           timeout: float = TIMEOUT) -> Tuple[Any, str]:
+    """Post a review on ``repo_name`` PR ``number`` as the reviewer app; returns ``(review id, state)``.
+
+    Refuses (``AppError``) any repo but ``REVIEW_REPO``, an event other than APPROVE or REQUEST_CHANGES, a PR not
+    authored by ``REVIEW_AUTHOR``, a head repository other than ``REVIEW_REPO``, and a head that is not ``commit``.
+    GitHub accepts a review on an older ``commit_id`` (it only marks it outdated), so the head is read again after
+    posting; if it moved, the review is dismissed (``AppError`` naming the review id if that fails) and ``AppError``
+    is raised. The ruleset's ``require_last_push_approval`` is the backstop."""
+    if repo_name != REVIEW_REPO:
+        raise AppError(f"review is only for {REVIEW_REPO}")
+    if event not in ("APPROVE", "REQUEST_CHANGES"):
+        raise AppError("event must be APPROVE or REQUEST_CHANGES")
+    if not commit or not body.strip():
+        raise AppError("a commit and a non-empty body are required")
+    bearer = token("reviewer", timeout=timeout, scope="review")
+    pull = api_request("GET", f"repos/{repo_name}/pulls/{int(number)}", bearer, timeout=timeout)
+    pull = pull if isinstance(pull, dict) else {}
+    author = str((pull.get("user") or {}).get("login") or "")
+    head = pull.get("head") or {}
+    head_repo = str((head.get("repo") or {}).get("full_name") or "")
+    if author != REVIEW_AUTHOR:
+        raise AppError(f"PR author is not {REVIEW_AUTHOR}")
+    if head_repo != REVIEW_REPO:
+        raise AppError(f"PR head is not in {REVIEW_REPO}")
+    if str(head.get("sha") or "") != commit:
+        raise AppError("PR head differs from --commit")
+    reply = api_request("POST", f"repos/{repo_name}/pulls/{int(number)}/reviews", bearer,
+                        {"commit_id": commit, "event": event, "body": body}, timeout=timeout)
+    reply = reply if isinstance(reply, dict) else {}
+    rid = reply.get("id")
+    again = api_request("GET", f"repos/{repo_name}/pulls/{int(number)}", bearer, timeout=timeout)
+    now = str(((again or {}).get("head") or {}).get("sha") or "") if isinstance(again, dict) else ""
+    if now != commit:
+        try:
+            api_request("PUT", f"repos/{repo_name}/pulls/{int(number)}/reviews/{int(rid)}/dismissals", bearer,
+                        {"message": "Head moved after review; dismissed."}, timeout=timeout)
+        except (AppError, TypeError, ValueError):
+            raise AppError(f"PR head moved after review {rid} and dismissing it failed; dismiss it") from None
+        raise AppError(f"PR head moved after review {rid}; the review was dismissed")
+    return rid, str(reply.get("state") or "")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    """Entry point: ``check ROLE`` prints two yes/no facts and exits 0 when both are yes."""
+    """Entry point: ``check ROLE`` prints two yes/no facts and exits 0 when both are yes; ``review N ...`` prints the
+    review id and state and exits 0, or exits 1 with a reason that never contains a token."""
     p = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    p.add_argument("cmd", choices=["check"])
-    p.add_argument("role", choices=ROLES)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("check")
+    c.add_argument("role", choices=ROLES)
+    r = sub.add_parser("review")
+    r.add_argument("number", type=int)
+    r.add_argument("--repo", default=REVIEW_REPO)
+    r.add_argument("--event", required=True, choices=["APPROVE", "REQUEST_CHANGES"])
+    r.add_argument("--body-file", required=True)
+    r.add_argument("--commit", required=True)
     args = p.parse_args(argv)
+    if args.cmd == "review":
+        try:
+            body = Path(args.body_file).read_text()
+            rid, state = review(args.number, args.event, body, args.commit, args.repo)
+        except (AppError, OSError) as exc:
+            print(f"review refused: {exc}", file=sys.stderr)
+            return 1
+        print(f"review {rid} {state}")
+        return 0
     present, reachable = check(args.role)
     print(f"{args.role}: key {'present' if present else 'missing'}, app {'reachable' if reachable else 'not reachable'}")
     return 0 if present and reachable else 1
