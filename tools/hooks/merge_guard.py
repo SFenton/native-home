@@ -60,13 +60,15 @@ from typing import Dict, List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import request_repo as request_repo_module  # noqa: E402
+import ruleset_gate  # noqa: E402
 from shell_parse import FEEDERS, scan_shell, strip_prefixes, tokenize as _tokenize, unwrap_xargs  # noqa: E402
 
 MESSAGE = (
     "Blocked: agents merge only through `tools/pr_land.sh N` (its gate: the configured checks and a recorded independent review), never with "
     "`gh pr merge`, `gh api …/merge` or a push to main. Run the reviewer (tools/review/record.py) then "
-    "`tools/pr_land.sh N`. The one exception is SFenton/native-home: `gh pr merge N -R SFenton/native-home --squash --auto "
-    "--match-head-commit SHA` after the reviewer's pass comment for that head (or `--disable-auto` to disarm). See .agents/workflow/pr-lifecycle.md."
+    "`tools/pr_land.sh N`. The one exception is SFenton/native-home: `gh pr merge N -R SFenton/native-home --auto --squash` while "
+    "the ruleset on main requires an approving review and pr-checks (GitHub then merges after the reviewer account approves), or "
+    "`--disable-auto` to disarm. See .agents/workflow/pr-lifecycle.md."
 )
 
 REQUEST_MESSAGE = (
@@ -592,10 +594,8 @@ def strip_wrappers(words: List[str]) -> List[str]:
 # MARK: - The one allowed merge (native-home auto-merge, owner 2026-11-08)
 
 AUTOMERGE_REPO = "sfenton/native-home"
-AUTOMERGE_AUTHOR = "SFenton"
-SHA40 = re.compile(r"^[0-9a-fA-F]{40}$")
 AUTOMERGE_FLAGS = {"--squash", "-s", "--auto"}
-AUTOMERGE_VALUE_FLAGS = {"-R", "--repo", "--match-head-commit", "--subject", "-t", "--body", "-b", "--body-file", "-F"}
+AUTOMERGE_VALUE_FLAGS = {"-R", "--repo"}
 #: The only characters the allowed form may contain, quoted or not: no expansion (``$`` backtick glob ``~``), separator, redirect, comment, history or newline.
 AUTOMERGE_SAFE = re.compile(r"[A-Za-z0-9 ._,:/=@+'\"-]+")
 PR_NUMBER = re.compile(r"[0-9]+")
@@ -620,7 +620,7 @@ def gh_json(path: str) -> object:
 def automerge_form(command: str) -> Optional[Dict[str, str]]:
     """Parse ``command`` when it is exactly the one allowed ``gh pr merge`` form (shape only), else ``None``.
 
-    Shape: ``gh pr merge N -R SFenton/native-home --squash --auto --match-head-commit SHA [--subject S] [--body B | --body-file F]``.
+    Shape: ``gh pr merge N -R SFenton/native-home --auto --squash`` (or ``--disable-auto`` instead of ``--auto --squash``).
     No shell metacharacter outside quotes, no prefix (env, wrapper, alias), no other flag (``--admin``, ``--delete-branch``, ``--merge``).
     """
     text = command.strip()
@@ -632,7 +632,7 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
         return None
     if words[:3] != ["gh", "pr", "merge"]:
         return None
-    # An allowlist over the whole raw command, quoted or not (use --body-file for rich text); unbalanced quotes fail shlex above.
+    # An allowlist over the whole raw command, quoted or not; unbalanced quotes fail shlex above.
     if not AUTOMERGE_SAFE.fullmatch(text):
         return None
     found: Dict[str, str] = {}
@@ -650,7 +650,7 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
                 value = rest[i]
             else:
                 return None
-            key = {"--repo": "-R", "-t": "--subject", "-b": "--body", "-F": "--body-file"}.get(key, key)
+            key = {"--repo": "-R"}.get(key, key)
             if key in found:
                 return None
             found[key] = value
@@ -664,9 +664,7 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
     if flags == {"--disable-auto"} and set(found) == {"pr", "-R"}:
         found["disable"] = "1"
         return found
-    if flags != {"--squash", "--auto"} or "pr" not in found or "--match-head-commit" not in found or "-R" not in found:
-        return None
-    if "--body" in found and "--body-file" in found:
+    if flags != {"--squash", "--auto"} or set(found) != {"pr", "-R"}:
         return None
     return found
 
@@ -676,27 +674,12 @@ def automerge_repo(value: str) -> str:
     return value.strip().lower().removeprefix("https://github.com/").rstrip("/").removesuffix(".git")
 
 
-def verdict_events(sha: str, comments: List[dict], reviews: List[dict]) -> List[tuple]:
-    """``(time, verdict)`` for every comment or review body with a ``Head: sha`` line and a ``Verdict:`` line, oldest first."""
-    events = []
-    head = re.compile(r"^\s*head:\s*" + re.escape(sha) + r"\s*$", re.I | re.M)
-    verdict = re.compile(r"^\s*verdict:\s*(pass|fail)\s*$", re.I | re.M)
-    for item, stamp in [(c, "created_at") for c in comments] + [(r, "submitted_at") for r in reviews]:
-        if not isinstance(item, dict) or (item.get("user") or {}).get("login") != AUTOMERGE_AUTHOR:
-            continue  # only the owner's account can speak for the review
-        if item.get("author_association", "OWNER") != "OWNER" or str(item.get("state", "")).upper() in ("PENDING", "DISMISSED"):
-            continue
-        when = item.get(stamp)
-        body = str(item.get("body") or "")
-        match = verdict.search(body)
-        if when and match and head.search(body):
-            events.append((str(when), match.group(1).lower()))
-    # A fail sorts after a pass at the same instant, so a tie refuses.
-    return sorted(events, key=lambda e: (e[0], e[1] == "fail"))
-
-
 def automerge_reason(command: str) -> Optional[str]:
-    """``None`` when ``command`` is the allowed auto-merge and every fact holds at hook time, else why it is refused (fails closed)."""
+    """``None`` when ``command`` is the allowed auto-merge and the facts hold at hook time, else why it is refused (fails closed).
+
+    GitHub is the gate: the live ruleset on main must require an approving review and the `pr-checks` check (tools/ruleset_gate.py),
+    and the PR must target main so that ruleset governs it. The approval itself comes from the reviewer account, on GitHub.
+    """
     found = automerge_form(command)
     if found is None:
         return "gh pr merge"
@@ -704,31 +687,16 @@ def automerge_reason(command: str) -> Optional[str]:
         return "gh pr merge outside SFenton/native-home"
     if "disable" in found:
         return None  # disarming auto-merge is always safe
-    sha = found["--match-head-commit"]
-    if not SHA40.match(sha):
-        return "gh pr merge without a 40-hex --match-head-commit"
-    sha = sha.lower()
-    number = found["pr"]
+    problems = ruleset_gate.check("SFenton/native-home", "main")
+    if problems:
+        return "gh pr merge while " + problems[0]
     try:
-        pr = gh_json(f"repos/SFenton/native-home/pulls/{number}")
-        comments = gh_json(f"repos/SFenton/native-home/issues/{number}/comments")
-        reviews = gh_json(f"repos/SFenton/native-home/pulls/{number}/reviews")
-        author = pr["user"]["login"]
+        pr = gh_json(f"repos/SFenton/native-home/pulls/{found['pr']}")
         base = pr["base"]["ref"]
-        head = str(pr["head"]["sha"]).lower()
-        if not isinstance(comments, list) or not isinstance(reviews, list):
-            raise ValueError("unexpected shape")
     except Exception:  # noqa: BLE001 - any failure refuses
         return "gh pr merge (the PR facts could not be fetched)"
-    if author != AUTOMERGE_AUTHOR:
-        return "gh pr merge of a PR not authored by SFenton"
     if base != "main":
         return "gh pr merge of a PR not based on main"
-    if head != sha:
-        return "gh pr merge with a stale --match-head-commit"
-    events = verdict_events(sha, comments, reviews)
-    if not events or events[-1][1] != "pass":
-        return "gh pr merge without a passing independent review of this head"
     return None
 
 

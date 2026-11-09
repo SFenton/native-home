@@ -37,12 +37,17 @@ final class UKRoomDevicesGalleryViewController: UKPageViewController, UITableVie
         tableView.tableFooterView = footer
     }
 
+    private let opener = UKGalleryAutoOpener(label: "room-devices")
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if let initial, presentedViewController == nil {
-            self.initial = nil
-            open(initial)
-        }
+        guard let initial else { return }
+        opener.start(on: self) { [weak self] in self?.open(initial) }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { fixtures.count }

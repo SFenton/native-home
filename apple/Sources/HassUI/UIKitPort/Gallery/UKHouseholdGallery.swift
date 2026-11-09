@@ -147,7 +147,7 @@ final class UKLocationGalleryHost: UIViewController {
     private var permission: LocationPermission
     private let canAskForAlways: Bool
     private var page: UKLocationPermissionViewController?
-    private var presented = false
+    private let opener = UKGalleryAutoOpener(label: "household-sheet")
     private let lastAction = UKGalleryLastCallView(title: "Last action")
 
     init(permission: LocationPermission, canAskForAlways: Bool) {
@@ -165,10 +165,17 @@ final class UKLocationGalleryHost: UIViewController {
         view.backgroundColor = .black
     }
 
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        guard !presented else { return }
-        presented = true
+        opener.start(on: self) { [weak self] in self?.presentSheet() }
+    }
+
+    private func presentSheet() {
         let page = UKLocationPermissionViewController(
             permission: permission, canAskForAlways: canAskForAlways,
             onRequestPermission: { [weak self] in self?.answer() },
@@ -197,7 +204,7 @@ final class UKLocationGalleryHost: UIViewController {
 @MainActor
 final class UKProfileGalleryHost: UIViewController {
     private let fixtures: ProfileGalleryFixtures
-    private var presented = false
+    private let opener = UKGalleryAutoOpener(label: "household-sheet")
     private let lastCallView = UKGalleryLastCallView()
     private let bag = UKObservationBag()
 
@@ -215,10 +222,17 @@ final class UKProfileGalleryHost: UIViewController {
         view.backgroundColor = .black
     }
 
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        guard !presented else { return }
-        presented = true
+        opener.start(on: self) { [weak self] in self?.presentSheet() }
+    }
+
+    private func presentSheet() {
         var context = UKGalleryChrome.context(store: fixtures.store)
         context.surface = .sheet
         context.navigator = fixtures.navigator

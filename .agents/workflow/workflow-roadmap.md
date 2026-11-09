@@ -41,6 +41,8 @@ Change this file when a proposal lands or is rejected, and move its result into 
 
 ## 1. Where we are
 
+**CI consolidation (2026-11-08).** `tools/ci_scope.py` is gone: job selection is `dorny/paths-filter` in the `scope` job of `pr-checks.yml`, the private self-hosted job set and `tool-tests.yml` are deleted, one macOS job replaced the five, and the merge gate moved onto GitHub (a ruleset requiring an approval and `pr-checks`, a reviewer account, auto-merge armed by `ship.sh`). Where this section or P1 names `ci_scope.py`, read the `scope` job; see [ci](ci.md#hosted-github-actions-owner-2026-11-07) and [the merge gate](ci.md#the-merge-gate).
+
 **The T-section-sides work shipped** as #269 (the context and turn hand-off removed from settings and the triage runner), #270 (base CI repaired) and #275 (every section stays on one side of the Duo hinge). It cost far more than its size: about 10 device rounds of 36 to 56 minutes and 4 review rounds on #270 and 3 on #275, nearly all of it on failures that did not come from the change ([section 2](#2-where-the-time-went)). The post-mortem (`build/retro/T-section-sides-postmortem.md` in the section-sides worktree, with the digest `T-section-sides.json` beside it) named three tool-layer actions (A1 base CI on push, A2 coverage classification, A3 a disk reaper) and three owner holds (O1 to O3). **A2 and A3 landed to origin; A1 did not**, and the owner holds are open.
 
 **Since the issues were written, more landed on `origin/claude/uikit-port`** (head `d3346f4b` on 2026-11-04). Read this before picking an item, because it changes some of them:
@@ -147,7 +149,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 **What to try.**
 
-1. In `.github/workflows/pr-checks.yml` add the base to `on.push.branches` next to `main`. Read the branch name from `tools/triage/config.json` in `tools/ci_scope.py` rather than a second literal in the workflow, so a base change touches one place. (`on.push.branches` itself cannot read a file; the workflow lists the name, a repo check compares it with the config.)
+1. In `.github/workflows/pr-checks.yml` add the base to `on.push.branches` next to `main`. Read the branch name from `tools/triage/config.json` (the job filter was `tools/ci_scope.py`, now the `scope` job's `dorny/paths-filter`) rather than a second literal in the workflow, so a base change touches one place. (`on.push.branches` itself cannot read a file; the workflow lists the name, a repo check compares it with the config.)
 2. For a push to a branch other than `main`, make the `scope` job compare against `github.event.before` (the pushed-to sha before the push) the way a pull request compares against its base, and run only `repo-checks` and the Python tool tests: no `swift test`, no Release build. A push to `main` stays as it is. Guard the first push of a new branch, where `before` is all zeros.
 3. Leave the aggregate `pr-checks` job unchanged. `pr_land.py` reads the aggregate by name (`REQUIRED_CHECKS`), so the merge path is untouched.
 4. On failure the run opens nothing. A red run on the base is the signal; [ci](ci.md) names who looks at it (add that line).
@@ -361,7 +363,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 **Why.** Every CI workflow runs `tools/ci_hygiene.py`, and the workflows are protected. The script now deletes worktrees and simulators on the owner's machines (A3, `630d9f20`). [ci](ci.md)'s security section says a change to `tools/ci_*` needs the owner's eye. **Part of this changed since the issue:** `83c587db` put `tools/ci_hygiene.py` in `protected_paths` in `tools/triage/config.json`, so the lander treats it as protected. What remains outside the fixed set:
 
-- `tools/ci_scope.py` (it decides which CI jobs run, so a change that routes an app change to `scope=docs` would skip the tests);
+- the `scope` job filter in `.github/workflows/pr-checks.yml` (it decides which CI jobs run, so a change that routes an app change to "not app" would skip the tests);
 - any future `tools/ci_*.py`, because the config lists files, not a glob;
 - `tools/coverage_classify.py` and `tools/coverage_phases.sh` (they decide whether a failed test is real or coverage-only);
 - `apple/coverage-quarantine.json`, which is data that can turn a failing test into a pass. It already requires an open `Workflow` issue per entry, but the lander does not check that the file is edited by the owner.
@@ -544,7 +546,7 @@ Option 2 keeps the tool's rule true and weakens only the version number in the t
 - Post-mortem: `build/retro/T-section-sides-postmortem.md` and `T-section-sides.json` in the section-sides worktree (`.claude/worktrees/section-sides`); decision `build/decisions/T-catalog-uikit-sources.md`; design record `.agents/design/section-sides.md` (on `origin/claude/uikit-port`).
 - Workflow: [agent-roster](agent-roster.md), [pr-lifecycle](pr-lifecycle.md), [token-economy](token-economy.md), [eval-gate](eval-gate.md), [ci](ci.md), [decision-models](decision-models.md), [capacity](../platforms/apple/capacity.md).
 - Testing: [coverage](../testing/apple/coverage.md), [devices](../testing/apple/devices.md), [journey-speed](../testing/apple/journey-speed.md), [test-speed-roadmap](../testing/apple/test-speed-roadmap.md).
-- Code: `tools/pr_land.sh`, `tools/pr_land.py`, `tools/lane_land.py`, `tools/ci_scope.py`, `tools/ci_hygiene.py`, `tools/hooks/merge_guard.py`, `tools/hooks/tier_guard.py`, `tools/hooks/mockup_hub_guard.py`, `tools/hooks/orchestrator_guard.py`, `tools/hooks/shell_parse.py`, `tools/jev_ask.py`, `tools/apple_coverage.sh`, `tools/ios_uitest.sh`, `.github/workflows/pr-checks.yml`, `tools/triage/config.json`; origin only: `tools/coverage_classify.py`, `tools/coverage_phases.sh`, `tools/lane_base.py`, `tools/ship_guard.sh`, `apple/coverage-quarantine.json`.
+- Code: `tools/pr_land.sh`, `tools/pr_land.py`, `tools/lane_land.py`, `tools/ci_hygiene.py`, `tools/hooks/merge_guard.py`, `tools/hooks/tier_guard.py`, `tools/hooks/mockup_hub_guard.py`, `tools/hooks/orchestrator_guard.py`, `tools/hooks/shell_parse.py`, `tools/jev_ask.py`, `tools/apple_coverage.sh`, `tools/ios_uitest.sh`, `.github/workflows/pr-checks.yml`, `tools/triage/config.json`; origin only: `tools/coverage_classify.py`, `tools/coverage_phases.sh`, `tools/lane_base.py`, `tools/ship_guard.sh`, `apple/coverage-quarantine.json`.
 
 **GitHub**
 

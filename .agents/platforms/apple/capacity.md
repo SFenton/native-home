@@ -74,7 +74,7 @@ Rules:
 - **Opt out for one run:** `FENTON_SIM_SLIM=0` skips slimming. It does not un-slim a device that was slimmed before (the overrides are stored); `simslim off <UDID>` inside a hold does, and costs a reboot.
 - **Perf baselines.** Slim simulators have less background noise and more headroom than the stock ones the baselines in [performance](../../testing/apple/performance.md) were taken on; compare a run against a baseline taken the same way, and retake a baseline when you change the profile.
 - `simslim list --booted` shows the slim count per booted simulator (`158/168 slim`); `simslim measure <UDID>` its memory. A booted simulator at `0/168 slim` in `tools/devcap.py status` is stock: some lane booted it outside `sim_slim.sh`.
-- A missing `simslim` degrades to a stock simulator with a warning; it never fails a run.
+- A missing `simslim` degrades to a stock simulator with a warning; it never fails a run. On a GitHub-hosted runner (`FENTON_CI_HOSTED=1`) `sim_slim.sh` does nothing and simslim is not installed ([ci](../../workflow/ci.md)).
 
 Never kill shared processes: no `killall`, no unscoped `pkill -f` (it also hits other sessions and the Actions runner, which cost a swift-test job on 2026-10-30), no `simctl shutdown all`. Kill by PID you started or `pkill -f` a path under your worktree; the `kill_guard` hook enforces it ([pr-lifecycle](../../workflow/pr-lifecycle.md)).
 
