@@ -273,7 +273,7 @@ GO_PUBLIC_MESSAGE = (
     "`gh repo create --public`, `gh repo edit --visibility`, a visibility change through `gh api` and a `git push` to a remote other than this "
     "repository's origin are refused. See .agents/workflow/pr-lifecycle.md (Going public)."
 )
-VISIBILITY_WORDS = re.compile(r"private\W{0,4}false|visibility|updateRepository|setRepositoryVisibility|changeVisibility", re.I)
+VISIBILITY_WORDS = re.compile(r"private\W{0,4}false|visibility|updateRepository\b|setRepositoryVisibility|changeVisibility", re.I)
 REPO_SLUG = re.compile(r"[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 PUSH_REMOTE_OPTS = {"-o", "--push-option", "--receive-pack", "--exec", "--signed", "--force-with-lease", "--recurse-submodules"}
 
@@ -376,6 +376,7 @@ class ApiCall:
     def __init__(self, args: List[str]) -> None:
         self.methods: List[str] = []
         self.fields: List[str] = []  # values of -f/-F/--field/--raw-field
+        self.file_fields: List[str] = []  # values of -F/--field (only these read ``@file``; a ``-f`` value is literal)
         self.inputs: List[str] = []  # values of --input
         self.overrides: List[str] = []  # X-HTTP-Method-Override / X-HTTP-Method header values
         self.positional: List[str] = []
@@ -420,6 +421,8 @@ class ApiCall:
             self.methods.append(value.upper())
         elif name in ("field", "raw-field"):
             self.fields.append(value)
+            if name == "field":
+                self.file_fields.append(value)
         elif name == "input":
             self.inputs.append(value)
         elif name == "header":
@@ -438,13 +441,19 @@ class ApiCall:
         return path.rstrip("/")
 
     @property
+    def method(self) -> str:
+        """The effective method: a non-GET override header, else the last ``-X``/``--method``, else POST with fields or ``--input``, else GET."""
+        for override in reversed(self.overrides):
+            if override != "GET":
+                return override
+        if self.methods:
+            return self.methods[-1]
+        return "POST" if self.fields or self.inputs else "GET"
+
+    @property
     def writes(self) -> bool:
         """The last ``-X``/``--method`` wins; with none, any ``-f``/``-F``/``--input`` makes it a POST."""
-        if any(o != "GET" for o in self.overrides):
-            return True
-        if self.methods:
-            return self.methods[-1] != "GET"
-        return bool(self.fields or self.inputs)
+        return self.method != "GET"
 
 
 def json_strings(value: object) -> List[str]:
@@ -478,7 +487,7 @@ def graphql_text(call: ApiCall, cwd: Optional[str] = None) -> Optional[str]:
     """Every part of a GraphQL call that can hold the query: ``-f``/``-F`` values and the content of ``--input`` or ``@file`` fields,
     raw and JSON-decoded. ``None`` when a file cannot be resolved or read (stdin, ``/dev/*``, a variable path): the caller fails closed."""
     parts = list(call.fields)
-    files = list(call.inputs) + [f.partition("=")[2][1:] for f in call.fields if f.partition("=")[2].startswith("@")]
+    files = list(call.inputs) + [f.partition("=")[2][1:] for f in call.file_fields if f.partition("=")[2].startswith("@")]
     for name in files:
         path = resolve_input(name, cwd)
         if path is None:
@@ -496,7 +505,7 @@ def graphql_text(call: ApiCall, cwd: Optional[str] = None) -> Optional[str]:
 
 
 ADMIN_GRAPHQL = re.compile(r"\b(?:(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)|updateRepository"
-                          r"|mergePullRequest|enablePullRequestAutoMerge|mergeBranch|createCommitOnBranch|updateRefs?)\b")
+                          r"|mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest|dequeuePullRequest|mergeBranch|createCommitOnBranch|updateRefs?)\b")
 #: Headers that make GitHub treat a POST as another method.
 METHOD_OVERRIDE = {"x-http-method-override", "x-http-method"}
 #: ``gh repo edit`` flags that change how the repository merges.
@@ -555,7 +564,8 @@ def repo_admin_reason(command: str) -> Optional[str]:
             if ADMIN_GRAPHQL.search(text):
                 return "repo admin: a GraphQL ruleset, branch-protection or repository-settings mutation"
             continue
-        if call.writes and (ADMIN_PATH.search(endpoint) or REPO_ROOT.match(endpoint)):
+        # A settings write to the repository root is PATCH, PUT or DELETE; a POST there is not one.
+        if call.writes and (ADMIN_PATH.search(endpoint) or (REPO_ROOT.match(endpoint) and call.method in ("PATCH", "PUT", "DELETE"))):
             return "repo admin: a gh api write to rulesets, branch protection, repository settings or App installations"
     return None
 
@@ -1181,9 +1191,6 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
             return "gh api graphql merge"
         if "/contents/" in command and WRITE_METHOD.search(command):
             return "gh api write to /contents/"
-    admin = repo_admin_reason(command)
-    if admin:
-        return admin
     public = go_public_whole(command)
     if public:
         return public
@@ -1195,6 +1202,9 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
         why = request_repo_reason(command)
         if why:
             return why
+    admin = repo_admin_reason(command)  # after going-public and request-repo, which have their own messages
+    if admin:
+        return admin
     if headless() and EXPANSION.search(command) and GIT_WORD.search(command) and PUSH_WORD.search(command):
         return "git push through a shell expansion in a headless session"
     for segment in SPLIT.split(command):

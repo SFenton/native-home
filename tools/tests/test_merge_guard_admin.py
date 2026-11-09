@@ -73,7 +73,8 @@ class RepoAdminWriteTests(unittest.TestCase):
                 self.assertIsNone(verdict(cmd), cmd)
 
     def test_blocked_for_headless_sessions_too(self):
-        self.assertIn("repo admin", verdict(f"gh api -X PUT {REPO}/rulesets/1 --input r.json", headless="1"))
+        # A headless session's request-repo check may speak first; either way it is refused.
+        self.assertIsNotNone(verdict(f"gh api -X PUT {REPO}/rulesets/1 --input r.json", headless="1"))
 
     def test_reads_and_other_writes_stay_allowed(self):
         for cmd in (f"gh api {REPO}/rulesets/26774461", f"gh api {REPO}/rulesets", f"gh api {REPO}/rules/branches/main", "gh ruleset list",
@@ -140,7 +141,6 @@ class GhApiParserTableTests(unittest.TestCase):
             ("graphql --input unreadable", f"gh api graphql --input {tmp}/missing.json", True),
             ("graphql --input stdin", "gh api graphql --input -", True),
             ("graphql branch protection", "gh api graphql -f query='mutation { deleteBranchProtectionRule(input: {}) { clientMutationId } }'", True),
-            ("graphql repository settings", "gh api graphql -f query='mutation { updateRepository(input: {}) { clientMutationId } }'", True),
             ("unknown flag hides the endpoint", f"gh api --frobnicate x -X PUT {R}/rulesets/1 --input r.json", True),
             ("unknown short flag", f"gh api -Z -X PUT {R}/rulesets/1 --input r.json", True),
             ("missing flag value", f"gh api -X PUT {R}/rulesets/1 --input", True),
@@ -229,6 +229,13 @@ class TripwireHardeningTests(unittest.TestCase):
                 ("repo edit --delete-branch-on-merge", "gh repo edit --delete-branch-on-merge", True),
                 ("repo edit --default-branch", "gh repo edit --default-branch x", True),
                 ("repo edit description", "gh repo edit --description x", False),
+                ("repo root PUT", f"gh api -X PUT {R} -f a=b", True),
+                ("repo root DELETE", f"gh api -X DELETE {R}", True),
+                ("repo root POST is not a settings write", f"gh api -X POST {R} -f a=b", False),
+                ("repo root implicit POST", f"gh api {R} -f a=b", False),
+                ("graphql -f value starting with @ is literal", f"gh api graphql -f query='{QUERY}' -f body=@someone", False),
+                ("graphql -f query=@file is literal", f"gh api graphql -f query=@{tmp}/m.graphql", False),
+                ("graphql -F query=@file still reads", f"gh api graphql -F query=@{tmp}/m.graphql", True),
             ]
             for shape, cmd, blocked in rows:
                 with self.subTest(shape=shape):
@@ -242,7 +249,7 @@ class TripwireHardeningTests(unittest.TestCase):
         """Fails if: a GraphQL merge, branch-merge, commit or ref mutation (mergePullRequest, enablePullRequestAutoMerge, mergeBranch,
         createCommitOnBranch, updateRefs, updateRef) is not refused, as a field or in an input file."""
         with tempfile.TemporaryDirectory() as tmp:
-            for name in ("mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch", "createCommitOnBranch", "updateRefs", "updateRef"):
+            for name in ("mergePullRequest", "enablePullRequestAutoMerge", "updateRepository", "enqueuePullRequest", "dequeuePullRequest", "mergeBranch", "createCommitOnBranch", "updateRefs", "updateRef"):
                 query = "mutation { %s(input: {}) { clientMutationId } }" % name
                 Path(tmp, f"{name}.graphql").write_text(query)
                 for cmd in (f"gh api graphql -f query='{query}'", f"gh api graphql --input {tmp}/{name}.graphql",
@@ -250,9 +257,16 @@ class TripwireHardeningTests(unittest.TestCase):
                     with self.subTest(cmd=cmd):
                         self.assertIsNotNone(verdict(cmd), cmd)
 
+    def test_going_public_keeps_its_own_message(self):
+        """Fails if: the repo-admin check runs before the going-public check, so a visibility change through the repo root gets the generic
+        repo-admin message instead of the one naming tools/go_public.sh."""
+        for cmd in (f"gh api -X PATCH {REPO} -f private=false", "gh repo edit SFenton/native-home --visibility public"):
+            with self.subTest(cmd=cmd):
+                self.assertTrue((verdict(cmd) or "").startswith("going public"), cmd)
+
     def test_documented_non_goals_are_not_claimed(self):
-        """A tripwire is not a wall: shell indirection, gh aliases and run-time endpoints are documented as not stopped. These pass the hook on
-        purpose; if one starts blocking, update the module docstring and ci.md instead of pretending a test proves the wall."""
+        """Fails if: a documented non-goal (shell indirection, gh aliases, run-time endpoints) starts to block, so the tripwire wording and
+        this table must change together. A tripwire is not a wall; these pass the hook on purpose."""
         for cmd in ("gh api -X PUT $EP --input r.json", "gh api -X PUT ${EP} --input r.json", "bash -c \"gh api -X PUT $EP --input r.json\"",
                     "eval \"gh api -X PUT $EP --input r.json\"", "gh alias set rs 'api -X PUT repos/o/n/rulesets/1'",
                     "echo repos/o/n/rulesets/1 | xargs gh api -X PUT"):
@@ -260,6 +274,7 @@ class TripwireHardeningTests(unittest.TestCase):
                 self.assertIsNone(verdict(cmd), cmd)
 
     def test_the_limits_are_documented(self):
+        """Fails if: the module docstring or ci.md stops naming the tripwire limits (indirection, aliases) and the non-admin credential."""
         doc = merge_guard.__doc__ or ""
         self.assertIn("tripwire", doc)
         for word in ("shell indirection", "eval", "brace expansion", "xargs", "aliases", "credential"):
