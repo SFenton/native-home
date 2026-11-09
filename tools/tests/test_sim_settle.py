@@ -1,5 +1,6 @@
 """``tools/sim_settle.sh`` settle rule and ``tools/ci_heartbeat.sh`` wrapper."""
 
+import json
 import os
 import subprocess
 import tempfile
@@ -49,14 +50,20 @@ class SettlePicksTheTestedSimulatorTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.pool = Path(self.tmp.name) / "pool.txt"
-        self.pool.write_text(POOL)
-        stub = Path(self.tmp.name) / "bin" / "xcrun"
+        tmp = Path(self.tmp.name)
+        (tmp / "list.txt").write_text(POOL)
+        # The JSON lists the iOS 27 runtime first: a first-listed `jq` pick would take BBBB, not the text list's AAAA.
+        device = lambda name, udid: {"name": name, "udid": udid, "isAvailable": True, "state": "Shutdown"}
+        (tmp / "list.json").write_text(json.dumps({"devices": {
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [device("iPhone Duo", "BBBBBBBB-0000-0000-0000-00000000000B")],
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-0": [device("iPhone Duo", "AAAAAAAA-0000-0000-0000-00000000000A")]}}))
+        stub = tmp / "bin" / "xcrun"
         stub.parent.mkdir()
-        stub.write_text("#!/bin/bash\nexit 0\n")
+        stub.write_text('#!/bin/bash\n[[ "$*" == "simctl list devices available -j" ]] && exec cat "%s/list.json"\n'
+                        '[[ "$*" == "simctl list devices available" ]] && exec cat "%s/list.txt"\nexit 0\n' % (tmp, tmp))
         stub.chmod(0o755)
-        self.env = dict(os.environ)
-        self.env.update({"PATH": f"{stub.parent}:{self.env['PATH']}", "FENTON_SIM_LIST_FILE": str(self.pool),
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("FENTON_SIM_", "FENTON_SETTLE_"))}
+        self.env.update({"PATH": f"{stub.parent}:{self.env['PATH']}",
                          "FENTON_SETTLE_CAP": "0", "FENTON_SETTLE_DWELL": "0", "FENTON_SETTLE_POLL": "1"})
 
     def resolver(self, family):
