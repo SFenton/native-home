@@ -60,7 +60,7 @@ jobs:
               - '!tools/**'
               - '!contracts/test-map*'
               - '!contracts/test-suites*'
-            app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/ci_macos.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
+            app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/ci_macos.sh,tools/ci_release_sims.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
             release: 'apple/**'
       - name: Summary
         env:

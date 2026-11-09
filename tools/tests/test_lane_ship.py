@@ -211,13 +211,14 @@ case "$1 $2" in
   "pr view") echo 7 ;;
   "repo view") echo "$GH_REPO_NAME" ;;
   "api repos/SFenton/native-home/rules/branches/main") cat "$GH_RULES" ;;
+  "api repos/SFenton/native-home/rulesets/7") echo '{"current_user_can_bypass": "never"}' ;;
   "pr ready") exit 0 ;;
   "pr merge") exit "${GH_MERGE_RC:-0}" ;;
 esac
 exit 0
 """
-BOTH = ('[{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}, '
-        '{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}]')
+BOTH = ('[{"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true}}, '
+        '{"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}]')
 
 
 class ShipArmTests(unittest.TestCase):
