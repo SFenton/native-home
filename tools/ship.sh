@@ -15,7 +15,9 @@
 #   tools/pr_land.sh marks it ready once checks and the review pass. ship.sh never merges (pr-lifecycle.md).
 #   Without --pr only the branch is pushed.
 #   On SFenton/native-home, after the PR opens, ship.sh arms auto-merge (`gh pr merge N --auto --squash`, after marking the PR ready, which
-#   auto-merge needs) only while the live ruleset on main requires an approving review and pr-checks (tools/ruleset_gate.py, fail closed).
+#   auto-merge needs) only while the live ruleset on main requires an approving review, dismisses stale ones on push, requires pr-checks from
+#   GitHub Actions (integration 15368) and allows no bypass (tools/ruleset_gate.py, fail closed); merge_guard also refuses unless the
+#   PR is by SFenton from SFenton/native-home.
 #   GitHub then merges when pr-checks is green and the reviewer account has approved; a push dismisses the approval. Otherwise it prints a notice.
 set -euo pipefail
 
