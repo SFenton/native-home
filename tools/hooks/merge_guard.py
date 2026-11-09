@@ -60,16 +60,14 @@ from typing import Dict, List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import request_repo as request_repo_module  # noqa: E402
-import review_verdict  # noqa: E402
-import ruleset_gate  # noqa: E402
 from shell_parse import FEEDERS, scan_shell, strip_prefixes, tokenize as _tokenize, unwrap_xargs  # noqa: E402
 
 MESSAGE = (
     "Blocked: agents merge only through `tools/pr_land.sh N` (its gate: the configured checks and a recorded independent review), never with "
-    "`gh pr merge`, `gh api …/merge` or a push to main. Run the reviewer (tools/review/record.py) then "
-    "`tools/pr_land.sh N`. The one exception is SFenton/native-home: `gh pr merge N -R SFenton/native-home --auto --squash "
-    "--match-head-commit SHA` when the reviewer has recorded a pass for exactly SHA and the ruleset on main requires a PR and pr-checks "
-    "(GitHub then merges when pr-checks is green), or `--disable-auto` to disarm. See .agents/workflow/pr-lifecycle.md."
+    "`gh pr merge` (including `--auto` and `--admin`), `gh api …/merge` or a push to main, and never change the rulesets, branch protection, "
+    "repository settings or App installations (`gh api` writes to them are refused for every session). Run the reviewer (tools/review/record.py) "
+    "then `tools/pr_land.sh N`, which arms auto-merge for a native-home PR. The one `gh pr merge` allowed is `--disable-auto` on your own PR: "
+    "`gh pr merge N -R SFenton/native-home --disable-auto`. See .agents/workflow/pr-lifecycle.md."
 )
 
 REQUEST_MESSAGE = (
@@ -592,19 +590,18 @@ def strip_wrappers(words: List[str]) -> List[str]:
     return words
 
 
-# MARK: - The one allowed merge (native-home auto-merge, owner 2026-11-08)
+# MARK: - The one allowed merge command (disarming your own PR's auto-merge)
 
-AUTOMERGE_REPO = "sfenton/native-home"
-AUTOMERGE_FLAGS = {"--squash", "-s", "--auto"}
-AUTOMERGE_VALUE_FLAGS = {"-R", "--repo", "--match-head-commit"}
-FULL_SHA = re.compile(r"[0-9a-f]{40}")
-#: The only characters the allowed form may contain, quoted or not: no expansion (``$`` backtick glob ``~``), separator, redirect, comment, history or newline.
-AUTOMERGE_SAFE = re.compile(r"[A-Za-z0-9 ._,:/=@+'\"-]+")
+#: Arming is `tools/pr_land.sh N` only (owner, 2026-11-09): it alone runs the gates GitHub cannot (app-UI gate, kill switch, denylist).
+#: The raw `gh pr merge N --auto --squash --match-head-commit SHA` form is refused like every other `gh pr merge`.
+DISARM_REPO = "sfenton/native-home"
+#: The only characters the disarm form may contain, quoted or not: no expansion (``$`` backtick glob ``~``), separator, redirect, comment, history or newline.
+DISARM_SAFE = re.compile(r"[A-Za-z0-9 ._,:/=@+'\"-]+")
 PR_NUMBER = re.compile(r"[0-9]+")
-#: True while a nested command string (``eval``, ``bash -c``) is scanned: the allowed merge is a top-level command only.
+#: True while a nested command string (``eval``, ``bash -c``) is scanned: the disarm is a top-level command only.
 _NESTED = False
-#: The command text the allowed-merge check accepted; its one segment is then not flagged as ``gh pr merge``.
-_AUTOMERGE_OK: Optional[str] = None
+#: The command text the disarm check accepted; its one segment is then not flagged as ``gh pr merge``.
+_DISARM_OK: Optional[str] = None
 GH_TIMEOUT = 20
 
 
@@ -636,15 +633,13 @@ def own_pr(number: str) -> bool:
         return False
 
 
-def automerge_form(command: str) -> Optional[Dict[str, str]]:
-    """Parse ``command`` when it is exactly the one allowed ``gh pr merge`` form (shape only), else ``None``.
+def disarm_form(command: str) -> Optional[Dict[str, str]]:
+    """Parse ``command`` when it is exactly ``gh pr merge N -R SFenton/native-home --disable-auto`` (shape only), else ``None``.
 
-    Shape: ``gh pr merge N -R SFenton/native-home --auto --squash --match-head-commit SHA`` (SHA the full 40-character reviewed head), or
-    ``--disable-auto`` instead of ``--auto --squash --match-head-commit SHA``.
-    No shell metacharacter outside quotes, no prefix (env, wrapper, alias), no other flag (``--admin``, ``--delete-branch``, ``--merge``).
+    No shell metacharacter outside quotes, no prefix (env, wrapper, alias), no other flag (``--admin``, ``--squash``, ``--auto``).
     """
     text = command.strip()
-    if "\n" in text or "\r" in text:
+    if "\n" in text or "\r" in text or not DISARM_SAFE.fullmatch(text):
         return None
     try:
         words = shlex.split(text)
@@ -652,17 +647,14 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
         return None
     if words[:3] != ["gh", "pr", "merge"]:
         return None
-    # An allowlist over the whole raw command, quoted or not; unbalanced quotes fail shlex above.
-    if not AUTOMERGE_SAFE.fullmatch(text):
-        return None
     found: Dict[str, str] = {}
-    flags = set()
+    disable = False
     rest = words[3:]
     i = 0
     while i < len(rest):
         word = rest[i]
         key, eq, inline = word.partition("=") if word.startswith("--") else (word, "", "")
-        if key in AUTOMERGE_VALUE_FLAGS:
+        if key in ("-R", "--repo"):
             if eq:
                 value = inline
             elif i + 1 < len(rest):
@@ -670,63 +662,33 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
                 value = rest[i]
             else:
                 return None
-            key = {"--repo": "-R", "--match-head-commit": "match"}.get(key, key)
-            if key in found:
+            if "-R" in found:
                 return None
-            found[key] = value
-        elif word in AUTOMERGE_FLAGS or word == "--disable-auto":
-            flags.add("--squash" if word in ("-s", "--squash") else word)
+            found["-R"] = value
+        elif word == "--disable-auto" and not disable:
+            disable = True
         elif PR_NUMBER.fullmatch(word) and "pr" not in found:
             found["pr"] = word
         else:
             return None
         i += 1
-    if "match" in found and not FULL_SHA.fullmatch(found["match"]):
-        return None
-    if flags == {"--disable-auto"} and set(found) == {"pr", "-R"}:
-        found["disable"] = "1"
-        return found
-    if flags != {"--squash", "--auto"} or set(found) != {"pr", "-R", "match"}:
-        return None
-    return found
+    return found if disable and set(found) == {"pr", "-R"} else None
 
 
-def automerge_repo(value: str) -> str:
+def disarm_repo(value: str) -> str:
     """``value`` of ``-R`` reduced to ``owner/name``, lower-case (the https URL form is accepted)."""
     return value.strip().lower().removeprefix("https://github.com/").rstrip("/").removesuffix(".git")
 
 
-def automerge_reason(command: str) -> Optional[str]:
-    """``None`` when ``command`` is the allowed auto-merge and the facts hold at hook time, else why it is refused (fails closed).
-
-    Review before push (owner, 2026-11-09): the SHA pinned by ``--match-head-commit`` must have an independent pass in the trusted store
-    (tools/review_verdict.py, the same record the push guard reads) and must be the PR's current head; the live ruleset on main must pass
-    tools/ruleset_gate.py (a PR, `pr-checks` from Actions, no bypass); the PR must be authored by SFenton from this repository and target main.
-    """
-    found = automerge_form(command)
+def disarm_reason(command: str) -> Optional[str]:
+    """``None`` when ``command`` is the allowed disarm and the PR is the agent's own (by ``SFenton``, from this repository), else why not."""
+    found = disarm_form(command)
     if found is None:
         return "gh pr merge"
-    if automerge_repo(found["-R"]) != AUTOMERGE_REPO:
+    if disarm_repo(found["-R"]) != DISARM_REPO:
         return "gh pr merge outside SFenton/native-home"
     if not own_pr(found["pr"]):
         return "gh pr merge of a PR not authored by SFenton from SFenton/native-home (or its author could not be read)"
-    if "disable" in found:
-        return None  # disarming needs no ruleset
-    if not review_verdict.has_pass(found["match"]):
-        return "gh pr merge of a commit without an independent pass (the reviewer records one for exactly that sha)"
-    problems = ruleset_gate.check("SFenton/native-home", "main")
-    if problems:
-        return "gh pr merge while " + problems[0]
-    try:
-        pr = gh_json(f"repos/SFenton/native-home/pulls/{found['pr']}")
-        base = pr["base"]["ref"]
-        head_sha = str(pr["head"]["sha"])
-    except Exception:  # noqa: BLE001 - any failure refuses
-        return "gh pr merge (the PR facts could not be fetched)"
-    if base != "main":
-        return "gh pr merge of a PR not based on main"
-    if head_sha != found["match"]:
-        return "gh pr merge pinned to a commit that is not the PR's head"
     return None
 
 
@@ -784,8 +746,13 @@ def segment_reason(segment: str) -> Optional[str]:
             else:
                 args.append(word)
         if args[:2] == ["pr", "merge"]:
-            if _AUTOMERGE_OK is not None and segment.strip() == _AUTOMERGE_OK:
+            if _DISARM_OK is not None and segment.strip() == _DISARM_OK:
                 return None
+            number = next((a for a in args[2:] if PR_NUMBER.fullmatch(a)), "N")
+            if "--admin" in args:
+                return "gh pr merge --admin (a repo-admin override of the ruleset; no session may)"
+            if "--auto" in args:
+                return f"gh pr merge --auto (arm auto-merge only with `tools/pr_land.sh {number}`)"
             return "gh pr merge"
         if args[:1] == ["api"]:
             joined = " ".join(rest)
@@ -954,13 +921,13 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
             return why
     if is_sanctioned(command):
         return None
-    global _AUTOMERGE_OK
-    _AUTOMERGE_OK = None
-    if not _NESTED and not headless() and automerge_form(command) is not None:
-        why = automerge_reason(command)
+    global _DISARM_OK
+    _DISARM_OK = None
+    if not _NESTED and not headless() and disarm_form(command) is not None:
+        why = disarm_reason(command)
         if why:
             return why
-        _AUTOMERGE_OK = command.strip()  # the full scan below must agree: the one segment is then not a bypass
+        _DISARM_OK = command.strip()  # the full scan below must agree: the one segment is then not a bypass
     # Checked on the whole string, before splitting: braces in a GraphQL query or in gh's `{owner}/{repo}` and
     # `${N}` placeholders would otherwise cut the `gh api` away from its URL.
     if API_WHOLE.search(command):
