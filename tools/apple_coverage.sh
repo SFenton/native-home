@@ -7,7 +7,7 @@
 #   --changed: the per-PR gate. Runs `swift test --filter` for the suites the diff against the lane's base branch (tools/lane_base.py; FENTON_AFFECTED_BASE overrides) affects
 #   (tools/affected_tests.py, contracts/test-map.json) and gates only the changed source files
 #   (tools/coverage_gate.py --files; --baseline build/coverage-baseline.json when that file exists). A diff that
-#   maps to no suite runs nothing; one that needs a targeted pick prints the request and exits 3.
+#   maps to no suite runs nothing (unless a changed file is in UIKitPort: then only the iOS phase runs, skipping the host tests); one that needs a targeted pick prints the request and exits 3.
 # UX coverage of the UIKit app (apple/Sources/HassUI/UIKitPort, iOS-only: the Mac host cannot compile it) comes from the XCUITest
 #   journeys: the Gate plan on iPhone against an instrumented app (`ios_uitest.sh --impact`, one profile per launch), merged with the
 #   host report file by file (tools/coverage_ios.py; .agents/testing/apple/coverage.md). Under --changed the iOS phase runs only
@@ -33,16 +33,25 @@ CHANGED=0
 [[ $CHANGED == 1 ]] && export FENTON_AFFECTED_BASE="${FENTON_AFFECTED_BASE:-$(python3 "$ROOT/tools/lane_base.py" || true)}"
 FILTER=()
 CHANGED_SOURCES=()
+SKIP_HOST=0  # 1: --changed, no host suite covers the diff, but UIKitPort sources changed: only the iOS phase runs
 if [[ $CHANGED == 1 ]]; then
   AFFECTED_STATUS=0
   FILTER=($(python3 "$ROOT/tools/affected_tests.py" --swift)) || AFFECTED_STATUS=$?
-  if (( ${#FILTER[@]} == 0 )); then
-    echo "== changed: no suite covers this diff; nothing to run"; exit "$AFFECTED_STATUS"
-  fi
   while IFS= read -r file; do
     [[ "$file" == apple/Sources/*.swift ]] && CHANGED_SOURCES+=("$file")
   done < <(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import affected_tests; print("\n".join(affected_tests.changed_files()))' "$ROOT/tools")
-  echo "== changed: swift test ${FILTER[*]}; gating ${#CHANGED_SOURCES[@]} changed source file(s)"
+  if (( ${#FILTER[@]} == 0 )); then
+    UIKIT_CHANGED=()
+    for file in ${CHANGED_SOURCES[@]+"${CHANGED_SOURCES[@]}"}; do [[ "$file" == apple/Sources/HassUI/UIKitPort/* ]] && UIKIT_CHANGED+=("$file"); done
+    if (( AFFECTED_STATUS != 0 || ${#UIKIT_CHANGED[@]} == 0 )); then
+      echo "== changed: no suite covers this diff; nothing to run"; exit "$AFFECTED_STATUS"
+    fi
+    SKIP_HOST=1
+    CHANGED_SOURCES=("${UIKIT_CHANGED[@]}")
+    echo "== changed: no host suite covers this diff; iOS phase only, gating ${#CHANGED_SOURCES[@]} UIKitPort source file(s)"
+  else
+    echo "== changed: swift test ${FILTER[*]}; gating ${#CHANGED_SOURCES[@]} changed source file(s)"
+  fi
 fi
 # Every file under apple/Sources must be classified in contracts/coverage-rules.json. Check before taking a
 # build slot, so a new module or file fails here by name instead of as missing coverage after the build.
@@ -125,6 +134,24 @@ if [[ ",${DEVCAP_HELD:-}," != *",build,"* && "${FENTON_COV_IOS:-}" != skip ]]; t
   fi
 fi
 IOS_REPORT="${FENTON_COV_IOS_REPORT:-$IOS_REPORT}"; IOS_STATUS="${FENTON_COV_IOS_STATUS:-$IOS_STATUS}"
+# UIKitPort-only diff (SKIP_HOST): no host test run; gate the changed files against the iOS report alone.
+if [[ $SKIP_HOST == 1 ]]; then
+  if [[ -z "$IOS_REPORT" || ! -f "$IOS_REPORT" ]]; then
+    echo "== changed: the iOS phase did not run (FENTON_COV_IOS=skip or inside a build hold); nothing measured"; exit "$AFFECTED_STATUS"
+  fi
+  GATE_STATUS=0
+  BASELINE=()
+  [[ -f "$ROOT/build/coverage-baseline.json" ]] && BASELINE=(--baseline "$ROOT/build/coverage-baseline.json")
+  python3 "$ROOT/tools/coverage_gate.py" --language swift --report "$IOS_REPORT" --files "${CHANGED_SOURCES[@]}" ${BASELINE[@]+"${BASELINE[@]}"} || GATE_STATUS=$?
+  echo "== failure classification"
+  CLASS_STATUS=0
+  cov_verdict || CLASS_STATUS=$?
+  if (( CLASS_STATUS != 0 )); then
+    echo "ERROR: the coverage run has real, unquarantined or unclassifiable test failures; coverage above is from a run with failing tests" >&2
+    exit "$CLASS_STATUS"
+  fi
+  exit "$GATE_STATUS"
+fi
 # Compile and test under a machine-wide `build` slot (tools/devcap.py), waiting when the Mac is full.
 if [[ ",${DEVCAP_HELD:-}," != *",build,"* ]]; then
   DEVCAP_CMD=("$ROOT/tools/devcap.py")
