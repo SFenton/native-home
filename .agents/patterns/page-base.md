@@ -13,6 +13,7 @@ Owner decision, 2026-11-01: the page base already owned the header, the wallpape
 - **The page base owns the ground.** On the wallpaper the view is clear over `UKBackdropView`; in a sheet it is the system grouped ground, or a sheet backdrop set with `setSheetBackdrop`. A page does not set `view.backgroundColor`. A page shown as a pane (`UKContext.isPane`, the Settings split's trailing navigation) creates no backdrop at all: the host's wallpaper is the ground, so no second blurred layer sits over it. A debug build logs `PAGEGROUND` for a page that painted one.
 - **A pane or tab is a `UKPaneViewController`**: clear, never painting a ground (`PANEGROUND` in debug), spacing from `UKPageMetrics`. The host (the page, the sheet, the split's container) draws the ground. It is a plain view controller with no assumption about its parent, so it works as a column of a split or navigation host as well as a child of a page. Galleries, the shell and root controllers are exempt.
 - **One empty state for a split's pane**: `UKPanePlaceholderViewController(symbol:text:identifier:)` (the todo page's look: large symbol, headline in the secondary ink, one combined element). Settings, Food spaces and the todo page use it.
+- **Header bar items are per page and carry stable identifiers (2026-11-05).** Each page builds its own shell items, with the same `UIBarButtonItem.identifier`s on iOS 26, so the bar keeps Profile and Quick Links still across a push and a pop; the pattern's other rules are unchanged ([profile-badge](../design/profile-badge.md)).
 
 ## Column navigation
 

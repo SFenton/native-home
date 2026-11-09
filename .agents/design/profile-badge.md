@@ -57,6 +57,7 @@ Gate: matches_request=yes. Recorded honestly: `tools/jev_gate.py` answered unsur
 - **Rail Large Content title.** The rail item's `title` is "Your Summary, 9+" (the bar item's title is the only text the Large Content Viewer shows); its `menuRepresentation` keeps "Your Summary", so the "…" overflow menu text is unchanged (owner, 2026-11-01).
 - **Text-size cap.** The badge text follows Dynamic Type only up to xLarge (`ProfileButton.badgeTypeRange`), the same cap as the initials. A bar badge marks the button, and its count is spoken in the item's value and shown by the Large Content Viewer.
 - **Colour on a custom-view bar item (iOS 26).** Draw coloured chrome inside a custom-view bar item into an `.alwaysOriginal` image. The bar's foreground treatment recolours plain subviews.
+- **Still across push and pop (2026-11-05).** Every shell bar item carries a stable `UIBarButtonItem.identifier` on iOS 26 (`shell.profile`, `shell.quickLinks`, `shell.arc`, `shell.menu`), so the bar treats a page's items as the same ones across push and pop and keeps them still instead of cross-fading a new custom view. Do not share one item set between pages: UIKit moves a bar item to the page it was last set on and empties the other (hosted run 2026-11-05).
 
 ## Not in scope
 

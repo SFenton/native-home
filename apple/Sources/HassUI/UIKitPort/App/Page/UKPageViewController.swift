@@ -540,11 +540,11 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
             if !item.trailingItemGroups.isEmpty { item.trailingItemGroups = [] }
             if item.pinnedTrailingGroup != nil { item.pinnedTrailingGroup = nil }
             if wantsMenuItem, item.leftBarButtonItem !== menuItem { item.leftBarButtonItem = menuItem }
-            item.rightBarButtonItems = shellItems
+            // Skips the write when the bar already holds these very items (read after the group clears above, so a page that just left a
+            // column group still writes).
+            let current = item.rightBarButtonItems ?? []
+            if current.count != shellItems.count || !zip(current, shellItems).allSatisfy({ $0 === $1 }) { item.rightBarButtonItems = shellItems }
         }
-        #if DEBUG
-        NSLog("COLBARS %@ leading=%d trailing=%d right=%d column=%d shell=%d", String(describing: type(of: self)), item.leadingItemGroups.count, item.trailingItemGroups.count, item.rightBarButtonItems?.count ?? 0, columnBar?.items.count ?? -1, shellItems.count)
-        #endif
     }
 
     private func applyChrome(_ chrome: ShellChrome, cap: CGFloat?) {
@@ -564,6 +564,7 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
                 item.accessibilityLabel = "Open Navigation"
                 item.accessibilityHint = "Opens the navigation menu"
                 item.accessibilityIdentifier = "nav.open"
+                if #available(iOS 26.0, *) { item.identifier = UKShellHeaderItems.menuIdentifier }
                 menuItem = item
             }
             if columnBar == nil { navigationItem.leftBarButtonItem = menuItem }
