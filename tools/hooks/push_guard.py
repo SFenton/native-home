@@ -10,9 +10,13 @@ passes untouched. Refused:
 - ``--no-verify`` (and any abbreviation of it), which skips the hook;
 - ``core.hooksPath`` in any form (``git -c``, ``git config``, ``GIT_CONFIG_PARAMETERS``/``GIT_CONFIG_KEY_n`` values, an assignment in a file edit);
   ``--config-env``, ``GIT_CONFIG_GLOBAL``, ``GIT_CONFIG_SYSTEM``, ``GIT_CONFIG_COUNT`` and ``GIT_CONFIG_PARAMETERS`` (they can inject it);
-- ``include.path`` and ``includeIf.*.path`` (a config file they pull in can set ``core.hooksPath``);
-- ``SH_OWNER_PUSH`` in any form (``env``, ``export``, a prefix assignment, ``bash -c``, a file edit): the owner's escape from the review step
-  in ``.githooks/pre-push`` (the denylist still runs). It is checked even when the command mentions neither ``git`` nor ``gh``;
+- a config write of ``include.path`` or ``includeIf.*.path`` (``git config``, ``-c``, an assignment: a file they pull in can set ``core.hooksPath``);
+  a read-only ``git grep`` or ``git log -S`` for the name passes;
+- setting ``SH_OWNER_PUSH`` (``env``, ``export``, a prefix assignment, ``bash -c``, a file edit): the owner's escape from the review step in
+  ``.githooks/pre-push`` (the denylist still runs). A read-only ``grep`` for the name passes. The hook also ignores the escape when
+  ``CLAUDECODE``, ``CLAUDE_CODE_ENTRYPOINT`` or ``FENTON_HEADLESS`` is set, so a name an agent builds at run time does nothing, and this scan
+  refuses unsetting or blanking those markers (``unset``, ``env -u``, ``env -i``, ``exec -c``, an empty assignment). Both checks run even
+  when the command mentions neither ``git`` nor ``gh``;
 - ``send-pack`` and ``http-push`` (plumbing that never runs the hook);
 - ``GIT_DIR`` or ``--git-dir`` together with ``push`` (a repository without the hook configured);
 - ``gh api`` writes to ``/git/refs``, ``/merges`` or ``/contents`` (a write method, or any field flag that makes the call a POST), and
@@ -38,8 +42,22 @@ except Exception:  # noqa: BLE001 - fail closed even if the standard library can
 
 #: ``--no-verify`` or an abbreviation of it that git accepts (``--no-v`` upward; shorter and ambiguous ones are refused too).
 NO_VERIFY = re.compile(r"--no-v(?:e(?:r(?:i(?:f(?:y)?)?)?)?)?(?![\w-])")
-HOOKS_PATH = re.compile(r"core\.hookspath|(?<![\w-])include(?:if\.[^\s'\"]*)?\.path", re.I)
-OWNER_ESCAPE = re.compile(r"SH_OWNER_PUSH", re.I)
+HOOKS_PATH = re.compile(r"core\.hookspath", re.I)
+INCLUDE_PATH = re.compile(r"(?<![\w-])include(?:if\.[^\s'\"]*)?\.path", re.I)
+#: A config write of an include (``git config``, ``-c`` and so on, or an assignment); a read-only ``git grep`` or ``git log -S`` is not one.
+INCLUDE_WRITE = re.compile(r"(?<![\w-])config(?![\w-])|[ \t]-c[ \t]|--config-env|(?<![\w-])include(?:if\.[^\s'\"]*)?\.path['\"\]\s]*=", re.I)
+#: Setting or assigning the owner's escape: ``NAME=`` in any quoting, or a setter command that names it. A read-only search for the name is not.
+OWNER_ASSIGN = re.compile(r"SH_OWNER_PUSH['\"\]\s]*=", re.I)
+OWNER_SETTER = re.compile(r"(?<![\w-])(?:export|declare|typeset|readonly|local|setenv|putenv|setdefault|environ|env|launchctl)(?![\w-])[^\n;&|]*SH_OWNER_PUSH", re.I)
+#: The agent-session markers `.githooks/pre-push` checks before honouring the escape.
+AGENT_MARKER = r"(?:CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|FENTON_HEADLESS)"
+#: Clearing a marker: ``unset``, ``env -u``/``--unset``, ``MARKER=`` (empty, quoted or not), or wiping the whole environment (``env -i``, ``env -``, ``exec -c``).
+MARKER_CLEAR = re.compile(
+    r"(?<![\w-])unset(?![\w-])[^\n;&|]*" + AGENT_MARKER
+    + r"|(?<![\w-])(?:-u|--unset)[ \t=]*['\"]?" + AGENT_MARKER
+    + r"|" + AGENT_MARKER + r"['\"\]]*=(?:['\"]{2})?(?=[\s;&|)'\"]|$)"
+    + r"|(?<![\w-])env[ \t]+(?:-[a-zA-Z]*i[a-zA-Z]*|--ignore-environment|-)(?![\w-])"
+    + r"|(?<![\w-])exec[ \t]+-[a-zA-Z]*c", re.I)
 CONFIG_INJECTION = re.compile(r"--config-env|GIT_CONFIG_(?:GLOBAL|SYSTEM|COUNT|PARAMETERS|KEY_\d+|VALUE_\d+)\b|GIT_CONFIG_NOSYSTEM", re.I)
 SEND_PACK = re.compile(r"(?<![\w-])(?:git[ \t-]+)?(?:send-pack|http-push)(?![\w-])")
 GIT_DIR = re.compile(r"(?<![\w])GIT_DIR\b|--git-dir\b")
@@ -61,14 +79,18 @@ def message(why: str) -> str:
 
 def command_reason(command: str) -> str:
     """Why a Bash command is refused, or the empty string."""
-    if OWNER_ESCAPE.search(command):
-        return "SH_OWNER_PUSH (the owner's escape from the review step; only the owner sets it, in their own terminal)"
+    if OWNER_ASSIGN.search(command) or OWNER_SETTER.search(command):
+        return "setting SH_OWNER_PUSH (the owner's escape from the review step; only the owner sets it, in their own terminal)"
+    if MARKER_CLEAR.search(command):
+        return "unsetting or blanking an agent-session marker (CLAUDECODE, CLAUDE_CODE_ENTRYPOINT, FENTON_HEADLESS) or wiping the environment (env -i)"
     if not MENTIONS.search(command):
         return ""
     if NO_VERIFY.search(command):
         return "--no-verify (it skips the pre-push hook)"
     if HOOKS_PATH.search(command):
-        return "core.hooksPath or include.path / includeIf.*.path (the repo's hooks must run)"
+        return "core.hooksPath (the repo's hooks must run)"
+    if INCLUDE_PATH.search(command) and INCLUDE_WRITE.search(command):
+        return "a config write of include.path / includeIf.*.path (an included file can set core.hooksPath)"
     if CONFIG_INJECTION.search(command):
         return "a git config injection (--config-env or GIT_CONFIG_*) that could replace the hooks path"
     if SEND_PACK.search(command):

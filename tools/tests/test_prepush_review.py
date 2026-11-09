@@ -22,6 +22,10 @@ NATIVE = "ssh://git@github.com/SFenton/native-home.git"
 OTHER = "ssh://git@github.com/SFenton/other-repo.git"
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
        "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+#: The agent-session markers `.githooks/pre-push` checks before it honours the owner escape; a test run inside an agent session has them set.
+MARKERS = ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "FENTON_HEADLESS")
+for _marker in MARKERS:
+    ENV.pop(_marker, None)  # test isolation: every test starts as the owner's terminal and adds a marker where it needs one
 PATCH_FROM = "Path(pwd.getpwuid(os.getuid()).pw_dir)"
 
 
@@ -202,14 +206,16 @@ class RealHookTests(Scratch):
         self.assertIn("refs/heads/x", self.seen.read_text())
         self.assertIn(self.reviewed, self.seen.read_text())
 
-    def owner_push(self, value="1"):
-        self.env = {**self.env, "SH_OWNER_PUSH": value}
+    def owner_push(self, value="1", **extra):
+        self.env = {**self.env, "SH_OWNER_PUSH": value, **extra}
         return self.git("push", "origin", "HEAD:refs/heads/x")
 
     def test_the_owner_escape_skips_the_review_but_the_denylist_still_runs(self):
+        """All three agent markers are absent (module ENV), the owner's terminal case."""
         unreviewed = self.commit("unreviewed")
         done = self.owner_push()
         self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("ignored", done.stderr)
         self.assertIn(unreviewed, self.seen.read_text(), "the denylist did not run on the owner's push")
         self.assertIn("refs/heads/x", self.remote_refs())
 
@@ -218,6 +224,26 @@ class RealHookTests(Scratch):
         (self.seen.parent / "tools" / "prepush_denylist.py").write_text("import sys\nsys.stdin.read()\nsys.exit(1)\n")
         self.refused(self.owner_push())
 
+    def test_an_empty_marker_does_not_count_as_an_agent_environment(self):
+        self.commit("unreviewed")
+        self.assertEqual(self.owner_push(CLAUDECODE="", CLAUDE_CODE_ENTRYPOINT="", FENTON_HEADLESS="").returncode, 0)
+
+    def test_an_agent_marker_makes_the_hook_ignore_the_escape_and_run_the_review(self):
+        for marker in MARKERS:
+            with self.subTest(marker=marker):
+                self.seen.unlink(missing_ok=True)
+                self.commit("unreviewed-" + marker)
+                done = self.owner_push(**{marker: "1"})
+                self.refused(done)
+                self.assertIn("escape was ignored because an agent environment was detected", done.stderr)
+                self.assertIn("no independent pass", done.stderr)
+                self.assertFalse(self.seen.exists(), "the denylist ran although the review refused")
+
+    def test_an_agent_marker_with_a_reviewed_commit_still_pushes(self):
+        done = self.owner_push(CLAUDECODE="1")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("ignored", done.stderr)
+
     def test_without_the_exact_escape_value_behaviour_is_unchanged(self):
         self.commit("unreviewed")
         for value in ("", "0", "true", "yes"):
@@ -225,6 +251,7 @@ class RealHookTests(Scratch):
                 done = self.owner_push(value)
                 self.refused(done)
                 self.assertIn("no independent pass", done.stderr)
+                self.assertNotIn("ignored", done.stderr)
                 self.assertFalse(self.seen.exists())
 
 

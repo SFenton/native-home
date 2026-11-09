@@ -135,6 +135,36 @@ class TokenScanTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn("SH_OWNER_PUSH", self.why(command))
 
+    def test_every_way_of_unsetting_an_agent_marker_is_refused(self):
+        """The pre-push hook ignores the escape while a marker is set, so an agent command may not clear one, git or not."""
+        for command in ("unset CLAUDECODE", "unset CLAUDECODE; git push", "unset FOO CLAUDE_CODE_ENTRYPOINT", "env -u CLAUDECODE git push",
+                        "env -u FENTON_HEADLESS -u CLAUDECODE git push", "env --unset=FENTON_HEADLESS git push", "env --unset CLAUDECODE true",
+                        "env -i PATH=/usr/bin git push", "env -i git push", "env -ik git push", "env --ignore-environment git push", "env - git push",
+                        "exec -c git push", "CLAUDECODE= git push", "CLAUDECODE='' git push", 'CLAUDECODE="" git push', "FENTON_HEADLESS= git push",
+                        "export CLAUDE_CODE_ENTRYPOINT=", "export CLAUDECODE=; git push", "bash -c 'CLAUDECODE= git push'", "env CLAUDECODE= git push",
+                        "env CLAUDE_CODE_ENTRYPOINT='' git push", "claudecode= git push", "python3 -c \"import os; os.environ['CLAUDECODE']=''\""):
+            with self.subTest(command=command):
+                self.assertIn("agent-session marker", self.why(command))
+
+    def test_setting_or_reading_a_marker_is_not_clearing_it(self):
+        for command in ("CLAUDECODE=1 git push origin x", "echo $CLAUDECODE", "grep CLAUDECODE tools/hooks/x.py", "git grep FENTON_HEADLESS",
+                        "env FENTON_HEADLESS=1 git status", "git log --grep=CLAUDECODE"):
+            with self.subTest(command=command):
+                self.assertEqual(self.why(command), "", command)
+
+    def test_read_only_searches_for_the_guarded_names_pass(self):
+        for command in ("grep SH_OWNER_PUSH tools/hooks/push_guard.py", "grep -rn SH_OWNER_PUSH .", "git grep SH_OWNER_PUSH", "git log -S SH_OWNER_PUSH --oneline",
+                        "git grep include.path", "git grep -n includeIf tools", "git log -S include.path", "git log --grep include.path --oneline"):
+            with self.subTest(command=command):
+                self.assertEqual(self.why(command), "", command)
+
+    def test_writes_of_the_guarded_names_are_still_refused(self):
+        for command in ("git config include.path /tmp/c", "git config --add include.path /tmp/c", "git -c include.path=/tmp/c status",
+                        "git grep x; git config include.path /tmp/c", "grep x f; export SH_OWNER_PUSH", "grep x f && SH_OWNER_PUSH=1 git push",
+                        "git log -S x; env SH_OWNER_PUSH=1 true"):
+            with self.subTest(command=command):
+                self.assertTrue(self.why(command), command)
+
     def test_include_paths_are_refused_like_hooks_path(self):
         for command in ("git config include.path /tmp/c", "git -c include.path=/tmp/c push", "git config --global includeIf.gitdir:/x/.path /tmp/c",
                         "git config includeif.gitdir:/x/.path /tmp/c"):

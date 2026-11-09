@@ -20,6 +20,26 @@ PUBLIC = "git@github.com:SFenton/native-home.git"
 OTHER = "git@github.com:someone/else.git"
 TERMS = [f"zorblax{i}" for i in range(25)]
 
+_MIRROR = []
+
+
+def denylist_only_hook():
+    """The real ``.githooks/pre-push`` and the real denylist scripts in a temp mirror whose review step (``tools/prepush_review.py``) is a stub that
+    allows. The review step has its own tests (``test_prepush_review.py``); here it is replaced, not skipped through the owner escape, so these tests
+    drive the denylist alone, the same inside and outside an agent session. Built once per test process."""
+    if not _MIRROR:
+        tmp = tempfile.TemporaryDirectory()
+        _MIRROR.append(tmp)
+        root = Path(tmp.name)
+        (root / ".githooks").mkdir()
+        (root / "tools").mkdir()
+        (root / ".githooks" / "pre-push").write_bytes(HOOK.read_bytes())
+        (root / ".githooks" / "pre-push").chmod(0o755)
+        for name in ("prepush_denylist.py", "house_scan.py"):
+            (root / "tools" / name).write_bytes((ROOT / "tools" / name).read_bytes())
+        (root / "tools" / "prepush_review.py").write_text("import sys\nsys.stdin.read()\nsys.exit(0)\n")
+    return Path(_MIRROR[0].name) / ".githooks" / "pre-push"
+
 
 class Repo:
     """A temp repo with a fake denylist and helpers to commit and run the hook."""
@@ -56,9 +76,7 @@ class Repo:
 
     def push(self, local, remote=ZERO, url=PUBLIC, line=None, name="origin"):
         stdin = line if line is not None else f"refs/heads/main {local} refs/heads/main {remote}\n"
-        # These tests are about the denylist alone: the owner escape skips the review step (tools/prepush_review.py, tested in test_prepush_review.py).
-        env = {**self.env, "SH_OWNER_PUSH": "1"}
-        return subprocess.run([str(HOOK), name, url], cwd=self.work, env=env, input=stdin, capture_output=True, text=True)
+        return subprocess.run([str(denylist_only_hook()), name, url], cwd=self.work, env=self.env, input=stdin, capture_output=True, text=True)
 
 
 class PrePushTests(unittest.TestCase):
