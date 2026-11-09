@@ -60,7 +60,7 @@ jobs:
               - '!tools/**'
               - '!contracts/test-map*'
               - '!contracts/test-suites*'
-            app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/ci_macos.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
+            app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/ci_macos.sh,tools/ci_release_sims.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
             release: 'apple/**'
       - name: Summary
         env:
@@ -235,7 +235,7 @@ jobs:
 
   macos:
     # One macOS job per app change: the test products are built once and shared by every device, then Smoke runs on iPhone, iPhone Duo
-    # and iPad, then the full swift test. The build, the Smoke and journey steps and swift test are all required (owner decision
+    # and iPad, then swift test (the affected suites on a PR, the full suite on main). The build, the Smoke and journey steps and swift test are all required (owner decision
     # 2026-11-08, build/decisions/native-home-smoke-gate.md): no step is continue-on-error except the diagnostics. Poses that need Device Hub stay on the MacBook.
     # The simulators boot after the build, not during it: a first Duo boot beside a compile killed two runners (the Duo is also
     # settled before it is used, tools/sim_settle.sh).

@@ -17,17 +17,25 @@ LIVE = []  # ruleset_gate.check: no problems = both rules live
 MISSING = ["the ruleset does not require an approving review"]
 
 
+ORIGIN = {"author": {"login": "SFenton"}, "headRepository": {"name": "native-home"}, "headRepositoryOwner": {"login": "SFenton"}}
+
+
 def pr(base="main"):
     return {"user": {"login": "SFenton"}, "base": {"ref": base}, "head": {"sha": "a" * 40}}
 
 
 class AutoMergeTests(unittest.TestCase):
-    def verdict(self, command, rules=LIVE, pull=None, error=False, headless=""):
+    def verdict(self, command, rules=LIVE, pull=None, error=False, headless="", origin=None):
         def fake(path):
             if error:
                 raise RuntimeError("gh failed")
             return pull if pull is not None else pr()
-        with mock.patch.object(merge_guard, "gh_json", fake), mock.patch.object(merge_guard.ruleset_gate, "check", return_value=rules), \
+        facts = ORIGIN if origin is None else origin
+        def view(number):
+            if facts == "error":
+                raise RuntimeError("gh failed")
+            return facts
+        with mock.patch.object(merge_guard, "gh_json", fake), mock.patch.object(merge_guard, "pr_origin", view), mock.patch.object(merge_guard.ruleset_gate, "check", return_value=rules), \
                 mock.patch.dict("os.environ", {"FENTON_HEADLESS": headless}):
             return merge_guard.reason(command)
 
@@ -54,6 +62,22 @@ class AutoMergeTests(unittest.TestCase):
         self.assertIsNotNone(self.verdict(GOOD, pull=pr(base="release")))
         self.assertIsNotNone(self.verdict(GOOD, error=True))
         self.assertIsNotNone(self.verdict(GOOD, pull={"user": {}}))
+
+    def test_a_foreign_author_or_a_fork_refuses(self):
+        fork = {**ORIGIN, "headRepositoryOwner": {"login": "mallory"}}
+        renamed = {**ORIGIN, "headRepository": {"name": "other"}}
+        other = {**ORIGIN, "author": {"login": "sh-reviewer"}}
+        for origin in (fork, renamed, other, "error", {}, {"author": None}, {**ORIGIN, "headRepository": None}):
+            with self.subTest(origin=origin):
+                self.assertIn("not authored by SFenton", self.verdict(GOOD, origin=origin))
+                self.assertIsNotNone(self.verdict("gh pr merge 12 -R SFenton/native-home --disable-auto", origin=origin))
+
+    def test_pr_origin_asks_gh_pr_view_for_the_author_and_head(self):
+        run = mock.Mock(return_value=mock.Mock(stdout='{"author": {}}'))
+        with mock.patch.object(merge_guard.subprocess, "run", run):
+            self.assertEqual(merge_guard.pr_origin("12"), {"author": {}})
+        self.assertEqual(run.call_args[0][0], ["gh", "pr", "view", "12", "-R", "SFenton/native-home", "--json",
+                                               "author,headRepository,headRepositoryOwner"])
 
     def test_other_flags_refuse(self):
         for extra in ("--admin", "--merge", "--rebase", "--delete-branch", "-d", "--disable-auto", "--match-head-commit " + "a" * 40,
@@ -96,6 +120,7 @@ class AutoMergeTests(unittest.TestCase):
     def test_disarming_is_allowed_on_native_home_only_and_needs_no_ruleset(self):
         ok = "gh pr merge 12 -R SFenton/native-home --disable-auto"
         self.assertIsNone(self.verdict(ok, rules=MISSING, error=True))
+        self.assertIsNone(self.verdict(ok, rules=MISSING, error=True, origin=ORIGIN))
         self.assertIsNotNone(self.verdict("gh pr merge 12 -R SFenton/Fenton-HASS-Native --disable-auto"))
         self.assertIsNotNone(self.verdict("gh pr merge 12 --disable-auto"))
         self.assertIsNotNone(self.verdict(ok + " --admin"))

@@ -1,5 +1,6 @@
 """Lints the hosted-CI rules in the workflow files (text only: no YAML library on the runner's system Python)."""
 
+import fnmatch
 import re
 import unittest
 from pathlib import Path
@@ -240,8 +241,13 @@ class ScopeFilterTests(unittest.TestCase):
     def test_the_ios_driving_tools_count_as_app(self):
         pattern = re.search(r"app_tools: '(\{[^']*\})'", self.text()).group(1)
         for needed in ("tools/ios_uitest.sh", "tools/affected_tests.py", "tools/sim_*.sh", "tools/simslim/**", "tools/ci_hosted*",
-                       "tools/products_cache.py", "tools/xc_watch.py", "tools/ci_macos.sh"):
+                       "tools/products_cache.py", "tools/xc_watch.py", "tools/ci_macos.sh", "tools/ci_release_sims.sh"):
             self.assertIn(needed, pattern)
+        macos = (WORKFLOWS.parents[1] / "tools" / "ci_macos.sh").read_text(encoding="utf-8")
+        for tool in sorted(set(re.findall(r"\$ROOT/(tools/[A-Za-z0-9_./-]+\.(?:sh|py))", macos))):
+            self.assertTrue((WORKFLOWS.parents[1] / tool).exists(), tool)
+            self.assertTrue(any(fnmatch.fnmatchcase(tool, glob) for glob in pattern.strip("{}").split(",")),
+                            "%s is called by ci_macos.sh but missing from app_tools" % tool)
         script = (WORKFLOWS.parents[1] / "tools" / "ios_uitest.sh").read_text(encoding="utf-8")
         for called in ("products_cache.py", "xc_watch.py", "affected_tests.py", "test_suites.py", "uitest_support.py", "lane_base.py"):
             self.assertIn(called, script)
