@@ -93,7 +93,7 @@ enum UKCameraViewerGallery {
 @MainActor
 final class UKCameraViewerGalleryViewController: UKPageViewController {
     private let pool: CameraStreamPool
-    private var opened = false
+    private let opener = UKGalleryAutoOpener(label: "camera-viewer")
 
     init(context: UKContext, pool: CameraStreamPool) {
         self.pool = pool
@@ -131,15 +131,18 @@ final class UKCameraViewerGalleryViewController: UKPageViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        guard !opened else { return }
-        opened = true
         // `FENTON_GALLERY_CAMERA_VIEWER_OPEN` is the same switch as a gallery setting, so a journey can reset into it without a relaunch;
         // read per appearance, it follows a reset.
         let requested = ProcessInfo.processInfo.environment["FENTON_GALLERY_CAMERA_VIEWER_OPEN"]
         if let stream = requested ?? UserDefaults.standard.string(forKey: "cameraViewerOpen"),
            let camera = HomeConfig.cameras.first(where: { $0.rtcStreamId == stream }) {
-            open(camera)
+            opener.start(on: self) { [weak self] in self?.open(camera) }
         }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
     }
 
     private func open(_ camera: HomeConfig.Camera) {

@@ -27,7 +27,7 @@ private final class UKMediaRemoteGalleryController: UKPageViewController, UIColl
     private let footerLabel = UKGalleryLastCallView()
     private var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<Int, String>!
-    private var launched = false
+    private let opener = UKGalleryAutoOpener(label: "media-remote")
 
     init(context: UKContext, store: EntityStore, recorder: GalleryServiceRecorder) {
         self.store = store
@@ -80,9 +80,13 @@ private final class UKMediaRemoteGalleryController: UKPageViewController, UIColl
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        guard !launched else { return }
-        launched = true
-        if let config = ProcessInfo.processInfo.environment["FENTON_GALLERY_REMOTE"].flatMap(MediaRemotes.config(id:)) { open(config) }
+        guard let config = ProcessInfo.processInfo.environment["FENTON_GALLERY_REMOTE"].flatMap(MediaRemotes.config(id:)) else { return }
+        opener.start(on: self) { [weak self] in self?.open(config) }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {

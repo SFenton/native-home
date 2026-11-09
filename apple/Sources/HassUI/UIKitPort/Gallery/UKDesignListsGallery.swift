@@ -134,39 +134,17 @@ private final class UKModalSizingGalleryPage: UIViewController {
         ])
     }
 
-    private var didAutoOpen = false
+    private let opener = UKGalleryAutoOpener(label: "modal-sizing")
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        openRequestedSheet(attempt: 0)
+        guard let raw = ukDirectionGOption("modalSizingOpen", environment: "FENTON_GALLERY_MODAL_OPEN"), let kind = Kind(rawValue: raw) else { return }
+        opener.start(on: self) { [weak self] in self?.open(kind) }
     }
 
-    /// Presents the sheet the launch asks for once the page is in a window and idle. A reset's dismiss and re-embed can swallow the one
-    /// `viewDidAppear`, or drop a `present` made during it, so this retries (``UKGalleryAutoOpen``) and checks that the sheet came up.
-    private func openRequestedSheet(attempt: Int) {
-        guard let raw = ukDirectionGOption("modalSizingOpen", environment: "FENTON_GALLERY_MODAL_OPEN"), let kind = Kind(rawValue: raw),
-              attempt < UKGalleryAutoOpen.maxAttempts else { return }
-        let isTransitioning = isBeingPresented || isMovingToParent || isMovingFromParent || transitionCoordinator != nil
-            || navigationController?.transitionCoordinator != nil
-        switch UKGalleryAutoOpen.decide(hasWindow: view.window != nil, isTransitioning: isTransitioning,
-                                        isPresenting: presentedViewController != nil, didOpen: didAutoOpen) {
-        case .stop: return
-        case .present:
-            didAutoOpen = true
-            open(kind)
-            // The present can still be dropped; look again once it has had time to start.
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(UKGalleryAutoOpen.retryInterval * 2))
-                guard let self, self.view.window != nil, self.presentedViewController == nil else { return }
-                self.didAutoOpen = false
-                self.openRequestedSheet(attempt: attempt + 1)
-            }
-        case .wait:
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(UKGalleryAutoOpen.retryInterval))
-                self?.openRequestedSheet(attempt: attempt + 1)
-            }
-        }
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
     }
 
     private func open(_ kind: Kind) {
