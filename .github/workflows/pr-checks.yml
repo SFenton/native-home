@@ -263,6 +263,8 @@ jobs:
         # The runner context is not allowed in job env.
         run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
         run: |
           tools/ci_hosted_setup.sh
           # Spotlight indexing competes with the compile for 3 cores; best effort (needs sudo).

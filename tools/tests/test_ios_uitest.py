@@ -463,6 +463,34 @@ class HostedModeSimulatorTests(unittest.TestCase):
         self.assertEqual(runner.strip(), f"duo: {helper}")
         self.assertIn(f"settle: booting the duo simulator {helper} (wall", settle)
 
+    def test_slim_settle_and_the_tests_land_on_the_same_udid_with_two_runtimes(self):
+        """sim_slim.sh FAMILY slims the device sim_pool_family_udid names, which is the runner's destination and settle's boot."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            pool = Path(tmp) / "pool.txt"
+            pool.write_text("-- iOS 26.0 --\n    iPhone Duo (AAAAAAAA-0000-0000-0000-00000000000A) (Shutdown)\n"
+                            "-- iOS 27.0 --\n    iPhone Duo (BBBBBBBB-0000-0000-0000-00000000000B) (Shutdown)\n")
+            bindir = Path(tmp) / "bin"
+            bindir.mkdir()
+            for name, body in (("xcrun", "#!/bin/bash\nexit 0\n"), ("simslim", '#!/bin/bash\necho "$*" >> "%s/simslim.log"\nexit 0\n' % tmp)):
+                (bindir / name).write_text(body)
+                (bindir / name).chmod(0o755)
+            base = dict(os.environ)
+            env = {k: v for k, v in base.items() if not k.startswith(("FENTON_SIM_", "FENTON_CI_", "FENTON_SETTLE_", "RUNNER_ENV"))}
+            env.update({"PATH": f"{bindir}:{env['PATH']}", "FENTON_SIM_LIST_FILE": str(pool), "FENTON_CI_HOSTED": "1",
+                        "RUNNER_ENVIRONMENT": "github-hosted", "FENTON_SETTLE_CAP": "0", "FENTON_SETTLE_DWELL": "0"})
+            helper = subprocess.run(["bash", "-c", f'source "{SCRIPT.parent}/sim_pool.sh"; sim_pool_family_udid duo'],
+                                    env=env, capture_output=True, text=True).stdout.strip()
+            runner = subprocess.run(["bash", str(SCRIPT), "--force", "-only-testing:FentonHomeUITests/NoSuchClass", "--only", "duo"],
+                                    env=dict(env, FENTON_UITEST_PRINT_UDIDS="1"), capture_output=True, text=True, timeout=60).stdout
+            slim = subprocess.run(["bash", str(SCRIPT.parent / "sim_slim.sh"), "duo"], env=env, capture_output=True, text=True, timeout=60)
+            log = (Path(tmp) / "simslim.log").read_text()
+        self.assertEqual(helper, "AAAAAAAA-0000-0000-0000-00000000000A")
+        self.assertEqual(runner.strip(), f"duo: {helper}")
+        self.assertIn(f"slimming {helper} (", slim.stdout)
+        self.assertIn(f"on {helper} --profile", log)
+        self.assertNotIn("BBBBBBBB", log)
+
     def test_unset_keeps_the_local_names(self):
         self.assertIn("(iPhone 17 Pro)", self.gaps("iphone").stdout)
         self.assertIn("(iPhone Duo (HASS))", self.gaps("duo").stdout)

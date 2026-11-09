@@ -9,7 +9,7 @@ from unittest import mock
 SCRIPT = Path(__file__).resolve().parents[1] / "ci_macos.sh"
 
 #: Logs its arguments; fails when STUB_FAIL names the script (e.g. "settle").
-STUB = '#!/bin/bash\necho "$(basename "$0") $*" >> "$STUB_LOG"\n[ "$STUB_FAIL" = "$(basename "$0")" ] && exit 1\nexit 0\n'
+STUB = '#!/bin/bash\necho "$(basename "$0") $*${FENTON_SIM_SLIM:+ [FENTON_SIM_SLIM=$FENTON_SIM_SLIM]}" >> "$STUB_LOG"\n[ "$STUB_FAIL" = "$(basename "$0")" ] && exit "${STUB_RC:-1}"\nexit 0\n'
 HEARTBEAT = '#!/bin/bash\necho "heartbeat $*" >> "$STUB_LOG"\nshift 2\nexec "$@"\n'
 #: A selection tool: prints STUB_RUNNABLE for a --plan Gate call and STUB_ALL otherwise.
 AFFECTED = '#!/bin/bash\nfor a in "$@"; do [ "$a" = Gate ] && { echo -n "$STUB_RUNNABLE"; exit "${STUB_AFFECTED_RC:-0}"; }; done\necho -n "$STUB_ALL"\n'
@@ -20,14 +20,14 @@ class CiMacosTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.dir = Path(self.tmp.name)
-        for name, body in (("uitest", STUB), ("settle", STUB), ("heartbeat", HEARTBEAT), ("affected", AFFECTED), ("release", STUB), ("swift", STUB)):
+        for name, body in (("uitest", STUB), ("settle", STUB), ("slim", STUB), ("heartbeat", HEARTBEAT), ("affected", AFFECTED), ("release", STUB), ("swift", STUB)):
             (self.dir / name).write_text(body)
             (self.dir / name).chmod(0o755)
         self.log = self.dir / "log"
         self.timings = self.dir / "timings.tsv"
 
     def run_script(self, *args, **extra):
-        env = {"CI_MACOS_UITEST": str(self.dir / "uitest"), "CI_MACOS_SETTLE": str(self.dir / "settle"),
+        env = {"CI_MACOS_UITEST": str(self.dir / "uitest"), "CI_MACOS_SETTLE": str(self.dir / "settle"), "CI_MACOS_SLIM": str(self.dir / "slim"),
                "CI_MACOS_HEARTBEAT": str(self.dir / "heartbeat"), "CI_MACOS_AFFECTED": str(self.dir / "affected"),
                "CI_MACOS_TIMINGS": str(self.timings), "CI_MACOS_RELEASE": str(self.dir / "release"), "CI_MACOS_SWIFT": str(self.dir / "swift"), "FENTON_AFFECTED_BASE": "", "STUB_LOG": str(self.log), "STUB_FAIL": "", "STUB_RUNNABLE": "", "STUB_ALL": "",
                "GITHUB_STEP_SUMMARY": str(self.dir / "summary")}
@@ -50,7 +50,35 @@ class CiMacosTests(unittest.TestCase):
         out, log = self.run_script("smoke", "duo")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertLess(log.index("settle duo"), log.index("uitest --only duo --plan Smoke --force"))
-        self.assertEqual([p[0] for p in self.phases()], ["boot-duo", "smoke-duo"])
+        self.assertEqual([p[0] for p in self.phases()], ["slim-duo", "boot-duo", "smoke-duo"])
+
+    def test_a_device_is_slimmed_after_the_idle_runner_and_before_it_settles(self):
+        _, log = self.run_script("smoke", "iphone")
+        self.assertLess(log.index("release"), log.index("slim iphone"))
+        self.assertLess(log.index("slim iphone"), log.index("settle iphone"))
+
+    def test_a_slimmed_device_is_recorded_slimmed_and_its_smoke_run_is_untouched(self):
+        out, log = self.run_script("smoke", "duo")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self.phases()[0][0::2], ["slim-duo", "slimmed"])
+        self.assertNotIn("FENTON_SIM_SLIM", log)
+
+    def test_a_device_left_stock_is_recorded_stock_and_its_smoke_run_is_told_not_to_slim(self):
+        out, log = self.run_script("smoke", "ipad", STUB_FAIL="slim", STUB_RC="3")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self.phases()[0][0::2], ["slim-ipad", "stock"])
+        self.assertIn("uitest --only ipad --plan Smoke --force [FENTON_SIM_SLIM=0]", log)
+
+    def test_a_slim_the_check_could_not_confirm_is_recorded_and_not_slimmed_again(self):
+        out, log = self.run_script("smoke", "duo", STUB_FAIL="slim", STUB_RC="4")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self.phases()[0][0::2], ["slim-duo", "slimmed-unverified"])
+        self.assertIn("[FENTON_SIM_SLIM=0]", log)
+
+    def test_a_failed_slim_leaves_the_device_stock_and_the_run_goes_ahead(self):
+        out, log = self.run_script("smoke", "ipad", STUB_FAIL="slim")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("uitest --only ipad --plan Smoke --force", log)
 
     def test_a_failed_settle_does_not_stop_the_smoke_run_and_a_failed_run_fails_the_step(self):
         out, log = self.run_script("smoke", "ipad", STUB_FAIL="settle")

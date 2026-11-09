@@ -186,15 +186,23 @@ class RuleTests(unittest.TestCase):
         self.assertIn("name: swift test", by_name)
         self.assertNotIn("affected_tests.py --swift", (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8"))
 
-    def test_the_macos_job_runs_one_device_at_a_time_on_stock_simulators(self):
+    def test_the_macos_job_runs_one_device_at_a_time_on_slimmed_simulators(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
-        for gone in ("smoke_layout", "parallel-slim", "simslim", "SIMSLIM", "scope_base", "scope_head"):
-            self.assertNotIn(gone, text.replace("tools/simslim/**", ""))
+        for gone in ("smoke_layout", "parallel-slim", "FENTON_REQUIRE_SIMSLIM", "scope_base", "scope_head"):
+            self.assertNotIn(gone, text)
         macos = jobs("pr-checks.yml")["macos"]
+        self.assertIn('FENTON_INSTALL_SIMSLIM: "1"', macos)
         for family in ("iphone", "duo", "ipad"):
             self.assertIn("tools/ci_macos.sh smoke %s" % family, macos)
             self.assertIn("name: xcresult-%s" % family, macos)
-        self.assertNotIn("simslim", (Path(__file__).resolve().parents[1] / "ci_hosted_setup.sh").read_text(encoding="utf-8"))
+        setup = (Path(__file__).resolve().parents[1] / "ci_hosted_setup.sh").read_text(encoding="utf-8")
+        self.assertIn("simslim-v0.14.0-macos-arm64.tar.gz", setup)
+        self.assertIn("shasum -a 256 -c", setup)
+        self.assertIn("install-simslim", setup)
+
+    def test_only_the_macos_job_installs_simslim(self):
+        text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
+        self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 1)
 
     def test_manual_runs_with_different_dry_run_flags_do_not_cancel_each_other(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
