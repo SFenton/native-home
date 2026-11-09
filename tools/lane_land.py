@@ -76,6 +76,7 @@ DEFAULT_PROTECTED: Tuple[str, ...] = (
     ".git/**",
     ".githooks/**",
     "tools/review/**",
+    "tools/review_verdict.py",
     "tools/hooks/review_guard.py",
     "tools/release/**",
     "tools/hass_creds.sh",

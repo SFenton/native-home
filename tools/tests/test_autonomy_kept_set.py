@@ -39,7 +39,7 @@ STATIC_KEPT = [*lane_land.DEFAULT_PROTECTED, *CONFIG["protected_paths"]]
 #: One example of every kind of path in the kept set.
 KEPT_EXAMPLES = (
     "tools/release/x.sh", "tools/release/versioning.py", ".github/workflows/ios-release.yml", ".github/workflows/ios-release-build.yml",
-    "tools/review/record.py", "tools/review/other.py", ".claude/agents/reviewer.md", "tools/hass_creds.sh", "tools/gh_app_token.py",
+    "tools/review/record.py", "tools/review/other.py", "tools/review_verdict.py", ".claude/agents/reviewer.md", "tools/hass_creds.sh", "tools/gh_app_token.py",
     "tools/devcap.py", "tools/ci_hygiene.py", "tools/release_closure.py", "tools/hooks/review_guard.py", ".githooks/pre-commit", ".gitmodules",
 )
 
@@ -152,6 +152,7 @@ class ImportClosureOfTheKeptSetTests(unittest.TestCase):
         for name in ("pr_land", "lane_land", "house_scan", "devcap"):
             self.assertNotIn(f"import {name}", text)
             self.assertNotIn(f"from {name} import", text)
+        self.assertIn("import gh_app_token", text)  # the one tool the recorder may load: it posts the ai-review check
         self.assertEqual(record.review_file_name("claude/pr-lifecycle"), pr_land.review_file_name("claude/pr-lifecycle"))
 
     def test_the_review_guard_is_self_contained(self):

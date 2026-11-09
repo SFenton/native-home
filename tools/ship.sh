@@ -112,6 +112,12 @@ esac
 git push -q -u origin "$BRANCH"
 echo "pushed $BRANCH"
 
+# Server-side backstop: post the `ai-review` check run for the pushed (reviewed) sha as the reviewer App, from its recorded verdict. GitHub cannot take a
+# check on a commit it has not received, so this runs after the push. It never fails ship: on error it prints `ai-review check NOT posted: <reason>`.
+if [[ "$ORIGIN_KIND" == "native-home" ]]; then
+  python3 "$(dirname "$0")/review/record.py" --post-check "$HEAD_SHA" --repo SFenton/native-home || true
+fi
+
 if [[ $PR == 1 ]]; then
   FOOTER="🤖 Generated with [Claude Code](https://claude.com/claude-code)"
   ARGS=(pr create --base "$BASE" --head "$BRANCH" --title "$SUBJECT" --body "${BODY:+$BODY

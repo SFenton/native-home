@@ -268,19 +268,23 @@ def permissions(role: str) -> Dict[str, str]:
     return dict(PERMISSIONS)
 
 
-def token(role: str, timeout: float = TIMEOUT) -> str:
-    """An installation token for the role (comments only), minted at most once per process until it nears expiry."""
-    cached = _CACHE.get(role)
+def token(role: str, timeout: float = TIMEOUT, extra: Optional[Dict[str, str]] = None) -> str:
+    """An installation token for the role (comments only unless ``extra``), minted at most once per process until it nears expiry.
+
+    ``extra`` (for example ``{"checks": "write"}``) is merged into the default ``PERMISSIONS`` for this one request and gets its own
+    cache entry; ``PERMISSIONS`` itself never changes, because asking for a permission an App lacks is a 422 for the other roles."""
+    key = role + (":" + ",".join(f"{k}={v}" for k, v in sorted(extra.items())) if extra else "")
+    cached = _CACHE.get(key)
     if cached and cached[1] - 60 > time.time():
         return cached[0]
     installation = installation_id(role, timeout=timeout)
-    body: Dict[str, Any] = {"permissions": permissions(role)}
+    body: Dict[str, Any] = {"permissions": {**permissions(role), **(extra or {})}}
     reply = api_request("POST", f"app/installations/{installation}/access_tokens", jwt(role, timeout=timeout),
                         body, timeout=timeout)
     value = reply.get("token") if isinstance(reply, dict) else None
     if not value or not isinstance(value, str):
         raise AppError("GitHub returned no installation token")
-    _CACHE[role] = (value, _expiry(reply.get("expires_at")))
+    _CACHE[key] = (value, _expiry(reply.get("expires_at")))
     return value
 
 
