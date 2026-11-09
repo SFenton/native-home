@@ -256,7 +256,7 @@ class RetiredTests(unittest.TestCase):
         (base / "retired").mkdir()
         for rel in ("tools/review", "tools/triage"):  # the code under test is the repo's, copied
             shutil.copytree(REPO / rel, tmp / rel, ignore=shutil.ignore_patterns("__pycache__", "tests"))
-        for name in ("pr_land.py", "redact.py"):
+        for name in ("pr_land.py", "redact.py", "gh_app_token.py"):
             shutil.copy(REPO / "tools" / name, tmp / "tools" / name)
         case = {"id": "old-rule", "source": "once", "kind": "record_round", "input": {"round": 3, "reason": None},
                 "expect": {"refused": passing}}

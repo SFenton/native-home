@@ -48,6 +48,8 @@ class CheckPayloadTests(unittest.TestCase):
         self.assertEqual((payload["name"], payload["head_sha"], payload["status"]), ("ai-review", HEAD, "completed"))
         self.assertEqual(payload["conclusion"], "failure")
         self.assertLessEqual(len(payload["output"]["summary"]), record.SUMMARY_MAX)
+        self.assertLessEqual(len(payload["output"]["text"]), record.SUMMARY_MAX)
+        self.assertGreater(len(payload["output"]["text"]), record.SUMMARY_MAX - 1)  # the oversized finding was cut, not dropped
         small = record.check_payload({"verdict": "changes", "round": 2, "head": HEAD, "findings": [MAJOR, BLOCKER]})
         for f in (MAJOR, BLOCKER):
             self.assertIn(f["detail"], small["output"]["text"])
