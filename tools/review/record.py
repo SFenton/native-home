@@ -7,8 +7,8 @@ the branch and head SHA, writes ``build/review/<branch>.json`` (read by ``tools/
 and, with ``--pr``, replaces the review summary section of the PR body.
 
 ``--post-check SHA --repo OWNER/NAME`` is the server-side backstop that ``tools/ship.sh`` runs after a push: it posts the check run ``ai-review``
-for SHA as the reviewer App from the recorded lane verdict for exactly that sha (``success`` for ``pass``, or ``changes`` at the round cap with
-no blocker; ``failure`` otherwise). GitHub keeps the latest run on a head. When it cannot post it prints ``ai-review check NOT posted: <reason>``
+for SHA as the reviewer App only when ``tools/review_verdict.py`` finds a pass for exactly that sha (the push gate's rule, so the check is never greener than the gate).
+When it cannot post it prints ``ai-review check NOT posted: <reason>``
 and exits 3.
 
 Only the reviewer records: ``tools/hooks/review_guard.py`` lets a session whose ``agent_type`` is ``reviewer`` run this script and leaves an
@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import gh_app_token  # noqa: E402  (already in the protected import closure; never import a landing tool here)
+import review_verdict  # noqa: E402  (the push gate's reader; protected the same way)
 
 
 def review_file_name(branch: str) -> str:
@@ -105,29 +106,30 @@ def post_check(repo: str, payload: Dict[str, Any]) -> Any:
 
 
 def lane_verdict(sha: str, directory: Optional[Path] = None) -> Optional[Dict[str, Any]]:
-    """The newest recorded lane verdict whose ``head`` is exactly ``sha`` and that names a reviewer, or ``None``."""
-    folder = directory or Path.home() / "hass-agents" / "reviews"
+    """The newest record that passes ``sha`` by the push gate's own rule (``review_verdict.counts``: reviewer identity, ``pass``, exact full-sha
+    ``head``, no major or blocker finding), or ``None``. The store is ``review_verdict``'s (the account's home), so the server check can never be
+    greener than the local gate."""
     found = []
-    for path in folder.glob(f"*-{sha[:12]}.json") if re.fullmatch(r"[0-9a-f]{40}", sha) else []:
-        try:
-            data = json.loads(path.read_text())
-            if data.get("head") == sha and isinstance(data.get("reviewer"), dict) and data.get("verdict") in VERDICTS:
-                found.append((path.stat().st_mtime, data))
-        except (OSError, ValueError, AttributeError):
-            continue
+    for path in review_verdict.verdict_files(sha, directory):
+        if review_verdict.counts(path, sha):
+            try:
+                found.append((path.stat().st_mtime, json.loads(path.read_text())))
+            except (OSError, ValueError):
+                continue
     return max(found, key=lambda item: item[0])[1] if found else None
 
 
 def post_check_for(sha: str, repo: str, directory: Optional[Path] = None) -> int:
-    """Post the ``ai-review`` check for ``sha`` from its recorded verdict: 0 when posted, 3 (after an ``ai-review check NOT posted`` line)
-    when not. Never prints a token."""
-    verdict = lane_verdict(sha, directory)
+    """Post the ``ai-review`` check for ``sha``, only when ``review_verdict.has_pass`` says so: 0 when posted, 3 (after an
+    ``ai-review check NOT posted: <reason>`` line) when not, including a malformed record. Never prints a token."""
     try:
+        verdict = lane_verdict(sha, directory)
         if verdict is None:
-            raise gh_app_token.AppError(f"no recorded verdict for {sha[:12]}")
+            raise gh_app_token.AppError(f"no independent pass for {sha[:12]}")
         post_check(repo, check_payload(verdict))
-    except gh_app_token.AppError as exc:
-        print(f"ai-review check NOT posted: {exc}; GitHub will keep the PR blocked once the check is required", file=sys.stderr)
+    except (gh_app_token.AppError, KeyError, TypeError, ValueError, AttributeError) as exc:
+        reason = str(exc) if isinstance(exc, gh_app_token.AppError) else f"unusable verdict record ({type(exc).__name__})"
+        print(f"ai-review check NOT posted: {reason}; GitHub will keep the PR blocked once the check is required", file=sys.stderr)
         return 3
     print(f"posted {CHECK_NAME} {check_outcome(verdict)[0]} on {sha[:8]}")
     return 0

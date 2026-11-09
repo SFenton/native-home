@@ -39,7 +39,7 @@ STATIC_KEPT = [*lane_land.DEFAULT_PROTECTED, *CONFIG["protected_paths"]]
 #: One example of every kind of path in the kept set.
 KEPT_EXAMPLES = (
     "tools/release/x.sh", "tools/release/versioning.py", ".github/workflows/ios-release.yml", ".github/workflows/ios-release-build.yml",
-    "tools/review/record.py", "tools/review/other.py", ".claude/agents/reviewer.md", "tools/hass_creds.sh", "tools/gh_app_token.py",
+    "tools/review/record.py", "tools/review/other.py", "tools/review_verdict.py", ".claude/agents/reviewer.md", "tools/hass_creds.sh", "tools/gh_app_token.py",
     "tools/devcap.py", "tools/ci_hygiene.py", "tools/release_closure.py", "tools/hooks/review_guard.py", ".githooks/pre-commit", ".gitmodules",
 )
 

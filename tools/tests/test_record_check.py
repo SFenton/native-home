@@ -110,10 +110,35 @@ class PostCheckTests(unittest.TestCase):
         self.assertIn("ai-review check NOT posted", out)
 
     def test_a_verdict_without_a_reviewer_identity_posts_nothing(self):
-        """Fails if an unattributed record can produce a check."""
-        self.verdict(reviewer=None)
+        """Fails if an unattributed record, or one whose identity is not agent_type reviewer with a session id, can produce a check."""
+        for reviewer in (None, {"agent_type": "coder", "session_id": "s"}, {"agent_type": "reviewer", "session_id": ""}, "reviewer"):
+            self.verdict(reviewer=reviewer)
+            rc, _ = self.post()
+            self.assertEqual((rc, self.posts), (3, []), reviewer)
+
+    def test_a_changes_verdict_posts_nothing_even_at_round_two(self):
+        """Fails if the server check is greener than the push gate: ``changes`` at round 2 passes check_outcome but not review_verdict.has_pass."""
+        self.verdict(verdict="changes", round=2, findings=[MAJOR])
+        rc, out = self.post()
+        self.assertEqual((rc, self.posts), (3, []))
+        self.assertIn("ai-review check NOT posted", out)
+
+    def test_a_record_whose_head_is_another_sha_posts_nothing(self):
+        """Fails if the sha check is dropped: a file named for the pushed sha whose recorded head differs must not count."""
+        self.verdict(sha=HEAD, head="d" * 40)
         rc, _ = self.post()
         self.assertEqual((rc, self.posts), (3, []))
+
+    def test_a_malformed_record_prints_not_posted_and_exits_3(self):
+        """Fails if a malformed record raises a traceback instead of the NOT posted line and exit 3."""
+        (self.store / f"agents__topic-{HEAD[:12]}.json").write_text("{not json")
+        rc, out = self.post()
+        self.assertEqual((rc, self.posts), (3, []))
+        self.assertIn("ai-review check NOT posted", out)
+        self.verdict(findings=[{"severity": "minor", "detail": "no rule key"}])  # passes the gate's shape rule, breaks the payload
+        rc, out = self.post()
+        self.assertEqual((rc, self.posts), (3, []))
+        self.assertIn("ai-review check NOT posted: unusable verdict record", out)
 
     def test_api_error_prints_the_message_and_never_the_token(self):
         """Fails if an AppError escapes, the NOT posted line is missing, or a token appears in the output."""

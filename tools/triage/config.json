@@ -153,6 +153,7 @@
   "land_full_suite_triggers": [],
   "protected_paths": [
     "tools/review/**",
+    "tools/review_verdict.py",
     "tools/hooks/review_guard.py",
     "tools/release/**",
     "tools/hass_creds.sh",
