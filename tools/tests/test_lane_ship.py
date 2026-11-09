@@ -214,15 +214,15 @@ case "$1 $2" in
   "pr create") exit 0 ;;
   "pr view") echo 7 ;;
   "repo view") echo "$GH_REPO_NAME" ;;
-  "api repos/SFenton/native-home/rules/branches/main") cat "$GH_RULES" ;;
-  "api repos/SFenton/native-home/rulesets/7") echo '{"current_user_can_bypass": "never"}' ;;
-  "pr ready") exit 0 ;;
-  "pr merge") exit "${GH_MERGE_RC:-0}" ;;
 esac
 exit 0
 """
-BOTH = ('[{"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false}}, '
-        '{"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}]')
+#: Stands in for tools/pr_land.py: records its argv and exits with ``PRLAND_RC`` (the real gates are tested in test_pr_land.py).
+ARM_STUB = """import os, sys
+open(os.environ["PRLAND_LOG"], "a").write(" ".join(sys.argv[1:]) + "\\n")
+print(os.environ.get("PRLAND_SAYS", "armed #7"))
+sys.exit(int(os.environ.get("PRLAND_RC", "0")))
+"""
 
 
 def use_home(clone, home):
@@ -240,12 +240,12 @@ def record_pass(home, sha, branch="claude__x"):
 
 
 class ShipArmTests(unittest.TestCase):
-    """After the PR opens on native-home, ship.sh arms auto-merge pinned to HEAD only with a pass for HEAD and a ruleset that is the gate."""
+    """After the PR opens on native-home, ship.sh arms through ``pr_land.py`` (which runs the gates and pins the head); ship itself never merges."""
 
-    def run_ship(self, rules, repo="SFenton/native-home", merge_rc="0", passed=True):
+    def run_ship(self, repo="SFenton/native-home", arm_rc="0"):
         with TemporaryDirectory() as tmp:
             clone, _ = make_repo(tmp)
-            shutil.copy(TOOLS / "ruleset_gate.py", clone / "tools" / "ruleset_gate.py")
+            (clone / "tools" / "pr_land.py").write_text(ARM_STUB)
             home = Path(tmp) / "home"
             home.mkdir()
             use_home(clone, home)
@@ -254,59 +254,48 @@ class ShipArmTests(unittest.TestCase):
             git(clone, "add", "-A")
             git(clone, "commit", "-q", "-m", "Add a")
             self.head = git(clone, "rev-parse", "HEAD")
-            if passed:
-                record_pass(home, self.head)
+            record_pass(home, self.head)
             fake = Path(tmp) / "bin"
             fake.mkdir()
             (fake / "gh").write_text(GH_STUB)
             (fake / "gh").chmod(0o755)
-            rules_file = Path(tmp) / "rules.json"
-            rules_file.write_text(rules)
-            log = Path(tmp) / "gh.log"
-            env = {**ENV, "PATH": f"{fake}{os.pathsep}{ENV['PATH']}", "GH_LOG": str(log), "GH_RULES": str(rules_file),
-                   "GH_REPO_NAME": repo, "GH_MERGE_RC": merge_rc, "HOME": str(home)}
+            log, arm_log = Path(tmp) / "gh.log", Path(tmp) / "arm.log"
+            env = {**ENV, "PATH": f"{fake}{os.pathsep}{ENV['PATH']}", "GH_LOG": str(log), "GH_REPO_NAME": repo, "HOME": str(home),
+                   "PRLAND_LOG": str(arm_log), "PRLAND_RC": arm_rc}
             done = subprocess.run(["bash", "tools/ship.sh", "Add a", "--pr"], cwd=clone, env=env, capture_output=True, text=True)
-            return done, log.read_text() if log.exists() else ""
+            return done, log.read_text() if log.exists() else "", arm_log.read_text() if arm_log.exists() else ""
 
-    def test_a_pass_and_a_live_ruleset_mark_ready_and_arm_pinned_to_head(self):
-        done, log = self.run_ship(BOTH)
+    def test_ship_runs_pr_land_with_the_pr_number_after_the_pr_opens(self):
+        """Fails if: ship.sh arms with its own gh pr merge, or does not call pr_land.py with the PR number once the PR exists."""
+        done, log, arm = self.run_ship()
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIn("pr ready 7 -R SFenton/native-home", log)
-        self.assertIn(f"pr merge 7 -R SFenton/native-home --auto --squash --match-head-commit {self.head}", log)
-        self.assertIn("auto-merge armed on #7", done.stdout)
-
-    def test_no_pass_for_head_arms_nothing(self):
-        done, log = self.run_ship(BOTH, passed=False)
-        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(arm.strip(), "7")
+        self.assertIn("armed #7", done.stdout)
         self.assertNotIn("pr merge", log)
-        self.assertNotIn("pr ready", log)
-        self.assertIn("auto-merge not armed", done.stderr)
+        self.assertLess(log.index("pr create"), log.index("repo view"))
 
-    def test_a_ruleset_without_a_pull_request_or_without_pr_checks_arms_nothing(self):
-        no_pr = BOTH.replace('"type": "pull_request"', '"type": "deletion"')
-        no_check = BOTH.replace('"pr-checks"', '"other"')
-        for rules in (no_pr, no_check, "[]", "not json"):
-            with self.subTest(rules=rules[:30]):
-                done, log = self.run_ship(rules)
+    def test_ship_sh_contains_no_gh_pr_merge_command(self):
+        """Fails if: ship.sh arms or merges itself again, bypassing the app-UI gate, the owner-kept set and the denylist check."""
+        text = (TOOLS / "ship.sh").read_text()
+        self.assertNotIn("gh pr merge", text)
+        self.assertNotIn("ruleset_gate", text)
+        self.assertIn("pr_land.py", text)
+
+    def test_a_refusal_from_pr_land_is_a_notice_and_ship_still_exits_zero(self):
+        """Fails if: a blocked or failed pr_land (a UI PR parked by the app-UI gate, no pass) fails ship, or goes unmentioned."""
+        for rc in ("1", "2"):
+            with self.subTest(rc=rc):
+                done, _, arm = self.run_ship(arm_rc=rc)
                 self.assertEqual(done.returncode, 0, done.stderr)
-                self.assertNotIn("pr merge", log)
-                self.assertNotIn("pr ready", log)
-                self.assertIn("auto-merge not armed", done.stderr)
+                self.assertEqual(arm.strip(), "7")
+                self.assertIn("ship: not armed (see above); land it with tools/pr_land.sh 7", done.stderr)
 
-    def test_an_approval_count_is_not_required(self):
-        done, log = self.run_ship(BOTH.replace('"required_approving_review_count": 0', '"required_approving_review_count": 1'))
-        self.assertIn("--auto --squash --match-head-commit", log)
-
-    def test_another_repository_arms_nothing_and_does_not_even_read_the_ruleset(self):
-        done, log = self.run_ship(BOTH, repo="SFenton/Fenton-HASS-Native")
+    def test_another_repository_never_runs_pr_land(self):
+        """Fails if: ship.sh arms a pull request of a repository other than SFenton/native-home."""
+        done, log, arm = self.run_ship(repo="SFenton/Fenton-HASS-Native")
         self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(arm, "")
         self.assertNotIn("pr merge", log)
-        self.assertNotIn("rules/branches", log)
-
-    def test_a_failed_arm_is_a_notice_not_a_failed_ship(self):
-        done, _ = self.run_ship(BOTH, merge_rc="1")
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIn("could not arm auto-merge", done.stderr)
 
 
 class ShipReviewBeforePushTests(unittest.TestCase):

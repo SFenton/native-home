@@ -147,7 +147,6 @@
   "testflight_autoupload": true,
   "workflow_base": "main",
   "land_tests": "tools/run_tool_tests.sh",
-  "require_checks": false,
   "denylist_required": false,
   "land_core_tests": [],
   "land_full_suite_triggers": [],

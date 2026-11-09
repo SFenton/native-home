@@ -12,16 +12,16 @@
 #   SHIP_TASK      task id; after the PR opens runs `tools/pr_note.py init --task $SHIP_TASK` (fail-safe, never blocks)
 #   The refusals live in tools/ship_guard.sh (owner-only) and are also enforced on raw git commit/push by tools/hooks/commit_guard.py.
 #   --pr always opens a draft (--draft is accepted and implied): review and landing come afterwards, and
-#   tools/pr_land.sh marks it ready once checks and the review pass. ship.sh never merges (pr-lifecycle.md).
+#   tools/pr_land.py marks it ready and arms auto-merge once the gates pass. ship.sh never merges itself (pr-lifecycle.md).
 #   Without --pr only the branch is pushed.
 #   Review before push (owner, 2026-11-09; ci.md#merge-gate): on SFenton/native-home nothing is pushed, opened or armed without an independent
 #   `pass` for the exact HEAD in the trusted store (tools/review_verdict.py, the reviewer's `record.py --lane`). Commit, get the pass, then ship;
 #   a ship that has to commit new changes stops at the push, because the new HEAD has no pass yet. Which guard covers which step: git's own pre-push
 #   hook (.githooks/pre-push, tools/prepush_review.py, which sees every sha really pushed) enforces the push, this script only gives the early
-#   message, and tools/hooks/push_guard.py stops a command going around the hook; tools/ruleset_gate.py (live ruleset: PR required, `pr-checks` from Actions
-#   integration 15368, no bypass) covers the arm; tools/hooks/merge_guard.py covers a raw auto-merge (same verdict, same ruleset, author and fork check).
-#   After the PR opens ship.sh marks it ready (auto-merge needs that) and arms the squash auto-merge pinned to HEAD (--match-head-commit), only when the
-#   verdict and the ruleset both hold. GitHub then merges when pr-checks is green; a CI failure means fix, re-review, push. Otherwise it prints a notice.
+#   message, and tools/hooks/push_guard.py stops a command going around the hook.
+#   After the PR opens ship.sh runs tools/pr_land.py N on native-home: it runs the gates GitHub cannot (kill switch, app-UI gate, denylist, author and fork,
+#   the pass for HEAD, the live ruleset) and arms the squash auto-merge pinned to HEAD. GitHub then merges when its required checks pass; a CI
+#   failure means fix, re-review, push. A refusal prints a notice and never changes ship's exit code.
 set -euo pipefail
 
 SUBJECT="${1:-}"
@@ -130,19 +130,13 @@ if [[ $PR == 1 ]]; then
   if [[ -n "$PR_NUM" && -f "$(dirname "$0")/land_preflight.py" ]]; then
     python3 "$(dirname "$0")/land_preflight.py" --pr "$PR_NUM" || echo "ship: preflight exit $? (pr-lifecycle.md step 1b)" >&2
   fi
-  # native-home: review before push (above) already holds for HEAD. Arm auto-merge pinned to that head only while HEAD still has its pass and the
-  # ruleset on main is the gate (a PR and pr-checks, no bypass: ruleset_gate.py); if either fails or cannot run, say so and leave the PR.
-  # Never changes ship's exit code.
-  if [[ -n "$PR_NUM" && -f "$(dirname "$0")/ruleset_gate.py" ]]; then
+  # native-home: arm through pr_land.py, which runs what GitHub cannot (kill switch, app-UI gate and owner-kept set, denylist, author and fork,
+  # the reviewer's pass for the exact head, the live ruleset) and pins the auto-merge to the head. A UI PR may be parked by the app-UI gate
+  # here (no design record yet): a notice, armed later with tools/pr_land.sh N. Never changes ship's exit code.
+  if [[ -n "$PR_NUM" && -f "$(dirname "$0")/pr_land.py" ]]; then
     REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
     if [[ "$REPO" == "SFenton/native-home" ]]; then
-      if python3 "$RV" pass "$HEAD_SHA" && python3 "$(dirname "$0")/ruleset_gate.py" --repo "$REPO"; then
-        gh pr ready "$PR_NUM" -R "$REPO" && gh pr merge "$PR_NUM" -R "$REPO" --auto --squash --match-head-commit "$HEAD_SHA" \
-          && echo "ship: auto-merge armed on #$PR_NUM, pinned to ${HEAD_SHA:0:12}; it merges when pr-checks is green" \
-          || echo "ship: could not arm auto-merge on #$PR_NUM; land it through the gated path" >&2
-      else
-        echo "ship: auto-merge not armed on #$PR_NUM (see above)" >&2
-      fi
+      python3 "$(dirname "$0")/pr_land.py" "$PR_NUM" || echo "ship: not armed (see above); land it with tools/pr_land.sh $PR_NUM" >&2
     fi
   fi
   [[ -n "${SHIP_TASK:-}" ]] && python3 "$(git rev-parse --show-toplevel)/tools/pr_note.py" init --task "$SHIP_TASK" || true

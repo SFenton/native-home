@@ -1,7 +1,7 @@
 {
   "about": "Hand labels for research.section_relevant (tools/jev_measure.py sections). A section counts as relevant when its text contains any phrase in `any_of`. Questions are paraphrased so they do not copy the doc's headings.",
   "pairs": [
-    {"file": ".agents/workflow/pr-lifecycle.md", "question": "What happens if I try to merge a change that nobody has looked at?", "any_of": ["blocked: no review recorded"]},
+    {"file": ".agents/workflow/pr-lifecycle.md", "question": "What happens if I try to merge a change that nobody has looked at?", "any_of": ["blocked: no independent pass"]},
     {"file": ".agents/workflow/pr-lifecycle.md", "question": "What choices does the independent checker have when it finishes?", "any_of": ["\"pass|changes|blocker\""]},
     {"file": ".agents/workflow/pr-lifecycle.md", "question": "Which safety hook stops a session from running commands in the wrong checkout?", "any_of": ["`worktree_guard` hook"]},
     {"file": ".agents/workflow/ci.md", "question": "How was the overnight storage crisis on the build machine handled?", "any_of": ["The disk filled overnight"]},

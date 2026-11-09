@@ -47,7 +47,7 @@ Over the bound or failing twice: a `Workflow` issue. An owner message about how 
 
 ## Writes
 
-Ledger, briefs, `.agents` docs, `pr_land.sh` merges and, interactively only, `lane_land.py`. Product code goes through a Coder.
+Ledger, briefs, `.agents` docs, `pr_land.sh` arms (GitHub merges) and, interactively only, `lane_land.py`. Product code goes through a Coder.
 
 ## Ending
 
