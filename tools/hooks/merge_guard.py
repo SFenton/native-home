@@ -355,7 +355,30 @@ _REQUEST_REPO: Dict[str, str] = {}
 ADMIN_PATH = re.compile(r"(?:^|/)(?:rulesets(?:/|$)|branches/\S+/protection|app/hook|app/installations|app-manifests|user/installations"
                         r"|installation/repositories|installations/\d+)")
 #: The repository root itself (``repos/OWNER/NAME``): a write there changes repository settings (auto-merge, merge methods, visibility).
-REPO_ROOT = re.compile(r"^(?:https://api\.github\.com)?/?repos/[^/\s]+/[^/\s]+/?$")
+REPO_ROOT = re.compile(r"^(?:https://api\.github\.com)?/?(?:repos/[^/\s]+/[^/\s]+|repositories/\d+)$")
+#: ``gh api`` options that take a value (the value is not the endpoint, and a field value is never a path).
+API_VALUE_OPTS = {"-X", "--method", "-f", "--raw-field", "-F", "--field", "-H", "--header", "-q", "--jq", "-t", "--template", "--input",
+                  "--cache", "--hostname", "-p", "--preview"}
+
+
+def api_endpoint(args: List[str]) -> str:
+    """The endpoint operand of ``gh api ARGS`` (first word that is neither an option nor an option's value), query string and trailing
+    slash removed; ``""`` when there is none. Field values (``-f body=...``) are never the endpoint."""
+    skip = False
+    for word in args:
+        if skip:
+            skip = False
+        elif word in API_VALUE_OPTS:
+            skip = True
+        elif not word.startswith("-"):
+            return re.split(r"[?#]", word, maxsplit=1)[0].rstrip("/")
+    return ""
+
+
+def api_write(args: List[str]) -> bool:
+    """Does ``gh api ARGS`` write? ``gh`` uses the last ``-X``/``--method``; without one, fields or ``--input`` mean POST."""
+    methods = option_values(args, "--method", "X")
+    return (methods[-1].upper() if methods else api_method(args)) != "GET"
 ADMIN_GRAPHQL = re.compile(r"\b(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)\b")
 #: ``gh repo edit`` flags that change how the repository merges.
 REPO_EDIT_MERGE = re.compile(r"^--(?:enable-(?:auto|squash|merge|rebase)-merge|delete-branch-on-merge|default-branch)\b")
@@ -379,12 +402,12 @@ def repo_admin_reason(command: str) -> Optional[str]:
         if "api" not in args[:3]:
             continue
         args = args[args.index("api") + 1:]
-        if ADMIN_GRAPHQL.search(" ".join(args)):
+        endpoint = api_endpoint(args)
+        if endpoint == "graphql" and ADMIN_GRAPHQL.search(" ".join(args)):
             return "repo admin: a GraphQL ruleset or branch-protection mutation"
-        if api_method(args) == "GET":
+        if not api_write(args):
             continue
-        paths = [a for a in args if not a.startswith("-")]
-        if any(ADMIN_PATH.search(a) or REPO_ROOT.match(a) for a in paths):
+        if ADMIN_PATH.search(endpoint) or REPO_ROOT.match(endpoint):
             return "repo admin: a gh api write to rulesets, branch protection, repository settings or App installations"
     return None
 

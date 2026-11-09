@@ -44,6 +44,33 @@ class RepoAdminWriteTests(unittest.TestCase):
                 self.assertIsNotNone(verdict(cmd), cmd)
                 self.assertIn("repo admin", verdict(cmd) or "")
 
+    def test_the_last_method_wins(self):
+        """Fails if: the first -X/--method is used (gh uses the last), so `-X GET ... -X PUT` slips past as a read."""
+        for cmd in (f"gh api -X GET {REPO}/rulesets/1 -X PUT --input r.json", f"gh api --method GET -X PUT {REPO}/rulesets/1 --input r.json",
+                    f"gh api -X PUT -X GET {REPO}/rulesets/1 -f a=b -X DELETE"):
+            with self.subTest(cmd=cmd):
+                self.assertIn("repo admin", verdict(cmd) or "")
+        self.assertIsNone(verdict(f"gh api -X PUT -X GET {REPO}/rulesets/1"))
+
+    def test_query_strings_trailing_slashes_and_repository_ids_match(self):
+        """Fails if: the path is matched literally, so a query string, a trailing slash or the `repositories/ID` form hides the target."""
+        for cmd in (f"gh api -X PUT {REPO}/rulesets?x=1 --input r.json", f"gh api -X PUT {REPO}/rulesets/1/ --input r.json",
+                    f"gh api -X PATCH {REPO}?x=1 -f allow_auto_merge=false", f"gh api -X PATCH {REPO}/ -f allow_auto_merge=false",
+                    "gh api -X PUT repositories/123/rulesets/1 --input r.json", "gh api -X PATCH repositories/123 -f allow_auto_merge=false",
+                    "gh api -X PUT repositories/123/branches/main/protection --input p.json",
+                    f"gh api -X PUT '{REPO}/branches/main/protection?x=1' --input p.json",
+                    f"gh api -X PUT https://api.github.com/{REPO}/rulesets/1 --input r.json"):
+            with self.subTest(cmd=cmd):
+                self.assertIn("repo admin", verdict(cmd) or "")
+
+    def test_a_field_value_that_mentions_a_ruleset_path_is_text(self):
+        """Fails if: any non-option word counts as a path, so a comment body naming .../rulesets/N is blocked (false positive)."""
+        for cmd in (f"gh api -X POST {REPO}/issues/5/comments -f body='see {REPO}/rulesets/1'",
+                    f"gh api {REPO}/issues/5/comments -f body={REPO}/rulesets/26774461",
+                    f"gh api -X PATCH {REPO}/pulls/5 -f body=x -F note=repos/o/n"):
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(verdict(cmd), cmd)
+
     def test_blocked_for_headless_sessions_too(self):
         self.assertIn("repo admin", verdict(f"gh api -X PUT {REPO}/rulesets/1 --input r.json", headless="1"))
 
