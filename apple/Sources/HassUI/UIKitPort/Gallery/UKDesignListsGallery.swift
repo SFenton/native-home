@@ -134,11 +134,17 @@ private final class UKModalSizingGalleryPage: UIViewController {
         ])
     }
 
+    private let opener = UKGalleryAutoOpener(label: "modal-sizing")
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if presentedViewController == nil, let raw = ukDirectionGOption("modalSizingOpen", environment: "FENTON_GALLERY_MODAL_OPEN"), let kind = Kind(rawValue: raw) {
-            open(kind)
-        }
+        guard let raw = ukDirectionGOption("modalSizingOpen", environment: "FENTON_GALLERY_MODAL_OPEN"), let kind = Kind(rawValue: raw) else { return }
+        opener.start(on: self) { [weak self] in self?.open(kind) }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
     }
 
     private func open(_ kind: Kind) {
