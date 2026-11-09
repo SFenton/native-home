@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Does the live ruleset on main make GitHub the merge gate? Auto-merge is armed only when it does (fails closed).
 
-The gate is the ruleset `main-checks` (.agents/workflow/ci.md#merge-gate): at least one approving review, stale approvals dismissed on push,
-the required check `pr-checks` from GitHub Actions and no bypass. ``tools/ship.sh`` and ``tools/hooks/merge_guard.py`` arm or allow `gh pr merge N --auto --squash` only while all of
+The gate is the ruleset `main-checks` (.agents/workflow/ci.md#merge-gate): a pull request is required (squash allowed, any approval count:
+review happens before the push, see ``tools/review_verdict.py``), the required check `pr-checks` comes from GitHub Actions, and nothing bypasses it.
+``tools/ship.sh`` and ``tools/hooks/merge_guard.py`` arm or allow the pinned auto-merge (squash, matched to the reviewed head) only while all of
 that is live on the branch; if `gh api` fails, or any of it is missing, nothing is armed.
 
     ruleset_gate.py [--repo OWNER/NAME] [--branch main]    exit 0 when the gate is live, 1 when not, 2 on a usage error
@@ -41,15 +42,15 @@ def fetch_ruleset(repo: str, ruleset_id: object) -> object:
 def problems(rules: object, rulesets: Optional[Dict[str, object]] = None) -> List[str]:
     """Why the rules do not make GitHub the gate, one line each; empty when everything below holds.
 
-    The gate needs an approving review count of at least 1, ``dismiss_stale_reviews_on_push`` (an approval of one head never
-    merges a later one), the `pr-checks` check bound to GitHub Actions (``integration_id`` 15368, so no token can post a status of
-    that name) and ``current_user_can_bypass == "never"`` on each ruleset that carries those rules (``rulesets`` maps a ruleset id
-    to its `GET rulesets/ID` answer). Malformed shapes raise; ``check`` turns that into a problem.
+    The gate needs a ``pull_request`` rule (no approval count: the reviewer's pass is checked before the push; if the rule lists
+    ``allowed_merge_methods`` it must include ``squash``), the `pr-checks` check bound to GitHub Actions (``integration_id`` 15368, so no
+    token can post a status of that name) and ``current_user_can_bypass == "never"`` on each ruleset that carries those rules
+    (``rulesets`` maps a ruleset id to its `GET rulesets/ID` answer). Malformed shapes raise; ``check`` turns that into a problem.
     """
     if not isinstance(rules, list):
         return ["the rules could not be read (unexpected answer)"]
-    approvals = 0
-    dismiss = False
+    pull_request = False
+    squash = True
     bound = False
     ids: List[str] = []
     for rule in rules:
@@ -62,17 +63,19 @@ def problems(rules: object, rulesets: Optional[Dict[str, object]] = None) -> Lis
         if rule.get("ruleset_id") is not None and str(rule["ruleset_id"]) not in ids:
             ids.append(str(rule["ruleset_id"]))
         if kind == "pull_request":
-            approvals = max(approvals, int(params.get("required_approving_review_count") or 0))
-            dismiss = dismiss or params.get("dismiss_stale_reviews_on_push") is True
+            pull_request = True
+            methods = params.get("allowed_merge_methods")
+            if methods is not None and "squash" not in methods:
+                squash = False
         else:
             for item in params.get("required_status_checks") or []:
                 if item.get("context") == REQUIRED_CHECK and item.get("integration_id") == REQUIRED_INTEGRATION:
                     bound = True
     found: List[str] = []
-    if approvals < 1:
-        found.append("the ruleset does not require an approving review")
-    if not dismiss:
-        found.append("the ruleset does not dismiss stale reviews on push")
+    if not pull_request:
+        found.append("the ruleset does not require a pull request")
+    if not squash:
+        found.append("the ruleset does not allow squash merges")
     if not bound:
         found.append("the ruleset does not require the %s check from GitHub Actions (integration %d)" % (REQUIRED_CHECK, REQUIRED_INTEGRATION))
     if rulesets is not None:
@@ -109,7 +112,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for line in found:
             print("  " + line)
         return 1
-    print("ruleset_gate: %s requires an approval, dismisses stale ones, requires %s and allows no bypass" % (args.repo, REQUIRED_CHECK))
+    print("ruleset_gate: %s requires a pull request and %s from GitHub Actions and allows no bypass" % (args.repo, REQUIRED_CHECK))
     return 0
 
 

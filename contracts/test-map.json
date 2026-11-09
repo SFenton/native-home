@@ -48,6 +48,7 @@
   "PROGRESS.md",
   "AGENTS.md",
   "README.md",
+  ".githooks/",
   "tools/",
   "contracts/",
   ".github/",

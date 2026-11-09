@@ -1131,6 +1131,7 @@ class ShipDraftTests(unittest.TestCase):
         (clone / "tools").mkdir()
         shutil.copy(TOOLS / "ship.sh", clone / "tools/ship.sh")
         shutil.copy(TOOLS / "ship_guard.sh", clone / "tools/ship_guard.sh")
+        shutil.copy(TOOLS / "review_verdict.py", clone / "tools/review_verdict.py")
         (clone / ".gitignore").write_text("build/\n")
         (clone / "a").write_text("1\n")
         subprocess.run(["git", "add", "-A"], cwd=clone, env=ENV, check=True)

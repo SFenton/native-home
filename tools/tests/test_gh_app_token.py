@@ -140,132 +140,17 @@ class TokenTests(AppsDirCase):
         self.assertIn("key missing", out.getvalue())
 
 
-class ReviewTests(AppsDirCase):
-    """``review`` for the reviewer role: narrowed token, pinned head, author and repository checks."""
+class NoReviewPathTests(AppsDirCase):
+    """The reviewer app is for comments only (owner, 2026-11-09): no review command, no write token."""
 
-    HEAD = "a" * 40
-
-    def setUp(self):
-        super().setUp()
-        (Path(self.tmp.name) / "r").mkdir()
-        folder = make_apps_dir(Path(self.tmp.name) / "r", roles=("reviewer", "coder"))
-        patcher = mock.patch.dict(os.environ, {"FENTON_HASS_APPS_DIR": str(folder)})
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        self.calls = []
-        self.pull = {"user": {"login": "SFenton"}, "head": {"sha": self.HEAD, "repo": {"full_name": "SFenton/native-home"}}}
-        self.post_error = None
-        self.move_after_post = False
-        self.dismiss_error = None
-        self.body = Path(self.tmp.name) / "body.md"
-        self.body.write_text("Pass. Reviewed head " + self.HEAD)
-
-    def api(self, method, path, bearer, payload=None, timeout=None):
-        self.calls.append((method, path, payload))
-        if path.startswith("app/installations/") and method == "GET":
-            return {"account": {"login": "SFenton"}}
-        if path.endswith("/access_tokens"):
-            return {"token": TOKEN, "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3600))}
-        if path.endswith("/reviews"):
-            if self.post_error:
-                raise self.post_error
-            if self.move_after_post:
-                self.pull = dict(self.pull, head=dict(self.pull["head"], sha="c" * 40))
-            return {"id": 77, "state": "APPROVED"}
-        if path.endswith("/dismissals"):
-            if self.dismiss_error:
-                raise self.dismiss_error
-            return {}
-        return self.pull
-
-    def run_cli(self, *extra, commit=None):
-        argv = ["review", "5", "--event", "APPROVE", "--body-file", str(self.body), "--commit",
-                self.HEAD if commit is None else commit, *extra]
-        out, err = io.StringIO(), io.StringIO()
-        with mock.patch.object(gh_app_token, "api_request", self.api), redirect_stdout(out), redirect_stderr(err):
-            code = gh_app_token.main(argv)
-        self.assertNotIn(TOKEN, out.getvalue() + err.getvalue())
-        return code, out.getvalue(), err.getvalue()
-
-    def posted(self):
-        return [c for c in self.calls if c[1].endswith("/reviews")]
-
-    def test_posts_pinned_review_and_prints_id_and_state_only(self):
-        code, out, _ = self.run_cli()
-        self.assertEqual((code, out.strip()), (0, "review 77 APPROVED"))
-        method, path, payload = self.posted()[0]
-        self.assertEqual((method, path), ("POST", "repos/SFenton/native-home/pulls/5/reviews"))
-        self.assertEqual(payload["commit_id"], self.HEAD)
-        self.assertEqual(payload["event"], "APPROVE")
-
-    def test_only_the_reviewer_token_asks_for_pull_requests_write(self):
-        self.run_cli()
-        asked = [c[2] for c in self.calls if c[1].endswith("/access_tokens")]
-        self.assertEqual(asked, [{"permissions": {"pull_requests": "write", "contents": "read"},
-                                  "repositories": ["native-home"]}])
-        self.assertEqual(gh_app_token.permissions("coder"), {"issues": "write", "pull_requests": "read"})
-
-    def test_comment_token_keeps_its_narrowing_and_is_separate_from_the_review_token(self):
-        with mock.patch.object(gh_app_token, "api_request", self.api):
-            gh_app_token.token("reviewer")
-            gh_app_token.token("reviewer", scope="review")
-            with self.assertRaises(gh_app_token.AppError):
-                gh_app_token.token("coder", scope="review")
-        asked = [c[2] for c in self.calls if c[1].endswith("/access_tokens")]
-        self.assertEqual(asked[0], {"permissions": {"issues": "write", "pull_requests": "read"}})
-        self.assertEqual(len(asked), 2)
-
-    def test_head_moving_after_post_dismisses_the_review_and_fails(self):
-        self.move_after_post = True
-        code, out, err = self.run_cli()
-        self.assertEqual((code, out), (1, ""))
-        self.assertIn("review 77", err)
-        self.assertIn("dismissed", err)
-        method, path, _ = self.calls[-1]
-        self.assertEqual((method, path), ("PUT", "repos/SFenton/native-home/pulls/5/reviews/77/dismissals"))
-
-    def test_failed_dismissal_reports_the_review_id(self):
-        self.move_after_post = True
-        self.dismiss_error = gh_app_token.AppError("GitHub answered 403 for PUT x")
-        code, out, err = self.run_cli()
-        self.assertEqual((code, out), (1, ""))
-        self.assertIn("review 77", err)
-        self.assertIn("dismiss it", err)
-
-    def test_head_mismatch_refuses_without_posting(self):
-        code, out, err = self.run_cli(commit="b" * 40)
-        self.assertEqual((code, out), (1, ""))
-        self.assertIn("head differs", err)
-        self.assertEqual(self.posted(), [])
-
-    def test_wrong_author_fork_or_repo_refuses(self):
-        self.pull["user"]["login"] = "mallory"
-        self.assertEqual(self.run_cli()[0], 1)
-        self.pull["user"]["login"] = "SFenton"
-        self.pull["head"]["repo"]["full_name"] = "mallory/native-home"
-        self.assertEqual(self.run_cli()[0], 1)
-        self.pull["head"]["repo"] = None
-        self.assertEqual(self.run_cli()[0], 1)
-        self.pull["head"]["repo"] = {"full_name": "SFenton/native-home"}
-        self.assertEqual(self.run_cli("--repo", "SFenton/Fenton-HASS-Native")[0], 1)
-        self.assertEqual(self.posted(), [])
-
-    def test_api_error_exits_non_zero(self):
-        self.post_error = gh_app_token.AppError("GitHub answered 422 for POST x")
-        code, out, _ = self.run_cli()
-        self.assertEqual((code, out), (1, ""))
-
-    def test_bad_input_refuses(self):
-        self.body.write_text("  \n")
-        self.assertEqual(self.run_cli()[0], 1)
-        self.body.write_text("ok")
-        self.assertEqual(self.run_cli(commit="")[0], 1)
-        self.assertEqual(gh_app_token.main(["review", "5", "--event", "APPROVE", "--body-file", "/nonexistent",
-                                            "--commit", self.HEAD]), 1)
-
-    def test_only_approve_or_request_changes_are_accepted(self):
+    def test_there_is_no_review_subcommand_or_write_scope(self):
         with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            gh_app_token.main(["review", "5", "--event", "COMMENT", "--body-file", str(self.body), "--commit", "x"])
+            gh_app_token.main(["review", "5", "--event", "APPROVE", "--body-file", "x", "--commit", "y"])
+        for name in ("review", "REVIEWER_PERMISSIONS", "REVIEW_REPO", "REVIEW_AUTHOR"):
+            self.assertFalse(hasattr(gh_app_token, name), name)
+        self.assertEqual(gh_app_token.permissions("reviewer"), {"issues": "write", "pull_requests": "read"})
+        with self.assertRaises(TypeError):
+            gh_app_token.token("reviewer", scope="review")
 
 
 class SourceTests(unittest.TestCase):
@@ -277,10 +162,10 @@ class SourceTests(unittest.TestCase):
 
     def test_only_status_strings_are_printed(self):
         prints = [n for n in ast.walk(self.tree) if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "print"]
-        self.assertEqual(len(prints), 3)
+        self.assertEqual(len(prints), 1)
         for call in prints:
             names = {n.id for n in ast.walk(call) if isinstance(n, ast.Name)}
-            self.assertEqual(names - {"print", "args", "present", "reachable", "exc", "rid", "state", "sys"}, set())
+            self.assertEqual(names - {"print", "args", "present", "reachable"}, set())
 
     def test_nothing_is_written(self):
         for bad in ("write_text", "write_bytes", ".write(", "os.open", "sys.stdout", "logging", "environ["):
