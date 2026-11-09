@@ -5,6 +5,7 @@ so only this guard keeps it from weakening the gate. The owner's own terminal is
 """
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -89,6 +90,96 @@ class RepoAdminWriteTests(unittest.TestCase):
     def test_the_message_names_the_refusal(self):
         self.assertIn("rulesets", merge_guard.MESSAGE)
         self.assertIn("branch protection", merge_guard.MESSAGE)
+
+
+MUTATION = "mutation { updateRepositoryRuleset(input: {}) { clientMutationId } }"
+QUERY = "query { viewer { login } }"
+
+
+class GhApiParserTableTests(unittest.TestCase):
+    """One parser for ``gh api`` arguments: clustered short flags, ``--flag=value``, value flags, endpoint forms, last method, GraphQL."""
+
+    def rows(self, tmp):
+        mut, qry = Path(tmp) / "m.graphql", Path(tmp) / "q.graphql"
+        mut.write_text(MUTATION)
+        qry.write_text(QUERY)
+        R = REPO
+        return [
+            # (shape, command, blocked)
+            ("clustered -iX PUT", f"gh api -iX PUT {R}/rulesets/1 --input r.json", True),
+            ("clustered -iXDELETE", f"gh api -iXDELETE {R}/rulesets/1", True),
+            ("clustered -iF k=v", f"gh api -iF k=v {R}/rulesets/1", True),
+            ("-XPUT", f"gh api -XPUT {R}/rulesets/1 --input r.json", True),
+            ("--method=PUT", f"gh api --method=PUT {R}/rulesets/1 --input r.json", True),
+            ("--method PUT", f"gh api --method PUT {R}/rulesets/1 --input r.json", True),
+            ("last method wins", f"gh api -X GET {R}/rulesets/1 -X PUT --input r.json", True),
+            ("implicit POST from -f", f"gh api {R}/rulesets -f name=x", True),
+            ("implicit POST from --input", f"gh api {R}/rulesets/1 --input r.json", True),
+            ("--hostname before", f"gh api --hostname github.com -X PUT {R}/rulesets/1 --input r.json", True),
+            ("--hostname after", f"gh api -X PUT {R}/rulesets/1 --hostname github.com --input r.json", True),
+            ("--hostname=", f"gh api --hostname=github.com -X PUT {R}/rulesets/1 --input r.json", True),
+            ("leading slash", f"gh api -X PUT /{R}/rulesets/1 --input r.json", True),
+            ("full URL", f"gh api -X PUT https://api.github.com/{R}/rulesets/1 --input r.json", True),
+            ("GHES URL", f"gh api -X PUT https://ghe.example.com/api/v3/{R}/rulesets/1 --input r.json", True),
+            ("query string", f"gh api -X PUT '{R}/rulesets?x=1' --input r.json", True),
+            ("trailing slash", f"gh api -X PUT {R}/rulesets/1/ --input r.json", True),
+            ("repositories/ID", "gh api -X PUT repositories/123/rulesets/1 --input r.json", True),
+            ("repo root PATCH", f"gh api -X PATCH {R} -f allow_auto_merge=false", True),
+            ("repo root URL", f"gh api -X PATCH https://api.github.com/{R} -f allow_auto_merge=false", True),
+            ("placeholders", "gh api -X PUT repos/{owner}/{repo}/rulesets/1 --input r.json", True),
+            ("GH_REPO relative", "GH_REPO=SFenton/native-home gh api -X PUT repos/{owner}/{repo}/rulesets/1 --input r.json", True),
+            ("branch protection", f"gh api -X PUT {R}/branches/main/protection --input p.json", True),
+            ("App installation", "gh api -X PUT user/installations/5/repositories/9", True),
+            ("graphql bare", f"gh api graphql -f query='{MUTATION}'", True),
+            ("graphql /graphql", f"gh api /graphql -f query='{MUTATION}'", True),
+            ("graphql full URL", f"gh api https://api.github.com/graphql -f query='{MUTATION}'", True),
+            ("graphql GHES URL", f"gh api https://ghe.example.com/api/graphql -f query='{MUTATION}'", True),
+            ("graphql clustered", f"gh api -iF query='{MUTATION}' graphql", True),
+            ("graphql --input mutation file", f"gh api graphql --input {mut}", True),
+            ("graphql query=@file mutation", f"gh api graphql -F query=@{mut}", True),
+            ("graphql --input unreadable", f"gh api graphql --input {tmp}/missing.json", True),
+            ("graphql --input stdin", "gh api graphql --input -", True),
+            ("graphql branch protection", "gh api graphql -f query='mutation { deleteBranchProtectionRule(input: {}) { clientMutationId } }'", True),
+            ("graphql repository settings", "gh api graphql -f query='mutation { updateRepository(input: {}) { clientMutationId } }'", True),
+            ("unknown flag hides the endpoint", f"gh api --frobnicate x -X PUT {R}/rulesets/1 --input r.json", True),
+            ("unknown short flag", f"gh api -Z -X PUT {R}/rulesets/1 --input r.json", True),
+            ("missing flag value", f"gh api -X PUT {R}/rulesets/1 --input", True),
+            ("GET ruleset", f"gh api {R}/rulesets/26774461", False),
+            ("GET rulesets list", f"gh api {R}/rulesets", False),
+            ("explicit GET with fields", f"gh api -X GET {R}/rulesets -f per_page=5", False),
+            ("last method GET", f"gh api -X PUT -X GET {R}/rulesets/1", False),
+            ("-iX GET", f"gh api -iX GET {R}/rulesets/1", False),
+            ("GET protection", f"gh api {R}/branches/main/protection", False),
+            ("GET repo root", f"gh api {R}", False),
+            ("GET --paginate", f"gh api --paginate {R}/rulesets", False),
+            ("comment body mentions rulesets", f"gh api -X POST {R}/issues/5/comments -f body='see {R}/rulesets/1'", False),
+            ("comment body clustered", f"gh api -iF body={R}/rulesets/1 {R}/issues/5/comments", False),
+            ("comment body --raw-field=", f"gh api --raw-field=body={R}/rulesets/1 {R}/issues/5/comments", False),
+            ("issue patch", f"gh api -X PATCH {R}/issues/5 -f state=closed", False),
+            ("graphql query", f"gh api graphql -f query='{QUERY}'", False),
+            ("graphql query --input file", f"gh api graphql --input {qry}", False),
+            ("graphql query @file", f"gh api graphql -F query=@{qry}", False),
+            ("check-runs", f"gh api {R}/commits/abc/check-runs", False),
+        ]
+
+    def test_every_shape(self):
+        """Fails if: a clustered short flag (`-iX PUT`), a `/graphql` or full-URL graphql endpoint, `--input` graphql, an unclassifiable
+        call or a field value is mishandled (the shapes the round 1-2 reviews found slipping past or blocking a comment)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            for shape, cmd, blocked in self.rows(tmp):
+                with self.subTest(shape=shape):
+                    why = verdict(cmd)
+                    if blocked:
+                        self.assertIn("repo admin", why or "", cmd)
+                    else:
+                        self.assertIsNone(why, cmd)
+
+    def test_the_parser_reads_clusters_and_endpoints(self):
+        call = merge_guard.ApiCall(["-iXDELETE", "https://h.example/api/v3/repos/o/n/rulesets/1/?x=1"])
+        self.assertEqual((call.methods, call.endpoint, call.writes, call.understood), (["DELETE"], "repos/o/n/rulesets/1", True, True))
+        call = merge_guard.ApiCall(["-iF", "k=v", "--hostname=h", "-q", ".x", "repos/o/n"])
+        self.assertEqual((call.fields, call.endpoint, call.writes), (["k=v"], "repos/o/n", True))
+        self.assertFalse(merge_guard.ApiCall(["--nope", "x"]).understood)
 
 
 class AdminMergeTests(unittest.TestCase):

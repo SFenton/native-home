@@ -355,31 +355,104 @@ _REQUEST_REPO: Dict[str, str] = {}
 ADMIN_PATH = re.compile(r"(?:^|/)(?:rulesets(?:/|$)|branches/\S+/protection|app/hook|app/installations|app-manifests|user/installations"
                         r"|installation/repositories|installations/\d+)")
 #: The repository root itself (``repos/OWNER/NAME``): a write there changes repository settings (auto-merge, merge methods, visibility).
-REPO_ROOT = re.compile(r"^(?:https://api\.github\.com)?/?(?:repos/[^/\s]+/[^/\s]+|repositories/\d+)$")
-#: ``gh api`` options that take a value (the value is not the endpoint, and a field value is never a path).
-API_VALUE_OPTS = {"-X", "--method", "-f", "--raw-field", "-F", "--field", "-H", "--header", "-q", "--jq", "-t", "--template", "--input",
-                  "--cache", "--hostname", "-p", "--preview"}
+REPO_ROOT = re.compile(r"^(?:repos/[^/\s]+/[^/\s]+|repositories/\d+)$")
+#: ``gh api`` flags that take a value (short letters and long names). Every other flag is a boolean; one this parser does not know is
+#: "unclassified" and a guarded path anywhere in the command then fails closed.
+API_SHORT_VALUE = set("XFfHqtp")
+API_SHORT_BOOL = set("ih")
+API_LONG_VALUE = {"method", "field", "raw-field", "header", "input", "jq", "template", "hostname", "preview", "cache"}
+API_LONG_BOOL = {"paginate", "slurp", "silent", "verbose", "include", "help", "version"}
 
 
-def api_endpoint(args: List[str]) -> str:
-    """The endpoint operand of ``gh api ARGS`` (first word that is neither an option nor an option's value), query string and trailing
-    slash removed; ``""`` when there is none. Field values (``-f body=...``) are never the endpoint."""
-    skip = False
-    for word in args:
-        if skip:
-            skip = False
-        elif word in API_VALUE_OPTS:
-            skip = True
-        elif not word.startswith("-"):
-            return re.split(r"[?#]", word, maxsplit=1)[0].rstrip("/")
-    return ""
+class ApiCall:
+    """A parsed ``gh api`` argument list: endpoint, methods given, fields, input files and whether every flag was understood."""
+
+    def __init__(self, args: List[str]) -> None:
+        self.methods: List[str] = []
+        self.fields: List[str] = []  # values of -f/-F/--field/--raw-field
+        self.inputs: List[str] = []  # values of --input
+        self.positional: List[str] = []
+        self.understood = True
+        i = 0
+        while i < len(args):
+            word = args[i]
+            i += 1
+            if word == "--":
+                self.positional.extend(args[i:])
+                break
+            if word.startswith("--"):
+                name, eq, value = word[2:].partition("=")
+                if name in API_LONG_VALUE:
+                    if not eq:
+                        if i >= len(args):
+                            self.understood = False
+                            break
+                        value, i = args[i], i + 1
+                    self.take(name, value)
+                elif name not in API_LONG_BOOL:
+                    self.understood = False
+            elif word.startswith("-") and len(word) > 1:
+                for at, letter in enumerate(word[1:], 1):
+                    if letter in API_SHORT_VALUE:
+                        value = word[at + 1:].lstrip("=") if word[at + 1:] else None
+                        if value is None:
+                            if i >= len(args):
+                                self.understood = False
+                                break
+                            value, i = args[i], i + 1
+                        self.take({"X": "method", "F": "field", "f": "raw-field", "H": "header", "q": "jq", "t": "template",
+                                   "p": "preview"}[letter], value)
+                        break
+                    if letter not in API_SHORT_BOOL:
+                        self.understood = False
+            else:
+                self.positional.append(word)
+
+    def take(self, name: str, value: str) -> None:
+        if name == "method":
+            self.methods.append(value.upper())
+        elif name in ("field", "raw-field"):
+            self.fields.append(value)
+        elif name == "input":
+            self.inputs.append(value)
+
+    @property
+    def endpoint(self) -> str:
+        """First positional, scheme and host (``https://HOST/``, GHES ``api/v3/``), leading slash, query string and trailing slash removed."""
+        if not self.positional:
+            return ""
+        path = re.sub(r"^https?://[^/]+/", "", self.positional[0])
+        path = re.split(r"[?#]", path, maxsplit=1)[0].lstrip("/")
+        path = re.sub(r"^api/(?:v3/)?", "", path)  # GHES: /api/v3/ for REST, /api/graphql
+        return path.rstrip("/")
+
+    @property
+    def writes(self) -> bool:
+        """The last ``-X``/``--method`` wins; with none, any ``-f``/``-F``/``--input`` makes it a POST."""
+        if self.methods:
+            return self.methods[-1] != "GET"
+        return bool(self.fields or self.inputs)
 
 
-def api_write(args: List[str]) -> bool:
-    """Does ``gh api ARGS`` write? ``gh`` uses the last ``-X``/``--method``; without one, fields or ``--input`` mean POST."""
-    methods = option_values(args, "--method", "X")
-    return (methods[-1].upper() if methods else api_method(args)) != "GET"
-ADMIN_GRAPHQL = re.compile(r"\b(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)\b")
+def graphql_text(call: ApiCall) -> Optional[str]:
+    """Every part of a GraphQL call that can hold the query: ``-f``/``-F`` values and the content of ``--input`` or ``@file`` fields.
+    ``None`` when a file cannot be read (or is stdin): the caller fails closed."""
+    parts = list(call.fields)
+    files = list(call.inputs) + [f.partition("=")[2][1:] for f in call.fields if f.partition("=")[2].startswith("@")]
+    for name in files:
+        if name == "-":
+            return None
+        try:
+            path = Path(name).expanduser()
+            if not path.is_absolute():
+                path = Path(_CWD or os.getcwd()) / path
+            parts.append(path.read_text(errors="replace")[:1_000_000])
+        except OSError:
+            return None
+    return "\n".join(parts)
+
+
+ADMIN_GRAPHQL = re.compile(r"\b(?:(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)|updateRepository)\b")
 #: ``gh repo edit`` flags that change how the repository merges.
 REPO_EDIT_MERGE = re.compile(r"^--(?:enable-(?:auto|squash|merge|rebase)-merge|delete-branch-on-merge|default-branch)\b")
 
@@ -402,12 +475,21 @@ def repo_admin_reason(command: str) -> Optional[str]:
         if "api" not in args[:3]:
             continue
         args = args[args.index("api") + 1:]
-        endpoint = api_endpoint(args)
-        if endpoint == "graphql" and ADMIN_GRAPHQL.search(" ".join(args)):
-            return "repo admin: a GraphQL ruleset or branch-protection mutation"
-        if not api_write(args):
+        call = ApiCall(args)
+        endpoint = call.endpoint
+        joined = " ".join(args)
+        if not call.understood or not endpoint:
+            if ADMIN_PATH.search(joined) or ADMIN_GRAPHQL.search(joined) or "graphql" in joined:
+                return "repo admin: a gh api call this guard cannot classify names a guarded path (rulesets, protection, App installations or a GraphQL mutation); use plain -X/-f/--input flags"
             continue
-        if ADMIN_PATH.search(endpoint) or REPO_ROOT.match(endpoint):
+        if endpoint.lower() == "graphql":
+            text = graphql_text(call)
+            if text is None:
+                return "repo admin: a gh api graphql call whose input file cannot be read (or is stdin), so its mutation cannot be inspected"
+            if ADMIN_GRAPHQL.search(text):
+                return "repo admin: a GraphQL ruleset, branch-protection or repository-settings mutation"
+            continue
+        if call.writes and (ADMIN_PATH.search(endpoint) or REPO_ROOT.match(endpoint)):
             return "repo admin: a gh api write to rulesets, branch protection, repository settings or App installations"
     return None
 
