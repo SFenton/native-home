@@ -4,4 +4,20 @@
 # Install with tools/setup.sh. See .agents/workflow/house-data-gate.md.
 root="$(cd "$(dirname "$0")/.." && pwd)" || exit 1
 command -v python3 >/dev/null 2>&1 || { echo "pre-push: python3 not found; refusing the push." >&2; exit 1; }
-exec python3 "$root/tools/prepush_denylist.py" "$@"
+refs="$(mktemp)" || exit 1
+trap 'rm -f "$refs"' EXIT
+cat > "$refs"
+# Owner escape, honoured only outside an agent session: it skips the review step and never the denylist below. An agent environment
+# (any of the three markers set and non-empty) ignores it. tools/hooks/push_guard.py also refuses agent commands that name it or clear the markers.
+skip_review=0
+if [ "${SH_OWNER_PUSH:-}" = "1" ]; then
+  if [ -n "${CLAUDECODE:-}${CLAUDE_CODE_ENTRYPOINT:-}${FENTON_HEADLESS:-}" ]; then
+    echo "pre-push: the owner escape was ignored because an agent environment was detected; running the review step." >&2
+  else
+    skip_review=1
+  fi
+fi
+if [ "$skip_review" != "1" ]; then
+  python3 -I "$root/tools/prepush_review.py" "$@" < "$refs" || exit 1
+fi
+python3 "$root/tools/prepush_denylist.py" "$@" < "$refs"

@@ -1,5 +1,6 @@
 """Lane and ship scripts (``tools/lane_new.sh``, ``tools/ship.sh``) against throwaway repositories."""
 
+import json
 import os
 import shutil
 import stat
@@ -24,7 +25,7 @@ def make_repo(tmp):
     clone = Path(tmp) / "clone"
     git(tmp, "clone", "-q", str(origin), str(clone))
     (clone / "tools").mkdir()
-    for name in ("lane_new.sh", "ship.sh", "ship_guard.sh"):
+    for name in ("lane_new.sh", "ship.sh", "ship_guard.sh", "review_verdict.py"):
         shutil.copy(TOOLS / name, clone / "tools" / name)
     (clone / ".gitignore").write_text("*.env\n.claude/worktrees/\n")
     (clone / "README.md").write_text("hi\n")
@@ -82,6 +83,9 @@ class ShipTests(unittest.TestCase):
     def test_commits_with_trailer_and_pushes(self):
         with TemporaryDirectory() as tmp:
             clone, origin = make_repo(tmp)
+            home = Path(tmp) / "home"
+            home.mkdir()
+            use_home(clone, home)
             git(clone, "switch", "-q", "-c", "claude/x")
             (clone / "a.txt").write_text("x")
             done = self.ship(clone, "Add a")
@@ -217,19 +221,41 @@ case "$1 $2" in
 esac
 exit 0
 """
-BOTH = ('[{"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true}}, '
+BOTH = ('[{"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false}}, '
         '{"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}]')
 
 
-class ShipArmTests(unittest.TestCase):
-    """After the PR opens on native-home, ship.sh arms auto-merge only while the live ruleset requires an approval and pr-checks."""
+def use_home(clone, home):
+    """Point the clone's copy of review_verdict.py at a fake account home (the real one reads the password database, not $HOME)."""
+    path = clone / "tools" / "review_verdict.py"
+    path.write_text(path.read_text().replace("Path(pwd.getpwuid(os.getuid()).pw_dir)", "Path(%r)" % str(home)))
 
-    def run_ship(self, rules, repo="SFenton/native-home", merge_rc="0"):
+
+def record_pass(home, sha, branch="claude__x"):
+    """A verdict the way the reviewer's record.py --lane leaves it, in the fake home's trusted store."""
+    folder = Path(home) / "hass-agents" / "reviews"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{branch}-{sha[:12]}.json").write_text(json.dumps({"verdict": "pass", "head": sha, "findings": [],
+                                                                  "reviewer": {"agent_type": "reviewer", "session_id": "s"}}))
+
+
+class ShipArmTests(unittest.TestCase):
+    """After the PR opens on native-home, ship.sh arms auto-merge pinned to HEAD only with a pass for HEAD and a ruleset that is the gate."""
+
+    def run_ship(self, rules, repo="SFenton/native-home", merge_rc="0", passed=True):
         with TemporaryDirectory() as tmp:
             clone, _ = make_repo(tmp)
             shutil.copy(TOOLS / "ruleset_gate.py", clone / "tools" / "ruleset_gate.py")
+            home = Path(tmp) / "home"
+            home.mkdir()
+            use_home(clone, home)
             git(clone, "switch", "-q", "-c", "claude/x")
             (clone / "a.txt").write_text("x")
+            git(clone, "add", "-A")
+            git(clone, "commit", "-q", "-m", "Add a")
+            self.head = git(clone, "rev-parse", "HEAD")
+            if passed:
+                record_pass(home, self.head)
             fake = Path(tmp) / "bin"
             fake.mkdir()
             (fake / "gh").write_text(GH_STUB)
@@ -238,27 +264,38 @@ class ShipArmTests(unittest.TestCase):
             rules_file.write_text(rules)
             log = Path(tmp) / "gh.log"
             env = {**ENV, "PATH": f"{fake}{os.pathsep}{ENV['PATH']}", "GH_LOG": str(log), "GH_RULES": str(rules_file),
-                   "GH_REPO_NAME": repo, "GH_MERGE_RC": merge_rc}
+                   "GH_REPO_NAME": repo, "GH_MERGE_RC": merge_rc, "HOME": str(home)}
             done = subprocess.run(["bash", "tools/ship.sh", "Add a", "--pr"], cwd=clone, env=env, capture_output=True, text=True)
-            return done, log.read_text()
+            return done, log.read_text() if log.exists() else ""
 
-    def test_both_rules_live_marks_ready_and_arms_auto_merge(self):
+    def test_a_pass_and_a_live_ruleset_mark_ready_and_arm_pinned_to_head(self):
         done, log = self.run_ship(BOTH)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("pr ready 7 -R SFenton/native-home", log)
-        self.assertIn("pr merge 7 -R SFenton/native-home --auto --squash", log)
+        self.assertIn(f"pr merge 7 -R SFenton/native-home --auto --squash --match-head-commit {self.head}", log)
         self.assertIn("auto-merge armed on #7", done.stdout)
 
-    def test_a_ruleset_without_an_approval_or_without_pr_checks_arms_nothing(self):
-        no_approval = BOTH.replace('"required_approving_review_count": 1', '"required_approving_review_count": 0')
+    def test_no_pass_for_head_arms_nothing(self):
+        done, log = self.run_ship(BOTH, passed=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("pr merge", log)
+        self.assertNotIn("pr ready", log)
+        self.assertIn("auto-merge not armed", done.stderr)
+
+    def test_a_ruleset_without_a_pull_request_or_without_pr_checks_arms_nothing(self):
+        no_pr = BOTH.replace('"type": "pull_request"', '"type": "deletion"')
         no_check = BOTH.replace('"pr-checks"', '"other"')
-        for rules in (no_approval, no_check, "[]", "not json"):
+        for rules in (no_pr, no_check, "[]", "not json"):
             with self.subTest(rules=rules[:30]):
                 done, log = self.run_ship(rules)
                 self.assertEqual(done.returncode, 0, done.stderr)
                 self.assertNotIn("pr merge", log)
                 self.assertNotIn("pr ready", log)
                 self.assertIn("auto-merge not armed", done.stderr)
+
+    def test_an_approval_count_is_not_required(self):
+        done, log = self.run_ship(BOTH.replace('"required_approving_review_count": 0', '"required_approving_review_count": 1'))
+        self.assertIn("--auto --squash --match-head-commit", log)
 
     def test_another_repository_arms_nothing_and_does_not_even_read_the_ruleset(self):
         done, log = self.run_ship(BOTH, repo="SFenton/Fenton-HASS-Native")
@@ -270,6 +307,45 @@ class ShipArmTests(unittest.TestCase):
         done, _ = self.run_ship(BOTH, merge_rc="1")
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("could not arm auto-merge", done.stderr)
+
+
+class ShipReviewBeforePushTests(unittest.TestCase):
+    """A native-home (or unreadable) origin refuses the push without a pass; nothing leaves the machine."""
+
+    def ship_with_origin(self, url, passed, hooks=True):
+        with TemporaryDirectory() as tmp:
+            clone, origin = make_repo(tmp)
+            home = Path(tmp) / "home"
+            home.mkdir()
+            use_home(clone, home)
+            git(clone, "switch", "-q", "-c", "claude/x")
+            (clone / "a.txt").write_text("x")
+            git(clone, "add", "-A")
+            git(clone, "commit", "-q", "-m", "Add a")
+            if passed:
+                record_pass(home, git(clone, "rev-parse", "HEAD"))
+            if hooks:
+                git(clone, "config", "core.hooksPath", ".githooks")
+            git(clone, "remote", "set-url", "origin", url)
+            done = subprocess.run(["bash", "tools/ship.sh", "Add a"], cwd=clone, env={**ENV, "HOME": str(home)}, capture_output=True, text=True)
+            return done
+
+    def test_native_home_without_a_pass_is_refused_before_the_push(self):
+        done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=False)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("needs the reviewer's pass", done.stderr)
+        self.assertNotIn("pushed", done.stdout)
+
+    def test_native_home_without_the_git_hook_installed_is_refused(self):
+        done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=True, hooks=False)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("tools/setup.sh", done.stderr)
+        self.assertNotIn("pushed", done.stdout)
+
+    def test_an_unreadable_origin_fails_closed(self):
+        done = self.ship_with_origin("nonsense", passed=True)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("not a readable GitHub URL", done.stderr)
 
 
 if __name__ == "__main__":

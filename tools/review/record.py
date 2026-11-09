@@ -4,10 +4,12 @@
 Usage: ``tools/review/record.py [FILE|-] [--pr N] [--lane BRANCH] [--root WORKTREE]``. ``--root`` records for the checkout at WORKTREE from any cwd
 (the branch and head are read there, the stamp must name that directory); with ``--pr`` the PR's head branch must equal that checkout's branch. Reads the verdict JSON (stdin or FILE), validates it, stamps
 the branch and head SHA, writes ``build/review/<branch>.json`` (read by ``tools/pr_land.sh`` and ``tools/ship.sh``)
-and, with ``--pr``, replaces the review summary section of the PR body and posts the check run ``ai-review`` on the reviewed head
-as the reviewer App (``success`` for ``pass``, or ``changes`` at the round cap with no blocker; ``failure`` otherwise). That check is what
-GitHub's ruleset requires; the latest run on a head wins. With ``--pr`` the PR head must equal this checkout's HEAD (exit 2 otherwise), and
-a check that cannot be posted prints ``ai-review check NOT posted`` and exits 3 (the JSON and the PR body stay recorded).
+and, with ``--pr``, replaces the review summary section of the PR body.
+
+``--post-check SHA --repo OWNER/NAME`` is the server-side backstop that ``tools/ship.sh`` runs after a push: it posts the check run ``ai-review``
+for SHA as the reviewer App from the recorded lane verdict for exactly that sha (``success`` for ``pass``, or ``changes`` at the round cap with
+no blocker; ``failure`` otherwise). GitHub keeps the latest run on a head. When it cannot post it prints ``ai-review check NOT posted: <reason>``
+and exits 3.
 
 Only the reviewer records: ``tools/hooks/review_guard.py`` lets a session whose ``agent_type`` is ``reviewer`` run this script and leaves an
 identity stamp that is copied into the verdict as ``reviewer`` (``pr_land`` and ``lane_land`` refuse a verdict without it); no other session
@@ -102,6 +104,35 @@ def post_check(repo: str, payload: Dict[str, Any]) -> Any:
     return gh_app_token.api_request("POST", f"repos/{repo}/check-runs", bearer, payload)
 
 
+def lane_verdict(sha: str, directory: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """The newest recorded lane verdict whose ``head`` is exactly ``sha`` and that names a reviewer, or ``None``."""
+    folder = directory or Path.home() / "hass-agents" / "reviews"
+    found = []
+    for path in folder.glob(f"*-{sha[:12]}.json") if re.fullmatch(r"[0-9a-f]{40}", sha) else []:
+        try:
+            data = json.loads(path.read_text())
+            if data.get("head") == sha and isinstance(data.get("reviewer"), dict) and data.get("verdict") in VERDICTS:
+                found.append((path.stat().st_mtime, data))
+        except (OSError, ValueError, AttributeError):
+            continue
+    return max(found, key=lambda item: item[0])[1] if found else None
+
+
+def post_check_for(sha: str, repo: str, directory: Optional[Path] = None) -> int:
+    """Post the ``ai-review`` check for ``sha`` from its recorded verdict: 0 when posted, 3 (after an ``ai-review check NOT posted`` line)
+    when not. Never prints a token."""
+    verdict = lane_verdict(sha, directory)
+    try:
+        if verdict is None:
+            raise gh_app_token.AppError(f"no recorded verdict for {sha[:12]}")
+        post_check(repo, check_payload(verdict))
+    except gh_app_token.AppError as exc:
+        print(f"ai-review check NOT posted: {exc}; GitHub will keep the PR blocked once the check is required", file=sys.stderr)
+        return 3
+    print(f"posted {CHECK_NAME} {check_outcome(verdict)[0]} on {sha[:8]}")
+    return 0
+
+
 def next_round(previous: Dict[str, Any], head: str) -> int:
     """Round 1 first; bumped only when the head moved after a ``changes`` verdict. ``round`` in the input is ignored."""
     if not previous:
@@ -177,8 +208,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--lane", metavar="BRANCH", help="also write the verdict where the interactive lane lander reads it "
                                                         "(~/hass-agents/reviews/<lane>-<head12>.json); HEAD must be the lane tip")
     parser.add_argument("--root", metavar="DIR", help="the PR's worktree (default: the current directory's checkout)")
+    parser.add_argument("--post-check", metavar="SHA", help="post the ai-review check run for SHA from its recorded lane verdict (needs --repo); records nothing")
+    parser.add_argument("--repo", metavar="OWNER/NAME", help="the repository for --post-check")
     parser.add_argument("--confirm-round", metavar="REASON", help="required to record round 3 or later")
     args = parser.parse_args(argv)
+    if args.post_check:
+        return post_check_for(args.post_check, args.repo) if args.repo else 2
     try:
         data = json.loads(sys.stdin.read() if args.file == "-" else Path(args.file).read_text())
     except ValueError as exc:
@@ -214,15 +249,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         except ValueError:
             pass
     data["branch"], data["head"] = branch, git(*at, "rev-parse", "HEAD")
-    repo = ""
-    if args.pr:  # the check binds to the reviewed head, so the PR head must be this checkout's HEAD
-        view = json.loads(subprocess.run(["gh", "pr", "view", args.pr, "--json", "headRefOid,url"], capture_output=True,
-                                         text=True, check=True).stdout)
-        if view.get("headRefOid") != data["head"]:
-            print(f"record: PR head {view.get('headRefOid')} is not this checkout's HEAD {data['head']}: push or pull first", file=sys.stderr)
-            return 2
-        match = re.match(r"https://[^/]+/([^/]+/[^/]+)/pull/", str(view.get("url") or ""))
-        repo = match.group(1) if match else ""
     data["round"] = next_round(previous, data["head"])
     refusal = round_refusal(data["round"], args.confirm_round, data["verdict"])
     if refusal:
@@ -247,15 +273,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                                          text=True, check=True).stdout)["body"]
         subprocess.run(["gh", "pr", "edit", args.pr, "--body", merge_body(body, summary(data))], check=True)
     print(f"recorded {data['verdict']} (round {data['round']}) -> {out}")
-    if args.pr:
-        try:
-            if not repo:
-                raise gh_app_token.AppError("cannot read the repository from the PR URL")
-            post_check(repo, check_payload(data))
-        except gh_app_token.AppError as exc:
-            print(f"record: ai-review check NOT posted: {exc}; GitHub will keep the PR blocked", file=sys.stderr)
-            return 3
-        print(f"posted {CHECK_NAME} {check_outcome(data)[0]} on {data['head'][:8]}")
     return 0
 
 
