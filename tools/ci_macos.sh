@@ -68,10 +68,10 @@ case "$cmd" in
     "$RELEASE" || true
     # Slim the simulator (sim_slim.sh boots it first, then disables the daemons the tests do not need); FENTON_SIM_SLIM=0 skips it.
     # Timed apart from the settle wait so the table shows what slimming costs and what it saves. Failure leaves the simulator stock.
-    # sim_slim.sh exits 0 slimmed, 3 left stock; the row's Exit column says "slimmed" or "stock" (or "failed(CODE)").
+    # sim_slim.sh exits 0 slimmed, 3 left stock, 4 slimmed but unconfirmed; the row's Exit column says "slimmed" or "stock" (or "failed(CODE)").
     slim_start=$SECONDS; slim_rc=0
     "$HEARTBEAT" run -- "$SLIM" "$target" || slim_rc=$?
-    case "$slim_rc" in 0) slim_state=slimmed ;; 3) slim_state=stock ;; *) slim_state="failed($slim_rc)" ;; esac
+    case "$slim_rc" in 0) slim_state=slimmed ;; 3) slim_state=stock ;; 4) slim_state=slimmed-unverified ;; *) slim_state="failed($slim_rc)" ;; esac
     printf 'slim-%s\t%s\t%s\n' "$target" "$((SECONDS - slim_start))" "$slim_state" >> "$TIMINGS"
     # A device left stock is not slimmed behind our back inside the Smoke phase either (the journey runner calls sim_slim.sh itself).
     smoke_env=(); [[ "$slim_rc" != 0 ]] && smoke_env=(env FENTON_SIM_SLIM=0)

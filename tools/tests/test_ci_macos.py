@@ -69,6 +69,12 @@ class CiMacosTests(unittest.TestCase):
         self.assertEqual(self.phases()[0][0::2], ["slim-ipad", "stock"])
         self.assertIn("uitest --only ipad --plan Smoke --force [FENTON_SIM_SLIM=0]", log)
 
+    def test_a_slim_the_check_could_not_confirm_is_recorded_and_not_slimmed_again(self):
+        out, log = self.run_script("smoke", "duo", STUB_FAIL="slim", STUB_RC="4")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self.phases()[0][0::2], ["slim-duo", "slimmed-unverified"])
+        self.assertIn("[FENTON_SIM_SLIM=0]", log)
+
     def test_a_failed_slim_leaves_the_device_stock_and_the_run_goes_ahead(self):
         out, log = self.run_script("smoke", "ipad", STUB_FAIL="slim")
         self.assertEqual(out.returncode, 0, out.stderr)

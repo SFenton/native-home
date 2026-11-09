@@ -14,7 +14,14 @@
 # (tools/ci_hosted_setup.sh) and slims each simulator in turn (trial, build/decisions/native-home-ci-simslim.md); FENTON_SIM_SLIM=0 turns it off there too.
 # UDID may also be a family (iphone|duo|ipad), resolved to the simulator ios_uitest.sh and sim_settle.sh use.
 # Exit codes: 0 slimmed (already or now), 1 hard failure (no such simulator, would not boot), 3 LEFT STOCK on purpose: FENTON_SIM_SLIM=0,
-# simslim missing or failed, or a step hit its wall (callers that only want the best effort ignore it; ci_macos.sh records it).
+# simslim missing or failed, or a step hit its wall (callers that only want the best effort ignore it; ci_macos.sh records it),
+# 4 slimmed but the post-check could not confirm it (hosted path only).
+# Hosted path (FENTON_CI_HOSTED=1): the simulator should be SHUT DOWN (ci_release_sims.sh does it). No verify and no boot of our own:
+# a stock first boot is the load storm (load 6 to 556 on the Duo and iPhone), and `simslim on` on a shut-down simulator boots it,
+# persists the disables and reboots it slim at once, which cuts the storm short. It runs under SIMSLIM_BOOT_TIMEOUT (8m) and
+# SIMSLIM_SPAWN_TIMEOUT (4m), with our wall (FENTON_SLIM_HOSTED_WALL, 600 s) a margin above so simslim fails cleanly first. No
+# --preserve-boot-state: the device is left booted and slim (one boot saved; sim_settle.sh treats an already-booted device as fine).
+# An already-booted simulator (the journey runner's second call) is only verified. Both flags and env vars exist in simslim 0.14.0.
 # Walls (xc_watch, seconds): FENTON_HEALTH_BOOT_WALL boots (120), FENTON_SLIM_WALL verify / no-reboot on / doctor (180),
 # FENTON_SLIM_ON_WALL the rebooting `simslim on` (300). A wall hit leaves the simulator stock.
 # See .agents/platforms/apple/capacity.md.
@@ -52,6 +59,20 @@ wd() {
   [[ $rc == 124 ]] && { echo "sim_slim: $label on $UDID hit the ${wall}s wall; leaving it stock" >&2; exit 3; }
   return $rc
 }
+if [[ "${FENTON_CI_HOSTED:-}" == 1 ]]; then
+  state="$(xcrun simctl list devices -j | jq -r --arg u "$UDID" '[.devices[][] | select(.udid == $u)][0].state // empty')"
+  name="$(basename "$PROFILE")"
+  if [[ "$state" == Booted ]] && wd "$SLIM_WALL" "simslim verify" simslim verify "$UDID" --profile "$PROFILE"; then
+    echo "sim_slim: $UDID already slim ($name)"; exit 0
+  fi
+  export SIMSLIM_BOOT_TIMEOUT="${SIMSLIM_BOOT_TIMEOUT:-8m}" SIMSLIM_SPAWN_TIMEOUT="${SIMSLIM_SPAWN_TIMEOUT:-4m}"
+  echo "sim_slim: slimming $UDID ($name, hosted: simslim on from $state)"
+  wd "${FENTON_SLIM_HOSTED_WALL:-600}" "simslim on" simslim on "$UDID" --profile "$PROFILE" || { echo "sim_slim: simslim on failed for $UDID; continuing stock" >&2; exit 3; }
+  check_rc=0
+  python3 "$ROOT/tools/xc_watch.py" --wall "${FENTON_SLIM_CHECK_WALL:-60}" --label "simslim verify (post-check)" -- simslim verify "$UDID" --profile "$PROFILE" > /dev/null 2>&1 || check_rc=$?
+  [[ $check_rc == 0 ]] && exit 0
+  echo "sim_slim: $UDID slimmed but the post-check did not confirm it (exit $check_rc)" >&2; exit 4
+fi
 # The first boot: any failure but the wall is an error (settle and the health check do their own boot handling after a wall).
 wd "$BOOT_WALL" "simctl bootstatus" xcrun simctl bootstatus "$UDID" -b || { echo "sim_slim: $UDID would not boot" >&2; exit 1; }
 name="$(basename "$PROFILE")"

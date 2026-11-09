@@ -10,7 +10,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "sim_slim.sh"
 XCRUN = r'''#!/bin/bash
 echo "$@" >> "$STUB_DIR/xcrun.log"
 if [ "$2" = list ]; then
-  echo '{"devices":{"rt":[{"name":"iPhone 17","udid":"UDID-IPHONE"},{"name":"iPad Pro 11-inch (M5)","udid":"UDID-IPAD"}]}}'
+  echo '{"devices":{"rt":[{"name":"iPhone 17","udid":"UDID-IPHONE","state":"'${XCRUN_STATE:-Shutdown}'"},{"name":"iPad Pro 11-inch (M5)","udid":"UDID-IPAD"}]}}'
   exit 0
 fi
 [ -n "$XCRUN_HANG" ] && sleep 30
@@ -20,12 +20,12 @@ exit 0
 #: simslim stub: logs the subcommand; `verify` fails until a rebooting `on` has run; SIMSLIM_HANG=<subcommand> sleeps; SIMSLIM_HANG_ON_REBOOT
 #: hangs only the rebooting `on` (no --no-reboot); SIMSLIM_ON_FAIL makes every `on` fail.
 SIMSLIM = r'''#!/bin/bash
-sub="$1"; echo "$*" >> "$STUB_DIR/simslim.log"
+sub="$1"; echo "$* [boot=$SIMSLIM_BOOT_TIMEOUT spawn=$SIMSLIM_SPAWN_TIMEOUT]" >> "$STUB_DIR/simslim.log"
 case " $* " in *" --no-reboot "*) key="on-noreboot" ;; *) key="$sub" ;; esac
 [ "$SIMSLIM_HANG" = "$key" ] && sleep 30
 if [ "$sub" = on ]; then
   [ -n "$SIMSLIM_ON_FAIL" ] && exit 1
-  [ "$key" = on ] && touch "$STUB_DIR/slim"
+  [ "$key" = on ] && [ -z "$SIMSLIM_NEVER_SLIM" ] && touch "$STUB_DIR/slim"
   exit 0
 fi
 if [ "$sub" = verify ]; then [ -e "$STUB_DIR/slim" ] || [ -n "$SIMSLIM_SLIM" ]; exit $?; fi
@@ -141,6 +141,50 @@ class SimSlimTests(unittest.TestCase):
         out = self.run_script("duo", SIMSLIM_SLIM="1")
         self.assertEqual(out.returncode, 1)
         self.assertIn("no simulator named iPhone Duo", out.stderr)
+
+    def test_local_behaviour_is_unchanged_verify_first_after_our_own_boot(self):
+        self.with_simslim()
+        out = self.run_script(SIMSLIM_SLIM="1")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("simctl bootstatus UDID-1 -b", self.log("xcrun.log"))
+        self.assertTrue(self.log("simslim.log").startswith("verify"))
+        self.assertIn("boot= spawn=", self.log("simslim.log"))
+
+    def test_hosted_runs_simslim_on_directly_with_the_timeouts_and_no_verify_or_own_boot(self):
+        self.with_simslim()
+        out = self.run_script(FENTON_CI_HOSTED="1")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        lines = self.log("simslim.log").splitlines()
+        self.assertTrue(lines[0].startswith("on UDID-1 --profile"), lines)
+        self.assertTrue(lines[0].endswith("ui.json [boot=8m spawn=4m]"), lines[0])
+        self.assertNotIn("--no-reboot", self.log("simslim.log"))
+        self.assertNotIn("bootstatus", self.log("xcrun.log"))
+        self.assertNotIn("--preserve-boot-state", self.log("simslim.log"))
+        self.assertEqual([line.split()[0] for line in lines], ["on", "verify"])  # the cheap post-check
+
+    def test_hosted_timeouts_can_be_overridden(self):
+        self.with_simslim()
+        self.run_script(FENTON_CI_HOSTED="1", SIMSLIM_BOOT_TIMEOUT="3m", SIMSLIM_SPAWN_TIMEOUT="1m")
+        self.assertIn("[boot=3m spawn=1m]", self.log("simslim.log"))
+
+    def test_hosted_wall_hit_leaves_the_simulator_stock(self):
+        self.with_simslim()
+        out = self.run_script(FENTON_CI_HOSTED="1", SIMSLIM_HANG="on", FENTON_SLIM_HOSTED_WALL="1")
+        self.assertEqual(out.returncode, 3, out.stderr)
+        self.assertIn("hit the 1s wall", out.stderr)
+
+    def test_hosted_slim_the_check_cannot_confirm_is_exit_4(self):
+        self.with_simslim()
+        out = self.run_script(FENTON_CI_HOSTED="1", SIMSLIM_NEVER_SLIM="1")
+        self.assertEqual(out.returncode, 4, out.stderr)
+        self.assertIn("did not confirm", out.stderr)
+
+    def test_hosted_booted_slim_simulator_is_only_verified(self):
+        self.with_simslim()
+        out = self.run_script("iphone", FENTON_CI_HOSTED="1", XCRUN_STATE="Booted", SIMSLIM_SLIM="1")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("already slim", out.stdout)
+        self.assertNotIn("on UDID", self.log("simslim.log"))
 
 
 if __name__ == "__main__":
