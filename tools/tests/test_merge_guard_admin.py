@@ -182,6 +182,92 @@ class GhApiParserTableTests(unittest.TestCase):
         self.assertFalse(merge_guard.ApiCall(["--nope", "x"]).understood)
 
 
+ESCAPED = '{"query": "mutation { \\u0075pdateRepositoryRuleset(input: {}) { clientMutationId } }"}'
+
+
+class TripwireHardeningTests(unittest.TestCase):
+    """Round 3: JSON-decoded bodies, unresolvable inputs, merge mutations, merge-setting flags, method-override headers."""
+
+    def test_table(self):
+        """Fails if: a `\\u` escape in an `--input` JSON body hides the mutation name, stdin or `/dev/*` or a variable path or an unknown
+        directory is trusted, `cd` or `env -C` is ignored when resolving a relative file, a merge or ref mutation passes, a merge-setting
+        flag of `gh repo edit` passes, or `X-HTTP-Method-Override` turns a guarded POST into a read."""
+        R = REPO
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "esc.json").write_text(ESCAPED)
+            Path(tmp, "m.graphql").write_text(MUTATION)
+            Path(tmp, "q.graphql").write_text(QUERY)
+            Path(tmp, "q.json").write_text('{"query": "query { viewer { login } }"}')
+            rows = [
+                ("json \\u escape in --input", f"gh api graphql --input {tmp}/esc.json", True),
+                ("json \\u escape via @file", f"gh api graphql -F query=@{tmp}/esc.json", True),
+                ("json query body", f"gh api graphql --input {tmp}/q.json", False),
+                ("/dev/stdin", "gh api graphql --input /dev/stdin", True),
+                ("/dev/fd/3", "gh api graphql --input /dev/fd/3", True),
+                ("/dev/null", "gh api graphql --input /dev/null", True),
+                ("/proc path", "gh api graphql --input /proc/self/fd/0", True),
+                ("variable path", "gh api graphql --input $F", True),
+                ("glob path", f"gh api graphql --input {tmp}/*.graphql", True),
+                ("relative file after cd (mutation)", f"cd {tmp} && gh api graphql --input m.graphql", True),
+                ("relative file after cd (query)", f"cd {tmp} && gh api graphql --input q.graphql", False),
+                ("relative file after cd .. chain", f"cd {tmp} && cd . && gh api graphql --input q.graphql", False),
+                ("relative file with env -C (mutation)", f"env -C {tmp} gh api graphql --input m.graphql", True),
+                ("relative file with env -C (query)", f"env -C {tmp} gh api graphql --input q.graphql", False),
+                ("relative file after cd to a variable", "cd $D && gh api graphql --input q.graphql", True),
+                ("relative file after cd -", "cd - && gh api graphql --input q.graphql", True),
+                ("relative file that is missing", f"cd {tmp} && gh api graphql --input nope.graphql", True),
+                ("header override PUT", f"gh api -H 'X-HTTP-Method-Override: PUT' {R}/rulesets/1 -f a=b", True),
+                ("header override DELETE short", f"gh api -HX-HTTP-Method:DELETE {R}/rulesets/1", True),
+                ("header override --header=", f"gh api --header='x-http-method-override: PATCH' {R}", True),
+                ("header override GET", f"gh api -H 'X-HTTP-Method-Override: GET' {R}/rulesets/1", False),
+                ("other header on a read", f"gh api -H 'Accept: application/json' {R}/rulesets/1", False),
+                ("override on an unguarded path", f"gh api -H 'X-HTTP-Method-Override: PUT' {R}/issues/5 -f a=b", False),
+                ("repo edit --enable-merge-commit", "gh repo edit SFenton/native-home --enable-merge-commit=false", True),
+                ("repo edit --enable-squash-merge", "gh repo edit --enable-squash-merge", True),
+                ("repo edit --enable-rebase-merge", "gh repo edit --enable-rebase-merge=false", True),
+                ("repo edit --enable-auto-merge", "gh repo edit --enable-auto-merge=false", True),
+                ("repo edit --delete-branch-on-merge", "gh repo edit --delete-branch-on-merge", True),
+                ("repo edit --default-branch", "gh repo edit --default-branch x", True),
+                ("repo edit description", "gh repo edit --description x", False),
+            ]
+            for shape, cmd, blocked in rows:
+                with self.subTest(shape=shape):
+                    why = merge_guard.reason(cmd, cwd=tmp)
+                    if blocked:
+                        self.assertIn("repo admin", why or "", cmd)
+                    else:
+                        self.assertIsNone(why, cmd)
+
+    def test_merge_and_ref_mutations_are_blocked(self):
+        """Fails if: a GraphQL merge, branch-merge, commit or ref mutation (mergePullRequest, enablePullRequestAutoMerge, mergeBranch,
+        createCommitOnBranch, updateRefs, updateRef) is not refused, as a field or in an input file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch", "createCommitOnBranch", "updateRefs", "updateRef"):
+                query = "mutation { %s(input: {}) { clientMutationId } }" % name
+                Path(tmp, f"{name}.graphql").write_text(query)
+                for cmd in (f"gh api graphql -f query='{query}'", f"gh api graphql --input {tmp}/{name}.graphql",
+                            f"gh api /graphql -F query=@{tmp}/{name}.graphql"):
+                    with self.subTest(cmd=cmd):
+                        self.assertIsNotNone(verdict(cmd), cmd)
+
+    def test_documented_non_goals_are_not_claimed(self):
+        """A tripwire is not a wall: shell indirection, gh aliases and run-time endpoints are documented as not stopped. These pass the hook on
+        purpose; if one starts blocking, update the module docstring and ci.md instead of pretending a test proves the wall."""
+        for cmd in ("gh api -X PUT $EP --input r.json", "gh api -X PUT ${EP} --input r.json", "bash -c \"gh api -X PUT $EP --input r.json\"",
+                    "eval \"gh api -X PUT $EP --input r.json\"", "gh alias set rs 'api -X PUT repos/o/n/rulesets/1'",
+                    "echo repos/o/n/rulesets/1 | xargs gh api -X PUT"):
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(verdict(cmd), cmd)
+
+    def test_the_limits_are_documented(self):
+        doc = merge_guard.__doc__ or ""
+        self.assertIn("tripwire", doc)
+        for word in ("shell indirection", "eval", "brace expansion", "xargs", "aliases", "credential"):
+            self.assertIn(word, doc)
+        ci = (ROOT / ".agents" / "workflow" / "ci.md").read_text()
+        self.assertIn("tripwire", ci)
+
+
 class AdminMergeTests(unittest.TestCase):
     def test_admin_merge_is_refused_with_its_own_reason(self):
         for cmd in ("gh pr merge 12 --admin", "gh pr merge --admin 12 --squash", "gh pr merge 12 -R SFenton/native-home --squash --admin",

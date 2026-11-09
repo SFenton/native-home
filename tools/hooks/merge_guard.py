@@ -49,6 +49,12 @@ Anything else, and any parse failure, keeps the raw verdict.
 
 Out of scope (the model could still reach a merge): ``curl``, interpreters (``python -c``) and script files that call
 GitHub. The deny list in the triage config and the owner's review of the diff cover those. Exit 2 sends the message back.
+
+A tripwire, not a wall (owner, 2026-11-09). Not stopped: shell indirection (``bash -c`` and ``eval`` strings built from variables, a
+command, endpoint or flag held in a variable such as ``$EP`` or ``${X}``, brace expansion, ``xargs``-fed arguments), ``gh`` aliases
+(``gh alias set``) and shell functions, and a GraphQL body that is generated at run time. This stops a model by accident or habit, not a
+determined one. The wall is a GitHub credential for agent sessions without admin rights (planned): until then the agent runs as the
+owner's admin login, and this hook is what makes weakening the ruleset a deliberate act rather than a slip.
 """
 
 from __future__ import annotations
@@ -371,6 +377,7 @@ class ApiCall:
         self.methods: List[str] = []
         self.fields: List[str] = []  # values of -f/-F/--field/--raw-field
         self.inputs: List[str] = []  # values of --input
+        self.overrides: List[str] = []  # X-HTTP-Method-Override / X-HTTP-Method header values
         self.positional: List[str] = []
         self.understood = True
         i = 0
@@ -415,6 +422,10 @@ class ApiCall:
             self.fields.append(value)
         elif name == "input":
             self.inputs.append(value)
+        elif name == "header":
+            key, _, header = value.partition(":")
+            if key.strip().lower() in METHOD_OVERRIDE:
+                self.overrides.append(header.strip().upper())
 
     @property
     def endpoint(self) -> str:
@@ -429,32 +440,77 @@ class ApiCall:
     @property
     def writes(self) -> bool:
         """The last ``-X``/``--method`` wins; with none, any ``-f``/``-F``/``--input`` makes it a POST."""
+        if any(o != "GET" for o in self.overrides):
+            return True
         if self.methods:
             return self.methods[-1] != "GET"
         return bool(self.fields or self.inputs)
 
 
-def graphql_text(call: ApiCall) -> Optional[str]:
-    """Every part of a GraphQL call that can hold the query: ``-f``/``-F`` values and the content of ``--input`` or ``@file`` fields.
-    ``None`` when a file cannot be read (or is stdin): the caller fails closed."""
+def json_strings(value: object) -> List[str]:
+    """Every string in a decoded JSON value (so ``\\u`` escapes in a name are resolved), keys included."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [t for k, v in value.items() for t in json_strings(k) + json_strings(v)]
+    if isinstance(value, list):
+        return [t for v in value for t in json_strings(v)]
+    return []
+
+
+def resolve_input(name: str, cwd: Optional[str]) -> Optional[Path]:
+    """The file ``name`` names against the effective directory ``cwd``, or ``None`` (fail closed) for stdin, ``/dev/*``, ``/proc/*``,
+    a path held in a variable or glob, or a relative path when the directory is unknown."""
+    if name == "-" or re.search(r"[$`*?\[\]{}]", name):
+        return None
+    path = Path(name).expanduser()
+    if not path.is_absolute():
+        if not cwd:
+            return None
+        path = Path(cwd) / path
+    path = Path(os.path.normpath(path))
+    if path.parts[:2] in (("/", "dev"), ("/", "proc")):
+        return None
+    return path
+
+
+def graphql_text(call: ApiCall, cwd: Optional[str] = None) -> Optional[str]:
+    """Every part of a GraphQL call that can hold the query: ``-f``/``-F`` values and the content of ``--input`` or ``@file`` fields,
+    raw and JSON-decoded. ``None`` when a file cannot be resolved or read (stdin, ``/dev/*``, a variable path): the caller fails closed."""
     parts = list(call.fields)
     files = list(call.inputs) + [f.partition("=")[2][1:] for f in call.fields if f.partition("=")[2].startswith("@")]
     for name in files:
-        if name == "-":
+        path = resolve_input(name, cwd)
+        if path is None:
             return None
         try:
-            path = Path(name).expanduser()
-            if not path.is_absolute():
-                path = Path(_CWD or os.getcwd()) / path
-            parts.append(path.read_text(errors="replace")[:1_000_000])
+            body = path.read_text(errors="replace")[:1_000_000]
         except OSError:
             return None
+        parts.append(body)
+        try:
+            parts.extend(json_strings(json.loads(body)))
+        except ValueError:
+            pass
     return "\n".join(parts)
 
 
-ADMIN_GRAPHQL = re.compile(r"\b(?:(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)|updateRepository)\b")
+ADMIN_GRAPHQL = re.compile(r"\b(?:(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)|updateRepository"
+                          r"|mergePullRequest|enablePullRequestAutoMerge|mergeBranch|createCommitOnBranch|updateRefs?)\b")
+#: Headers that make GitHub treat a POST as another method.
+METHOD_OVERRIDE = {"x-http-method-override", "x-http-method"}
 #: ``gh repo edit`` flags that change how the repository merges.
-REPO_EDIT_MERGE = re.compile(r"^--(?:enable-(?:auto|squash|merge|rebase)-merge|delete-branch-on-merge|default-branch)\b")
+REPO_EDIT_MERGE = re.compile(r"^--(?:enable-(?:auto-merge|squash-merge|merge-commit|rebase-merge)|delete-branch-on-merge|default-branch)\b")
+
+
+def chdir(cwd: Optional[str], target: str) -> Optional[str]:
+    """The directory after ``cd target`` from ``cwd``, or ``None`` (unknown) for ``-``, a variable, a glob or an unknown start."""
+    if target == "-" or re.search(r"[$`*?\[\]{}]", target):
+        return None
+    path = Path(target).expanduser()
+    if path.is_absolute():
+        return os.path.normpath(path)
+    return os.path.normpath(Path(cwd) / path) if cwd else None
 
 
 def repo_admin_reason(command: str) -> Optional[str]:
@@ -462,16 +518,26 @@ def repo_admin_reason(command: str) -> Optional[str]:
     the repository settings or App installations, a GraphQL ruleset or branch-protection mutation, or ``gh repo edit`` of the merge
     settings. Reads (``gh api repos/O/N/rulesets/1``, ``gh ruleset list``) stay allowed. Checked per simple command, quote-aware, so a
     path in a comment, a quoted field or another command of the same line is not mistaken for the call."""
+    cwd: Optional[str] = _CWD or os.getcwd()
     for _op, raw in _tokenize(command):
+        if raw and os.path.basename(raw[0]) == "env":  # env -C DIR / --chdir=DIR
+            for i, word in enumerate(raw[1:], 1):
+                if word in ("-C", "--chdir") and i + 1 < len(raw):
+                    cwd = chdir(cwd, raw[i + 1])
+                elif word.startswith("--chdir="):
+                    cwd = chdir(cwd, word[8:])
         words = strip_wrappers(raw)
         if not words:
+            continue
+        if words[0] == "cd":  # a later segment runs where this one went (a subshell is not tracked)
+            cwd = chdir(cwd, words[1]) if len(words) == 2 else None
             continue
         at = next((i for i, w in enumerate(words) if os.path.basename(w) == "gh"), None)
         if at is None:
             continue
         args = words[at + 1:]
         if "repo" in args[:3] and "edit" in args[:4] and any(REPO_EDIT_MERGE.match(a) for a in args):
-            return "repo admin: gh repo edit of the merge settings (the ruleset and settings are not for a session to change)"
+            return "repo admin: gh repo edit of the merge settings (merge methods, auto-merge, branch deletion, default branch)"
         if "api" not in args[:3]:
             continue
         args = args[args.index("api") + 1:]
@@ -483,7 +549,7 @@ def repo_admin_reason(command: str) -> Optional[str]:
                 return "repo admin: a gh api call this guard cannot classify names a guarded path (rulesets, protection, App installations or a GraphQL mutation); use plain -X/-f/--input flags"
             continue
         if endpoint.lower() == "graphql":
-            text = graphql_text(call)
+            text = graphql_text(call, cwd)
             if text is None:
                 return "repo admin: a gh api graphql call whose input file cannot be read (or is stdin), so its mutation cannot be inspected"
             if ADMIN_GRAPHQL.search(text):
