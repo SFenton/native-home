@@ -1,6 +1,6 @@
 """``tools/hooks/merge_guard.py``: the one allowed ``gh pr merge`` (auto-merge on SFenton/native-home), with ``gh`` stubbed.
 
-GitHub is the gate (the ruleset requires an approval and pr-checks); the hook only checks that form, repo and ruleset.
+Review before push: the pinned head needs an independent pass, the ruleset must be the gate (a PR and pr-checks), the PR must be the owner's.
 """
 
 import sys
@@ -12,9 +12,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "hooks"))
 import merge_guard  # noqa: E402
 
-GOOD = "gh pr merge 12 -R SFenton/native-home --auto --squash"
-LIVE = []  # ruleset_gate.check: no problems = both rules live
-MISSING = ["the ruleset does not require an approving review"]
+HEAD = "a" * 40
+GOOD = "gh pr merge 12 -R SFenton/native-home --auto --squash --match-head-commit " + HEAD
+BARE = "gh pr merge 12 -R SFenton/native-home --auto --squash"
+LIVE = []  # ruleset_gate.check: no problems = the gate is live
+MISSING = ["the ruleset does not require a pull request"]
 
 
 ORIGIN = {"author": {"login": "SFenton"}, "headRepository": {"name": "native-home"}, "headRepositoryOwner": {"login": "SFenton"}}
@@ -25,7 +27,7 @@ def pr(base="main"):
 
 
 class AutoMergeTests(unittest.TestCase):
-    def verdict(self, command, rules=LIVE, pull=None, error=False, headless="", origin=None):
+    def verdict(self, command, rules=LIVE, pull=None, error=False, headless="", origin=None, passed=True):
         def fake(path):
             if error:
                 raise RuntimeError("gh failed")
@@ -36,6 +38,7 @@ class AutoMergeTests(unittest.TestCase):
                 raise RuntimeError("gh failed")
             return facts
         with mock.patch.object(merge_guard, "gh_json", fake), mock.patch.object(merge_guard, "pr_origin", view), mock.patch.object(merge_guard.ruleset_gate, "check", return_value=rules), \
+                mock.patch.object(merge_guard.review_verdict, "has_pass", lambda sha: passed and sha == HEAD), \
                 mock.patch.dict("os.environ", {"FENTON_HEADLESS": headless}):
             return merge_guard.reason(command)
 
@@ -43,18 +46,36 @@ class AutoMergeTests(unittest.TestCase):
         self.assertIsNone(self.verdict(GOOD))
 
     def test_flag_order_short_flags_and_the_url_form_pass(self):
-        self.assertIsNone(self.verdict("gh pr merge 12 --squash --auto -R SFenton/native-home"))
-        self.assertIsNone(self.verdict("gh pr merge 12 -s --auto --repo=https://github.com/sfenton/Native-Home"))
+        self.assertIsNone(self.verdict("gh pr merge 12 --squash --match-head-commit %s --auto -R SFenton/native-home" % HEAD))
+        self.assertIsNone(self.verdict("gh pr merge 12 -s --auto --match-head-commit=%s --repo=https://github.com/sfenton/Native-Home" % HEAD))
 
     def test_a_missing_ruleset_rule_or_a_failed_fetch_refuses(self):
         self.assertIsNotNone(self.verdict(GOOD, rules=MISSING))
-        self.assertIn("approving review", self.verdict(GOOD, rules=MISSING))
+        self.assertIn("pull request", self.verdict(GOOD, rules=MISSING))
         self.assertIsNotNone(self.verdict(GOOD, rules=["the rules of SFenton/native-home could not be fetched (OSError)"]))
 
+    def test_no_pass_for_the_pinned_head_refuses(self):
+        self.assertIn("independent pass", self.verdict(GOOD, passed=False))
+        other = "b" * 40
+        self.assertIn("independent pass", self.verdict(GOOD.replace(HEAD, other)))  # a pass for HEAD does not cover another sha
+
+    def test_a_pin_that_is_not_the_prs_head_refuses(self):
+        moved = {"user": {"login": "SFenton"}, "base": {"ref": "main"}, "head": {"sha": "c" * 40}}
+        self.assertIn("not the PR's head", self.verdict(GOOD, pull=moved))
+        self.assertIsNotNone(self.verdict(GOOD, pull={"user": {}, "base": {"ref": "main"}}))
+
+    def test_the_pin_is_required_and_must_be_a_full_sha(self):
+        self.assertIsNotNone(self.verdict(BARE))
+        for pin in ("abc123", HEAD[:39], HEAD + "a", HEAD.upper(), "HEAD", "$(git rev-parse HEAD)", ""):
+            with self.subTest(pin=pin):
+                self.assertIsNotNone(self.verdict("%s --match-head-commit %s" % (BARE, pin)))
+        self.assertIsNotNone(self.verdict("%s --match-head-commit %s --match-head-commit %s" % (BARE, HEAD, HEAD)))
+
     def test_wrong_or_missing_repo_refuses(self):
-        for cmd in ("gh pr merge 12 -R SFenton/Fenton-HASS-Native --auto --squash",
-                    "gh pr merge 12 -R other/native-home --auto --squash",
-                    "gh pr merge 12 --auto --squash"):
+        pin = " --match-head-commit " + HEAD
+        for cmd in ("gh pr merge 12 -R SFenton/Fenton-HASS-Native --auto --squash" + pin,
+                    "gh pr merge 12 -R other/native-home --auto --squash" + pin,
+                    "gh pr merge 12 --auto --squash" + pin):
             with self.subTest(cmd=cmd):
                 self.assertIsNotNone(self.verdict(cmd))
 
@@ -80,12 +101,12 @@ class AutoMergeTests(unittest.TestCase):
                                                "author,headRepository,headRepositoryOwner"])
 
     def test_other_flags_refuse(self):
-        for extra in ("--admin", "--merge", "--rebase", "--delete-branch", "-d", "--disable-auto", "--match-head-commit " + "a" * 40,
+        for extra in ("--admin", "--merge", "--rebase", "--delete-branch", "-d", "--disable-auto",
                       "--subject x", "--body x", "--body-file m"):
             with self.subTest(extra=extra):
                 self.assertIsNotNone(self.verdict(f"{GOOD} {extra}"))
-        self.assertIsNotNone(self.verdict("gh pr merge 12 -R SFenton/native-home --squash"))
-        self.assertIsNotNone(self.verdict("gh pr merge 12 -R SFenton/native-home --auto"))
+        self.assertIsNotNone(self.verdict("gh pr merge 12 -R SFenton/native-home --squash --match-head-commit " + HEAD))
+        self.assertIsNotNone(self.verdict("gh pr merge 12 -R SFenton/native-home --auto --match-head-commit " + HEAD))
         self.assertIsNotNone(self.verdict(f"{GOOD} -R SFenton/Fenton-HASS-Native"))
 
     def test_shell_tricks_refuse_even_when_the_ruleset_is_live(self):
@@ -128,7 +149,7 @@ class AutoMergeTests(unittest.TestCase):
         self.assertIsNotNone(self.verdict(ok + "; gh pr merge 3 --admin"))
 
     def test_the_refusal_message_names_the_allowed_form(self):
-        self.assertIn("-R SFenton/native-home --auto --squash", merge_guard.MESSAGE)
+        self.assertIn("-R SFenton/native-home --auto --squash --match-head-commit SHA", merge_guard.MESSAGE)
         self.assertIn("tools/pr_land.sh", merge_guard.MESSAGE)
         self.assertNotIn("pass comment", merge_guard.MESSAGE)
 
@@ -141,7 +162,7 @@ class AutoMergeTests(unittest.TestCase):
                     "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'",
                     "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }'",
                     "git push origin main",
-                    "gh pr merge 12 --squash --auto"):
+                    "gh pr merge 12 --squash --auto", BARE):
             with self.subTest(cmd=cmd):
                 self.assertIsNotNone(self.verdict(cmd))
 

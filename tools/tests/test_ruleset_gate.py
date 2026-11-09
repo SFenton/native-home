@@ -1,4 +1,4 @@
-"""tools/ruleset_gate.py: auto-merge is armed only while the live ruleset requires an approval and the pr-checks check."""
+"""tools/ruleset_gate.py: auto-merge is armed only while the live ruleset requires a pull request, the pr-checks check and no bypass."""
 
 import contextlib
 import io
@@ -11,7 +11,8 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ruleset_gate as gate  # noqa: E402
 
-PULL = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": True}}
+PULL = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 0, "dismiss_stale_reviews_on_push": False,
+                                                                    "require_last_push_approval": False, "allowed_merge_methods": ["squash"]}}
 CHECKS = {"type": "required_status_checks", "ruleset_id": 7,
           "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}
 NEVER = {"7": {"current_user_can_bypass": "never"}}
@@ -26,24 +27,27 @@ class RulesetGateTests(unittest.TestCase):
         self.assertEqual(gate.problems([{"type": "deletion"}, PULL, CHECKS], NEVER), [])
         self.assertEqual(gate.check("SFenton/native-home", fetch=lambda repo, branch: [PULL, CHECKS], fetch_one=one), [])
 
-    def test_zero_approvals_do_not_arm(self):
-        zero = {"type": "pull_request", "parameters": {"required_approving_review_count": 0}}
-        self.assertEqual(gate.problems([zero, CHECKS], NEVER)[:1], ["the ruleset does not require an approving review"])
-        self.assertEqual(len(gate.problems([zero, CHECKS], NEVER)), 2)  # no dismiss either
+    def test_no_approval_count_is_needed(self):
+        """Review happens before the push (tools/review_verdict.py); GitHub keeps only the PR and the check."""
+        for count in (0, 1, 2):
+            pull = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": count}}
+            self.assertEqual(gate.problems([pull, CHECKS], NEVER), [], count)
+        bare = {"type": "pull_request", "ruleset_id": 7, "parameters": {}}
+        self.assertEqual(gate.problems([bare, CHECKS], NEVER), [])
 
     def test_a_missing_pull_request_rule_or_check_does_not_arm(self):
-        self.assertEqual(len(gate.problems([CHECKS], NEVER)), 2)
+        self.assertEqual(gate.problems([CHECKS], NEVER), ["the ruleset does not require a pull request"])
         self.assertEqual(len(gate.problems([PULL], NEVER)), 1)
         other = {"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [{"context": "x"}]}}
         self.assertEqual(len(gate.problems([PULL, other], NEVER)), 1)
-        self.assertGreaterEqual(len(gate.problems([], NEVER)), 3)
+        self.assertGreaterEqual(len(gate.problems([], NEVER)), 2)
 
-    def test_stale_reviews_must_be_dismissed_on_push(self):
-        for value in (False, None, "true"):
-            pull = {"type": "pull_request", "ruleset_id": 7, "parameters": {"required_approving_review_count": 1, "dismiss_stale_reviews_on_push": value}}
-            found = gate.problems([pull, CHECKS], NEVER)
-            self.assertEqual(len(found), 1, value)
-            self.assertIn("dismiss stale reviews", found[0])
+    def test_squash_must_be_allowed_when_the_rule_lists_merge_methods(self):
+        for methods in (["merge"], ["rebase", "merge"], []):
+            pull = {"type": "pull_request", "ruleset_id": 7, "parameters": {"allowed_merge_methods": methods}}
+            self.assertEqual(gate.problems([pull, CHECKS], NEVER), ["the ruleset does not allow squash merges"], methods)
+        pull = {"type": "pull_request", "ruleset_id": 7, "parameters": {"allowed_merge_methods": ["merge", "squash"]}}
+        self.assertEqual(gate.problems([pull, CHECKS], NEVER), [])
 
     def test_the_check_must_come_from_github_actions(self):
         for check in ({"context": "pr-checks"}, {"context": "pr-checks", "integration_id": 1}, {"context": "pr-checks", "integration_id": None}):
@@ -75,6 +79,7 @@ class RulesetGateTests(unittest.TestCase):
                [{"type": "pull_request", "parameters": {"required_approving_review_count": "many"}}],
                [{"type": "required_status_checks", "parameters": {"required_status_checks": 5}}],
                [{"type": "required_status_checks", "parameters": {"required_status_checks": ["x"]}}],
+               [PULL, CHECKS, {"type": "pull_request", "ruleset_id": 7, "parameters": {"allowed_merge_methods": 5}}],
                "nope", None, {"message": "Not Found"})
         for payload in bad:
             with self.subTest(payload=payload):
@@ -109,7 +114,7 @@ class RulesetGateTests(unittest.TestCase):
         self.assertEqual(run.call_args[0][0], ["gh", "api", "repos/SFenton/native-home/rulesets/7"])
 
     def test_main_exits_zero_only_when_the_gate_is_live(self):
-        for rules, code in (([PULL, CHECKS], 0), ([PULL], 1)):
+        for rules, code in (([PULL, CHECKS], 0), ([PULL], 1), ([CHECKS], 1)):
             out = io.StringIO()
             with mock.patch.object(gate, "fetch_rules", return_value=rules), mock.patch.object(gate, "fetch_ruleset", side_effect=one), \
                     contextlib.redirect_stdout(out):
