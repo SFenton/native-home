@@ -18,13 +18,15 @@ if [[ "${1:-}" == "--decide" ]]; then settled "$2" "$3"; exit $?; fi
 
 family="${1:-}"
 case "$family" in
-  iphone) name="${FENTON_SIM_IPHONE:-iPhone 17}" ;;
-  duo) name="${FENTON_SIM_DUO:-iPhone Duo}" ;;
-  ipad) name="${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
+  iphone|duo|ipad) ;;
   *) echo "usage: sim_settle.sh iphone|duo|ipad | --decide L1 L5" >&2; exit 2 ;;
 esac
-udid="${FENTON_SETTLE_UDID:-$(xcrun simctl list devices available -j | jq -r --arg n "$name" '[.devices[][] | select(.name == $n)][0].udid // empty')}"
-[[ -n "$udid" ]] || { echo "settle: no simulator named $name"; xcrun simctl list devices; exit 1; }
+# The same lookup the journey runner uses for the test destination (tools/sim_pool.sh), so the warmed simulator is the tested one even
+# when the image has several devices of one name (a first-listed jq pick differed for the Duo: hosted runs 42643045285 and 42654943087).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sim_pool.sh"
+name="$(sim_pool_hosted_name "$family")"
+udid="${FENTON_SETTLE_UDID:-$(sim_pool_family_udid "$family")}"
+[[ -n "$udid" ]] || { echo "settle: no simulator named $name"; sim_pool_list; exit 1; }
 
 cap="${FENTON_SETTLE_CAP:-900}"; poll="${FENTON_SETTLE_POLL:-30}"
 # The 1-minute load average lags: right after `simctl boot` it still shows the state before the boot, so no decision is made before a
@@ -34,7 +36,7 @@ dwell="${FENTON_SETTLE_DWELL:-$dwell_default}"
 wall="${FENTON_HEALTH_BOOT_WALL:-120}"
 watch=(python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/xc_watch.py" --wall "$wall")
 
-echo "settle: booting the $family simulator (wall ${wall}s)"
+echo "settle: booting the $family simulator $udid (wall ${wall}s)"
 "${watch[@]}" --label "simctl boot" -- xcrun simctl boot "$udid" 2>&1 | tail -2
 # An already-booted simulator makes `boot` fail harmlessly; bootstatus -b decides whether it is usable.
 if ! "${watch[@]}" --label "simctl bootstatus" -- xcrun simctl bootstatus "$udid" -b > /dev/null 2>&1; then

@@ -6,6 +6,11 @@ Usage: ``tools/review/record.py [FILE|-] [--pr N] [--lane BRANCH] [--root WORKTR
 the branch and head SHA, writes ``build/review/<branch>.json`` (read by ``tools/pr_land.sh`` and ``tools/ship.sh``)
 and, with ``--pr``, replaces the review summary section of the PR body.
 
+``--post-check SHA --repo OWNER/NAME`` is the server-side backstop that ``tools/ship.sh`` runs after a push: it posts the check run ``ai-review``
+for SHA as the reviewer App only when ``tools/review_verdict.py`` finds a pass for exactly that sha (the push gate's rule, so the check is never greener than the gate).
+When it cannot post it prints ``ai-review check NOT posted: <reason>``
+and exits 3.
+
 Only the reviewer records: ``tools/hooks/review_guard.py`` lets a session whose ``agent_type`` is ``reviewer`` run this script and leaves an
 identity stamp that is copied into the verdict as ``reviewer`` (``pr_land`` and ``lane_land`` refuse a verdict without it); no other session
 may write ``build/review/*.json``.
@@ -23,7 +28,12 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import gh_app_token  # noqa: E402  (already in the protected import closure; never import a landing tool here)
+import review_verdict  # noqa: E402  (the push gate's reader; protected the same way)
 
 
 def review_file_name(branch: str) -> str:
@@ -39,6 +49,10 @@ IDENT_MAX_AGE = 900.0
 VERDICTS = ("pass", "changes", "blocker")
 SEVERITIES = ("blocker", "major", "minor")
 START, END = "<!-- review:start -->", "<!-- review:end -->"
+#: The check run GitHub's ruleset requires on the PR head, the App that posts it, and the cap on its text (the API limit is 65535).
+CHECK_NAME = "ai-review"
+CHECK_ROLE = "reviewer"
+SUMMARY_MAX = 60000
 
 
 def validate(data: Dict[str, Any]) -> List[str]:
@@ -63,6 +77,62 @@ def derive_verdict(findings: List[Dict[str, Any]]) -> str:
     """The verdict the severities imply."""
     severities = {f.get("severity") for f in findings}
     return "blocker" if "blocker" in severities else "changes" if "major" in severities else "pass"
+
+
+def check_outcome(data: Dict[str, Any]) -> tuple:
+    """``(conclusion, title)`` of the ``ai-review`` check for a recorded verdict. ``success`` when the verdict is ``pass``, or ``changes``
+    at the round cap (``round >= MAX_ROUNDS``) with no blocker finding; ``failure`` otherwise (round 1 ``changes``, any blocker)."""
+    verdict, rnd = data.get("verdict"), int(data.get("round") or 1)
+    blocker = any(f.get("severity") == "blocker" for f in data.get("findings") or [])
+    ok = verdict == "pass" or (verdict == "changes" and rnd >= MAX_ROUNDS and not blocker)
+    return ("success" if ok else "failure"), f"{CHECK_NAME}: {verdict} (round {rnd})"
+
+
+def check_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    """The ``POST /repos/{repo}/check-runs`` body for a recorded verdict, bound to the reviewed head (``data["head"]``)."""
+    conclusion, title = check_outcome(data)
+    lines = []
+    for f in data.get("findings") or []:
+        lines.append(f"{f['severity']} [{f['rule']}] {f.get('file') or '-'}: {f['detail']}" + (f" Fix: {f['fix']}" if f.get("fix") else ""))
+    return {"name": CHECK_NAME, "head_sha": data["head"], "status": "completed", "conclusion": conclusion,
+            "completed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "output": {"title": title, "summary": summary(data)[:SUMMARY_MAX], "text": "\n".join(lines)[:SUMMARY_MAX]}}
+
+
+def post_check(repo: str, payload: Dict[str, Any]) -> Any:
+    """Post the check run as the reviewer App (token narrowed to issues write, pull_requests read, checks write). Raises ``AppError``."""
+    bearer = gh_app_token.token(CHECK_ROLE, extra={"checks": "write"})
+    return gh_app_token.api_request("POST", f"repos/{repo}/check-runs", bearer, payload)
+
+
+def lane_verdict(sha: str, directory: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """The newest record that passes ``sha`` by the push gate's own rule (``review_verdict.counts``: reviewer identity, ``pass``, exact full-sha
+    ``head``, no major or blocker finding), or ``None``. The store is ``review_verdict``'s (the account's home), so the server check can never be
+    greener than the local gate."""
+    found = []
+    for path in review_verdict.verdict_files(sha, directory):
+        if review_verdict.counts(path, sha):
+            try:
+                found.append((path.stat().st_mtime, json.loads(path.read_text())))
+            except (OSError, ValueError):
+                continue
+    return max(found, key=lambda item: item[0])[1] if found else None
+
+
+def post_check_for(sha: str, repo: str, directory: Optional[Path] = None) -> int:
+    """Post the ``ai-review`` check for ``sha``, only when ``review_verdict.has_pass`` says so: 0 when posted, 3 (after an
+    ``ai-review check NOT posted: <reason>`` line) when not, including a malformed record. Never prints a token."""
+    try:
+        verdict = lane_verdict(sha, directory)
+        if verdict is None:
+            raise gh_app_token.AppError(f"no independent pass for {sha[:12]}")
+        post_check(repo, check_payload(verdict))
+    except (gh_app_token.AppError, KeyError, TypeError, ValueError, AttributeError) as exc:
+        reason = str(exc) if isinstance(exc, gh_app_token.AppError) else f"unusable verdict record ({type(exc).__name__})"
+        print(f"ai-review check NOT posted: {reason}; GitHub will keep the PR blocked once the check is required", file=sys.stderr)
+        return 3
+    print(f"posted {CHECK_NAME} {check_outcome(verdict)[0]} on {sha[:8]}")
+    return 0
 
 
 def next_round(previous: Dict[str, Any], head: str) -> int:
@@ -140,8 +210,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--lane", metavar="BRANCH", help="also write the verdict where the interactive lane lander reads it "
                                                         "(~/hass-agents/reviews/<lane>-<head12>.json); HEAD must be the lane tip")
     parser.add_argument("--root", metavar="DIR", help="the PR's worktree (default: the current directory's checkout)")
+    parser.add_argument("--post-check", metavar="SHA", help="post the ai-review check run for SHA from its recorded lane verdict (needs --repo); records nothing")
+    parser.add_argument("--repo", metavar="OWNER/NAME", help="the repository for --post-check")
     parser.add_argument("--confirm-round", metavar="REASON", help="required to record round 3 or later")
     args = parser.parse_args(argv)
+    if args.post_check:
+        return post_check_for(args.post_check, args.repo) if args.repo else 2
     try:
         data = json.loads(sys.stdin.read() if args.file == "-" else Path(args.file).read_text())
     except ValueError as exc:

@@ -40,15 +40,15 @@ done
 [[ -n "$UDID" ]] || { echo "usage: sim_slim.sh [--lean] [--profile FILE] UDID" >&2; exit 2; }
 [[ "${FENTON_SIM_SLIM:-1}" == 0 ]] && { echo "sim_slim: FENTON_SIM_SLIM=0, leaving $UDID stock"; exit 3; }
 case "$UDID" in
-  iphone) family_name="${FENTON_SIM_IPHONE:-iPhone 17}" ;;
-  duo) family_name="${FENTON_SIM_DUO:-iPhone Duo}" ;;
-  ipad) family_name="${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
-  *) family_name="" ;;
+  iphone | duo | ipad)
+    # The one family -> UDID lookup (tools/sim_pool.sh), shared with sim_settle.sh and the journey runner: slim, settle and the tests
+    # land on the same simulator even when the image has one device of a name per runtime.
+    source "$ROOT/tools/sim_pool.sh"
+    family="$UDID"; family_name="$(sim_pool_hosted_name "$family")"
+    UDID="$(sim_pool_family_udid "$family")"
+    [[ -n "$UDID" ]] || { echo "sim_slim: no simulator named $family_name" >&2; exit 1; }
+    ;;
 esac
-if [[ -n "$family_name" ]]; then
-  UDID="$(xcrun simctl list devices available -j | jq -r --arg n "$family_name" '[.devices[][] | select(.name == $n)][0].udid // empty')"
-  [[ -n "$UDID" ]] || { echo "sim_slim: no simulator named $family_name" >&2; exit 1; }
-fi
 command -v simslim > /dev/null || { echo "sim_slim: simslim not installed (brew install mobai-app/tap/simslim); leaving $UDID stock" >&2; exit 3; }
 
 BOOT_WALL="${FENTON_HEALTH_BOOT_WALL:-120}"; SLIM_WALL="${FENTON_SLIM_WALL:-180}"; ON_WALL="${FENTON_SLIM_ON_WALL:-300}"

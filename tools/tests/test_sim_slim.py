@@ -6,11 +6,15 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "sim_slim.sh"
 
-#: xcrun stub: logs its arguments; `simctl list` prints one iPhone 17; XCRUN_HANG sleeps, XCRUN_FAIL fails (for bootstatus).
+#: xcrun stub: logs its arguments; `simctl list` prints an iPhone 17 and an iPad (text, or JSON with -j for the state); XCRUN_HANG sleeps, XCRUN_FAIL fails (for bootstatus).
 XCRUN = r'''#!/bin/bash
 echo "$@" >> "$STUB_DIR/xcrun.log"
 if [ "$2" = list ]; then
-  echo '{"devices":{"rt":[{"name":"iPhone 17","udid":"UDID-IPHONE","state":"'${XCRUN_STATE:-Shutdown}'"},{"name":"iPad Pro 11-inch (M5)","udid":"UDID-IPAD"}]}}'
+  if [ "$4" = -j ]; then
+    echo '{"devices":{"rt":[{"name":"iPhone 17","udid":"11111111-1111-1111-1111-111111111111","state":"'${XCRUN_STATE:-Shutdown}'"}]}}'
+  else
+    printf -- '-- iOS 27.0 --\n    iPhone 17 (11111111-1111-1111-1111-111111111111) (Shutdown)\n    iPad Pro 11-inch (M5) (22222222-2222-2222-2222-222222222222) (Shutdown)\n'
+  fi
   exit 0
 fi
 [ -n "$XCRUN_HANG" ] && sleep 30
@@ -132,9 +136,9 @@ class SimSlimTests(unittest.TestCase):
         self.with_simslim()
         out = self.run_script("iphone", SIMSLIM_SLIM="1")
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("verify UDID-IPHONE", self.log("simslim.log"))
+        self.assertIn("verify 11111111-1111-1111-1111-111111111111", self.log("simslim.log"))
         out = self.run_script("ipad", SIMSLIM_SLIM="1")
-        self.assertIn("verify UDID-IPAD", self.log("simslim.log"))
+        self.assertIn("verify 22222222-2222-2222-2222-222222222222", self.log("simslim.log"))
 
     def test_a_family_with_no_such_simulator_is_a_hard_failure(self):
         self.with_simslim()

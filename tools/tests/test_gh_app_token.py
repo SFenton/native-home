@@ -107,6 +107,18 @@ class TokenTests(AppsDirCase):
         self.assertEqual(calls[0][2], {"permissions": {"issues": "write", "pull_requests": "read"}})
         self.assertNotIn(TOKEN, "".join(p.read_text(errors="ignore") for p in self.folder.iterdir()))
 
+    def test_extra_permissions_are_merged_and_cached_apart(self):
+        """Fails if ``extra`` is ignored, leaks into the default token, or shares the default cache entry."""
+        calls = []
+        with mock.patch.object(gh_app_token, "api_request", self.fake_api(calls)):
+            gh_app_token.token("verifier", extra={"checks": "write"})
+            gh_app_token.token("verifier", extra={"checks": "write"})
+            gh_app_token.token("verifier")
+        posts = [c[2] for c in calls if c[0] == "POST"]
+        self.assertEqual(posts, [{"permissions": {"issues": "write", "pull_requests": "read", "checks": "write"}},
+                                 {"permissions": {"issues": "write", "pull_requests": "read"}}])
+        self.assertNotIn("checks", gh_app_token.PERMISSIONS)
+
     def test_near_expiry_token_is_minted_again(self):
         calls = []
         with mock.patch.object(gh_app_token, "api_request", self.fake_api(calls)):

@@ -14,3 +14,19 @@ sim_pool_udid() {
 sim_pool_has() {
   [[ -n "$(sim_pool_udid "$1")" ]]
 }
+#   sim_pool_hosted_name FAMILY   the hosted image's simulator name for iphone|duo|ipad (FENTON_SIM_IPHONE / _DUO / _IPAD override).
+#   sim_pool_family_udid FAMILY   the UDID of that device in the pool list: the one place "family -> UDID on a hosted runner" is decided.
+#                                 The journey runner (the test destination) and sim_settle.sh (the warm-up) both use it, so they boot the
+#                                 same simulator even when the image has several devices of one name (one per runtime).
+sim_pool_hosted_name() {
+  case "$1" in
+    iphone) echo "${FENTON_SIM_IPHONE:-iPhone 17}" ;;
+    duo) echo "${FENTON_SIM_DUO:-iPhone Duo}" ;;
+    ipad) echo "${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
+    *) return 1 ;;
+  esac
+}
+sim_pool_family_udid() {
+  local name; name="$(sim_pool_hosted_name "$1")" || return 1
+  sim_pool_list | sim_pool_udid "$name"
+}
