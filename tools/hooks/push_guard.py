@@ -10,12 +10,16 @@ passes untouched. Refused:
 - ``--no-verify`` (and any abbreviation of it), which skips the hook;
 - ``core.hooksPath`` in any form (``git -c``, ``git config``, ``GIT_CONFIG_PARAMETERS``/``GIT_CONFIG_KEY_n`` values, an assignment in a file edit);
   ``--config-env``, ``GIT_CONFIG_GLOBAL``, ``GIT_CONFIG_SYSTEM``, ``GIT_CONFIG_COUNT`` and ``GIT_CONFIG_PARAMETERS`` (they can inject it);
+- ``include.path`` and ``includeIf.*.path`` (a config file they pull in can set ``core.hooksPath``);
+- ``SH_OWNER_PUSH`` in any form (``env``, ``export``, a prefix assignment, ``bash -c``, a file edit): the owner's escape from the review step
+  in ``.githooks/pre-push`` (the denylist still runs). It is checked even when the command mentions neither ``git`` nor ``gh``;
 - ``send-pack`` and ``http-push`` (plumbing that never runs the hook);
 - ``GIT_DIR`` or ``--git-dir`` together with ``push`` (a repository without the hook configured);
 - ``gh api`` writes to ``/git/refs``, ``/merges`` or ``/contents`` (a write method, or any field flag that makes the call a POST), and
   ``gh repo sync`` (both move refs on GitHub without a push).
 
-Residual risk (documented in ``.agents/workflow/ci.md#the-merge-gate``): a push from a clone whose ``core.hooksPath`` was never set
+Residual risk (documented in ``.agents/workflow/ci.md#the-merge-gate``): the hook runs from the worktree's own files, so an uncommitted edit to
+them disables the gate; a push from a clone whose ``core.hooksPath`` was never set
 (``tools/setup.sh``), ``curl`` or an interpreter calling the GitHub API, and a hook skipped by editing ``.git/config`` with a tool.
 ``tools/ship.sh`` checks ``core.hooksPath`` itself. Exit 2 sends the message back; every failure, an import error included, is exit 2,
 never 1 and never a silent pass.
@@ -34,7 +38,8 @@ except Exception:  # noqa: BLE001 - fail closed even if the standard library can
 
 #: ``--no-verify`` or an abbreviation of it that git accepts (``--no-v`` upward; shorter and ambiguous ones are refused too).
 NO_VERIFY = re.compile(r"--no-v(?:e(?:r(?:i(?:f(?:y)?)?)?)?)?(?![\w-])")
-HOOKS_PATH = re.compile(r"core\.hookspath", re.I)
+HOOKS_PATH = re.compile(r"core\.hookspath|(?<![\w-])include(?:if\.[^\s'\"]*)?\.path", re.I)
+OWNER_ESCAPE = re.compile(r"SH_OWNER_PUSH", re.I)
 CONFIG_INJECTION = re.compile(r"--config-env|GIT_CONFIG_(?:GLOBAL|SYSTEM|COUNT|PARAMETERS|KEY_\d+|VALUE_\d+)\b|GIT_CONFIG_NOSYSTEM", re.I)
 SEND_PACK = re.compile(r"(?<![\w-])(?:git[ \t-]+)?(?:send-pack|http-push)(?![\w-])")
 GIT_DIR = re.compile(r"(?<![\w])GIT_DIR\b|--git-dir\b")
@@ -56,12 +61,14 @@ def message(why: str) -> str:
 
 def command_reason(command: str) -> str:
     """Why a Bash command is refused, or the empty string."""
+    if OWNER_ESCAPE.search(command):
+        return "SH_OWNER_PUSH (the owner's escape from the review step; only the owner sets it, in their own terminal)"
     if not MENTIONS.search(command):
         return ""
     if NO_VERIFY.search(command):
         return "--no-verify (it skips the pre-push hook)"
     if HOOKS_PATH.search(command):
-        return "core.hooksPath (the repo's hooks must run)"
+        return "core.hooksPath or include.path / includeIf.*.path (the repo's hooks must run)"
     if CONFIG_INJECTION.search(command):
         return "a git config injection (--config-env or GIT_CONFIG_*) that could replace the hooks path"
     if SEND_PACK.search(command):

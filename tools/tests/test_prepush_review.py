@@ -202,6 +202,31 @@ class RealHookTests(Scratch):
         self.assertIn("refs/heads/x", self.seen.read_text())
         self.assertIn(self.reviewed, self.seen.read_text())
 
+    def owner_push(self, value="1"):
+        self.env = {**self.env, "SH_OWNER_PUSH": value}
+        return self.git("push", "origin", "HEAD:refs/heads/x")
+
+    def test_the_owner_escape_skips_the_review_but_the_denylist_still_runs(self):
+        unreviewed = self.commit("unreviewed")
+        done = self.owner_push()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn(unreviewed, self.seen.read_text(), "the denylist did not run on the owner's push")
+        self.assertIn("refs/heads/x", self.remote_refs())
+
+    def test_the_owner_escape_still_refuses_on_a_denylist_hit(self):
+        self.commit("unreviewed")
+        (self.seen.parent / "tools" / "prepush_denylist.py").write_text("import sys\nsys.stdin.read()\nsys.exit(1)\n")
+        self.refused(self.owner_push())
+
+    def test_without_the_exact_escape_value_behaviour_is_unchanged(self):
+        self.commit("unreviewed")
+        for value in ("", "0", "true", "yes"):
+            with self.subTest(value=value):
+                done = self.owner_push(value)
+                self.refused(done)
+                self.assertIn("no independent pass", done.stderr)
+                self.assertFalse(self.seen.exists())
+
 
 class HookTextTests(unittest.TestCase):
     def test_the_real_hook_feeds_stdin_to_the_review_before_the_denylist_and_fails_closed(self):

@@ -126,6 +126,21 @@ class TokenScanTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(self.why(command), command)
 
+    def test_every_form_that_sets_the_owner_escape_is_refused(self):
+        """SH_OWNER_PUSH skips the review step in the pre-push hook; no agent command may name it, git or not."""
+        for command in ("SH_OWNER_PUSH=1 git push origin x", "export SH_OWNER_PUSH=1", "export SH_OWNER_PUSH=1; git push", "env SH_OWNER_PUSH=1 git push",
+                        "env -i SH_OWNER_PUSH=1 git push", "bash -c 'SH_OWNER_PUSH=1 git push'", "sh -c \"export SH_OWNER_PUSH=1 && git push\"",
+                        "sh_owner_push=1 git push", "SH_OWNER_PUSH=0 git push", "declare -x SH_OWNER_PUSH=1", "echo SH_OWNER_PUSH=1 >> ~/.zshenv",
+                        "python3 -c \"import os; os.environ['SH_OWNER_PUSH']='1'\"", "cat <<EOF > x\nSH_OWNER_PUSH=1\nEOF"):
+            with self.subTest(command=command):
+                self.assertIn("SH_OWNER_PUSH", self.why(command))
+
+    def test_include_paths_are_refused_like_hooks_path(self):
+        for command in ("git config include.path /tmp/c", "git -c include.path=/tmp/c push", "git config --global includeIf.gitdir:/x/.path /tmp/c",
+                        "git config includeif.gitdir:/x/.path /tmp/c"):
+            with self.subTest(command=command):
+                self.assertIn("include.path", self.why(command))
+
     def test_ordinary_commands_pass(self):
         for command in ("git push origin HEAD", "git push -u origin ci/x", "git status", "git commit -m 'Add x'", "ls -la", "python3 tools/run_tool_tests.sh",
                         "gh api repos/o/r/git/refs/heads/x", "gh api repos/o/r/contents/a.txt", "gh api repos/o/r/pulls/1", "gh api repos/o/r/issues -f title=x",

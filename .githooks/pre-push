@@ -7,5 +7,8 @@ command -v python3 >/dev/null 2>&1 || { echo "pre-push: python3 not found; refus
 refs="$(mktemp)" || exit 1
 trap 'rm -f "$refs"' EXIT
 cat > "$refs"
-python3 -I "$root/tools/prepush_review.py" "$@" < "$refs" || exit 1
+# Owner escape (owner only; tools/hooks/push_guard.py refuses any agent command naming it): skips the review step, never the denylist below.
+if [ "${SH_OWNER_PUSH:-}" != "1" ]; then
+  python3 -I "$root/tools/prepush_review.py" "$@" < "$refs" || exit 1
+fi
 python3 "$root/tools/prepush_denylist.py" "$@" < "$refs"

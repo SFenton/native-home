@@ -56,7 +56,9 @@ class Repo:
 
     def push(self, local, remote=ZERO, url=PUBLIC, line=None, name="origin"):
         stdin = line if line is not None else f"refs/heads/main {local} refs/heads/main {remote}\n"
-        return subprocess.run([str(HOOK), name, url], cwd=self.work, env=self.env, input=stdin, capture_output=True, text=True)
+        # These tests are about the denylist alone: the owner escape skips the review step (tools/prepush_review.py, tested in test_prepush_review.py).
+        env = {**self.env, "SH_OWNER_PUSH": "1"}
+        return subprocess.run([str(HOOK), name, url], cwd=self.work, env=env, input=stdin, capture_output=True, text=True)
 
 
 class PrePushTests(unittest.TestCase):
