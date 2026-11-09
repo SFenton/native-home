@@ -24,7 +24,7 @@ func wakeStatus(state: String = "scheduled", _ extra: [String: JSONValue] = [:])
             .object(["id": "a", "label": "Weekday", "kind": "weekly", "local_time": "06:45",
                      "weekdays": ["monday", "tuesday"], "enabled": true, "ramp_minutes": .number(30), "revision": .number(2)]),
             .object(["id": "b", "label": "Alex's Alarm", "kind": "weekly", "local_time": "06:30", "weekdays": ["monday"],
-                     "source": "sleepypod", "source_ref": "bed:left", "revision": .number(1)]),
+                     "source": "sleepypod", "source_ref": "sleepypod:left", "revision": .number(1)]),
         ]),
     ]
     for (key, value) in extra { attributes[key] = value }
@@ -43,7 +43,7 @@ struct WakeLightContractTests {
         #expect(snapshot.alarms.map(\.id) == ["a", "b"])
         #expect(snapshot.alarms[0].weekdays == [.monday, .tuesday])
         #expect(snapshot.alarms[1].isNative == false)
-        #expect(snapshot.alarms[1].sourceRef == "bed:left")
+        #expect(snapshot.alarms[1].sourceRef == "sleepypod:left")
         #expect(snapshot.phase == .scheduled)
     }
 
@@ -93,7 +93,7 @@ struct WakeLightContractTests {
 
     @Test func linkKeysCoverMirroredDays() {
         let snapshot = WakeLight.snapshot(wakeStatus(), profileId: "x")
-        #expect(snapshot.alarms[1].linkKeys(calendar: utc) == ["bed:left#monday#06:30"])
+        #expect(snapshot.alarms[1].linkKeys(calendar: utc) == ["sleepypod:left#monday#06:30"])
         #expect(snapshot.alarms[0].linkKeys(calendar: utc).isEmpty)
         var once = snapshot.alarms[1]
         once.kind = .once
@@ -191,20 +191,20 @@ struct BedAlarmProvisioningTests {
     let alarms = [BedAlarm.new(day: .monday, time: "07:00", id: "m"), BedAlarm.new(day: .tuesday, time: "07:00", id: "t")]
 
     @Test func createsMissingAlarmsAndLinksWhenOn() {
-        let snapshot = WakeLight.snapshot(wakeStatus(["alarm_links": .object(["bed:left#tuesday#07:00": false])]), profileId: "x")
+        let snapshot = WakeLight.snapshot(wakeStatus(["alarm_links": .object(["sleepypod:left#tuesday#07:00": false])]), profileId: "x")
         let plan = BedAlarmProvisioning.plan(snapshot: snapshot, days: [.wednesday, .monday, .tuesday], linked: true,
-                                             alarms: alarms, source: "bed:left", time: "7:00")
+                                             alarms: alarms, source: "sleepypod:left", time: "7:00")
         #expect(plan?.createDays == [.wednesday])
-        #expect(plan?.linkKeysOn == ["bed:left#tuesday#07:00"])
+        #expect(plan?.linkKeysOn == ["sleepypod:left#tuesday#07:00"])
         #expect(plan?.linkKeysOff == [])
     }
 
     @Test func unlinksExistingAlarmsWhenOff() {
         let snapshot = WakeLight.snapshot(wakeStatus(), profileId: "x")
         let plan = BedAlarmProvisioning.plan(snapshot: snapshot, days: [.monday, .friday], linked: false,
-                                             alarms: alarms, source: "bed:left", time: "07:00")
+                                             alarms: alarms, source: "sleepypod:left", time: "07:00")
         #expect(plan?.createDays == [])
-        #expect(plan?.linkKeysOff == ["bed:left#monday#07:00"])
+        #expect(plan?.linkKeysOff == ["sleepypod:left#monday#07:00"])
         #expect(BedAlarmProvisioning.plan(snapshot: snapshot, days: [.monday], linked: true, alarms: alarms, source: "", time: "07:00") == nil)
         #expect(BedAlarmProvisioning.plan(snapshot: snapshot, days: [.monday], linked: true, alarms: alarms, source: "s", time: "bad") == nil)
         #expect(BedAlarmProvisioning.Plan().isEmpty)
@@ -370,7 +370,7 @@ struct BedLevelTests {
         #expect(Weekday(date: Date(timeIntervalSince1970: 0), calendar: utc) == .thursday)
         #expect(Weekday.ordered([.friday, .monday, .friday]) == [.monday, .friday])
         #expect(MasterBedroom.bed(id: "sams-bed")?.side == .right)
-        #expect(MasterBedroom.wakeLight.source(for: .left)?.id == "bed:left")
+        #expect(MasterBedroom.wakeLight.source(for: .left)?.id == "sleepypod:left")
     }
 }
 

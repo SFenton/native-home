@@ -113,8 +113,8 @@ struct WakeLightControllerTests {
     @Test func transportFailureRollsBack() async {
         let (controller, _) = make()
         caller.fail = true
-        #expect(await controller.setLinks(["bed:left#monday#06:30"], enabled: false) == false)
-        #expect(controller.snapshot.isLinked("bed:left#monday#06:30"))
+        #expect(await controller.setLinks(["sleepypod:left#monday#06:30"], enabled: false) == false)
+        #expect(controller.snapshot.isLinked("sleepypod:left#monday#06:30"))
         #expect(controller.errorCode == "transport")
         caller.responses = [.object([:])]
         caller.fail = false
@@ -418,7 +418,7 @@ struct BedSideControllerTests {
         draft.time = "06:15"
         #expect(await bed.save(draft, wakeLight: wake))
         #expect(caller.names == ["wake_light.command"])
-        #expect(caller.calls[0].data["link_keys"] as? [String] == ["bed:left#wednesday#06:15"])
+        #expect(caller.calls[0].data["link_keys"] as? [String] == ["sleepypod:left#wednesday#06:15"])
         #expect(bed.alarms.count == 3)
         // A refused link saves nothing.
         caller.responses = [.object(["outcome": "rejected", "error_code": "x"])]
@@ -473,7 +473,7 @@ struct BedroomDevicesTests {
         let store = bedroomStore(bedEntities())
         let devices = BedroomDevices(store: store, caller: caller, scheduler: ManualScheduler(), requestId: { "req" })
         #expect(devices.bedTargets.map(\.available) == [true, true])
-        #expect(devices.bed(source: "bed:right")?.config.side == .right)
+        #expect(devices.bed(source: "sleepypod:right")?.config.side == .right)
         let alarm = WakeLight.Alarm(id: "n", label: " New ", kind: .weekly, localTime: "07:00", weekdays: [.monday, .friday])
         #expect(await devices.saveWakeAlarm(alarm, isNew: true, addToBeds: [.left]))
         await devices.bed(.left).waitForCalls()
