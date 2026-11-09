@@ -1,0 +1,17 @@
+{
+  "id": "dd-expired-food-rows-tall",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "When opening profile modal and going to expired food, some rows can be very tall and sometimes automatically fix themselves",
+  "surface": "your-summary",
+  "poses": [
+    "iphone",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "sizing",
+  "pre_fix_ref": "f480b37f",
+  "fix_ref": "e88cfe4a",
+  "fix_confidence": "high",
+  "expected": "Inventory rows measure at the proposed width on first layout; flag any row taller than its text needs or whose height changes between two captures without input."
+}

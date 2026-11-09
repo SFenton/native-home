@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Feedback result alerts · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var K = Mock.components;
+  var typed = function (kind) { return Object.assign({ kind: kind }, SA.fb[kind], { attachments: [{ kind: 'photo', name: 'IMG_0412.png' }] }); };
+  var sent = function (kind, n) { var k = SA.kinds[kind]; return function (ctx) { return SA.feedbackSheet(ctx, Object.assign(typed(kind), { alert: K.Alert({ title: k.sent, message: 'Your report is filed as issue #' + n + '.'', buttons: [{ title: 'Done', role: 'cancel' }, { title: 'View on GitHub' }] }) })); }; };
+  var failed = function (msg) { return function (ctx) { return SA.feedbackSheet(ctx, Object.assign(typed('bug'), { alert: K.Alert({ title: 'Couldn’t Send', message: msg, buttons: [{ title: 'OK', role: 'cancel' }] }) })); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'feedback-result-alerts', title: 'Feedback result alerts (filed, couldn’t send)', area: 'settings', status: 'shipped',
+    summary: 'The two alerts that end a Submit: "Report Sent" or "Request Sent" with the issue number and View on GitHub / Done, and "Couldn’t Send" with a fixed message and OK. Over the feedback form; follow the system appearance (switch Sheet appearance above).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift', 'apple/Sources/HassCore/Feedback/FeedbackFilingError.swift'],
+    spec: ['.agents/pages/settings/feedback.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Alerts'],
+    entities: [],
+    kitComponents: ['Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Report Sent', note: 'Done on the left (cancel role, closes the sheet), View on GitHub opens the issue and closes', render: sent('bug', 14) },
+      'request-sent': { title: 'Request Sent', render: sent('feature', 15) },
+      'github': { title: 'Couldn’t Send: GitHub problem', render: failed('Home Assistant couldn’t file this on GitHub. Try again later, or ask whoever manages Home Assistant to check its GitHub connection.') },
+      'network': { title: 'Couldn’t Send: no connection', render: failed('Couldn’t reach Home Assistant. Check your connection and try again.') },
+      'rate-limited': { title: 'Couldn’t Send: too many', render: failed('Too many reports were sent just now. Try again in a few minutes.') },
+      'attachment': { title: 'Couldn’t Send: an attachment', render: failed('IMG_0412.png couldn’t be uploaded. Remove it and try again.') },
+      'signed-out': { title: 'Couldn’t Send: signed out', render: failed('Home Assistant didn’t accept the app’s sign-in. Sign in again and try again.') },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the two-button alert stacks; the message wraps', render: sent('bug', 14) },
+    },
+    motion: [],
+    transitions: [
+      { from: 'Submit', to: 'Result alert', kind: 'fade', note: 'The model’s phase changes to finished or failed and the system alert fades in over the form. Done or View on GitHub dismiss the sheet; OK returns to the form with everything kept and Submit available again.',
+        play: function (stage) { var ctx = Mock.current, host = stage.querySelector('.ui-host'); var sc = host.querySelector('.ui-alert-scrim'); sc.style.opacity = 0; return Mock.sleep(120).then(function () { return Mock.anim.fade(sc, { ms: 200 }); }).then(function () { sc.style.opacity = ''; return Mock.sleep(900); }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The alert is modal: its title, the message, then the buttons: Done (feedback.done) and View on GitHub (feedback.view), or OK. The form behind is hidden from VoiceOver.' },
+      { rule: 'Messages', note: 'Every failure message is fixed copy mapped from the integration’s error code, never its own text; each says what to do next.' },
+      { rule: 'Roles', note: 'Done and OK carry the cancel role (Escape and the scrub choose them); View on GitHub is the default action. Nothing here is destructive, so no red.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the buttons stack and the system alert scrolls; the issue number reads as part of the sentence.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Alerts: succinct title that says what happened', verdict: 'pass', note: '"Report Sent" / "Request Sent" and "Couldn\'t Send" describe the outcome (FeedbackFormSheet.swift:71, :82, :283).', by: 'apple-hig skill' },
+        { rule: 'Alerts: buttons named for the action; cancel role for the dismissal', verdict: 'pass', note: 'View on GitHub and Done (role .cancel) on success; one OK (role .cancel) that keeps the form and its content on failure (:72-86).', by: 'apple-hig skill' },
+        { rule: 'Alerts: avoid purely informational alerts', verdict: 'pass', note: 'The success alert carries an action (View on GitHub) and ends the sheet; failures keep everything typed.', by: 'apple-hig skill' },
+        { rule: 'Writing: messages say what to do next, without internal names or padding', verdict: 'pass', note: 'Success uses AlertCopy.feedbackFiled; FeedbackFilingError.notConfigured and githubProblem tell the person to ask whoever manages Home Assistant, with no integration or token names.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: alert(_:isPresented:presenting:) over two Bools', verdict: 'pass', note: 'The success alert presents the FiledIssue value derived from model.phase (:71-81).', by: 'swiftui-pro skill' },
+        { rule: 'Data: Binding(get:set:) with an empty setter', verdict: 'pass', note: 'finishedBinding's setter now closes the sheet on a system dismissal (FeedbackFormSheet.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Views: button action passed directly', verdict: 'pass', note: 'Button("Done", role: .cancel, action: close) (:77).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs and code: the catalog calls the alert "filed"; the titles are "Report Sent" and "Request Sent" (successTitle). The failed alert reads "Couldn’t Send". Issue numbers are fixtures.',
+      'loading, error and offline: the failed alert is the error and the offline outcome (a dead network maps to the "no connection" message); loading is the sending phase in the form. medium, large and fitted: alerts have no detents.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: two successes and five failure messages.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,17 @@
+{
+  "id": "merge-guard-push-force-flag",
+  "source": "2026-11-02: Bypass shape: a force flag on a lane.",
+  "recorded": "2026-11-02",
+  "kind": "merge_guard",
+  "input": {
+    "command": "git push --force origin agents/x"
+  },
+  "expect": {
+    "blocked": true,
+    "reason": {
+      "has": [
+        "allow-list"
+      ]
+    }
+  }
+}

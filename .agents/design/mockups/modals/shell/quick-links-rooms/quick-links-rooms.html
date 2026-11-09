@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Links: Rooms grid · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/rooms/_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms;
+
+  /* QuickLinksDetailView(.rooms): ScrollView { RoomNavigationGrid } with the inline title "Rooms", pushed inside the Quick Links stack (Back, no Close). */
+  function level(o) { o = o || {}; return { title: 'Rooms', leading: 'back', trailing: 'none', content: h('div', R.roomsGrid(o)) }; }
+  function sheet(ctx, o) {
+    o = o || {};
+    return Mock.sheet(ctx, Object.assign(level(o), { detent: 'large', size: 'page', presenter: R.homePresenter(ctx, o.connection) }));
+  }
+  var S = function (o) { return function (ctx) { return sheet(ctx, o); }; };
+  var NONE = {};     // empty store: every counter reads 0, so the configured order shows
+  var BUSY = (function () { var c = Object.assign({}, R.counters); c.gym = 20; c['guest-room'] = 15; return c; })();
+
+  Mock.mount({
+    kind: 'modal', id: 'quick-links-rooms', title: 'Quick Links: Rooms grid', area: 'shell', status: 'shipped',
+    summary: 'The Rooms tile of Quick Links pushes this level inside the sheet: all sixteen rooms as solid-colour tiles, the most visited first. Opening a room counts the visit, closes the sheet and pushes the room page.',
+    source: ['apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift', 'apple/Sources/HassDesign/RoomPalette.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/TileLayout.swift'],
+    spec: ['.agents/pages/rooms/ios.md', '.agents/pages/rooms/spec.md', '.agents/design/direction-g.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['modal-sheet', 'entity-tile', 'dynamic-grid', 'motion'],
+    hig: ['Sheets', 'Toolbars', 'Color', 'Typography', 'Dynamic Type', 'Accessibility'],
+    entities: ['counter.demo_kitchen_1', 'counter.demo_living_room_1', 'script.demo_media_room_3'],
+    kitComponents: ['HassModal', 'GlassTile', 'TileGrid', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Ranked by visits (fixture counters)', note: 'Kitchen 12, Bedroom 1 and Bathroom 1 9, Office and Dining Room 7, ...; ties keep the configured order', render: S() },
+      'loading': { title: 'Nothing saved yet', note: 'no loading UI: every counter reads 0, so the grid shows the configured order (Living Room first)', render: S({ counters: NONE }) },
+      'error': { title: 'Counters unavailable', note: 'same as loading: unreadable counters count as 0; the tiles do not depend on any other entity', render: S({ counters: NONE }) },
+      'offline': { title: 'Over an offline page', note: 'the grid is static data plus the counters in the snapshot; the page behind carries the offline chip', render: S({ connection: 'offline' }) },
+      'reranked': { title: 'After more visits', note: 'Gym (20) and Guest Room (15) overtake Kitchen: the order follows the counters live through EntityStore and survives a snapshot restore', render: S({ counters: BUSY }) },
+      'medium': { title: 'Medium detent: none', note: 'this level lives in the Quick Links sheet (hassSheet(.page, height: .full)); the only detent is large', render: S() },
+      'large': { title: 'Large detent (shipped)', render: S() },
+      'fitted': { title: 'Fitted detent: none', note: 'the sheet is not content-fitted, so pushing never resizes it', render: S() },
+      'closed': { title: 'Before presenting / after dismissing', render: function (ctx) { return R.homePresenter(ctx); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column; each tile grows with its two-line reserve', render: S() },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Quick Links', to: 'Rooms grid', kind: 'push', state: 'default', note: 'A plain system push inside the sheet with a Back circle; the root shifts left and dims. Reduce Motion cross-fades.',
+        play: function (stage) { return R.pushInSheet(stage, level(), 1000); } },
+      { from: 'Room tile (Kitchen)', to: 'Kitchen room page', kind: 'push', state: 'default', note: 'RoomNavigationGrid.open counts the visit (script.demo_media_room_3), then the sheet dismisses and the room pushes onto the page\'s stack once it has gone. Plain system push; no zoom.',
+        play: function (stage) { var ctx = Mock.current; return R.sheetThenPush(stage, Object.assign(level(), { detent: 'large', size: 'page' }), function () { return R.page(ctx, 'kitchen', {}); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, then the grid as the group "Rooms" with sixteen buttons in ranked order (most visited first), left to right then down. There is no Close at this depth (see the finding).' },
+      { rule: 'Tiles', note: 'Each tile is a button named by the room ("Kitchen") with the hint "Opens the Kitchen page" and the identifier rooms.<path>; there is no state line (a room tile has only a name). Glyph, name and chevron are one element.' },
+      { rule: 'Not colour alone', note: 'The room colour only helps recognition: every tile has the room name and a distinct glyph (sofa, bed, dumbbell, stove ...). White ink passes 4.5:1 on every fill (RoomPalette; seven web colours were moved to pass).' },
+      { rule: 'Targets', note: 'Tiles are 96 pt tall at the default size and at least 140 pt wide; far over 44 pt.' },
+      { rule: 'Dynamic Type', note: 'Two lines of title are reserved, so a one-line name sits on the bottom line and "Downstairs Hallway" wraps without clipping; at AX5 the grid is one column.' },
+      { rule: 'Order', note: 'The order is a function of visit counters that live in Home Assistant, so it matches on every device; it changes only after a room is opened.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: give a modal a clear way out at every depth', verdict: 'pass', note: 'QuickLinksSheet adds SheetCloseItem to the pushed Rooms page (owner 2026-10-24, sheet-stacking-close).', by: 'apple-hig skill' },
+        { rule: 'Toolbars: Back on a pushed level, inline title', verdict: 'pass', note: 'System NavigationStack Back; .inlineNavigationTitle() (QuickLinksSheet.swift:114-115).', by: 'apple-hig skill' },
+        { rule: 'Color: contrast and not colour alone', verdict: 'pass', note: 'Sixteen fills moved until white holds at least 4.7:1 (RoomPalette.swift:10-12); every tile also has the room name and a glyph.', by: 'apple-hig skill' },
+        { rule: 'Color: use colour consistently for meaning', verdict: 'departure', note: 'Sixteen hues for sixteen rooms, a recognition aid (direction-g.md Colour: Room tiles, owner 2026-10-16).', by: 'apple-hig skill' },
+        { rule: 'Layout: grids adapt to width and text size', verdict: 'pass', note: 'DynamicGridLayout, up to four columns, scaled 140 pt minimum, equal heights (QuickLinksSheet.swift:229-242).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Fire-and-forget calls should surface or log failure', verdict: 'pass', note: 'Already fixed: RoomController.recordVisit logs the failure (visitLog.error). RoomController.send now logs too.', by: 'swiftui-pro skill' },
+        { rule: 'Order should not change under the reader', verdict: 'pass', note: 'Fixed: RoomNavigationGrid keeps the order taken on appear (@State order, QuickLinksSheet.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Group a grid for assistive tech with a name', verdict: 'pass', note: '.accessibilityElement(children: .contain) and label "Rooms" (QuickLinksSheet.swift:243-244).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'motion: this level has no motion of its own; the push, the sheet and the room push are the system\'s. Tiles do not animate when the ranking changes (the grid reorders on the next render).',
+      'Detents: one, large (see quick-links); medium and fitted do not exist. loading, error: no UI; counters that cannot be read count as 0 and the configured order shows.',
+      'The grid is shared with Climate\'s Advanced Controls (rooms tab), which keeps configured order (the web ranks only this grid).',
+      'Counters are the gallery\'s: [4, 1, 2, 9, 7, 0, 12, 5, 1, 3] by configured index modulo ten (RoomsFixtures).',
+      'Back Deck and Garage rooms have no contact group of their own; their room pages open the house-wide door sheet (room-card-sheet).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: ranked grid, configured order, re-ranked, light and dark.' }],
+  });
+})();
+</script></body></html>

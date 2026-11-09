@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Disarm alert · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+
+  function alertNode(ctx) {
+    return K.Alert({ title: 'Disarm the Security System?', message: 'Doors and motion stop triggering the alarm.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Disarm' }], stacked: !!ctx.axSize });
+  }
+  /** Over the Security System sheet (Home or Security behind it). */
+  function overSheet(ctx, o) {
+    o = o || {};
+    var panel = h('div', { style: { maxWidth: '560px', margin: '0 auto' } }, K.AlarmPanel({ state: o.state || 'armed_home', since: o.since }));
+    var presenter = o.from === 'security' ? SC.securityPage(ctx, {}) : Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home({ security: 'armed_home' }) }), K.WeatherCard({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38 })] });
+    return Mock.sheet(ctx, { title: 'Security System', detent: 'fitted', size: 'page', trailing: 'close', content: panel, presenter: presenter, alert: alertNode(ctx) });
+  }
+  /** Over the Security page itself: the card on the page raises the alert; no sheet is underneath. The page is always dark, so the alert is too. */
+  function overPage(ctx) {
+    var page = SC.securityPage(ctx, {});
+    return h('div.ui-host', page, h('div.ui-alert-scrim.g-dark', alertNode(Object.assign({}, ctx, { appearance: 'dark' }))));
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'disarm-confirm-alert', title: 'Disarm the Security System? (alert)', area: 'security', status: 'shipped',
+    summary: 'The confirmation that always precedes Disarm: a system alert with a red Disarm and Cancel. Arming never asks. The alert is attached to the alarm card, so it appears over the Security System sheet or straight over the Security page.',
+    source: ['apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassUI/Features/Security/SecurityScreen.swift'],
+    spec: ['.agents/pages/security/ios.md', '.agents/pages/security/spec.md', '.agents/design/direction-g.md'],
+    patterns: ['modal-sheet', 'optimistic-actions'],
+    hig: ['Alerts', 'Color', 'Dynamic Type'],
+    entities: ['alarm_control_panel.demo_alarm_control_panel_1'],
+    kitComponents: ['Alert', 'AlarmPanel', 'HassModal', 'ChipRail', 'WeatherCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Over the Security System sheet (Home behind)', note: 'a system alert, scaled and faded in over the dimmed sheet; Cancel stays on every device', render: function (c) { return overSheet(c); } },
+      'from-security': { title: 'Over the sheet opened from the Security page', render: function (c) { return overSheet(c, { from: 'security' }); } },
+      'on-page': { title: 'Over the Security page (the card on the page)', note: 'the alert belongs to the card; there is no sheet underneath. The page is always dark, so the alert is dark whatever the system appearance', render: overPage },
+      'triggered': { title: 'Disarming a triggered alarm', note: 'the same alert; the card behind is washed red', render: function (c) { return overSheet(c, { state: 'triggered' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the buttons stack and the message wraps; the system lays the alert out', render: function (c) { return overSheet(c); } },
+    },
+
+    motion: [
+      { id: 'appear', what: 'Disarm is tapped: the alert scales and fades in over a dimmed screen', token: 'system alert transition (about 0.2 s), never decorated; no app token', state: 'default',
+        source: 'AlarmPanel .alert("Disarm the Security System?", isPresented: $confirmingDisarm); motion.md section 2 (system alerts)', reduce: 'the system uses a plain fade',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), scrim = host.querySelector('.ui-alert-scrim'); scrim.style.opacity = 0;
+          return Mock.sleep(300).then(function () { scrim.style.opacity = ''; return Mock.anim.fade(scrim, { ms: 200 }); }).then(function () { return Mock.sleep(1000); });
+        } },
+      { id: 'confirm', what: 'Disarm is confirmed: the alert closes and the card shows Disarmed at once (optimistic), the badge and mode fill cross-fade green', token: 'alert close, then state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'AlarmPanel.send(disarmMode), OptimisticActions; motion.md section 6', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), scrim = host.querySelector('.ui-alert-scrim');
+          return Mock.sleep(500).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () {
+            scrim.style.display = 'none';
+            var panel = stage.querySelector('.ui-alarm'); stage.querySelectorAll('.ui-mode').forEach(function (b) { b.classList.toggle('sel', b.dataset.mode === 'disarmed'); });
+            panel.querySelector('.badge').style.setProperty('--bfill', 'var(--fam-sec-disarmed-fill)'); panel.querySelector('.ti').textContent = 'Disarmed';
+            return Mock.sleep(Mock.anim.ms.state() + 500);
+          }).then(function () { scrim.style.display = ''; });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Disarm tap', to: 'Disarm alert', kind: 'fade', note: 'Tapping Disarm while another mode is selected raises the alert; tapping the current mode (Disarmed) does nothing.', state: 'default',
+        play: function (stage) { var scrim = stage.querySelector('.ui-alert-scrim'); scrim.style.opacity = 0; return Mock.sleep(250).then(function () { scrim.style.opacity = ''; return Mock.anim.fade(scrim, { ms: 200 }); }).then(function () { return Mock.sleep(900); }); } },
+      { from: 'Disarm alert', to: 'Security System sheet', kind: 'fade', note: 'Cancel closes the alert and changes nothing; a system alert does not dismiss on a tap outside it.', state: 'default',
+        play: function (stage) { var scrim = stage.querySelector('.ui-alert-scrim'); return Mock.sleep(500).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.style.opacity = 0; return Mock.sleep(500); }).then(function () { scrim.style.opacity = ''; }); } },
+    ],
+
+    a11y: [
+      { rule: 'Focus and order', note: 'VoiceOver lands on the title "Disarm the Security System?", reads the message "Doors and motion stop triggering the alarm.", then the buttons; Escape or the two-finger scrub maps to Cancel.' },
+      { rule: 'Roles', note: 'Disarm is a plain button and the bold default (identifier security.disarm.confirm); Cancel has the cancel role and stays on every device, iPad included (an action sheet would become a popover without one).' },
+      { rule: 'State is not colour alone', note: 'Disarm is named by its word and by the title; VoiceOver reads the plain button.' },
+      { rule: 'Dynamic Type', note: 'The system lays the alert out; at accessibility sizes the two buttons stack and the message wraps. Nothing truncates.' },
+      { rule: 'Behind the alert', note: 'The sheet and the page are inert while it shows (aria-modal).' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Alerts: avoid alerts for common, undoable actions", verdict: 'departure', note: "Disarm always asks although re-arming undoes it, because it opens the house; .agents/pages/security/spec.md lists it as a native departure (HIG: Alerts). Arming never asks.", by: 'apple-hig skill' },
+        { rule: "Alerts: always title a cancel button Cancel; destructive style only an action people did not deliberately choose", verdict: 'pass', note: "AlertCopy.disarm: Cancel leading, plain Disarm as the bold default (keyboardShortcut(.defaultAction)).", by: 'apple-hig skill' },
+        { rule: "Alerts: title is a clear question, short message only if it adds value", verdict: 'pass', note: "'Disarm the Security System?' with one sentence 'Doors and motion stop triggering the alarm.' (SecuritySystemSheet.swift:84-90), two lines or fewer at AX5.", by: 'apple-hig skill' },
+        { rule: "Alerts: use a system alert so the fold, Dynamic Type and VoiceOver are handled", verdict: 'pass', note: "A real .alert, not a custom overlay (SecuritySystemSheet.swift:84); the system centres it across the Duo hinge.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Alert attached to the view that owns the action", verdict: 'pass', note: ".alert sits on AlarmPanel so it works over the page or the sheet (SecuritySystemSheet.swift:84); state is a private @State Bool (line 52).", by: 'swiftui-pro skill' },
+        { rule: "Roles: .destructive and .cancel", verdict: 'pass', note: "AlertCopy.disarm confirm role is plain.", by: 'swiftui-pro skill' },
+        { rule: "Identifier and accessibility on alert buttons", verdict: 'pass', note: "The confirm button has an accessibilityIdentifier for tests (line 86); the system gives VoiceOver the alert context.", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Duo unfolded: the alert is centred in the window and crosses the hinge band here (the system places alerts); check on a device.',
+      'loading, error and offline: an alert has no states of its own. While offline or unavailable the card keeps its modes (unavailable disables them, so Disarm cannot be tapped); an offline confirm fails and the optimistic Disarmed rolls back to the live mode.',
+      'medium, large and fitted: not applicable to an alert; the sheet behind it is the fitted Security System sheet (see security-system-sheet).',
+      'Docs versus code: the Account sheet\'s sign-out and the Vacation turn-off are different alerts; this one is only about Disarm. spec.md says "Disarm the security system?" (lower case); the code and this mockup use "Disarm the Security System?".',
+      'The alert order here is Cancel then Disarm (side by side); the system decides the order at runtime (Cancel leading).',
+      'Docs versus code: ios.md says "the alert keeps Cancel on every device"; true; the SwiftUI `.alert` is a real alert, not a confirmationDialog.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: over the sheet (Home and Security behind), over the Security page, triggered, AX5.' }],
+  });
+})();
+</script></body></html>

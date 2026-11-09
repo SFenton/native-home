@@ -1,0 +1,21 @@
+{
+  "id": "route-camera-grace-timing-not-visible",
+  "source": "2026-11-02: the Designer was sent on a timing-only change (the camera modal grace period). design.user_visible answers a low P, so there is no raise to the Designer.",
+  "recorded": "2026-11-02",
+  "kind": "route",
+  "input": {
+    "labels": [
+      "Bug"
+    ],
+    "title": "[Bug] Camera modal closes too soon",
+    "body": "Keep the stream connected for 30 s after closing so reopening is instant.",
+    "jev": {
+      "design.user_visible": 0.08
+    }
+  },
+  "expect": {
+    "raise": null,
+    "final": "L0",
+    "route": "coder"
+  }
+}

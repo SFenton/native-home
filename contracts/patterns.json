@@ -1,0 +1,2230 @@
+{
+  "schemaVersion": 1,
+  "description": "Behavior patterns (.agents/patterns/README.md). Checked by tools/pattern_guard.py. canonical: the component files and symbols that own a behavior; owns: further files the pattern owns (globs); guards: regexes that must not match outside 'allow' (or listed 'debt') globs, ignoring comment lines; internal: scoped files that belong to no pattern, each with a reason. Apple paths only. web: the React dashboard sources the behavior ports (informational, not checked).",
+  "componentScopes": [
+    "apple/Sources/HassDesign/**/*.swift",
+    "apple/Sources/HassUI/Common/**/*.swift",
+    "apple/Sources/HassUI/Controls/**/*.swift",
+    "apple/Sources/HassUI/App/Shell/VerticalBarTitle.swift"
+  ],
+  "internal": [
+    {
+      "glob": "apple/Sources/HassDesign/BindingIsPresent.swift",
+      "reason": "Generic Optional-to-Bool binding helper; not a UI behavior."
+    },
+    {
+      "glob": "apple/Sources/HassDesign/AppIconArtwork.swift",
+      "reason": "The app icon art, shared by the icon renderer and the Live Activity corner mark; art, not a screen behavior."
+    },
+    {
+      "glob": "apple/Sources/HassDesign/HouseHeartShape.swift",
+      "reason": "The icon's house-and-heart Shape; art shared with AppIconArtwork."
+    },
+    {
+      "glob": "apple/Sources/HassUI/Common/ScreenshotPrivacy.swift",
+      "reason": "Redaction switch for sensitive screens in screenshots and recordings; a platform guard, not a shared look."
+    }
+  ],
+  "patterns": [
+    {
+      "id": "action-tiles",
+      "title": "Action tiles",
+      "status": "current",
+      "doc": ".agents/patterns/action-tiles.md",
+      "summary": "the one way a tile shows and runs actions: trailing or below discs, the chevron beside them, feedback kinds, availability motion.",
+      "keywords": [
+        "tile action",
+        "disc",
+        "chevron",
+        "trailing action",
+        "lock",
+        "garage",
+        "volume slider",
+        "action strip"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/TileActions/TileActionStrip.swift",
+            "symbol": "TileActionStrip"
+          },
+          {
+            "path": "apple/Sources/HassDesign/TileActions/TileActionButtonStyle.swift",
+            "symbol": "TileActionButtonStyle"
+          },
+          {
+            "path": "apple/Sources/HassCore/TileActions/TileActionSpec.swift",
+            "symbol": "TileActionSpec"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/TileActions/**",
+        "apple/Sources/HassCore/TileActions/**"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "dynamic-grid"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "alerts",
+      "title": "Alerts and confirmations",
+      "status": "current",
+      "doc": ".agents/patterns/alerts.md",
+      "summary": "how the app asks \"are you sure?\" and reports a failure: one presenter, one set of words, one role per decision.",
+      "keywords": [
+        "alert",
+        "confirmation",
+        "confirmationDialog",
+        "delete",
+        "are you sure",
+        "destructive",
+        "sign out",
+        "AlertCopy"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/Common/AlertCopy.swift",
+            "symbol": "AlertCopy"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [
+        {
+          "id": "literal-alert-title",
+          "glob": "apple/Sources/HassUI/Features/**/*.swift",
+          "regex": "\\.(alert|confirmationDialog)\\(\\s*\\\"",
+          "allow": [],
+          "debt": {},
+          "message": "Alert and dialog titles come from AlertCopy, never a literal in a view (alerts)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "modal-sheet"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "avatar",
+      "title": "Avatar",
+      "status": "current",
+      "doc": ".agents/patterns/avatar.md",
+      "summary": "how a person is drawn as a disc (photo or initials), and how their Home Assistant photo is synced, cached and removed.",
+      "keywords": [
+        "avatar",
+        "person photo",
+        "initials",
+        "profile picture",
+        "entity_picture",
+        "people"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKAvatarView.swift",
+            "symbol": "UKAvatarView"
+          },
+          {
+            "path": "apple/Sources/HassCore/Profile/PersonAvatars.swift",
+            "symbol": "PersonAvatars"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/Avatar/**",
+        "apple/Sources/HassUI/Common/AvatarBox+Image.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "bedroom-devices",
+      "title": "Bedroom devices (wake light, bed sides)",
+      "status": "current",
+      "doc": ".agents/patterns/bedroom-devices.md",
+      "summary": "the Primary Bedroom's Wake-Light Alarms and bed sides: tiles, sheets, alarm editors, the active alarm and the Tonight/All Nights prompt.",
+      "keywords": [
+        "wake light",
+        "wake-light",
+        "alarm",
+        "sleepypod",
+        "bed side",
+        "bedroom",
+        "tonight"
+      ],
+      "web": [
+        "src/components/hass/wakeLights/",
+        "DashboardViewPage.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift",
+            "symbol": "BedSideSheet"
+          },
+          {
+            "path": "apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift",
+            "symbol": "WakeLightSheet"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Features/Bedroom/**"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "camera-streams",
+      "title": "Camera streams",
+      "status": "current",
+      "doc": ".agents/patterns/camera-streams.md",
+      "summary": "how live camera video is shared, started, stopped and brought back.",
+      "keywords": [
+        "camera",
+        "stream",
+        "webrtc",
+        "hls",
+        "snapshot",
+        "live video",
+        "viewer"
+      ],
+      "web": [
+        "SFenton/WebRTC",
+        "www/stream-manager.js",
+        "rtcStreamRetention.ts"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/Features/Cameras/CameraStreamPool.swift",
+            "symbol": "CameraStreamPool"
+          },
+          {
+            "path": "apple/Sources/HassUI/Features/Cameras/CameraLiveModel.swift",
+            "symbol": "CameraLiveModel"
+          },
+          {
+            "path": "apple/Sources/HassCore/Cameras/CameraStream.swift",
+            "symbol": "CameraStreamRetention"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Features/Cameras/**",
+        "apple/Sources/HassCore/Cameras/**"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "resume-lifecycle"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "content-gate",
+      "title": "Content gate",
+      "status": "current",
+      "doc": ".agents/patterns/content-gate.md",
+      "summary": "how a page waits for its content before showing it.",
+      "keywords": [
+        "loading",
+        "spinner",
+        "gate",
+        "skeleton",
+        "placeholder",
+        "first load",
+        "readiness",
+        "fade in"
+      ],
+      "web": [
+        "src/components/hass/recipes/useRecipeCollection.ts"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift",
+            "symbol": "UKContentGateView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/Loading/**",
+        "apple/Sources/HassDesign/PendingValue.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "design-tokens",
+      "title": "Design tokens",
+      "status": "current",
+      "doc": ".agents/patterns/design-tokens.md",
+      "summary": "the one set of spacing, radius, colour, ink, surface and type values every screen draws from.",
+      "keywords": [
+        "color",
+        "colour",
+        "spacing",
+        "radius",
+        "token",
+        "ink",
+        "surface",
+        "palette",
+        "typography",
+        "sf symbol",
+        "dark mode"
+      ],
+      "web": [
+        "src/styles/tokens.css"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/HassTokens.swift",
+            "symbol": "HassTokens"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/SegmentTokens.swift",
+        "apple/Sources/HassDesign/Color+RGB.swift",
+        "apple/Sources/HassDesign/SystemAppearance.swift",
+        "apple/Sources/HassDesign/SymbolMap.swift",
+        "apple/Sources/HassDesign/TimerInk.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGlass.swift",
+        "apple/Sources/HassDesign/HassRGB.swift",
+        "apple/Sources/HassDesign/HassRGB+Color.swift",
+        "apple/Sources/HassDesign/HassRGB+UIKit.swift",
+        "apple/Sources/HassDesign/HassTokensRGB.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "entity-tile",
+          "modal-sheet",
+          "page-backdrop"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "dynamic-grid",
+      "title": "Dynamic grid",
+      "status": "current",
+      "doc": ".agents/patterns/dynamic-grid.md",
+      "summary": "the responsive tile grid.",
+      "keywords": [
+        "grid",
+        "columns",
+        "tiles layout",
+        "responsive",
+        "span",
+        "minimum width",
+        "wrap"
+      ],
+      "web": [
+        "src/components/core/DynamicGrid.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/DynamicGridLayout.swift",
+            "symbol": "DynamicGridLayout"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/TileMinimumWidth.swift",
+        "apple/Sources/HassDesign/TileTextMeasure.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "action-tiles",
+          "hinge-avoidance",
+          "ticker"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "entity-tile",
+      "title": "Entity tile",
+      "status": "current",
+      "doc": ".agents/patterns/entity-tile.md",
+      "summary": "the glass tile used for entity controls.",
+      "keywords": [
+        "tile",
+        "glass tile",
+        "toggle",
+        "light",
+        "finish",
+        "tinted glass",
+        "family colour",
+        "accessory rail",
+        "thermostat tile"
+      ],
+      "web": [
+        "src/components/core/GlassTile.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift",
+            "symbol": "UKGlassTileView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/GlassTile*.swift",
+        "apple/Sources/HassDesign/TileAppearance.swift",
+        "apple/Sources/HassDesign/TileFaceStyle*.swift",
+        "apple/Sources/HassDesign/TileFinish.swift",
+        "apple/Sources/HassDesign/TileLayout.swift",
+        "apple/Sources/HassDesign/TileMetrics.swift",
+        "apple/Sources/HassDesign/TileSurface.swift",
+        "apple/Sources/HassDesign/TintedGlass*.swift",
+        "apple/Sources/HassDesign/ThermostatTileFace.swift",
+        "apple/Sources/HassDesign/ColorFamily*.swift",
+        "apple/Sources/HassDesign/FinishColor.swift",
+        "apple/Sources/HassDesign/QuickLinkPalette.swift",
+        "apple/Sources/HassDesign/RoomPalette.swift",
+        "apple/Sources/HassDesign/LitTile.swift",
+        "apple/Sources/HassDesign/BrightnessTile.swift",
+        "apple/Sources/HassDesign/TileFaceInk.swift",
+        "apple/Sources/HassDesign/TileTextFit.swift"
+      ],
+      "guards": [
+        {
+          "id": "no-light-toggle",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "(\\(\\s*\"light\"\\s*,\\s*\"toggle\"|domain:\\s*\"light\"\\s*,\\s*service:\\s*\"toggle\"|\\.toggle\\(\\s*\"light\\.)",
+          "allow": [],
+          "debt": {},
+          "message": "Light power is an explicit turn_on / turn_off from the shown state, never toggle (entity-tile)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "action-tiles",
+          "optimistic-actions",
+          "tap-feedback"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "floating-actions",
+      "title": "Floating actions and filter sheets",
+      "status": "current",
+      "doc": ".agents/patterns/floating-actions.md",
+      "summary": "page-level floating buttons (Add Task, Add Groceries, Scan Item, recipe/inventory Search, Sort, Filter) and the sort/filter sheets they open.",
+      "keywords": [
+        "floating",
+        "add task",
+        "search",
+        "sort",
+        "filter",
+        "filter sheet",
+        "bottom bar",
+        "fab"
+      ],
+      "web": [
+        "src/components/core/FloatingActionButton.tsx",
+        "src/components/shell/DashboardFloatingAction.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/FloatingActionBar.swift",
+            "symbol": "FloatingActionBar"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKForm.swift",
+            "symbol": "UKFilterSheet"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "header-edge-fade",
+      "title": "Header edge fade",
+      "status": "current",
+      "doc": ".agents/patterns/header-edge-fade.md",
+      "summary": "how scrolling content meets a page or modal header.",
+      "keywords": [
+        "header",
+        "navigation bar",
+        "scroll edge",
+        "fade",
+        "mask",
+        "pinned header",
+        "toolbar background",
+        "soft scroll edge",
+        "large title"
+      ],
+      "web": [
+        "src/hooks/ui/useScrollMask.ts",
+        "ModalTopEdgeFade"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/HeaderEdgeFade.swift",
+            "symbol": "HeaderEdgeFade"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/App/Page/UKHeaderEdgeFade.swift",
+        "apple/Sources/HassUI/UIKitPort/App/Page/UKFixedBarTitle.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKPinnedBar.swift"
+      ],
+      "guards": [
+        {
+          "id": "one-header-hide",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "toolbarBackground\\(\\.hidden|scrollEdgeEffectHidden\\(",
+          "allow": [
+            "apple/Sources/HassDesign/HeaderBackgroundHidden.swift",
+            "apple/Sources/HassDesign/HeaderEdgeFade*.swift"
+          ],
+          "debt": {},
+          "message": "Only the header fade hides the navigation bar background or the top scroll-edge effect (header-edge-fade R1)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "ticker"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "hinge-avoidance",
+      "title": "Hinge avoidance",
+      "status": "current",
+      "doc": ".agents/patterns/hinge-avoidance.md",
+      "summary": "how content stays off the iPhone Duo's hinge band and keeps a readable width on iPad.",
+      "keywords": [
+        "hinge",
+        "duo",
+        "fold",
+        "split",
+        "two pane",
+        "ipad width",
+        "readable width",
+        "centred column"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/HingeAvoidance.swift",
+            "symbol": "HingeAvoidance"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/App/Layout/UKHingedPanes.swift",
+            "symbol": "UKHingedPanes"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns.swift",
+            "symbol": "UKFoldColumns"
+          },
+          {
+            "path": "apple/Sources/HassUI/App/Layout/FoldColumns.swift",
+            "symbol": "FoldColumns"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/WindowHingeEnvironment.swift",
+        "apple/Sources/HassDesign/WindowFold.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "image-cache",
+      "title": "Image cache",
+      "status": "current",
+      "doc": ".agents/patterns/image-cache.md",
+      "summary": "how remote images load, cache and update.",
+      "keywords": [
+        "image",
+        "cache",
+        "remote image",
+        "artwork",
+        "snapshot",
+        "async image",
+        "thumbnail",
+        "decode"
+      ],
+      "web": [
+        "decoding=\"async\""
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/Images/ImagePipeline.swift",
+            "symbol": "ImagePipeline"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKImageViews.swift",
+            "symbol": "UKCachedImageView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/Images/**"
+      ],
+      "guards": [
+        {
+          "id": "no-async-image",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\bAsyncImage\\b",
+          "allow": [],
+          "debt": {},
+          "message": "Remote images load through ImagePipeline / CachedImage, never AsyncImage (image-cache)."
+        },
+        {
+          "id": "no-uiimage-data-in-features",
+          "glob": "apple/Sources/HassUI/Features/**/*.swift",
+          "regex": "UIImage\\(data:",
+          "allow": [],
+          "debt": {
+            "apple/Sources/HassUI/Features/Inventory/ScanCamera.swift": 1
+          },
+          "message": "Views do not decode images with UIImage(data:); decode through ImagePipeline (image-cache)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "avatar"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "image-card",
+      "title": "Image card",
+      "status": "current",
+      "doc": ".agents/patterns/image-card.md",
+      "summary": "a tappable card with a remote image, title and subtitle.",
+      "keywords": [
+        "recipe card",
+        "image card",
+        "photo card",
+        "product",
+        "carousel card"
+      ],
+      "web": [
+        "src/components/hass/recipes/RecipeCard.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/ImageCard.swift",
+            "symbol": "ImageCard"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "info-box",
+      "title": "Info box",
+      "status": "current",
+      "doc": ".agents/patterns/info-box.md",
+      "summary": "a tinted notice with a title and optional message.",
+      "keywords": [
+        "info box",
+        "banner",
+        "notice",
+        "warning",
+        "inline alert",
+        "confirmed state"
+      ],
+      "web": [
+        "src/components/core/InfoBox.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/InfoBox.swift",
+            "symbol": "InfoBox"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "media-remote",
+      "title": "Media remote",
+      "status": "current",
+      "doc": ".agents/patterns/media-remote.md",
+      "summary": "the media remote sheet (the 3×3 remote grid with power, and the Remote/Apps/Devices/Hue Sync sections) shared by every TV in the house.",
+      "keywords": [
+        "media remote",
+        "tv",
+        "remote",
+        "d-pad",
+        "apps tab",
+        "hue sync",
+        "power",
+        "projector"
+      ],
+      "web": [
+        "src/components/hass/MediaRemoteModalContent.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/Features/MediaRemote/MediaRemoteSheet.swift",
+            "symbol": "MediaRemoteSheet"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Features/MediaRemote/**",
+        "apple/Sources/HassCore/MediaRemote/**"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "content-gate",
+          "image-cache"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "modal-sheet",
+      "title": "Modal sheet",
+      "status": "current",
+      "doc": ".agents/patterns/modal-sheet.md",
+      "summary": "how web hash modals become native sheets.",
+      "keywords": [
+        "sheet",
+        "modal",
+        "detent",
+        "close button",
+        "dismiss",
+        "tab bar",
+        "sheet height",
+        "presentation",
+        "discard"
+      ],
+      "web": [
+        "src/components/core/ModalSheet.tsx",
+        "ModalTabNav.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKHassModal.swift",
+            "symbol": "UKHassModal"
+          },
+          {
+            "path": "apple/Sources/HassUI/Common/ModalTabBar.swift",
+            "symbol": "ModalTabBar"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/SheetChrome.swift",
+        "apple/Sources/HassDesign/SheetEditToolbar.swift",
+        "apple/Sources/HassDesign/SheetFit.swift",
+        "apple/Sources/HassDesign/SheetSubtitle.swift",
+        "apple/Sources/HassDesign/DiscardGuard.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift",
+        "apple/Sources/HassUI/Common/ModalTabSymbols.swift",
+        "apple/Sources/HassDesign/HassModal.swift",
+        "apple/Sources/HassDesign/DuoSheetPolicy.swift"
+      ],
+      "guards": [
+        {
+          "id": "detents-through-sheetfit",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.presentationDetents\\(",
+          "allow": [
+            "apple/Sources/HassDesign/SheetFit.swift"
+          ],
+          "debt": {},
+          "message": "Sheet detents come from hassSheet() / SheetFit, never a bare presentationDetents (modal-sheet)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "header-edge-fade",
+          "page-backdrop",
+          "scroll-fit"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "module-list",
+      "title": "Module list",
+      "status": "current",
+      "doc": ".agents/patterns/module-list.md",
+      "summary": "inset lists on the wallpaper (direction G, Controls: Lists).",
+      "keywords": [
+        "list",
+        "rows",
+        "inset list",
+        "module",
+        "row",
+        "toggle row",
+        "chevron row",
+        "direction g"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKModule.swift",
+            "symbol": "UKModuleListView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/Module.swift",
+        "apple/Sources/HassDesign/ModuleRow*.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKModuleToggleRow.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "motion",
+      "title": "Motion",
+      "status": "current",
+      "doc": ".agents/patterns/motion.md",
+      "summary": "the shared components that apply the app-wide motion rules.",
+      "keywords": [
+        "animation",
+        "motion",
+        "transition",
+        "reduce motion",
+        "spinner",
+        "haptic timing",
+        "duration",
+        "arrival",
+        "intro"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/Motion/MotionTokens.swift",
+            "symbol": "MotionTokens"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/Motion/**",
+        "apple/Sources/HassUI/UIKitPort/Design/UKMotion.swift",
+        "apple/Sources/HassDesign/AnimationsPaused.swift",
+        "apple/Sources/HassDesign/ArcSpinner.swift",
+        "apple/Sources/HassDesign/ArcProgressViewStyle.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift",
+        "apple/Sources/HassDesign/PrimaryButtonStyle.swift",
+        "apple/Sources/HassUI/UIKitPort/Common/UKSmoothContentSwap.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "optimistic-actions",
+      "title": "Optimistic actions",
+      "status": "current",
+      "doc": ".agents/patterns/optimistic-actions.md",
+      "summary": "how a control shows its new value at once and stays honest.",
+      "keywords": [
+        "optimistic",
+        "pending",
+        "service call",
+        "revert",
+        "failure",
+        "controller",
+        "stepper",
+        "toggle state"
+      ],
+      "web": [
+        "src/hooks/useOptimisticState.ts",
+        "src/components/hass/optimisticActionState.ts"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/Optimism/OptimisticActions.swift",
+            "symbol": "OptimisticActions"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/Optimism/**",
+        "apple/Sources/HassUI/UIKitPort/Design/UKControllerControls.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "option-picker",
+      "title": "Option picker",
+      "status": "current",
+      "doc": ".agents/patterns/option-picker.md",
+      "summary": "picking one value from a short list in a sheet.",
+      "keywords": [
+        "picker",
+        "options",
+        "input_select",
+        "hvac mode",
+        "choice",
+        "segmented"
+      ],
+      "web": [
+        "src/components/core/OptionPickerDialog.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/OptionPickerSheet.swift",
+            "symbol": "OptionPickerSheet"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "page-backdrop",
+      "title": "Page backdrop",
+      "status": "current",
+      "doc": ".agents/patterns/page-backdrop.md",
+      "summary": "the blurred photo of the house behind every page.",
+      "keywords": [
+        "backdrop",
+        "wallpaper",
+        "house photo",
+        "background",
+        "blur",
+        "page chrome"
+      ],
+      "web": [
+        "src/components/shell/AppShell.module.css",
+        ".backdrop"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/Common/HouseBackdrop.swift",
+            "symbol": "HouseBackdrop"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Common/BackdropRenderer.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "image-cache"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "page-indicator",
+      "title": "Page indicator",
+      "status": "current",
+      "doc": ".agents/patterns/page-indicator.md",
+      "summary": "the one page indicator for every paging row and carousel (Food suggestions, the Weather sheet, the hourly rows).",
+      "keywords": [
+        "page indicator",
+        "dots",
+        "carousel",
+        "paging",
+        "pages",
+        "hourly row"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/PageIndicator.swift",
+            "symbol": "PageIndicator"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "resume-lifecycle",
+      "title": "Resume lifecycle",
+      "status": "current",
+      "doc": ".agents/patterns/resume-lifecycle.md",
+      "summary": "the rule that a background and foreground leaves the app exactly as the first launch did, and the census that proves it.",
+      "keywords": [
+        "resume",
+        "foreground",
+        "background",
+        "launch",
+        "census",
+        "reconnect",
+        "cold launch"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassTelemetry/ResourceCensus.swift",
+            "symbol": "ResourceCensus"
+          },
+          {
+            "path": "apple/Sources/HassUI/Diagnostics/ResourceCensusProbe.swift",
+            "symbol": "ResourceCensusProbe"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift",
+            "symbol": "ukPagesByViewport"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "room-device-sheets",
+      "title": "Room device sheets",
+      "status": "current",
+      "doc": ".agents/patterns/room-device-sheets.md",
+      "summary": "the device sheets opened from room tiles: bathroom fan, air quality (purifier), humidifier, grill.",
+      "keywords": [
+        "fan",
+        "purifier",
+        "air quality",
+        "humidifier",
+        "grill",
+        "bathroom",
+        "device sheet"
+      ],
+      "web": [
+        "src/components/hass/*ModalContent.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift",
+            "symbol": "UKBathroomFanSheet"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift",
+            "symbol": "UKAirPurifierSheet"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Features/RoomDevices/**"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "entity-tile"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "room-overview-sheet",
+      "title": "Room overview sheet",
+      "status": "current",
+      "doc": ".agents/patterns/room-overview-sheet.md",
+      "summary": "the room-by-room sheets behind Home's Lights, Climate, Occupancy, Contact Sensors and Air Quality chips, and the room detail they push.",
+      "keywords": [
+        "room overview",
+        "lights sheet",
+        "occupancy",
+        "contact sensors",
+        "climate chip",
+        "room detail"
+      ],
+      "web": [
+        "src/pages/AtAGlancePage.tsx",
+        "LightsSheet",
+        "OccupancySheet",
+        "ContactSheet"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
+            "symbol": "RoomOverviewSheet"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Common/RoomOverview/**"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "schedule-date-fields",
+      "title": "Schedule date fields",
+      "status": "current",
+      "doc": ".agents/patterns/schedule-date-fields.md",
+      "summary": "date-and-time pickers for schedules.",
+      "keywords": [
+        "date",
+        "time",
+        "schedule",
+        "start",
+        "end",
+        "picker field",
+        "alarm time"
+      ],
+      "web": [
+        "NativePickerField",
+        "ScheduleConfirmationForm"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKScheduleDateFields.swift",
+            "symbol": "UKScheduleDateFields"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/ScheduleDate*.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "scroll-fit",
+      "title": "Scroll fit",
+      "status": "current",
+      "doc": ".agents/patterns/scroll-fit.md",
+      "summary": "a vertical scroll view scrolls and bounces only when its content is taller than its viewport.",
+      "keywords": [
+        "scroll",
+        "bounce",
+        "overflow",
+        "static",
+        "scroll view",
+        "pull to refresh"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/App/Page/UKScrollFit.swift",
+            "symbol": "UKScrollFit"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [
+        {
+          "id": "no-raw-bounce-behavior",
+          "glob": "apple/Sources/HassUI/**/*.swift",
+          "regex": "scrollBounceBehavior",
+          "allow": [],
+          "debt": {},
+          "message": "Use scrollsOnlyWhenNeeded() / pullToRefresh from HassDesign, not a per-view scrollBounceBehavior (scroll-fit)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "modal-sheet",
+          "status-rail"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "settings-section",
+      "title": "Settings section",
+      "status": "current",
+      "doc": ".agents/patterns/settings-section.md",
+      "summary": "a settings page's header + description + controls block, and the pieces that go in it.",
+      "keywords": [
+        "settings",
+        "section",
+        "form",
+        "header",
+        "footer",
+        "inline alert",
+        "selectable row",
+        "admin page"
+      ],
+      "web": [
+        "src/components/core/SettingsSection.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdParts.swift",
+            "symbol": "UKSectionBlock"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/Design/UKForm.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKSettingsSection.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift",
+        "apple/Sources/HassDesign/InsetGrouped*.swift",
+        "apple/Sources/HassDesign/SettingsSection.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "entity-tile"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "state-message",
+      "title": "State message",
+      "status": "current",
+      "doc": ".agents/patterns/state-message.md",
+      "summary": "the empty and error state (\"No Chores Due\", \"Unable to Load Recipes\").",
+      "keywords": [
+        "empty state",
+        "error state",
+        "no results",
+        "unable to load",
+        "retry",
+        "load failure",
+        "nothing to show"
+      ],
+      "web": [
+        "EmptyState"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift",
+            "symbol": "UKStateMessageView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Common/LoadFailure.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "status-pill",
+      "title": "Status pill",
+      "status": "current",
+      "doc": ".agents/patterns/status-pill.md",
+      "summary": "a read-only labeled value with a toned icon.",
+      "keywords": [
+        "status",
+        "pill",
+        "battery",
+        "next run",
+        "connection",
+        "read-only value",
+        "toned icon"
+      ],
+      "web": [
+        "src/components/core/StatusPill.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/StatusPill.swift",
+            "symbol": "StatusPill"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "status-rail",
+      "title": "Status rail",
+      "status": "current",
+      "doc": ".agents/patterns/status-rail.md",
+      "summary": "the horizontal chip row under a page title.",
+      "keywords": [
+        "chip",
+        "status rail",
+        "summary chip",
+        "chip row",
+        "weather chip",
+        "badge"
+      ],
+      "web": [
+        "src/components/hass/StatusRail.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKStatusRail.swift",
+            "symbol": "UKStatusRail"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/ChipRail*.swift",
+        "apple/Sources/HassDesign/ChipTint.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "room-overview-sheet"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "tap-feedback",
+      "title": "Tap feedback",
+      "status": "current",
+      "doc": ".agents/patterns/tap-feedback.md",
+      "summary": "the one haptic vocabulary and the failure feedback built on it.",
+      "keywords": [
+        "haptic",
+        "feedback",
+        "tap",
+        "sensory",
+        "vibration",
+        "failure feedback",
+        "announcement",
+        "voiceover announce"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/TapFeedback.swift",
+            "symbol": "TapFeedback"
+          },
+          {
+            "path": "apple/Sources/HassDesign/TransientFailure.swift",
+            "symbol": "TransientFailure"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/Announcer.swift",
+        "apple/Sources/HassUI/Controls/PercentSliderRow.swift"
+      ],
+      "guards": [
+        {
+          "id": "no-uikit-haptics",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "UI(Impact|Notification|Selection)FeedbackGenerator",
+          "allow": [
+            "apple/Sources/HassUI/UIKitPort/Design/UKDesignSupport.swift"
+          ],
+          "debt": {
+            "apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift": 1,
+            "apple/Sources/HassUI/UIKitPort/Design/UKClimateThermostatDial.swift": 1,
+            "apple/Sources/HassUI/UIKitPort/Design/UKPercentSliderRow.swift": 1,
+            "apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift": 1,
+            "apple/Sources/HassUI/UIKitPort/Design/UKThermostatDial.swift": 1
+          },
+          "message": "Haptics go through TapFeedback / tapFeedback(_:trigger:), never a UIKit feedback generator (tap-feedback)."
+        },
+        {
+          "id": "literal-sensory-feedback",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.sensoryFeedback\\(\\s*\\.",
+          "allow": [],
+          "debt": {},
+          "message": "Name the haptic with a TapFeedback constant (TapFeedback.step), not a literal feedback (tap-feedback)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "optimistic-actions"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "telemetry",
+      "title": "Telemetry",
+      "status": "current",
+      "doc": ".agents/patterns/telemetry.md",
+      "summary": "how the app measures its own performance.",
+      "keywords": [
+        "telemetry",
+        "performance",
+        "signpost",
+        "frame",
+        "metrickit",
+        "scroll cost",
+        "launch cost",
+        "census"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassTelemetry/Telemetry.swift",
+            "symbol": "Telemetry"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassTelemetry/**",
+        "apple/Sources/HassUI/Diagnostics/**",
+        "apple/Sources/HassDesign/PerfSwitches.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "thermostat-dial",
+      "title": "Thermostat dial",
+      "status": "current",
+      "doc": ".agents/patterns/thermostat-dial.md",
+      "summary": "the circular setpoint dial for `climate` entities.",
+      "keywords": [
+        "thermostat",
+        "dial",
+        "setpoint",
+        "climate",
+        "heat",
+        "cool",
+        "ring",
+        "target temperature"
+      ],
+      "web": [
+        "src/components/hass/CircularControlDial.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift",
+            "symbol": "ThermostatDial"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKClimateThermostatDial.swift",
+            "symbol": "UKClimateThermostatDial"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/ThermostatDial/**",
+        "apple/Sources/HassUI/Controls/Thermostat/**"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "optimistic-actions"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "ticker",
+      "title": "Ticker label",
+      "status": "current",
+      "doc": ".agents/patterns/ticker.md",
+      "summary": "one line of text that scrolls through its column when it is too wide, instead of truncating.",
+      "keywords": [
+        "ticker",
+        "marquee",
+        "scrolling text",
+        "truncate",
+        "one line",
+        "overflow text"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/TickerLabel.swift",
+            "symbol": "TickerLabel"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/TickerClock.swift",
+        "apple/Sources/HassDesign/TickerPlan.swift",
+        "apple/Sources/HassDesign/PausesTickersWhileScrolling.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "action-tiles",
+          "header-edge-fade"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "vacuum-sheet",
+      "title": "Vacuum sheet",
+      "status": "current",
+      "doc": ".agents/patterns/vacuum-sheet.md",
+      "summary": "the robot vacuum sheet (map, status, Controls/Rooms/Auto-Clean/Dock/Info tabs, area editor, cleaning report).",
+      "keywords": [
+        "vacuum",
+        "robot",
+        "clean",
+        "rooms",
+        "dock",
+        "auto-clean",
+        "area editor",
+        "cleaning report"
+      ],
+      "web": [
+        "src/components/hass/VacuumCard.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumSheet.swift",
+            "symbol": "UKVacuumSheet"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Features/Vacuums/Vacuum*.swift",
+        "apple/Sources/HassCore/Vacuums/Vacuum*.swift",
+        "apple/Sources/HassUI/Features/Vacuums/VacuumSheet.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "valetudo-map",
+      "title": "Mapped map",
+      "status": "current",
+      "doc": ".agents/patterns/valetudo-map.md",
+      "summary": "decoding and drawing a Mapped map (rooms, walls, robot, dock, paths, areas).",
+      "keywords": [
+        "map",
+        "valetudo",
+        "floor plan",
+        "walls",
+        "robot position",
+        "no-go",
+        "path"
+      ],
+      "web": [
+        "src/components/hass/ValetudoMapCard.tsx"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKValetudoMapView.swift",
+            "symbol": "UKValetudoMapView"
+          },
+          {
+            "path": "apple/Sources/HassCore/Vacuums/ValetudoMap.swift",
+            "symbol": "ValetudoMap"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/Vacuums/ValetudoMap*.swift",
+        "apple/Sources/HassCore/Vacuums/MapAreaEdit.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "weather",
+      "title": "Weather card and sheet",
+      "status": "current",
+      "doc": ".agents/patterns/weather.md",
+      "summary": "the Home weather card, its 24-hour carousel and the Weather sheet, plus the logic under them.",
+      "keywords": [
+        "weather",
+        "forecast",
+        "hourly",
+        "wind",
+        "rain",
+        "precipitation",
+        "temperature",
+        "briefing",
+        "aqi"
+      ],
+      "web": [
+        "src/components/hass/WeatherSummary.tsx",
+        "useWeatherForecasts.ts",
+        "weatherPresentation.ts",
+        "weatherDayBriefing.ts"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCard.swift",
+            "symbol": "UKWeatherCardView"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift",
+            "symbol": "UKWeatherSheet"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCarousel.swift",
+            "symbol": "UKWeatherCarouselView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/Features/Home/Weather/**",
+        "apple/Sources/HassCore/Weather/**",
+        "apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift",
+        "apple/Sources/HassDesign/PagedRowMetrics.swift"
+      ],
+      "guards": [
+        {
+          "id": "static-let-reads-house-facade",
+          "glob": "apple/Sources/**/*.swift",
+          "statement": "\\bstatic let\\b",
+          "facades": {
+            "Admin": [
+              "powerRecoveryAutomation",
+              "presenceRooms",
+              "relayControlEntityId",
+              "relayTiles",
+              "securityTiles",
+              "showSpecificTiles"
+            ],
+            "AirPurifierConfig": [
+              "all"
+            ],
+            "BathroomFanConfig": [
+              "all"
+            ],
+            "ChoreQuickLinks": [
+              "links"
+            ],
+            "ChoresConfig": [
+              "adminTodo",
+              "adminTodoEntityId",
+              "adminTodoUploadPath",
+              "chores",
+              "groceries",
+              "groceryEntityId",
+              "homeImprovementChores",
+              "pages",
+              "people",
+              "quickLinks",
+              "unassignedChores",
+              "vacationEmptyDescription",
+              "vacationModeEntityId"
+            ],
+            "ClimateConfig": [
+              "awayModeEntityId",
+              "contactSensors",
+              "coolColorHex",
+              "ecoAwayEntityId",
+              "ecoAwayThermostatEntityId",
+              "ecoCriticalEntityId",
+              "ecoModeEntityId",
+              "globalThermostatEntityId",
+              "heatColorHex",
+              "homeAwayEntityId",
+              "homeAwayReasonEntityId",
+              "hubEntityId",
+              "integrationEntityId",
+              "predictiveAllowAwayEntityId",
+              "predictiveAutoAdjustEntityId",
+              "predictiveComfortEntityId",
+              "predictiveHvacModeChangesEntityId",
+              "predictiveSensorEntityId",
+              "rooms",
+              "trackSelectCriticalOption",
+              "trackSelectedEntityId",
+              "vacationModeEntityId"
+            ],
+            "ClimateController": [
+              "hubFanKey",
+              "hubModeKey"
+            ],
+            "CommandActions": [
+              "powerRecovery"
+            ],
+            "CustomLightsConfig": [
+              "customMode",
+              "fallbackModes",
+              "frontYardTitle",
+              "groupEntityId",
+              "lightingModeTitle",
+              "lights",
+              "manualControlEntityId",
+              "modeEntityId"
+            ],
+            "Empty": [
+              "vacation"
+            ],
+            "EverShelfClient": [
+              "groceryListEntityId"
+            ],
+            "FoodConfig": [
+              "allFoodTint",
+              "allRecipesTint",
+              "expiredItemsEntityId",
+              "expiringSoonEntityId",
+              "spaces",
+              "totalItemsEntityId"
+            ],
+            "GrillConfig": [
+              "bearGrills"
+            ],
+            "Groceries": [
+              "listEntityId"
+            ],
+            "HomeConfig": [
+              "cameras",
+              "guestToggleRules",
+              "guestToggles",
+              "lightGroups",
+              "statusChips",
+              "weatherEntityId"
+            ],
+            "HouseholdAway": [
+              "commandService",
+              "statusEntityId"
+            ],
+            "HouseholdSettingsConfig": [
+              "icons",
+              "toggleEntityIds"
+            ],
+            "HouseholdTileActions": [
+              "autoLockEntityId",
+              "doors"
+            ],
+            "HumidifierConfig": [
+              "all"
+            ],
+            "Vehicle": [
+              "tiles"
+            ],
+            "MasterBedroom": [
+              "beds",
+              "hotFlashBrokerScript",
+              "householdAwayEntityId",
+              "householdAwayScript",
+              "scheduleEntityId",
+              "scheduleSetTopic",
+              "wakeLight"
+            ],
+            "MediaPageConfig": [
+              "sections"
+            ],
+            "MediaRemotes": [
+              "all",
+              "remoteIdByMediaPlayer",
+              "sourceSelectRemote",
+              "sourceSelectRemoteId"
+            ],
+            "MusicRoom": [
+              "activeMediaSourceEntityId",
+              "controlEntityId",
+              "hueSyncBrightnessEntityId",
+              "hueSyncHdmiInputEntityId",
+              "hueSyncHdmiStatusEntityIds",
+              "hueSyncIntensityEntityId",
+              "hueSyncLightSyncEntityId",
+              "hueSyncModeEntityId",
+              "hueSyncPowerEntityId",
+              "mediaSourceEntityId",
+              "remoteEntityId",
+              "volumeEntityId",
+              "xboxActiveHold",
+              "xboxActiveStates",
+              "xboxEntityId",
+              "xboxHdmiStatusEntityId",
+              "xboxLinkedState"
+            ],
+            "ProfileSummary": [
+              "expiredFoodEntityId"
+            ],
+            "QuickLinks": [
+              "expiringSoonEntityId",
+              "foodSpaceEntityIds",
+              "items",
+              "securityEntityId",
+              "totalItemsEntityId"
+            ],
+            "RecipeServiceData": [
+              "groceryTodoEntityId"
+            ],
+            "Resident": [
+              "allCases"
+            ],
+            "Revert": [
+              "fortnite",
+              "hueSync",
+              "server",
+              "tv",
+              "windowsPC",
+              "xbox",
+              "xboxOff"
+            ],
+            "RoomGroups": [
+              "allClimate",
+              "allContacts",
+              "allLights",
+              "allOccupancy"
+            ],
+            "RoomNavigation": [
+              "accessIncrementScript",
+              "items",
+              "paletteIndex"
+            ],
+            "RoomOverview": [
+              "airQualityRooms",
+              "contactEntityIds",
+              "lightEntityIds"
+            ],
+            "RoomsConfig": [
+              "dishwasherProgramEntityId",
+              "pages"
+            ],
+            "ScriptPowerActions": [
+              "all",
+              "toggleScript"
+            ],
+            "SecurityConfig": [
+              "alarmEntityId",
+              "contactSensorsEntityId",
+              "controlTiles",
+              "frontDoorLockEntityId",
+              "leftGarageDoorEntityId",
+              "rightGarageDoorEntityId",
+              "showsVehicleSection",
+              "vehicleLockEntityId",
+              "vehicleTiles"
+            ],
+            "SecurityPage": [
+              "chips",
+              "doorTiles"
+            ],
+            "Source": [
+              "fortnite",
+              "off",
+              "server",
+              "tv",
+              "windowsPC",
+              "xbox"
+            ],
+            "SpecialDeviceModes": [
+              "highAqiTile"
+            ],
+            "SprinklersConfig": [
+              "controllers",
+              "defaultStartTime",
+              "lowBatteryPercent",
+              "visibilityEntityId"
+            ],
+            "TileActionCatalog": [
+              "allConfiguredTiles"
+            ],
+            "UKSecurityStatusRail": [
+              "chips"
+            ],
+            "UKSecurityViewController": [
+              "doorTiles"
+            ],
+            "Vacation": [
+              "checklist",
+              "endEntityId",
+              "invalidDatesPendingEntityId",
+              "modeEntityId",
+              "startEntityId"
+            ],
+            "Vacuums": [
+              "all",
+              "autoCleanControls"
+            ],
+            "WakeLight": [
+              "sectionTitle",
+              "sheet",
+              "title"
+            ],
+            "WeatherEntities": [
+              "airQuality",
+              "sun",
+              "weather"
+            ]
+          },
+          "allow": [],
+          "debt": {},
+          "message": "A static let (one line or many) that reads a flipped house-config facade freezes the first value until relaunch; use a computed static var (architecture.md, House config facades)."
+        },
+        {
+          "id": "unique-keys-in-facade-files",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\buniqueKeysWithValues\\b",
+          "facadesFrom": "static-let-reads-house-facade",
+          "onlyFilesReadingFacades": true,
+          "allow": [],
+          "debt": {},
+          "message": "Dictionary(uniqueKeysWithValues:) traps on a repeated key, and a file that reads a house-config facade builds it from server data; use uniquingKeysWith: { first, _ in first }."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "page-indicator",
+          "ticker"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "scroll-frame-rate",
+      "title": "Scroll frame rate",
+      "status": "current",
+      "doc": ".agents/patterns/scroll-frame-rate.md",
+      "summary": "no app refresh-rate request while scrolling (iOS manages it); scroll surfaces report to ScrollActivity.",
+      "keywords": [
+        "frame rate",
+        "120 hz",
+        "promotion",
+        "refresh rate",
+        "scroll",
+        "uiupdatelink",
+        "display link"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Foundation/UKScrollRate.swift",
+            "symbol": "UKScrollRate"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/ActiveWindowScene.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "telemetry"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "swipe-row",
+      "title": "Swipe row",
+      "status": "current",
+      "doc": ".agents/patterns/swipe-row.md",
+      "summary": "swipe actions on rows of a plain stack (iOS 18+), the List's on iOS 17.",
+      "keywords": [
+        "swipe",
+        "swipe actions",
+        "row",
+        "leading swipe",
+        "trailing swipe",
+        "full swipe",
+        "chores",
+        "groceries"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKSwipeActions.swift",
+            "symbol": "UKSwipeAction"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "module-list",
+          "settings-section"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "check-row",
+      "title": "Check row",
+      "status": "current",
+      "doc": ".agents/patterns/check-row.md",
+      "summary": "the one checkable row: a check circle, the text, an optional trailing accessory.",
+      "keywords": [
+        "check row",
+        "checkbox",
+        "checklist",
+        "chore row",
+        "check circle",
+        "edit button",
+        "room rules",
+        "tracking rooms"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassDesign/CheckRow.swift",
+            "symbol": "CheckRow"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/CheckRow.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKCheckRow.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "module-list"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "modal-inventory",
+      "title": "Modal inventory",
+      "status": "current",
+      "doc": ".agents/patterns/modal-inventory.md",
+      "summary": "every modal in the app, how it is presented, what it holds, how it behaves in each pose, and the bugs found.",
+      "keywords": [
+        "modal",
+        "sheet",
+        "pose",
+        "detent",
+        "Duo sheet",
+        "modal inventory"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/App/Page/UKShellSheet.swift",
+            "symbol": "UKShellSheet"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/App/Page/UKShellSheet.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "modal-sheet"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "page-base",
+      "title": "Page base",
+      "status": "current",
+      "doc": ".agents/patterns/page-base.md",
+      "summary": "the one way a page, a pane or a tab hosts its scrolling body, spaces it, pins a bar under it and gets its ground.",
+      "keywords": [
+        "page base",
+        "page",
+        "pane",
+        "spacing",
+        "pinned bar",
+        "scroll body",
+        "ground"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/App/Page/UKPageBody.swift",
+            "symbol": "UKPageScrollView"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/App/Page/UKPageViewController.swift",
+            "symbol": "UKPageViewController"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/App/Page/UKPageBody.swift",
+        "apple/Sources/HassUI/UIKitPort/App/Page/UKPageViewController.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "rows",
+      "title": "Rows",
+      "status": "current",
+      "doc": ".agents/patterns/rows.md",
+      "summary": "the one list row: slots for a leading glyph, check or avatar, the text and a trailing accessory or chevron.",
+      "keywords": [
+        "row",
+        "list row",
+        "module row",
+        "form cell",
+        "settings cell",
+        "chevron",
+        "accessory"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKRow.swift",
+            "symbol": "UKRowView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/Design/UKRow.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "check-row",
+          "module-list"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    }
+  ]
+}

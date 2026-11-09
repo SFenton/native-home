@@ -1,0 +1,6 @@
+{
+  "name": "fenton-ui",
+  "description": "S+H journeys: slim everything except push, Photos (feedback attachments), App Intents, and widgets / Live Activities",
+  "except": ["photos", "widgets"],
+  "keep": ["com.apple.apsd", "com.apple.linkd"]
+}

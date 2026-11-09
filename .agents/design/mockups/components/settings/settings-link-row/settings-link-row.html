@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings link row · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  /* A list with the given rows on each surface (page: the module; sheet: the system cell). */
+  function swatch(rows, o) { return function (ctx) { return SA.surfaces(ctx, function (surface) { return SA.section(Object.assign({ rows: rows(ctx) }, o)); }); }; }
+  function row(ctx, o) { return SA.link(Object.assign({ ctx: ctx }, o)); }
+
+  Mock.mount({
+    kind: 'component', id: 'settings-link-row', title: 'Settings link row (glyph, title, wrapping subtitle)', area: 'settings', status: 'shipped', frame: false,
+    summary: 'SettingsLinkRow: one Settings topic as a list row: a grey glyph (or the small app icon preview), a 17 pt title, a 15 pt wrapping subtitle and the disclosure chevron. At accessibility sizes the glyph sits above the text. Drawn on the page (module over the wallpaper) and in a sheet (system cell).',
+    source: ['apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconPreview.swift'],
+    spec: ['.agents/patterns/settings-section.md', '.agents/patterns/module-list.md', '.agents/pages/settings/ios.md'],
+    patterns: ['settings-section', 'module-list'],
+    hig: ['Lists and tables', 'Typography', 'Accessibility'],
+    entities: [],
+    kitComponents: ['ModuleList', 'ModuleRow'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Glyph, title, subtitle, chevron', render: swatch(function (ctx) { return [row(ctx, { title: 'Vacation', subtitle: 'Set away dates and prepare the house for vacation.', symbol: 'airplane' }), row(ctx, { title: 'Admin Controls', subtitle: 'Presence-Based Toggles, Automation Overrides, and More', symbol: 'person.badge.shield.checkmark' })]; }) },
+      'no-chevron': { title: 'Inside a NavigationLink', note: 'showsChevron is false because the link draws its own disclosure; the chevron looks the same', render: swatch(function (ctx) { return [row(ctx, { title: 'Performance', subtitle: 'Scrolling, loading and image cache measurements on this device.', symbol: 'gauge.with.dots.needle.67percent', chevron: false })]; }) },
+      'app-icon': { title: 'With the app icon preview', note: 'the 30 pt installed icon in the 34 pt glyph slot; the row is "App Icon, <pair name>"', render: swatch(function (ctx) { return [row(ctx, { title: 'App Icon', subtitle: 'Navy + Sky', symbol: 'app.fill', appIcon: 'navySky', chevron: false }), row(ctx, { title: 'App Icon', subtitle: 'Midnight + Gold', symbol: 'app.fill', appIcon: 'midnightGold', chevron: false })]; }) },
+      'long-text': { title: 'Long title and subtitle', note: 'both wrap (fixedSize vertical); the row grows and nothing truncates', render: swatch(function (ctx) { return [row(ctx, { title: 'Home Assistant Settings and Account Options', subtitle: 'Access more in-depth Home Assistant details and settings, including the server, the signed-in account and sign-out.', symbol: 'gearshape' })]; }) },
+      'feedback': { title: 'Feedback rows', note: 'rows that present a sheet draw no chevron: a chevron means the row pushes (showsChevron defaults to false)', render: swatch(function (ctx) { return [row(ctx, { title: 'Report an Issue', subtitle: 'Something broken? Send a report with screenshots or a recording.', symbol: 'ladybug', chevron: false }), row(ctx, { title: 'Request a Feature', subtitle: 'Suggest something new or a change to the app.', symbol: 'lightbulb', chevron: false })]; }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the glyph (or icon preview) moves above the title and subtitle so the text keeps the row’s width', render: swatch(function (ctx) { return [row(ctx, { title: 'Vacation', subtitle: 'Set away dates and prepare the house for vacation.', symbol: 'airplane' }), row(ctx, { title: 'App Icon', subtitle: 'Navy + Sky', symbol: 'app.fill', appIcon: 'navySky' })]; }) },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'One element', note: 'The row combines its children: "Vacation, Set away dates and prepare the house for vacation." (title then subtitle); the glyph and chevron are hidden. The identifier is set by the caller (settings.vacation, settings.topic.<id>, settings.appIcon ...).' },
+      { rule: 'Targets', note: 'minHeight 44 pt plus 4 pt padding either side; the whole row is the hit area (contentShape).' },
+      { rule: 'Ink', note: 'Title is the primary ink; subtitle and glyph the secondary ink (white at 72% on a page; the sheet’s secondary in a sheet). Footers and headers around it use white at 85% on the wallpaper.' },
+      { rule: 'Dynamic Type', note: 'At AX sizes the glyph sits above the text (the Vacation row grew to 749 pt on the folded Duo at AX5 before this, 2026-10-11) and every text wraps.' },
+      { rule: 'Selected', note: 'A caller adds the selected trait when the row’s topic is open beside the list (household topics on a split window).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists and tables: a disclosure indicator means push', verdict: 'pass', note: 'SettingsLinkRow.showsChevron now defaults to false; only the household topic rows set it (SettingsScreen.swift). Home Assistant, Feedback and App Icon rows draw no accessory.', by: 'apple-hig skill' },
+        { rule: 'Typography: Dynamic Type and wrapping', verdict: 'pass', note: 'Title body and subtitle subheadline wrap with fixedSize vertical, and the icon moves above the text at accessibility sizes (:121-133).', by: 'apple-hig skill' },
+        { rule: 'Buttons: 44 pt target and whole-row hit area', verdict: 'pass', note: 'minHeight HassTokens.minTarget and contentShape(Rectangle()) (:143-145).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: one element, decorative glyph hidden', verdict: 'pass', note: 'accessibilityElement(children: .combine) with the glyph and chevron hidden; the App Icon preview is hidden and its name is the subtitle (:140, :159, :146; AppIconPreview.swift:24).', by: 'apple-hig skill' },
+        { rule: 'Color: ink hierarchy', verdict: 'pass', note: 'Title uses Ink.primary, subtitle and glyph Ink.secondary; only the chevron is .tertiary (:126, :132, :139, :157).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Design: Label for icon and text', verdict: 'pass', note: 'Not applicable: the row\'s HStack carries the accessibility-size switch (icon above text) that a Label style would have to re-implement; the chevron weight is now HassTokens.Typography.footnoteEmphasis.', by: 'swiftui-pro skill' },
+        { rule: 'Design: scattered fontWeight', verdict: 'pass', note: 'Fixed: the chevron is HassTokens.Typography.footnoteEmphasis (SettingsScreen.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Views: private computed helper for the icon', verdict: 'pass', note: 'One small @ViewBuilder icon property tied to body (:149-161), the allowed case.', by: 'swiftui-pro skill' },
+        { rule: 'API: foregroundStyle with semantic styles', verdict: 'pass', note: 'Uses foregroundStyle(HassTokens.Ink.…) and .tertiary; no foregroundColor.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Variants: the five states are the row’s configurations (glyph, in a NavigationLink, with the app icon preview, long text, Feedback). The seventh Settings row type, PercentSliderRow, is in appearance-settings-section.',
+      'Drawn with SA.link (pages/settings/_settings-account.js); promote to kit as Mock.components.SettingsLinkRow. The separator inset (text start) is the kit ModuleList’s; the real list’s system separator inset is unverified.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

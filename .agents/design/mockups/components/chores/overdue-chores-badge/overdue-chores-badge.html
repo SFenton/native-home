@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overdue chores badge · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/chores/_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  function parts(ctx) {
+    var tab = function (n) { return K.TabBar({ selected: 'chores', badges: { chores: n } }); };
+    var row = function (cap, node) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' } }, h('span', { style: { font: '600 12px var(--font)', color: 'rgba(255,255,255,.7)' } }, cap), node); };
+    var fly = function (n) { var f = K.NavigationFlyout({ selected: 'chores', badges: { chores: n } }); var nav = f.querySelector('nav'); nav.style.cssText = 'position:static;transform:none;width:300px;height:auto;padding:12px;border-radius:24px'; return nav; };
+    var wall = h('div.ui-wall'), col = h('div', { style: { position: 'absolute', inset: '70px 0 0 0', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '18px', overflow: 'hidden', zIndex: 2 } },
+      row('Tab bar: 0 (no badge)', tab(0)), row('Tab bar: 3', tab(3)), row('Tab bar: 12 (the system badge prints 12; the kit caps at 9+)', tab(12)),
+      row('Profile: overdue plus expired food, 9+ past nine', h('div', { style: { display: 'flex', gap: '14px' } }, K.ProfileButton({ badge: 3 }), K.ProfileButton({ badge: 12 }), K.ProfileButton({}))),
+      row('Flyout row: 3', fly(3)));
+    return h('div.ui-page', wall, col);
+  }
+  function pg(ctx, o) { return Mock.page(ctx, Object.assign({ title: 'Home', section: 'home', body: [K.ChipRail({ chips: Mock.chips.home() })] }, o)); }
+
+  Mock.mount({
+    kind: 'component', id: 'overdue-chores-badge', title: 'Overdue chores badge (tab, flyout, profile)', area: 'chores', status: 'shipped', frame: true,
+    summary: 'The count of the signed-in resident\'s overdue chores, published to the shell by a view modifier: a red badge on the Chores tab (iPhone and unfolded-portrait Duo tab bar, Duo vertical rail), a capsule on the Chores row of the flyout (iPad, and the menu button on iPhone and the unfolded Duo in portrait) and, with expired food, on the Profile button. Nothing for a viewer who is not a resident.',
+    source: ['apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassCore/Profile/ProfileSummary.swift'],
+    spec: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md', '.agents/design/apple/ipados.md'], patterns: [],
+    hig: ['Tab bars', 'Badging'], entities: ['todo.demo_todo_10', 'todo.demo_todo_13'],
+    kitComponents: ['TabBar', 'NavigationFlyout', 'ProfileButton', 'RailGroup'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'parts': { title: 'The three surfaces, by count', note: '0 hides the badge; the tab and flyout print the number; Profile caps at 9+', render: parts },
+      'tab-3': { title: 'Three overdue: iPhone tab bar, Duo rail, header', note: 'the tab bar (or the Duo rail) carries the badge and the Profile button carries the same count', render: function (d) { return pg(d, { choresBadge: 3, badge: 3 }); } },
+      'none': { title: 'Nothing overdue', note: 'count 0 hides the tab badge; Profile has no badge unless food expired', render: function (d) { return pg(d, {}); } },
+      'flyout': { title: 'Flyout open (iPad, iPhone and unfolded-portrait Duo hamburger)', note: 'the Chores row gets a red capsule with the number; spoken "Chores, 3 overdue"', render: function (d) { return pg(d, { choresBadge: 3, badge: 3, flyoutOpen: true }); } },
+      'non-resident': { title: 'Signed in as neither resident', note: 'the modifier publishes nil: no badge anywhere (the web shows none either)', render: function (d) { return pg(d, {}); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the badge keeps its size (a system badge); the Profile badge is a fixed disc', render: function (d) { return pg(d, { choresBadge: 3, badge: 3 }); } },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'Spoken', note: 'Flyout row: "Chores, 3 overdue" (NavigationMenu.accessibilityLabel, the capsule itself hidden). The tab bar item is the system item: Label("Chores") with .badge(3), which VoiceOver speaks as the tab name then the badge value, not "overdue" (MainTabView.swift line 114 does not apply the label). Profile: "Profile, Alex Morgan, 3 items need attention" (its count adds expired food).' },
+      { rule: 'Not colour alone', note: 'The badge is a number on red; the count is also in the spoken label and Your Summary\'s Overdue Chores tab.' },
+      { rule: 'One source', note: 'The tab, the flyout, the Profile button, Your Summary and the resident page all read the same Past Due list\'s open count (ios.md), so they cannot disagree.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Badging: a badge for a count that needs attention, none at zero", verdict: "pass", note: "NavigationMenu.badge returns nil for 0 or nil (AppSection.swift lines 81-85) and the tab passes ?? 0 to .badge (MainTabView.swift line 115).", by: "apple-hig skill" },
+        { rule: "Tab bars: use the system badge", verdict: "pass", note: "TabView with tabItem Label and .badge(Int) (MainTabView.swift lines 111-116), so the iPhone bar, the iPad bar and the Duo rail place it.", by: "apple-hig skill" },
+        { rule: "Accessibility: the badge is spoken with its meaning", verdict: "pass", note: "MainTabView tabItem Label now carries NavigationMenu.accessibilityLabel (\"Chores, 3 overdue\"), as the flyout row does.", by: "apple-hig skill" },
+        { rule: "Badging: cap large numbers", verdict: "pass", note: "One cap everywhere: NavigationMenu.badgeText(for:overdue:) feeds the TabView badge and the flyout capsule through ProfileSummary.badgeText (\"9+\"); ModalTabBarStyle.badgeText delegates to it.", by: "apple-hig skill" },
+        { rule: "Color: do not rely on colour alone", verdict: "pass", note: "A number on a red capsule; the count is also in Your Summary's Overdue Chores tab and the Profile value.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Data flow: publish with onChange(of:initial:)", verdict: "pass", note: "OverdueChoresBadge.body uses onChange(of: overdue, initial: true) to set navigator.overdueChores (OverdueChoresBadge.swift lines 21-25).", by: "swiftui-pro skill" },
+        { rule: "Design: fonts and sizes in the badge", verdict: "pass", note: "Not applicable: the badge sits in a fixed 16 to 18 pt disc with Dynamic Type capped on purpose, so 11 pt caption2 bold is the smallest legible size; the flyout capsule is .caption.bold.", by: "swiftui-pro skill" },
+        { rule: "Views: modifier on a stack in the shell", verdict: "pass", note: "The ViewModifier is applied once in MainTabView, so the badge works before the Chores tab is opened (line 48).", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Corrected 2026-10-23 by the skill review: the a11y line used to say the tab speaks "Chores, 3 overdue"; that label is applied only in NavigationFlyout.swift line 137, the TabView item uses the system badge.',
+      'The kit\'s TabBar prints "9+" past nine, but TabView.badge(Int) prints the number (and the flyout capsule prints the full number); only the Profile button uses ProfileSummary.badgeText ("9+"). Drawn as the kit has it; promote a fix to the kit if exact is wanted.',
+      'The badge modifier is applied in MainTabView, so it works before the Chores tab is ever opened; the viewer id is cached in UserDefaults (chores.viewerUserId) and refreshed from auth/current_user.',
+      'A viewer who is not a resident (a guest account) gets no badge and no personal copy anywhere.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: tab, rail, flyout and Profile in context and by count.' }],
+  });
+
+})();
+</script></body></html>

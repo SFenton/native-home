@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ThermostatHubPill · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, SC = window.SecClimate;
+  function P(label, o, note, tall) { return { label: label, note: note, width: '460px', surfaces: ['page'], build: function (s, ctx) { var n = SC.hub(Object.assign({ ctx: ctx }, o)); if (tall) n = h('div', { style: { paddingBottom: tall } }, n); return n; } }; }
+  function S(title, items) { return SC.swatchState(title, { surfaces: ['page'], min: 400, items: items }); }
+
+  Mock.mount({
+    kind: 'component', id: 'thermostat-hub-pill', title: 'ThermostatHubPill and HubPicker', area: 'climate', status: 'shipped', frame: false,
+    summary: 'The physical thermostat on the Climate page: one thin module row with the hub glyph (tinted by hvac_action), its name and state, and the HVAC mode and fan as two pop-up menus. At accessibility sizes the menus drop under the text and show their value.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateParts.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Climate/ClimateController.swift', 'apple/Sources/HassCore/Config/ClimateConfig.swift'],
+    spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/design/direction-g.md'],
+    patterns: ['optimistic-actions', 'motion'],
+    hig: ['Pop-up buttons', 'Menus', 'Color', 'Dynamic Type', 'Buttons'],
+    entities: ['climate.demo_contact_1'],
+    kitComponents: [],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': S('Heat, heating', [P('Heat · heating', { mode: 'heat', action: 'heating' }, 'glyph orange #FF7A2F while heating')]),
+      'actions': S('Glyph by hvac_action', [P('Heating', { mode: 'heat', action: 'heating' }), P('Cooling', { mode: 'cool', action: 'cooling' }, 'glyph teal #3FC6D2'), P('Idle (Heat/Cool)', { mode: 'heat_cool', action: 'idle' }, 'the state text title-cases heat_cool as "Heat Cool"; the menu label is "Heat/Cool"; the glyph stays secondary')]),
+      'off': S('Off', [P('Off', { mode: 'off', action: 'idle' })]),
+      'no-fan': S('No fan modes', [P('Fan menu hidden', { mode: 'heat', action: 'heating', noFan: true }, 'an empty fan_modes list hides the fan picker')]),
+      'menu-mode': S('Mode menu open', [P('Mode menu', { mode: 'heat', action: 'heating', menu: 'mode' }, 'a Menu holding an inline Picker: the current choice checked, each option with its glyph (Off power, Heat flame, Cool snowflake, Heat/Cool sun and snow)', '230px')]),
+      'menu-fan': S('Fan menu open', [P('Fan menu', { mode: 'heat', action: 'heating', menu: 'fan' }, 'Auto and On, each with the fan glyph', '130px')]),
+      'unavailable': S('Unavailable', [P('Unavailable', { unavailable: true, mode: 'unavailable', action: 'idle' }, 'the picker has no options, so the mode menu is disabled (dimmed) and the fan picker is hidden')]),
+      'ax5': { title: 'Accessibility 5 text size (stacked)', override: { ts: 'ax5' }, note: 'the menus drop under the text and show their value instead of a glyph', render: function (ctx) { return SC.swatches(ctx, { surfaces: ['page'], min: 400, items: [P('Stacked', { mode: 'heat', action: 'heating' })] }); } },
+    },
+
+    motion: [
+      { id: 'glyph-tint', what: 'The thermostat starts heating, then cooling: the glyph takes the family colour', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'ThermostatHubPill .stateForeground("ThermostatHubPill", ClimateStyle.tint(action:)); motion-components.md Climate row', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var g = stage.querySelector('.sc-hub .gl'); g.classList.remove('heat'); return Mock.sleep(Mock.anim.ms.state() + 400).then(function () { g.classList.add('cool'); return Mock.sleep(Mock.anim.ms.state() + 400); }).then(function () { g.classList.remove('cool'); g.classList.add('heat'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'menu', what: 'A control opens its pop-up menu and closes it after a choice', token: 'system Menu: the system draws and animates it (no app token)', state: 'default',
+        source: 'HubPicker (Menu with .pickerStyle(.inline))', reduce: 'the system menu follows Reduce Motion by itself',
+        play: function (stage) {
+          var pk = stage.querySelector('.sc-hub .pk'), m = h('div.sc-menu', { role: 'menu' }, SC.hubOptions.modes.map(function (x) { return h('div.it', { role: 'menuitemradio' }, h('span.ck', { html: x[0] === 'heat' ? Mock.icon('checkmark', { weight: 2.4 }) : '' }), h('span.lb', x[1])); }));
+          pk.appendChild(m); return Mock.anim.fade(m, { ms: 200 }).then(function () { return Mock.sleep(1100); }).then(function () { return Mock.anim.fade(m, { from: 1, to: 0, ms: 200 }); }).then(function () { m.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Hub element', note: 'The glyph, "Thermostat Hub" and the state combine into one element (climate.hub); the glyph is hidden.' },
+      { rule: 'Menus', note: 'Two buttons, "Thermostat Hub Mode" and "Thermostat Hub Fan", each with the current choice as its value (climate.hub.mode, climate.hub.fan). Opening one lists the options as radio-like items with the current one selected.' },
+      { rule: 'Targets', note: 'Each menu is at least 44 x 44 pt: a Menu with its own frame, because a bare Picker(.menu) keeps a smaller UIKit hit area that a frame outside it does not grow.' },
+      { rule: 'State is not colour alone', note: 'The state text (Heat, Cool, Off) and the menu\'s current choice carry the mode; the tint only adds heating or cooling.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the pill becomes a column: glyph and text, then the menus showing their value text with the chevron; the name and state wrap.' },
+      { rule: 'Disabled', note: 'With no options the menu is disabled (dimmed, not hidden); with no fan modes the fan menu is hidden.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Pop-up buttons: show the current selection, predictable before opening", verdict: 'pass', note: "ThermostatHubPill shows each pop-up's value (\"Heat\", \"Auto\") beside a glyph at every size; HubPicker draws the value always and the mode glyph is the mode's own icon (ThermostatHubPill.modeSymbol), never power.", by: 'apple-hig skill' },
+        { rule: "Accessibility: 44 pt targets", verdict: 'pass', note: "Each Menu has a 44 x 44 minimum frame and its own label and value (ClimateHubPill.swift).", by: 'apple-hig skill' },
+        { rule: "Layout: stack at accessibility sizes", verdict: 'pass', note: "The menus drop under the text and show their value at AX sizes (ClimateHubPill.swift).", by: 'apple-hig skill' },
+        { rule: "Color: tint is extra to text", verdict: 'pass', note: "The glyph tint follows hvac_action but the state text says Heat, Cool, Off (line 78, 85).", by: 'apple-hig skill' },
+        { rule: "Materials: a thin module", verdict: 'pass', note: "One thin module, glass not used (line 108).", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Prefer bindings projected from state over Binding(get:set:)", verdict: 'pass', note: "Already fixed: HubPicker uses ControllerPicker (ControllerControls.swift), no Binding(get:set:) in the body (ClimateHubPill.swift).", by: 'swiftui-pro skill' },
+        { rule: "Menu needs a text title for VoiceOver", verdict: 'pass', note: "accessibilityLabel('Thermostat Hub Mode') and the value are set explicitly (lines 154-155).", by: 'swiftui-pro skill' },
+        { rule: "Use Menu over bare Picker for a larger hit area", verdict: 'pass', note: "The comment records that a bare Picker keeps a small UIKit hit area (lines 116-117).", by: 'swiftui-pro skill' },
+        { rule: "Group related elements", verdict: 'pass', note: "Glyph, name and state combine into one element; the menus stay separate (lines 91, 109).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Only on the Climate page (Whole Home, under the dial, tucked into the dial\'s empty bottom by -36 pt). The shipped state text comes from ClimateLogic.compactState, so heat_cool reads "Heat Cool" in the pill and "Heat/Cool" in the menu (a minor inconsistency in the code).',
+      'The mode menu\'s popover is drawn by the system; here it is a stand-in anchored under the control (a real menu may open above it).',
+      'Promote to kit: SecClimate.hub as ThermostatHubPill.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: heating, cooling, idle, off, no fan, menus open, unavailable and AX5.' }],
+  });
+})();
+</script></body></html>

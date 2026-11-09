@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Room card sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/rooms/_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms, SH = R.sheet;
+
+  /* RoomCardSheet = NavigationStack { ScrollView { subtitle? + RoomSheetBody } }, modalChrome, Close trailing, hassSheet(.page, height: .full): one large detent. */
+  function sheet(ctx, key, o) {
+    o = o || {};
+    var s = R.cardSheet(key, o);
+    var presenter = o.noPresenter ? null : R.roomPresenter(ctx, o.room || 'living-room', {}, o.connection);
+    return Mock.sheet(ctx, { title: o.title || s.title, detent: o.detent || 'large', size: 'page', trailing: 'close', leading: o.leading, content: o.content || s.content, presenter: presenter });
+  }
+  var S = function (key, o) { return function (ctx) { return sheet(ctx, key, o); }; };
+  /* A room's contact sensors, pushed from the house-wide door sheet (RoomGroupDetailPage: Back leading, Close kept in the bar at every depth). */
+  function contactsDetail() {
+    return h('div.rm-sheetbody', h('p.rm-sub', { 'data-ident': 'overview.detail.subtitle' }, 'Window Open'),
+      h('div.rm-stack', R.hdr('Contact Sensor', true), SH.contacts({ items: [{ t: 'Window', open: true, window: true }] })));
+  }
+  function detailOpts() { return { title: 'Living Room Contact Sensors', leading: 'back', trailing: 'close', content: contactsDetail() }; }
+
+  function tileEl(stage, title) { return [].filter.call(stage.querySelectorAll('.ui-tile'), function (t) { return t.querySelector('.ti').textContent === title; })[0]; }
+
+  Mock.mount({
+    kind: 'modal', id: 'room-card-sheet', title: 'Room card sheet (groups, items, fallbacks)', area: 'rooms', status: 'shipped',
+    summary: 'What a room card or chip opens when it has no sheet of its own: the room\'s lights, climate, occupancy or door sheet, a list of vents, the house-wide door sheet (Back Deck, Garage), a read-only fallback, or a message. One large page sheet with Close; the body follows RoomController.sheet(for:). Follows the system appearance.',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomSheets.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift', 'apple/Sources/HassCore/Rooms/RoomGroups.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/pages/rooms/ios.md', '.agents/pages/rooms/spec.md', '.agents/patterns/room-overview-sheet.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'room-overview-sheet', 'entity-tile', 'dynamic-grid', 'optimistic-actions', 'header-edge-fade', 'motion'],
+    hig: ['Sheets', 'Toolbars', 'Color', 'Dark Mode', 'Typography', 'Dynamic Type', 'Empty states (ContentUnavailableView)'],
+    entities: ['light.demo_living_room_item_1', 'light.demo_living_room_light_4', 'input_text.demo_living_room_2', 'sensor.demo_living_room_temperature_4', 'binary_sensor.demo_living_room_presence_4',
+      'binary_sensor.demo_living_room_contact_1', 'cover.demo_living_room_vent_2', 'binary_sensor.demo_garage_contact_1', 'select.demo_program_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'BrightnessTile', 'TileGrid', 'PageSectionHeader', 'ChipRail', 'StatusChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Living Room Lights (group slab and four lights)', note: 'the room\'s group light is one full-width brightness tile above each light', render: S('lights-living-room') },
+      'loading': { title: 'Nothing saved yet', note: 'there is no loading UI: the sheet reads EntityStore, so an empty store draws every tile as Unavailable (same as error)', render: S('lights-living-room', { u: true }) },
+      'error': { title: 'Entities unavailable', note: 'tiles dim and do nothing; sensor tiles read "Unavailable"; the sheet has no banner', render: S('lights-living-room', { u: true }) },
+      'offline': { title: 'Over an offline room page', note: 'the sheet has no offline UI of its own: it keeps the last known values over the page that carries the offline chip', render: S('lights-living-room', { connection: 'offline' }) },
+      'lights-off': { title: 'Kitchen Lights, all off', render: S('lights-kitchen', { room: 'kitchen' }) },
+      'lights-single': { title: 'Gym Light (one light: no group slab)', note: 'a single-light room shows the heading "Light" and the one tile', render: S('lights-gym', { room: 'gym' }) },
+      'lights-nightstands': { title: 'Bedroom 1 Lights (personalised nightstands)', note: '"Your Nightstand" for the signed-in resident, "Sam Nightstand" for the other', render: S('lights-master-bedroom', { room: 'master-bedroom' }) },
+      'lights-switch': { title: 'Entryway Light (a switch, not a dimmer)', note: 'a light that does not dim is a power tile (On/Off), sent as explicit turn_on / turn_off', render: S('lights-entryway', { room: 'entryway' }) },
+      'climate': { title: 'Living Room Climate', note: 'subtitle is the range helper; "Temperature Sensors" and "Vents" runs in one equal-height grid, the open vent in the Vents family', render: S('climate-living-room') },
+      'climate-single': { title: 'Kitchen Climate (one sensor, one vent)', note: 'headings go singular: "Temperature Sensor", "Vent"', render: S('climate-kitchen', { room: 'kitchen' }) },
+      'occupancy': { title: 'Living Room Occupancy', note: 'subtitle Occupied or Clear; read-only tiles fill green while detected; no heading (the title names the group)', render: S('occupancy-living-room') },
+      'contacts': { title: 'Living Room Window', note: 'read-only tiles, window glyphs; filled soft green while open', render: S('window-living-room') },
+      'contacts-closed': { title: 'Bedroom 1 Window (closed)', render: S('window-master-bedroom', { room: 'master-bedroom' }) },
+      'all-contacts': { title: 'Garage Doors: every room\'s doors and windows', note: 'rooms without their own contact group (Back Deck, Garage) open the house-wide overview; each room is a navigate tile', render: S('doors-garage', { room: 'garage' }) },
+      'contacts-detail': { title: 'A room pushed from the house-wide sheet', note: 'Back leading, Close kept trailing at every depth; plain push (no zoom)', render: function (ctx) { return Mock.sheet(ctx, Object.assign(detailOpts(), { detent: 'large', size: 'page', presenter: R.roomPresenter(ctx, 'garage') })); } },
+      'items': { title: 'Living Room: Vents (list of vents)', note: 'a card with modal items draws read-only tiles in its family; an open vent reads "Open · 60%"', render: S('vents-living-room') },
+      'device-fallback': { title: 'Dishwasher (read-only fallback)', note: 'while the dishwasher lane is open the card\'s entities draw read-only in the cleaning family, with "More controls for this device are coming."', render: S('dishwasher', { room: 'kitchen' }) },
+      'no-controls': { title: 'No interactive controls (ContentUnavailableView)', note: 'reached only on a config miss, e.g. a media card whose remote is not configured', render: S('remote-none') },
+      'medium': { title: 'Medium detent: none', note: 'hassSheet(.page, height: .full) has no medium detent; this is the large sheet', render: S('lights-living-room') },
+      'large': { title: 'Large detent (shipped)', note: 'opens at large because the sheet pushes pages and holds scrolling grids', render: S('lights-living-room') },
+      'fitted': { title: 'Fitted detent: none', note: 'the room card sheet is not content-fitted (modal-sheet.md: sheets that push pages say height: .full)', render: S('climate-kitchen', { room: 'kitchen' }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the room page the sheet scales back', render: function (ctx) { return R.roomPresenter(ctx, 'living-room', {}); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'tiles go one column and anchor text bottom-leading; the sheet scrolls', render: S('climate-living-room') },
+    },
+
+    motion: [
+      { id: 'brightness-band', what: 'A light dims: the lit band follows the value and the face goes dark at 0%', token: 'quick 0.2 s easeOut for the band width (so a drag never lags); state 0.6 s for the face change', state: 'default',
+        source: 'HassDesign/BrightnessTile.swift; HassUI/Common/RoomOverview/LightGroupTile.swift; motion.md sections 6 and 7', reduce: 'the band still moves at 0.2 s (it tracks the finger); the face cross-fades at 0.2 s',
+        play: function (stage) { var t = tileEl(stage, 'Front Left'), band = t.querySelector('.band'), st = t.querySelector('.st');
+          band.style.width = '30%'; st.textContent = 'On at 30%';
+          return Mock.sleep(500).then(function () { band.style.width = '0%'; st.textContent = 'Off'; t.classList.remove('lit'); t.classList.add('off'); return Mock.sleep(Mock.anim.ms.state() + 200); }); } },
+      { id: 'sensor-fill', what: 'A presence sensor starts detecting: its read-only tile fills occupancy green and its glyph swaps', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only; glyph swap is the system symbol replace', state: 'occupancy',
+        source: 'HassUI/Common/RoomOverview/RoomGroupDetail.swift sensorTile; HassDesign/GlassTile.swift; motion.md section 6', reduce: 'cross-fades at 0.2 s; the glyph swap is an identity change',
+        play: function (stage) { var t = tileEl(stage, 'Bar'); t.querySelector('.glyph').innerHTML = Mock.icon('figure.walk.motion', { fill: true }); return R.toggle(t, true, 'Detected'); } },
+    ],
+
+    transitions: [
+      { from: 'Room card or chip', to: 'Room card sheet', kind: 'sheet', state: 'closed', note: 'The page presents the sheet at large (page size on iPad and the unfolded Duo). The page scales back and dims; the content is present on arrival (motion.md 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Living Room Lights', detent: 'large', size: 'page', trailing: 'close', content: R.cardSheet('lights-living-room').content }, { hold: 1100 }); } },
+      { from: 'Room card sheet', to: 'Room page', kind: 'sheet', state: 'default', note: 'Close (circle x) or a swipe down; the page returns to full size.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'House-wide door sheet', to: 'A room\'s contact sensors', kind: 'push', state: 'all-contacts', note: 'A plain system push inside the sheet\'s own stack with Back (owner 2026-10-22: no zoom inside sheets; zoomSource/zoomDestination have no call sites). Close stays in the bar.',
+        play: function (stage) { return R.pushInSheet(stage, detailOpts(), 1000); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title ("Living Room Lights"), then the subtitle when there is one (Occupied, 68–72°F), then each section heading and its tiles in reading order; Close is last in the bar. Escape and the two-finger scrub dismiss.' },
+      { rule: 'Tiles', note: 'Light tiles are sliders or switches ("Front Left, On at 71%"), sensor tiles are read-only groups, never buttons ("Back Wall, Detected"); a room tile in the house-wide sheet is a button with the hint "Opens <room> Contact Sensors". Identifiers: room.light.<entity>, room.lightGroup.<entity>, room.entity.<entity>, overview.contacts.room.<room>.' },
+      { rule: 'State is not colour alone', note: 'Words on every tile (Detected/Clear, Open/Closed, Open · 60%, On at 71%) plus the family fill; window and door glyphs swap with state.' },
+      { rule: 'Headings', note: 'Section titles (Lights, Temperature Sensors, Vents, Rooms) carry the heading trait for the rotor; the sheet title is the navigation title.' },
+      { rule: 'Targets', note: 'Tiles 72 pt or taller, header circles 44 pt. On a phone a fitted sheet draws content at about 0.955x; this sheet is large, so full size.' },
+      { rule: 'Dynamic Type', note: 'Tile minimum width is a scaled 140 pt; at AX5 the grids are one column and text anchors bottom-leading; the 720 pt column keeps lines readable on iPad.' },
+      { rule: 'Light and dark', note: 'The sheet follows the system appearance: white cells on #F2F2F7 in light, #2C2C2E on #1C1C1E in dark. Family fills and the lit tile keep their fixed colours in both; off glyphs use the light variants.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: grabber and a dismiss control', verdict: 'pass', note: 'presentationDragIndicator(.visible) and the circle-X Close trailing (HassModal.swift:12, 191); a pushed level keeps Close and adds Back.' },
+        { rule: 'Sheets: prefer page sizing on iPad', verdict: 'pass', note: '.hassSheet(.page, height: .full) gives the 704 pt page sheet on iPad and the unfolded Duo.' },
+        { rule: 'Sheets: smallest detent that shows the content', verdict: 'departure', note: 'Opens at large only: the sheet pushes pages and holds long grids (modal-sheet.md height: .full; owner 2026-10-16, direction-g.md Sheets exceptions).' },
+        { rule: 'Toolbars: Close dismisses a modal', verdict: 'departure', note: 'Close is a .confirmationAction circle-X rather than Cancel/Done (owner 2026-10-13, HassModal.swift:5).' },
+        { rule: 'Materials: Liquid Glass on partial sheets', verdict: 'departure', note: 'SheetGroundModifier forces an opaque systemGroupedBackground at every detent (HassModal.swift:257; direction-g.md Sheets) so coloured tiles never show through.' },
+        { rule: 'Color: do not rely on colour alone', verdict: 'pass', note: 'Detected/Clear, Open/Closed, "Open · 60%" in words on every read-only tile.' },
+        { rule: 'Writing: tell people what happened and what to do', verdict: 'pass', note: 'RoomSheetFallback copy: "{title} has no controls in the app yet. Use Home Assistant to change it."' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: NavigationStack and navigationDestination(item:)', verdict: 'pass', note: 'RoomAllContacts uses navigationDestination(item:) inside the sheet stack (RoomSheets.swift:122); no NavigationLink(destination:).' },
+        { rule: 'Design: use ContentUnavailableView for empty states', verdict: 'pass', note: 'RoomSheetFallback is a ContentUnavailableView with Label and description.' },
+        { rule: 'Hygiene: placeholders that look finished', verdict: 'pass', note: 'Fixed: RoomDeviceFallback.title shows the friendly name or the entity\'s object id in words (Dishwasher Status), never the raw id.' },
+        { rule: 'Accessibility: read-only tiles are not buttons', verdict: 'pass', note: 'GlassTile(kind: .state) is .accessibilityElement(children: .ignore) with label and value and no button trait.' },
+      ],
+    },
+
+    notes: [
+      'Duo unfolded: the page sheet is centred in the window and crosses the hinge band here (the system decides placement; the unfolded pose was only run for pages). Check on a device.',
+      'Detents: the sheet has one, large: medium and fitted do not exist (hassSheet(.page, height: .full)); the states named medium and fitted draw the same sheet and say so.',
+      'loading and error: the sheet has no loading, error or offline UI of its own; unavailable entities draw as Unavailable tiles. offline shows the sheet over an offline room page.',
+      'Titles (RoomController.sheetTitle): "<Room> <Card>" for air, climate, contact, humidifier, light and occupancy cards ("Kitchen Lights"), otherwise "<Room>: <Card>" ("Living Room: Vents"); the dishwasher is just "Dishwasher".',
+      'Cards that open their own sheets (media remotes, bathroom fan, air purifier, humidifier, grill, vacuum, wake light, beds) never reach this one when wired: see the room-devices and bedroom batches. The vacuum and humidifier fall back here without the app\'s connection; the dishwasher always does until its lane lands.',
+      'Friendly names in the dishwasher fallback come from Home Assistant; "Dishwasher Door" and "Selected Program" are stand-ins.',
+      'Fixture values follow RoomsFixtures; the lights are a lived-in evening (the fixture leaves the items off).',
+      'Promote to kit: the helpers in pages/rooms/_rooms.js (SH.* group detail builders).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: lights, climate, occupancy, contacts, the house-wide door sheet and its push, vents, fallbacks, light and dark.' }],
+  });
+})();
+</script></body></html>

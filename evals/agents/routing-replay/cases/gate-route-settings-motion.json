@@ -1,0 +1,18 @@
+{
+  "id": "gate-route-settings-motion",
+  "source": "2026-11-02: the settings motion case: visible + the target already chosen + a pick left -> a decision note plus a Designer spec.",
+  "recorded": "2026-11-02",
+  "kind": "gate_route",
+  "input": {
+    "visible": true,
+    "chosen": true,
+    "pick": true
+  },
+  "expect": {
+    "route": {
+      "has": [
+        "decision note for the remaining choice plus a Designer spec"
+      ]
+    }
+  }
+}

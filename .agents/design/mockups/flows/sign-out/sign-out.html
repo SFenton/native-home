@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign out · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, LL = Mock.LL, A = Mock.anim;
+  var REVIEW_DATE = '2026-10-23';
+  function root(stage) { return stage.querySelector('.ll-root'); }
+  /* The Account sheet's alert and the HA settings dialog are different controls for the same act (inventory-notes item 4): an alert vs a confirmation dialog. */
+  function confirmAlert() { return LL.alert({ title: 'Sign Out of Home Assistant?', message: "You'll need your username and password to sign in again.", buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Sign Out', role: 'destructive' }] }); }
+  function failedAlert() { return LL.alert({ title: "Sign Out couldn't complete. Try again.", buttons: [{ title: 'OK', role: 'cancel' }] }); }
+  function account(alert) { return function (ctx) { return LL.accountSheet(ctx, { location: ctx.isIPad ? false : 'always', alert: alert ? alert() : null }); }; }
+  function dialog() {
+    return function (ctx) {
+      var d = LL.confirmationDialog(ctx, { title: 'Sign out of Home Assistant?', message: "You'll need your username and password to sign in again.", destructive: 'Sign Out', dark: true });
+      return LL.haSettings(ctx, { alert: d });
+    };
+  }
+  function signedOut(t) { return function (ctx) { return LL.screen(ctx, { username: 'alex', password: 0, focus: null, intro: t }); }; }
+  function swapToLogin(stage, hideSel) {
+    var ctx = Mock.current, s = LL.screen(ctx, { username: 'alex', password: 0, intro: 0 }); s.style.opacity = 0;
+    [].slice.call(stage.children).forEach(function (c) { if (!/k-status|k-island|k-punch|k-home|k-hinge/.test(c.className)) c.style.display = 'none'; });
+    stage.style.background = '#000'; stage.insertBefore(s, stage.querySelector('.k-status'));
+    return Promise.all([A.fade(s, { ms: 350 }), LL.run(Mock.settings.reduceMotion ? 350 : LL.INTRO_MS, function (t) { LL.introAt(s, t, Mock.settings.reduceMotion); })]);
+  }
+
+  Mock.mount({
+    kind: 'flow', id: 'sign-out', title: 'Sign out (Account sheet or Home Assistant settings)', area: 'shell', status: 'shipped',
+    summary: 'Two ways to sign out, one result. The Your Summary sheet\'s Profile tab asks in an alert; Home Assistant settings asks in a confirmation dialog. Confirming revokes the sign-in and replays the sign-in intro; if Home Assistant cannot confirm, an alert says so and the person stays signed in.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift', 'apple/Sources/HassUI/App/AppSession.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift'],
+    spec: ['.agents/pages/settings/ios.md', '.agents/pages/settings/profile.md', '.agents/platforms/apple/auth.md'],
+    patterns: ['modal-sheet', 'motion'],
+    hig: ['Alerts', 'Action sheets', 'Destructive actions', 'Sheets'],
+    kitComponents: ['Alert', 'HassModal', 'ModalTabBar', 'SheetCloseItem', 'InlineAlert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'account-sheet': { title: '1a · Your Summary, Profile tab', note: 'People at Home, Location (phones only) and the red Sign Out row at the end; Close trailing', render: account(false) },
+      'confirm-alert': { title: '2a · Account sheet asks: an alert', note: 'iOS 26 alert "Sign Out of Home Assistant?" with Cancel and a red destructive Sign Out; direction-g says an alert', render: account(confirmAlert) },
+      'ha-settings': { title: '1b · Home Assistant settings', note: 'Server, Account, the two web pages and Sign Out; appearance is inherited from the shell (drawn dark)', render: function (ctx) { return LL.haSettings(ctx); } },
+      'confirm-dialog': { title: '2b · HA settings asks: a confirmation dialog', note: 'confirmationDialog "Sign out of Home Assistant?" (lower-case "out"), title visible; an action sheet on a phone, a popover on iPad; Sign Out destructive, Cancel kept', render: dialog() },
+      'failed': { title: '3 · Sign Out did not complete', note: 'confirmedSignOut() throws when Home Assistant cannot confirm this phone was removed from the person; the session stays signed in and the alert offers OK', render: account(failedAlert) },
+      'signed-out-intro': { title: '4 · Signed out: the intro replays (0.6 s)', note: 'signOut() clears the Keychain, the snapshot and MotionPolicy, so the intro plays again; the last username stays in the form (not a welcome back)', render: signedOut(600) },
+      'signed-out': { title: '4 · Signed out, intro done', render: signedOut(LL.INTRO_MS) },
+      'offline': { title: 'Signing out with no network', note: 'the failure alert: with a LocationCoordinator the app must unlink the phone from the person first, which needs the server; on iPad (no coordinator) signing out needs no call and does not fail for this reason', render: account(failedAlert) },
+      'ax5': { title: 'Accessibility 5 text size (alert)', override: { ts: 'ax5' }, render: account(confirmAlert) },
+    },
+
+    motion: [
+      { id: 'alert-in', what: 'The alert (or dialog) appears over the sheet', token: 'system alert: scale and fade in, never decorated (motion.md section 2)', state: 'account-sheet', source: 'YourSummarySheet.swift .alert; HomeAssistantSettingsView.swift .confirmationDialog', reduce: 'the system cross-fades',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), confirmAlert()); host.appendChild(scrim);
+          return A.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return A.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+      { id: 'dialog-in', what: 'The confirmation dialog rises (phone) or pops over (iPad)', token: 'system action sheet: slides up with the sheet\'s spring; popover fades and scales', state: 'ha-settings', source: 'HomeAssistantSettingsView.swift signOutSection', reduce: 'the system cross-fades',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), d = LL.confirmationDialog(ctx, { title: 'Sign out of Home Assistant?', message: "You'll need your username and password to sign in again.", destructive: 'Sign Out', dark: true });
+          var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), d); host.appendChild(scrim);
+          var rm = Mock.settings.reduceMotion;
+          return A.fade(scrim, { ms: 200 }).then(function () { return rm || !ctx.compact ? Mock.sleep(1000) : new Promise(function (r) { d.animate([{ transform: 'translateY(60%)' }, { transform: 'none' }], { duration: 350, easing: A.easing.sheet }).finished.then(r, r); }).then(function () { return Mock.sleep(900); }); }).then(function () { return A.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+      { id: 'root-cross-fade', what: 'Signed out: the shell goes at once, the sign-in layer fades in, the intro plays', token: 'crossFade 0.35 s (animation on isSignedIn) · then Intro: glow 0.5 s, header 0.4 s from 0.46 s, form 0.45 s from 0.71 s', state: 'confirm-alert',
+        source: 'HassUI/App/RootView.swift shell; AppSession.swift signOut', reduce: 'one 0.35 s cross-fade for the layer and the intro',
+        note: 'The Account sheet is presented from inside the shell, so it leaves with it (no dismiss animation of its own; the code\'s dismiss() runs after confirmedSignOut returns).',
+        play: function (stage) { return Mock.sleep(300).then(function () { var al = stage.querySelector('.ui-alert-scrim'); if (al) al.remove(); return swapToLogin(stage); }); } },
+      { id: 'arrival-rearms', what: 'The arrival re-arms: the next sign-in plays it again', token: 'MotionPolicy.reset() at sign-out; no animation of its own (see flows/sign-in-to-home-arrival)', state: 'signed-out', source: 'HassUI/App/AppSession.swift signOut; MotionPolicy.swift', reduce: 'n/a', play: function () { return Mock.sleep(500); } },
+    ],
+
+    transitions: [
+      { from: 'Profile tab', to: 'Sign Out alert', kind: 'fade', state: 'account-sheet', note: 'The Sign Out row sets confirmsSignOut; the alert fades and scales in over the sheet. Cancel is always present.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), confirmAlert()); host.appendChild(scrim);
+          return A.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return A.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+      { from: 'Sign Out confirmed', to: 'Signed out', kind: 'fade', state: 'confirm-alert', note: 'confirmedSignOut(): on a phone it first asks Home Assistant to unlink this iPhone from the person (a failure stops here); then signOut() revokes the token, clears the Keychain, snapshot, caches, Spotlight and Live Activities, and the root cross-fades to the sign-in layer.',
+        play: function (stage) { return Mock.sleep(300).then(function () { var al = stage.querySelector('.ui-alert-scrim'); if (al) al.remove(); return swapToLogin(stage); }); } },
+      { from: 'Sign Out confirmed', to: 'Failed alert', kind: 'fade', state: 'confirm-alert', note: 'A failure leaves the person signed in: the first alert goes and "Sign Out couldn\'t complete. Try again." with OK replaces it.',
+        play: function (stage) {
+          var ctx = Mock.current, scrim = stage.querySelector('.ui-alert-scrim');
+          return Mock.sleep(500).then(function () { return A.fade(scrim, { from: 1, to: 0, ms: 150 }); }).then(function () { scrim.innerHTML = ''; scrim.appendChild(failedAlert()); return A.fade(scrim, { ms: 200 }); }).then(function () { return Mock.sleep(1000); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Sign Out row', note: 'A destructive button, at least 44 pt, in the system red at its Increase Contrast value (so it reads 4.5:1 on the grouped ground); identifiers account.signOut and haSettings.signOut.' },
+      { rule: 'Alert', note: 'A system alert: "Sign Out of Home Assistant?" with the message "You\'ll need your username and password to sign in again."; Sign Out is a destructive button, Cancel the cancel role (always present, also on iPad). VoiceOver reads title, message, then the buttons.' },
+      { rule: 'Confirmation dialog', note: 'The same words with titleVisibility .visible; on iPad it is a popover anchored to the Sign Out button, with Cancel kept so VoiceOver users can dismiss it without the outside tap.' },
+      { rule: 'Failure', note: 'An OK alert; nothing about the session changes, so the person is left where they were. A second tap retries.' },
+      { rule: 'No busy state', note: 'There is no spinner while confirmedSignOut() runs (isSigningOut only ignores a second press); the alert\'s button dismisses at once and the sign-in layer fades in when the server has answered. A slow server reads as a pause.' },
+      { rule: 'After signing out', note: 'The sign-in layer is announced as "Sign in"; the username is filled and the password is empty; no keyboard until a field is tapped.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Alerts: red destructive button, Cancel present, say what is lost', verdict: 'pass', note: 'Both entry points name Cancel and mark Sign Out destructive, with "You\'ll need your username and password to sign in again." (YourSummarySheet.swift:72-78; HomeAssistantSettingsView.swift:121-130).', by: 'apple-hig skill' },
+        { rule: 'Alerts versus action sheets: one pattern per decision', verdict: 'pass', note: 'Sign Out is an alert in both places: AlertCopy.signOut (YourSummarySheet, HomeAssistantSettingsView), destructive.', by: 'apple-hig skill' },
+        { rule: 'Progress indicators: show progress for work that waits on the network', verdict: 'pass', note: 'SignOutRow (Settings/SignOutRow.swift) swaps its label for an inline arc and "Signing Out" (value Busy) while confirmedSignOut() awaits the server; ProfileTab and HomeAssistantSettingsView disable the rest of the screen, the Close item is off and interactive dismissal is blocked.', by: 'apple-hig skill' },
+        { rule: 'Do not trap people: explain what blocks an action', verdict: 'pass', note: 'AlertCopy.signOutFailed now states the reason: "Signing out needs a connection so this phone stops reporting its location. Connect and try again." Offline there is deliberately no local-only sign out (owner decision 2026-10-24).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Attach confirmationDialog to its triggering control', verdict: 'pass', note: 'The dialog is on the Sign Out button, so glass animates from it (HomeAssistantSettingsView.swift:112-128).', by: 'swiftui-pro skill' },
+        { rule: 'Guard a second press while async work runs', verdict: 'pass', note: 'isSigningOut with defer (YourSummarySheet.swift:85-98).', by: 'swiftui-pro skill' },
+        { rule: 'Strings used twice live in one place', verdict: 'pass', note: 'AlertCopy.signOutFailed is the one failure copy for both sites.', by: 'swiftui-pro skill' },
+        { rule: 'Contrast token for the destructive ink', verdict: 'pass', note: 'destructiveInk resolves the Increase Contrast red (HomeAssistantSettingsView.swift:153-160).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'refreshing, loading: none. offline is the failed-alert state (a phone with a LocationCoordinator needs the server to unlink the person first); error is the same alert. The failed alert is the same text on both entry points.',
+      'Docs vs code: the Account sheet uses .alert("Sign Out of Home Assistant?") and Home Assistant settings uses .confirmationDialog("Sign out of Home Assistant?"); direction-g.md says an alert (inventory-notes item 4). Both are drawn.',
+      'iPad: the Account sheet has no Location section (no LocationCoordinator); signing out there does not call unlinkPresence, so it cannot fail for that reason.',
+      'The three confirmation pieces are catalogued separately (sign-out-alert, ha-sign-out-dialog, sign-out-failed-alert, owned by settings-account); this flow shows them in sequence.',
+      'The Account sheet and HA settings here are trimmed stand-ins (their own mockups belong to settings-account). HA settings is a full-screen cover; drawn as a dark sheet.',
+      'The confirmation dialog\'s popover on iPad is drawn centred; the system anchors it to the Sign Out button.',
+      'Debug builds: FENTON_SIGNOUT_FAIL=1 makes confirmedSignOut() fail without a server (journeys).',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: both entry points, the failed alert, the signed-out intro, AX5, six devices.' }],
+  });
+})();
+</script></body></html>

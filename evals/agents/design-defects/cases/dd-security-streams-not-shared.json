@@ -1,0 +1,16 @@
+{
+  "id": "dd-security-streams-not-shared",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "Streams not being shared between Security and Home (and maybe modals)- Delayed on Security tab, live on Home",
+  "surface": "camera-tile",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "perf",
+  "pre_fix_ref": "5ca163ea",
+  "fix_ref": "e57d3182",
+  "fix_confidence": "medium",
+  "expected": "Opening Security shows the already-live stream, not a spinner; time the first frame after a tab switch."
+}

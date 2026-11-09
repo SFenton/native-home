@@ -1,0 +1,27 @@
+{
+  "id": "report.complete",
+  "version": 1,
+  "type": "noul-set",
+  "mode": "shadow",
+  "description": "Lint an agent report: does it say what was done, with evidence, what was not run, and what is open?",
+  "instructions": "Does the text in `report` {option}?",
+  "criteria": {
+    "result": "say what was done or found, in terms of the objective it was given",
+    "evidence": "give evidence for its claims, such as test results, file paths, commands run or sources read",
+    "not_run": "say what was not run or not verified, or state that everything was",
+    "open_questions": "list open questions or decisions needed, or state that there are none"
+  },
+  "state": {
+    "fields": [
+      "report"
+    ],
+    "max_chars": 12000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.6,
+    "no_below": 0.3
+  },
+  "output": "Orchestrator hint line on receipt: `report lacks: <parts>` before the orchestrator accepts it as done. The status block and ledger checks stay authoritative.",
+  "evidence": "unmeasured"
+}

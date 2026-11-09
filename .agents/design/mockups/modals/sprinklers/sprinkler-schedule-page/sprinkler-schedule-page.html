@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zone program schedule editor · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/sprinklers/_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, S = Mock.VS.S;
+  var FRONT = function (p) { return S.snap('frontYard', p); }, BACK = function (p) { return S.snap('backyard', p); };
+  function st(snap, zone, o) { return function (ctx) { return S.sheet(ctx, Object.assign({ snap: snap, detail: { kind: 'schedule', zone: zone } }, o)); }; }
+  function dayEls(stage) { return [].slice.call(stage.querySelectorAll('.vs-day')); }
+
+  Mock.mount({
+    kind: 'modal', id: 'sprinkler-schedule-page', title: 'Zone program schedule editor (pushed)', area: 'sprinklers', status: 'shipped',
+    summary: 'Pushed from a program row in the controller sheet. Program Enabled and Start Program Now, seven day circles, start times (add and remove), the watering budget stepper with the read-only run time, and Apply pinned at the bottom. The nav subtitle is the program summary.',
+    source: ['apple/Sources/HassUI/Features/Sprinklers/SprinklerControllerSheet.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerFormat.swift', 'apple/Sources/HassCore/Config/SprinklersConfig.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerController.swift'],
+    spec: ['.agents/pages/sprinklers/spec.md', '.agents/pages/sprinklers/ios.md', '.agents/patterns/schedule-date-fields.md'],
+    patterns: ['modal-sheet', 'schedule-date-fields', 'optimistic-actions', 'header-edge-fade'],
+    hig: ['Sheets', 'Date pickers', 'Steppers', 'Toggles', 'Buttons', 'Color', 'Dynamic Type'],
+    entities: ['switch.demo_front_yard_program_1', 'switch.demo_backyard_program_3'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'PrimaryButton', 'Toggle', 'BackButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Front Yard program: every day, 7:00 AM, 100%', render: st(FRONT(), 0) },
+      'edited': { title: 'Edited, not applied: Mon Wed Fri, two start times, 80%', note: 'edits live in @State until Apply; the nav subtitle still shows the saved summary', render: st(BACK({ active: null }), 0, { days: [1, 3, 5], times: ['6:30 AM', '7:30 PM'], budget: 80 }) },
+      'disabled-program': { title: 'Program disabled', note: 'Start Program Now is disabled (needs an enabled program and nothing watering)', render: st(BACK({ active: null }), 2) },
+      'watering': { title: 'Another zone is watering', note: 'Start Program Now is disabled while a zone waters', render: st(BACK(), 0) },
+      'no-days': { title: 'No day chosen', note: 'Apply is disabled until at least one day and one start time exist', render: st(FRONT(), 0, { days: [] }) },
+      'unavailable': { title: 'Program unavailable', note: 'the toggle, days, start times and budget are disabled; Apply is disabled', render: st(BACK({ available: false, battery: null, hub: false }), 0) },
+      'loading': { title: 'Apply tapped, call in flight', note: 'no spinner: Apply is disabled while `sending`; the page pops on success', render: st(FRONT(), 0, { sending: true }) },
+      'error': { title: 'The call failed', note: 'Home Assistant\'s message shows inline at the top; edits stay so the person can retry', render: st(FRONT(), 0, { error: 'Unable to communicate with the Orbit B-hyve hub.' }) },
+      'offline': { title: 'Over an offline page', note: 'no offline UI of its own; Apply fails and shows the error state', render: st(FRONT(), 0, { connection: 'offline' }) },
+      'closed': { title: 'Controller overview underneath', note: 'what the pop returns to', render: function (c) { return S.sheet(c, { snap: FRONT() }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'days wrap to Sunday-Wednesday over Thursday-Saturday on a four-column grid; rows wrap; Apply grows', render: st(BACK({ active: null }), 0, { days: [1, 3, 5], times: ['6:30 AM', '7:30 PM'] }) },
+    },
+
+    motion: [
+      { id: 'day-chip', what: 'Choosing days: each circle fills with the water colour and its text goes dark', token: 'state 0.6 s ease-in-out, colour only', state: 'edited',
+        source: 'HassUI/Features/Sprinklers/SprinklerControllerSheet.swift DayPicker, stateColorTransition("DayPicker") and stateForeground; motion.md section 6 ("selected segments and day chips")', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) {
+          var ds = dayEls(stage); ds[0].classList.add('sel'); ds[6].classList.add('sel'); ds[1].classList.remove('sel');
+          return Mock.sleep(Mock.anim.ms.state() + 800).then(function () { ds[0].classList.remove('sel'); ds[6].classList.remove('sel'); ds[1].classList.add('sel'); return Mock.sleep(Mock.anim.ms.state() + 300); });
+        } },
+      { id: 'program-switch', what: 'Program Enabled switches on: knob slides, track fills green', token: 'knob standard 0.3 s smooth; track state 0.6 s', state: 'disabled-program',
+        source: 'SwiftUI Toggle (system); motion.md sections 6 and 7', reduce: 'track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-toggle'); t.classList.add('on'); return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { t.classList.remove('on'); return Mock.sleep(800); }); } },
+    ],
+
+    transitions: [
+      { from: 'Program row', to: 'Schedule editor', kind: 'push', state: 'closed', note: 'System push inside the sheet; the interactive back swipe pops and drops unapplied edits.',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), oldM = panel.querySelector('.ui-modal');
+          var neu = S.sheet(ctx, { snap: FRONT(), detail: { kind: 'schedule', zone: 0 }, noPresenter: true }).querySelector('.ui-modal');
+          neu.style.cssText = 'position:absolute;inset:0;background:var(--sheet-ground);z-index:6;display:flex;flex-direction:column'; panel.appendChild(neu);
+          return Mock.anim.push(oldM, neu).then(function () { return Mock.sleep(900); }).then(function () { return Mock.anim.push(neu, oldM, { back: true }); }).then(function () { neu.remove(); oldM.style.transform = ''; oldM.style.filter = ''; });
+        } },
+      { from: 'Schedule editor', to: 'Controller overview', kind: 'push', state: 'default', note: 'Apply calls bhyve.update_program; on success `done()` pops. The overview row\'s summary then shows the new days and times once Home Assistant echoes.',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), cur = panel.querySelector('.ui-modal');
+          var under = S.sheet(ctx, { snap: FRONT(), noPresenter: true }).querySelector('.ui-modal');
+          under.style.cssText = 'position:absolute;inset:0;background:var(--sheet-ground);z-index:5;display:flex;flex-direction:column'; panel.insertBefore(under, cur); cur.style.position = 'relative'; cur.style.zIndex = 6;
+          return Mock.sleep(500).then(function () { return Mock.anim.push(cur, under, { back: true }); }).then(function () { return Mock.sleep(500); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, program name as the title ("Bushes schedule", heading) with the summary as its subtitle, Close; then Program Enabled, Start Program Now, the Days group, each start time and its remove button, Add Another Start Time, the budget stepper, the Run Time footer and Apply (pinned, last).' },
+      { rule: 'Day circles', note: 'Seven buttons, Sunday first, each 44 pt square or larger, labelled with the full day ("Monday") and the selected trait when chosen; the visible letter is decorative. State is also the filled circle with dark text, not colour alone.' },
+      { rule: 'Start times', note: 'Each compact time picker is labelled "Start 1", "Start 2"; the remove button is "Remove Start Time 2" at 44 pt, disabled while only one time remains. Rows are identified by their own id, so removing one keeps the other pickers\' state.' },
+      { rule: 'Stepper', note: '"Watering Budget", value "100 percent" (0 to 200 in steps of 5). The run time is read-only text in the footer.' },
+      { rule: 'Buttons wrap', note: 'Start Program Now and Add Another Start Time use WrappingRowLabel (no fixed frame): a Label title clipped at AX5 in the audit.' },
+      { rule: 'Apply', note: 'The one primary button (water hue, dark ink), disabled when the program is unavailable, no day or time is set, or a call is in flight.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Settings: one commit model per screen", verdict: "pass", note: "SprinklerSchedulePage groups Program Enabled and Start Program Now under \"Right now\" (footer: apply immediately) and days, start times and budget under \"Schedule\" (footer: saved with Apply); the discard guard on Back and Close was already in place (#157). Disabling a program stays instant (owner, 2026-10-24).", by: "apple-hig skill" },
+        { rule: "Sheets and Modality: confirm before discarding edits", verdict: "pass", note: "DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask 'Discard changes?' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). SprinklerSchedulePage guards Back and Close (hasEdits).", by: "apple-hig skill" },
+        { rule: "Buttons: say why a button is disabled", verdict: "pass", note: "The Days section has a footer \"Choose at least one day.\" (SprinklerSchedulePage.applyBlocker).", by: "apple-hig skill" },
+        { rule: "Loading: progress where the person pressed", verdict: "pass", note: "SprinklerSchedulePage Apply is PrimaryButton(isBusy: sending, busyTitle: \"Applying\"): inline ArcSpinner in place of the label, full colour, presses ignored, VoiceOver \"Applying, Busy\".", by: "apple-hig skill" },
+        { rule: "Date pickers: compact time pickers with a remove control", verdict: "pass", note: "Each start time is a compact hour-and-minute DatePicker labelled \"Start n\" with a 44 x 44 \"Remove Start Time n\" button, disabled at one time (lines 305-317).", by: "apple-hig skill" },
+        { rule: "Color: selected days are not colour alone", verdict: "pass", note: "A chosen day is a filled water-colour circle with dark text against a 15% grey circle, plus the .isSelected trait and full day names (DayPicker, lines 445-461).", by: "apple-hig skill" },
+        { rule: "Layout: the seven day circles reflow", verdict: "pass", note: "ViewThatFits: one row of seven 44 pt circles, else a 4 + 3 grid (lines 431-437), so the folded Duo and AX sizes keep 44 pt targets.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Reuse: schedule-date-fields pattern", verdict: "pass", note: "Not applicable: each start time pairs its picker with a Remove button inside a List section, which ScheduleDateFields has no slot for; schedule-date-fields.md now says so.", by: "swiftui-pro skill" },
+        { rule: "Views: Button action logic inline", verdict: "pass", note: "Fixed: Apply calls SprinklerSchedulePage.apply(), which saves and closes. The draft is a deliberate copy taken at open: refreshing it from another device would overwrite edits in progress.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: labels that wrap", verdict: "pass", note: "WrappingRowLabel for Start Program Now and Add Another Start Time (lines 387-399) after AX5 clipped a Label title.", by: "swiftui-pro skill" },
+        { rule: "Navigation: pushed page inside a sheet", verdict: "pass", note: "Pushed by SprinklerDetail.schedule; done() pops the path (lines 40, 52).", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading is the sending state (Apply disabled, no spinner). medium, large and fitted: not applicable to a pushed page; it lives in the controller sheet, which is large.',
+      'Adding or removing a start time mutates @State without withAnimation, so rows do not animate in or out (motion.md section 6 asks for the standard list animation for user-caused rows; candidate).',
+      'The time picker is drawn as a time button in the kit\'s date style; the real control is the system compact picker.',
+      'The day row drops to two rows on the folded Duo and at AX5 (drawn here by `folded` or AX text; the real rule is ViewThatFits on width).',
+      'Fixtures: Front Yard has one program; the Garden Faucet has four. The Backyard zone\'s program is disabled in the fixture.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: default, edited, disabled, no days, unavailable, sending, error, AX5, day-chip and switch motion.' }],
+  });
+})();
+</script></body></html>

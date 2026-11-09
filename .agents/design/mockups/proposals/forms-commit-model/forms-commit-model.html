@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>One commit model per form</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--cell:#fff;--ground:#f2f2f7;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;--cell:#2c2c2e;--ground:#1c1c1e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}h3{font-size:17px;margin:26px 0 6px}
+p{margin:0 0 12px;max-width:72ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+.lede{font-size:18px;color:var(--fg2)}.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin-top:16px}
+figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:300px}figcaption b{display:block;color:var(--fg);font-size:15px}
+.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+.dev{border:2px solid #000;background:var(--ground);overflow:hidden;position:relative;border-radius:22px;font-size:13px;color:var(--fg)}
+.phone{width:240px;height:420px}.duo{width:170px;height:420px}.ipad{width:420px;height:300px;border-radius:14px}
+.ax{font-size:19px}
+.hd{padding:10px 12px 4px;font-weight:700;font-size:1.25em}.sub{padding:0 12px;color:var(--fg2);font-size:.9em}
+.grp{margin:8px 10px;background:var(--cell);border-radius:12px;overflow:hidden}
+.r{padding:9px 12px;min-height:44px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}.r:last-child{border:0}
+.r .sp{flex:1}.dim{color:var(--fg2)}.chk{width:20px;height:20px;border-radius:50%;border:2px solid var(--fg2);flex:none}.chk.on{background:var(--ok);border-color:var(--ok)}
+.done{text-decoration:line-through;color:var(--fg2)}.btn{color:var(--accent);font-weight:600}
+.toast{position:absolute;left:10px;right:10px;bottom:12px;background:#323236;color:#fff;border-radius:14px;padding:10px 12px;display:flex;gap:8px;align-items:center}.toast .btn{color:#6cb6ff}
+.sec{padding:10px 14px 2px;color:var(--fg2);font-size:.8em;text-transform:uppercase;letter-spacing:.04em}
+.foot{padding:2px 14px 6px;color:var(--fg2);font-size:.8em}
+.field{margin-left:auto;color:var(--fg2)}.ph{color:#8e8e93}
+.tb{display:flex;justify-content:space-between;padding:8px 12px;font-weight:600}.circ{width:30px;height:30px;border-radius:50%;background:rgba(128,128,128,.25);display:grid;place-items:center}
+.kb{position:absolute;left:0;right:0;bottom:0;height:110px;background:#d1d3d9;color:#000;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px}.kb i{background:#fff;border-radius:5px;text-align:center;font-style:normal;padding:3px}
+.kbbar{position:absolute;left:0;right:0;bottom:110px;background:rgba(240,240,245,.96);color:var(--accent);text-align:right;padding:8px 14px;font-weight:600;border-top:1px solid var(--line)}
+.day{display:inline-block;min-width:34px;text-align:center;padding:5px 7px;border-radius:9px;background:rgba(128,128,128,.2);margin:2px}.day.on{background:var(--accent);color:#fff}.day.on:before{content:"✓ "}.day.on.plain:before{content:""}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.rec{border:2px solid var(--ok);border-radius:12px;padding:12px 16px;background:var(--surface);max-width:80ch}
+</style></head><body><div class="wrap">
+<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px">Proposal · 2026-10-23 · Decided (2026-10-24): Inventory A (Prepared Food joins the draft and waits for Save; Delete in its own group) and Sprinkler A (disabling a program stays instant; two group headers; discard confirmation). Built on claude/enf-l-forms.</p>
+<h1>One commit model per form</h1>
+<p class="lede">Two forms save some controls instantly and others on Save or Apply, and Cancel or Back does not say which.</p>
+
+<h2>Cause</h2>
+<p>Two forms mix two commit models and give no hint which control is which (HIG Entering data: be consistent about when changes take effect).</p>
+<p><b>Inventory item editor</b> (<code>InventoryItemEditor.swift:242-302</code>): Quantity and Expiry wait for the ✓ Save, but the Prepared Food toggle calls Home Assistant on change and Delete asks then acts. Cancel (✕) therefore undoes only part of what the form let you edit. <b>Sprinkler program page</b> (<code>SprinklerControllerSheet.swift</code> schedule page, lines 286-354 per the review): Program Enabled and Start Program Now act immediately; days, start times and budget wait for Apply; Back or Close silently drops unapplied edits.</p>
+<h2>Inventory editor</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Edit item</span><span class="circ">✓</span></div><div class="sec">Milk · 2 L</div><div class="grp"><div class="r"><span>Quantity</span><span class="field">2 − +</span></div><div class="r"><span>Expires</span><span class="field">Oct 30</span></div>
+<div class="r"><span class="sp">Prepared Food</span><span>◐</span></div><div class="r" style="color:#d33"><span class="sp">Delete</span>🗑</div></div><div class="foot">Prepared Food marks an item that does not need classification.</div></div><figcaption><b>Today</b>Prepared Food writes at once, the other fields wait for ✓. Delete is in the same group.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span></span><span class="circ">✓</span></div><div class="sec">Milk · 2 L</div><div class="grp"><div class="r"><span>Quantity</span><span class="field">2 − +</span></div><div class="r"><span>Expires</span><span class="field">Oct 30</span></div><div class="r"><span class="sp">Prepared Food</span><span>◐</span></div></div><div class="foot">Prepared Food marks an item that does not need classification. Saved with ✓.</div><div class="grp"><div class="r" style="color:#d33"><span class="sp">Delete Item</span>🗑</div></div><div class="foot">Deleting asks first and cannot be undone.</div></div><figcaption><b>A. Prepared Food joins the draft</b>The toggle changes the draft and is saved with ✓; Cancel reverts it. Delete moves to its own group; it keeps its confirmation dialog.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Edit item</span><span class="circ">✓</span></div><div class="sec">Milk · 2 L</div><div class="grp"><div class="r"><span>Quantity</span><span class="field">2 − +</span></div><div class="r"><span>Expires</span><span class="field">Oct 30</span></div></div><div class="sec">Applies immediately</div><div class="grp"><div class="r"><span class="sp">Prepared Food</span><span>◐</span></div><div class="r" style="color:#d33"><span class="sp">Delete</span>🗑</div></div><div class="foot">These change the item as soon as you use them; Cancel does not undo them.</div></div><figcaption><b>B. Label what is immediate</b>Nothing moves; Prepared Food and Delete go into an "Applies immediately" group with that footer, apart from the draft fields.</figcaption></figure>
+</div>
+<h2>Sprinkler program page</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="tb"><span class="circ">‹</span><span>Program A</span><span class="btn">Apply</span></div>
+<div class="grp"><div class="r"><span class="sp">Program Enabled</span><span>◐</span></div><div class="r"><span class="sp btn">Start Program Now</span></div><div class="r"><span class="sp">Days</span><span class="field">M W F</span></div><div class="r"><span class="sp">Start times</span><span class="field">6:00</span></div><div class="r"><span class="sp">Budget</span><span class="field">100%</span></div></div></div><figcaption><b>Today</b>Enabled and Start Now are immediate, everything else waits for Apply, intermixed. Back drops edits silently.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">‹</span><span>Program A</span><span class="btn">Apply</span></div>
+<div class="sec">Right now · applies immediately</div><div class="grp"><div class="r"><span class="sp">Program Enabled</span><span>◐</span></div><div class="r"><span class="sp btn">Start Program Now</span></div></div>
+<div class="sec">Schedule · saved with Apply</div><div class="grp"><div class="r"><span class="sp">Days</span><span class="field">M W F</span></div><div class="r"><span class="sp">Start times</span><span class="field">6:00</span></div><div class="r"><span class="sp">Budget</span><span class="field">100%</span></div></div></div><figcaption><b>A. Group by when it applies</b>Two labelled groups: "Right now" (immediate) and "Schedule" (Apply). Back with unapplied edits asks.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">‹</span><span>Program A</span><span class="btn">Apply</span></div>
+<div class="grp"><div class="r"><span class="sp">Program Enabled</span><span>◐</span></div><div class="r"><span class="sp">Days</span><span class="field">M W F</span></div><div class="r"><span class="sp">Start times</span><span class="field">6:00</span></div><div class="r"><span class="sp">Budget</span><span class="field">100%</span></div></div>
+<div class="grp"><div class="r"><span class="sp btn">Start Program Now</span></div></div><div class="foot">Starts the program with its saved settings; it does not need Apply.</div></div><figcaption><b>B. Everything saved by Apply</b>Program Enabled joins the draft. Only Start Program Now is an action, set apart with a footer that says it ignores Apply.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">‹</span><span>Program A</span><span class="btn">Apply</span></div>
+<div class="grp"><div class="r"><span class="sp">Program Enabled</span><span>◐</span></div><div class="r"><span class="sp">Days</span><span class="field">M W F</span></div><div class="r"><span class="sp">Start times</span><span class="field">6:00</span></div><div class="r"><span class="sp">Budget</span><span class="field">100%</span></div></div>
+<div class="grp"><div class="r"><span class="sp btn">Start Program Now</span></div></div><div class="foot">Starts the program with its saved settings; it does not need Apply.</div><div style="position:absolute;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:end center;padding:10px"><div style="width:100%;background:var(--cell);border-radius:14px;text-align:center"><div class="r" style="justify-content:center;flex-direction:column;gap:2px"><b>Discard changes?</b><span class="dim">Days and start times have not been applied.</span></div><div class="r" style="justify-content:center;color:#d33">Discard Changes</div><div class="r" style="justify-content:center" ><span class="btn">Keep Editing</span></div></div></div></div><figcaption><b>Leaving with edits (A or B)</b>Back or Close with unapplied edits shows a discard confirmation instead of dropping them silently.</figcaption></figure>
+</div>
+<h3>Accessibility size and other devices</h3>
+<p>Both forms are plain grouped lists, so AX5 only wraps the row labels (already covered by the form-row pattern). On iPad and Duo (unfolded landscape) the sheets keep their form detent; the section headers are the only new text. Footers wrap at AX5 and never truncate.</p>
+<h2>Comparison</h2>
+<table><tr><th></th><th>Inventory A</th><th>Inventory B</th><th>Sprinkler A</th><th>Sprinkler B</th></tr>
+<tr><td>One model per form</td><td>Yes (draft), Delete is an action</td><td>No, but labelled</td><td>No, but labelled</td><td>Yes (draft), one action</td></tr>
+<tr><td>Cancel/Back honest</td><td>Yes</td><td>Partly (footer says so)</td><td>With discard prompt</td><td>With discard prompt</td></tr>
+<tr><td>Behaviour change</td><td>Prepared Food no longer instant</td><td>None</td><td>None</td><td>Enabled no longer instant</td></tr>
+<tr><td>Risk</td><td>Toggle lag vs. HA echo gone</td><td>Footer is easy to miss</td><td>Two groups on a short page</td><td>Disabling a running program waits for Apply</td></tr></table>
+<h2>Recommendation</h2>
+<div class="rec"><p><b>Inventory A, Sprinkler A.</b> Inventory: the draft already exists for quantity and expiry, and Prepared Food is just another field; Delete keeps its existing confirmation. Sprinkler: turning a program off is something people expect to take effect now, so keep it immediate but say so with two group headers, and add the discard confirmation (this uses the shared confirmation dialog; the Alerts session owns that component, so I will only call it). Files: <code>InventoryItemEditor.swift</code>, editor model, <code>SprinklerControllerSheet.swift</code>, tests for the draft/revert logic and VoiceOver order, plus the two mockups.</p></div>
+<h2>Open questions</h2>
+<p>1. Should disabling a program stay instant (Sprinkler A) or wait for Apply (B)? 2. Should Prepared Food stay instant so the item moves out of classification immediately?</p>
+
+</div></body></html>

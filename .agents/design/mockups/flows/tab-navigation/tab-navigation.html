@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tab navigation · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  /* A tab root; on iPad (flyout style) there is no tab bar, so the same step is the flyout with the row in question (flow flyout-navigation). */
+  function root(ctx, sec, o) { return SN.rootPage(ctx, sec, o); }
+  function tabFinger(page, ctx, sec) {
+    if (ctx.device.tabs === 'flyout') { SN.finger(page, '.ui-flyout button[aria-current="page"]', { label: 'tap the current row' }); return; }
+    SN.finger(page, ctx.device.tabs === 'rail' ? '.ui-rail .tabs button[data-tab="' + sec + '"]' : '.ui-tabbar button[data-tab="' + sec + '"]', { label: 'tap ' + sec });
+  }
+  function withFinger(ctx, sec, o, fingerSec) {
+    var p = root(ctx, sec, Object.assign({ flyoutOpen: ctx.device.tabs === 'flyout' && !!fingerSec }, o)); if (fingerSec) tabFinger(p, ctx, fingerSec); return p;
+  }
+  function kitchen(ctx, o) { return SN.pushedPage(ctx, o); }
+
+  Mock.mount({
+    kind: 'flow', id: 'tab-navigation', title: 'Tab navigation (tab bar, re-tap, badge)', area: 'shell', status: 'shipped',
+    summary: 'Moving between the five sections. A tab switch is a cut with no transition; each tab keeps its own stack and scroll position; tapping the selected tab pops to its root and a second tap scrolls to the top. The tab bar is the floating glass bar on iPhone and the unfolded Duo in portrait, and the vertical bar on the folded Duo and in unfolded landscape; iPad uses the flyout for the same moves.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/App/Shell/ShellNavigator.swift', 'apple/Sources/HassUI/UIKitPort/App/Page/UKScrollToTop.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift'],
+    spec: ['.agents/design/motion.md', '.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/design/apple/duo.md'],
+    patterns: ['motion', 'header-edge-fade'],
+    hig: ['Tab bars', 'Navigation and search', 'Scroll views'],
+    kitComponents: ['TabBar', 'NavigationFlyout', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'ipad-portrait', 'duo-unfolded-portrait', 'duo-unfolded-landscape'],
+    states: {
+      'home': { title: '1. Home, the selected tab', note: 'the starting point', render: function (c) { return root(c, 'home'); } },
+      'tab-cut': { title: '2. Tap Security: a cut', note: 'Security\'s content is there in the first frame; no slide, no fade (motion.md 4.1)', render: function (c) { return withFinger(c, 'security', {}, 'security'); } },
+      'pushed-on-home': { title: '3. Back on Home with a page pushed', note: 'the tab bar stays on pushed pages; Home\'s path holds Kitchen', render: function (c) { return kitchen(c); } },
+      're-tap-pops-to-root': { title: '4. Tap Home again: pop to the root', note: 'first tap of the selected tab pops the stack to the root with the Back motion (both pages a full width, single-page-motion.md); the wallpaper does not move', render: function (c) { return withFinger(c, 'home', {}, 'home'); } },
+      'second-tap-scrolls-top': { title: '5. Scrolled, tap Home again: scroll to the top', note: 'at the root, the second tap scrolls the main scroll view to its top (system animated setContentOffset); the page is scrolled 260 pt here whatever the Page scroll control says', render: function (c) { var p = withFinger(c, 'home', {}, 'home'); Mock.whenAttached(p, function () { setTimeout(function () { var sc = p.querySelector('.ui-scroll'); if (sc) { sc.scrollTop = 260; sc.dispatchEvent(new Event('scroll')); } }, 250); }); return p; } },
+      'at-top': { title: '6. At the top', note: 'the large title is back; the header fade has gone', render: function (c) { return root(c, 'home'); } },
+      'chores-badge': { title: 'Chores with the overdue badge', note: 'only Chores is badged; its count follows the viewer\'s overdue chores', render: function (c) { return root(c, 'chores', { choresBadge: 3 }); } },
+      'chores-badge-none': { title: 'No badge (not a resident, or none overdue)', render: function (c) { return root(c, 'chores', { choresBadge: 0 }); } },
+      'duo-folded-rail': { title: 'Folded Duo: the vertical rail', note: 'forced to the folded Duo; the same cut and re-tap, tabs in the trailing bar', override: { device: 'duo-folded' }, render: function (c) { return withFinger(c, 'climate', {}, 'climate'); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the bar keeps its size; the page text grows', render: function (c) { return root(c, 'security'); } },
+    },
+    motion: [
+      { id: 'tab-cut', what: 'Tapping another tab replaces the page with no transition', token: 'none: a cut (motion.md 4.1); .transaction(value: selection) { animation = nil }', state: 'home',
+        source: 'HassUI/App/MainTabView.swift tabs; motion.md sections 2 and 4.1', reduce: 'unchanged',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = root(ctx, 'security', { section: 'security' }); a.parentNode.insertBefore(b, a); return Mock.anim.cut(a, b).then(function () { return Mock.sleep(900); }).then(function () { b.remove(); a.hidden = false; }); } },
+      { id: 're-tap-pop', what: 'Tapping the selected tab with a page pushed pops to the root with the Back motion: the page leaves by the trailing edge and the root comes in from the leading edge', token: '`standard` (smooth spring 0.3 s), the same pop as the Back button; Reduce Motion cross-fades', state: 'pushed-on-home',
+        source: 'ShellNavigator.reselect(_:) .poppedToRoot; motion.md 4.1', reduce: 'cross-fade, 0.2 s',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = root(ctx, 'home'); a.parentNode.insertBefore(b, a); return Mock.anim.slide(a, b, { back: true }).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); b.remove(); }); } },
+      { id: 'scroll-to-top', what: 'The second tap scrolls the root page to its top', token: 'system: UIScrollView setContentOffset(animated: true), about 0.4 s; no token', state: 'second-tap-scrolls-top',
+        source: 'HassUI/App/Shell/ScrollToTop.swift ScrollToTopBridge', reduce: 'unchanged: the system scroll',
+        play: function (stage) {
+          var sc = stage.querySelector('.ui-scroll'), from = sc.scrollTop = 260, t0 = Date.now(), dur = 420;
+          return new Promise(function (res) { (function step() { var t = Math.min(1, (Date.now() - t0) / dur), e = 1 - Math.pow(1 - t, 3); sc.scrollTop = from * (1 - e); sc.dispatchEvent(new Event('scroll')); if (t < 1) setTimeout(step, 16); else res(); })(); }).then(function () { return Mock.sleep(400); });
+        } },
+    ],
+    transitions: [
+      { from: 'Home', to: 'Security tab', kind: 'cut', state: 'home', note: 'A cut. Each tab keeps its own NavigationStack path and scroll position, so returning shows exactly what was there; nothing re-fetches or re-fades.',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = root(ctx, 'security', { section: 'security' }); a.parentNode.insertBefore(b, a); a.hidden = true; return Mock.sleep(900).then(function () { b.remove(); a.hidden = false; }); } },
+      { from: 'Home with a page pushed', to: 'Home root', kind: 'push', state: 'pushed-on-home', note: 'Tap the selected tab: the first tap pops to the root (the Back motion: the pushed page slides out to the trailing edge, the root comes in from the leading edge, over the one wallpaper).',
+        play: function (stage) { var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = root(ctx, 'home'); a.parentNode.insertBefore(b, a); return Mock.anim.push(a, b, { back: true }).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); b.remove(); }); } },
+      { from: 'Home root, scrolled', to: 'Home root, at the top', kind: 'cut', state: 'second-tap-scrolls-top', note: 'The second tap: the scroll view animates to its top with the system scroll (not a custom animation).',
+        play: function (stage) {
+          var sc = stage.querySelector('.ui-scroll'), from = sc.scrollTop = 260, t0 = Date.now(), dur = 420;
+          return new Promise(function (res) { (function step() { var t = Math.min(1, (Date.now() - t0) / dur), e = 1 - Math.pow(1 - t, 3); sc.scrollTop = from * (1 - e); sc.dispatchEvent(new Event('scroll')); if (t < 1) setTimeout(step, 16); else res(); })(); }).then(function () { return Mock.sleep(300); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Header buttons, page content, then the tab bar last. At regular width the "tab bar" is the flyout (flow flyout-navigation); the TabView stays in the tree under it and is hidden from VoiceOver while the flyout is open.' },
+      { rule: 'Name, role, state', note: 'Each tab is a button in the tab bar named by its title, selected trait on the current one. Chores adds its badge count after the name ("Chores, 3"); the flyout says "Chores, 3 overdue".' },
+      { rule: 'Re-tap', note: 'The second tap on the selected tab pops, then scrolls: VoiceOver double-tap does the same; no extra control is needed.' },
+      { rule: 'Targets', note: 'Tab items 44 pt or more in both bars; flyout rows 48 pt or more.' },
+      { rule: 'Reduce Motion', note: 'Nothing to reduce for the cut; the pop becomes a cross-fade; the scroll to top is the system\'s.' },
+      { rule: 'Dynamic Type / AX5', note: 'The bar keeps its size and offers the Large Content Viewer; page content reflows.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Tab bars: switching keeps each tab\'s state, no animation', verdict: 'pass', note: 'A cut; paths are per section in ShellNavigator.paths, scroll stays with the mounted stack (MainTabView.swift:107-120, 137).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: tapping the selected tab pops to the root, then scrolls to the top', verdict: 'pass', note: 'ShellNavigator.reselect (ShellNavigator.swift:150-158) driven by the binding setter (MainTabView.swift:124-132).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: badge only what needs attention', verdict: 'pass', note: 'Chores only.', by: 'apple-hig skill' },
+        { rule: 'Tab bars: use the same navigation on every size', verdict: 'departure', note: 'Regular width uses the flyout, owner 2026-10-10 (ipados.md); the second-tap behaviour carries over via select(_:).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Prefer SwiftUI scroll APIs to walking UIKit', verdict: 'departure', note: 'ScrollToTopBridge finds the largest vertical UIScrollView so one path serves ScrollView and List on the iOS 17 target (ScrollToTop.swift:7-12, 59-74).', by: 'swiftui-pro skill' },
+        { rule: 'Persist selection with an enum', verdict: 'pass', note: '@SceneStorage selectedTab of AppSection (MainTabView.swift:13, 84).', by: 'swiftui-pro skill' },
+        { rule: 'Measure the interaction', verdict: 'pass', note: 'measureCut(.tabSwitch) from the real tap (MainTabView.swift:128).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'One wallpaper per window sits behind the tab bar controller (single-page-motion.md S5, owner 2026-11-02): a tab switch is still a cut and never moves, re-renders or cross-fades it; each tab keeps its stack, so returning shows the same depth over the same wallpaper. Per-tab wallpapers were rejected (they would bring back the swap).',
+      'Docs versus code: none for tabs. motion.md 4.1 says the second tap uses "scrollTo on the page\'s top anchor"; the code uses UIScrollView.setContentOffset (the file header says so). The mockup shows the code.',
+      'iPad draws no tab bar, so steps 2, 4 and 5 show the flyout with a finger on the row (the unfolded Duo keeps its tab bar: floating in portrait, vertical in landscape); folded Duo is forced in state duo-folded-rail.',
+      'The Security, Climate and Chores roots are trimmed stand-ins; their full pages are other batches\' mockups.',
+      'The scroll-to-top play moves the kit page\'s scroller with timers; the app uses the system scroll animation.',
+    ],
+    changelog: [{ date: '2026-11-02', note: 'Single-page motion: the re-tap pop uses the Back motion; a note on the one wallpaper behind the tabs. `in-flight:claude/settings-motion`.' }, { date: '2026-10-23', note: 'First pass: tab cut, re-tap pop, second-tap scroll, badge, Duo rail.' }],
+  });
+})();
+</script></body></html>

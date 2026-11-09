@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InfoBox · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function sw(c, surface, cap, node, w) { return V.swatch(surface, cap, node, c, w || 380); }
+
+  var base = Mock.componentConfig('InfoBox', { surfaces: ['page', 'sheet'] });
+  var cfg = Object.assign(base, {
+    states: base.states,
+    id: 'info-box', title: 'InfoBox', area: 'design', status: 'shipped',
+    summary: 'A tinted notice with a title and an optional message: success (green, only for a state Home Assistant has confirmed) or neutral (grey). Text stays the primary label ink on a 16% wash of the tone, so it keeps 4.5:1 on a page and in a sheet in light and dark; the icon carries the tint. One accessibility element.',
+    source: ['apple/Sources/HassDesign/InfoBox.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift'],
+    spec: ['.agents/patterns/info-box.md'],
+    patterns: ['info-box', 'settings-section'],
+    hig: ['Alerts', 'Color', 'Dynamic Type', 'Accessibility'],
+    kitComponents: ['InfoBox', 'InlineAlert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    a11y: [
+      { rule: 'One element', note: 'Title and message are combined into one VoiceOver element ("Alex Away. Solo Trip is active until Oct 28."); the icon is decorative; there is no button and no action (a notice is not tappable).' },
+      { rule: 'Tone is not colour alone', note: 'Success has a check circle and neutral an info circle; the title says what the state is. Text is the primary ink, never the tone colour, so contrast does not depend on the tint.' },
+      { rule: 'Contrast', note: 'Primary ink on a 16% wash of green #42A147 or grey: at least 4.5:1 in light and dark, on the dark page and on the sheet ground.' },
+      { rule: 'Dynamic Type', note: 'Title is headline (17 Semibold) and message subheadline (15); both wrap with fixedSize; the box grows; nothing truncates at AX5.' },
+      { rule: 'Warnings use InlineAlert', note: 'A warning is the orange-triangle InlineAlert ("Warning: …") and an error red text ("Error: …"); do not add a third alert view (pattern doc).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Color: do not rely on colour alone; keep contrast at 4.5:1 or better", verdict: "pass", note: "Tone is carried by a glyph (checkmark.circle.fill or info.circle.fill) and the title; all text is Ink.primary on a 16 percent wash, so the contrast does not depend on the tint.", by: "apple-hig skill" },
+        { rule: "Typography: Dynamic Type, wrap rather than truncate", verdict: "pass", note: "headline title and subheadline message use fixedSize(horizontal: false, vertical: true) inside a maxWidth .infinity box, so the notice grows at AX5.", by: "apple-hig skill" },
+        { rule: "Color: use semantic or token colours; keep success green consistent", verdict: "pass", note: "Already fixed: InfoBox.tone color is HassTokens.Ink.success (InfoBox.swift:51); the hard-coded green is gone and ColourContrastTests checks the glyph on its wash (4.28:1 light, 5:1 dark).", by: "apple-hig skill" },
+        { rule: "Accessibility and Feedback: tell people when a status appears", verdict: "pass", note: "SoloTripNoticeBox uses announcesWhenShown (Announcer) with the notice title and description.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Accessibility: combine title and message into one element", verdict: "pass", note: ".accessibilityElement(children: .combine) on the box reads 'Alex Away, Solo Trip is active until Oct 28' as one static element; it is not a Button, so it is not tappable.", by: "swiftui-pro skill" },
+        { rule: "Design: use Label for icon plus text; system hierarchical styles", verdict: "pass", note: "The title is a Label with an icon builder rather than an HStack; the wash uses background(_:in:) with a continuous RoundedRectangle shape and no extra overlay.", by: "swiftui-pro skill" },
+        { rule: "Design: avoid hard-coded colours; reuse tokens", verdict: "pass", note: "Fixed: InfoBox tones use Ink.success and Ink.secondary and the wash is HassTokens.Wash.notice (InfoBox.swift).", by: "swiftui-pro skill" },
+        { rule: "API: prefer value-in views with Sendable enums", verdict: "pass", note: "InfoBox takes title, message and a Sendable Tone enum, no environment or store, so Solo Trip, the vacuum sheet and the feedback sheet share it unchanged.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'success vs neutral: the pattern doc says success only for a state Home Assistant has confirmed (Solo Trip "<Traveler> Away"; the vacuum sheet\'s "Cleaned" list).',
+      'no motion: InfoBox has no animation of its own; the Solo Trip notice appears with its section.',
+      'The Feedback sheet draws the box in a clear list row with zero insets (listRowInsets EdgeInsets(), clear background), so it is edge to edge inside the form margin: drawn here as a plain swatch.',
+      'Sheets: the box colour does not change with the sheet\'s appearance; only the primary ink does.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: tones, message variants, real usages (Solo Trip, vacuum sheet, feedback sheet), AX5.' }],
+  });
+  cfg.states['messages'] = { title: 'Title only, with message, multi-line, long', render: function (c) {
+    return V.grid([sw(c, 'page', 'title only (success)', K.InfoBox({ tone: 'success', title: 'Docked' })), sw(c, 'page', 'title and one line', K.InfoBox({ tone: 'neutral', title: 'Alex Away', message: 'Solo Trip is active until Oct 28.' })),
+      sw(c, 'sheet', 'bullet list (a message with line breaks)', K.InfoBox({ tone: 'success', title: 'Cleaned', message: '• Kitchen\n• Hallway\n• Living Room' })),
+      sw(c, 'sheet', 'long text wraps', K.InfoBox({ tone: 'neutral', title: 'Reporting isn\'t set up yet', message: 'Reports are filed through Home Assistant. Whoever manages it can add the Fenton Home Feedback integration in Settings → Devices & services.' }))]); } };
+  cfg.states['in-context'] = { title: 'In context: Solo Trip, vacuum sheet, feedback sheet', note: 'the strings are from the code (Feedback, Vacuum map panel) or fixtures (Solo Trip title)', render: function (c) {
+    function lines(t) { var n = K.InfoBox({ tone: 'neutral', title: t[0], message: t[1] }); return n; }
+    var vac = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, K.InlineAlert({ message: 'Current Issue: Brush stuck' }), K.InfoBox({ tone: 'neutral', title: 'Home Assistant Condition', message: 'The robot reports a low battery.' }),
+      K.InfoBox({ tone: 'neutral', title: 'Previous Issue', message: 'Previous Vacuum Issue · Wheel jammed · Observed Oct 20, 2026, 3:12 PM' }), K.InfoBox({ tone: 'success', title: 'Cleaned', message: '• Kitchen\n• Hallway' }));
+    return V.grid([sw(c, 'page', 'Vacation: Solo Trip notice (a page, success)', K.InfoBox({ tone: 'success', title: 'Alex Away', message: 'Solo Trip is active until Oct 28.' })),
+      sw(c, 'sheet', 'Vacuum sheet: status area (InfoBox beside InlineAlert)', vac, 420),
+      sw(c, 'sheet', 'Feedback form: setup missing (neutral, clear row)', K.InfoBox({ tone: 'neutral', title: 'Reporting isn\'t set up yet', message: 'Reports are filed through Home Assistant. Whoever manages it can add the Fenton Home Feedback integration in Settings → Devices & services.' }), 420)]); } };
+  cfg.states['ax5'] = { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'headline and message grow and wrap; the glyph scales with the headline', render: function (c) { return V.grid([sw(c, 'page', 'AX5 success', K.InfoBox({ tone: 'success', title: 'Alex Away', message: 'Solo Trip is active until Oct 28.' }), 560), sw(c, 'sheet', 'AX5 neutral', K.InfoBox({ tone: 'neutral', title: 'Previous Issue', message: 'Previous Vacuum Issue · Wheel jammed' }), 560)]); } };
+  cfg.motion = [];
+  Mock.mount(cfg);
+})();
+</script></body></html>

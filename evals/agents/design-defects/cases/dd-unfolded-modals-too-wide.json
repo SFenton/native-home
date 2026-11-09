@@ -1,0 +1,16 @@
+{
+  "id": "dd-unfolded-modals-too-wide",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Close, but it's taking up about 66-75% of the screen, not half",
+  "surface": "hass-modal",
+  "poses": [
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "sizing",
+  "pre_fix_ref": "9d1576ba",
+  "fix_ref": "d92730e2",
+  "fix_confidence": "high",
+  "expected": "A leading-half sheet ends at the hinge minus the half margin; measure the sheet frame and flag any width past half the window."
+}

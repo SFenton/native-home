@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sort Inventory · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function presenter(ctx, o) { return V.page(ctx, Object.assign({ space: 'all-food', noFab: true }, o)); }
+  function sheet(ctx, o) { o = o || {}; return Mock.sheet(ctx, Object.assign(V.sortSheet(ctx, o), { presenter: presenter(ctx, o.page), detent: o.detent || 'fitted' })); }
+
+  Mock.mount({
+    kind: 'modal', id: 'inventory-sort-sheet', title: 'Sort Inventory', area: 'inventory', status: 'shipped',
+    summary: 'The Sort button on every inventory page opens a fitted form sheet on the shared FilterSheet: Sort By (Title, Expiration Date) and Sort Direction (Ascending, Descending) as single-choice rows, Apply as the filled check, Reset to Defaults as a list row once the draft differs. Follows the system appearance.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventorySheets.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md', '.agents/patterns/floating-actions.md'],
+    patterns: ['floating-actions', 'modal-sheet'],
+    hig: ['Sheets', 'Lists and tables', 'Toolbars', 'Dynamic Type', 'Color'],
+    kitComponents: ['FilterSheet', 'FilterSection', 'FilterOptionRow', 'HassModal', 'SheetCancelItem', 'SheetConfirmItem', 'FloatingActionBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Title, Ascending (the defaults)', note: 'Apply is disabled (the draft equals what is applied) and Reset to Defaults is hidden: a disabled row fails the contrast audit', render: function (c) { return sheet(c, {}); } },
+      'changed': { title: 'Expiration Date chosen', note: 'Apply enables and Reset to Defaults appears (action tint, never red); the page rows group into Expired, Expiring Soon, Later, No Expiration Date once applied', render: function (c) { return sheet(c, { mode: 1 }); } },
+      'descending': { title: 'Descending', note: 'Direction is two option rows with the web hint as subtitle, not a segmented control (it clipped at large sizes)', render: function (c) { return sheet(c, { mode: 1, dir: 1 }); } },
+      'medium': { title: 'Medium detent', note: 'what the sheet opens at until its content is measured; fitted replaces it a frame later', render: function (c) { return sheet(c, { detent: 'medium' }); } },
+      'fitted': { title: 'Fitted detent (shipped)', note: 'as tall as its rows (owner 2026-10-16); the iPad form sheet fits its height too (iOS 18)', render: function (c) { return sheet(c, { detent: 'fitted' }); } },
+      'large': { title: 'Large detent', note: 'reached only when the content is taller than the window (AX sizes)', render: function (c) { return sheet(c, { detent: 'large', mode: 1 }); } },
+      'closed': { title: 'Over the page, before presenting', note: 'the page the sheet scales back; the floating bar is hidden while any sheet is up', render: function (c) { return V.page(c, { space: 'all-food' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'every row wraps by word; the sheet reaches the large cap and scrolls; Reset to Defaults grows with its text', render: function (c) { return sheet(c, { mode: 1, detent: 'large' }); } },
+    },
+
+    motion: [
+      { id: 'option-check', what: 'Choosing an option: the check fades in on the new row and out on the old one', token: 'quick 0.2 s easeOut', state: 'changed',
+        source: 'HassDesign/FilterSheet.swift FilterOptionRow quickTransition("FilterOptionRow"); motion.md section 7 quick', reduce: 'unchanged (opacity is not motion); no slide exists',
+        play: function (stage) { var rows = stage.querySelectorAll('.ui-optlist')[0].querySelectorAll('.ui-optrow'); rows[1].classList.add('sel'); rows[0].classList.remove('sel');
+          return Mock.sleep(500).then(function () { rows[0].classList.add('sel'); rows[1].classList.remove('sel'); return Mock.sleep(500); }); } },
+    ],
+    transitions: [
+      { from: 'Inventory page', to: 'Sort Inventory sheet', kind: 'sheet', state: 'closed', note: 'The Sort button presents a fitted form sheet; the page scales back and dims, content is present on arrival (motion.md section 4.4). The floating bar hides while it is up.',
+        play: function (stage) { return Mock.presentDemo(stage, V.sortSheet(Mock.current, {})); } },
+      { from: 'Sort Inventory sheet', to: 'Inventory page', kind: 'sheet', state: 'changed', note: 'Apply (the filled check) commits the draft and dismisses; Cancel (circle x) or a swipe down drops it. After Apply the rows reload in place through the results gate (170 ms fade, spinner after 150 ms).',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(400); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Sort Inventory", Cancel (leading) and Apply (trailing) in the bar; Sort By heading, its two rows, Sort Direction heading, its two rows; Reset to Defaults last when shown. Escape or the two-finger scrub cancels.' },
+      { rule: 'Option rows', note: 'Each row is one element "Title, Sort alphabetically by item name." with the selected trait on the chosen one; the check is decorative. Rows are at least 44 pt and grow with their text.' },
+      { rule: 'Toolbar', note: 'Cancel and Apply are circle glyph buttons labelled for VoiceOver (identifiers filterSheet.cancel, filterSheet.apply); Apply is disabled until something changes, announced as dimmed.' },
+      { rule: 'Section headers', note: 'FilterSection draws 15 Semibold in the readable secondary ink (the system header measured 3.1:1) and keeps the heading trait; it wraps at AX sizes.' },
+      { rule: 'Dynamic Type', note: 'At AX5 option titles and hints wrap; no segmented control is used because it clipped; the sheet scrolls.' },
+      { rule: 'Reset is not red', note: 'Resetting a sort is not destructive; the row uses the action tint (HIG Buttons: reserve red for destructive actions).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: Cancel leading, confirm trailing', verdict: 'pass', note: 'The shared FilterSheet with Apply disabled until the draft differs (InventoryControlSheets.swift:19-46).', by: 'apple-hig skill' },
+        { rule: 'Lists: single choice with a checkmark', verdict: 'pass', note: 'Sort By and Sort Direction are option rows with checkmarks and the isSelected trait; option rows replaced the segmented control after it clipped at large text (InventoryControlSheets.swift:38-44).', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type', verdict: 'pass', note: 'Rows wrap and the fitted sheet re-measures (SheetFit); Reset to Defaults appears only when the draft differs from Title, Ascending.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Presentation and state', verdict: 'pass', note: 'Draft @State seeded from the model in init and written back in onApply (InventoryControlSheets.swift:11-27).', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: grouped radio rows', verdict: 'pass', note: 'FilterOptionRow combines title and subtitle and adds .isSelected (FilterSheet.swift:158-159).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading: none. The sort and filter state is local to the page model; nothing is fetched, so the sheet opens complete.',
+      'error: none. There is nothing to fail: Apply writes two properties on the page model.',
+      'offline: none. The sheet works offline (it sorts rows already on the page); the page behind carries the offline chip.',
+      'Sort is by the card\'s soonest expiry; cards without a date sort last in both directions and break ties by name (InventoryCatalog.visible).',
+      'The Sort button on the page is filled (#F2F2F7, black glyph) while a non-default sort is applied (sortActive).',
+      'Duo unfolded: the centred form sheet crosses the hinge band here (placement is the system\'s; only pages were run in the unfolded pose).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: defaults, changed, descending, three detents, AX5, light and dark.' }],
+  });
+})();
+</script></body></html>

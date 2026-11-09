@@ -1,0 +1,52 @@
+# gitleaks config for `gitleaks dir`, `gitleaks git` and tools/history_secret_scan.sh (auto-discovered at the repo root).
+# Extends the default rules; no rule is switched off or allowlisted globally. Each entry below names one file and the rule(s)
+# that fired on it, all triaged as fake test fixtures (placeholder, generated or fixed test literals).
+# Triage and reasoning: .agents/workflow/secret-scan-triage.md
+# Unlike .gitleaksignore, paths here survive a fresh orphan snapshot (fingerprints include the commit sha).
+
+title = "Fenton HASS Native"
+
+[extend]
+useDefault = true
+
+# Mockup note text: an item key slug, not a credential (secret-scan-triage.md).
+[[allowlists]]
+description = "mockup item key slug"
+targetRules = ["generic-api-key"]
+paths = ['''^\.agents/design/mockups/proposals/tile-rollout-rooms-media/tile-rollout-rooms-media\.html$''']
+
+# Fixed idempotency-key literals asserted in a unit test (secret-scan-triage.md).
+[[allowlists]]
+description = "idempotency key test literals"
+targetRules = ["generic-api-key"]
+paths = ['''^apple/Tests/HassCoreTests/ScanItemModelTests\.swift$''']
+
+# Sequential placeholder key in a test (secret-scan-triage.md).
+[[allowlists]]
+description = "placeholder cache key"
+targetRules = ["generic-api-key"]
+paths = ['''^tools/tests/test_products_cache\.py$''']
+
+# Fake key/token strings fed to the redactor under test (secret-scan-triage.md).
+[[allowlists]]
+description = "jev sections redaction fixture"
+targetRules = ["generic-api-key"]
+paths = ['''^tools/tests/test_jev_sections\.py$''']
+
+# Commit-message text in a test, not a credential (secret-scan-triage.md).
+[[allowlists]]
+description = "ha_change test commit text"
+targetRules = ["generic-api-key"]
+paths = ['''^tools/tests/test_ha_change\.py$''']
+
+# Fake PEM, JWT and Basic-auth fixtures for the redaction tests (secret-scan-triage.md).
+[[allowlists]]
+description = "redactor test fixtures"
+targetRules = ["private-key", "jwt", "curl-auth-header"]
+paths = ['''^tools/tests/test_redact\.py$''']
+
+# Placeholder token argument in a triage test (secret-scan-triage.md).
+[[allowlists]]
+description = "triage test placeholder token"
+targetRules = ["generic-api-key"]
+paths = ['''^tools/triage/tests/test_hass_triage\.py$''']

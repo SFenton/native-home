@@ -1,0 +1,77 @@
+{
+  "id": "context.patterns",
+  "version": 8,
+  "type": "noul-set",
+  "mode": "active",
+  "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
+  "instructions": "A request was filed against S+H, a native SwiftUI Home Assistant app for iPhone, iPhone Duo and iPad. The repository registers shared patterns, each with one canonical component. Does fixing or building this request involve the pattern \"{option}\"?",
+  "criteria": {
+    "action-tiles": "Action tiles: the one way a tile shows and runs actions: trailing or below discs, the chevron beside them, feedback kinds, availability motion. (components: TileActionStrip, TileActionButtonStyle, TileActionSpec)",
+    "alerts": "Alerts and confirmations: how the app asks \"are you sure?\" and reports a failure: one presenter, one set of words, one role per decision. (components: AlertCopy)",
+    "avatar": "Avatar: how a person is drawn as a disc (photo or initials), and how their Home Assistant photo is synced, cached and removed. (components: UKAvatarView, PersonAvatars)",
+    "bedroom-devices": "Bedroom devices (wake light, bed sides): the Primary Bedroom's Wake-Light Alarms and bed sides: tiles, sheets, alarm editors, the active alarm and the Tonight/All Nights prompt. (components: BedSideSheet, WakeLightSheet)",
+    "camera-streams": "Camera streams: how live camera video is shared, started, stopped and brought back. (components: CameraStreamPool, CameraLiveModel, CameraStreamRetention)",
+    "content-gate": "Content gate: how a page waits for its content before showing it. (components: UKContentGateView)",
+    "design-tokens": "Design tokens: the one set of spacing, radius, colour, ink, surface and type values every screen draws from. (components: HassTokens)",
+    "dynamic-grid": "Dynamic grid: the responsive tile grid. (components: DynamicGridLayout)",
+    "entity-tile": "Entity tile: the glass tile used for entity controls. (components: UKGlassTileView)",
+    "floating-actions": "Floating actions and filter sheets: page-level floating buttons (Add Task, Add Groceries, Scan Item, recipe/inventory Search, Sort, Filter) and the sort/filter sheets they open. (components: FloatingActionBar, UKFilterSheet)",
+    "header-edge-fade": "Header edge fade: how scrolling content meets a page or modal header. (components: HeaderEdgeFade)",
+    "hinge-avoidance": "Hinge avoidance: how content stays off the iPhone Duo's hinge band and keeps a readable width on iPad. (components: HingeAvoidance, UKHingedPanes, UKFoldColumns, FoldColumns)",
+    "image-cache": "Image cache: how remote images load, cache and update. (components: ImagePipeline, UKCachedImageView)",
+    "image-card": "Image card: a tappable card with a remote image, title and subtitle. (components: ImageCard)",
+    "info-box": "Info box: a tinted notice with a title and optional message. (components: InfoBox)",
+    "media-remote": "Media remote: the media remote sheet (the 3×3 remote grid with power, and the Remote/Apps/Devices/Hue Sync sections) shared by every TV in the house. (components: MediaRemoteSheet)",
+    "modal-sheet": "Modal sheet: how web hash modals become native sheets. (components: UKHassModal, ModalTabBar)",
+    "module-list": "Module list: inset lists on the wallpaper (direction G, Controls: Lists). (components: UKModuleListView)",
+    "motion": "Motion: the shared components that apply the app-wide motion rules. (components: MotionTokens)",
+    "optimistic-actions": "Optimistic actions: how a control shows its new value at once and stays honest. (components: OptimisticActions)",
+    "option-picker": "Option picker: picking one value from a short list in a sheet. (components: OptionPickerSheet)",
+    "page-backdrop": "Page backdrop: the blurred photo of the house behind every page. (components: HouseBackdrop)",
+    "page-indicator": "Page indicator: the one page indicator for every paging row and carousel (Food suggestions, the Weather sheet, the hourly rows). (components: PageIndicator)",
+    "resume-lifecycle": "Resume lifecycle: the rule that a background and foreground leaves the app exactly as the first launch did, and the census that proves it. (components: ResourceCensus, ResourceCensusProbe, ukPagesByViewport)",
+    "room-device-sheets": "Room device sheets: the device sheets opened from room tiles: bathroom fan, air quality (purifier), humidifier, grill. (components: UKBathroomFanSheet, UKAirPurifierSheet)",
+    "room-overview-sheet": "Room overview sheet: the room-by-room sheets behind Home's Lights, Climate, Occupancy, Contact Sensors and Air Quality chips, and the room detail they push. (components: RoomOverviewSheet)",
+    "schedule-date-fields": "Schedule date fields: date-and-time pickers for schedules. (components: UKScheduleDateFields)",
+    "scroll-fit": "Scroll fit: a vertical scroll view scrolls and bounces only when its content is taller than its viewport. (components: UKScrollFit)",
+    "settings-section": "Settings section: a settings page's header + description + controls block, and the pieces that go in it. (components: UKSectionBlock)",
+    "state-message": "State message: the empty and error state (\"No Chores Due\", \"Unable to Load Recipes\"). (components: UKStateMessageView)",
+    "status-pill": "Status pill: a read-only labeled value with a toned icon. (components: StatusPill)",
+    "status-rail": "Status rail: the horizontal chip row under a page title. (components: UKStatusRail)",
+    "tap-feedback": "Tap feedback: the one haptic vocabulary and the failure feedback built on it. (components: TapFeedback, TransientFailure)",
+    "telemetry": "Telemetry: how the app measures its own performance. (components: Telemetry)",
+    "thermostat-dial": "Thermostat dial: the circular setpoint dial for `climate` entities. (components: ThermostatDial, UKClimateThermostatDial)",
+    "ticker": "Ticker label: one line of text that scrolls through its column when it is too wide, instead of truncating. (components: TickerLabel)",
+    "vacuum-sheet": "Vacuum sheet: the robot vacuum sheet (map, status, Controls/Rooms/Auto-Clean/Dock/Info tabs, area editor, cleaning report). (components: UKVacuumSheet)",
+    "valetudo-map": "Mapped map: decoding and drawing a Mapped map (rooms, walls, robot, dock, paths, areas). (components: UKValetudoMapView, ValetudoMap)",
+    "weather": "Weather card and sheet: the Home weather card, its 24-hour carousel and the Weather sheet, plus the logic under them. (components: UKWeatherCardView, UKWeatherSheet, UKWeatherCarouselView)",
+    "scroll-frame-rate": "Scroll frame rate: no app refresh-rate request while scrolling (iOS manages it); scroll surfaces report to ScrollActivity. (components: UKScrollRate)",
+    "swipe-row": "Swipe row: swipe actions on rows of a plain stack (iOS 18+), the List's on iOS 17. (components: UKSwipeAction)",
+    "check-row": "Check row: the one checkable row: a check circle, the text, an optional trailing accessory. (components: CheckRow)",
+    "modal-inventory": "Modal inventory: every modal in the app, how it is presented, what it holds, how it behaves in each pose, and the bugs found. (components: UKShellSheet)",
+    "page-base": "Page base: the one way a page, a pane or a tab hosts its scrolling body, spaces it, pins a bar under it and gets its ground. (components: UKPageScrollView, UKPageViewController)",
+    "rows": "Rows: the one list row: slots for a leading glyph, check or avatar, the text and a trailing accessory or chevron. (components: UKRowView)"
+  },
+  "state": {
+    "fields": [
+      "title",
+      "body",
+      "files"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5
+  },
+  "target": {
+    "precision": 0.5
+  },
+  "output": "Pre-read hint line (jev_hints.py preread): the top patterns, their docs and canonical files.",
+  "evidence": "Last 50 merged PRs (33 touch a pattern): recall@8 0.78 against 0.58 for keyword matching; 0.90 against 0.68 on the 16 focused PRs (up to 3 patterns). Ranked hint only: a PR that touches several patterns still misses some (full@8 0.42). See .agents/workflow/decision-models.md.",
+  "measured": {
+    "n": 33,
+    "recall_at_8": 0.783,
+    "full_at_8": 0.424,
+    "baseline_recall_at_8": 0.582
+  }
+}

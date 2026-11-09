@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Image card · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+
+  /* ImageCard in its states. The photo is a stand-in; `loading` and `placeholder` keep the module the card sits on (ImageCard: .module + scrim). */
+  function card(ctx, o) {
+    o = o || {};
+    var n = F.imageCard(ctx, o.i == null ? 3 : o.i, { title: o.title, subtitle: o.subtitle === undefined ? '4 of 5 Ingredients' : o.subtitle });
+    if (o.photo === false) {
+      var ph = n.querySelector('.photo, .thumb');
+      if (ph) { ph.style.background = 'none'; if (o.symbol) ph.appendChild(h('span.fd-phsym', { html: Mock.icon('fork.knife'), 'aria-hidden': 'true' })); }
+      if (!ctx.axSize) n.classList.add('module');
+    }
+    if (o.selected) { var w = h('div.fd-cell.sel', { 'aria-selected': 'true' }, n); return w; }
+    return n;
+  }
+  function row(ctx, kids, cols) { return h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(' + (cols || 2) + ',minmax(0,1fr))', gap: '12px' } }, kids); }
+  function sw(ctx, items, o) { return F.swatches(ctx, items, Object.assign({ surfaces: ['page'], min: 220 }, o)); }
+
+  var cfg = Mock.componentConfig('ImageCard', { surfaces: ['page'] });
+
+  Mock.mount(Object.assign(cfg, {
+    id: 'image-card', title: 'Image card (recipe card)', area: 'food', status: 'shipped',
+    summary: 'A tappable photo card: the picture fills a 22 pt card (1 : 0.78), the caption sits on it in white over a bottom scrim; at accessibility sizes it becomes a row with a 72 pt thumbnail. One component for the Food hub carousel and the Recipes grid. Always on a page (dark), never in a sheet.',
+    source: ['apple/Sources/HassDesign/ImageCard.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKImageViews.swift', 'apple/Sources/HassDesign/Images/ImagePipeline.swift', 'apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift'],
+    spec: ['.agents/patterns/image-card.md', '.agents/patterns/image-cache.md', '.agents/pages/food/ios.md'],
+    patterns: ['image-card', 'image-cache', 'content-gate'],
+    hig: ['Collections', 'Images', 'Color', 'Dynamic Type', 'Accessibility'],
+    kitComponents: ['ImageCard', 'CameraTile'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'variants': cfg.states.variants,
+      'photo-states': { title: 'Photo states', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'loaded, title and subtitle', width: 190, render: function () { return card(ctx, { i: 1 }); } },
+          { label: 'loaded, title only (carousel)', width: 190, render: function () { return card(ctx, { i: 5, subtitle: null }); } },
+          { label: 'loading (no photo yet: the module shows)', note: 'while loading the frame stays empty, so a fast load fades straight in with no placeholder flash', width: 190, render: function () { return card(ctx, { photo: false }); } },
+          { label: 'failed or no URL: placeholder symbol', note: 'fork.knife in secondary ink on the module (a tinted fill read as text to the contrast audit)', width: 190, render: function () { return card(ctx, { photo: false, symbol: true }); } },
+        ]); } },
+      'selected': { title: 'Selected (open in the split pane)', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'selected: 3 pt #409CFF outline + selected trait', width: 190, render: function () { return card(ctx, { i: 1, selected: true }); } },
+          { label: 'not selected', width: 190, render: function () { return card(ctx, { i: 5 }); } },
+        ], { }); } },
+      'long-text': { title: 'A three-line title', note: 'up to three lines at standard sizes; the scrim is 55% black by the middle so a white plate still holds 4.5:1', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'three-line title, with subtitle', width: 190, render: function () { return card(ctx, { i: 7, title: 'Slow-Cooked Pulled Pork Sandwiches With Pickled Onions and Slaw', subtitle: '7 of 10 Ingredients' }); } },
+          { label: 'long single word', width: 190, render: function () { return card(ctx, { i: 9, title: 'Spaghetti alla Carbonara Romana', subtitle: '5 of 6 Ingredients' }); } },
+        ]); } },
+      'ax5': { title: 'Accessibility 5 text size (a row)', override: { ts: 'ax5' }, note: 'a row on a module: 72 pt thumbnail, title never truncated (1...100 lines), subtitle in primary-secondary ink', render: function (ctx) {
+        return sw(ctx, [{ label: 'row at AX5 (320 pt cell in the Recipes grid)', width: 360, render: function () { return card(ctx, { i: 7, title: 'Lemon Garlic Chicken', subtitle: '4 of 4 Ingredients' }); } }]); } },
+      'in-context': { title: 'In context: carousel page and Recipes grid', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'Food hub: Suggested Recipes page (title only, 10 pt gaps)', width: 400, render: function () { return F.carousel({ ctx: ctx, phase: 'ready', width: 370 - 20 }); } },
+          { label: 'Recipes grid: 160 pt minimum, 12 pt gaps, subtitle "n of m Ingredients"', width: 400, render: function () { return row(ctx, [0, 1, 2, 3].map(function (i) { return card(ctx, { i: i, selected: i === 1 }); })); } },
+        ], { min: 380 }); } },
+    },
+
+    motion: [
+      { id: 'photo-fade', what: 'The photo fades in over the card; a different URL cross-fades; a same-key refresh swaps with no animation', token: 'quick 0.2 s ease-out (.animation(MotionTokens.quick, value: shownKey) on the CachedImage subtree)', state: 'photo-states',
+        source: 'HassDesign/Images/CachedImage.swift; patterns/image-cache.md', reduce: 'not gated on Reduce Motion in the code: a 0.2 s opacity change is not movement',
+        play: function (stage) { var p = stage.querySelector('.ui-img .photo'); if (!p) return Promise.resolve(); p.style.opacity = 0; return Mock.sleep(80).then(function () { return Mock.anim.fade(p, { ms: Mock.anim.ms.quick() }); }).then(function () { p.style.opacity = ''; }); } },
+      { id: 'press', what: 'Pressing a card', token: 'none: the card uses .buttonStyle(.plain), so there is no pressed state of its own', state: 'photo-states', source: 'HassDesign/ImageCard.swift', reduce: 'nothing to reduce', play: function () { return Mock.sleep(300); } },
+    ],
+
+    a11y: [
+      { rule: 'One element', note: 'The caption is the card\'s only accessibility element: label = title, value = subtitle ("4 of 5 Ingredients"), hint = the caller\'s ("Opens recipe details"), button trait and a default action. The photo and the button underneath are hidden, so VoiceOver and the rendered-contrast audit see the caption over its scrim, not a card-sized element that is mostly photo (audit item 12).' },
+      { rule: 'Tap target', note: 'The whole card (22 pt continuous shape) is the touch target, far over 44 pt; the photo never takes touches (a fill-scaled photo once swallowed the recipe tabs above it).' },
+      { rule: 'Selection', note: 'The caller outlines the card 3 pt in #409CFF and adds the selected trait; the open recipe is also named by the pane beside it, so colour is not the only cue.' },
+      { rule: 'Contrast', note: 'White caption, 15 Semibold title and 13 pt subtitle at 86%, over a scrim that is clear for the top fifth, 55% by the middle and 82% at the foot, with a 1 pt shadow: 4.5:1 on a white plate even for a three-line title.' },
+      { rule: 'Dynamic Type', note: 'Titles are never truncated at accessibility sizes (1...100 lines; a clipped title fails the AX5 audit). The card becomes a row: 72 pt thumbnail, primary ink title and secondary ink subtitle on a module. Callers widen cells there (320 pt in the grid, 440 pt in the carousel).' },
+      { rule: 'Reduce Transparency', note: 'The module behind the caption and under a loading photo goes opaque (#1C1C1E).' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Images and Color: text over a photo', verdict: 'pass', note: 'The caption is white over a scrim that reaches 55% black at mid-card and 82% at the foot, tuned for a white plate at three title lines (ImageCard.swift scrim).', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: prioritise text', verdict: 'pass', note: 'At accessibility sizes the card becomes a row with a 72 pt thumbnail and the title is never truncated (ImageCard.swift:113-125, 155).', by: 'apple-hig skill' },
+        { rule: 'Buttons: the whole card is the target', verdict: 'pass', note: 'The photo card is a Button with a content shape the size of the card; the caption overlay does not take hits.', by: 'apple-hig skill' },
+        { rule: 'Collections: placeholders never look broken', verdict: 'pass', note: 'RemoteImage tries the fallback URL, then a symbol, and never shows a broken image.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: a hidden Button and an inert caption', verdict: 'pass', note: 'ImageCard caption is now accessibilityRepresentation of a real Button (title label, subtitle value, hint), so Full Keyboard Access, Switch Control and Voice Control get a focusable button; the caption stays framed to the text (image-card.md).', by: 'swiftui-pro skill' },
+        { rule: 'Layout: no hidden copy to size a row', verdict: 'pass', note: 'ImageCard.row is a plain HStack of thumbnail and caption with its own tap gesture; no hidden copy.', by: 'swiftui-pro skill' },
+        { rule: 'Remote images', verdict: 'pass', note: 'CachedImage with a fallback and a quick 0.2 s fade; not gated on Reduce Motion because an opacity change is not movement (motion.md).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Docs vs code: the kit\'s AX row draws a 64 pt thumbnail (kit.css .ui-img.row .thumb); the code is 72 pt (ImageCard.thumbnail). _food.js overrides it to 72 for these mockups (promote to kit).',
+      'Docs vs code: image-card.md says an unselected card is "drawn by the caller" and lists Inventory product cards as a future user; no inventory card uses ImageCard yet.',
+      'Photos are drawn stand-ins in a hue per recipe (the kit\'s single orange scene is repainted per card by Food.photo); the real photos come from Pantryhub recipe URLs.',
+      'The selected outline here is a Food.cell wrapper (.fd-cell.sel): the real one is an overlay RoundedRectangle strokeBorder(Ink.action, 3).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: photo states, selected, long title, AX5 row, in context (carousel page and grid).' }],
+  }));
+})();
+</script></body></html>

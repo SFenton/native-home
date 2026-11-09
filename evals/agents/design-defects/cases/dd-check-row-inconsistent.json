@@ -1,0 +1,16 @@
+{
+  "id": "dd-check-row-inconsistent",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "\"Critical Protection\" checkmark row doesn't match layout of chores checkbox rows; I believe it should",
+  "surface": "vacation-mode",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "5a03c468",
+  "fix_confidence": "high",
+  "expected": "Checkmark rows in vacation, room rules and chores share one row component: same circle size, spacing and trailing slot."
+}

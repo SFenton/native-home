@@ -1,0 +1,16 @@
+{
+  "id": "dd-subpage-header-fade-scroll",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Sub-page scrolling should scroll titles away. In addition, sub-pages need the header scroll fade in the header area",
+  "surface": "header-edge-fade",
+  "poses": [
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "687a2811",
+  "fix_ref": "64249220",
+  "fix_confidence": "high",
+  "expected": "A trailing pane's title is scroll content and the header fade spans both columns, so there is no visible seam at the divider."
+}

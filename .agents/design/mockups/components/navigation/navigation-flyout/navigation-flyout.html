@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Navigation flyout · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  var base = Mock.componentConfig('NavigationFlyout', { surfaces: ['page'] });
+
+  /* The page behind the drawer: a section root with the drawer open over it. Mock.page puts the scrim and the 300 pt panel on top (flyoutOpen). */
+  function open(sec, o) { return function (c) { return SN.rootPage(c, sec, Object.assign({ flyoutOpen: true }, o)); }; }
+  function board(ctx, o) {
+    o = o || {};
+    return SN.board(ctx, [
+      { key: 'iphone', ts: o.ts, zoom: .8, title: 'iPhone (menu button, edge swipe)', caption: 'Open Navigation leads the bar on the iPhone and opens the same drawer; the leading-edge swipe works on section roots.', build: open('home', o.page) },
+      { key: 'ipad-portrait', ts: o.ts, zoom: .46, title: 'iPad portrait', caption: 'Regular width: the only way to move between sections. The drawer is 300 pt wide and full height.', build: open('security', o.page) },
+      { key: 'duo-unfolded-portrait', ts: o.ts, zoom: .5, title: 'Unfolded Duo portrait', caption: 'Horizontal bars like the iPhone: Open Navigation leads the header, and the drawer opens from it or from the leading-edge swipe over the single page; the floating tab bar stays under the scrim.', build: open('climate', o.page) },
+    ]);
+  }
+  var states = {
+    'open': { title: 'Open over a section root', note: 'the content never resizes; the scrim dims the whole window, status bar included', render: function (ctx) { return board(ctx, { page: { choresBadge: 0 } }); } },
+    'badge-on-chores': { title: 'Chores row with the overdue count', note: 'the count is a capsule; VoiceOver says "Chores, 2 overdue"', render: function (ctx) { return board(ctx, { page: { choresBadge: 2 } }); } },
+    'selected-settings': { title: 'Another section selected', note: 'the current row is semibold on an accent tint at 18%', render: function (ctx) { return SN.board(ctx, [{ key: 'ipad-portrait', zoom: .6, caption: 'Settings selected.', build: open('settings', { choresBadge: 2 }) }]); } },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'rows grow with the type (48 pt minimum, vertical padding), the heading and rows wrap, and the panel scrolls', render: function (ctx) { return board(ctx, { ts: 'ax5', page: { choresBadge: 2 } }); } },
+    'closed': { title: 'Closed (before opening, after a destination)', note: 'nothing of the drawer is in the tree', render: function (ctx) { return SN.board(ctx, [{ key: 'ipad-portrait', zoom: .6, caption: 'The page with the menu button; edge swipe or the button opens it.', build: function (c) { return SN.rootPage(c, 'home'); } }]); } },
+  };
+  states['panel'] = { title: 'The panel alone (kit swatch)', render: function (ctx) {
+    var box = h('div.k-swatch.page', { style: { position: 'relative', height: '380px', width: '340px', padding: 0, overflow: 'hidden' } }, h('div.screen.ui-root.g-dark', { style: { position: 'absolute', inset: 0, '--safe-top': '0px', borderRadius: 0 } },
+      K.NavigationFlyout({ selected: 'chores', badges: { chores: 2 } })));
+    return h('div.sn-row', box, SN.cap('Panel', '300 pt wide, continuous 22 pt radius on the trailing corners only, regular material; rows 48 pt minimum with a 28 pt glyph column, then the title, then the badge.')); } };
+
+  function sheetStage(stage) { return SN.screen('ipad-portrait'); }
+  function playFlyout(openIt) {
+    return function (stage) {
+      var screen = sheetStage(stage);
+      // closed page: remove the drawer first, then run the open (and close) motion on it
+      var page = screen.querySelector('.ui-page'), fly = page.querySelector('.ui-flyout'), scrim = page.querySelector('.ui-flyout-scrim');
+      if (!fly) return Promise.resolve();
+      return Mock.anim.flyout(screen, false).then(function () { return Mock.sleep(300); }).then(function () { return Mock.anim.flyout(screen, true); }).then(function () { return Mock.sleep(800); });
+    };
+  }
+
+  Mock.mount(Object.assign(base, {
+    id: 'navigation-flyout', title: 'Navigation flyout drawer', area: 'shell', status: 'shipped',
+    summary: 'The overlay drawer that replaces the tab bar on iPad (regular width, no hinge) and answers the menu button on iPhone. Full height (#140): the blur runs under the status bar and home indicator, the dim covers the whole window, only the rows stay inside the safe area.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift', 'apple/Sources/HassUI/App/Shell/ShellNavigator.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift'],
+    spec: ['.agents/design/apple/ipados.md', '.agents/design/direction-g.md', '.agents/design/apple/iphone.md'],
+    patterns: ['motion', 'header-edge-fade'],
+    hig: ['Sidebars', 'Navigation and search', 'Materials', 'Accessibility'],
+    kitComponents: ['NavigationFlyout', 'HamburgerButton', 'TabBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'flyout-slide', what: 'The panel slides in from the leading edge while the scrim fades with it, and out again', token: 'standard 0.3 s smooth (.move(edge: .leading) + .opacity scrim)', state: 'open',
+        source: 'HassUI/App/Shell/NavigationFlyout.swift motionSafeAnimation(MotionTokens.standard, reduced: MotionTokens.quick); motion.md section 7', reduce: 'cross-fade on quick 0.2 s: panel and scrim fade, nothing slides',
+        play: playFlyout() },
+    ],
+    transitions: [
+      { from: 'Section root', to: 'Flyout open', kind: 'overlay', state: 'open', note: 'Menu button, or a leading-edge swipe (UIScreenEdgePanGestureRecognizer, 60 pt of travel) while the section is at its root. The drawer overlays; the page underneath neither moves nor resizes. Focus moves to the "Navigation" heading.',
+        play: playFlyout() },
+      { from: 'Flyout open', to: 'Chosen section', kind: 'cut', state: 'open', note: 'Choosing a row selects the tab (a cut, motion.md section 4.1) and closes the drawer at the same time. Choosing the current row is the second tap: pop to root, then scroll to top.',
+        play: function (stage) {
+          var screen = sheetStage(stage), c = SN.ctxFor('ipad-portrait', Mock.current), a = screen.querySelector('.ui-page');
+          var prev = Mock.current; Mock.current = c; var b = SN.rootPage(c, 'chores', { section: 'chores' }); Mock.current = prev;
+          return Mock.sleep(500).then(function () { return Mock.anim.flyout(screen, false); }).then(function () { a.parentNode.insertBefore(b, a); a.hidden = true; return Mock.sleep(800); }).then(function () { b.remove(); a.hidden = false; });
+        } },
+      { from: 'Flyout open', to: 'Scrim tap, Escape, VoiceOver escape', kind: 'overlay', state: 'open', note: 'The Close Navigation target covers only the area beside the panel; closing without a destination returns VoiceOver focus to Open Navigation.',
+        play: playFlyout() },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The panel is modal: focus lands on the "Navigation" heading, then Home, Security, Climate, Chores, Settings; the Close Navigation scrim target is last (sort priority -1). The content behind is hidden from VoiceOver on three layers (SwiftUI TabView, each page, the UIKit tab controller view).' },
+      { rule: 'Name, role, state', note: 'Each row is a button named by its section ("Chores, 2 overdue" with a badge); the current row carries the selected trait. Identifiers nav.home ... nav.settings, nav.flyout, nav.flyout.heading, nav.flyout.scrim.' },
+      { rule: 'Dismissal', note: 'Scrim tap, Escape (.cancelAction), the VoiceOver escape gesture, or a destination. Closing without a destination bumps focusReturnToken so Open Navigation takes focus back.' },
+      { rule: 'Targets', note: 'Rows are 48 pt minimum and grow with Dynamic Type; the Open Navigation button is a 44 pt circle.' },
+      { rule: 'AX5', note: 'The heading is title2 bold and wraps; rows add vertical padding instead of resting on 48 pt; the panel scrolls (scrollBounceBehavior basedOnSize) and still fills the window height.' },
+      { rule: 'Contrast', note: 'The selected row uses primary ink on an accent tint at 18% (white on the accent measured 2.5:1 in the iPad audit).' },
+      { rule: 'Reduce Motion', note: 'Panel and scrim cross-fade on quick 0.2 s; Reduce Transparency draws the regular material as the system opaque fallback.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Sidebars: prefer a tab bar or a sidebar that does not cover content', verdict: 'departure', note: 'A temporary overlay drawer on regular width: owner verdict from FestivalNativeApps, 2026-10-10 (design/apple/ipados.md), sizing stays out of the content.', by: 'apple-hig skill' },
+        { rule: 'Modality: a temporary layer dismisses from outside and with Escape', verdict: 'pass', note: 'Scrim tap, .cancelAction shortcut and the VoiceOver escape action (NavigationFlyout.swift:45-60, 94).', by: 'apple-hig skill' },
+        { rule: 'Materials: the navigation layer on iOS 26 is Liquid Glass', verdict: 'pass', note: 'Not applicable: navigationGlass falls back to a thin capsule material before iOS 26, which would change the drawer\'s fill on supported systems; the drawer is a judgement call and stays on its material.', by: 'apple-hig skill' },
+        { rule: 'Gestures: let people drag a panel open and shut', verdict: 'pass', note: 'NavigationFlyoutPanel already closes on accessibilityAction(.escape), is .isModal, and the menu button opens it; those are the decided alternatives (hig-decisions VoiceOver bucket).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: modal focus and return', verdict: 'pass', note: 'Heading takes focus on open, isModal, covered content hidden, and focusReturnToken returns focus to Open Navigation (NavigationFlyout.swift:27-29, 73-75, 93; ShellNavigator.swift:92-97).', by: 'apple-hig skill' },
+        { rule: 'Layout: safe areas for content, extend materials under them', verdict: 'pass', note: 'The blur is ignoresSafeArea; rows stay inside it (NavigationFlyout.swift:84-90).', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: rows grow with the text', verdict: 'pass', note: 'NavigationFlyoutRow\'s symbol column is @ScaledMetric(relativeTo: .body) 28; the panel width is NavigationFlyoutMetrics.panelWidth(preferred:available:), scaled and capped at 80% of the window, full width on a narrow window, with a Close button at accessibility sizes.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Reduce Motion: replace movement with opacity', verdict: 'pass', note: 'transition(reduceMotion ? .opacity : .move(edge: .leading)) and a quick reduced animation (NavigationFlyout.swift:23-26).', by: 'swiftui-pro skill' },
+        { rule: 'Edge pan is a recogniser, mirrored for right-to-left', verdict: 'pass', note: 'UIScreenEdgePanGestureRecognizer via UIGestureRecognizerRepresentable on iOS 18, edge flips in RTL (lines 186-190, 215-237).', by: 'swiftui-pro skill' },
+        { rule: 'Prefer containerRelativeFrame over GeometryReader', verdict: 'pass', note: 'Not applicable: containerRelativeFrame sets an exact height, so the drawer\'s content would stop scrolling at accessibility sizes; the GeometryReader gives the minimum height.', by: 'swiftui-pro skill' },
+        { rule: 'Extract subviews instead of some View properties', verdict: 'pass', note: 'Fixed: NavigationFlyoutScrim, NavigationFlyoutPanel and NavigationFlyoutRow in NavigationFlyoutParts.swift.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Shipped: the full-height drawer, the dimmed top safe area and the iPhone edge swipe are already on main (#140, 137fae4c), drawn here as shipped.',
+      'Docs versus code: direction-g.md (Owner decision 2026-10-20) says "The flyout edge swipe stays off on iPhone"; the code and ipados.md (after #140) enable it on every window that shows the menu button, iPhone included. The mockup follows the code.',
+      'The kit draws the drawer with a CSS blur and an opaque-looking rgba panel; the app uses regularMaterial. Material look is a stand-in.',
+      'The folded Duo and the unfolded Duo in landscape have no drawer: their tab bar is in the trailing rail and the hamburger is absent (ShellChrome.resolve with inVerticalBar).',
+      'The unfolded Duo in portrait shows the menu button like the iPhone (ShellChrome.resolve with inVerticalBar false), so the drawer opens there and the board draws it; unfolded landscape has the vertical bar and no menu button, so it has no drawer. Portrait is drawn from the code and the owner\'s 2026-10-30 call, not from a simulator run (design/apple/duo.md).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: open, badge, selection, AX5, closed; slide motion and the three transitions.' }],
+  }));
+})();
+</script></body></html>

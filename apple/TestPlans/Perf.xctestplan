@@ -1,0 +1,35 @@
+{
+  "configurations": [
+    {
+      "id": "70F9C812-5014-5F1F-87A8-3FBBB734417B",
+      "name": "Configuration 1",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "defaultTestExecutionTimeAllowance": 300,
+    "maximumTestExecutionTimeAllowance": 900,
+    "codeCoverage": false
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:FentonHome.xcodeproj",
+        "name": "FentonHomeUITests"
+      },
+      "parallelizable": false,
+      "selectedTests": [
+        "FastScrollPerformanceTests",
+        "HouseLayoutRevealPerformanceTests",
+        "LaunchPerformanceTests",
+        "LayoutChangePerformanceTests",
+        "NavigationPerformanceTests",
+        "PerformanceJourneyTests",
+        "ScrollSurfacesPerformanceTests",
+        "WeatherTickerPerformanceTests"
+      ]
+    }
+  ],
+  "version": 1
+}

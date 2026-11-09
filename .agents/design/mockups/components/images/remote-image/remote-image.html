@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CachedImage and RemoteImage · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, CM = Mock.cm, I = Mock.icon;
+  var SCENES = ['recipe', 'front-door', 'driveway', 'upper-deck'];
+  /** A card-sized photo frame: no fill of its own (the card surface shows through), layers stack, a loaded image covers. */
+  function frame(o) {
+    o = o || {};
+    var f = h('div', { 'aria-hidden': 'true', style: { position: 'relative', width: '176px', aspectRatio: '1 / .78', borderRadius: 'var(--radius-tile)', overflow: 'hidden', background: 'var(--g-module-thin)' } });
+    var ph = h('span', { style: { position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: 'var(--fs-lt)', color: 'var(--g-secondary-on-module)' }, html: I(o.symbol || 'photo') });
+    f.__layer = function (scene) { var l = h('span', { style: { position: 'absolute', inset: 0, background: Mock.scene(scene) } }); f.appendChild(l); return l; };
+    if (o.scene) f.__layer(o.scene);
+    if (o.placeholder) f.appendChild(ph);
+    return f;
+  }
+  function states(ctx) {
+    return CM.grid(ctx, [
+      { label: 'No URL: the placeholder symbol', node: frame({ placeholder: true }), w: 210 },
+      { label: 'Loading: the frame stays empty (no placeholder flash)', node: frame(), w: 210 },
+      { label: 'Loaded: the image covers the frame', node: frame({ scene: 'recipe' }), w: 210 },
+      { label: 'Failed, no fallback: symbol on the card', node: frame({ placeholder: true, symbol: 'photo' }), w: 210 },
+      { label: 'Failed, fallback URL loads (onFailure switches once)', node: frame({ scene: 'driveway' }), w: 210, note: 'web fallbackImageUrl; if the fallback fails too the symbol shows' },
+    ], { surfaces: ['page'] });
+  }
+  function cards(ctx) {
+    return CM.grid(ctx, [
+      { label: 'ImageCard (RemoteImage inside): recipe', node: K.ImageCard({ title: 'Lemon Herb Roast Chicken', subtitle: '45 min · Serves 4', scene: 'recipe', ctx: ctx }), w: 220 },
+      { label: 'Three-line title over the scrim', node: K.ImageCard({ title: 'Slow-Cooked Pulled Pork Sandwiches With Pickled Onions', subtitle: '6 h', scene: 'recipe', ctx: ctx }), w: 220 },
+      { label: 'Camera snapshot (CachedImage in CameraTile)', node: K.CameraTile({ title: 'Driveway', state: 'snapshot', scene: 'driveway' }), w: 220 },
+    ], { surfaces: ['page'] });
+  }
+  var swaps = {};
+  function updates(ctx) {
+    function swapper(first, second, mode) {
+      var f = frame({ scene: first });
+      var host = h('div', { 'data-swap': mode, style: { display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' } }, f);
+      host.__play = function () {
+        f.querySelectorAll('span').forEach(function (s, i) { if (i) s.remove(); });
+        var base = f.querySelector('span'); base.style.opacity = mode === 'first' ? 0 : 1;
+        if (mode === 'first') return CM.anim(base, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(0,0,.58,1)' }).then(function () { return Mock.sleep(500); });
+        var next = f.__layer(second); next.style.opacity = 1;
+        if (mode === 'swap') return Mock.sleep(800).then(function () { next.remove(); });
+        return CM.anim(next, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'cubic-bezier(0,0,.58,1)' }).then(function () { return Mock.sleep(700); }).then(function () { next.remove(); });
+      };
+      return host;
+    }
+    swaps.first = swapper('recipe', null, 'first'); swaps.cross = swapper('recipe', 'front-door', 'cross'); swaps.swap = swapper('driveway', 'upper-deck', 'swap');
+    var all = h('div', { 'data-swaps': 'true', style: { display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' } },
+      h('div', swaps.first, h('p.cm-note', 'A first image fades in, 0.2 s (quick). It is the only fade a gated grid shows.')),
+      h('div', swaps.cross, h('p.cm-note', 'A different cache key (new artwork): the old image stays up, then the new one cross-fades, 0.2 s.')),
+      h('div', swaps.swap, h('p.cm-note', 'The same key, a rotated token or a refreshed snapshot: swapped with no animation, so a camera snapshot never flickers.')));
+    all.__playAll = function () { return Promise.all([swaps.first.__play(), swaps.cross.__play(), swaps.swap.__play()]); };
+    return CM.grid(ctx, [{ label: 'How a changed image updates', node: all, w: 680 }, ], { surfaces: ['page'] });
+  }
+  function layers(ctx) {
+    function step(t, sub, color) { return h('div', { style: { padding: '10px 12px', borderRadius: '12px', background: color || 'var(--sheet-cell)', border: '.5px solid var(--sep)', minWidth: '120px' } }, h('div', { style: { font: '600 var(--fs-sub) var(--font)' } }, t), h('div', { style: { font: 'var(--fs-foot) var(--font)', opacity: .8 } }, sub)); }
+    var arrow = function () { return h('span', { 'aria-hidden': 'true', style: { alignSelf: 'center', opacity: .6 } }, '→'); };
+    var flow = h('div.cm-row', { style: { gap: '8px', alignItems: 'stretch' } }, step('Memory', 'decoded at draw size, 96 MB; first-frame draw on a hit'), arrow(), step('Disk', 'original bytes + ETag / Last-Modified, Caches/FentonImages, 200 MB'), arrow(), step('Conditional request', 'If-None-Match: 304 refreshes the clock, 200 replaces the bytes'), arrow(), step('Decode', 'CGImageSourceCreateThumbnailAtIndex at the view\'s pixel size, bucketed to 128 px, off the main thread'));
+    var tbl = h('table.cm-tbl', h('thead', h('tr', ['Case', 'Behaviour'].map(function (t) { return h('th', t); }))), h('tbody', [
+      ['Same URL, within max age', 'served from cache; no request (max age = Cache-Control max-age, else 5 min; Home Assistant sends none)'],
+      ['Same URL, past max age', 'the cached image shows at once, then a conditional request; a 304 refreshes the timestamp, a 200 swaps the view to the new image'],
+      ['Same key, different URL', 'Home Assistant rotated a camera token: the key (the URL without token, authSig, access_token) matches, so the old image stays up and the new bytes replace it with no animation'],
+      ['New key', 'new artwork: cross-fade'],
+      ['Failure', 'leaves a cached image in place; with nothing cached the placeholder shows'],
+      ['Cold launch, offline', 'the last images from disk'],
+    ].map(function (r) { return h('tr', h('th', { scope: 'row' }, r[0]), h('td', r[1])); })));
+    return CM.grid(ctx, [{ label: 'Layers (ImagePipeline)', node: flow, w: 900 }, { label: 'How changed images update', node: h('div', { style: { overflowX: 'auto' } }, tbl), w: 900 }], { surfaces: ['sheet'] });
+  }
+  function gated(ctx) {
+    var g = K.ContentGate({ content: CM.cards([K.ImageCard({ title: 'Weeknight Pasta', subtitle: '25 min', scene: 'recipe', ctx: ctx }), K.ImageCard({ title: 'Sheet-Pan Salmon', subtitle: '30 min', scene: 'recipe', ctx: ctx })], 150, 2), phase: 'spinner', label: 'Loading recipes', minHeight: 220 });
+    return CM.grid(ctx, [{ label: 'Inside a ContentGate: the gate holds until every visible image drew or failed (or 1.5 s)', node: g, w: 402 }], { surfaces: ['page'] });
+  }
+  Mock.mount({
+    kind: 'component', id: 'remote-image', title: 'CachedImage and RemoteImage', area: 'design', status: 'shipped', frame: false,
+    summary: 'How a remote picture is drawn: CachedImage draws from ImagePipeline (memory, disk, conditional requests; decoded at draw size off the main thread), and RemoteImage adds a fallback URL, then a symbol, and never a broken image. ImageCard and camera snapshots use it. A first image fades in; a changed image swaps without flicker.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKImageViews.swift', 'apple/Sources/HassDesign/Images/ImagePipeline.swift', 'apple/Sources/HassDesign/ImageCard.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift'],
+    spec: ['.agents/patterns/image-cache.md', '.agents/patterns/image-card.md', '.agents/patterns/content-gate.md'],
+    patterns: ['image-cache', 'image-card', 'content-gate', 'motion'],
+    hig: ['Images', 'Loading', 'Motion', 'Accessibility: image descriptions'],
+    entities: [],
+    kitComponents: ['ImageCard', 'CameraTile', 'ContentGate'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Frame states: none, loading, loaded, failed, fallback', render: states },
+      'cards': { title: 'In ImageCard and the camera tile', render: cards },
+      'updates': { title: 'How a changed image updates (playable)', render: updates },
+      'layers': { title: 'Layers, keys and revalidation', render: layers },
+      'gated': { title: 'Held by a ContentGate', render: gated },
+      'loading': { title: 'Loading', note: 'the frame is empty on purpose: a fast load fades straight in without a placeholder flash', render: function (ctx) { return CM.grid(ctx, [{ label: 'Loading', node: frame(), w: 210 }], { surfaces: ['page'] }); } },
+      'error': { title: 'Failed', render: function (ctx) { return CM.grid(ctx, [{ label: 'Failed (symbol placeholder, secondary ink)', node: frame({ placeholder: true }), w: 210 }], { surfaces: ['page'] }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'ImageCard becomes a row with a small thumbnail so the title, not the picture, fills the card', render: cards },
+    },
+    motion: [
+      { id: 'first-fade', what: 'The first image of a frame arrives and fades in', token: 'quick .easeOut(0.2 s), opacity only', state: 'updates',
+        source: 'CachedImage .animation(MotionTokens.quick, value: shownKey) with .transition(.opacity)', reduce: 'unchanged: opacity is not motion, and CachedImage animates with the token directly (no Reduce Motion branch)',
+        play: function (stage) { return stage.querySelector('[data-swap=first]').__play(); } },
+      { id: 'new-key', what: 'New artwork (a different cache key) replaces the image: the old one stays until the new decodes, then cross-fades', token: 'quick 0.2 s cross-fade', state: 'updates',
+        source: 'CachedImage.load: shownKey changes', reduce: 'unchanged (opacity)',
+        play: function (stage) { return stage.querySelector('[data-swap=cross]').__play(); } },
+      { id: 'same-key', what: 'The same image refreshed (a rotated token, a new camera snapshot): swapped with no animation', token: 'none (shownKey does not change)', state: 'updates',
+        source: 'CachedImage.load: same key', reduce: 'the same',
+        play: function (stage) { return stage.querySelector('[data-swap=swap]').__play(); } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'Decorative', note: 'CachedImage and RemoteImage are accessibilityHidden and never touch targets; the element that contains them carries the label (the card\'s title and subtitle, the camera\'s name). allowsHitTesting(false) stops a fill-scaled photo that overflows its frame from swallowing taps meant for the controls above it.' },
+      { rule: 'Failure', note: 'A failed image shows the placeholder symbol in the secondary ink (the system gray measured about 3:1 on the card and failed the contrast audit); the card\'s caption still reads.' },
+      { rule: 'Captions on photos', note: 'White text over a bottom scrim that is already 55% black by half the card height, so a white plate cannot drop it below 4.5:1; at accessibility sizes the card is a row on a module with a thumbnail.' },
+      { rule: 'Gate', note: 'Inside a ContentGate the image reports its readiness (contentReadiness), so VoiceOver finds the page content only once it shows; leaving the screen counts as ready.' },
+      { rule: 'Reduce Motion', note: 'The fade is opacity only, which the setting allows; there is no scale or slide.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Images and Image views: decorative images are hidden from VoiceOver; the container carries the label", verdict: "pass", note: "CachedImage uses Image(decorative:), RemoteImage is accessibilityHidden and allowsHitTesting(false), and the card or camera tile names itself; a fill-scaled photo can no longer swallow taps meant for controls above it.", by: "apple-hig skill" },
+        { rule: "Loading: show something quickly, without flashing a placeholder", verdict: "departure", note: "While loading the frame stays empty so a fast load fades straight in (CachedImage.swift lines 31 to 32), and a memory-cached image draws on the first frame so cells scrolling back never flash; the placeholder symbol shows only for no URL or a failure.", by: "apple-hig skill" },
+        { rule: "Typography and Color: captions over photos keep 4.5:1; failure states stay legible", verdict: "pass", note: "ImageCard puts white text over a bottom scrim already 55% black by half the card height, and the failure glyph uses Ink.secondary because the system gray measured about 3:1 on the card; at accessibility sizes the card becomes a row with a thumbnail on a module.", by: "apple-hig skill" },
+        { rule: "Privacy: sensitive content is not kept longer or more widely than needed", verdict: "pass", note: "Fixed: ImagePipeline.write uses .completeFileProtection, so cached stills are unreadable while the device is locked." },
+        { rule: "Accessibility: Reduce Motion", verdict: "pass", note: "The only motion is a 0.2 s opacity fade for a first image or a different URL, which the setting allows; a same-key refresh swaps with no animation.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Performance: AsyncImage honours HTTP caching on iOS 27; do not add an image cache solely for that", verdict: "departure", note: "The app keeps its own ImagePipeline (NSCache 96 MB, disk 200 MB with ETag and Last-Modified revalidation, ImageIO downsampling to a size bucket) because the deployment target is iOS 17 and it must keep the previous image up while a rotated camera token decodes (image-cache.md); an iOS 27-only AsyncImage(request:) could replace the disk layer later.", by: "swiftui-pro skill" },
+        { rule: "Animation: scope the fade to the subtree, key it on a value", verdict: "pass", note: ".animation(MotionTokens.quick, value: shownKey) sits on the image subtree; it replaced a withAnimation around the state write that put the whole card in an animating transaction (about a sixth of a busy scroll's turns).", by: "swiftui-pro skill" },
+        { rule: "Performance: view initializers do no real work; async work in task(id:)", verdict: "pass", note: "The init only reads the memory cache (a dictionary lookup) so a cached image draws on the first frame; loading runs in .task(id: LoadKey(url:pixels:)) and cancels with the view; the pixel bucket comes from onGeometryChange so a rotation reloads once.", by: "swiftui-pro skill" },
+        { rule: "Resilience: structural identity for a swapped URL", verdict: "pass", note: "Not applicable: .id(current) resets the failure state when the URL falls back, and an uncached fallback shows the placeholder frame, not a blank one; CachedImage handles the same-view URL change for everything else.", by: "swiftui-pro skill" },
+        { rule: "Hygiene: try? on cache writes", verdict: "pass", note: "Already fixed: ImagePipeline.write and writeMetadata catch and log the error (Self.log.error); the disk-full case is logged, not shown.", by: "swiftui-pro skill" },
+        { rule: "Data flow: pipeline injected for tests", verdict: "pass", note: "CachedImage takes an ImagePipeline (default .shared) and ImagePipeline takes a directory, session and limits, so tests use their own cache; key(for:) strips authorizing query items so a rotated token does not defeat the cache.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Docs versus code: image-cache.md says "a same-key refresh swaps without animation" and "Same key, different URL: previous image stays up then the new one replaces it" (rotated token): both are the same-key case; drawn once.',
+      'Photos are kit stand-ins (gradients), never real recipe or camera pictures (AUTHORING rule 3). Cache sizes: 96 MB memory (evicted under pressure), 200 MB disk (oldest first at launch; Settings, Performance has Clear Image Cache).',
+      'Component mockup: no device frame; Device selects the size class.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vacuum cleaning report · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../room-devices/_devices-vacuums.js"></script>
+<script src="../_devices-vacuums.js"></script>
+<script src="../../../proposals/action-navigation-tiles/_action-tiles.js"></script>
+<script src="../../../proposals/selection-tiles/_selection.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv, vac = dv.vac;
+  var TITLE = 'Cleaning Report', SUBTITLE = 'Main Floor · Automatic · 4 rooms';
+
+  /* VacuumOutcomeDetailView is pushed from the Cleaning Report row (Route.report): system Back, the long title inline, then one ModuleList with a row per room:
+     the room name, one sentence of detail, a status glyph, and the status word trailing. */
+  function S(kind, o) { o = o || {}; return function (c) { return vac.pushed(c, { title: TITLE, subtitle: SUBTITLE, content: vac.reportDetail(kind), connection: o.connection }); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'vacuum-outcome-report', title: 'Cleaning outcome report (pushed)', area: 'vacuums', status: 'shipped',
+    summary: 'The page pushed from the vacuum sheet\'s Cleaning Report row: what the coordinator did room by room during the last automatic clean while away. Each room carries a status glyph, a sentence of detail and the status word.',
+    source: ['apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumSheet.swift', 'apple/Sources/HassCore/Vacuums/VacuumOutcomes.swift', 'apple/Sources/HassCore/Vacuums/VacuumOutcomeFixtures.swift'],
+    spec: ['.agents/patterns/vacuum-sheet.md', '.agents/pages/vacuums/spec.md'],
+    patterns: ['vacuum-sheet', 'module-list', 'modal-sheet'],
+    hig: ['Navigation bars', 'Lists', 'Color', 'Dynamic Type'],
+    entities: ['sensor.demo_main_floor_state_1'],
+    kitComponents: ['HassModal', 'BackButton', 'ModuleList'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Two completed, one interrupted, one not attempted', note: 'the gallery fixture: "Cleaning was interrupted because someone returned home."', render: S('interrupted') },
+      'completed': { title: 'All four completed', note: 'the sheet\'s row reads "4 Rooms Completed" with a green check', render: S('completed') },
+      'stuck': { title: 'One failed: stuck', note: 'a red alert glyph; "The vacuum became stuck while trying to clean the room."', render: S('stuck') },
+      'unverified': { title: 'One completion unverified', note: '"Completion could not be verified from the available vacuum data."', render: S('unverified') },
+      'offline': { title: 'Over an offline Vacuums page', note: 'no offline UI of its own: the report is a snapshot of the coordinator\'s attribute', render: S('interrupted', { connection: 'offline' }) },
+      'large': { title: 'Large detent (shipped, full height)', render: S('interrupted') },
+      'closed': { title: 'The sheet it was pushed from', note: 'the Cleaning Report row under the map', render: function (c) { return vac.sheet(c, {}); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the status word moves under the sentence at AX sizes; rows grow', render: S('interrupted') },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Cleaning Report row', to: 'Report detail', kind: 'push', state: 'closed', note: 'The system push inside the sheet: the report slides in from the trailing edge, the sheet shifts left and dims; Back pops. Reduce Motion cross-fades.',
+        play: function (stage) { return vac.pushDemo(stage, { title: TITLE, subtitle: SUBTITLE, content: vac.reportDetail('interrupted') }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, the title "Cleaning Report" and its subtitle "Main Floor · Automatic · 4 rooms"; then one row per room in report order; no Close (the root toolbar does not follow a push).' },
+      { rule: 'Rows', note: 'Each row is one combined element: "Kitchen, Vacuuming and mopping completed for the room., Completed" (identifier vacuum.outcome.<room>); the glyph tone is decorative because the status word says it.' },
+      { rule: 'Not colour alone', note: 'Check, pause, clock, alert and question glyphs differ in shape as well as colour, and each row states Completed, Interrupted, Not Attempted, Failed or Completion Unverified in words.' },
+      { rule: 'Dynamic Type', note: 'Row text wraps; the trailing status never truncates (fixedSize vertical, multiline trailing).' },
+      { rule: 'Targets', note: 'Rows are 60 pt tall at default size; the page has no controls but Back.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Navigation bars: keep titles short', verdict: 'pass', note: 'Title is "Cleaning Report" with the subtitle "Main Floor · Automatic · n rooms" (VacuumOutcomeText.reportTitle and reportSubtitle); departure from the web recorded in the vacuums page spec.', by: 'apple-hig skill' },
+        { rule: 'Lists: standard row anatomy', verdict: 'pass', note: 'ModuleRow with glyph, room name, sentence and the status word trailing (VacuumMapPanel.swift:325-338).', by: 'apple-hig skill' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Check, pause, clock, alert and question glyphs differ in shape, and every row says Completed, Interrupted, Not Attempted, Failed or Completion Unverified in words.', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: reflow rather than truncate', verdict: 'pass', note: 'At accessibility sizes ModuleRow puts the status word under the sentence; the page is a scroll view with a 640 pt measure.', by: 'apple-hig skill' },
+        { rule: 'Sheets: Back, not Close, on a pushed level', verdict: 'pass', note: 'The report is pushed on the sheet\'s stack; only the root carries the Close circle (VacuumSheet.swift:98).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: combine row children', verdict: 'pass', note: '.accessibilityElement(children: .combine) per room reads "Kitchen, <sentence>, Completed" as one element (VacuumMapPanel.swift:336).', by: 'swiftui-pro skill' },
+        { rule: 'Navigation: one registration per type', verdict: 'pass', note: 'navigationDestination(for: Route.self) is registered once on the sheet\'s stack (VacuumSheet.swift:99).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'The report page has no map, so it changes only through the sheet behind it (map without room names, status tiles). Room names stay as text in these rows.',
+      'loading and error: the report is a snapshot of the session sensor\'s attribute; the page never loads. An incomplete, malformed or unsupported report never reaches this page: the sheet\'s row shows a notice instead (vacuum-sheet state report-notice).',
+      'medium and fitted: a pushed level inside a full-height sheet; only large exists.',
+      'Docs versus code: spec.md describes expandable "Cleaning Evidence" under each room and a "Back to Vacuum Controls" label; the native page has neither (rows only, system Back).',
+      'Sentences are the real copy from VacuumOutcomeText (attemptSentence, reason text); the fixture is VacuumOutcomeFixtures.sample (10 Oct 2026, Kitchen and Office completed, Living Room interrupted, Dining Room deferred).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: interrupted fixture, completed, stuck, unverified, offline, AX5; light and dark.' }, { date: '2026-10-28', note: 'Sheet behind it follows the decided redesign (map without room names, status tiles); the report page itself is unchanged.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' }],
+  });
+})();
+</script></body></html>

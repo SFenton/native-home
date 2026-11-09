@@ -1,0 +1,16 @@
+{
+  "id": "dd-folded-modal-under-rail",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Folded Duo modals sometimes have content run under the right rail (weather)",
+  "surface": "weather-sheet",
+  "poses": [
+    "duo-folded"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "7b3e81f4",
+  "fix_ref": "acf66a74",
+  "fix_confidence": "medium",
+  "expected": "Sheet content stays inside the side safe areas on the folded Duo; flag any element whose frame intersects the vertical rail."
+}

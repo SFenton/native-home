@@ -1,0 +1,94 @@
+# Surfaces tools/ios_scrollcost.sh measures: `Name|KEY=VALUE KEY=VALUE ...` (launch environment).
+# [gallery] surfaces run on fixtures with no sign-in; [live] surfaces sign in with the token (`LIVE=1`) and open a page
+# with FENTON_SCROLLCOST_OPEN=<dashboard path> (a tab: security, thermostat, chores; a Home page: living-room, media ...).
+# A surface that fits one screen on the phone has nothing to scroll and is reported as such.
+
+[gallery]
+Grid workload (300 tiles)|FENTON_GALLERY=performance FENTON_GALLERY_PERF=grid
+Living Room|FENTON_GALLERY=rooms FENTON_GALLERY_OFFLINE=1 FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_ROOM=living-room
+Music Room|FENTON_GALLERY=rooms FENTON_GALLERY_OFFLINE=1 FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_ROOM=music-room
+Kitchen|FENTON_GALLERY=rooms FENTON_GALLERY_OFFLINE=1 FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_ROOM=kitchen
+Master Bedroom|FENTON_GALLERY=rooms FENTON_GALLERY_OFFLINE=1 FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_ROOM=master-bedroom
+Media Room|FENTON_GALLERY=rooms FENTON_GALLERY_OFFLINE=1 FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_ROOM=media-room
+Climate|FENTON_GALLERY=climate FENTON_GALLERY_CLEAN=1
+Security|FENTON_GALLERY=security FENTON_GALLERY_CLEAN=1
+Chores|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1
+Chores (long house)|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12
+Settings|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1
+Food hub|FENTON_GALLERY=food FENTON_GALLERY_ROUTE=hub
+Recipes|FENTON_GALLERY=food FENTON_GALLERY_ROUTE=recipes
+Pantry|FENTON_GALLERY=inventory FENTON_GALLERY_SPACE=pantry FENTON_GALLERY_CLEAN=1
+Media|FENTON_GALLERY=media-page FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_OFFLINE=1
+Admin settings|FENTON_GALLERY=household-settings FENTON_GALLERY_HOUSEHOLD=admin FENTON_GALLERY_CLEAN=1
+Weather card short label|FENTON_GALLERY=weather FENTON_GALLERY_WEATHER_FILL=1600
+Weather card ticking label|FENTON_GALLERY=weather FENTON_GALLERY_WEATHER_FILL=1600 FENTON_GALLERY_WEATHER_CONDITION=heavy-thunderstorm-with-hail-and-damaging-wind-gusts-across-the-entire-county-tonight
+Weather sheet|FENTON_GALLERY=weather FENTON_GALLERY_WEATHER_OPEN=1
+Vacuum sheet: controls|FENTON_GALLERY=vacuums FENTON_GALLERY_VACUUM=mapped_devicea FENTON_GALLERY_TAB=controls FENTON_GALLERY_SCENARIO=docked FENTON_GALLERY_CLEAN=1
+Vacuum sheet: zones|FENTON_GALLERY=vacuums FENTON_GALLERY_VACUUM=mapped_devicea FENTON_GALLERY_TAB=zones FENTON_GALLERY_SCENARIO=docked FENTON_GALLERY_CLEAN=1
+Humidifier sheet|FENTON_GALLERY=room-devices FENTON_GALLERY_DEVICE=humidifier FENTON_GALLERY_TAB=controls FENTON_GALLERY_CLEAN=1
+Humidifier schedules|FENTON_GALLERY=room-devices FENTON_GALLERY_DEVICE=humidifier FENTON_GALLERY_TAB=schedules FENTON_GALLERY_CLEAN=1
+
+# The system large title (`--section flyout`; `--section all` skips it): the same pages in the phone's flyout chrome
+# (FENTON_GALLERY_FLYOUT=1, Debug builds: menu button, title below the bar that collapses on scroll), so a pass goes through the
+# large-title collapse like a hand on the phone does. The inline-title and `.inlineLarge` variants of round 6 were source experiments and are gone
+# (performance.md, round 6).
+[flyout]
+Settings (flyout)|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_FLYOUT=1
+Recipes (flyout)|FENTON_GALLERY=food FENTON_GALLERY_ROUTE=recipes FENTON_GALLERY_FLYOUT=1
+Chores long house (flyout)|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_GALLERY_FLYOUT=1
+
+# Tile finish (`--section finish`; `--section all` skips it): the same tile-heavy pages with the shipped tinted glass and the solid
+# fallback (`FENTON_TILE_FINISH`, Debug builds; `.agents/design/direction-g.md`, Tile finish), and tinted glass with a layer left out.
+[finish]
+Grid solid|FENTON_GALLERY=performance FENTON_GALLERY_PERF=grid FENTON_TILE_FINISH=solid
+Grid tintedGlass|FENTON_GALLERY=performance FENTON_GALLERY_PERF=grid FENTON_TILE_FINISH=tintedGlass
+Grid tintedGlass without sheen|FENTON_GALLERY=performance FENTON_GALLERY_PERF=grid FENTON_TILE_FINISH=tintedGlass FENTON_TILE_FINISH_OMIT=sheen
+Grid tintedGlass without rim|FENTON_GALLERY=performance FENTON_GALLERY_PERF=grid FENTON_TILE_FINISH=tintedGlass FENTON_TILE_FINISH_OMIT=rim
+Grid tintedGlass without sheen or rim|FENTON_GALLERY=performance FENTON_GALLERY_PERF=grid FENTON_TILE_FINISH=tintedGlass FENTON_TILE_FINISH_OMIT=sheen,rim
+
+# The wallpaper's cost (--section backdrop; --section all skips it): the same pages with the fixture house photo
+# behind them (FENTON_BACKDROP_FIXTURE=1, Debug builds; the gallery draws the shell's backdrop store), so the wallpaper
+# bitmap, its offset and its scrim are in the number. Add FENTON_BACKDROP_BLUR=<0-100> to start at another setting.
+[backdrop]
+Settings (wallpaper)|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_BACKDROP_FIXTURE=1
+Living Room (wallpaper)|FENTON_GALLERY=rooms FENTON_GALLERY_OFFLINE=1 FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_ROOM=living-room FENTON_BACKDROP_FIXTURE=1
+Grid workload (wallpaper)|FENTON_GALLERY=performance FENTON_GALLERY_PERF=grid FENTON_BACKDROP_FIXTURE=1
+
+[live]
+Live Home|LIVE=1 FENTON_SCROLLCOST_OPEN=home
+Live Security|LIVE=1 FENTON_SCROLLCOST_OPEN=security
+Live Climate|LIVE=1 FENTON_SCROLLCOST_OPEN=thermostat
+Live Chores|LIVE=1 FENTON_SCROLLCOST_OPEN=chores
+Live Settings|LIVE=1 FENTON_SCROLLCOST_OPEN=settings
+Live Living Room|LIVE=1 FENTON_SCROLLCOST_OPEN=living-room
+Live Master Bedroom|LIVE=1 FENTON_SCROLLCOST_OPEN=master-bedroom
+Live Kitchen|LIVE=1 FENTON_SCROLLCOST_OPEN=kitchen
+Live Media Room|LIVE=1 FENTON_SCROLLCOST_OPEN=media-room
+Live Media|LIVE=1 FENTON_SCROLLCOST_OPEN=media
+Live Custom Lights|LIVE=1 FENTON_SCROLLCOST_OPEN=custom-lights
+Live Sprinklers|LIVE=1 FENTON_SCROLLCOST_OPEN=sprinklers
+Live Vacuums|LIVE=1 FENTON_SCROLLCOST_OPEN=vacuums
+Live Food hub|LIVE=1 FENTON_OPEN_FOOD=hub
+Live Recipes|LIVE=1 FENTON_OPEN_FOOD=recipes
+Live Pantry|LIVE=1 FENTON_OPEN_INVENTORY=pantry
+
+# Layer A/B (`--section layers`; `--section all` skips it): the same page with one layer turned off (`FENTON_PERF_DISABLE`,
+# `HassDesign/PerfSwitches.swift`). The simulator shows what a layer costs the main thread; what it costs the GPU needs the
+# same surfaces on a phone (`--device`, `--disable`).
+[layers]
+Settings (layers baseline)|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1
+Chores long (layers baseline)|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12
+Settings without headerFade|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_PERF_DISABLE=headerFade
+Settings without fadeMask|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_PERF_DISABLE=fadeMask
+Settings without fadeReaders|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_PERF_DISABLE=fadeReaders
+Settings without fadeScroll|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_PERF_DISABLE=fadeScroll
+Settings without fadeGeometry|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_PERF_DISABLE=fadeGeometry
+Settings without backdrop|FENTON_GALLERY=settings FENTON_GALLERY_CLEAN=1 FENTON_PERF_DISABLE=backdrop
+Chores long without headerFade|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=headerFade
+Chores long without fadeMask|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=fadeMask
+Chores long without fadeReaders|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=fadeReaders
+Chores long without fadeScroll|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=fadeScroll
+Chores long without fadeGeometry|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=fadeGeometry
+Chores long without glassBar|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=glassBar
+Chores long without scrollEdge|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=scrollEdge
+Chores long without backdrop|FENTON_GALLERY=chores FENTON_GALLERY_CLEAN=1 FENTON_GALLERY_CHORES=12 FENTON_PERF_DISABLE=backdrop

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign-in form parts · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, LL = Mock.LL, A = Mock.anim;
+  var REVIEW_DATE = '2026-10-23';
+  /* Parts, drawn on the sign-in ground (the module is the thin dark material, so it needs the ground behind it to read as the app does). */
+  function col(ctx, kids) { return h('div.ll-fixed', { style: { display: 'flex', flexDirection: 'column', gap: '16px', width: ctx.regular ? '412px' : '100%', maxWidth: '412px' } }, kids); }
+  function sw(ctx, caption, kids) { return LL.swatch(caption, col(ctx, kids), { flex: '1 1 360px' }); }
+  function wrapStates(list) { return function (ctx) { return h('div.k-swatch-grid', list.map(function (s) { return sw(ctx, s[0], s[1](ctx)); })); }; }
+  function fields(o) { return function (ctx) { return [LL.fields(Object.assign({ ax: ctx.axSize }, o))]; }; }
+  var CARD = function (kind, expanded) { return function () { var c = LL.copy; return [LL.failureCard(kind === 'unreachable' ? { title: c.unreachableTitle, message: c.unreachableBody, detail: 'HTTP 502: Bad Gateway', expanded: expanded } : { title: c.failedTitle, message: c.failedBody, detail: 'The operation couldn’t be completed. (HassCore.HassLoginFlow.LoginError error 2.)', expanded: expanded })]; }; };
+
+  Mock.mount({
+    kind: 'component', id: 'login-form-parts', title: 'Sign-in form parts', area: 'login', status: 'shipped', frame: false, alwaysDark: true,
+    summary: 'The fields module (Username and Password rows), the red failure card with its Details disclosure, the inline error line, the Sign In capsule and the ground with its glow. Used only by the sign-in layer.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift', 'apple/Sources/HassUI/Features/Login/SignInStyle.swift'],
+    spec: ['.agents/platforms/apple/auth.md', '.agents/design/direction-g.md'],
+    patterns: ['motion'],
+    hig: ['Text fields', 'Entering data', 'Buttons', 'Color'],
+    kitComponents: ['PrimaryButton', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'fields': { title: 'Fields module', render: wrapStates([
+        ['fresh · empty', fields({ mode: 'fresh', username: '', password: 0, focus: 'username' })],
+        ['fresh · filled (52 pt rows, 26 pt module, hairline)', fields({ mode: 'fresh', username: 'alex', password: 10 })],
+        ['welcome back · read-only account + password', fields({ mode: 'welcome', username: 'alex', password: 0, focus: 'password' })],
+        ['working · dims to 50% and goes off', fields({ mode: 'fresh', username: 'alex', password: 10, working: true })],
+        ['wrong credentials · red hairline round the password row', fields({ mode: 'fresh', username: 'alex', password: 0, focus: 'password', wrong: true })],
+        ['welcome back · a long read-only username wraps (a fresh field scrolls sideways instead)', fields({ mode: 'welcome', username: 'bartholomew.alexander.fenton-whitaker@example.com', password: 6 })],
+      ]) },
+      'failure-card': { title: 'Failure card and inline error', render: wrapStates([
+        ['unreachable · Details collapsed', CARD('unreachable', false)],
+        ['unreachable · Details expanded (monospace, selectable)', CARD('unreachable', true)],
+        ['failed · "Sign-in didn\'t work"', CARD('failed', true)],
+        ['inline error · wrong credentials', function () { return [LL.inlineError(LL.copy.wrong)]; }],
+        ['inline error · two-step account', function () { return [LL.inlineError(LL.copy.twoStep)]; }],
+      ]) },
+      'button': { title: 'Sign In capsule', render: wrapStates([
+        ['Sign In · disabled until both fields have text (40%)', function () { return [LL.signInButton({ title: 'Sign In', disabled: true })]; }],
+        ['Sign In · enabled (#0071E3, white label)', function () { return [LL.signInButton({ title: 'Sign In' })]; }],
+        ['Signing In… · solid, inline white arc, value "Signing In"', function () { return [LL.signInButton({ title: LL.copy.busy, working: true })]; }],
+        ['Try Again · after unreachable or failed', function () { return [LL.signInButton({ title: LL.copy.retry })]; }],
+        ['Use a Different Account · text button, #8AC4FF', function () { return [h('button.ll-link', { type: 'button' }, LL.copy.different)]; }],
+      ]) },
+      'ground': { title: 'Launch ground and glow', render: function (ctx) {
+        function tile(caption, bg) { return h('div', { style: { flex: '1 1 220px' } }, h('div.k-cap', { style: { font: '600 11px var(--mono)', marginBottom: '8px', color: 'inherit', opacity: .75 } }, caption), h('div', { style: { height: '200px', borderRadius: '16px', background: bg, boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)' } })); }
+        var r = 0.95 * 874;
+        return h('div.k-swatch-grid', { style: { color: '#fff' } }, [
+          h('div.k-swatch.page.g-dark', { style: { flex: '1 1 260px' } }, tile('Plain ground #121722 (LaunchBackground, glow 0)', '#121722')),
+          h('div.k-swatch.page.g-dark', { style: { flex: '1 1 260px' } }, tile('Glow centre #3A4E73 at 0.5 x, 0.2 y', 'radial-gradient(circle ' + r + 'px at 50% 20%, #3A4E73 0%, #1E2A44 50%, #121722 100%)')),
+          h('div.k-swatch.page.g-dark', { style: { flex: '1 1 260px' } }, h('div.in', [h('div.k-cap', 'Stops'), h('p', { style: { margin: 0, font: '13px/1.5 var(--mono)' } }, '#3A4E73 at 0 → #1E2A44 at 0.5 → #121722 at 1, end radius 0.95 × the longer side, centre (0.5, 0.2). The link #8AC4FF and error #FF6961 are drawn against it.')])),
+        ]);
+      } },
+    },
+    motion: [
+      { id: 'details-chevron', what: 'Details: the chevron turns 90 degrees as the raw reason opens', token: 'quick easeOut 0.2 s (LoginFailureCard.toggleDetail)', source: 'apple/Sources/HassUI/Features/Login/LoginFailureCard.swift', state: 'failure-card', reduce: 'no reduced path in the code: the turn still runs at 0.2 s',
+        play: function (stage) { var b = stage.querySelector('.dt'); b.click(); return Mock.sleep(A.ms.quick() + 600).then(function () { b.click(); return Mock.sleep(A.ms.quick() + 200); }); } },
+      { id: 'fields-dim', what: 'The fields dim to 50% while a request is out', token: 'quick easeOut 0.2 s (animation(quick, value: isWorking))', source: 'apple/Sources/HassUI/Features/Login/LoginFields.swift', state: 'fields', reduce: 'unchanged (opacity)',
+        play: function (stage) { var m = stage.querySelector('.ll-module'); m.classList.add('dim'); return Mock.sleep(A.ms.quick() + 600).then(function () { m.classList.remove('dim'); return Mock.sleep(A.ms.quick()); }); } },
+      { id: 'glow-up', what: 'The glow fades up from the plain ground (intro only)', token: 'easeOut 0.5 s (MotionTokens.Intro.glow)', source: 'apple/Sources/HassUI/Features/Login/SignInGround.swift glow', state: 'ground', reduce: 'part of the 0.35 s cross-fade',
+        play: function (stage) { var t = stage.querySelectorAll('.k-swatch div[style*="height"]')[1]; return Mock.anim.fade(t, { from: 0, to: 1, ms: Mock.settings.reduceMotion ? 350 : 500 }); } },
+    ],
+    a11y: [
+      { rule: 'Row labels', note: 'The visible "Username" and "Password" labels are hidden from VoiceOver; the fields carry the accessibility labels, so a label is never read twice. A tap anywhere in the 52 pt row focuses its field.' },
+      { rule: 'Read-only account', note: 'Welcome back replaces the field with one element, "Username, alex" (identifier login.username.readonly).' },
+      { rule: 'Failure card', note: 'A container; the title is a heading with a warning glyph (the card is not colour alone); Details is a button, the whole 44 pt row, with value Collapsed or Expanded; the raw reason is selectable.' },
+      { rule: 'Inline error', note: 'A warning glyph and a sentence; announced when it appears. 5.9:1 on #121722.' },
+      { rule: 'AX5', note: 'Row labels move above the fields (VStack at accessibility sizes), rows pick up 12 pt vertical padding, text wraps instead of truncating.' },
+      { rule: 'Working', note: 'The fields are disabled and 50%; the capsule is not disabled so it stays solid; its value says "Signing In" because the arc is silent.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Text fields: visible labels, SecureField for passwords, return-key flow', verdict: 'pass', note: 'Label column with Username and Password, SecureField, Next then Go return keys and Password AutoFill content types (LoginFields.swift:44-77).', by: 'apple-hig skill' },
+        { rule: 'Color: error beyond colour, with contrast', verdict: 'pass', note: 'The inline error has a triangle glyph, the card a triangle label, and the password row a hairline; #FF6961 is 5.9:1 on the base (LoginInlineError.swift:10; SignInStyle.swift:16-17).', by: 'apple-hig skill' },
+        { rule: 'Disclosure controls: state and 44 pt target', verdict: 'pass', note: 'Details is a full-row Button with value Expanded/Collapsed and a rotating chevron (LoginFailureCard.swift:24-40).', by: 'apple-hig skill' },
+        { rule: 'Materials: thin dark module instead of Liquid Glass', verdict: 'departure', note: 'The module is a dark tint on a custom radial ground (owner design 2026-10-17, direction-g Sign-in); there is no navigation layer on this screen, and it turns opaque with Reduce Transparency (LoginFields.swift:26; Module.swift:35-42).', by: 'apple-hig skill' },
+        { rule: 'Buttons: one primary action, disabled until valid', verdict: 'pass', note: 'PrimaryButtonStyle capsule; disabled until both fields have text and solid while working with a spoken "Signing In" (LoginView.swift:145-163).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: tap targets that are not controls', verdict: 'pass', note: 'Not applicable: the TextField/SecureField is itself the accessible, focusable control for Switch Control and Full Keyboard Access; the row gesture only widens the touch area to focus it.', by: 'apple-hig skill' },
+        { rule: 'Typography: Dynamic Type and row height', verdict: 'pass', note: 'LoginRow stacks label above field at AX sizes and scales the 52 pt minimum and 96 pt label width (LoginRow.swift:12-32).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Views: AnyLayout switch for accessibility sizes', verdict: 'pass', note: 'HStackLayout or VStackLayout chosen from dynamicTypeSize.isAccessibilitySize (LoginRow.swift:16-19).', by: 'swiftui-pro skill' },
+        { rule: 'Performance: modifier ternary for a state change', verdict: 'pass', note: '.opacity(model.isWorking ? 0.5 : 1) and .disabled(model.isWorking) keep one structural identity (LoginFields.swift:33-35).', by: 'swiftui-pro skill' },
+        { rule: 'Design: literals instead of tokens', verdict: 'pass', note: 'Fixed: the hairline is SignInStyle.hairline (white at the dark separator opacity) and the card radius and washes are SignInStyle.cardRadius, errorWash and errorOutline.', by: 'swiftui-pro skill' },
+        { rule: 'Design: manual opacity for secondary text', verdict: 'pass', note: 'Fixed: the card message, the details text and the read-only username use HassTokens.Ink.onDarkSecondary, the screen being always dark.', by: 'swiftui-pro skill' },
+        { rule: 'Views: disclosure as a Button with accessibilityValue', verdict: 'pass', note: 'A custom disclosure is justified in a comment (44 pt row and an explicit state) instead of DisclosureGroup (LoginFailureCard.swift:24-40).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Shown on the sign-in ground (a swatch with the glow), because the thin module is 66% dark and only reads against it. The Device control picks the size class: the column is 412 pt wide on a regular width (460 less 24 pt each side), the swatch width on a compact one.',
+      'Parts are the local helper Mock.LL in pages/login/_login-launch-flows.js. Promote to kit: LL.fields, LL.failureCard, LL.inlineError, LL.signInButton (the capsule is the kit PrimaryButton).',
+      'Reduce Transparency turns the module solid #1C1C1E (Module material fallback).',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: fields, failure card, inline error, capsule, ground.' }],
+  });
+})();
+</script></body></html>

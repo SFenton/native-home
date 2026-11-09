@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S+H push notification banner · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../live-activity/_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  /** The three payload fixtures (tools/push_fixtures). */
+  var FIX = {
+    banner: { title: 'Front Door', subtitle: 'Security', body: 'The front door has been unlocked for 10 minutes.', time: 'now' },
+    camera: { title: 'Doorbell', body: 'Someone is at the front door.', time: 'now', thumb: Mock.scene('front-door') },
+    actions: { title: 'Garage Door', body: 'The garage door is open and nobody is home.', time: 'now' },
+  };
+  var ACT = [{ title: 'Close', icon: 'door.garage.closed', lock: true }, { title: 'Show Garage', icon: 'link' }, { input: true, placeholder: 'Note for the house', send: 'Send' }, { title: 'Ignore', destructive: true }];
+  function n(ctx, k, extra) { return LA.notif(Object.assign({ ctx: ctx }, FIX[k], extra)); }
+  function lockWith(ctx, kids, o) {
+    return Mock.frame(ctx, h('div.la-lock', h('div.ui-wall'), h('div.date', 'Friday, October 23'), h('div.time', '9:41'),
+      h('div', { style: { position: 'absolute', left: 0, right: 0, bottom: (o && o.bottom) || '130px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '0 16px', zIndex: 3 } }, kids)));
+  }
+  function banner(ctx, kids) { return LA.homeScreen(ctx, LA.bannerAt(ctx, h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center' } }, kids), ctx.device.safeTop + 12)); }
+
+  Mock.mount({
+    kind: 'component', id: 'push-notification-banner', title: 'S+H push notification banner (system UI, with actions)', area: 'widgets', status: 'shipped', frame: false,
+    summary: 'What the app puts into a notification: title, subtitle, body, an optional snapshot or image, up to four buttons, a thread and an interruption level. The banner itself is the system\'s.',
+    source: ['apple/Apps/NotificationService/NotificationService.swift', 'apple/Sources/HassUI/App/Push/PushCoordinator.swift', 'apple/Apps/iOS/PushPreview.swift', 'apple/Sources/HassCore/Push/PushPayload.swift', 'apple/Sources/HassCore/Push/PushCategory.swift'],
+    spec: ['.agents/platforms/apple/push.md'],
+    patterns: [],
+    hig: ['Notifications'],
+    entities: ['notify.mobile_app_<device>_fenton (S+H Home Integration relay)'],
+    devices: ['iphone', 'duo-folded'],
+    states: {
+      'default': { title: 'Title, subtitle, body', note: 'banner.apns: Front Door, Security, time-sensitive, thread security', render: function (ctx) { return banner(ctx, [n(ctx, 'banner')]); } },
+      camera: { title: 'Camera attachment', note: 'camera.apns: the entity_id camera.demo_front_door_camera_item_1 attaches /api/camera_proxy/<entity_id> as the thumbnail', render: function (ctx) { return banner(ctx, [n(ctx, 'camera')]); } },
+      actions: { title: 'Action buttons (long press)', note: 'actions.apns: fenton.dynamic replaced by a category built from the buttons', render: function (ctx) {
+        return lockWith(ctx, [n(ctx, 'actions'), LA.notifActions(ACT, { ctx: ctx })], { bottom: '90px' }); } },
+      timeSensitive: { title: 'Time sensitive', note: 'interruption-level and sound', render: function (ctx) {
+        var rows = [['banner.apns', 'time-sensitive', 'default', 'security'], ['camera.apns', 'time-sensitive', 'default', 'doorbell'], ['actions.apns', 'time-sensitive', 'default', 'garage']];
+        return h('div', { style: { background: '#14161c', borderRadius: '16px', padding: '14px', overflowX: 'auto' } }, h('table.la-tbl', h('thead', h('tr', ['Fixture', 'interruption-level', 'sound', 'thread-id'].map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); }))),
+          h('p.la-note', { style: { marginTop: '10px' } }, 'The app sets the level; the system decides what that looks like. A time-sensitive notification gets through a Focus only when the app has the com.apple.developer.usernotifications.time-sensitive entitlement, which project.yml does not list yet, so today these arrive as Active. There is no S+H-drawn badge. Critical alerts need Apple\'s entitlement for com.sfenton.home, so until then the integration sends time-sensitive (push.md, Open).')); } },
+      threads: { title: 'Grouped by thread (Notification Center)', render: function (ctx) {
+        function grp(name, k) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, h('div', { style: { font: '600 11px var(--mono)', color: 'rgba(255,255,255,.6)' } }, 'thread-id: ' + name), n(ctx, k, { time: '9:31 AM' })); }
+        return lockWith(ctx, [grp('security', 'banner'), grp('doorbell', 'camera'), grp('garage', 'actions')], { bottom: '60px' }); } },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'the system scales its text; the app supplies strings only', render: function (ctx) { return banner(ctx, [n(ctx, 'banner')]); } },
+    },
+    motion: [
+      { id: 'clear', what: 'A clear_notification push removes the delivered notification by tag', token: 'system notification removal, no app animation', source: 'apple/Sources/HassUI/App/Push/PushCoordinator.swift',
+        reduce: 'The system removes it; Reduce Motion changes nothing in the app.', state: 'threads',
+        note: 'Background push {"fenton":{"command":"clear_notification","tag":…}} removes delivered notifications with that tag; other commands are ignored.',
+        play: function (stage) { var items = stage.querySelectorAll('.la-notif'); var el = items[0]; if (!el) return Promise.resolve(); return el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: Mock.settings.reduceMotion ? 'none' : 'translateX(-24px)' }], { duration: 260, fill: 'forwards' }).finished.catch(function () {}); } },
+    ],
+    transitions: [
+      { from: 'Banner', to: 'S+H page', kind: 'cut', note: 'A tap opens the payload\'s url (/sfenton-react-dash/home?path=<route>#<anchor>) read like the web dashboard reads it: sections open at their root, Home pages push on Home, other sites open in the browser. Anchors are not scrolled to yet.' },
+      { from: 'Action button', to: 'Home Assistant event', kind: 'cut', note: 'A button with a uri opens it; other buttons fire mobile_app_notification_action with action, tag and, for text input, reply_text. The app never acts on a button itself.' },
+    ],
+    a11y: [
+      { rule: 'Content is the app\'s only contribution', note: 'VoiceOver reads the app name, then title, subtitle and body; the system exposes each button as a custom action.' },
+      { rule: 'Button names and icons', note: 'Titles come from the payload; icons are sfsymbols:<name>; authenticationRequired actions need unlock; destructive actions are red; textInput actions show a field (placeholder and button title from the payload).' },
+      { rule: 'Threads', note: 'Notifications group by thread-id, or by the payload\'s group when the relay sent none; a tag replaces the notification with that tag.' },
+      { rule: 'Attachment', note: 'The thumbnail is decorative to VoiceOver; the body says what happened. A snapshot over 10 MB (image), 50 MB (video) or 5 MB (file) is dropped and the notification arrives as sent.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Notifications: actions honour destructive, authentication and foreground options', verdict: 'pass', note: 'PushAction.options maps authenticationRequired, destructive and foreground; text-input actions become UNTextInputNotificationAction (PushCategory.swift:67-87).' },
+        { by: 'apple-hig skill', rule: 'Notifications: at most four actions', verdict: 'pass', note: 'Fixed: PushCategory caps buttons at PushCategory.maxActions (4), PushCategory.swift.' },
+        { by: 'apple-hig skill', rule: 'Notifications: time-sensitive needs the entitlement', verdict: 'pass', note: 'Fixed: project.yml adds com.apple.developer.usernotifications.time-sensitive.' },
+        { by: 'apple-hig skill', rule: 'Notifications: ask for permission in context', verdict: 'pass', note: 'Fixed (owner pick, 2026-10-23): PushCoordinator.didConnect no longer asks; the Home NotificationPermissionBanner and the Settings Notifications row ask on a tap (NotificationPermission.swift).' },
+        { by: 'apple-hig skill', rule: 'Notifications: sensitive previews', verdict: 'pass', note: 'Fixed: notificationCategory sets hiddenPreviewsBodyPlaceholder (PushCategory.swift).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'swift.md: bounded extension work', verdict: 'pass', note: 'serviceExtensionTimeWillExpire cancels the task and delivers the content as it is (NotificationService.swift:57-61).' },
+        { by: 'swiftui-pro skill', rule: 'swift.md: protect shared mutable state', verdict: 'departure', note: 'DeliveryState is @unchecked Sendable around an NSLock (lines 66-88) because the work task and the synchronous serviceExtensionTimeWillExpire callback share one handler; an actor cannot be awaited there, though Mutex or OSAllocatedUnfairLock would drop the @unchecked.' },
+        { by: 'swiftui-pro skill', rule: 'hygiene.md: no secrets in the extension', verdict: 'pass', note: 'The token comes from the shared Keychain access group and traces carry neither tokens nor text (lines 27-28; PushTrace).' },
+      ],
+    },
+    notes: [
+      'Corrected 2026-10-23 (skill review): the Time sensitive state said the system lets time-sensitive notifications through a Focus; the app has no time-sensitive entitlement (project.yml lines 43-49), so the level is requested but not honoured until it is added (recorded as a fix).',
+      'System UI: the banner, the Lock Screen and Notification Center layouts are iOS\'s. This mockup draws an approximation of their look around the real content (fixtures in tools/push_fixtures: banner, camera, actions); nothing here is S+H-drawn except the strings, the category and the attachment.',
+      'Doc versus code: push.md says an attached snapshot did not show a thumbnail on the iOS 27.0 simulator preview even with no error logged (2026-10-14); the camera state shows what a device should draw and has not been confirmed on a device with real APNs.',
+      'Debug builds show a payload as a local notification after the same enrichment (FENTON_PUSH_PREVIEW); that path is not a product surface.',
+      'The app icon on the banner is a stand-in for the chosen S+H icon (Navy + Sky shown); the system uses the current Home Screen icon.',
+      'Devices: iPhone and iPhone Duo; width 370 pt is the phone notification width, not measured on the Duo.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: banner, camera, actions, threads, time-sensitive.' }],
+  });
+})();
+</script></body></html>

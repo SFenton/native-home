@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sheet presentation · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  function home(c) { return SN.rootPage(c, 'home'); }
+  function alarm() { return h('div', { style: { maxWidth: '560px', margin: '0 auto' } }, K.AlarmPanel({ state: 'armed_home' })); }
+  function sortList() { return h('div', { style: { padding: '8px 16px 24px', maxWidth: '520px', margin: '0 auto' } }, K.OptionPickerSheet ? K.OptionPickerSheet({ options: [{ label: 'Name' }, { label: 'Expiring Soon' }, { label: 'Recently Added' }], selected: 1 }) : 'Sort options'); }
+  function weather() { return h('div', { style: { margin: '8px 16px 24px', borderRadius: '26px', padding: '20px', color: '#fff', background: 'linear-gradient(180deg,#3d6ea8,#1c3556)', minHeight: '240px', font: 'var(--fs-body) var(--font)' } }, h('div', { style: { font: '600 var(--fs-sub) var(--font)' } }, 'Partly Cloudy'), h('div', { style: { font: '200 var(--wx-num) var(--font-d)', margin: '8px 0' } }, '48°'), h('div', 'H:58° L:38°')); }
+  function camera() { return h('div', { style: { margin: '8px 16px 24px', aspectRatio: '16 / 9', borderRadius: '20px', background: Mock.scene('front-door'), position: 'relative' } }, h('span', { style: { position: 'absolute', left: '12px', bottom: '10px', font: '600 var(--fs-c1) var(--font)', color: '#fff', background: 'rgba(0,0,0,.7)', padding: '4px 8px', borderRadius: '99px' } }, 'Front Door · Live')); }
+  function sec(c, o) { return Mock.sheet(c, Object.assign({ title: 'Security System', detent: 'fitted', size: 'page', trailing: 'close', content: alarm(), presenter: home(c) }, o)); }
+
+  function midDown(host, pct) {
+    var sheet = host.querySelector('.ui-sheet'), dim = host.querySelector('.ui-dim'), pres = host.querySelector('.ui-presenter');
+    sheet.style.transform = 'translateY(' + pct + '%)'; if (dim) dim.style.opacity = 1 - pct / 100; if (pres && Mock.current.compact) pres.style.transform = 'translateY(' + (10 * (1 - pct / 100)) + 'px) scale(' + (.92 + .08 * pct / 100) + ')'; return host;
+  }
+
+  Mock.mount({
+    kind: 'flow', id: 'sheet-presentation', title: 'Sheet presentation, detents and dismissal', area: 'shell', status: 'shipped',
+    summary: 'How every modal opens, sizes and closes (hassSheet). A sheet is content-fitted by default and capped at large; sheets that navigate, have section tabs or show live video open at large. On iPad a sheet is a form (540 pt) or page (704 pt) sheet. Sheets follow the system appearance, except the dark-by-design ones; the page behind scales back and dims.',
+    source: ['apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassDesign/SystemAppearance.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/Features/Cameras/CameraViewer.swift'],
+    spec: ['.agents/patterns/modal-sheet.md', '.agents/design/direction-g.md', '.agents/design/motion.md', '.agents/design/apple/ipados.md'],
+    patterns: ['modal-sheet', 'header-edge-fade', 'motion'],
+    hig: ['Sheets', 'Modality', 'Dark Mode', 'Toolbars'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'AlarmPanel', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'fitted': { title: 'Fitted (the default): as tall as the content', note: 'hassSheet(.page): content plus the header and safe areas, grabber visible, opaque ground', render: function (c) { return sec(c); } },
+      'provisional-medium': { title: 'Opening at medium until the first measurement', note: 'the first time a sheet opens it is .medium until its page reports its scroll content height; after that it opens at the remembered height (fitKey = call site)', render: function (c) { return sec(c, { detent: 'medium' }); } },
+      'large': { title: 'Large: a sheet that navigates', note: 'hassSheet(.page, height: .full): Quick Links, Account, room card, Sprinklers, remotes, any sheet with a section tab bar', render: function (c) { return SN.quickLinksSheet(c, {}); } },
+      'pushed-level-inside-sheet': { title: 'A pushed level inside a sheet', note: 'Back leads; the first page to report owns the height, so a push does not resize the sheet', render: function (c) { return SN.quickLinksSheet(c, { detail: 'rooms' }); } },
+      'ax5-capped-at-large': { title: 'AX5: fitted reaches the large cap', override: { ts: 'ax5' }, note: 'content taller than the window: the detent snaps to large (within 24 pt) and the content scrolls', render: function (c) { return sec(c); } },
+      'ipad-form': { title: 'iPad form sheet (540 pt)', note: 'lists, editors and prompts: .form, the default; fitted to the content height (iOS 18)', override: { device: 'ipad-portrait' }, render: function (c) { return Mock.sheet(c, { title: 'Sort', detent: 'fitted', size: 'form', trailing: 'close', content: sortList(), presenter: home(c) }); } },
+      'ipad-page': { title: 'iPad page sheet (704 pt)', note: 'tile grids, dials, maps, second columns: .page', override: { device: 'ipad-portrait' }, render: function (c) { return sec(c); } },
+      'system-light': { title: 'System appearance: light', override: { appearance: 'light' }, note: 'sheets follow the display\'s appearance (#F2F2F7 ground, white cells); the page behind stays dark', render: function (c) { return sec(c); } },
+      'always-dark': { title: 'Always dark: Weather, camera viewer, Login, Location', override: { appearance: 'light' }, note: 'appearance: .dark: a sheet over a photo or gradient ignores the system appearance', render: function (c) { return Mock.sheet(c, { title: 'Weather', detent: 'large', size: 'page', trailing: 'close', appearance: 'dark', content: weather(), presenter: home(c) }); } },
+      'camera-fitted-in-flight': { title: 'Camera viewer fitted (in flight)', note: 'in flight on fix/camera-viewer-fitted (uncommitted in the primary checkout): hassSheet(.page, appearance: .dark), fitted; main still opens it at .full', render: function (c) { return Mock.sheet(c, { title: 'Front Door', detent: 'fitted', size: 'page', trailing: 'close', appearance: 'dark', content: camera(), presenter: home(c) }); } },
+      'camera-full-main': { title: 'Camera viewer on main: large', note: 'the "was": height: .full, because it is live video', render: function (c) { return Mock.sheet(c, { title: 'Front Door', detent: 'large', size: 'page', trailing: 'close', appearance: 'dark', content: camera(), presenter: home(c) }); } },
+      'dismiss-swipe': { title: 'Dismiss by swiping down (mid-drag)', note: 'interactive and system-owned; the page behind returns to full size with the finger', render: function (c) { var host = midDown(sec(c), 40); SN.finger(host, { x: c.w / 2, y: c.h * .72 }, { label: 'drag down', drag: { x: c.w / 2, y: c.h * .9 } }); return host; } },
+      'dismiss-close': { title: 'Dismiss with Close', note: 'the circle x at the top trailing edge (Button(role: .close) on iOS 26); never "Done"', render: function (c) { var host = sec(c); var b = host.querySelector('button[aria-label="Close"]'); SN.finger(host.querySelector('.ui-sheet'), 'button[aria-label="Close"]', { label: 'tap Close' }); return host; } },
+    },
+    motion: [
+      { id: 'sheet-present', what: 'The sheet slides up to its detent; the page behind scales back and dims', token: 'system sheet (about 0.5 s spring); no MotionTokens value; content present on arrival, no entrance animation inside (motion.md 4.4)', state: 'fitted',
+        source: 'HassDesign/HassModal.swift hassSheet; motion.md sections 2 and 4.4', reduce: 'the system cross-fades the sheet',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, { title: 'Security System', detent: 'fitted', size: 'page', trailing: 'close', content: alarm() }, { hold: 900 }); } },
+      { id: 'detent-settle', what: 'First open: .medium until the page reports its height, then the sheet settles to the fitted height', token: 'system detent change (no token); hysteresis 2 pt, minimum 220 pt, snaps to large within 24 pt', state: 'provisional-medium',
+        source: 'HassDesign/SheetFit.swift SheetFit.detent, SheetFitModel', reduce: 'unchanged: the system resize',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), panel = host.querySelector('.ui-sheet'), from = panel.offsetHeight;
+          var probe = sec(Mock.current); probe.style.visibility = 'hidden'; stage.appendChild(probe); var to = probe.querySelector('.ui-sheet').offsetHeight; probe.remove();
+          panel.style.height = from + 'px';
+          return panel.animate([{ height: from + 'px' }, { height: to + 'px' }], { duration: 350, easing: Mock.anim.easing.sheet, fill: 'both' }).finished.then(function () { return Mock.sleep(700); });
+        } },
+      { id: 'interactive-dismiss', what: 'Dragging the sheet down follows the finger; release past a threshold dismisses', token: 'system interactive dismissal', state: 'fitted',
+        source: 'system sheet gesture (presentationDetents)', reduce: 'unchanged: it is the finger',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), n = 10, i = 0;
+          return new Promise(function (res) { (function step() { midDown(host, 45 * i / n); if (++i <= n) setTimeout(step, 40); else res(); })(); }).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { return Mock.sleep(400); });
+        } },
+    ],
+    transitions: [
+      { from: 'Page', to: 'Sheet (fitted)', kind: 'sheet', state: 'fitted', note: 'Present: the sheet rises to its detent (fitted height, capped at large); the presenting page scales back and dims. Heavy work in the sheet starts after it settles.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Security System', detent: 'fitted', size: 'page', trailing: 'close', content: alarm() }, { hold: 900 }); } },
+      { from: 'Sheet', to: 'Page (Close)', kind: 'sheet', state: 'fitted', note: 'The circle x Close, Escape, or the VoiceOver escape: the sheet slides down, the page returns to full size.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.sleep(300).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { return Mock.sleep(400); }); } },
+      { from: 'Sheet', to: 'Page (swipe down)', kind: 'sheet', state: 'fitted', note: 'Interactive and system-owned; a sheet that saves with unsaved changes can block it (the item editor).',
+        play: function (stage) { var host = stage.querySelector('.ui-host'), n = 10, i = 0; return new Promise(function (res) { (function step() { midDown(host, 55 * i / n); if (++i <= n) setTimeout(step, 40); else res(); })(); }).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { return Mock.sleep(400); }); } },
+      { from: 'Sheet root', to: 'Pushed level', kind: 'push', state: 'large', note: 'A plain push inside the sheet\'s NavigationStack with a glass Back circle (no zoom inside a sheet, owner 2026-10-22). The sheet\'s height does not change.',
+        play: function (stage) { var c = Mock.current, host = stage.querySelector('.ui-host'), panel = host.querySelector('.ui-sheet'), inner = panel.querySelector('.ui-modal'), next = SN.quickLinksSheet(c, { detail: 'rooms', presenter: false }).querySelector('.ui-modal'); next.style.cssText = 'position:absolute;inset:0;background:var(--sheet-ground);z-index:5;border-radius:inherit'; panel.appendChild(next); return Mock.anim.push(inner, next).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); next.remove(); }); } },
+    ],
+    a11y: [
+      { rule: 'Modality and focus', note: 'A sheet is modal: VoiceOver focus lands on the inline title (the first thing announced), the page behind is not reachable; Close is the last control in the bar; Escape and the two-finger scrub dismiss.' },
+      { rule: 'Grabber', note: 'The drag indicator is visible on every sheet; VoiceOver users change detents with the system\'s adjustable grabber.' },
+      { rule: 'Targets', note: 'Close and Back are 44 pt circles; note iOS draws a non-large sheet\'s content at about 0.955 so a 44 pt control measures 42 pt (journeys allow 41.5).' },
+      { rule: 'Appearance and contrast', note: 'Sheets follow the system appearance; secondary text is 5:1 or better on both grounds; always-dark sheets use fixed light ink on their photo or gradient.' },
+      { rule: 'Dynamic Type', note: 'The fitted height is recomputed when Dynamic Type changes; at AX5 it reaches the large cap and the content scrolls.' },
+      { rule: 'Reduce Motion', note: 'The system presents and dismisses with a cross-fade; no app animation is added inside the sheet.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: use the smallest detent that shows the content', verdict: 'pass', note: 'hassSheet defaults to .fitted, capped at large (HassModal.swift:149; SheetFit.swift:11-16).', by: 'apple-hig skill' },
+        { rule: 'Sheets: let people expand a short sheet', verdict: 'pass', note: 'Done: a fitted sheet taller than half the window, or not yet measured (all of iOS 17), also offers .large (SheetFit.offersLarge); the fitted height stays the smallest detent and the one it opens at.', by: 'apple-hig skill' },
+        { rule: 'Sheets: grabber, close control, page or form size on iPad', verdict: 'pass', note: 'presentationDragIndicator(.visible), SheetCloseItem, .page or .form sizing (HassModal.swift:191, 202-232).', by: 'apple-hig skill' },
+        { rule: 'Materials: a partial-height sheet is glass on iOS 26', verdict: 'departure', note: 'An opaque systemGroupedBackground at every detent, because glass let page tiles show through (HassModal.swift:192-194, 250-264; direction-g.md Sheets).', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: sheets follow the system while pages stay dark', verdict: 'departure', note: 'followsSystemAppearance on sheets, .dark only for video or gradient sheets (HassModal.swift:235-247; owner 2026-10-15).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: a sheet with only Close should keep a horizontal bar', verdict: 'pass', note: 'Close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1) via HassModal, Security System and the camera viewer (owner 2026-10-24, sheet-close-chrome C).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Do not size from a single window or screen guess', verdict: 'pass', note: 'Fixed: LargeDetent.height() (SheetFit.swift) now reads the foreground-active scene first. Was: LargeDetent.height() reads the first key window across every connected scene (SheetFit.swift:249-258), so on iPad multi-window or a Duo with two scenes the cap can come from another window. Low.', by: 'swiftui-pro skill' },
+        { rule: 'One sizing API', verdict: 'pass', note: 'hassSheet(_:height:appearance:fitKey:fitScaling:) only; fitKey defaults to the call site.', by: 'swiftui-pro skill' },
+        { rule: 'Avoid a resize loop', verdict: 'pass', note: '2 pt hysteresis, first reporting page owns the height, largeSnap 24 pt (SheetFit.swift:35-40, 112-114).', by: 'swiftui-pro skill' },
+        { rule: 'Measure with onScrollGeometryChange (iOS 18)', verdict: 'pass', note: 'SheetFitReporter, with a documented provisional detent below iOS 18 (SheetFit.swift:205-228).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'In flight: the camera viewer\'s fitted detent is uncommitted in the primary checkout (fix/camera-viewer-fitted: CameraViewer.swift hassSheet(.page, appearance: .dark), CameraViewerFitJourneyTests); main is still .full. Both are drawn (camera-fitted-in-flight, camera-full-main). I could not confirm the final fitted height: it depends on the 16:9 picture plus the header.',
+      'Docs versus code: split-view.md calls the camera viewer a full-screen modal and iphone.md a ".large detent only"; the code is a page sheet (full on main, fitted in flight). modal-sheet.md still says the camera viewer is full height.',
+      'Height rules, from modal-sheet.md: fitted by default; full is required for a remote, any modal with a section tab bar, recipe detail (full screen), a sheet that pushes pages (Account, Quick Links, room card, room overview, Sprinklers, the presence override) and live video or a gradient (camera viewer, Weather, scanner). SheetFit.minimumHeight 220, largeSnap 24, hysteresis 2.',
+      'The Sort list uses the kit OptionPickerSheet stand-in; the real sort and filter sheets belong to other batches.',
+      'Stand-in sheets: Security System (AlarmPanel), Weather and the camera picture are kit stand-ins; the sheet chrome is the kit\'s Mock.sheet.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: fitted, provisional, large, pushed level, AX5, iPad form and page, light, always dark, camera in flight, dismissals.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tonight or All Nights sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom;
+  /* BedTemperatureScopeSheet: a second sheet (fitted, form size) over the large bed sheet. */
+  function Sc(o) {
+    o = o || {};
+    return function (ctx) {
+      var m = B.bed(o.side || 'left', o.bed), under = B.bedSheet(ctx, { m: m });
+      var phase = o.phase || 'Asleep', target = o.target || '+4';
+      return Mock.sheet(ctx, { title: 'Set Bed Temperature', detent: o.detent || 'fitted', size: 'form', trailing: 'close', content: B.scopeContent(m, phase, target), presenter: under });
+    };
+  }
+  Mock.mount({
+    kind: 'modal', id: 'bed-temperature-scope-sheet', title: 'Tonight or All Nights? (scope sheet)', area: 'bedroom', status: 'shipped',
+    summary: 'Opens over the bed sheet when the dial is released while a schedule stage is running: should the new target apply only tonight, or also become that stage\'s recurring level? A fitted form sheet with two rows. Close (or a swipe down) dismisses it without saving a recurring level; the target itself was already sent for tonight.',
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedScopeCopy.swift', 'apple/Sources/HassCore/Bedroom/BedSideController.swift', 'apple/Sources/HassCore/Bedroom/SleepypodSchedule.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['bedroom-devices', 'modal-sheet'],
+    hig: ['Sheets', 'Lists', 'Dynamic Type'],
+    entities: ['sensor.demo_schedule_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Asleep stage, target +4', note: 'the title reads "Set Bed Temperature"; fitted height (content plus safe areas), form size (540 pt) on iPad', render: Sc() },
+      'bedtime': { title: 'Bedtime stage, target -2 (Sam)', render: Sc({ side: 'right', phase: 'Bedtime', target: '-2' }) },
+      'dawn': { title: 'Dawn stage, target +1', render: Sc({ phase: 'Dawn', target: '+1' }) },
+      'medium': { title: 'Medium detent (not used)', note: 'the sheet is fitted; "medium" is only the provisional height before the first measurement', render: Sc({ detent: 'medium' }) },
+      'fitted': { title: 'Fitted detent (shipped)', render: Sc({ detent: 'fitted' }) },
+      'large': { title: 'Large detent (cap at AX sizes)', note: 'only when the content is taller than the window (AX5)', render: Sc({ detent: 'large' }) },
+      'offline': { title: 'Over an offline Bedroom 1', note: 'the sheet has no offline UI; the choice sends a script and a number change that roll back if refused', render: function (ctx) { var m = B.bed('left'); return Mock.sheet(ctx, { title: 'Set Bed Temperature', detent: 'fitted', size: 'form', content: B.scopeContent(m, 'Asleep', '+4'), presenter: B.bedSheet(ctx, { m: m, connection: 'offline' }) }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: Sc({ detent: 'large' }) },
+    },
+    motion: [
+      { id: 'sheet-over-sheet', what: 'The second sheet slides up over the bed sheet; the first scales back and dims', token: 'system sheet (about 0.5 s spring); no app token', state: 'default',
+        source: 'BedSideSheet .sheet(isPresented: scopeRequest != nil); motion.md section 2 (Modal)', reduce: 'cross-fade',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(250); }).then(function () { return Mock.anim.sheet(host, 'in'); }); } },
+    ],
+    transitions: [
+      { from: 'Dial released during a stage', to: 'Tonight or All Nights? sheet', kind: 'sheet', state: 'default', note: 'Presents at once on release (the target for tonight is already sent). A stage change or the target returning to the live value dismisses it.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'in').then(function () { return Mock.sleep(900); }); } },
+      { from: 'Choice tapped', to: 'Bed sheet', kind: 'sheet', state: 'default', note: 'Tonight or All Nights sends its change and dismisses the sheet; the bed sheet scales back to size. Close dismisses without a recurring change.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(400); }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Set Bed Temperature", the summary line ("Alex\'s Bed • Asleep • +4"), the explanation, then the two choices, then Close in the bar.' },
+      { rule: 'Choices', note: 'Each choice is one button: "Tonight, Change the current Pod target only." and "All Nights, Update this schedule stage and tonight\'s target." (identifiers bed.scope.tonight, bed.scope.allNights). The chevron is hidden.' },
+      { rule: 'Targets', note: 'Each row is at least 44 pt (usually about 66 pt with two lines).' },
+      { rule: 'Dynamic Type', note: 'Text wraps; at AX sizes the fitted height reaches the large cap and the content scrolls.' },
+      { rule: 'Dismissal', note: 'Close (circle x) and swipe down both cancel the question; there is no destructive choice.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: stacking one sheet on another', verdict: 'pass', note: 'BedTemperatureScopeSheet is removed: the question is a confirmationDialog on the bed dial (BedSideSheet, BedScopeCopy; owner 2026-10-24, sheet-stacking-close). Recorded in modal-sheet.md.' },
+        { rule: 'Sheets: smallest detent that shows the content', verdict: 'pass', note: '.hassSheet(.form) fits the two rows plus header; reaches large only at AX5.' },
+        { rule: 'Lists: each choice explains its effect', verdict: 'pass', note: 'One-line consequence under Tonight and All Nights.' },
+        { rule: 'Alerts: say what dismissing does', verdict: 'pass', note: 'BedTemperatureScopeSheet.dismissNote.' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: sheet presentation bound to state', verdict: 'pass', note: 'isPresented is bound to scopeRequest != nil and the setter calls dismissScope().' },
+        { rule: 'Navigation: prefer sheet(item:)', verdict: 'pass', note: 'Fixed: BedSideSheet uses confirmationDialog(item: Bindable(controller).scopePrompt); BedSideController.scopePrompt maps nil to dismissScope().' },
+        { rule: 'Design: text styles and wrapping', verdict: 'pass', note: 'fixedSize(horizontal: false, vertical: true) on the explanation; text styles only.' },
+        { rule: 'Accessibility: rows are single buttons', verdict: 'pass', note: '.accessibilityElement(children: .combine) with .isButton; chevron hidden.' },
+      ],
+    },
+    notes: [
+      'loading and error: none; the sheet draws no loading or error state (the commands run after the choice and roll back silently).',
+      'The scope sheet is the only fitted sheet in this batch; the bed and wake-light sheets are large only.',
+      'Docs versus code: the catalog calls it "Tonight or All Nights?"; the nav title in code is "Set Bed Temperature".',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Feedback attachment strip · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../../../modals/settings/_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  var P = function (n, k) { return { kind: k || 'photo', name: (k === 'video' ? 'clip-' : 'IMG_04') + n + (k === 'video' ? '.mov' : '.png') }; };
+  /* The Media section as the form draws it, sheet surface only (the strip never sits on a page). */
+  function media(att, o) {
+    o = o || {};
+    return function (ctx) {
+      return SA.surfaces(ctx, function () {
+        var rows = [];
+        if (att.length) rows.push(h('div.ui-mrow' + (o.sending ? '.sa-dim' : ''), { style: { minHeight: 0, paddingTop: '4px', paddingBottom: '4px' } }, SA.attachStrip(att)));
+        rows.push(SA.labelRow('paperclip', 'Attach Media', { disabled: att.length >= 4 || o.sending }));
+        if (o.notice) rows.push(h('div.ui-mrow', h('span.tx', h('span.su', { style: { color: 'var(--ink-danger)', fontSize: 'var(--fs-foot)' } }, o.notice))));
+        var s = SA.section({ headerNode: SA.fieldHeader('Media', SA.mediaDetail), rows: rows });
+        if (o.targets) s.classList.add('show-targets');
+        return s;
+      }, ['sheet']);
+    };
+  }
+  var st = document.createElement('style');
+  st.textContent = '.show-targets .sa-tile .rm{outline:1.5px dashed #FF9F0A;outline-offset:-1px}.show-targets .sa-tile .th{outline:1.5px dashed #30D158;outline-offset:1px}';
+  document.head.appendChild(st);
+
+  Mock.mount({
+    kind: 'component', id: 'feedback-attachment-strip', title: 'Feedback attachment strip and tile', area: 'settings', status: 'shipped', frame: false,
+    summary: 'The attached media in the feedback form: a horizontal strip of 76 pt thumbnails above Attach Media, each opening in Quick Look and each with its own 44 pt remove button at the corner; a play badge marks a video. Shown on the sheet surface, in the Media section of the form.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift', 'apple/Sources/HassCore/Feedback/FeedbackAttachment.swift'],
+    spec: ['.agents/pages/settings/feedback.md'],
+    patterns: [],
+    hig: ['Collections', 'File management', 'Buttons', 'Accessibility'],
+    entities: [],
+    kitComponents: ['ModuleList'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'empty': { title: 'Nothing attached', note: 'the strip is not drawn; the Media section is the header and Attach Media', render: media([]) },
+      'photos': { title: 'Two photos', render: media([P('12'), P('13')]) },
+      'video': { title: 'A video among photos', note: 'a 22 pt play badge sits at the bottom-leading corner of a video’s thumbnail', render: media([P('12'), P('3', 'video'), P('14')]) },
+      'max': { title: 'Four attachments, the limit', note: 'Attach Media is disabled; a red note says why', render: media([P('12'), P('3', 'video'), P('14'), P('15')], { notice: 'You can attach up to 4 photos or videos.' }) },
+      'sending': { title: 'While sending', note: 'the strip and Attach Media are disabled', render: media([P('12'), P('13')], { sending: true }) },
+      'targets': { title: 'Hit targets', note: 'green: the thumbnail button (76 pt, in a 86 pt cell); orange: the remove button, a 44 pt frame offset 12 pt out so it overlaps the corner', render: media([P('12'), P('3', 'video')], { targets: true }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the thumbnails and remove buttons keep their size (they are not scaled); the header and row scale', render: media([P('12'), P('13')]) },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'Thumbnail', note: 'A button labelled "Photo 1, IMG_0412.png, 1.2 MB" (or "Video 2, ...", with its size) with the hint "Opens in Quick Look" (feedback.attachment.N). The play badge and the picture are decorative.' },
+      { rule: 'Remove', note: 'A separate button "Remove IMG_0412.png" (feedback.attachment.N.remove); its frame is 44 x 44 pt although the drawn disc is smaller, and it is offset so it sits over the thumbnail’s corner without shrinking the thumbnail’s own target.' },
+      { rule: 'Order', note: 'Left to right in attachment order; VoiceOver reads each tile’s thumbnail then its remove button.' },
+      { rule: 'Not colour alone', note: 'Video is marked by a play glyph and by the word "Video" in its label.' },
+      { rule: 'Disabled while sending', note: 'The whole strip is disabled so nothing can be removed mid-upload.' },
+      { rule: 'Dynamic Type', note: 'The thumbnails are a fixed 76 pt (media, not text); the strip scrolls horizontally with indicators hidden.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Buttons: 44 pt touch targets', verdict: 'pass', note: 'The thumbnail is 76 pt and the remove button a 44 by 44 frame, offset to the corner (FeedbackAttachmentTile.swift:17, :53-57).', by: 'apple-hig skill' },
+        { rule: 'File management: open attachments in the system viewer', verdict: 'pass', note: 'Tapping a thumbnail opens Quick Look through quickLookPreview over every attachment (FeedbackAttachmentStrip.swift:38-40).', by: 'apple-hig skill' },
+        { rule: 'Color: video marked by shape, not colour', verdict: 'pass', note: 'A play.fill badge on the thumbnail and a position-and-kind spoken label (FeedbackAttachmentTile.swift:30-37, :44).', by: 'apple-hig skill' },
+        { rule: 'Typography: avoid the smallest sizes', verdict: 'pass', note: 'The play badge is .footnote.bold() (FeedbackAttachmentTile.swift).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: destructive control named for its target', verdict: 'pass', note: 'Remove button reads "Remove <filename>" (:58).', by: 'apple-hig skill' },
+        { rule: 'Layout: horizontal strip, fixed tile size', verdict: 'pass', note: 'A horizontal ScrollView, indicators hidden; tiles do not scale with Dynamic Type (media thumbnails), while the rows around them do.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Design: hard-coded sizes and spacing', verdict: 'pass', note: 'Fixed: FeedbackAttachmentMetrics (side, corner radius, thumbnail inset, remove reach) and HassTokens.Spacing replace the literals (FeedbackAttachmentTile.swift, FeedbackAttachmentStrip.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Views: ForEach identity from the element', verdict: 'pass', note: 'ForEach(Array(attachments.enumerated()), id: \\.element.id) is correct below iOS 26 (FeedbackAttachmentStrip.swift:27).', by: 'swiftui-pro skill' },
+        { rule: 'Concurrency: .task(id:) for thumbnails', verdict: 'pass', note: 'QLThumbnailGenerator runs in .task(id: attachment.fileURL) and Image(decorative:) draws the result (FeedbackAttachmentTile.swift:63, :69, :90-99).', by: 'swiftui-pro skill' },
+        { rule: 'API: scrollIndicators(.hidden)', verdict: 'pass', note: 'Uses the modifier, not the old initializer argument (FeedbackAttachmentStrip.swift:36).', by: 'swiftui-pro skill' },
+        { rule: 'Hygiene: legacy macOS branches', verdict: 'pass', note: 'Not applicable: the macOS branches are legacy under AGENTS.md (leave, never extend).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Thumbnails are the kit’s stand-in scenes; the real tile shows the file’s own Quick Look thumbnail, or a film or photo glyph on a quaternary fill while it loads.',
+      'Doc gap: no doc under .agents records the tile geometry (76 pt thumbnail, 12 pt radius, 44 pt remove frame offset 12 pt); feedback.md names the files only.',
+      'The strip is the same on iPad (a form sheet 540 pt wide), so the second device only changes the width available.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprinkler controller card · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/sprinklers/_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, S = Mock.VS.S;
+  var cfg = Mock.componentConfig('SprinklerControllerCard', { surfaces: ['page'], swatchWidth: '372px', props: {} });
+  /* In context: the real Sprinklers page on an iPhone frame, scaled to fit the component page. */
+  cfg.states['in-context'] = { title: 'In context: the Sprinklers page', render: function (ctx) {
+    var c2 = Mock.ctx('iphone', { appearance: ctx.appearance, ts: ctx.ts, reduceMotion: ctx.reduceMotion, reduceTransparency: ctx.reduceTransparency }), prev = Mock.current;
+    Mock.current = c2; var frame = Mock.frame(c2, S.page(c2, {})); Mock.current = prev;
+    return h('div', { style: { zoom: .62, width: 'max-content', margin: '0 auto' } }, frame);
+  } };
+  Mock.mount(Object.assign(cfg, {
+    states: cfg.states,
+    id: 'sprinkler-controller-card', title: 'Sprinkler controller card (tile + status pills)', area: 'sprinklers', status: 'shipped',
+    summary: 'SprinklerControllerCard: one controller. A low battery alert sits above it, then the controller as a navigation tile (water glyph, name and status line, a Stop Watering disc, chevron; opens the sheet; filled while watering, disc dimmed while idle), then a module holding a two-column grid of Battery, Next Watering, Last Watering and Hub status pills. Dense while the battery is low. Rollout M, 2026-10-28.',
+    source: ['apple/Sources/HassUI/Features/Sprinklers/SprinklersScreen.swift', 'apple/Sources/HassDesign/StatusPill.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKModule.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerFormat.swift'],
+    spec: ['.agents/pages/sprinklers/ios.md', '.agents/patterns/status-pill.md', '.agents/patterns/module-list.md'],
+    patterns: ['status-pill', 'module-list', 'dynamic-grid'],
+    hig: ['Lists and tables', 'Color', 'Dynamic Type'],
+    kitComponents: ['GlassTile', 'ModuleList', 'StatusPill', 'TileGrid', 'InlineAlert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    a11y: [
+      { rule: 'Structure', note: 'The card is an accessibility container (children contained): the optional warning, then the tile, then four pills. Not one element, so each pill stays separately reachable.' },
+      { rule: 'Tile and Stop Watering disc', note: 'The tile is one button: label is the controller name, value the status line, hint "Opens the controller.", trait button; glyph and chevron hidden (sprinklers.controller.<id>). The Stop Watering disc is its own 44 pt button (<id>.action.stop), dimmed in place while idle.' },
+      { rule: 'Pills', note: 'Read-only: label then "value, detail". The tone colours the icon only (orange battery, green or grey hub); the words say the same, so state is never colour alone.' },
+      { rule: 'Dynamic Type', note: 'The pill grid has a 150 pt scaled minimum, so it is two columns at the default size and one at AX5; text wraps. Check with the Text size control.' },
+      { rule: 'Contrast', note: 'White on the thin module (#1C1C1E at 66%), on the dense one (#141416 at 78%) when the battery is low: warm text needs the thicker ground (direction G, Layers).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: one tappable row inside a card of read-only status", verdict: "pass", note: "Only the controller tile (and its Stop Watering disc) is a button; the four StatusPill cells are not (SprinklersScreen.swift lines 69-81), so tapping a pill does nothing and nothing implies it should.", by: "apple-hig skill" },
+        { rule: "Color and Accessibility: tone icons plus words", verdict: "pass", note: "Battery tone is the icon colour only; value text carries the state (StatusPill.swift lines 41-70, 92-101). The Hub \"Unavailable\" grey icon is paired with the word.", by: "apple-hig skill" },
+        { rule: "Layout: pills reflow to one column at AX sizes", verdict: "pass", note: "minPillWidth is @ScaledMetric(relativeTo: .footnote) 150 (line 58) and the grid caps at two columns.", by: "apple-hig skill" },
+        { rule: "Materials: module surface instead of a pill fill", verdict: "departure", note: "direction-g.md Layers and status-pill.md: pills inside a module take surface .module and draw no fill of their own (StatusPill.swift lines 12-20, 73-77); the material page fill is for pills outside a module.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Accessibility: label, value and hint", verdict: "pass", note: "SprinklerControllerTile: a navigation GlassTile with label title, value subtitle, hint and isButton; the glyph and chevron are hidden.", by: "swiftui-pro skill" },
+        { rule: "Views: keep card state derived, not stored", verdict: "pass", note: "let snapshot = controller.snapshot at the top of body, batteryLow decides dense and alert (lines 61-67); no extra @State.", by: "swiftui-pro skill" },
+        { rule: "Design: fixed font sizes", verdict: "pass", note: "StatusPill uses .footnote and .subheadline.weight(.semibold) text styles; only the label weight is overridden (lines 48-55).", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Only the page surface is drawn: the card never appears in a sheet (the controller sheet uses the same pills on the grouped-list cell, shown in the controller sheet mockup).',
+      'The tile sits above the module (rollout M); the pills keep a hairline rule (a local .vs-hair rule, promote to kit).',
+      'The card is registered locally as Mock.components.SprinklerControllerCard by the helper; it is not in the kit COMPONENTS list.',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Rollout M: the controller row became a navigation tile with a Stop Watering disc.' }, { date: '2026-10-23', note: 'First pass: idle, watering, battery low, hub, unavailable, fault, plus the unknown and no-history strings.' }],
+  }));
+})();
+</script></body></html>

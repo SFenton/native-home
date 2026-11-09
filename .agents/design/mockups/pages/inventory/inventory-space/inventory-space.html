@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory space · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+
+  function page(ctx, o) { return V.page(ctx, o); }
+  var LONG = [{ id: 'long', name: 'Organic Extra Virgin Cold-Pressed Olive Oil With Basil and Roasted Garlic', rows: [], batches: [{ q: 3, exp: 120, loc: 'Pantry' }], qty: 3, soonest: 120, shown: 3 },
+    { id: 'long2', name: 'Cinnamon Raisin Bagels (Family Size)', rows: [], batches: [{ q: 1, exp: 2, loc: 'Pantry' }], qty: 1, soonest: 2, shown: null }];
+
+  /* The editor: a sheet while the window cannot split, the trailing pane where SplitPolicy allows it (iPad landscape, unfolded Duo landscape). */
+  function editor(ctx, key, o) {
+    var m = V.models[key || 'beans'];
+    if (ctx.canSplit) return page(ctx, Object.assign({ space: 'all-food', selected: key === 'soup' ? 'chicken soup' : (key === 'milk' ? 'whole milk' : 'black beans'), split: { editor: V.editorPane(m, o) } }, o && o.page));
+    return Mock.sheet(ctx, Object.assign(V.editorSheet(ctx, m, o), { presenter: page(ctx, { space: 'all-food', noFab: true }) }));
+  }
+  function sheetOver(ctx, opts) { return Mock.sheet(ctx, Object.assign({ presenter: page(ctx, { space: 'all-food', noFab: true }) }, opts)); }
+
+  function cartRow(stage, id) { return stage.querySelector('.inv-swipe[data-row="' + id + '"] .inv-btn.cart'); }
+
+  Mock.mount({
+    kind: 'page', id: 'inventory-space', title: 'Inventory space', area: 'inventory', status: 'shipped',
+    summary: 'One page, six spaces (All Food, Pantry, Fridge, Freezer, Spice Rack, Cabinet): a "10 Items • 2 Expiring Soon" line, the items as rows on one dense module, and a floating bar with Search, Sort, Filter and Scan Item. Pushed from the Food hub. Fixture rows only.',
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryRoute.swift', 'apple/Sources/HassUI/Features/Inventory/InventorySections.swift',
+      'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryListModel+Summary.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift', 'apple/Sources/HassCore/Inventory/InventoryListModel.swift'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md'],
+    patterns: ['floating-actions', 'content-gate', 'module-list', 'status-pill', 'motion'],
+    hig: ['Lists and tables', 'Search fields', 'Alerts', 'Action sheets', 'Loading', 'Layout (readable content width)', 'Dynamic Type', 'Motion'],
+    entities: ['sensor.demo_expired_items_1', 'sensor.demo_expired_items_1', 'sensor.demo_expired_items_1', 'sensor.demo_kitchen_2', 'sensor.demo_kitchen_1', 'sensor.demo_expired_items_1', 'sensor.demo_sensor_1', 'todo.demo_todo_1'],
+    kitComponents: ['FloatingActionBar', 'PageSectionHeader', 'ContentGate', 'ArcSpinner', 'PrimaryButton', 'Alert', 'FilterSheet', 'HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'All Food, sorted by title', note: 'one headerless list; the Pantry, Fridge, Freezer, Spice Rack and Cabinet pages are the same template filtered to a location', render: function (c) { return page(c, {}); } },
+      'by-expiry': { title: 'Sorted by Expiration Date', note: 'rows group under Expired, Expiring Soon, Later and No Expiration Date, each header carrying its count; the Sort button is filled', render: function (c) { return page(c, { sort: 'expiry' }); } },
+      'by-expiry-desc': { title: 'Expiration Date, descending', note: 'groups reverse; undated cards still sort last inside No Expiration Date', render: function (c) { return page(c, { sort: 'expiry', desc: true }); } },
+      'loading': { title: 'Loading (content gate, page profile)', note: 'a spinner fades in at once, holds at least 1 s, fades out over 500 ms, then the list and the floating bar fade in and rise 4 pt together', render: function (c) { return page(c, { phase: 'spinner' }); } },
+      'refreshing': { title: 'Pull to refresh (rows stay)', note: 'saved rows stay on screen and the system refresh arc shows above them; nothing re-fades (no reload on reopen)', render: function (c) {
+        var p = page(c, {}); var sc = p.querySelector('.ui-body'); sc.insertBefore(h('div', { style: { display: 'flex', justifyContent: 'center', color: 'var(--g-secondary-on-wallpaper)' }, role: 'status', 'aria-label': 'Refreshing' }, K.ArcSpinner({ size: 'compact', label: 'Refreshing' })), sc.firstChild); return p; } },
+      'empty': { title: 'No Items Found (empty pantry)', note: 'basket, title, description, centred; the floating bar is only a labelled Scan Item capsule (untinted glass)', render: function (c) { return page(c, { space: 'pantry', empty: 'empty' }); } },
+      'error': { title: 'Unable to Load (service failed)', note: 'warning triangle, the same description for any load error, Try Again as the filled PrimaryButton; Scan Item stays', render: function (c) { return page(c, { space: 'pantry', empty: 'error' }); } },
+      'offline': { title: 'Offline: last rows on screen', note: 'the session keeps each page\'s rows, so going offline shows the snapshot with the offline chip; a service call that fails shows its error on the row or as Unable to Load after a refresh', render: function (c) { return page(c, { connection: 'offline' }); } },
+      'reconnecting': { title: 'Reconnecting (arc)', note: 'the arc left of Quick Links', render: function (c) { return page(c, { connection: 'reconnecting' }); } },
+      'long-text': { title: 'Long names wrap', note: 'the name wraps with fixedSize(vertical); the count, cart and chevron keep their 44 pt column and the row grows', render: function (c) { return page(c, { extra: LONG }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'only accessibility sizes stack the count, cart and chevron under the text (isAccessibilitySize, not ViewThatFits); the floating bar reflows to two rows', render: function (c) { return page(c, { sort: 'expiry' }); } },
+      'search': { title: 'Searching (query typed, spinner overlay)', note: 'a 250 ms debounce then the results region reloads; a capsule with the compact arc floats over the list; the summary line hides while searching', render: function (c) { return page(c, { query: 'e', searching: true }); } },
+      'search-empty': { title: 'No Matching Items (search)', note: 'description changes with an active filter ("clear the selected filter, or clear the search")', render: function (c) { return page(c, { empty: 'search', query: 'xyz' }); } },
+      'filter-empty': { title: 'No Matching Items (filter only)', render: function (c) { return page(c, { space: 'freezer', empty: 'filter' }); } },
+      'swipe-lead': { title: 'Leading swipe: Add to Groceries', note: 'blue #0071E3 (FloatingActionBar.tint), on every row', render: function (c) { return page(c, { swipe: { 'whole milk': 'lead' } }); } },
+      'swipe-trail': { title: 'Trailing swipe: Delete', note: 'single-batch cards only (Black Beans deletes from the editor); a single unit asks first, several ask how many', render: function (c) { return page(c, { swipe: { 'whole milk': 'trail' } }); } },
+      'cart-added': { title: 'Cart: adding, then added', note: 'Whole Milk is adding (arc), Eggs is added (green check); the check holds 3 s then the cart returns', render: function (c) { return page(c, { shopping: { 'whole milk': 'adding', eggs: 'added' } }); } },
+      'row-error': { title: 'Row error (invalid delete quantity)', note: 'Enter a number from 1 to 12. appears under the row text in red, read as part of the row', render: function (c) { return page(c, { errors: { eggs: 'Enter a number from 1 to 12.' } }); } },
+      'redacted': { title: 'Names redacted (FENTON_REDACT_PRIVATE=1)', note: 'live rows are the household\'s own: privacySensitive hides names in shared screenshots; fixture rows stay readable', render: function (c) { return page(c, { redacted: true }); } },
+      'not-signed-in': { title: 'Not Signed In (no models)', note: 'InventoryDestinationScreen with no connection; the page chrome stays', render: function (c) {
+        return Mock.page(c, { title: 'All Food', section: 'home', back: 'Food', badge: 3, choresBadge: 2, body: [h('div', { style: { minHeight: '440px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div.inv-empty', h('div.ico', { html: Mock.icon('person.crop.circle.fill', { size: '1.25em' }) }), h('h2', 'Not Signed In')))] }); } },
+      'editor': { title: 'Item editor open (sheet, or trailing pane where the window splits)', note: 'iPhone, folded Duo and the portrait windows present the form sheet; iPad landscape and unfolded Duo landscape show the editor in the trailing half, with the open row washed in the action tint', render: function (c) { return editor(c, 'beans'); } },
+      'editor-pane': { title: 'Editor pane (iPad landscape)', override: { device: 'ipad-landscape' }, note: 'forced to iPad landscape: list leads, the editor trails with its own header, Close and Save Changes; the open row (Chicken Soup) is washed', render: function (c) { return editor(c, 'soup', { drafts: [{ q: 3 }], page: { selected: 'chicken soup' } }); } },
+      'prompt-shopping': { title: 'Add to Groceries prompt', note: 'an alert with a decimal-pad field prefilled 1; Cancel and Add. The same alert serves the cart button and the leading swipe', render: function (c) {
+        var a = V.alertField({ title: 'Add Whole Milk to Groceries', message: 'Quantity of Whole Milk to add to the grocery cart.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Add' }] });
+        return page(c, { noFab: true, overlay: V.alertOverlay(c, a) }); } },
+      'prompt-delete': { title: 'Delete how many prompt', note: 'only when more than one is stocked (Eggs, 12): the field is checked against 1 to 12, an invalid entry becomes a row error', render: function (c) {
+        var a = V.alertField({ title: 'Delete Eggs', message: 'Choose how many Eggs to delete. Enter a number from 1 to 12.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Delete' }] });
+        return page(c, { noFab: true, overlay: V.alertOverlay(c, a) }); } },
+      'delete-confirm': { title: 'Delete one: confirmation dialog', note: 'a single unit asks "Delete Whole Milk from the library?" (the all-food page says library; a location page says its own place). Action sheet on compact width, popover on regular', render: function (c) {
+        return page(c, { noFab: true, overlay: V.askSheet(c, 'Delete Whole Milk from the library?') }); } },
+      'sort-open': { title: 'Sort Inventory sheet over the page', render: function (c) { return sheetOver(c, V.sortSheet(c, {})); } },
+      'filter-open': { title: 'Filter Inventory sheet over the page', render: function (c) { return sheetOver(c, V.filterSheet(c, {})); } },
+      'scan-open': { title: 'Add Item sheet over the page', render: function (c) { return V.scanScreen(c, { step: 'barcode-camera' }); } },
+      'pantry': { title: 'Instance: Pantry', render: function (c) { return page(c, { space: 'pantry', sort: 'expiry' }); } },
+      'fridge': { title: 'Instance: Fridge (soon rows, prepared food, 12 eggs)', render: function (c) { return page(c, { space: 'fridge', sort: 'expiry' }); } },
+      'freezer': { title: 'Instance: Freezer', render: function (c) { return page(c, { space: 'freezer' }); } },
+      'spice-rack': { title: 'Instance: Spice Rack', render: function (c) { return page(c, { space: 'spice-rack' }); } },
+      'cabinet': { title: 'Instance: Cabinet', render: function (c) { return page(c, { space: 'cabinet' }); } },
+    },
+
+    motion: [
+      { id: 'page-gate', what: 'First load: spinner, then the list and the floating bar fade in together', token: 'gate .page: spinner in 200 ms, held at least 1 s, out 500 ms; content in 170 ms and rises 4 pt', state: 'loading',
+        source: 'HassDesign/Loading/ContentGate.swift; InventoryScreen.swift ContentGate(timing: .page, reloadTiming: .results); patterns/content-gate.md; motion.md section 5',
+        reduce: 'fade stays, the 4 pt rise is dropped',
+        play: function (stage) { var gate = stage.querySelector('.ui-gate'), slot = stage.querySelector('.ui-actions-slot'); if (slot) slot.style.opacity = 0;
+          var fab = slot ? Mock.sleep(1750).then(function () { return Mock.anim.rise(slot, { ms: 170 }).then(function () { slot.style.opacity = ''; }); }) : Promise.resolve();
+          return Promise.all([Mock.anim.gate(gate, { profile: 'page' }), fab]); } },
+      { id: 'results-reload', what: 'A search, sort or filter reloads the rows in place', token: 'gate .results: content out 170 ms, spinner after 150 ms, spinner out 140 ms, content in 170 ms with a 4 pt rise', state: 'loading',
+        source: 'ContentGate reloadTiming: .results; patterns/content-gate.md', reduce: 'fade stays, no rise', play: function (stage) { return Mock.anim.gate(stage.querySelector('.ui-gate'), { profile: 'results', loadMs: 600 }); } },
+      { id: 'cart-swap', what: 'Add to Groceries: cart glyph, arc while adding, green check, cart again', token: 'no animation: a ZStack switch on the shopping state (the check holds 3 s)', state: 'default',
+        source: 'InventoryRow.swift shoppingButton; InventoryListModel.shopping; motion.md section 6 (user actions)', reduce: 'unchanged (nothing moves; the arc keeps turning at half speed)',
+        note: 'Gap worth a decision: the glyph swaps with no motion token. Harmless, and it matches "colour and content changes need no motion", but the check is an instant cut.',
+        play: function (stage) { var b = cartRow(stage, 'whole milk'); if (!b) return Promise.resolve(); var idle = b.innerHTML;
+          b.disabled = true; b.classList.remove('added'); b.innerHTML = ''; b.appendChild(K.ArcSpinner({ size: 'compact', label: 'Adding to Groceries' }));
+          return Mock.sleep(900).then(function () { b.innerHTML = Mock.icon('checkmark', { weight: 2.4 }); b.classList.add('added'); return Mock.sleep(1800); }).then(function () { b.innerHTML = idle; b.classList.remove('added'); b.disabled = false; }); } },
+      { id: 'row-wash', what: 'Split view: opening an item washes its row in the action tint', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'editor-pane',
+        source: 'InventoryRow.swift ModuleRowBackground(selected:) stateColorTransition("ModuleRow"); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var rows = stage.querySelectorAll('.inv-row'), sel = stage.querySelector('.inv-row.sel'); if (sel) sel.classList.remove('sel'); var nxt = rows[3]; return Mock.sleep(200).then(function () { if (sel) sel.classList.add('sel'); return Mock.sleep(Mock.anim.ms.state() + 300); }).then(function () { if (sel) sel.classList.remove('sel'); if (nxt) nxt.classList.add('sel'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'pane-slide', what: 'Split view: the editor pane slides in from the trailing edge', token: 'standard 0.3 s smooth, .move(edge: .trailing)', state: 'editor-pane',
+        source: 'InventoryScreen.swift .transition(reduceMotion ? .opacity : .move(edge: .trailing)) with motionSafeAnimation(MotionTokens.standard, reduced: MotionTokens.quick)', reduce: 'the pane fades in over quick 0.2 s instead of sliding',
+        play: function (stage) { var pane = stage.querySelector('.inv-pane'); if (!pane || !pane.animate) return Promise.resolve(); var rm = Mock.settings.reduceMotion;
+          return pane.animate(rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'translateX(100%)' }, { transform: 'none' }], { duration: rm ? 200 : 300, easing: 'cubic-bezier(.4,0,.2,1)' }).finished.catch(function () {}); } },
+    ],
+
+    transitions: [
+      { from: 'Food hub tile', to: 'Inventory page', kind: 'push', state: 'default', note: 'A Food hub tile pushes the page (system push, never replaced). Reduce Motion cross-fades. A reopen starts ready: no spinner, no fade.',
+        play: function (stage) { var a = stage.querySelector('.ui-page'), b = a.cloneNode(true); a.parentNode.insertBefore(b, a.nextSibling); return Mock.anim.push(a, b).then(function () { b.remove(); }); } },
+      { from: 'Inventory page', to: 'Item editor sheet', kind: 'sheet', state: 'default', note: 'A row tap presents the form sheet at its fitted height (iPhone, portrait windows). In landscape on iPad and the unfolded Duo it opens the trailing pane instead (see Motion).',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, V.editorSheet(c, V.models.beans)); } },
+      { from: 'Floating bar', to: 'Sort or Filter sheet', kind: 'sheet', state: 'default', note: 'Sort and Filter present a fitted form sheet; the floating bar hides while any sheet is up (beside an iPad form sheet it was drawn above the dimming).',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, V.filterSheet(c, {})); } },
+      { from: 'Scan Item', to: 'Add Item sheet', kind: 'sheet', state: 'default', note: 'A large-detent form sheet over the live camera; dismissal is blocked while an item is being added.',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, V.scanSheet(c, { step: 'barcode-camera' })); } },
+      { from: 'Row action', to: 'Quantity prompt or delete confirmation', kind: 'fade', state: 'default', note: 'System alert and action sheet over the page; Cancel is always present. The alert is not decorated.',
+        play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'); var o = V.alertOverlay(c, V.alertField({ title: 'Add Whole Milk to Groceries', message: 'Quantity of Whole Milk to add to the grocery cart.' })); page.appendChild(o);
+          return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1400); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back (Food), the reconnecting arc when present, Quick Links, Profile; then the large title as a heading, the summary line ("10 Items • 2 Expiring Soon"), each section header (heading trait) with its rows, then the floating bar: Search items, Sort, Filter, Scan Item; the tab bar or rail last.' },
+      { rule: 'Row element', note: 'Each row is a container whose text reads as one label: "Whole Milk, Expires Oct 26, 2026, Expiring soon" (the count is spoken as "Quantity 12", the tone as words), then the actions: Add Whole Milk to shopping list (adding / added versions), Edit Whole Milk with the hint "Opens the item editor" or "Opens each expiration batch". The whole row also opens the editor.' },
+      { rule: 'Swipe actions', note: 'Add to Groceries (leading) and Delete (trailing, single-batch cards only) are system swipe actions, also in the VoiceOver actions rotor; Delete asks first.' },
+      { rule: 'State is not colour alone', note: 'Expired rows carry a triangle and the words "Expired", soon rows a clock and "Expiring soon" in the label; the orange and red text (#FFB340, #FF6961) keep 4.5:1 on the dense module.' },
+      { rule: 'Targets', note: 'Cart and chevron are 44 pt (scaled with the text); the circles of the floating bar are 52 pt and at least 44 pt at AX; the swipe actions fill the row height.' },
+      { rule: 'Dynamic Type', note: 'Text uses HIG styles (name 17, expiry 15, header 20 Bold). At accessibility sizes the count, cart and chevron stack under the text and the floating bar becomes two rows; nothing truncates (names wrap).' },
+      { rule: 'Loading and empty', note: 'The gate hides the list from VoiceOver until ready and posts a layout change when it appears; empty and error states are plain wrapping text with a heading trait and a Try Again button (a ContentUnavailableView in a list row clipped at large sizes).' },
+      { rule: 'Reduce Motion and Transparency', note: 'The editor pane fades instead of sliding; the dense module becomes opaque #141416; the spinners keep turning at half speed.' },
+      { rule: 'Readable measure', note: 'On wide windows the rows keep a 720 pt measure (sideMargin(forWidth:)): an iPad in portrait centres the list instead of spreading name and cart a thousand points apart.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists: swipe actions for the common row actions', verdict: 'pass', note: 'Leading swipe adds to groceries and a trailing swipe deletes a single-batch item (InventoryRow.swift:60-68); the destructive action sits trailing and asks first.', by: 'apple-hig skill' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Soon and expired rows add a clock or warning glyph and the date in words, in G\'s orange and red inks that keep 4.5:1 (InventoryRow.swift:84-93, InventoryTone).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: split columns adapt to the fold', verdict: 'pass', note: 'Fixed: InventoryScreen\'s list and editor pane are HingedPanes (SplitPolicy.columnWidths); the pane starts after the hinge.', by: 'apple-hig skill' },
+        { rule: 'Loading: show something quickly', verdict: 'pass', note: 'InventoryScreen no longer gates the page: title, Scan Item and rows already loaded this session show at once; before the first rows an inline arc ("Loading Pantry", inventory.loading) sits where they will land and the rows fade in place.', by: 'apple-hig skill' },
+        { rule: 'Layout: readable content width', verdict: 'pass', note: 'Rows keep a 720 pt measure on wide windows via contentMargins (InventoryScreen.swift:25-34, 142).', by: 'apple-hig skill' },
+        { rule: 'Alerts: a text field only when input is needed', verdict: 'pass', note: 'Quantity prompts are alerts with a decimal-pad field; a single unit asks with a destructive confirmation dialog instead (InventoryScreen.swift:92-108).', by: 'apple-hig skill' },
+        { rule: 'Empty states: say what happened', verdict: 'departure', note: 'No Items Found and Unable to Load are a custom stack, not ContentUnavailableView, which clipped its title at large text (InventoryEmptyState.swift header comment).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Never use onTapGesture for a tappable element', verdict: 'pass', note: 'InventoryRow copy is a real Button; the chevron stays a visual duplicate hidden from accessibility.', by: 'swiftui-pro skill' },
+        { rule: 'Presentation: attach confirmationDialog to its trigger', verdict: 'pass', note: 'The swipe Delete dialog is item-based on the page (confirmationDialog(item:spec:)), since a swipe button cannot anchor it; no Binding(get:set:) in the screen.', by: 'swiftui-pro skill' },
+        { rule: 'Layout: prefer onGeometryChange to a GeometryReader background', verdict: 'pass', note: 'InventoryScreen drives updateSplit with onGeometryChange (InventoryScreen.swift:74)', by: 'swiftui-pro skill' },
+        { rule: 'Design: no UIKit colours', verdict: 'pass', note: 'Fixed: InventoryTone.success is HassTokens.Ink.success; no UIColor in InventoryRow.swift.', by: 'swiftui-pro skill' },
+        { rule: 'Privacy and lists', verdict: 'pass', note: 'Item names are .privacySensitive(), and the list is a real List with refreshable and section headers (InventoryRow.swift:82, InventoryScreen.swift:133-155).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Template: one page, six instances (All Food, Pantry, Fridge, Freezer, Spice Rack, Cabinet). The states pantry, fridge, freezer, spice-rack and cabinet show the fixture rows of each; the default state is All Food because it holds every row type.',
+      'Docs and code: ios.md (design pass 2026-10-16) matches the code. spec.md says the delete confirmation names the location ("from the {location}"); the code uses the page\'s phrase, so All Food says "library" (web LOCATION_DELETE_LABELS.all) whatever the row\'s place. The summary line, sections and row layout in spec.md describe the web, not the native page.',
+      'The spec\'s quantity prompt for single delete: code confirms qty 1 with a confirmation dialog and asks how many above 1 (matches spec); the prompt button is plain "Delete" (not role destructive).',
+      'Search spinner: drawn as a capsule on a thin material over the list top (regularMaterial in code); the kit has no material swatch, so it is a blurred dark capsule.',
+      'Editor pane colours: the pane uses system grouped colours in the always-dark shell (black ground, #1C1C1E cells), not the sheet ground; confirm on a device (iPad landscape) before relying on it. The kit draws it that way.',
+      'Unfolded Duo portrait and iPad portrait never split (SplitPolicy): the editor is a sheet there. Landscape widths: InventoryScreen is a plain HStack of two equal halves (SplitPolicy.allowsSplit only), so the iPad pane is 597 pt and the Duo pane 434 pt; on the Duo the left 41 pt of the pane sit under the hinge band (the 455 to 496 pt fold) because the screen does not read the hinge (docs say the divider goes on the hinge, split-view.md). Not confirmed on a device.',
+      'The Not Signed In state uses a stand-in person glyph (person.crop.circle.badge.exclamationmark is not in the kit).',
+      'promote to kit: the symbols basket, barcode.viewfinder, barcode, keyboard, square.and.pencil, chevron.forward, battery.100percent, calendar.badge.clock, clock.arrow.circlepath and antenna.radiowaves.left.and.right (pages/inventory/_inventory.js), Mock.inv.alertField (an alert with a text field) and Mock.inv.askSheet (a confirmation dialog), the editor pane.',
+      'The "loading" state in the States gallery shows the spinner phase; the Motion item plays the whole sequence.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: 34 states over six devices (all spaces), page gate, cart, wash and pane motion, prompts, dialog, the three sheets and the editor pane.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Links to a page · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  function home(c, o) { return SN.rootPage(c, 'home', o); }
+  /* The page Quick Links chooses (a Home route): the Vacuums page is another batch's mockup, so only its chrome and a stand-in tile are drawn. */
+  function vacuums(c) {
+    return SN.pushedPage(c, { title: 'Vacuums', body: [h('div.ui-section', K.PageSectionHeader({ title: 'Robot Vacuums' }), K.TileGrid({ min: 150, max: 2, items: [{ title: 'Main Floor Vacuum', subtitle: 'Docked', symbol: 'robotic.vacuum', family: 'cleaning', isActive: false }, { title: 'Upstairs Vacuum', subtitle: 'Docked', symbol: 'robotic.vacuum', family: 'cleaning', isActive: false }] }))] });
+  }
+  function ql(c, o) { return SN.quickLinksSheet(c, Object.assign({ presenter: home(c) }, o)); }
+  function press(c, host, sel, label) { var panel = host.querySelector('.ui-sheet'); var t = panel.querySelector(sel); if (t) { t.style.filter = 'brightness(1.25)'; } SN.finger(panel, sel, { label: label }); return host; }
+  function midDown(host, pct) {
+    var sheet = host.querySelector('.ui-sheet'), dim = host.querySelector('.ui-dim'), pres = host.querySelector('.ui-presenter');
+    sheet.style.transform = 'translateY(' + pct + '%)'; if (dim) dim.style.opacity = 1 - pct / 100; if (pres) pres.style.transform = 'translateY(' + (10 * (1 - pct / 100)) + 'px) scale(' + (.92 + .08 * pct / 100) + ')'; return host;
+  }
+
+  Mock.mount({
+    kind: 'flow', id: 'quick-links-to-page', title: 'Quick Links to a page (sheet closes, then push)', area: 'shell', status: 'shipped',
+    summary: 'The Quick Links header button opens a large sheet of seven tiles. Rooms and Security System open inside the sheet (a pushed level with Back); every other tile closes the sheet and the page it names pushes onto the section\'s stack only after the sheet has gone, so the push never races the dismissal.',
+    source: ['apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/Features/Home/HomeRoute.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift', 'apple/Sources/HassDesign/QuickLinkPalette.swift'],
+    spec: ['.agents/pages/rooms/ios.md', '.agents/design/direction-g.md', '.agents/patterns/modal-sheet.md', '.agents/design/motion.md'],
+    patterns: ['modal-sheet', 'entity-tile', 'dynamic-grid', 'motion'],
+    hig: ['Sheets', 'Navigation and search', 'Toolbars'],
+    kitComponents: ['GlassTile', 'TileGrid', 'HassModal', 'NavigationGlass', 'SheetCloseItem'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'home': { title: '1. Home, Quick Links in the header', note: 'quickLinks.open: the left of the two trailing circles', render: function (c) { var p = home(c); SN.finger(p, 'button[aria-label="Quick Links"]', { label: 'tap' }); return p; } },
+      'open-sheet': { title: '2. Quick Links open', note: 'a large page sheet (hassSheet(.page, height: .full)); seven tiles, two columns; Sprinklers shows only while its visibility entity is on', render: function (c) { return ql(c); } },
+      'rooms-detail-pushed-in-sheet': { title: '3a. Rooms: a pushed level inside the sheet', note: 'Back (glass circle) leads, the sheet stays large; choosing a room closes the sheet and pushes it', render: function (c) { var host = SN.quickLinksSheet(c, { detail: 'rooms', presenter: home(c) }); return host; } },
+      'choose-page': { title: '3b. Choose a page: Vacuums', note: 'a navigation tile: a solid fill, a filled glyph, a chevron', render: function (c) { return press(c, ql(c), '[data-ql="vacuums"]', 'tap Vacuums'); } },
+      'sheet-dismisses': { title: '4. The sheet dismisses (half way)', note: 'onNavigate stores the route, dismiss() runs; nothing pushes yet', render: function (c) { return midDown(ql(c), 45); } },
+      'page-pushes-after-dismissal': { title: '5. The page pushes, after onDismiss', note: 'quickLinksDismissed / pushPending appends the route to the section path: the system push, Back leading', render: function (c) { return vacuums(c); } },
+      'room-chosen': { title: '5b. A room chosen from Rooms: the room page pushes', note: 'RoomNavigation.recordVisit counts the visit, then the same close-then-push', render: function (c) { return SN.pushedPage(c, { title: 'Kitchen' }); } },
+      'sprinklers-hidden': { title: 'Six tiles: Sprinklers hidden', note: 'QuickLinks.visible: shown only while its visibility entity is on', render: function (c) { return SN.quickLinksSheet(c, { sprinklers: false, presenter: home(c) }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of tiles, two-line titles wrap, the sheet scrolls', render: function (c) { return ql(c); } },
+    },
+    motion: [
+      { id: 'sheet-then-push', what: 'The sheet slides away first, then the page pushes in: the two never run together', token: 'system sheet dismiss (about 0.5 s) then system push (about 0.35 s); the push starts in onDismiss', state: 'open-sheet',
+        source: 'QuickLinksSheet.swift go(_:), ShellHeader.swift ShellSheets.pushPending (.sheet(onDismiss:))', reduce: 'both become cross-fades; the order is unchanged',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), a = host.querySelector('.ui-presenter .ui-page'), b = vacuums(ctx);
+          return Mock.sleep(500).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { host.hidden = true; var pres = host.querySelector('.ui-presenter'); a.style.transform = ''; stage.insertBefore(a, host); stage.insertBefore(b, a.nextSibling); return Mock.sleep(80); })
+            .then(function () { return Mock.anim.push(a, b); }).then(function () { return Mock.sleep(600); });
+        } },
+      { id: 'sheet-present', what: 'Quick Links slides up to its large detent; Home scales back and dims', token: 'system sheet; content present on arrival', state: 'home',
+        source: 'ShellSheets .sheet(isPresented: quickLinksSection)', reduce: 'cross-fade',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, { title: 'Quick Links', detent: 'large', size: 'page', trailing: 'close', content: h('div', { style: { padding: '8px 16px 24px', maxWidth: '560px', margin: '0 auto' } }, SN.quickLinkTiles()) }, { hold: 900 }); } },
+    ],
+    transitions: [
+      { from: 'Home', to: 'Quick Links sheet', kind: 'sheet', state: 'home', note: 'The header button asks ShellNavigator.openQuickLinks(): it closes the flyout and sets quickLinksSection to the selected section, so the sheet opens over the section that is showing.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Quick Links', detent: 'large', size: 'page', trailing: 'close', content: h('div', { style: { padding: '8px 16px 24px', maxWidth: '560px', margin: '0 auto' } }, SN.quickLinkTiles()) }, { hold: 900 }); } },
+      { from: 'Quick Links', to: 'Rooms (inside the sheet)', kind: 'push', state: 'open-sheet', note: 'Rooms and Security System are detail pages inside the sheet\'s own NavigationStack: a plain push with Back, not a zoom (owner 2026-10-22: no zoom inside sheets).',
+        play: function (stage) { var c = Mock.current, host = stage.querySelector('.ui-host'), panel = host.querySelector('.ui-sheet'), inner = panel.querySelector('.ui-modal'); var next = SN.quickLinksSheet(c, { detail: 'rooms', presenter: false }).querySelector('.ui-modal'); next.style.cssText = 'position:absolute;inset:0;background:var(--sheet-ground);z-index:5;border-radius:inherit'; panel.appendChild(next); return Mock.anim.push(inner, next).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); next.remove(); }); } },
+      { from: 'Quick Links', to: 'Home, then Vacuums', kind: 'push', state: 'choose-page', note: 'Choose a page tile: the sheet dismisses first; only when it has gone does the page push on Home\'s stack (onDismiss). A push inside the dismissal raced it and was lost.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), a = host.querySelector('.ui-presenter .ui-page'), b = vacuums(ctx);
+          return Mock.sleep(400).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { host.hidden = true; a.style.transform = ''; stage.insertBefore(a, host); stage.insertBefore(b, a.nextSibling); return Mock.sleep(80); }).then(function () { return Mock.anim.push(a, b); }).then(function () { return Mock.sleep(600); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Quick Links", then the tiles in order (Rooms, Security System, Food & Recipes, Vacuums, Media, Custom Lights, Sprinklers), then Close. Rooms and Security System are announced with the hint "Opens <title> in Quick Links"; the others "Opens the <title> page".' },
+      { rule: 'Name, role, state', note: 'Each tile is a button named "<title>, <state>" (Security System, "Armed Home"; Food & Recipes, "42 Items • 3 Expiring Soon"); ids quickLinks.<id>; Close quickLinks.close.' },
+      { rule: 'Focus after the push', note: 'The sheet is gone before the page pushes, so VoiceOver announces the new page as an ordinary push.' },
+      { rule: 'State is not colour alone', note: 'Each navigation tile has its glyph and title; the Security System tile\'s colour follows the alarm mode and its subtitle says the mode.' },
+      { rule: 'Targets and AX5', note: 'Tiles are 96 pt tall (two-line reserve) and grow with Dynamic Type; at AX5 the grid is one column. Close is the 44 pt circle.' },
+      { rule: 'Light and dark', note: 'The sheet follows the system appearance; the tiles are fixed fills with white ink in both.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: finish dismissing before navigating', verdict: 'pass', note: 'The route waits for onDismiss before it is appended (ShellHeader.swift:182, 187-191).', by: 'apple-hig skill' },
+        { rule: 'Navigation: a destination is not pushed twice in a row', verdict: 'pass', note: 'Fixed: ShellNavigator.push(_:in:) skips the route already on top (ShellHeader.swift pushPending).', by: 'apple-hig skill' },
+        { rule: 'Navigation: keep a hierarchy so Back makes sense', verdict: 'pass', note: 'Decided 2026-10-24 (navigation-flows 1 B): ShellNavigator.push(_:in:) pops to a page that is already in the stack instead of pushing it again; the stack is tracked as ShellRoute slots.', by: 'apple-hig skill' },
+        { rule: 'Sheets: a close glyph, grabber, taller for a navigating sheet', verdict: 'pass', note: 'Circle x Close, grabber, height .full with page width on iPad (QuickLinksSheet.swift:63-65).', by: 'apple-hig skill' },
+        { rule: 'Color: not the only signal', verdict: 'pass', note: 'Titles and glyphs on every tile.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Pages ask a navigator; one sheet per section stack', verdict: 'pass', note: 'navigator.openQuickLinks() from the header; shellSheets once per stack (ShellHeader.swift:55-81, 163-192).', by: 'swiftui-pro skill' },
+        { rule: 'The tile is the control', verdict: 'pass', note: 'GlassTile with the action (QuickLinksSheet.swift:143-147).', by: 'swiftui-pro skill' },
+        { rule: 'No zoom for rows inside a sheet', verdict: 'pass', note: 'Plain pushes inside a sheet (owner 2026-10-22; ZoomTransition.swift has no call site).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: none. The sheet is named a sheet with Back for Rooms and Security System; code and rooms/ios.md agree. Quick Links tile colours come from QuickLinkPalette (Rooms #1F3A5F navy, others from their families); the mockup draws family fills from the kit.',
+      'The Vacuums, Kitchen and Security System pages are other batches\' mockups; here the pushed page is a trimmed stand-in with the right chrome. Media\'s symbol in the app is appletvremote.gen4, drawn as tv here (kit symbol gap).',
+      'Sprinklers is shown by default; the real tile is hidden unless SprinklersConfig.visibilityEntityId is on (state sprinklers-hidden). Food & Recipes carries a brown wash on the web; the app uses the food family fill.',
+      'On iPad and the unfolded Duo the sheet is a page sheet (704 pt) centred over the page; on the folded Duo it is the iPhone-like large detent.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: open, Rooms detail, choose, dismiss, push after dismissal, six tiles, AX5.' }],
+  });
+})();
+</script></body></html>

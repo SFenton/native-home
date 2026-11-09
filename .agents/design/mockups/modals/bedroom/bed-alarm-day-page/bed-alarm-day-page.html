@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bed alarm day page · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom;
+  /* BedAlarmDayPage: pushed inside BedSideSheet's NavigationStack, so the sheet keeps its large detent and loses its tab bar (the tabs belong to the root page). */
+  function P(o) {
+    o = o || {};
+    return function (ctx) {
+      var m = B.bed(o.side || 'left', o.bed), day = o.day || 'monday';
+      return B.sheet(ctx, { title: B.dayLabel(day) + ' Alarms', leading: 'back', trailing: 'none', content: B.dayPage(m, day), connection: o.connection, presenterBed: m });
+    };
+  }
+  Mock.mount({
+    kind: 'modal', id: 'bed-alarm-day-page', title: 'Bed alarm day page (pushed)', area: 'bedroom', status: 'shipped',
+    summary: 'One weekday\'s alarms for one bed side, pushed inside the bed sheet from the Alarms tab: any ringing alarm on top, one row per alarm with its own switch, and Add Alarm. Back returns to the Alarms tab; the sheet stays at the large detent.',
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift', 'apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassCore/Bedroom/SleepypodSchedule.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['bedroom-devices', 'modal-sheet', 'motion'],
+    hig: ['Sheets', 'Navigation bars', 'Toggles', 'Lists'],
+    entities: ['sensor.demo_bedroom_1_5'],
+    kitComponents: ['HassModal', 'BackButton', 'Toggle', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Monday Alarms (one alarm)', render: P({}) },
+      'two-alarms': { title: 'Saturday Alarms (one off, one on)', note: 'alarms sort by time; a disabled alarm is muted (secondary glyph) and reads "Disabled"', render: P({ day: 'saturday' }) },
+      'empty': { title: 'Sunday Alarms (none)', note: '"No alarms yet. Add one to choose days and a time."', render: P({ day: 'sunday' }) },
+      'ringing': { title: 'Alarm ringing while the page is open', note: 'the Alarm Active card sits above the rows, so the page can silence the alarm without going back', render: P({ bed: { alarmState: 'ringing' } }) },
+      'read-only': { title: 'Solo Trip, traveler\'s side', note: 'switches and Add Alarm are disabled; the day page itself carries no notice (the Alarms tab and the hero do)', render: P({ side: 'right', day: 'monday', bed: { scope: 'traveler' } }) },
+      'error': { title: 'Alarm schedule unavailable', note: 'the page draws no error of its own; switches and Add Alarm disable and rows keep the last list', render: P({ bed: { alarmsAvailable: false } }) },
+      'offline': { title: 'Over an offline Bedroom 1 page', note: 'no offline UI of its own; the page behind carries the offline chip', render: P({ connection: 'offline' }) },
+      'large': { title: 'Large detent (the only one)', render: P({}) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: P({ day: 'saturday' }) },
+    },
+    motion: [
+      { id: 'alarm-switch', what: 'An alarm switch flips: the knob slides and the track fills green', token: 'knob standard 0.3 s smooth; track state 0.6 s easeInOut (0.2 s reduced)', state: 'default',
+        source: 'BedAlarmToggle (system Toggle, optimistic until the schedule echoes); motion.md sections 6 and 7', reduce: 'track cross-fades at 0.2 s; knob is the system\'s',
+        play: function (stage) { var t = stage.querySelector('.ui-toggle'); t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+      { id: 'row-added', what: 'A new alarm is saved: its row appears in the list (the list animates as a user-caused change)', token: 'standard 0.3 s smooth (motion.md section 6, user actions)', state: 'default',
+        source: 'ForEach(alarms) in BedAlarmDayPage; the standard list insertion', reduce: 'the system list animation still applies, without movement beyond a fade',
+        play: function (stage) {
+          var col = stage.querySelector('.bd-stack'), rows = col.querySelectorAll('.bd-row'), add = col.lastElementChild;
+          var row = B.row({ symbol: 'alarm', title: '7:30 AM', lines: ['Enabled'], trailing: B.toggle(true, 'Monday 7:30 AM alarm') });
+          col.insertBefore(row, add); return Mock.anim.rise(row, { ms: Mock.anim.ms.standard(), dy: 8 }).then(function () { return Mock.sleep(500); }).then(function () { row.remove(); });
+        } },
+    ],
+    transitions: [
+      { from: 'Alarms tab row', to: 'Monday Alarms', kind: 'push', state: 'default', note: 'The system push inside the sheet: the page slides in from the trailing edge (the old page shifts left and dims) and the title changes; the edge swipe back is interactive.',
+        play: function (stage) {
+          var ctx = Mock.current, sheet = stage.querySelector('.ui-sheet'), inEl = sheet.querySelector('.ui-modal'), m = B.bed('left');
+          var base = h('div', { style: { position: 'absolute', inset: 0, background: 'var(--sheet-ground)', display: 'flex', flexDirection: 'column' } }, K.HassModal({ title: m.sheetTitle, content: B.bedContent(ctx, m, 'alarms'), tabs: B.bedTabs(ctx, 'alarms') }));
+          sheet.appendChild(base); inEl.style.position = 'relative'; inEl.style.zIndex = 7; inEl.style.background = 'var(--sheet-ground)';
+          return Mock.anim.push(base, inEl).then(function () { return Mock.sleep(600); }).then(function () { base.remove(); });
+        } },
+      { from: 'Monday Alarms', to: 'Alarms tab', kind: 'push', state: 'default', note: 'Back (the glass circle or the edge swipe) pops: the page slides out to the trailing edge, the Alarms tab returns with its tab bar.',
+        play: function (stage) {
+          var ctx = Mock.current, sheet = stage.querySelector('.ui-sheet'), page = sheet.querySelector('.ui-modal'), m = B.bed('left');
+          var under = h('div', { style: { position: 'absolute', inset: 0, background: 'var(--sheet-ground)', display: 'flex', flexDirection: 'column' } }, K.HassModal({ title: m.sheetTitle, content: B.bedContent(ctx, m, 'alarms'), tabs: B.bedTabs(ctx, 'alarms') }));
+          sheet.insertBefore(under, page); page.style.position = 'relative'; page.style.zIndex = 7; page.style.background = 'var(--sheet-ground)';
+          return Mock.anim.push(page, under, { back: true }).then(function () { return Mock.sleep(500); });
+        } },
+      { from: 'Add Alarm tap', to: 'Bed alarm editor', kind: 'push', state: 'default', note: 'Add Alarm pushes the editor with the day locked ("Add Alex\'s Bed Monday Alarm"); a plain system push.', play: function (stage) {
+          var sheet = stage.querySelector('.ui-sheet'), out = sheet.querySelector('.ui-modal'), m = B.bed('left');
+          var layer = h('div', { style: { position: 'absolute', inset: 0, background: 'var(--sheet-ground)', display: 'flex', flexDirection: 'column', zIndex: 6 } }, K.HassModal({ title: B.bedEditorTitle(m, { day: 'monday' }), leading: 'back', trailing: 'none', content: B.bedEditor({ m: m, day: 'monday' }) }));
+          sheet.appendChild(layer); return Mock.anim.push(out, layer).then(function () { return Mock.sleep(600); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Focus lands on the title ("Monday Alarms"), then a ringing alarm card (Alarm Active, Snooze, Stop Alarm) if any, the alarm rows in time order, Add Alarm; Back is the leading control.' },
+      { rule: 'Rows', note: 'Each row is a button that opens the editor (identifier bed.day.alarm.<time>) with a nested switch labelled "Monday 6:30 AM alarm". The glyph is hidden; state is spoken as "Enabled" or "Disabled" plus the switch value.' },
+      { rule: 'Targets', note: 'Rows are 44 pt minimum (padded 8 pt top and bottom), the switch is the system 51 x 31 pt with a 44 pt tappable area, Add Alarm is the 50 pt primary button.' },
+      { rule: 'State is not colour alone', note: 'A disabled alarm says "Disabled", has a different glyph (waves, not the bell) and a muted glyph colour; the switch position is spoken.' },
+      { rule: 'Dynamic Type', note: 'At AX5 row titles and lines wrap, the switch keeps its size; the nav title ("Saturday Alarms") fits one line; the page scrolls.' },
+      { rule: 'Read only', note: 'On the traveler\'s side (Solo Trip) the switches and Add Alarm are disabled and say so to VoiceOver ("dimmed").' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Navigation bars: Back and an inline title on a pushed level', verdict: 'pass', note: 'Close belongs to the root only; Back pops (modal-sheet.md).' },
+        { rule: 'Lists: 44 pt rows with a clear trailing control', verdict: 'pass', note: 'BedroomRow minHeight is HassTokens.minTarget with 8 pt vertical padding; switch trailing.' },
+        { rule: 'Accessibility: nested controls', verdict: 'pass', note: 'BedroomRow(onOpen:openIdentifier:) makes the alarm text a Button and the BedAlarmToggle its sibling (BedSideSheet alarm rows), so the switch has its own stop.' },
+        { rule: 'Color: state not by colour alone', verdict: 'pass', note: 'Disabled alarms say "Disabled", swap the bell for the waves glyph and mute the ink.' },
+        { rule: 'Alerts: time-critical controls placed first', verdict: 'pass', note: 'A ringing alarm card sits above the rows so Snooze and Stop are reachable without going back.' },
+        { rule: 'Toggles: only as row accessories', verdict: 'pass', note: 'Switches appear inside rows with a label (direction-g.md Controls).' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: navigationDestination(for:) with a typed path', verdict: 'pass', note: 'path.append(.edit(id)) with one registration per stack (BedSideSheet.swift:94).' },
+        { rule: 'Accessibility: label hidden switches', verdict: 'pass', note: 'BedAlarmToggle labels itself "<day> <time> alarm" and hides the label visually.' },
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Already fixed: BedAlarmToggle uses ControllerToggle (BedAlarmsTab.swift), no inline binding.' },
+        { rule: 'Design: flexible frames, no fixed heights', verdict: 'pass', note: 'minHeight only; frame(maxWidth: 640) centres the column on iPad.' },
+      ],
+    },
+    notes: [
+      'loading: none. The list reads EntityStore and the optimistic alarm overlay; it never waits for the network (the schedule echo confirms within 30 s).',
+      'medium and fitted: the sheet has only the large detent; the pushed page does not change it.',
+      'ax5 and large are drawn; the Alarms tab\'s tab bar is not on this page (it belongs to the root).',
+      'The row\'s whole surface opens the editor, but the nested switch takes its own taps; on a device the switch area is the system\'s.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: Monday, Saturday, empty, ringing, read-only, unavailable.' }],
+  });
+})();
+</script></body></html>

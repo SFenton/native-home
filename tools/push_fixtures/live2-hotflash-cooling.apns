@@ -1,0 +1,38 @@
+{
+  "Simulator Target Bundle": "com.sfenton.home",
+  "aps": {
+    "timestamp": 1792249200,
+    "event": "start",
+    "content-state": {
+      "v": 2,
+      "phase": "running",
+      "controls": [
+        {
+          "id": "stop",
+          "title": "Stop"
+        }
+      ],
+      "detail": "Your side",
+      "value": {
+        "kind": "text",
+        "text": "Cooling"
+      },
+      "progress": 0.45
+    },
+    "attributes-type": "HomeActivityAttributes",
+    "attributes": {
+      "tag": "job.hot_flash",
+      "title": "Hot Flash",
+      "kind": "hot_flash",
+      "symbol": "hot_flash",
+      "tint": "cooling"
+    },
+    "input-push-token": 1,
+    "relevance-score": 70.0,
+    "stale-date": 1792251000
+  },
+  "fenton": {
+    "v": 2,
+    "tag": "job.hot_flash"
+  }
+}

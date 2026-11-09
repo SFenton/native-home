@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reconnecting arc and offline chip · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+  var base = Mock.componentConfig('OfflineChip', { surfaces: ['page'] });
+
+  function bar(arc, w) { return SN.strip({ leading: 'menu', arc: arc, badge: 3, width: w }); }
+  function conn(ctx, mode, sec) { return SN.rootPage(ctx, sec || 'home', { connection: mode }); }
+  function board(ctx, mode, extra) {
+    return SN.board(ctx, [
+      { key: 'iphone', zoom: .78, caption: extra && extra.iphone, build: function (c) { return conn(c, mode); } },
+      { key: 'duo-folded', zoom: .78, caption: extra && extra.duo, build: function (c) { return conn(c, mode, 'security'); } },
+      { key: 'ipad-portrait', zoom: .46, caption: extra && extra.ipad, build: function (c) { return conn(c, mode, 'climate'); } },
+    ]);
+  }
+  /* The timeline of ReconnectingPolicy and the indicator: one row per case. */
+  function timeline() {
+    function row(label, parts) { return h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', margin: '6px 0' } }, h('div.sn-mono', { style: { width: '170px', flex: 'none', color: 'var(--k-fg2)' } }, label),
+      h('div', { style: { display: 'flex', height: '26px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--k-line)', flex: '1 1 380px', maxWidth: '640px' } }, parts.map(function (p) { return h('div', { style: { flex: p[0] + ' 1 0', background: p[1], color: p[2] || '#fff', font: '600 11px/26px var(--mono)', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden' } }, p[3] || ''); }))); }
+    return h('div', { style: { color: 'var(--k-fg)' } },
+      row('blip under 2 s', [[2, '#2e333c', 'var(--k-fg2)', 'down < 2 s: nothing'], [3, 'transparent', 'var(--k-fg2)', 'live']]),
+      row('retrying 2 s or more', [[2, '#2e333c', 'var(--k-fg2)', 'down 0 to 2 s'], [4, '#6b7280', '#fff', 'arc fades up 0.35 s, turns'], [1, '#2e333c', 'var(--k-fg2)', 'live']]),
+      row('no network path', [[2, '#8a5200', '#fff', 'chip at once'], [3, '#8a5200', '#fff', 'chip stays, cloud badge, no arc']]),
+      row('first connect, no state yet', [[6, '#6b7280', '#fff', 'arc at once ("Connecting to Home Assistant"), no delay']]));
+  }
+
+  var states = {
+    'arc': { title: 'Reconnecting: the header arc', note: '20 pt white arc left of Quick Links, no text; first connect says "Connecting to Home Assistant"', render: function (ctx) {
+      return h('div', board(ctx, 'reconnecting', { iphone: 'iPhone: arc 12 pt left of Quick Links (the same gap as Quick Links to Profile).', duo: 'Folded Duo: Quick Links and Profile are in the rail; the arc is a custom view and stays in the horizontal header, trailing, opposite the title. To be confirmed on the Duo simulator.', ipad: 'iPad: same as iPhone.' }),
+        h('div.sn-row', { style: { marginTop: '12px' } }, SN.stripSwatch({ leading: 'menu', arc: true, badge: 3 }, 'header, down 2 s+'), SN.stripSwatch({ leading: 'menu', badge: 3 }, 'header, live (arc gone, nothing moved)')));
+    } },
+    'offline': { title: 'Offline: the chip (no network path)', note: 'icloud.slash, "Offline. Showing last known values.", cloud badge on Profile', render: function (ctx) {
+      return board(ctx, 'offline', { iphone: 'The chip sits under the header at the trailing edge, clear of the large title; values stay on screen.' }); } },
+    'reduce-motion': { title: 'Reduce Motion on', override: { reduceMotion: true }, note: 'the arc fades the same and turns at half speed, never still; the offline chip cross-fades without moving', render: function (ctx) {
+      return h('div.sn-row', SN.stripSwatch({ leading: 'menu', arc: true, badge: 3 }, 'arc, Reduce Motion')); } },
+    'timeline': { title: 'When each one shows', note: 'ReconnectingPolicy.delay is 2 s; offline shows at once; the first connect has no delay', render: function (ctx) { return timeline(); } },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the chip text wraps inside its capsule; the arc grows with the text size up to 1.5x (30 pt) and stays in its 44 pt cell', render: function (ctx) {
+      return h('div.sn-row', h('div.k-swatch.page', { style: { width: '360px', maxWidth: '100%' } }, h('div.k-cap', 'offline chip'), K.OfflineChip({ variant: 'offline' })), SN.stripSwatch({ leading: 'menu', arc: true, badge: 3 }, 'arc at AX5')); } },
+    'swatches': base.states.states,
+  };
+
+  function figEl(stage, key) { return stage.querySelector('.sn-fig[data-device="' + key + '"]'); }
+  function chipRow(stage) { return stage.querySelector('.ui-conn-row'); }
+
+  Mock.mount(Object.assign(base, {
+    id: 'reconnecting-arc', title: 'Reconnecting arc and offline chip', area: 'shell', status: 'shipped',
+    summary: 'How the shell says the values on screen may be stale. A 20 pt white arc in the header, left of Quick Links, while the connection retries (after 2 s down, or at once before the first state arrives); the offline chip under the header when there is no network path. Decision: .agents/design/reconnecting-spinner.md.',
+    source: ['apple/Sources/HassUI/App/Shell/ReconnectingArc.swift', 'apple/Sources/HassUI/App/Shell/ReconnectingIndicatorHost.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKOfflineChip.swift', 'apple/Sources/HassUI/App/Shell/OfflineOverlay.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassCore/Connection/ReconnectingIndicator.swift', 'apple/Sources/HassCore/Connection/ReconnectingPolicy.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/design/motion.md', '.agents/platforms/apple/connection-lifecycle.md', '.agents/design/reconnecting-spinner.md'],
+    patterns: ['motion'],
+    hig: ['Progress indicators', 'Loading', 'Toolbars', 'Accessibility'],
+    kitComponents: ['ReconnectingArc', 'OfflineChip', 'ArcSpinner', 'ProfileButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'arc-fade', what: 'The reconnecting arc fades in once the connection has been down 2 s, and out when live again ', token: 'crossFade 0.35 s ease-in-out each way (MotionTokens.crossFade, reducedMoment); 2 s delay is ReconnectingPolicy.delay', state: 'arc',
+        source: 'ReconnectingArc.swift; decision in .agents/design/reconnecting-spinner.md', reduce: 'unchanged: opacity is not motion, so Reduce Motion keeps the fade',
+        play: function (stage) { var s = stage.querySelector('.ui-slot'); return Mock.anim.arc(s, false).then(function () { return Mock.sleep(500); }).then(function () { return Mock.anim.arc(s, true); }).then(function () { return Mock.sleep(900); }); } },
+      { id: 'arc-turn', what: 'The arc turns, one turn per 0.82 s, while it is visible', token: 'ArcSpinner: linear 0.82 s per turn, repeats; spinners are an allowed repeatForever (motion.md section 7)', state: 'arc',
+        source: 'HassDesign/ArcSpinner.swift', reduce: 'half speed (1.64 s a turn): a still arc reads as frozen',
+        play: function () { return Mock.sleep(3000); } },
+      { id: 'offline-chip-enter', what: 'The offline chip comes in under the header and goes out again', token: 'standard 0.3 s smooth: opacity plus .move(edge: .top)', state: 'offline',
+        source: 'OfflineOverlay.swift: .animation(standard, value: isOffline)', reduce: 'cross-fade on crossFade 0.35 s, no move',
+        play: function (stage) {
+          var row = chipRow(stage); if (!row) return Promise.resolve();
+          var rm = !!Mock.settings.reduceMotion, ms = rm ? 350 : 300, h0 = row.offsetHeight;
+          var inK = rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(-' + h0 + 'px)' }, { opacity: 1, transform: 'none' }];
+          var outK = rm ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-' + h0 + 'px)' }];
+          return row.animate(inK, { duration: ms, easing: Mock.anim.easing.standard, fill: 'both' }).finished.then(function () { return Mock.sleep(900); }).then(function () { return row.animate(outK, { duration: ms, easing: Mock.anim.easing.standard, fill: 'both' }).finished; }).then(function () { return Mock.sleep(200); });
+        } },
+    ],
+    transitions: [
+      { from: 'Live', to: 'Reconnecting (arc)', kind: 'fade', state: 'arc', note: 'The connection drops; after 2 s the arc is placed in the bar and fades up. Quick Links and Profile never move (the group grows to the left). A blip shorter than 2 s shows nothing; coming back mid fade-out lights it again where it is.',
+        play: function (stage) { var s = stage.querySelector('.ui-slot'); return Mock.anim.arc(s, false).then(function () { return Mock.sleep(300); }).then(function () { return Mock.anim.arc(s, true); }).then(function () { return Mock.sleep(800); }); } },
+      { from: 'Reconnecting (arc)', to: 'Live', kind: 'fade', state: 'arc', note: 'The arc fades down 0.35 s, then leaves the bar. Values on screen were never cleared.',
+        play: function (stage) { var s = stage.querySelector('.ui-slot'); return Mock.anim.arc(s, true).then(function () { return Mock.sleep(500); }).then(function () { return Mock.anim.arc(s, false); }).then(function () { return Mock.sleep(500); }); } },
+      { from: 'Live', to: 'Offline chip', kind: 'overlay', state: 'offline', note: 'No network path: the chip is shown at once (there is nothing to wait out), the Profile button gets its cloud badge, and no arc runs.',
+        play: function (stage) { var row = chipRow(stage); return row ? row.animate([{ opacity: 0, transform: 'translateY(-34px)' }, { opacity: 1, transform: 'none' }], { duration: Mock.settings.reduceMotion ? 350 : 300, easing: Mock.anim.easing.standard, fill: 'both' }).finished.then(function () { return Mock.sleep(700); }) : Promise.resolve(); } },
+    ],
+    a11y: [
+      { rule: 'Arc', note: 'One element, "Reconnecting to Home Assistant" ("Connecting to Home Assistant" on the first connect), updatesFrequently, no action and no 44 pt target: it is a status, not a control (reconnecting.arc). VoiceOver reaches it after Open Navigation and before Quick Links. It is hidden entirely (not just transparent) when live.' },
+      { rule: 'Offline chip', note: 'One combined element "Offline. Showing last known values." (offline.chip); the Profile button adds "Offline" to its value and its own cloud badge label (nav.offline).' },
+      { rule: 'State is not colour alone', note: 'The arc is a moving shape with a spoken label; the offline chip carries a slashed-cloud glyph and words.' },
+      { rule: 'Dynamic Type / AX5', note: 'The chip text is footnote and wraps inside the capsule; the arc scales with the text size, capped at 1.5x (ReconnectingArc.Metrics.maxScale).' },
+      { rule: 'Reduce Motion', note: 'The arc keeps turning at half speed; the offline chip cross-fades instead of moving.' },
+      { rule: 'Contrast', note: 'White text on the dense module (#141416 at 78%) over the dark scrim; the arc is white at 96% on the wallpaper (the scrim is at least 0.44 black in the header).' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Accessibility: tell VoiceOver about visible changes', verdict: 'pass', note: 'ReconnectingIndicatorHost announces "Reconnecting to Home Assistant. Values may be out of date." and "Reconnected to Home Assistant."; OfflineOverlay announces offline and back online.', by: 'apple-hig skill' },
+        { rule: 'Loading: show an indicator only for a wait that matters', verdict: 'pass', note: 'The arc waits ReconnectingPolicy.delay (2 s) and clears when live; offline shows at once (ReconnectingPolicy.swift, OfflineOverlay.swift).', by: 'apple-hig skill' },
+        { rule: 'Layout: do not cover content with transient chrome', verdict: 'pass', note: 'The reconnecting sign is a header bar item, not an overlay on page content; only the offline chip sits under the header, at the trailing edge, clear of the large title.', by: 'apple-hig skill' },
+        { rule: 'Motion: Reduce Motion', verdict: 'pass', note: 'The offline chip fades without moving (OfflineOverlay.swift); the arc is the departure below.', by: 'apple-hig skill' },
+        { rule: 'Writing: say the state and what it means', verdict: 'pass', note: '"Offline. Showing last known values." (OfflineChip.swift); the arc has a spoken label and no text.', by: 'apple-hig skill' },
+        { rule: 'Motion: make motion optional (arc)', verdict: 'departure', note: 'The arc keeps turning at half speed under Reduce Motion (owner 2026-10-14, direction-g.md Loading and feedback).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'A task per state, cancelled on change', verdict: 'pass', note: '.task(id: Following) sleeps the delay and is cancelled when the connection returns (ReconnectingIndicatorHost.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Group a status into one element with a label', verdict: 'pass', note: 'OfflineChip combines its children and sets a label (OfflineChip.swift); the arc is one ArcSpinner with a label (ReconnectingArc.swift).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Shipped: the header arc (ReconnectingArc, ReconnectingIndicatorHost) replaced the old "Reconnecting…" chip; the offline chip (OfflineChip, OfflineOverlay) stays for no network. The chip no longer exists anywhere in the app.',
+      'The offline chip transition is .opacity combined with .move(edge: .top): it moves by its own padded height (about 34 pt) over the standard 0.3 s, not a 10 pt nudge; the mockup draws the code.',
+      'Offline is not reconnecting: a connection with no network path shows the offline chip at once and never the arc (ReconnectingPolicy.showsArc).',
+      'On the folded Duo the arc stays in the horizontal page header, trailing (ShellHeaderItems passes besideQuickLinks: false); it never joins the rail.',
+      'Promote to kit: nothing; SN.strip and SN.board are local helpers in components/navigation/_shell-navigation.js.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: arc, offline chip, timeline, Reduce Motion, AX5.' }, { date: '2026-10-28', note: 'Arc shipped: renamed from reconnecting-chip; chip states and motions removed; status shipped.' }],
+  }));
+})();
+</script></body></html>

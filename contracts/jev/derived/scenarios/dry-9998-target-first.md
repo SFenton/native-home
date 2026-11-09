@@ -1,0 +1,4 @@
+Owner's request: "I really like the smooth transitions when Duo is unfolded in Settings ... Can we bring that smooth transition to the single-page layouts as well? How would shared background work with tab navigation?"
+Target the owner named: the unfolded Duo column motion (both pages move over one still wallpaper), which already ships in UKColumnsViewController.
+Research: single-page layouts use the stock push and every page draws its own wallpaper; the shell already has one window wallpaper behind the tab bar.
+Remaining choices: apply it to every section or Settings first; it departs from the recorded "system push, never replaced" rule (motion.md), so the owner must approve the exception; build fallback if the spike fails is the system push plus fading the old page. Tabs: the window wallpaper stays still and a tab switch stays a cut.

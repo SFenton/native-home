@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Input details: labels, Done, day chips, run time</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--code:#eceef2;--cell:#fff;--ground:#f2f2f7;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--code:#20242b;--cell:#2c2c2e;--ground:#1c1c1e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1180px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}h3{font-size:17px;margin:26px 0 6px}
+p{margin:0 0 12px;max-width:72ch}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+.lede{font-size:18px;color:var(--fg2)}.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin-top:16px}
+figure{margin:0}figcaption{font-size:13px;color:var(--fg2);margin-top:8px;max-width:300px}figcaption b{display:block;color:var(--fg);font-size:15px}
+.bad b{color:var(--bad)}.ok b{color:var(--ok)}
+.dev{border:2px solid #000;background:var(--ground);overflow:hidden;position:relative;border-radius:22px;font-size:13px;color:var(--fg)}
+.phone{width:240px;height:420px}.duo{width:170px;height:420px}.ipad{width:420px;height:300px;border-radius:14px}
+.ax{font-size:19px}
+.hd{padding:10px 12px 4px;font-weight:700;font-size:1.25em}.sub{padding:0 12px;color:var(--fg2);font-size:.9em}
+.grp{margin:8px 10px;background:var(--cell);border-radius:12px;overflow:hidden}
+.r{padding:9px 12px;min-height:44px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}.r:last-child{border:0}
+.r .sp{flex:1}.dim{color:var(--fg2)}.chk{width:20px;height:20px;border-radius:50%;border:2px solid var(--fg2);flex:none}.chk.on{background:var(--ok);border-color:var(--ok)}
+.done{text-decoration:line-through;color:var(--fg2)}.btn{color:var(--accent);font-weight:600}
+.toast{position:absolute;left:10px;right:10px;bottom:12px;background:#323236;color:#fff;border-radius:14px;padding:10px 12px;display:flex;gap:8px;align-items:center}.toast .btn{color:#6cb6ff}
+.sec{padding:10px 14px 2px;color:var(--fg2);font-size:.8em;text-transform:uppercase;letter-spacing:.04em}
+.foot{padding:2px 14px 6px;color:var(--fg2);font-size:.8em}
+.field{margin-left:auto;color:var(--fg2)}.ph{color:#8e8e93}
+.tb{display:flex;justify-content:space-between;padding:8px 12px;font-weight:600}.circ{width:30px;height:30px;border-radius:50%;background:rgba(128,128,128,.25);display:grid;place-items:center}
+.kb{position:absolute;left:0;right:0;bottom:0;height:110px;background:#d1d3d9;color:#000;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px}.kb i{background:#fff;border-radius:5px;text-align:center;font-style:normal;padding:3px}
+.kbbar{position:absolute;left:0;right:0;bottom:110px;background:rgba(240,240,245,.96);color:var(--accent);text-align:right;padding:8px 14px;font-weight:600;border-top:1px solid var(--line)}
+.day{display:inline-block;min-width:34px;text-align:center;padding:5px 7px;border-radius:9px;background:rgba(128,128,128,.2);margin:2px}.day.on{background:var(--accent);color:#fff}.day.on:before{content:"✓ "}.day.on.plain:before{content:""}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.rec{border:2px solid var(--ok);border-radius:12px;padding:12px 16px;background:var(--surface);max-width:80ch}
+</style></head><body><div class="wrap">
+<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px">Proposal · 2026-10-23 · Decided (2026-10-24): every Proposed/A option; footer "Added to the Groceries list."; presets 5, 10, 15, 30 and 60 minutes. Built on claude/enf-l-forms.</p>
+<h1>Input details: labels, Done, day chips, run time</h1>
+<p class="lede">Five small data-entry fixes that each change what a form looks like.</p>
+
+<h2>Causes</h2>
+<table><tr><th>Surface</th><th>Today</th><th>Source</th></tr>
+<tr><td>Add grocery item, Add admin to-do</td><td>A bare <code>TextField("Item")</code> / <code>("Task")</code>; the placeholder is the only label and vanishes once typing starts. Every other todo form has a header and footer (owner 2026-10-16).</td><td><code>TodoItemSheets.swift:26-32, 91</code></td></tr>
+<tr><td>Choreapp task, Repeat Every</td><td><code>.numberPad</code> has no return key, so the value commits only when focus moves.</td><td><code>DonetickTaskSheet.swift:215-229, 302-308</code></td></tr>
+<tr><td>Humidifier activity editor, Name</td><td><code>.roundedBorder</code> is a fixed-height UITextField that clips at AX5 (WakeLightEditor documents and avoids this).</td><td>line 126</td></tr>
+<tr><td>Humidifier activity editor, Days</td><td>Chips differ only by tint fill; nothing changes under Differentiate Without Color.</td><td>line 135</td></tr>
+<tr><td>Sprinkler Water Now, Run time</td><td>1-60 min stepper, up to 45 taps.</td><td><code>SprinklersConfig.manualRunTime</code>, sheet line 215</td></tr></table>
+<h2>1. Visible labels (grocery and admin to-do)</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Add item</span><span class="circ">✓</span></div><div class="grp"><div class="r"><span class="ph">Item</span></div></div></div><figcaption><b>Today</b>Placeholder "Item" is the only label.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Add item</span><span class="circ">✓</span></div><div class="sec">Item</div><div class="grp"><div class="r"><span class="ph">Milk, eggs, bread…</span></div></div><div class="foot">Added to the Groceries list.</div></div><figcaption><b>A. Section header + footer (recommended)</b>The "Item" header stays while typing; same form chrome as Choreapp (FormHeader) and the other todo sheets.</figcaption></figure>
+<figure class="ok"><div class="dev phone ax"><div class="tb"><span class="circ">✕</span><span>Add item</span><span class="circ">✓</span></div><div class="sec">Item</div><div class="grp"><div class="r"><span class="ph">Required</span></div></div></div><figcaption><b>A at AX5</b>Header and footer wrap; field grows with text.</figcaption></figure>
+</div>
+<p>Alternative: keep the bare field (it is a single obvious field). Rejected because the placeholder disappears and VoiceOver-less users lose the cue the moment they type.</p>
+<h2>2. Number pad with a way to finish</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Repeat</span><span class="circ">✓</span></div><div class="grp"><div class="r"><span class="sp">Repeat every</span><span class="field">3 days</span></div></div><div class="kb"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i></i><i>0</i><i>⌫</i></div></div><figcaption><b>Today</b>Number pad; no return key, the user taps elsewhere.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Repeat</span><span class="circ">✓</span></div><div class="grp"><div class="r"><span class="sp">Repeat every</span><span class="field">3 days</span></div></div><div class="kbbar">Done</div><div class="kb"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i></i><i>0</i><i>⌫</i></div></div><figcaption><b>Proposed: keyboard Done</b>A keyboard toolbar Done button ends editing and commits (focus state cleared). iPad and Duo use the same toolbar.</figcaption></figure>
+</div>
+<h2>3. Humidifier editor: Name field and Days</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Activity</span><span class="circ">✓</span></div><div class="grp"><div class="r" style="padding:4px"><span style="border:1px solid #888;border-radius:5px;padding:6px 8px;flex:1;height:30px">Morning</span></div></div><div class="grp"><div class="r"><span class="sp">Days</span></div><div class="r" style="flex-wrap:wrap"><span class="day on plain">M</span><span class="day on plain">T</span><span class="day">W</span><span class="day">T</span><span class="day on plain">F</span></div></div></div><figcaption><b>Today</b>Rounded-border field with fixed height; day chips differ by fill alone.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">✕</span><span>Activity</span><span class="circ">✓</span></div><div class="grp"><div class="r"><span style="flex:1">Morning</span></div></div><div class="grp"><div class="r"><span class="sp">Days</span></div><div class="r" style="flex-wrap:wrap"><span class="day on">M</span><span class="day on">T</span><span class="day">W</span><span class="day">T</span><span class="day on">F</span></div></div></div><figcaption><b>Proposed</b>Plain field in the row (axis: .vertical, grows with Dynamic Type) and a checkmark on selected days in addition to the fill.</figcaption></figure>
+</div>
+<h2>4. Run time</h2>
+<div class="row">
+<figure class="bad"><div class="dev phone"><div class="tb"><span class="circ">‹</span><span>Water now</span><span></span></div><div class="grp"><div class="r"><span class="sp">Run time</span><span class="field">15 min − +</span></div></div><div class="foot">1 to 60 minutes; up to 45 taps from the default.</div></div><figcaption><b>Today</b>Stepper only.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">‹</span><span>Water now</span><span></span></div><div class="grp"><div class="r"><span class="sp">Run time</span><span class="field">15 min − +</span></div><div class="r" style="gap:4px"><span class="day">5</span><span class="day">10</span><span class="day on plain">15</span><span class="day">30</span><span class="day">60</span></div></div><div class="foot">Pick a preset or fine-tune with − and +.</div></div><figcaption><b>A. Presets + stepper (recommended)</b>Segment of 5, 10, 15, 30, 60 plus the existing stepper for fine adjustment. One tap for the usual values.</figcaption></figure>
+<figure class="ok"><div class="dev phone"><div class="tb"><span class="circ">‹</span><span>Water now</span><span></span></div><div class="grp"><div class="r"><span class="sp">Run time</span><span class="field">15 min</span></div><div class="r" style="justify-content:center;height:110px;background:linear-gradient(var(--cell),transparent 30%,transparent 70%,var(--cell)),linear-gradient(transparent 38%,rgba(128,128,128,.2) 38%,rgba(128,128,128,.2) 62%,transparent 62%)">10 · <b>15</b> · 16</div></div></div><figcaption><b>B. Wheel</b>A 1-60 wheel. Exact but slower for the common values and tall on Duo folded.</figcaption></figure>
+</div>
+<h3>Accessibility size, Duo, iPad</h3>
+<p>All items sit in the standard grouped form; at AX5 labels wrap and presets reflow to a wrapping row (like the chip rail), never truncating; targets stay at 44 pt. Duo folded and iPad portrait are single-page with the same forms; the keyboard Done lands in the keyboard accessory on every device. The date-range constraint for Starts/Ends and the quick-close fix for the date picker are not in this proposal: they draw nothing new and ship as code.</p>
+<h2>Comparison</h2>
+<table><tr><th>Change</th><th>HIG</th><th>Cost</th><th>Risk</th></tr>
+<tr><td>Header on grocery/admin</td><td>Text fields: a label that stays visible</td><td>2 lines each; sheet 20 pt taller</td><td>None</td></tr>
+<tr><td>Done above number pad</td><td>Keyboards: return/finish</td><td>One toolbar item</td><td>None</td></tr>
+<tr><td>Name field plain; day check</td><td>Dynamic Type; color not the only signal</td><td>Style + glyph</td><td>Day chips get a little wider</td></tr>
+<tr><td>Presets + stepper</td><td>Steppers: a long range needs a faster way</td><td>One row; new accessibility test</td><td>Presets vs. configured max</td></tr></table>
+<h2>Recommendation</h2>
+<div class="rec"><p>Take every "Proposed" / "A" option above. Files: <code>TodoItemSheets.swift</code>, <code>DonetickTaskSheet.swift</code>, <code>HumidifierActivityEditor</code>, <code>SprinklerControllerSheet.swift</code>; tests: UX + accessibility on iPhone, Duo, iPad (header present while typing, Done dismisses, name field not clipped at AX5, selected-day state exposed to VoiceOver, preset sets value); update the four mockups.</p></div>
+<h2>Open questions</h2>
+<p>1. Footer copy for grocery and admin: "Added to the Groceries list." is a draft. 2. Preset values: 5, 15, 30, 45, 60 or the sprinkler team's own habits (5, 10, 15, 30)?</p>
+
+</div></body></html>

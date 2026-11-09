@@ -1,0 +1,42 @@
+{
+  "originHash" : "d926f45bb21147e613ba54526c20bc1d71674f1c09038239a62e213206a5b7ac",
+  "pins" : [
+    {
+      "identity" : "hakit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/home-assistant/HAKit",
+      "state" : {
+        "revision" : "0535d4aabd0a50e2c18cdcaa2f4423ff057a546a",
+        "version" : "0.4.19"
+      }
+    },
+    {
+      "identity" : "promisekit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mxcl/PromiseKit",
+      "state" : {
+        "revision" : "2bc44395edb4f8391902a9ff7c220471882a4d07",
+        "version" : "8.2.0"
+      }
+    },
+    {
+      "identity" : "starscream",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/bgoncal/Starscream",
+      "state" : {
+        "revision" : "9f793f7396d0def800c18be36769deb6d1313238",
+        "version" : "4.0.10"
+      }
+    },
+    {
+      "identity" : "webrtc",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stasel/WebRTC",
+      "state" : {
+        "revision" : "b85669f32ffb3f48ce3a8f18ad828c6f559a8a0c",
+        "version" : "137.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}

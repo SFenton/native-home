@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recipe detail · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+
+  /* The sheet over the Food hub (the hub always opens it as a sheet). o: Food.detailContent options; pres: Food.hubPage options. */
+  function sheet(ctx, o, pres) {
+    return Mock.sheet(ctx, Object.assign(F.detailOpts(ctx, o || {}), { presenter: F.hubPage(ctx, pres || {}) }));
+  }
+  function S(o, pres) { return function (c) { return sheet(c, o, pres); }; }
+  function pane(ctx, o) { return F.recipesPage(ctx, { selected: 0, detail: Object.assign({ tab: 'general' }, o), count: 12 }); }
+  /* Swap the sheet's content to another tab: a cut (motion.md 4.4), the tab bar's selected segment moves with it. */
+  function cutTo(stage, tab) {
+    var ctx = Mock.current, scroll = stage.querySelector('.ui-mscroll'), bar = stage.querySelector('.ui-modaltabs');
+    scroll.innerHTML = ''; scroll.appendChild(F.detailContent(ctx, { tab: tab }));
+    if (bar) Array.prototype.forEach.call(bar.querySelectorAll('button'), function (b, i) { var on = F.tabs[i].id === tab; b.classList.toggle('sel', on); b.setAttribute('aria-selected', on); });
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'recipe-detail-sheet', title: 'Recipe detail (General, Ingredients, Instructions)', area: 'food', status: 'shipped',
+    summary: 'A recipe opened from a card: a full-height page sheet (a trailing pane on iPad and Duo landscape from the Recipes page) with the title over "3 of 5 Ingredients", three sections on the bottom glass bar, and one primary action, Add to Grocery List. Follows the system appearance; the pane is always dark.',
+    source: ['apple/Sources/HassUI/Features/Food/RecipeDetailView.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailRows.swift', 'apple/Sources/HassUI/Features/Food/FoodModels.swift (RecipeDetailModel)', 'apple/Sources/HassCore/Recipes/RecipeFormatting.swift', 'apple/Sources/HassCore/Recipes/RecipeGroceryPolicy.swift',
+      'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassUI/Features/Gallery/FoodGallery.swift'],
+    spec: ['.agents/pages/food/spec.md', '.agents/pages/food/ios.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'image-card', 'module-list', 'motion', 'optimistic-actions'],
+    hig: ['Sheets', 'Segmented controls', 'Lists and tables', 'Split views', 'Dynamic Type', 'Buttons', 'Toolbars'],
+    entities: ['todo.demo_todo_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ModalTabBar', 'ModuleList', 'PrimaryButton', 'InlineAlert', 'ArcSpinner', 'ImageCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'General: photo, facts, equipment, link', render: S({ tab: 'general' }) },
+      'ingredients': { title: 'Ingredients: have, missing, unsure; Add to Grocery List', render: S({ tab: 'ingredients' }) },
+      'instructions': { title: 'Instructions: centred while they fit', note: 'owner 2026-10-16: steps that fit sit in the vertical middle; longer ones scroll from the top', render: S({ tab: 'instructions' }) },
+      'instructions-grouped': { title: 'Instructions in two groups', note: 'a group\'s own label, else "Section n" in the quieter regular weight; a lone group has no heading', render: S({ tab: 'instructions', grouped: true }) },
+      'cookidoo-general': { title: 'Cookidoo recipe: General', note: 'no cached metadata: three facts, the Cookidoo notice, "Open in Cookidoo"', render: S({ tab: 'general', cookidoo: true }) },
+      'cookidoo-instructions': { title: 'Cookidoo recipe: Instructions', note: 'step text never shows; the one primary button links out', render: S({ tab: 'instructions', cookidoo: true }) },
+      'no-photo': { title: 'No photo', note: 'the 16:10 card keeps its place with the fork and knife on the sheet cell', render: S({ tab: 'general', noPhoto: true }) },
+      'no-ingredients': { title: '"No Ingredients Available"', note: 'the grocery button stays below, disabled with "No ingredient data is available, so groceries cannot be added."', render: S({ tab: 'ingredients', noIngredients: true, grocery: 'disabled', groceryReason: 'No ingredient data is available, so groceries cannot be added.' }) },
+      'no-instructions': { title: '"No Instructions Available"', render: S({ tab: 'instructions', noInstructions: true }) },
+      'truncated': { title: 'Truncated lists', note: 'a quiet notice above the list; with a truncated list the grocery button is disabled ("Ingredients are truncated, so groceries cannot be added safely.")', render: S({ tab: 'ingredients', truncated: true, grocery: 'disabled', groceryReason: 'Ingredients are truncated, so groceries cannot be added safely.' }) },
+      'grocery-adding': { title: 'Adding to groceries', note: 'inline arc in the button, the explanation becomes "Adding missing ingredients…", the button is disabled', render: S({ tab: 'ingredients', grocery: 'adding' }) },
+      'grocery-added': { title: 'Added to Grocery List', note: 'the button cross-fades to a green check and the server\'s sentence; announced to VoiceOver', render: S({ tab: 'ingredients', grocery: 'added' }) },
+      'grocery-failed': { title: 'The add failed', note: 'the button stays and can retry (the idempotency key is reused until a definitive answer); the error sits below it in red', render: S({ tab: 'ingredients', grocery: 'failed' }) },
+      'grocery-none': { title: 'Nothing to add', note: 'every missing ingredient is covered by an override or already added', render: S({ tab: 'ingredients', grocery: 'disabled', groceryReason: 'No missing ingredients to add.' }) },
+      'loading': { title: 'Loading the detail', note: 'a centred arc labelled "Loading recipe details"; the title and "3 of 5 Ingredients" are already there; no tab bar until it loads; no gate (the sheet\'s own phases swap with no animation)', render: S({ phase: 'loading' }) },
+      'error': { title: '"Unable to Load Recipe"', note: 'the failure message under the title (here the generic one); the sheet can still be closed', render: S({ phase: 'failed' }) },
+      'unsupported': { title: '"Recipe Details Unsupported"', note: 'the installed Pantryhub integration is too old for recipe_detail', render: S({ phase: 'unsupported' }) },
+      'offline': { title: 'Reopened offline', note: 'a recipe opened before is shown from the in-memory detail cache while a refresh fails quietly (an uncached one reads "Unable to Load Recipe"); the grocery add would fail with the service message', render: S({ tab: 'general' }, { pageOpts: { connection: 'offline' } }) },
+      'large': { title: 'Large detent (shipped)', note: 'always: hassSheet(.page, height: .full) is presentationDetents([.large]); a tab bar and a content phase that changes height must not resize the sheet', render: S({ tab: 'general' }) },
+      'pane': { title: 'Trailing pane (iPad landscape)', override: { device: 'ipad-landscape' }, note: 'from Recipes: the right half, its own header (title and Close), the glass tab bar at its foot; dark on black; the open card is outlined', render: function (c) { return pane(c, { tab: 'ingredients' }); } },
+      'pane-duo': { title: 'Trailing pane (Duo unfolded landscape)', override: { device: 'duo-unfolded-landscape' }, note: 'the pane splits at the content midpoint, so the hinge band falls inside it (code, not the hinge geometry)', render: function (c) { return pane(c, { tab: 'general' }); } },
+      'long-text': { title: 'A long recipe title', note: 'the inline title ellipsises on one line like a navigation bar; the pane header wraps the full title', render: S({ tab: 'general', longName: true }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'facts put the value under the label; the section bar becomes a menu naming the section; the sheet scrolls', render: S({ tab: 'general' }) },
+      'ax5-ingredients': { title: 'AX5: Ingredients', override: { ts: 'ax5' }, render: S({ tab: 'ingredients' }) },
+    },
+
+    motion: [
+      { id: 'grocery-swap', what: 'Add to Grocery List completes: the button cross-fades into the green check and the result sentence', token: 'state 0.6 s ease-in-out (stateColorTransition "GroceryAction"); the check also replaces with symbolEffect(.replace)', state: 'ingredients',
+        source: 'HassUI/Features/Food/RecipeDetailView.swift GroceryAction; motion.md sections 6 and 7', reduce: 'still cross-fades, shortened to 0.2 s (colour and opacity are not motion)',
+        play: function (stage) {
+          var box = stage.querySelector('.fd-gro'); if (!box) return Promise.resolve();
+          var next = F.grocery('added'), ms = Mock.anim.ms.state();
+          box.replaceWith(next); return Mock.anim.fade(next, { ms: ms }).then(function () { return Mock.sleep(600); });
+        } },
+      { id: 'arc-in-button', what: 'While the add is in flight the button shows an inline arc beside its title', token: 'ArcSpinner inline: one turn per 0.82 s, linear', state: 'grocery-adding',
+        source: 'HassDesign/ArcSpinner.swift; GroceryAction', reduce: 'keeps turning at half speed (a still arc reads as frozen)', play: function () { return Mock.sleep(1800); } },
+      { id: 'photo-fade', what: 'The hero photo fades in over its card (the card shows the sheet cell until it lands)', token: 'quick 0.2 s ease-out', state: 'default', source: 'HassDesign/Images/CachedImage.swift', reduce: 'not gated on Reduce Motion (an opacity change, not movement)',
+        play: function (stage) { var p = stage.querySelector('.fd-hero .ph'); if (!p) return Promise.resolve(); p.style.opacity = 0; return Mock.sleep(80).then(function () { return Mock.anim.fade(p, { ms: Mock.anim.ms.quick() }); }).then(function () { p.style.opacity = ''; }); } },
+      { id: 'tab-cut', what: 'Switching General, Ingredients and Instructions swaps the content at once', token: 'none: a cut (motion.md 4.4); the system segmented thumb slides and the badged bar\'s lift is snappy 0.2 s, neither is a MotionToken', state: 'default',
+        source: 'HassUI/Common/ModalTabBar.swift; RecipeDetailView.loaded (no SmoothContentSwap)', reduce: 'nothing to reduce (the badged bar jumps; the system control follows the system setting)',
+        play: function (stage) { return Mock.sleep(500).then(function () { cutTo(stage, 'ingredients'); return Mock.sleep(900); }).then(function () { cutTo(stage, 'instructions'); return Mock.sleep(900); }).then(function () { cutTo(stage, 'general'); }); } },
+    ],
+
+    transitions: [
+      { from: 'Food hub card', to: 'Recipe detail sheet', kind: 'sheet', state: 'default', note: 'A full-height page sheet over the hub (never a zoom, never fitted: the recipe stays full screen). The sheet arrives with the title and "n of m Ingredients" from the card, the content loads inside it (cached detail shows at once).',
+        play: function (stage) { return Mock.presentDemo(stage, F.detailOpts(Mock.current, { phase: 'loading' }), { hold: 1200 }); } },
+      { from: 'Recipe detail sheet', to: 'Food hub', kind: 'sheet', state: 'default', note: 'The circle x Close, or a swipe down (interactive, system-owned).',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Loading', to: 'Loaded', kind: 'cut', state: 'loading', note: 'The phases swap with no animation and no gate: the arc is replaced by the tab content and the glass bar appears.',
+        play: function (stage) { var ctx = Mock.current, scroll = stage.querySelector('.ui-mscroll'); return Mock.sleep(900).then(function () { scroll.innerHTML = ''; scroll.appendChild(F.detailContent(ctx, { tab: 'general' })); }); } },
+      { from: 'General', to: 'Ingredients', kind: 'cut', state: 'default', note: 'A section switch is a cut, like the tab bar (motion.md 4.4).', play: function (stage) { return Mock.sleep(500).then(function () { cutTo(stage, 'ingredients'); return Mock.sleep(900); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Focus lands on the title (inline heading) with "3 of 5 Ingredients" as its subtitle, then the content top to bottom (photo is decorative), then "Recipe sections" last; Close is trailing in the bar. Pane: heading, Close, content, sections.' },
+      { rule: 'Facts', note: 'One element per fact: label = "Prep Time", value = "15 minutes" (the spoken duration), glyph decorative. At AX sizes the value moves under the label.' },
+      { rule: 'Ingredient rows', note: 'Label "Lemons · 2", value "Not on hand" (or "On hand"), hint = the chips and lines read as one sentence ("Missing from Inventory. Inventory quantity may be insufficient."). The mark is a green check, a question mark (uncertain: reads as not on hand) or an empty circle: shape differs as well as colour. Identifiers recipe.ingredient.<n>.' },
+      { rule: 'Grocery action', note: 'A button "Add to Grocery List" with the hint "Adds the missing ingredients for this recipe to your shopping list." When disabled the reason text takes the hint\'s place; results post "Added to grocery list. <sentence>" or the failure message as announcements.' },
+      { rule: 'Sections', note: 'A segmented control "Recipe sections" named by title with icons on compact width (General, Ingredients, Instructions stay the spoken names), titles on regular width, a menu naming the section at AX sizes; each segment at least 44 pt.' },
+      { rule: 'Instructions', note: 'Each step is "Step 2. Toss the chicken ..." as one element; the Cookidoo link button carries the link trait.' },
+      { rule: 'Close', note: 'Circle x "Close" (identifier recipe.done); a swipe down dismisses; in the pane "Close" (recipe.close) is at least 44 pt.' },
+      { rule: 'Dynamic Type', note: 'Ingredient titles, chips and steps wrap and never truncate, facts stack their value under the label, the hero keeps 16:10, the section bar becomes a menu; the inline navigation title is a single line (the system truncates it at its tail).' },
+      { rule: 'Light and dark', note: 'The sheet follows the system appearance: #2C2C2E cells on #1C1C1E, or white on #F2F2F7; chips and secondary text stay at least 4.5:1; green checks use the system green.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: size and grabber', verdict: 'departure', note: 'A recipe is a full-height page sheet with the grabber and no medium detent (RecipeDetailSheet, hassSheet(.page, height: .full)); owner 2026-10-16: "a recipe is a page to read", recipe detail stays full screen.', by: 'apple-hig skill' },
+        { rule: 'Sheets: Cancel or Done in the toolbar', verdict: 'departure', note: 'A trailing circle-X Close replaces Cancel/Done (SheetCloseItem, HassModal.swift:20-29); owner 2026-10-13.', by: 'apple-hig skill' },
+        { rule: 'Segmented controls: section switcher', verdict: 'departure', note: 'General, Ingredients and Instructions are a bottom glass segmented control with icons at compact width (ModalTabBar.swift; owner 2026-10-16, direction G Sheets); a menu of titles at accessibility sizes.', by: 'apple-hig skill' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'On hand is a filled check, not on hand an empty circle, unsure a question mark, and each chip says what is missing (IngredientRow.mark, RecipeDetailView.swift:336-340).', by: 'apple-hig skill' },
+        { rule: 'Accessibility > Vision: non-text contrast', verdict: 'pass', note: 'Already fixed: the on-hand check is HassTokens.Ink.success (RecipeDetailView.swift:296), 5.3:1 on a light cell.', by: 'apple-hig skill' },
+        { rule: 'Feedback: confirm a completed action', verdict: 'pass', note: 'Add to Grocery List swaps to "Added to Grocery List" with a check and posts an announcement; a failure posts its message too (GroceryAction, :421-428). No haptic accompanies it.', by: 'apple-hig skill' },
+        { rule: 'Layout: use the fold in the trailing pane', verdict: 'pass', note: 'Fixed: RecipesScreen shows RecipeDetailPane in HingedPanes, whose widths come from SplitPolicy.columnWidths, so the pane starts after the hinge.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: hints describe the action', verdict: 'pass', note: 'RecipeDetailView ingredient rows speak caveats, source and match as the value.', by: 'swiftui-pro skill' },
+        { rule: 'Use task() rather than onAppear for async work', verdict: 'pass', note: 'RecipeDetailView starts the load from .task (RecipeDetailView.swift:89)' },
+        { rule: 'Prefer hierarchical styles over manual opacity', verdict: 'pass', note: 'Fixed: ChipFlow fills with .fill.secondary, the system fill that adapts to appearance and contrast (RecipeDetailView.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Standard styling: ContentUnavailableView', verdict: 'pass', note: 'Failed, unsupported, no ingredients, no instructions and a missing link all use ContentUnavailableView (RecipeDetailView.swift:79, 262, 454, 473).', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: sibling rows keep their own element', verdict: 'pass', note: 'Fact rows speak label and value; steps read "Step 2. text"; the source link carries the link trait (RecipeDetailRows.swift:31-33, 65, 86-87).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'medium and fitted: this sheet has neither. hassSheet(.page, height: .full) presents [.large] only, so the provisional medium detent of a fitted sheet never occurs; the "large" state is the shipped detent.',
+      'Docs vs code (1): ios.md says the subtitle is "8/9 ingredients"; the code reads RecipeCard.coverageText, "8 of 9 Ingredients" (here "3 of 5 Ingredients").',
+      'Docs vs code (2): ios.md says fact rows "drop the glyph" at accessibility sizes; ModuleRow keeps the glyph in its leading row and moves only the value under the label (drawn as coded).',
+      'Docs vs code (3): modal-sheet.md says new modals use HassModal; this sheet (like most) builds its own NavigationStack with modalChrome and SheetCloseItem. HassModal itself is only used by the App Icon picker.',
+      'Docs vs code (4): motion.md 3 and 4.3 list a recipe card zoom; the code presents a sheet (or the pane). Per-row grocery add, ingredient overrides, the Choose Product picker and "Add to My Week" are not ported (spec.md), so rows are read-only.',
+      'Sample data is FoodFixtures: six ingredients in two groups, three steps; real ids with id % 4 == 1 are Cookidoo in the fixture (the Cookidoo states show that layout for the same title). The photo is a drawn stand-in.',
+      'The bottom bar here is the kit\'s non-overlay slot; the app draws it as a safeAreaInset capsule that content scrolls under.',
+      'Promote to kit: Food.detailContent, Food.ingredientRow (RecipeIngredientRow), Food.grocery (GroceryAction), Food.detailPane; the title ellipsis rule for .ui-mhead.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: three tabs, Cookidoo variants, grocery states, loading, failure, unsupported, offline, pane on iPad and Duo landscape, AX5; light and dark in the gallery.' }],
+  });
+})();
+</script></body></html>

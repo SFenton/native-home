@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings version row</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--ok:#1e7b34;--code:#eceef2;--row:#fff;--list:#f2f2f7;--sep:#c6c6c8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--ok:#30d158;--code:#20242b;--row:#1c1c1e;--list:#000;--sep:#38383a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.1;margin:0 0 12px}h2{font-size:22px;margin:40px 0 8px}h3{font-size:17px;margin:0 0 6px}
+p{margin:0 0 12px;max-width:70ch}.lede{color:var(--fg2);font-size:18px}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font:.88em ui-monospace,Menlo,monospace}
+.tag{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-top:16px}
+.opt{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.opt.pick{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.badge{display:inline-block;font-size:12px;font-weight:600;color:var(--ok);margin-left:6px}
+.phone{width:288px;max-width:100%;margin:12px auto 0;background:var(--list);border:1px solid var(--sep);border-radius:22px;padding:14px 0 16px;overflow:hidden;color:var(--fg)}
+.phone .nav{font-weight:700;font-size:26px;padding:4px 16px 10px}
+.grp{margin:0 12px 6px;background:var(--row);border-radius:10px;overflow:hidden}
+.r{display:flex;align-items:center;gap:10px;padding:9px 12px;min-height:44px;border-bottom:.5px solid var(--sep);font-size:15px}
+.r:last-child{border-bottom:0}.r .ic{width:20px;color:var(--fg2);text-align:center}.r .s{color:var(--fg2);font-size:12.5px;display:block;line-height:1.25}
+.r .v{margin-left:auto;color:var(--fg2);font-size:15px}.r .ch{color:var(--fg2);margin-left:auto}
+.hd{margin:12px 28px 5px;font-size:12px;text-transform:uppercase;color:var(--fg2)}
+.ft{margin:6px 28px 8px;font-size:12px;color:var(--fg2)}
+.center{text-align:center;margin:14px 16px 0;font-size:12.5px;color:var(--fg2)}
+.ax .r,.ax .center{font-size:22px}.ax .r{flex-wrap:wrap;gap:4px 10px;padding:12px}.ax .r .v{margin-left:0;flex-basis:100%;padding-left:30px;font-size:22px}.ax .hd,.ax .ft{font-size:16px}
+.ax .center{font-size:19px}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:15px;margin-top:8px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg2)}tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto}.cap{font-size:13px;color:var(--fg2);text-align:center;margin-top:6px}
+</style></head><body><div class="wrap">
+<div class="tag">Proposal · 2026-10-26 · Decided (2026-10-26): option B, the About row; built, see .agents/design/settings-version-row.md</div>
+<h1>Settings version row</h1>
+<p class="lede">Show which build is running, so a bug report or a support question names the exact version. The text comes from <code>AppBuildInfo</code> (built with the version stamping in <code>.agents/workflow/versioning.md</code>); this proposal is only about where and how it appears.</p>
+
+<h2>Cause and goal</h2>
+<p>Release builds will carry <code>YYMM.DD.NN</code> versions, a build number and the commit. Nothing in the app shows them yet. FestivalNativeApps puts <b>App Version</b> in Settings with the version, build and short commit (<code>2610.02.17 (57) · 42edc57</code>), and VoiceOver reads each part by name. Local and simulator builds read <code>0.1.0 (1)</code> with no commit.</p>
+<p>Shown below: <b>today</b> (no version anywhere on Settings) is the bottom of the list, <b>Performance</b> then <b>Report an Issue</b>. Each option adds one thing under it. iPhone at the default text size, then at AX5 for the recommended option. iPhone Duo and iPad draw the same list (<code>pages/settings</code> in the atlas); the row has no width-dependent layout, so no split-view change.</p>
+
+<div class="opts">
+<div class="opt"><h3>A · Footer line</h3>
+ <div class="phone"><div class="grp"><div class="r"><span class="ic">◔</span><span>Performance<span class="s">Scrolling, loading and image cache measurements on this device.</span></span><span class="ch">›</span></div></div>
+ <div class="hd">Report an issue</div><div class="grp"><div class="r"><span class="ic">✎</span><span>Report an issue<span class="s">Something broken or missing.</span></span></div></div>
+ <div class="center">S+H 2610.26.01 (57) · 42edc57</div></div>
+ <p class="cap">Centered caption below the last section</p>
+ <p>Quietest. No tap target, so nothing to copy or hint; a long-press <b>Copy</b> context menu is the only affordance and is undiscoverable. Easy to miss at AX5 where the footer scrolls off the end.</p></div>
+
+<div class="opt pick"><h3>B · “About” row <span class="badge">Recommended</span></h3>
+ <div class="phone"><div class="grp"><div class="r"><span class="ic">◔</span><span>Performance<span class="s">Scrolling, loading and image cache measurements on this device.</span></span><span class="ch">›</span></div></div>
+ <div class="hd">Report an issue</div><div class="grp"><div class="r"><span class="ic">✎</span><span>Report an issue<span class="s">Something broken or missing.</span></span></div></div>
+ <div class="hd">About</div><div class="grp"><div class="r"><span class="ic">ⓘ</span><span>Version</span><span class="v">2610.26.01 (57) · 42edc57</span></div></div>
+ <div class="ft">Tap to copy.</div></div>
+ <p class="cap">One-row “About” section; value on the trailing edge</p>
+ <p>Standard Settings idiom (HIG, Lists and tables: a value row). Tapping copies the full text to paste into a report; the row announces “Copied” and the copy uses a success haptic. Title stays “Version” (not “App Version”: the app is the screen's subject).</p></div>
+
+<div class="opt"><h3>C · Inside Report an issue</h3>
+ <div class="phone"><div class="grp"><div class="r"><span class="ic">✎</span><span>Report an issue<span class="s">Something broken or missing.</span></span></div></div>
+ <div class="ft">Includes: S+H 2610.26.01 (57) · 42edc57</div></div>
+ <p class="cap">Version shown only where it is used</p>
+ <p>Attaches the version to the report automatically and says so in the footer. Keeps Settings unchanged. People looking for the version outside a report (App Store question, a friend asking) can't find it; reports already get a build line from a different place, so this duplicates the report path and not the need.</p></div>
+</div>
+
+<h2>Recommended option at AX5</h2>
+<div class="phone ax" style="width:360px"><div class="hd">About</div><div class="grp"><div class="r"><span class="ic">ⓘ</span><span>Version</span><span class="v">2610.26.01 (57) · 42edc57</span></div></div><div class="ft">Tap to copy.</div></div>
+<p class="cap">The value drops under the title so the text keeps the full row width; it wraps rather than truncates.</p>
+
+<h2>Comparison</h2>
+<div class="scroll"><table>
+<tr><th></th><th>A footer</th><th>B About row</th><th>C in Report</th></tr>
+<tr><td>Findable</td><td>Scrolls away</td><td>Named section, expected place</td><td>Only for reporters</td></tr>
+<tr><td>Copy for a report</td><td>Long-press only</td><td>Tap, announced “Copied”</td><td>Automatic</td></tr>
+<tr><td>VoiceOver</td><td>Static text</td><td>“Version, 2610.26.01, build 57, commit 42edc57. Button, copies”</td><td>Footer text</td></tr>
+<tr><td>Targets / AX5</td><td>No target; wraps</td><td>≥44 pt row; value moves under title</td><td>n/a</td></tr>
+<tr><td>HIG</td><td>Footers are for section help</td><td>Lists and tables: value row</td><td>Fine, hidden</td></tr>
+<tr><td>Cost</td><td>1 view</td><td>1 section, 1 row, tap-to-copy; UI test + accessibility test on iPhone, Duo, iPad (name/role/hint, 44 pt, AX5)</td><td>Feedback payload change plus footer</td></tr>
+</table></div>
+
+<h2>Recommendation</h2>
+<p><b>B.</b> It is where people look for it, it can be copied into a report with one tap, and it reads cleanly in VoiceOver by naming each part (<code>AppBuildInfo.spokenVersionText</code>). Files: <code>SettingsScreen.swift</code> (one section after Report an issue), a small <code>VersionRow</code>, tests in <code>HassUITests</code> and a UI journey on all three device families; update the Settings page atlas mockup in the same PR.</p>
+<h2>Open questions</h2>
+<p>1. Should Report an issue also attach the same text (B plus C's payload)? It is a separate, non-visual change and can follow.<br>2. Debug and simulator builds show <code>0.1.0 (1)</code>; keep that, or hide the row there? Proposed: keep, so it is exercised by the UI tests.</p>
+</div></body></html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Links: Security System · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/rooms/_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms;
+
+  var SYM = { armed_home: 'shield.lefthalf.filled', armed_away: 'shield', armed_night: 'moon.zzz', disarmed: 'shield.slash', triggered: 'exclamationmark.shield' };
+  var TEXT = { armed_home: 'Armed Home', armed_away: 'Armed Away', armed_night: 'Armed Night', disarmed: 'Disarmed', triggered: 'Triggered' };
+  /* QuickLinksSecurityDetail: SecurityControls (the alarm card in a ScrollView, 560 pt column) when a caller exists, else the state alone. */
+  function body(o) {
+    if (o.stateOnly) return R.cu({ sym: SYM[o.state || 'armed_home'] || 'shield', title: 'Security System', desc: TEXT[o.state || 'armed_home'] || 'Unavailable' });
+    return h('div', { style: { maxWidth: '560px', margin: '0 auto', padding: '8px 0' } }, K.AlarmPanel({ state: o.state || 'armed_home', since: o.since }));
+  }
+  function sheet(ctx, o) {
+    o = o || {};
+    var alert = o.confirm ? K.Alert({ title: 'Disarm the Security System?', message: 'Doors and motion stop triggering the alarm.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Disarm' }] }) : null;
+    return Mock.sheet(ctx, { title: 'Security System', leading: 'back', trailing: 'none', detent: 'large', size: 'page', content: body(o), presenter: R.homePresenter(ctx, o.connection), alert: alert });
+  }
+  var S = function (o) { return function (ctx) { return sheet(ctx, o); }; };
+  function modeEl(stage, mode) { return stage.querySelector('.ui-mode[data-mode="' + mode + '"]'); }
+  function setState(stage, state, title) {
+    var panel = stage.querySelector('.ui-alarm'), badge = panel.querySelector('.badge'), fam = { armed_home: 'sec-home', armed_away: 'sec-away', armed_night: 'sec-night', disarmed: 'sec-disarmed', triggered: 'sec-triggered' }[state];
+    stage.querySelectorAll('.ui-mode').forEach(function (b) { b.classList.toggle('sel', b.dataset.mode === state); b.classList.toggle('on-alarm', state === 'triggered'); });
+    badge.style.setProperty('--bfill', 'var(--fam-' + fam + '-fill)'); panel.classList.toggle('triggered', state === 'triggered'); panel.querySelector('.ti').textContent = title;
+  }
+  function level(o) { o = o || {}; return { title: 'Security System', leading: 'back', trailing: 'none', content: body(o) }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'quick-links-security-system', title: 'Quick Links: Security System detail', area: 'shell', status: 'shipped',
+    summary: 'The Security System tile of Quick Links pushes the alarm card inside the sheet: the mode as a fact and Disarm, Home, Away and Night. It is the Security sheet\'s card (SecurityControls), so it behaves the same and asks before disarming. Without a connection it shows the state alone.',
+    source: ['apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift', 'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift'],
+    spec: ['.agents/pages/security/spec.md', '.agents/pages/security/ios.md', '.agents/pages/rooms/ios.md', '.agents/design/direction-g.md'],
+    patterns: ['modal-sheet', 'optimistic-actions', 'motion'],
+    hig: ['Sheets', 'Alerts', 'Toolbars', 'Color', 'Dark Mode', 'Dynamic Type', 'Accessibility'],
+    entities: ['alarm_control_panel.demo_alarm_control_panel_1'],
+    kitComponents: ['HassModal', 'AlarmPanel', 'Alert', 'NavigationGlass', 'ChipRail', 'WeatherCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Armed Home', render: S() },
+      'loading': { title: 'Arming (the panel reports arming)', note: 'there is no loading UI: the card shows the live state and a slate badge until the mode lands', render: S({ state: 'arming' }) },
+      'error': { title: 'Unavailable', note: 'glyphs dim, text keeps full strength, all four modes are disabled', render: S({ state: 'unavailable' }) },
+      'offline': { title: 'Over an offline page', note: 'the level has no offline UI of its own: it keeps the last known mode; the page behind carries the offline chip', render: S({ connection: 'offline' }) },
+      'disarmed': { title: 'Disarmed', render: S({ state: 'disarmed' }) },
+      'armed-away': { title: 'Armed Away', render: S({ state: 'armed_away' }) },
+      'armed-night': { title: 'Armed Night', render: S({ state: 'armed_night' }) },
+      'triggered': { title: 'Alarm triggered', note: 'the card takes #D70015 at 42% (dark) or 16% (light); steady, never a pulse', render: S({ state: 'triggered' }) },
+      'state-only': { title: 'No connection yet: state only', note: 'QuickLinksSecurityDetail without a caller: a ContentUnavailableView with the mode\'s glyph, "Security System" and the state ("Armed Home"); nothing to tap', render: S({ stateOnly: true }) },
+      'disarm-confirm': { title: 'Disarm asks first', note: 'iOS 26 alert, Cancel always present, the same alert as the Security sheet', render: S({ confirm: true }) },
+      'medium': { title: 'Medium detent: none', note: 'this level lives in the Quick Links sheet (hassSheet(.page, height: .full)); the only detent is large', render: S() },
+      'large': { title: 'Large detent (shipped)', render: S() },
+      'fitted': { title: 'Fitted detent: none', note: 'the sheet is not content-fitted; the card sits at the top of a large sheet', render: S() },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the modes wrap to fewer columns and the card scrolls', render: S() },
+    },
+
+    motion: [
+      { id: 'mode-select', what: 'Choosing a mode: the new mode fills in its colour, the old one empties, the badge and title follow', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'HassUI/Features/Security/SecuritySystemSheet.swift AlarmModeButton, stateColorTransition("AlarmModeButton"); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { setState(stage, 'armed_away', 'Armed Away'); return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { setState(stage, 'armed_night', 'Armed Night'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Quick Links (Security System tile)', to: 'Alarm card', kind: 'push', state: 'default', note: 'The tile appends .securitySystem to the sheet\'s path: a plain system push with Back. Reduce Motion cross-fades.',
+        play: function (stage) { return R.pushInSheet(stage, level(), 1000); } },
+      { from: 'Disarm tap', to: 'Disarm alert', kind: 'fade', state: 'default', note: 'The alert scales and fades in over the sheet (system alert). Disarm is the only action that confirms; arming sends at once.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host');
+          var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), K.Alert({ title: 'Disarm the Security System?', message: 'Doors and motion stop triggering the alarm.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Disarm' }] }));
+          host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, the title "Security System", then the card header (one element: label "Security System", value "Armed Home, Since 6:12 PM"), then the four modes left to right (Disarm, Home, Away, Night). No Close at this depth (see the finding).' },
+      { rule: 'Mode buttons', note: 'Labelled Disarm, Home, Away, Night; the current one carries the selected trait; hints "Sets the security system to Home" and "Disarms the security system". 64 pt scaled minimum, far over 44.' },
+      { rule: 'State is not colour alone', note: 'Each mode has its own glyph and the mode is spoken as a title; triggered adds the exclamation shield and the words "Alarm Triggered".' },
+      { rule: 'Alert', note: 'Disarm always asks with Cancel and a plain, bold Disarm; the alert keeps Cancel on every device.' },
+      { rule: 'State only', note: 'The ContentUnavailableView is one element: "Security System, Armed Home"; nothing is a button.' },
+      { rule: 'Dynamic Type', note: 'The badge, title and mode glyphs scale; the four-column grid wraps once the scaled 64 pt minimum no longer fits.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: give a modal a clear way out at every depth', verdict: 'pass', note: 'QuickLinksSheet adds SheetCloseItem to the pushed Security System page (owner 2026-10-24, sheet-stacking-close).', by: 'apple-hig skill' },
+        { rule: 'Alerts: confirm a destructive action, red destructive button, Cancel', verdict: 'pass', note: '"Disarm the Security System?" with a destructive Disarm, Cancel and a message about what stops (SecuritySystemSheet.swift:84-90). Arming does not ask because it is reversible.', by: 'apple-hig skill' },
+        { rule: 'Color: state is not carried by colour alone', verdict: 'pass', note: 'Each mode has its own glyph, a filled variant when selected, a selected trait and a spoken title (SecuritySystemSheet.swift:173-205).', by: 'apple-hig skill' },
+        { rule: 'Playing haptics: confirm a change that matters', verdict: 'pass', note: 'Fixed: the Quick Links alarm card is AlarmPanel; AlarmModeButton plays TapFeedback.tap and a failure plays the error pattern.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: one element for the card\'s state', verdict: 'pass', note: 'Header is .ignore with label "Security System" and a value of title and since-time (SecuritySystemSheet.swift:126-129).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Reuse the shared view, do not fork it', verdict: 'pass', note: 'SecurityControls and AlarmPanel serve this level and SecuritySystemSheet.', by: 'swiftui-pro skill' },
+        { rule: 'Optimistic change with rollback', verdict: 'pass', note: 'OptimisticActions shows the tapped mode until Home Assistant reports it (SecuritySystemSheet.swift:44-46, 153-160).', by: 'swiftui-pro skill' },
+        { rule: 'Targets and scaled sizes', verdict: 'pass', note: 'Mode buttons minHeight 64, badge and glyph are ScaledMetric, labels use fixedSize so they wrap rather than truncate (lines 55-56, 175-200).', by: 'swiftui-pro skill' },
+        { rule: 'Adaptive ink on a sheet that follows the system appearance', verdict: 'pass', note: 'Ink.primary and Surface.sheetCell; the selected fill is fixed with white ink.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Reuses SecurityControls: the same card and the same alert as security-system-sheet (modals/security); only the chrome differs (a pushed level with Back inside the Quick Links sheet, large detent).',
+      'Detents: one, large; medium and fitted do not exist. loading: no loading UI; the nearest state is arming. offline: no offline UI of its own.',
+      'state-only: reached when the sheet has no service caller (no connection yet); the debug gallery always supplies one.',
+      'Triggered reads "Triggered" on the Quick Links tile and "Alarm Triggered" here and on the chip.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: every alarm mode, state-only, alert, light and dark.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ArcSpinner · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, CM = Mock.cm, I = Mock.icon;
+  var S = K.ArcSpinner;
+  function lab(t) { return h('span', { style: { font: 'var(--fs-sub) var(--font)', opacity: .85 } }, t); }
+  function sizes(ctx) {
+    function one(size, label, color) { return h('div.cm-row', S({ size: size, color: color }), lab(label)); }
+    return CM.grid(ctx, [
+      { label: 'page: 44 pt, 3 pt ring', node: one('page', 'A page or sheet that is loading'), min: 280 },
+      { label: 'compact: 20 pt, 2.5 pt ring', node: one('compact', 'Pills, rows, the header arc'), min: 280 },
+      { label: 'inline: 16 pt, 2 pt ring', node: one('inline', 'Buttons and subtitles'), min: 280 },
+      { label: 'inline, orange (the reconnecting chip)', node: one('inline', 'Reconnecting', '#FF9F0A'), min: 280 },
+    ]);
+  }
+  function inContext(ctx) {
+    var signing = h('button.ui-primary', { type: 'button', disabled: true, style: { gap: '8px' } }, S({ size: 'inline', label: 'Signing In' }), 'Signing In…');
+    var pill = h('span.cm-chip', { style: { background: 'var(--g-module-thin)', color: '#fff' } }, S({ size: 'compact', label: 'Updating' }), 'Updating');
+    var row = h('div.cm-row', { style: { padding: '10px 14px', borderRadius: 'var(--radius-tile)', background: 'var(--sheet-cell)', color: 'var(--ink)' } }, S({ size: 'compact', label: 'Looking for a Barcode' }), h('span', { style: { font: '600 var(--fs-body) var(--font)' } }, 'Looking for a Barcode'));
+    var sub = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } }, h('span', { style: { font: '600 var(--fs-body) var(--font)' } }, 'Living Room TV'), h('span.cm-row', { style: { gap: '6px', font: 'var(--fs-foot) var(--font)', opacity: .85 } }, S({ size: 'inline', label: 'Sending Open' }), 'Sending Open'));
+    var hdr = h('div.cm-row', { style: { justifyContent: 'space-between', width: '100%' } }, h('span', { style: { font: '700 var(--fs-t2) var(--font-d)' } }, 'Home'), h('span.ui-glass', { style: { display: 'inline-grid', placeItems: 'center', width: '44px', height: '44px', borderRadius: '50%' } }, S({ size: 'compact', label: 'Reconnecting' })));
+    return CM.grid(ctx, [
+      { label: 'Primary button, pressed (Signing In…)', node: signing, surfaces: ['page'], min: 300 },
+      { label: 'Pill (Updating)', node: pill, min: 240 },
+      { label: 'Row (scanner)', node: row, min: 300 },
+      { label: 'Subtitle (media remote command)', node: sub, min: 240 },
+      { label: 'Header (reconnecting arc)', node: hdr, min: 300 },
+    ]);
+  }
+  function titled(ctx) {
+    return CM.grid(ctx, [
+      { label: 'ProgressView("Loading recipes").progressViewStyle(.arc)', node: K.ArcProgress({ label: 'Loading recipes' }), min: 300 },
+      { label: 'Determinate: ProgressView(value:) keeps the linear bar', node: K.ArcProgress({ label: 'Importing', fraction: .4 }), min: 300 },
+      { label: 'Compact titled arc', node: K.ArcProgress({ label: 'Loading', size: 'compact' }), min: 300 },
+    ]);
+  }
+  function anatomy(ctx) {
+    var big = h('div', { style: { width: '176px', height: '176px', color: '#fff', margin: '0 auto' } }, S({ size: 'page' }));
+    big.firstChild.style.width = '176px'; big.firstChild.style.height = '176px'; big.firstChild.querySelector('svg').style.animationPlayState = 'paused';
+    var key = h('ul', { style: { margin: 0, paddingLeft: '1.2em', font: 'var(--fs-sub) var(--font)' } }, ['Ring: 22% of the text colour.', 'Top quarter (centred at -90 degrees): 96%.', 'Right quarter (centred at 0 degrees): 72%.', 'Butt caps; one turn per 0.82 s, linear.', 'Takes the colour of the text around it (currentColor), so it works on a tinted button.'].map(function (t) { return h('li', t); }));
+    return CM.grid(ctx, [{ label: 'Anatomy (frozen, drawn at 4x)', node: h('div.cm-row', { style: { gap: '24px' } }, big, key), w: 560 }], { surfaces: ['page'] });
+  }
+  function paused(ctx) {
+    var a = S({ size: 'page' }); a.querySelector('svg').style.animation = 'none';
+    var b = S({ size: 'page' }); b.querySelector('svg').style.animation = 'none'; b.querySelector('svg').style.transform = 'rotate(137deg)';
+    return CM.grid(ctx, [{ label: 'animationsPaused (galleries and UI tests only)', node: h('div.cm-row', a, b, lab('Held still: a spinner that never stops keeps the app from going idle, so XCUITest waits out its timeout.')), w: 560 }], { surfaces: ['page'] });
+  }
+  var compare = { a: null, b: null };
+  function reduce(ctx) {
+    function box(rm) {
+      var s = S({ size: 'page' }), svg = s.querySelector('svg'); svg.style.animation = 'none';
+      var n = h('span', { style: { font: '600 var(--fs-body) var(--mono)', fontVariantNumeric: 'tabular-nums' } }, '0.0 turns');
+      var c = h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' } }, s, h('span', { style: { font: 'var(--fs-sub) var(--font)' } }, rm ? 'Reduce Motion: 1.64 s a turn' : 'Normal: 0.82 s a turn'), n);
+      c.__run = function () { var period = rm ? 1640 : 820, t0 = performance.now(), dur = 3300; return new Promise(function (res) { (function tick(now) { var t = Math.min(now - t0, dur); svg.style.transform = 'rotate(' + (360 * t / period) + 'deg)'; n.textContent = (t / period).toFixed(1) + ' turns'; if (t < dur) requestAnimationFrame(tick); else res(); })(t0); }); };
+      return c;
+    }
+    var a = box(false), b = box(true), play = CM.play(function () { return Promise.all([a.__run(), b.__run()]); }, 'Run 3.3 s');
+    var host = h('div', { 'data-compare': 'true', style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, h('div.cm-row', { style: { gap: '36px' } }, a, b), play);
+    host.__play = function () { return Promise.all([a.__run(), b.__run()]); };
+    return CM.grid(ctx, [{ label: 'Turn speed: normal against Reduce Motion', node: host, w: 560 }], { surfaces: ['page'] });
+  }
+  Mock.mount({
+    kind: 'component', id: 'arc-spinner', title: 'ArcSpinner and ArcProgressViewStyle', area: 'design', status: 'shipped', frame: false,
+    summary: 'The app\'s one loading indicator: the web\'s arc (a 22% ring with its top quarter at 96% and its right quarter at 72%, one turn per 0.82 s), not the system petal spinner. Three sizes, one colour (the text around it), spoken as "Loading" or the action it stands for. Under Reduce Motion it keeps turning at half speed.',
+    source: ['apple/Sources/HassDesign/ArcSpinner.swift', 'apple/Sources/HassDesign/ArcProgressViewStyle.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/content-gate.md', '.agents/design/motion.md'],
+    patterns: ['content-gate', 'motion'],
+    hig: ['Progress indicators', 'Loading', 'Motion', 'Accessibility: Reduce Motion'],
+    entities: [],
+    kitComponents: ['ArcSpinner', 'ArcProgress', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Three sizes', render: sizes },
+      'in-context': { title: 'In real places', note: 'Signing In…, Updating, Looking for a Barcode, Sending Open and the header arc', render: inContext },
+      'titled': { title: 'Titled arc and the determinate bar', render: titled },
+      'anatomy': { title: 'Anatomy', render: anatomy },
+      'paused': { title: 'Paused (galleries)', render: paused },
+      'reduce-motion': { title: 'Turn speed: normal and Reduce Motion', render: reduce },
+      'loading': { title: 'The spinner is the loading state', note: 'see the content-gate mockup for when it appears', render: sizes },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the arc itself keeps its size (a fixed 44, 20 or 16 pt); the label beside it grows and wraps', render: inContext },
+    },
+    motion: [
+      { id: 'turn', what: 'The arc turns once every 0.82 s, linear, for as long as something is pending', token: 'ArcSpinner.period 0.82 s linear (a spinner, the one allowed repeatForever)', state: 'default',
+        source: 'HassDesign/ArcSpinner.swift angle(at:reduceMotion:); motion.md section 5', reduce: 'half speed: 1.64 s a turn (a still arc reads as frozen)',
+        play: function (stage) { var s = stage.querySelector('.ui-arc svg'); s.getAnimations().forEach(function (a) { a.cancel(); }); return CM.anim(s, [{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], { duration: Mock.settings.reduceMotion ? 1640 : 820, iterations: 3, easing: 'linear' }).then(function () { s.style.animation = ''; }); } },
+      { id: 'speed-compare', what: 'The same arc at normal and Reduce Motion speed, side by side with a turn counter', token: '0.82 s and 1.64 s a turn', state: 'reduce-motion',
+        source: 'ArcSpinner.angle(at:reduceMotion:)', reduce: 'this item shows both on purpose',
+        play: function (stage) { return stage.querySelector('[data-compare]').__play(); } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'Name and traits', note: 'One element labelled "Loading" or the action ("Signing In", "Sending Open", "Looking for a Barcode"), with the updatesFrequently trait and accessibilityRespondsToUserInteraction(false): a status, not a control, so the 16 pt inline arc does not fail the hit-area audit.' },
+      { rule: 'Titled form', note: 'ArcProgressViewStyle hides the arc and lets the title speak, so "Loading recipes" is read once; the title uses the surface\'s secondary ink (the system gray measured 3.1:1 over the wallpaper).' },
+      { rule: 'Reduce Motion', note: 'Spinners keep turning (they carry meaning) at half speed; nothing else about them changes. Pending pulses, by contrast, stop (see the pending-value-bar mockup).' },
+      { rule: 'Colour', note: 'It takes the foreground style around it, so contrast is the text\'s: the ring is 22%, the quarters 96% and 72% of that colour.' },
+      { rule: 'Never full screen', note: 'No full-screen or app-wide spinner; no spinner while live house data loads (the snapshot covers it) (motion.md section 5).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Progress indicators: indeterminate spinners spin a circle; use the system ProgressView", verdict: "departure", note: "A custom arc replaces the system petal spinner by owner decision 2026-10-14 (direction-g.md, Loading and feedback) so it matches the web; it still spins a circle and still carries the .updatesFrequently trait.", by: "apple-hig skill" },
+        { rule: "Progress indicators: describe what is happening, avoid vague terms like 'loading'", verdict: "pass", note: "Call sites now name the content: Media Remote gate, Signed in as arc, Sign In button arc (MediaRemoteSheet.swift, HomeAssistantSettingsView.swift, LoginView.swift).", by: "apple-hig skill" },
+        { rule: "Progress indicators: do not switch from circular to bar style", verdict: "pass", note: "ArcProgressViewStyle keeps the arc for a determinate task and speaks the percentage (ArcProgressViewStyle.swift).", by: "apple-hig skill" },
+        { rule: "Accessibility: when Reduce Motion is on, reduce automatic and repetitive animation", verdict: "departure", note: "The arc keeps turning at half speed under Reduce Motion because a still arc reads as frozen (ArcSpinner.swift doc comment; motion.md section 5); it is a status with meaning, not decoration.", by: "apple-hig skill" },
+        { rule: "Accessibility: status elements are not controls (44 pt)", verdict: "pass", note: "accessibilityRespondsToUserInteraction(false) on the 16 pt inline arc; the arc is never tappable, the surrounding pill or button carries the target.", by: "apple-hig skill" },
+        { rule: "Color and contrast: titled spinner text is legible over the wallpaper", verdict: "pass", note: "The title uses Surface.secondaryOnWallpaper or secondaryInSheet instead of .secondary, which measured 3.1:1 over the wallpaper.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Accessibility: one element, descriptive label, no double reading", verdict: "pass", note: "ArcSpinner is a single element with a label; the titled style hides the arc and combines with the title so 'Loading recipes' is read once.", by: "swiftui-pro skill" },
+        { rule: "Animation: drive continuous motion from time, honour Reduce Motion from the environment", verdict: "pass", note: "TimelineView(.animation(paused:)) reads @Environment(\\.accessibilityReduceMotion); the angle is a pure function of date, so there is no state per frame; animationsPaused (@Entry) lets galleries hold it still so XCUITest can go idle.", by: "swiftui-pro skill" },
+        { rule: "API: @Entry for custom environment values, foregroundStyle", verdict: "pass", note: "animationsPaused uses @Entry; the strokes use .foreground.opacity(), so the arc inherits the surrounding foregroundStyle (tinted buttons, pills).", by: "swiftui-pro skill" },
+        { rule: "Design: fixed sizes need a Dynamic Type answer", verdict: "pass", note: "ArcSpinner compact and inline scale with @ScaledMetric(relativeTo: .footnote); page stays 44 pt; ArcSpinner(maxScale:) caps the header arc at 1.5x (ReconnectingArc.Metrics.maxScale).", by: "swiftui-pro skill" },
+        { rule: "Localization: pass localizable labels", verdict: "pass", note: "Not applicable until the app is localized: callers pass runtime strings (list titles), see the PrimaryButton finding.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'The kit\'s ArcSpinner draws the turn in CSS (animation .82 s); the Play buttons here use the Web Animations API so the Reduce Motion switch and the side-by-side counter are exact.',
+      'The reconnecting arc in the header is the compact size (see components/navigation/reconnecting-arc).',
+      'Component mockup: no device frame; Device selects the size class.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

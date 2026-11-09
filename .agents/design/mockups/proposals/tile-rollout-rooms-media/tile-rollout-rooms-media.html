@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tile rollout: rooms, media, lights and sheets · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../action-navigation-tiles/_action-tiles.js"></script>
+<script src="../selection-tiles/_selection.js"></script>
+<script src="../../components/media/_media-lights-cameras.js"></script>
+<script src="_rollout.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, RO = Mock.ro, AT = Mock.at, SEL = Mock.sel, K = Mock.components, T = RO.T, D = RO.D, pwr = RO.pwr;
+  var I = Mock.icon;
+
+  /* ------------------------------------------------------------------ small helpers */
+  function seq(steps) { return steps.reduce(function (p, s) { return p.then(s); }, Promise.resolve()); }
+  function hold(ms) { return function () { return Mock.sleep(ms); }; }
+  var TODAY = [['Today', 'today']], PROP = [['Proposed', 'prop']], REC = [['Proposed', 'prop'], ['Recommended', 'rec']];
+  function choice(letter, rec) { var t = [['Owner choice ' + letter, 'choice']]; if (rec) t.push(['Recommended', 'rec']); return t; }
+  function grid(tiles, o) { return RO.grid(tiles, o); }
+  function section(title, tiles, o) { return RO.sub([RO.hdr(title), grid(tiles, o)]); }
+  function full(t) { t.style.gridColumn = '1 / -1'; return t; }
+  function noSel(tiles) { tiles.forEach(function (t) { delete t._sel; }); return tiles; }
+  function table(head, rows) {
+    return h('div.k-table-wrap', h('table.ro-tbl', h('thead', h('tr', head.map(function (x) { return h('th', x); }))),
+      h('tbody', rows.map(function (r) { return h('tr' + (r.choice ? '.choice' : ''), r.cells.map(function (x, i) { return h('td' + (i === 0 ? '.n' : ''), x); })); }))));
+  }
+
+  /* ------------------------------------------------------------------ shared tiles (data from the atlas fixtures and RoomsConfig) */
+  function vents(o) { o = o || {}; var closed = !!o.closed; return T({ k: 'nav', t: 'Vents', s: closed ? 'Closed' : 'Open', sym: 'aqi.medium', fam: 'vents', on: !closed, acts: o.disc ? [closed ? D('fan.slash', 'Open Vents', false) : D('fan', 'Close Vents', true)] : null, wide: !!o.disc }); }
+  function purifier(o) {
+    o = o || {}; var on = o.on !== false, u = !!o.u, withDisc = o.disc !== false;
+    return T({ k: 'nav', t: 'Air Purifier', s: u ? 'Unavailable • Unavailable' : 'Auto • ' + (on ? 'On' : 'Off'), sym: 'fan', fam: 'air', on: on && !u, u: u,
+      acts: withDisc ? [pwr('Air Purifier', on && !u, u)] : null, wide: withDisc });
+  }
+  function humidifier(o) {
+    o = o || {}; var on = o.on !== false, u = !!o.u, withDisc = o.disc !== false;
+    return T({ k: 'nav', t: 'Humidifier', s: u ? 'Unavailable • Unavailable' : (on ? 'On' : 'Off') + ' • 44%', sym: 'humidifier', fam: 'water', on: on && !u, u: u,
+      acts: withDisc ? [pwr('Humidifier', on && !u, u)] : null, wide: withDisc });
+  }
+  function bed(title, o) {
+    o = o || {};
+    var fam = o.fam || 'heating', off = !!o.off, ro = !!o.ro, on = !off && !ro;
+    var s = ro ? 'Away · Read Only' : (off ? 'Off' : (o.sub || 'Heating • +3'));
+    return T({ k: 'nav', t: title, s: s, sym: 'bed.double', fam: fam, on: on, acts: o.disc === false ? null : [pwr(title, on, ro)], wide: o.disc !== false });
+  }
+  function remote(title, sym, o) {
+    o = o || {};
+    return T({ k: 'nav', t: title, s: 'Off', sym: sym, fam: 'media', on: false, acts: [pwr(title, false)], wide: true });
+  }
+  var SRC = SEL.cases.sources;
+  function srcItems(ids, selIds) {
+    return ids.map(function (id) { var it = SRC.items.filter(function (x) { return x.id === id; })[0]; return Object.assign({}, it, { sel: selIds.indexOf(id) >= 0 }); });
+  }
+  function srcToday(items) { return items.map(function (it) { return T({ k: 'sel', t: it.title, s: it.sel ? 'On' : 'Off', sym: it.symbol, fam: 'media', on: it.sel, sel: it.sel }); }); }
+  function srcNew(items) { return items.map(function (it) { return SEL.tile('C', it, SRC); }); }
+  function device(title, sym, o) {
+    o = o || {}; var on = !!o.on, u = !!o.u, s = u ? 'Unavailable' : (on ? 'On' : 'Off');
+    return o.today ? T({ k: 'cmd', t: title, s: s, sym: sym, fam: 'media', on: on && !u, u: u })
+      : T({ k: 'act', t: title, s: s, sym: sym, fam: 'media', on: on && !u, u: u, acts: [pwr(title, on && !u, u)] });
+  }
+  function sw(title, o) {
+    o = o || {}; var on = !!o.on, u = !!o.u, s = u ? 'Unavailable' : (on ? 'On' : 'Off');
+    return o.today ? T({ k: 'tog', t: title, s: s, sym: 'lightbulb', fam: 'lights', on: on && !u, u: u })
+      : T({ k: 'act', t: title, s: s, sym: 'lightbulb', fam: 'lights', on: on && !u, u: u, acts: [pwr(title, on && !u, u)] });
+  }
+  function dim(title, pct, o) {
+    o = o || {}; var u = !!o.u, on = pct > 0 && !u, s = u ? 'Unavailable' : (pct > 0 ? pct + '%' : 'Off'), p = on ? pct / 100 : undefined;
+    return o.today ? T({ k: 'tog', t: title, s: s, sym: 'lightbulb', fam: 'lights', on: on, u: u, prog: p, pt: o.tint })
+      : T({ k: 'act', t: title, s: s, sym: 'lightbulb', fam: 'lights', on: on, u: u, prog: p, pt: o.tint, acts: [pwr(title, on, u)] });
+  }
+  function roomLights(room, sub, count, o) {
+    o = o || {}; var on = sub !== 'Off';
+    return T({ k: 'nav', t: room, s: sub, sym: count > 1 ? 'lightbulb.2' : 'lightbulb', fam: 'lights', on: on, acts: o.disc ? [pwr(room + ' lights', on)] : null, wide: !!o.disc });
+  }
+  var SEC = { armed_home: ['shield.lefthalf.filled', 'var(--fam-sec-home-fill)', 'Armed Home'], armed_away: ['shield.fill', 'var(--fam-sec-away-fill)', 'Armed Away'], armed_night: ['moon.zzz', 'var(--fam-sec-night-fill)', 'Armed Night'],
+    disarmed: ['shield.slash', 'var(--fam-sec-disarmed-fill)', 'Disarmed'], triggered: ['exclamationmark.shield', 'var(--fam-sec-triggered-fill)', 'Triggered'] };
+  var ARM = { home: ['shield.lefthalf.filled', 'Arm Home'], away: ['shield.fill', 'Arm Away'], night: ['moon.zzz', 'Arm Night'] };
+  function secTile(state, disc) {
+    var s = SEC[state];
+    return T({ k: 'nav', t: 'Security System', s: s[2], sym: s[0], fill: s[1], layout: 'stack', lines: 2, acts: disc ? [disc] : null, wide: !!disc });
+  }
+  function armDisc(mode) { return D(ARM[mode][0], ARM[mode][1], false); }
+  function disarmDisc() { return D('shield.slash', 'Disarm', false); }
+
+  /* ------------------------------------------------------------------ the 17 items */
+  var ITEMS = [];
+  function item(o) { ITEMS.push(o); return o; }
+
+  item({ n: 1, key: '01-air-purifier', title: '1 · Room page Air Purifier', note: 'Living Room, Climate section (the same card is on the Music, Media Room, Office, Guest and Bedroom 1 pages). Navigation tile plus a Power disc.',
+    render: function (ctx) {
+      return RO.page(ctx, { title: 'Living Room', blocks: [
+        RO.block({ tags: TODAY, note: 'A navigation tile (glyph, text, chevron). Power lives only inside the purifier sheet.', kids: [section('Climate', [vents(), purifier({ disc: false })])] }),
+        RO.block({ tags: REC, note: 'Same navigation tile with a Power disc left of the chevron. It turns the purifier on or off without opening the sheet (the fan.*_levoit_purifier entity); the fan mode stays in the sheet. The tile takes two tracks so the name still fits.', kids: [section('Climate', [vents(), purifier()])] }),
+        RO.block({ tags: PROP, label: 'Off and unavailable', note: 'Off draws the dark face and an off disc. Unavailable dims the tile and the disc in place; the tile still opens its sheet.', kids: [section('Climate', [purifier({ on: false }), purifier({ u: true })])] }),
+      ] });
+    } });
+
+  item({ n: 2, key: '02-humidifier', title: '2 · Humidifier', note: 'Bedroom 1, Climate section. Navigation tile plus a Power disc (switch.demo_power_1).',
+    render: function (ctx) {
+      return RO.page(ctx, { title: 'Bedroom 1', blocks: [
+        RO.block({ tags: TODAY, kids: [section('Climate', [vents(), purifier({ disc: false }), humidifier({ disc: false })])] }),
+        RO.block({ tags: REC, note: 'The humidifier gets the same disc as the purifier, so the Climate section reads one way. The mist level, timer and schedules stay in the sheet.', kids: [section('Climate', [vents(), purifier(), humidifier()])] }),
+        RO.block({ tags: PROP, label: 'Off and unavailable', kids: [section('Climate', [humidifier({ on: false }), humidifier({ u: true })])] }),
+      ] });
+    } });
+
+  item({ n: 3, key: '03-vents-card', title: '3 · Vents card (owner choice)', note: 'Living Room, Climate section. The card is already a navigation tile (chevron, opens a sheet that lists each vent). The choice is whether it gets a disc.',
+    render: function (ctx) {
+      return RO.page(ctx, { title: 'Living Room', blocks: [
+        RO.block({ tags: TODAY, note: 'A navigation tile. The sheet it opens lists Vent 1 and Vent 2 as read-only tiles (item 16).', kids: [section('Climate', [vents(), purifier({ disc: false })])] }),
+        RO.block({ tags: choice('A', true), label: 'No disc', note: 'Keeps the card exactly as it is, now by rule: a navigation tile with no action. Web parity (the React dashboard only reads vents), and nothing on the server changes a vent from the app.', kids: [section('Climate', [vents(), purifier()])] }),
+        RO.block({ tags: choice('B', false), label: 'Open / close disc', note: 'One disc opens or closes every vent in the room (fan when open, fan.slash when closed). It needs a new vent command (cover.open_cover / close_cover on each vent) that no screen sends today.', kids: [section('Climate', [vents({ disc: true }), vents({ disc: true, closed: true })])] }),
+      ] });
+    } });
+
+  item({ n: 4, key: '04-beds', title: '4 · Alex\'s Bed / Sam\'s Bed', note: 'Bedroom 1, Bed section (tile titles read "Your Side" and the other resident\'s name). Navigation tile plus a Power disc. Turning off keeps today\'s confirmation: see the next state.',
+    render: function (ctx) {
+      return RO.page(ctx, { title: 'Bedroom 1', blocks: [
+        RO.block({ tags: TODAY, kids: [section('Bed', [bed('Your Side', { disc: false }), bed('Sam\'s Side', { fam: 'cooling', sub: 'Cooling • -3', disc: false })])] }),
+        RO.block({ tags: REC, note: 'Power disc left of the chevron on each side. Turning a side on sends set_power at once; turning it off asks first (state 4b).', kids: [section('Bed', [bed('Your Side'), bed('Sam\'s Side', { fam: 'cooling', sub: 'Cooling • -3' })])] }),
+        RO.block({ tags: PROP, label: 'Off and read-only', note: 'Off: dark face, off disc; tapping the disc turns it on with no question. During a Solo Trip the traveler\'s side is read-only ("Away · Read Only"): the disc dims, as the sheet\'s Turn Off capsule is hidden today.', kids: [section('Bed', [bed('Your Side', { off: true }), bed('Sam\'s Side', { fam: 'cooling', ro: true })])] }),
+      ] });
+    } });
+
+  item({ n: 4, key: '04b-bed-off-confirm', title: '4b · Turning a bed off keeps its confirmation', note: 'The disc calls the same question the sheet\'s Turn Off capsule asks: "Turn off Alex\'s Bed?" (BedSideSheet.powerButton, a confirmationDialog). Action sheet on iPhone, popover on iPad and the unfolded Duo (drawn centred; the system anchors it to the disc).',
+    render: function (ctx) {
+      var dlg = K.ConfirmationDialog({ title: 'Turn off Alex\'s Bed?', buttons: [{ title: 'Turn Off', role: 'destructive' }, { title: 'Cancel', role: 'cancel' }], ctx: ctx });
+      return RO.page(ctx, { title: 'Bedroom 1', overlay: dlg, blocks: [
+        RO.block({ tags: REC, note: 'Tap the Power disc; the tile\'s body still opens the sheet. Turn On needs no question.', kids: [section('Bed', [bed('Your Side'), bed('Sam\'s Side', { fam: 'cooling', sub: 'Cooling • -3' })])] }),
+      ] });
+    } });
+
+  item({ n: 5, key: '05-music-sources', title: '5 · Studio sources (room page)', note: 'Studio, Remote section: the remote leads, then Game Console, Server and Computer. Selected face with a check disc (selection-tiles option C).',
+    render: function (ctx) {
+      var ids = ['Game Console', 'server', 'pc'];
+      return RO.page(ctx, { title: 'Studio', blocks: [
+        RO.block({ tags: TODAY, note: 'Selection tiles: the chosen source fills media pink and reads On.', kids: [section('Remote', [remote('Studio Remote', 'appletvremote.gen4')].concat(srcToday(srcItems(ids, ['Game Console']))))] }),
+        RO.block({ tags: REC, note: 'The chosen source keeps the filled face and gains a white check disc; the others show an empty ring. The leading glyph goes (an action or selection tile has none).', kids: [section('Remote', [remote('Studio Remote', 'appletvremote.gen4')].concat(srcNew(srcItems(ids, ['Game Console']))))] }),
+        RO.block({ tags: PROP, label: 'Other sources, and none', note: 'Source is Server; then a TV input or Off, where no tile is selected. Tapping the checked tile runs today\'s toggle (xboxSourceToggle, serverToggle, windowsPCToggle): it turns the source off, so the ring returns.',
+          kids: [RO.cap('Server is the source'), grid(noSel(srcNew(srcItems(ids, ['server'])))), RO.cap('No source selected'), grid(noSel(srcNew(srcItems(ids, []))))] }),
+      ] });
+    } });
+
+  item({ n: 6, key: '06-theater-devices', title: '6 · Media Room Switch / streaming box (room page)', note: 'Media Room, Remote section. Action tile, text then disc, with the power glyph.',
+    render: function (ctx) {
+      var lead = remote('Media Room Remote', 'videoprojector');
+      return RO.page(ctx, { title: 'Media Room', blocks: [
+        RO.block({ tags: TODAY, note: 'Command tiles: tapping runs a script (media_room_nintendo_switch, media_room_tv_movie) and the tile reads On or Off from an input_boolean.', kids: [section('Remote', [lead, device('Handheld Console', 'gamecontroller', { today: true }), device('Media Room Streaming Box', 'tv', { today: true })])] }),
+        RO.block({ tags: REC, note: 'Action tiles: no leading glyph, the power disc carries the state, the body does what the disc shows. Names wrap to two lines beside the disc.', kids: [section('Remote', [remote('Media Room Remote', 'videoprojector'), device('Handheld Console', 'gamecontroller'), device('Media Room Streaming Box', 'tv')])] }),
+        RO.block({ tags: PROP, label: 'On and unavailable', kids: [grid([device('Media Room Streaming Box', 'tv', { on: true }), device('Handheld Console', 'gamecontroller', { u: true })])] }),
+      ] });
+    } });
+
+  item({ n: 7, key: '07-media-music-sources', title: '7 · Media page Studio sources, with Game', note: 'Media page, Studio section: the same as 5 with a fourth source, Game.',
+    render: function (ctx) {
+      var ids = ['Game Console', 'server', 'pc', 'Game'];
+      return RO.page(ctx, { title: 'Media', blocks: [
+        RO.block({ tags: TODAY, kids: [RO.sub([RO.hdr('Studio'), remote('Studio Remote', 'appletvremote.gen4'), grid(srcToday(srcItems(ids, ['Game Console'])))])] }),
+        RO.block({ tags: REC, kids: [RO.sub([RO.hdr('Studio'), remote('Studio Remote', 'appletvremote.gen4'), grid(srcNew(srcItems(ids, ['Game Console'])))])] }),
+        RO.block({ tags: PROP, label: 'Game is the source', note: 'Not settled: MediaPageConfig lists Game as an active source for the Game Console tile too, so both read selected today. Drawn that way; the owner may prefer only Game checked.',
+          kids: [grid(noSel(srcNew(srcItems(ids, ['Game Console', 'Game']))))] }),
+      ] });
+    } });
+
+  item({ n: 8, key: '08-media-theater-devices', title: '8 · Media page Switch / streaming box', note: 'Media page, Media Room section: the same as 6.',
+    render: function (ctx) {
+      return RO.page(ctx, { title: 'Media', blocks: [
+        RO.block({ tags: TODAY, kids: [RO.sub([RO.hdr('Media Room'), remote('Media Room', 'videoprojector'), grid([device('Handheld Console', 'gamecontroller', { today: true }), device('Media Room Streaming Box', 'tv', { today: true })])])] }),
+        RO.block({ tags: REC, kids: [RO.sub([RO.hdr('Media Room'), remote('Media Room', 'videoprojector'), grid([device('Handheld Console', 'gamecontroller'), device('Media Room Streaming Box', 'tv')])])] }),
+        RO.block({ tags: PROP, label: 'On and unavailable', kids: [grid([device('Media Room Streaming Box', 'tv', { on: true }), device('Handheld Console', 'gamecontroller', { u: true })])] }),
+      ] });
+    } });
+
+  item({ n: 9, key: '09-light-switch', title: '9 · Lights and switches without dimming', note: 'Room lights sheet and overview detail (LightGroupTile\'s non-dimmable branch). Action tile with a power disc.',
+    render: function (ctx) {
+      return RO.sheet(ctx, { title: 'Entryway Lights', subtitle: 'Entryway', blocks: [
+        RO.block({ tags: TODAY, note: 'A toggle tile: lit face when on, the lightbulb glyph leading.', kids: [grid([sw('Entryway Light', { today: true }), sw('Floodlight', { today: true, on: true })])] }),
+        RO.block({ tags: REC, note: 'Action tile: text then a power disc (D, owner 2026-10-27: lights and switches use power). The lit face keeps its warm fill; the disc is the dark one BrightnessTile uses on a lit face.', kids: [grid([sw('Entryway Light'), sw('Floodlight', { on: true })])] }),
+        RO.block({ tags: PROP, label: 'Unavailable', kids: [grid([sw('Floodlight', { u: true })])] }),
+      ] });
+    } });
+
+  item({ n: 10, key: '10-light-dimmable', title: '10 · Dimmable lights (BrightnessTile without a sheet)', note: 'Room lights sheet, overview detail and the Custom Light sheet. Action tile with a power disc; the horizontal drag still sets brightness from the body.',
+    render: function (ctx) {
+      function lights(today) {
+        var o = { today: today };
+        return [full(dim('Kitchen Lights', 55, o)), dim('Table Light', 70, o), dim('Door Light', 0, o), dim('Counter Light', 30, o), dim('Sink Light', 0, { today: today, u: true })];
+      }
+      return RO.sheet(ctx, { title: 'Kitchen Lights', subtitle: 'Kitchen', blocks: [
+        RO.block({ tags: TODAY, note: 'Lit tile with the glyph; tap flips power, a horizontal drag sets brightness; status is the percent.', kids: [grid(lights(true))] }),
+        RO.block({ tags: REC, note: 'Action tile: the band and percent are unchanged, the glyph goes and a power disc trails. The body keeps tap = power and horizontal drag = brightness (the disc is a sibling, so a drag never starts on it). The group slab ("Kitchen Lights") takes the whole row.', kids: [grid(lights(false))] }),
+        RO.block({ tags: PROP, label: 'Custom Light sheet', note: 'The single BrightnessTile at the top of the Custom Light sheet (the sheet itself is the details, so no chevron).', kids: [RO.cap('Today'), grid([full(dim('Left Door Light', 71, { today: true }))]), RO.cap('Proposed'), grid([full(dim('Left Door Light', 71))])] }),
+      ] });
+    } });
+
+  item({ n: 11, key: '11-custom-lights', title: '11 · Custom Lights page tiles', note: 'Custom Lights page, Front Yard. These tiles already carry a power disc (it replaces the chevron today); they gain the chevron beside it.',
+    render: function (ctx) {
+      function todayTile(t, pct, u) { return MLC.lightTile({ title: t, percent: pct, open: true, unavailable: !!u }); }
+      function newTile(t, pct, u) {
+        var on = pct > 0 && !u;
+        return T({ k: 'nav', t: t, s: u ? 'Unavailable' : (pct > 0 ? pct + '%' : 'Off'), sym: 'lightbulb', fam: 'lights', on: on, u: u, prog: on ? pct / 100 : undefined, acts: u ? null : [pwr(t, on)], wide: true });
+      }
+      return RO.page(ctx, { title: 'Custom Lights', blocks: [
+        RO.block({ tags: TODAY, note: 'A power disc where the chevron would be; a tap opens the light\'s sheet, a drag sets brightness.', kids: [section('Front Yard', [todayTile('Left Door Light', 71), todayTile('Right Door Light', 0), todayTile('Bollard 1', 30), todayTile('Bollard 2', 0, true)])] }),
+        RO.block({ tags: REC, note: 'Navigation tile with the disc left of the chevron (the fan rail geometry). An unavailable light has no disc, as today.', kids: [section('Front Yard', [newTile('Left Door Light', 71), newTile('Right Door Light', 0), newTile('Bollard 1', 30), newTile('Bollard 2', 0, true)])] }),
+      ] });
+    } });
+
+  item({ n: 12, key: '12-overview-lights', title: '12 · Home overview Lights room cards (owner choice)', note: 'Home > Lights chip > the Lights overview sheet. The room cards are already navigation tiles. The choice is whether they carry a room power disc.',
+    render: function (ctx) {
+      function cards(disc) { return [roomLights('Living Room', '3 On', 4, { disc: disc }), roomLights('Kitchen', '2 On', 4, { disc: disc }), roomLights('Gym', 'Off', 1, { disc: disc }), roomLights('Office', 'On', 1, { disc: disc })]; }
+      return RO.sheet(ctx, { title: 'Lights', subtitle: '5 On', blocks: [
+        RO.block({ tags: TODAY, note: 'Navigation cards (glyph, text, chevron) that push the room\'s lights.', kids: [grid(cards(false))] }),
+        RO.block({ tags: choice('A', false), label: 'No disc', note: 'Keep the cards as they are. Two to a row on a phone.', kids: [grid(cards(false))] }),
+        RO.block({ tags: choice('B', true), label: 'Room power disc', note: 'A power disc left of the chevron turns the whole room\'s lights off or on (the room\'s group light; every room has one). It makes the sheet a place to switch off forgotten lights. Cost: each card needs the room, so a phone shows one per row (14 rows, not 7).', kids: [grid(cards(true))] }),
+      ] });
+    } });
+
+  item({ n: 13, key: '13-hot-flash', title: '13 · Bed sheet Hot Flash Mode', note: 'Bed side sheet, Special Modes tab. Action tile: the disc is snowflake to start and becomes a stop disc while the mode runs; the countdown moves into the subtitle.',
+    render: function (ctx) {
+      function xmark() { return h('button', { type: 'button', 'aria-label': 'Cancel Hot Flash Mode', style: { width: '44px', height: '44px', borderRadius: '50%', border: 0, background: 'rgba(120,120,128,.36)', color: 'var(--ink, #fff)', display: 'grid', placeItems: 'center' }, html: I('xmark', { weight: 2.2 }) }); }
+      function todayRow(active) {
+        var t = T({ k: 'cmd', t: 'Hot Flash Mode', s: active ? 'Active' : 'Inactive', sym: 'snowflake', fam: 'cooling', on: active });
+        t.style.flex = '1'; t.style.minWidth = '0';
+        return h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center' } }, t, active ? h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' } }, h('span', { style: { fontSize: 'var(--fs-sub)', fontVariantNumeric: 'tabular-nums', color: 'var(--ink, #fff)' } }, '10:12 Remaining'), xmark()) : null);
+      }
+      function newTile(state, id) {
+        var active = state === 'active', u = state === 'ro';
+        var t = T({ k: 'act', t: 'Hot Flash Mode', s: u ? 'Unavailable' : (active ? '10:12 Remaining' : 'Inactive'), sym: 'snowflake', fam: 'cooling', on: active, u: u,
+          acts: [active ? D('stop.fill', 'Cancel Hot Flash Mode', false) : D('snowflake', 'Start Hot Flash Mode', false, u)], id: id });
+        return t;
+      }
+      var cap = h('p.ro-note', 'Activating hot flash mode will set the bed to -10 for fifteen minutes.');
+      return RO.sheet(ctx, { title: 'Alex\'s Bed', subtitle: 'Special Modes', blocks: [
+        RO.block({ tags: TODAY, note: 'A command tile; while it runs a countdown and an x button sit beside it. The tile ignores a tap while active.', kids: [cap.cloneNode(true), todayRow(false), todayRow(true)] }),
+        RO.block({ tags: REC, note: 'One tile, one control. Idle: snowflake starts the mode. Active: the tile fills cooling teal, the disc becomes stop, the subtitle counts down (the app falls back to "Cooling Bed" with no countdown). The body and the disc both cancel. The separate countdown and x button go.', kids: [cap.cloneNode(true), grid([newTile('idle', 'ro.hotflash.idle'), newTile('active', 'ro.hotflash.active')], { min: 280 })] }),
+        RO.block({ tags: PROP, label: 'Read-only', note: 'On the traveler\'s side during a Solo Trip, or when Hot Flash is unavailable: the tile and disc dim in place.', kids: [grid([newTile('ro')], { min: 280 })] }),
+      ] });
+    } });
+
+  item({ n: 14, key: '14-fan-sheet', title: '14 · Bathroom fan sheet Power and Lock', note: 'Bathroom fan sheet, Controls. Both become action tiles; the discs use the fan rail\'s glyphs (power, lock.fill, lock.open).',
+    render: function (ctx) {
+      function todayTiles(on, locked, lockAvail) {
+        return [T({ k: 'tog', t: 'Power', s: on ? 'On' : 'Off', sym: 'power', fam: 'air', on: on }), T({ k: 'tog', t: 'Lock', s: lockAvail === false ? 'Unavailable' : (locked ? 'Locked' : 'Unlocked'), sym: locked ? 'lock.fill' : 'lock.open', fam: 'sec-home', on: locked && lockAvail !== false, u: lockAvail === false })];
+      }
+      function newTiles(on, locked, lockAvail) {
+        var lu = lockAvail === false;
+        return [T({ k: 'act', t: 'Power', s: on ? 'On' : 'Off', fam: 'air', on: on, acts: [D('power', on ? 'Turn Off Power' : 'Turn On Power', on)] }),
+          T({ k: 'act', t: 'Lock', s: lu ? 'Unavailable' : (locked ? 'Locked' : 'Unlocked'), fam: 'sec-home', on: locked && !lu, u: lu, acts: [D(locked ? 'lock.fill' : 'lock.open', locked ? 'Unlock' : 'Lock', locked && !lu, lu)] })];
+      }
+      return RO.sheet(ctx, { title: 'Bathroom 1: Bathroom Fan', subtitle: 'On', blocks: [
+        RO.block({ tags: TODAY, kids: [grid(todayTiles(true, true)), grid(todayTiles(false, false))] }),
+        RO.block({ tags: REC, note: 'Text then disc. The disc glyphs match the Lock and Power buttons on the room tile\'s rail, so the same two controls look the same in both places. The Timer section below is untouched.', kids: [grid(newTiles(true, true)), grid(newTiles(false, false))] }),
+        RO.block({ tags: PROP, label: 'Lock unavailable', kids: [grid(newTiles(true, false, false))] }),
+      ] });
+    } });
+
+  item({ n: 15, key: '15-grill-sheet', title: '15 · Grill sheet Keep Warm and Super Smoke', note: 'Grill (Grill Probe) sheet. The two switches become action tiles; Probe 1 and Pellet Level stay read-only.',
+    render: function (ctx) {
+      function ro() { return [T({ k: 'state', t: 'Probe 1', s: '165 °F', sym: 'thermometer.medium', fam: 'cooking' }), T({ k: 'state', t: 'Pellet Level', s: '72%', sym: 'percent', fam: 'cooking' })]; }
+      function today() { return ro().concat([T({ k: 'tog', t: 'Keep Warm', s: 'Off', sym: 'flame', fam: 'cooking', on: false }), T({ k: 'tog', t: 'Super Smoke', s: 'On', sym: 'smoke', fam: 'cooking', on: true })]); }
+      function prop() { return ro().concat([T({ k: 'act', t: 'Keep Warm', s: 'Off', fam: 'cooking', on: false, acts: [pwr('Keep Warm', false)] }), T({ k: 'act', t: 'Super Smoke', s: 'On', fam: 'cooking', on: true, acts: [pwr('Super Smoke', true)] })]); }
+      return RO.sheet(ctx, { title: 'Back Deck: Grill Probe', subtitle: 'Cooking', blocks: [
+        RO.block({ tags: TODAY, kids: [grid(today())] }),
+        RO.block({ tags: REC, note: 'The two switches are action tiles with a power disc (item D). Probe 1 and Pellet Level keep their glyph and go flat, so the shape tells which tiles act. The sheet\'s header (flame, name, state) is untouched.', kids: [grid(prop())] }),
+      ] });
+    } });
+
+  item({ n: 16, key: '16-climate-vents', title: '16 · Climate vent tiles (owner choice)', note: 'Climate room detail, the vents card sheet and the overview group detail. These tiles are already read-only (kind .state); the choice is whether they get an open/close action.',
+    render: function (ctx) {
+      function ro() { return [T({ k: 'state', t: 'Vent 1', s: 'Open · 100%', sym: 'fan', fam: 'vents', on: true }), T({ k: 'state', t: 'Vent 2', s: 'Open · 50%', sym: 'fan', fam: 'vents', on: true }), T({ k: 'state', t: 'Vent 3', s: 'Closed', sym: 'fan', fam: 'vents', on: false })]; }
+      function act() { return [T({ k: 'act', t: 'Vent 1', s: 'Open · 100%', fam: 'vents', on: true, acts: [D('fan', 'Close Vent 1', true)] }), T({ k: 'act', t: 'Vent 2', s: 'Open · 50%', fam: 'vents', on: true, acts: [D('fan', 'Close Vent 2', true)] }), T({ k: 'act', t: 'Vent 3', s: 'Closed', fam: 'vents', on: false, acts: [D('fan.slash', 'Open Vent 3', false)] })]; }
+      return RO.sheet(ctx, { title: 'Living Room', subtitle: 'Climate', blocks: [
+        RO.block({ tags: TODAY, note: 'Flat state tiles: the Vents family fill while open, the percent when open, no press.', kids: [RO.sub([RO.hdr('Living Room Vents'), grid(ro())])] }),
+        RO.block({ tags: choice('A', true), label: 'Read-only', note: 'No change on screen, now by rule: a read-only tile keeps its glyph, goes flat and has no chevron or disc. The web is read-only too, and the app has no vent command.', kids: [RO.sub([RO.hdr('Living Room Vents'), grid(ro())])] }),
+        RO.block({ tags: choice('B', false), label: 'Action variant', note: 'Each vent an action tile: the disc opens or closes that vent (fan / fan.slash). Needs cover.open_cover / close_cover (and a position for the half-open vent) wired in ClimateSheet, RoomEntityGrid and RoomGroupDetail.', kids: [RO.sub([RO.hdr('Living Room Vents'), grid(act())])] }),
+      ] });
+    } });
+
+  function securityBlocks(withDialog) {
+    return function (ctx) {
+      var alertNode = withDialog ? K.Alert({ title: 'Disarm the Security System?', message: 'Doors and motion stop triggering the alarm.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Disarm' }], ctx: ctx }) : null;
+      var blocks = withDialog ? [
+        RO.block({ tags: REC, note: 'The disc asks the same alert the Security sheet\'s Disarm button asks (AlertCopy.disarm); Disarm is the plain, bold button. Arming asks nothing.', kids: [grid([secTile('armed_home', disarmDisc()), secTile('armed_night', disarmDisc())])] }),
+      ] : [
+        RO.block({ tags: TODAY, note: 'A navigation tile that fills with the alarm mode and pushes the alarm card (Disarm, Home, Away, Night).', kids: [grid([secTile('disarmed'), secTile('armed_home')])] }),
+        RO.block({ tags: choice('A to D', true), label: 'Disarmed: which arm mode does the disc offer?', note: 'A: Arm Home (recommended), the one mode a stray tap cannot trip, since Home ignores interior motion. B: Arm Night. C: Arm Away. D: no disc while disarmed (disarm only).',
+          kids: [RO.cap('A · Arm Home'), grid([secTile('disarmed', armDisc('home'))]), RO.cap('B · Arm Night'), grid([secTile('disarmed', armDisc('night'))]), RO.cap('C · Arm Away'), grid([secTile('disarmed', armDisc('away'))]), RO.cap('D · No disc'), grid([secTile('disarmed')])] }),
+        RO.block({ tags: REC, label: 'Armed (any mode): Disarm only', note: 'Armed Home, Away and Night all offer the one disc, Disarm, which keeps its confirmation (state 17b). Triggered offers it too. Switching between arm modes stays on the alarm card.', kids: [grid([secTile('armed_home', disarmDisc()), secTile('armed_away', disarmDisc()), secTile('armed_night', disarmDisc()), secTile('triggered', disarmDisc())])] }),
+      ];
+      return RO.sheet(ctx, { title: 'Quick Links', blocks: blocks, alert: alertNode });
+    };
+  }
+  item({ n: 17, key: '17-security', title: '17 · Quick Links Security System (owner choice)', note: 'Quick Links sheet. Navigation tile plus an arm or disarm disc. The choice is the mode the disarmed disc arms.', render: securityBlocks(false) });
+  item({ n: 17, key: '17b-disarm-confirm', title: '17b · Disarm keeps its confirmation', note: 'The disc\'s Disarm asks "Disarm the Security System?" (an alert, Cancel and Disarm).', render: securityBlocks(true) });
+
+  var STATES = {};
+  ITEMS.forEach(function (it) { STATES[it.key] = { title: it.title, note: it.note, render: it.render }; });
+  STATES['ax5'] = { title: 'Accessibility 5 text size (items 1 to 4)', override: { ts: 'ax5' }, note: 'One column; discs grow to 66 pt and drop below the text, the chevron stays centred. The same rule applies to every item.', render: ITEMS[3].render };
+
+  /* ------------------------------------------------------------------ prose sections */
+  function box(kids) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '82ch' } }, kids); }
+  function goal() {
+    return box([
+      h('p', 'The action and navigation tile convention (owner picked option B, 2026-10-26) is built for the lock, garage, remote, fan, vacuum and guest tiles. On 2026-10-27 the owner asked for it on every page and answered four audit questions: chevrons on every navigation tile including sheet openers (B), confirmed discs keep their confirmation (C), lights use the power disc (D), tiles that choose use the selected face with a check disc and vacuum rooms a numbered disc (A). This proposal draws the next batch: rooms, media, lights and the device sheets (17 items). A sibling proposal covers the rest of the audit.'),
+      h('p', 'Each item below is drawn today and proposed, on the device stage above and the six windows (iPhone, Duo folded, Duo unfolded portrait and landscape, iPad portrait and landscape). Use the State control to move between items. Four items hold a real choice and are marked Owner choice: 3, 12, 16 and 17.'),
+      h('p', 'Truth from the code: the Vents card (3), the vent tiles (16) and the Lights overview cards (12) are already what the convention would call them (navigation tiles and read-only tiles). For those the proposal is only whether to add a disc. The Studio source tiles are toggles in code: tapping the checked source turns it off, so the empty ring comes back.'),
+    ]);
+  }
+  function itemsTable() {
+    var rows = [
+      [1, 'Room page Air Purifier', 'Navigation tile', 'Navigation tile + Power disc', ''],
+      [2, 'Humidifier (Bedroom 1)', 'Navigation tile', 'Navigation tile + Power disc', ''],
+      [3, 'Vents card', 'Navigation tile', 'A: unchanged (recommended). B: + open/close disc', 'choice'],
+      [4, 'Alex\'s / Sam\'s Bed', 'Navigation tile', 'Navigation tile + Power disc; Turn Off still asks', ''],
+      [5, 'Studio sources, room page', 'Selection tile, filled', 'Selected face + check disc', ''],
+      [6, 'Media Room Switch / streaming box, room page', 'Command tile, glyph', 'Action tile, text · power disc', ''],
+      [7, 'Studio sources incl. Game, Media page', 'Selection tile, filled', 'Selected face + check disc', ''],
+      [8, 'Switch / streaming box, Media page', 'Command tile, glyph', 'Action tile, text · power disc', ''],
+      [9, 'Light and switch tiles, no dimming', 'Toggle tile, glyph', 'Action tile, text · power disc', ''],
+      [10, 'Dimmable BrightnessTile, no sheet', 'Lit tile with band, glyph', 'Action tile, band kept, power disc; drag on the body', ''],
+      [11, 'Custom Lights page tiles', 'Glyph + power disc (no chevron)', 'Glyph + disc + chevron', ''],
+      [12, 'Home overview Lights room cards', 'Navigation tile', 'A: unchanged. B: + room power disc (recommended)', 'choice'],
+      [13, 'Bed sheet Hot Flash Mode', 'Command tile + countdown + x', 'Action tile; snowflake becomes stop; countdown in the subtitle', ''],
+      [14, 'Bathroom fan sheet Power, Lock', 'Toggle tiles, glyph', 'Action tiles with the fan rail glyphs', ''],
+      [15, 'Grill sheet Keep Warm, Super Smoke', 'Toggle tiles, glyph', 'Action tiles, power disc', ''],
+      [16, 'Climate vent tiles (3 places)', 'Read-only tile', 'A: read-only (recommended). B: action variant, open/close disc', 'choice'],
+      [17, 'Quick Links Security System', 'Navigation tile', 'Navigation + Arm Home / Disarm disc', 'choice'],
+    ];
+    return table(['#', 'Tile', 'Today', 'Proposed'], rows.map(function (r) {
+      return { choice: r[4] === 'choice', cells: [String(r[0]), r[4] === 'choice' ? [r[1], h('span.ro-pill', 'Owner choice')] : r[1], r[2], r[3]] };
+    }));
+  }
+  function choices() {
+    function q(c, title, body, rec) {
+      return h('div.ro-q.choice', h('strong', title), h('p', { style: { margin: '4px 0 0' } }, body), h('p', { style: { margin: '6px 0 0' } }, [h('strong', 'Recommended: '), rec]));
+    }
+    return box([
+      q(0, '3 · Vents card: no disc or an open/close disc?', 'No disc leaves the card a pure navigation tile (it already is one). An open/close disc needs a vent command the app and the web dashboard do not have, and one disc for a room of two vents hides which one it acts on.', 'No disc (A). The vents are read-only in the web source of truth, and per-vent control, if ever wanted, belongs inside the sheet.'),
+      q(0, '12 · Lights overview cards: with or without a room power disc?', 'The sheet answers "which rooms have lights on". A room disc lets you switch off a forgotten room right there; without it you push the room and use its group slab. The disc makes every card wide, so a phone shows one per row.', 'With the disc (B). Every room has a group light, so the disc is always available, and turning off lights you did not mean to leave on is the reason the sheet exists. Accept the longer list.'),
+      q(0, '16 · Climate vent tiles: read-only or action?', 'The vents are flat state tiles today in all three places (Climate room detail, the vents card sheet, the overview group detail). The action variant needs a new command and a position control, and the thermostat\'s own automation may move vents the person just set.', 'Read-only (A). Keep them as the rule-following read-only face. If the owner wants control, add it as a separate proposal with position, not a power-style disc.'),
+      q(0, '17 · Security System disc: which arm mode, and when?', 'The tile\'s disc is one control, but the alarm has three arm modes. When the system is armed (Home, Away, Night or Triggered) the disc is Disarm, with today\'s confirmation. When it is disarmed the disc can arm Home, Night or Away, or be absent.', 'Arm Home when disarmed, Disarm when armed. Home is the one mode a stray tap at home cannot trip: it leaves interior motion ignored, while Away (and, depending on the hub\'s zones, Night) would sound the alarm on the next step through the house. Switching to Away or Night stays on the alarm card. I could not check the Demo hub\'s zone setup from the code, so this reason rests on standard Home Assistant arm-mode behaviour.'),
+    ]);
+  }
+  function appImpact() {
+    return box([
+      h('p', 'What the build asks of the app, once the owner picks (nothing is built before then):'),
+      h('ul', [
+        h('li', 'Providers in HassCore TileActions (rules never in views): PowerToggleActions already covers power; add the room-power provider (items 1, 2, 4, 12), the sources selection provider (5, 7, needs the check-disc indicator from selection-tiles), the Hot Flash provider (13, momentary then stop), the security arm/disarm provider (17), and the fan Lock/Power mapping (14).'),
+        h('li', 'Views: RoomTiles / RoomCardTile (1, 2, 3, 4, 6), MediaScreen cards (7, 8), LightGroupTile and BrightnessTile (9, 10; BrightnessTile gains an action-tile mode with its drag on the body), CustomLightsScreen (11), RoomOverviewTile (12 if B), BedSideSheet special modes (13), BathroomFanSheet and GrillSheet (14, 15), QuickLinkTile (17).'),
+        h('li', 'Bed Turn Off and Disarm keep their dialog and alert, now raised from the disc; Front Door stays one tap.'),
+        h('li', 'Tests: unit tests for each provider; a UX and an accessibility test on iPhone, Duo and iPad for every surface (disc labels, 44 pt, AX5 drop, the bed confirmation, Hot Flash stop).'),
+        h('li', 'Docs and mockups: the atlas mockups of the room page, media, light-group tile, custom lights, bed side sheet, bathroom fan, grill and quick-link tile are updated in the same PR; patterns/action-tiles.md gains the room-power and arm/disarm rows.'),
+      ]),
+    ]);
+  }
+  function notSettled() {
+    function q(t, b) { return h('div.ro-q', h('strong', t), h('p', { style: { margin: '4px 0 0' } }, b)); }
+    return box([
+      q('Tapping the checked source (5, 7)', 'selection-tiles assumed a no-op. The code toggles: tapping the active source runs tvOff (xboxSourceToggle, serverToggle, windowsPCToggle). The draw above shows the ring returning. Keep the toggle, or make the checked tile inert?'),
+      q('Game and Game Console both selected (7)', 'MediaPageConfig lists Game among the Game Console tile\'s active sources, so while Game runs both tiles are active today. Both checked, or only Game?'),
+      q('What a power disc means on Switch and streaming box (6, 8)', 'These tiles run a script (media_room_nintendo_switch, media_room_tv_movie); there is no off script. The disc is a power glyph, but a tap while On re-runs the script. Keep the power glyph, or give them a different disc (play)?'),
+      q('Hot Flash body tap while active (13)', 'Today a tap on the active tile does nothing and only the x cancels. The proposal makes the body and the stop disc both cancel, as the convention says the body does what the disc shows.'),
+      q('Grill disc glyph (15)', 'Drawn with the power glyph (decision D). The flame and smoke glyphs would keep the feature in view once the leading glyph goes; say if you want those instead.'),
+    ]);
+  }
+
+  /* ------------------------------------------------------------------ mount */
+  Mock.mount({
+    kind: 'proposal', id: 'tile-rollout-rooms-media', title: 'Tile rollout: rooms, media, lights and sheets', status: 'proposed',
+    summary: 'Proposal · 2026-10-27 · Rolls the action and navigation tile convention out to 17 more tiles: room page Air Purifier, Humidifier, Vents and beds; Studio sources and Media Room Switch/SHIELD on the room and Media pages; light and switch tiles, dimmable lights, Custom Lights and the Lights overview; Hot Flash, bathroom fan and grill sheets; vent tiles; and the Quick Links Security System. Owner choices on items 3, 12, 16 and 17.',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Rooms/RoomSheets.swift', 'apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift', 'apple/Sources/HassUI/Features/Media/MediaScreen.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassUI/Features/CustomLights/CustomLightsScreen.swift',
+      'apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedSideSheet.swift', 'apple/Sources/HassUI/Features/RoomDevices/BathroomFanSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift', 'apple/Sources/HassUI/Features/Climate/ClimateSheet.swift',
+      'apple/Sources/HassCore/Config/MediaPageConfig.swift', 'apple/Sources/HassCore/Config/MediaRemotes.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Rooms/RoomGroups.swift'],
+    spec: ['.agents/design/action-navigation-tiles.md', '.agents/patterns/action-tiles.md', '.agents/design/mockups/proposals/selection-tiles/selection-tiles.html', '.agents/pages/rooms/spec.md', '.agents/pages/media/spec.md'],
+    patterns: ['action-tiles', 'entity-tile', 'dynamic-grid', 'tap-feedback', 'optimistic-actions', 'motion'],
+    hig: ['Buttons', 'Lists and tables', 'Alerts', 'Action sheets', 'Layout', 'Accessibility', 'SF Symbols'],
+    entities: ['fan.demo_example_7', 'switch.demo_power_1', 'sensor.demo_media_room_2', 'input_boolean.demo_switch_1', 'input_boolean.demo_input_boolean_11', 'light.kitchen', 'alarm_control_panel.demo_alarm_control_panel_1'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader', 'Alert', 'ConfirmationDialog'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: STATES,
+
+    motion: [
+      { id: 'hot-flash-disc', what: 'Hot Flash Mode starts: the tile fills cooling teal, the disc replaces snowflake with stop, the subtitle counts down; then it ends and the tile returns to Inactive with the snowflake disc',
+        token: 'tile colour state 0.6 s ease-in-out; disc glyph replace quick 0.2 s; countdown is a plain text update', state: '13-hot-flash',
+        source: 'HassUI/Features/Bedroom/BedSpecialModesTab.swift; motion.md sections 6 and 7', reduce: 'the fill still cross-fades at 0.2 s; the glyph cross-fades with no scale',
+        play: function (stage) {
+          var t = stage.querySelector('[data-ident="ro.hotflash.idle"]'); if (!t) return Promise.resolve();
+          var disc = t.querySelector('.disc'), st = t.querySelector('.st');
+          function tick(txt) { return function () { st.textContent = txt; return Mock.sleep(700); }; }
+          return seq([hold(500), function () { return RO.flip(t, true, '15:00 Remaining'); }, function () { AT.morph(disc, I('stop.fill', { fill: true })); return Mock.sleep(Mock.anim.ms.quick() + 30); }, tick('14:59 Remaining'), tick('14:58 Remaining'), hold(400),
+            function () { return RO.flip(t, false, 'Inactive'); }, function () { AT.morph(disc, I('snowflake', { fill: true })); return Mock.sleep(Mock.anim.ms.quick() + 30); }, hold(500)]);
+        } },
+      { id: 'switch-source', what: 'Studio sources: tap Computer; Game Console clears and Computer fills together, the check swapping on quick and the face on the state token',
+        token: 'check quick 0.2 s; tile fill state 0.6 s ease-in-out', state: '05-music-sources',
+        source: 'HassUI/Features/Media/MediaScreen.swift; motion.md sections 6 and 7', reduce: 'the check cross-fades with no scale; the fill cross-fades at 0.2 s',
+        play: function (stage) {
+          function pick(a, b) { return function () { return SEL.apply(stage, [{ id: a, sel: false }, { id: b, sel: true }]); }; }
+          return seq([hold(500), pick('Game Console', 'pc'), hold(1000), pick('pc', 'server'), hold(1000), pick('server', 'Game Console'), hold(500)]);
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Navigation tile with a disc (1, 2, 4, 11, 12, 17)', note: 'The tile is a button that opens its destination (hint: the destination); the disc is its own button after it, labelled with the verb and the object ("Turn Off Air Purifier", "Arm Home", "Disarm"). Toggle-styled discs add On or Off. Identifiers <tile-id>.action.<id>.' },
+      { rule: 'Action tile (6, 8, 9, 10, 13, 14, 15)', note: 'One VoiceOver element: label = title, value = state, hint = the verb. The disc repeats the body, so it is hidden from VoiceOver. A BrightnessTile in action form keeps its adjustable trait: swipe up or down steps 10%; a custom action turns it on or off.' },
+      { rule: 'Selection tile (5, 7)', note: '"Game Console, selected, button"; the unselected tiles read as buttons with the hint "Switches the TV input". Never "switch" (selection-tiles A).' },
+      { rule: 'Hot Flash (13)', note: 'The tile reads "Hot Flash Mode, 10 minutes remaining" while active; the disc is hidden. Focus stays on the tile when it changes from idle to active.' },
+      { rule: 'Bed Turn Off (4b) and Disarm (17b)', note: 'The confirmation is raised by the disc (or the tile\'s accessibility action) and focus moves to its first button; Cancel dismisses it with focus back on the disc.' },
+      { rule: 'Targets and spacing', note: 'Every disc is 44 pt (66 pt at AX5) and at least 12 pt from the chevron and from the next disc. Navigation tiles that carry a disc take two tracks on a phone, so the name never truncates to a sliver.' },
+      { rule: 'State in shape, not colour alone', note: 'On and off differ by the white disc and the face, and the state is always in the subtitle ("Auto • On"). Selected is a tick against an empty ring.' },
+      { rule: 'AX5 reflow', note: 'One column; discs drop below the text and grow; the chevron stays vertically centred.' },
+    ],
+
+    reviews: {
+      date: '2026-10-27', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Lists and tables: a disclosure indicator for drill-down', verdict: 'pass', note: 'Owner decision B (2026-10-27): every navigation tile carries the chevron, including tiles that open a sheet. Items 1, 2, 3, 4, 11, 12 and 17 follow it.' },
+        { rule: 'Lists and tables: controls beside a disclosure indicator', verdict: 'departure', note: 'Owner decisions 2026-10-26 and 2026-10-27: a navigation tile may carry up to two discs left of its chevron (the fan rail geometry shipped today). Mitigated by 44 pt discs, 12 pt gaps and the two-track width.' },
+        { rule: 'Alerts: confirm actions with serious consequences', verdict: 'pass', note: 'Owner decision C: Turn Off on a bed and Disarm keep their dialog and alert. Turn On and Arm ask nothing.' },
+        { rule: 'Alerts: do not confirm a common, undoable action', verdict: 'pass', note: 'Lights, purifier, humidifier and Switch/SHIELD discs act at once; Front Door stays one tap.' },
+        { rule: 'Lists and tables: a checkmark marks the selected row of an exclusive set', verdict: 'pass', note: 'Studio sources use the check disc (selection-tiles option C).' },
+        { rule: 'Buttons: 44 x 44 pt hit region', verdict: 'pass', note: 'All discs are 44 pt, 66 pt at AX5.' },
+        { rule: 'Layout: consistent affordance shape', verdict: 'pass', note: 'Text then disc acts, glyph text chevron navigates, glyph and flat face only shows state (vents, Probe 1, Pellet Level).' },
+        { rule: 'Layout: a phone shows one wide navigation tile per row', verdict: 'departure', note: 'Cards with a disc and a chevron take two tracks (Lights overview B doubles the rows). Recorded as the cost of owner choice 12 B; the action-tiles rule that widths come from content applies.' },
+        { rule: 'Accessibility: do not rely on colour alone', verdict: 'pass', note: 'State is in the subtitle, the disc fill and a glyph shape (tick against ring, snowflake against stop).' },
+        { rule: 'Disabled controls need a reason', verdict: 'fix', note: 'Unavailable and read-only discs (Solo Trip traveler side, Hot Flash on the traveler\'s side) dim with no explanation; follow the disabled-control-reasons proposal.' },
+      ],
+      swiftui: [
+        { rule: 'Views: no nested Button', verdict: 'fix', note: 'The mockup nests the disc in the tile for brevity; in SwiftUI the discs are siblings of the body Button inside the tile\'s overlay, so a BrightnessTile\'s horizontal drag never starts on the disc.' },
+        { rule: 'Accessibility: one element per control, traits not labels', verdict: 'pass', note: 'accessibilityAddTraits(.isSelected) for the sources, hidden discs on single-action tiles, named discs elsewhere.' },
+        { rule: 'Design: ScaledMetric for sizes tied to text', verdict: 'pass', note: 'Discs 44 pt scaled and capped at 1.5x; tile widths from TileMinimumWidth.' },
+        { rule: 'Animation: symbolEffect replace and Reduce Motion', verdict: 'pass', note: 'snowflake to stop and arm to disarm use symbol replace, .identity under Reduce Motion.' },
+        { rule: 'Architecture: rules in HassCore providers, not views', verdict: 'pass', note: 'Room power, arm/disarm and Hot Flash are TileActionProviding providers with tests.' },
+      ],
+    },
+
+    sections: [
+      { id: 'goal', title: 'Goal and what the code says', build: goal },
+      { id: 'items', title: 'The 17 items', build: itemsTable },
+      { id: 'choices', title: 'Owner choices: 3, 12, 16, 17', build: choices },
+      { id: 'not-settled', title: 'Not settled from the code', build: notSettled },
+      { id: 'impact', title: 'What it asks of the app', build: appImpact },
+    ],
+
+    notes: [
+      'State keys: this proposal compares tiles, not page loading; the page keys loading, refreshing, empty, error, offline and reconnecting are not drawn. ax5 is drawn. default is the first state (item 1).',
+      'Each state draws Today and the proposed option(s) as columns of one surface on the chosen device; the real page has one of them. Regular width lays the columns out side by side.',
+      'Pages and sheets are trimmed to the sections that matter (no chip rails). Fixture names come from the atlas mockups (RoomsFixtures, MediaPageConfig, RoomGroups); the bed titles read "Your Side" and the other resident\'s name as the room page does, and the bed dialog names the configured bed ("Alex\'s Bed").',
+      'The mockup nests the discs in the tile button for brevity; the app draws them as siblings of the body button.',
+      'Disc glyph fan.slash is a local stand-in (the kit has fan only).',
+      'Promote to kit if picked: _rollout.js is a thin wrapper over the kit GlassTile (behavior, actions, under) and the selection helper; nothing new belongs in the kit.',
+    ],
+    changelog: [{ date: '2026-10-27', note: 'First pass: 17 items today and proposed, owner choices on 3, 12, 16 and 17, bed Turn Off and Disarm confirmations, AX5, two motion plays.' }],
+  });
+})();
+</script></body></html>

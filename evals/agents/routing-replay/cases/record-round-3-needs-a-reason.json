@@ -1,0 +1,19 @@
+{
+  "id": "record-round-3-needs-a-reason",
+  "source": "2026-11-02: a review round 3 was recorded without a reason; record.py refuses it.",
+  "recorded": "2026-11-02",
+  "kind": "record_round",
+  "input": {
+    "round": 3,
+    "reason": null,
+    "verdict": "pass"
+  },
+  "expect": {
+    "refused": true,
+    "message": {
+      "has": [
+        "--confirm-round"
+      ]
+    }
+  }
+}

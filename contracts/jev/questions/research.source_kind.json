@@ -1,0 +1,55 @@
+{
+  "id": "research.source_kind",
+  "version": 1,
+  "type": "choice",
+  "mode": "shadow",
+  "description": "What kind of source is this page or document?",
+  "instructions": "What kind of source is the document in `text`, judging by its content and its `url`?",
+  "criteria": {
+    "official_docs": {
+      "what": "Documentation written by the project or vendor that owns the subject",
+      "not_for": "Forum answers or tutorials by third parties"
+    },
+    "api_reference": {
+      "what": "A reference listing of an API's types, methods, fields or commands",
+      "not_for": "Prose guides"
+    },
+    "release_notes": {
+      "what": "A changelog, release note or upgrade guide",
+      "not_for": "General documentation"
+    },
+    "source_code": {
+      "what": "Source code or a code comment or README inside a repository",
+      "not_for": "Rendered documentation sites"
+    },
+    "issue_or_pr": {
+      "what": "An issue, pull request or code review discussion",
+      "not_for": "Q&A forums"
+    },
+    "forum_or_qa": {
+      "what": "A forum thread, Q&A answer or community post",
+      "not_for": "Issue trackers"
+    },
+    "blog_or_tutorial": {
+      "what": "A blog post, article or tutorial by a third party",
+      "not_for": "Vendor documentation"
+    },
+    "other": {
+      "what": "None of the above",
+      "not_for": "Anything that fits another option"
+    }
+  },
+  "state": {
+    "fields": [
+      "url",
+      "title",
+      "text"
+    ],
+    "max_chars": 3000
+  },
+  "accept": {
+    "min_confidence": 0.7
+  },
+  "output": "Researcher: the `source kind` label on each evidence line in the research note, so official sources outrank forum answers.",
+  "evidence": "unmeasured"
+}

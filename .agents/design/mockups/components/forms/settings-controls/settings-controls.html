@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InlineAlert and SelectableOptionRow · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+  var base = Mock.componentConfig('InlineAlert');
+  function sw(items, o) { return function (ctx) { return HF.surfaces(ctx, items, o); }; }
+  /** InlineAlert with the symbol the caller passes (Sprinklers battery); the kit draws only the severity glyphs. */
+  function alertWith(msg, symbol) { var n = K.InlineAlert({ message: msg }); var g = n.firstChild; if (g && symbol) g.innerHTML = I(symbol, { fill: true }); return n; }
+  function opt(mode, sel, dis) { return function () { return HF.optionRow(mode, sel, dis); }; }
+
+  Mock.mount(Object.assign(base, {
+    kind: 'component', id: 'settings-controls', title: 'InlineAlert and SelectableOptionRow', area: 'design', status: 'shipped',
+    summary: 'Two pieces from SettingsSection.swift. InlineAlert: a warning (primary ink on an orange wash, a triangle, read as "Warning: ...") or an error (red text, no box, read as "Error: ...") under the control it concerns. SelectableOptionRow: one choice in a single-choice list (icon, label, what it does, a checkmark) with the owner\'s tint on the selected row.',
+    source: ['apple/Sources/HassDesign/SettingsSection.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdSettings.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumTabs.swift', 'apple/Sources/HassUI/Features/Sprinklers/SprinklersScreen.swift', 'apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift'],
+    spec: ['.agents/patterns/settings-section.md', '.agents/patterns/info-box.md'],
+    patterns: ['settings-section', 'info-box'],
+    hig: ['Color', 'Accessibility', 'Lists and tables', 'Dynamic Type', 'Alerts'],
+    entities: [],
+    kitComponents: ['InlineAlert', 'SelectableOptionRow', 'InfoBox'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: Object.assign({}, base.states, {
+      'alerts': { title: 'InlineAlert: warning and error', note: 'there is no info severity in the code (the catalog hint lists one): info notices use InfoBox', render: sw([
+        { label: 'warning · relay guest mode (Admin)', node: function () { return K.InlineAlert({ message: HF.COPY.warning }); } },
+        { label: 'warning · vacuum notice', node: function () { return K.InlineAlert({ message: 'Attach the mop pads before cleaning or drying them at the dock.' }); } },
+        { label: 'warning · custom symbol (Sprinklers low battery)', node: function () { return alertWith('Front Yard Battery 24%', 'battery.25percent'); } },
+        { label: 'warning · several lines (vacuum issues)', node: function () { var n = K.InlineAlert({ message: 'Issues:\n• Dust bin full\n• Side brush stuck' }); n.lastChild.style.whiteSpace = 'pre-line'; return n; } },
+        { label: 'error · task failed', node: function () { return K.InlineAlert({ message: 'Home Assistant could not apply the change. Try again.', severity: 'error' }); } },
+        { label: 'error · schedule validation', node: function () { return K.InlineAlert({ message: 'Return must be after departure.', severity: 'error' }); } },
+      ], { basis: 320 }) },
+      'options': { title: 'SelectableOptionRow: selected, not selected, disabled', note: 'tint = the presence mode colour here; the selected row has a 2 pt border, a tinted glyph and a tinted checkmark', render: sw([
+        { label: 'selected', node: opt('enabled', true) }, { label: 'selected (paused, amber)', node: opt('paused', true) }, { label: 'not selected', node: opt('off', false) }, { label: 'disabled (50%)', node: opt('quieted', false, true) },
+      ], { basis: 320 }) },
+      'option-list': { title: 'In context: a mode list', note: 'one column below 612 pt, two beyond; the four rows of the presence detail', render: sw([
+        { label: 'Kitchen modes', wide: true, node: function () { return HF.presenceDetail('paused'); } },
+      ], { basis: 640 }) },
+      'ax5': { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'wrapped text grows the row; the warning wraps over many lines; nothing truncates', render: sw([
+        { label: 'warning', node: function () { return K.InlineAlert({ message: 'Attach the mop pads before cleaning or drying them at the dock.' }); } },
+        { label: 'option', node: opt('enabled', true) },
+      ], { basis: 320 }) },
+    }),
+
+    motion: [
+      { id: 'option-select', what: 'Choosing a row: the border, glyph and checkmark colour fill in on the new row and empty on the old', token: 'border and glyph: state 0.6 s ease-in-out (0.2 s reduced); checkmark: quick 0.2 s easeOut', state: 'option-list',
+        source: 'HassDesign/SettingsSection.swift SelectableOptionRow (stateColorTransition + quickTransition "SelectableOptionRow"); motion.md section 6', reduce: 'colour still cross-fades, shortened to 0.2 s; the checkmark fade is unchanged (opacity is not motion)',
+        play: function (stage) { var rows = stage.querySelectorAll('.hf-opt'); if (rows.length < 4) return Promise.resolve();
+          rows[3].click(); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { rows[1].click(); return Mock.sleep(Mock.anim.ms.state() + 500); }).then(function () { rows[2].click(); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'disabled-dim', what: 'A row becomes disabled (a room goes unavailable): it fades to 50%', token: 'quick 0.2 s easeOut on opacity', state: 'options',
+        source: 'HassDesign/SettingsSection.swift .quickTransition("SelectableOptionRow", value: isDisabled)', reduce: 'unchanged (opacity is not motion)',
+        play: function (stage) { var r = stage.querySelector('.hf-opt:not([disabled])'); if (!r) return Promise.resolve(); r.disabled = true; return Mock.sleep(Mock.anim.ms.quick() + 700).then(function () { r.disabled = false; return Mock.sleep(Mock.anim.ms.quick() + 300); }); } },
+    ],
+
+    a11y: [
+      { rule: 'InlineAlert', note: 'One accessibility element combining the glyph and the message, labelled "Warning: <message>" or "Error: <message>"; the glyph is hidden. The word is spoken, so colour is not the only cue.' },
+      { rule: 'Contrast', note: 'A warning keeps the primary label colour on a 14% orange wash (4.5:1 or better in light and dark); the orange appears only on the glyph. An error is red text on the ground (Ink.error) with no box.' },
+      { rule: 'SelectableOptionRow', note: 'A Button labelled by its title with the description as the hint and the selected trait on the current option; the icon and checkmark are decorative. A disabled row is dimmed to 50% and not actionable.' },
+      { rule: 'Targets', note: 'Rows are at least 44 pt (frame minHeight minTarget) and the whole rounded rectangle is the target.' },
+      { rule: 'Dynamic Type', note: 'Alert and row text wrap (fixedSize vertical); the row grows rather than truncating, and the list reflows to one column.' },
+      { rule: 'Selected state is not colour alone', note: 'The checkmark appears and the selected trait is set; the border and tint are extra.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Color and Accessibility: severity is not conveyed by colour alone", verdict: "pass", note: "A warning has a triangle glyph and an error a circle glyph, and both are spoken as 'Warning: <message>' or 'Error: <message>'; the warning keeps primary ink on a 14% orange wash and the error is Ink.error text (4.5:1 or better in light and dark).", by: "apple-hig skill" },
+
+        { rule: "Writing and Feedback: put the message next to the control it concerns", verdict: "pass", note: "InlineAlert sits under the field or section it refers to (the one inline alert for every page, info-box.md) and wraps with fixedSize; informational notices use InfoBox, not a third alert view.", by: "apple-hig skill" },
+
+        { rule: "Lists and Buttons: single-choice rows with a check; 44 pt targets; selection not by colour alone", verdict: "pass", note: "SelectableOptionRow is at least 44 pt with the whole rounded rectangle as the hit shape; selection adds a 2 pt border in the tint, a checkmark and the selected trait, and a disabled row dims to 50% and is not actionable.", by: "apple-hig skill" },
+
+        { rule: "Accessibility: do not put essential information in a hint", verdict: "pass", note: "SelectableOptionRow speaks the detail as accessibilityValue, not a hint.", by: "apple-hig skill" },
+
+        { rule: "Color: unselected glyphs keep contrast", verdict: "pass", note: "SelectableOptionRow draws an unselected glyph in HassTokens.Surface.secondaryInSheet (SettingsSection.swift), 5.3:1 on a light sheet.", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "Design: one section header style; avoid scattered fontWeight", verdict: "pass", note: "SettingsSection draws its title with PageSectionHeader.titleFont (.title3.bold()), the one section-header font.", by: "swiftui-pro skill" },
+
+        { rule: "Views: use the system control for a single choice", verdict: "pass", note: "Not applicable: SelectableOptionRow is the card variant with an icon and detail; moving the single-choice rows onto Picker changes the drawn row and is a propose-first change per option-picker.md.", by: "swiftui-pro skill" },
+
+        { rule: "Accessibility: label and traits on the Button; identifier stays with the control", verdict: "pass", note: "The label, hint and selected trait sit on the Button itself (see GlassTile) so the identifier and state do not split across two elements.", by: "swiftui-pro skill" },
+
+        { rule: "Localization: build accessibility strings from resources", verdict: "pass", note: "Fixed: InlineAlert's accessibility labels are Text(\"Warning: \\(message)\") and Text(\"Error: ...\"), localizable resources (SettingsSection.swift).", by: "swiftui-pro skill" },
+
+        { rule: "API: current idioms for lists and shapes", verdict: "pass", note: "clipShape-free backgrounds with continuous RoundedRectangle, fill(.regularMaterial) for rows, ForEach(Array(paragraphs.enumerated()), id: \\.offset) is correct for the iOS 17 target (the direct form needs iOS 26).", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'Docs versus code: the catalog hint says InlineAlert has an info severity; the code has warning and error (Severity enum) plus an optional custom symbol. Info notices are InfoBox.',
+      'The kit\'s SelectableOptionRow has no tint or disabled prop; this mockup decorates it locally (HF.optionRow, "promote to kit").',
+      'The vacuum and Sprinklers messages are verbatim from VacuumTabs and SprinklersScreen; the household copy is verbatim from HouseholdSettingsConfig.',
+      'Fixture text: the error strings other than "Return must be after departure." are invented stand-ins for server messages.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: warning and error alerts (custom symbol, multi-line), option rows (selected, disabled, tinted), a mode list, AX5.' }],
+  }));
+})();
+</script></body></html>

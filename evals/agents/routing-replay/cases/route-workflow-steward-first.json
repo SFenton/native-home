@@ -1,0 +1,17 @@
+{
+  "id": "route-workflow-steward-first",
+  "source": "2026-11-02: the runner based a Workflow issue on main while the UIKit port replaces the app; a Workflow issue goes to the Steward (Entry B) at L1.",
+  "recorded": "2026-11-02",
+  "kind": "route",
+  "input": {
+    "labels": [
+      "Workflow"
+    ],
+    "title": "[Workflow] The runner bases lanes on the wrong branch",
+    "body": "Agents work on main but the port replaces the app."
+  },
+  "expect": {
+    "route": "steward",
+    "level": "L1"
+  }
+}

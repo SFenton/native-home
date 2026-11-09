@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bed side and wake light tiles · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../modals/bedroom/_bedroom-motion.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom, CM = Mock.cm;
+  /* Rollout R: a bed side is the room page's card (one tile path) and carries a Power disc beside the chevron; the old BedSideTile and WakeLightTile views are gone. */
+  function T(m, subtitle) { var on = m.face.active && m.scope !== 'traveler';
+    return K.GlassTile({ title: m.title, subtitle: subtitle || m.tileSubtitle, symbol: 'bed.double', family: m.face.family, isActive: on, kind: 'navigate',
+      behavior: 'navigate', actions: [{ id: 'power', symbol: 'power', label: (on ? 'Turn Off ' : 'Turn On ') + m.title, on: on, dim: m.scope === 'traveler' || m.available === false }] }); }
+  function WT(o) { return B.wakeTile(B.wake(o)); }
+  var PAGE = ['page'];
+  function bedStates(ctx) {
+    return CM.grid(ctx, [
+      { label: 'Heating (target +3)', node: T(B.bed('left')) },
+      { label: 'Idle (target 0): filled', node: T(B.bed('left', { target: 0 })), note: 'ThermostatTileFace.bedSide gives idle the filled face; the code comment says it keeps the dark face (code drawn)' },
+      { label: 'Cooling (target -3)', node: T(B.bed('right')) },
+      { label: 'Off (level above 0: heating glyph)', node: T(B.bed('left', { on: false })) },
+      { label: 'Off (level below 0: cooling glyph)', node: T(B.bed('right', { on: false })) },
+      { label: 'Unavailable (neutral, "Off")', node: T(B.bed('left', { available: false })) },
+      { label: 'Alarm ringing (tile unchanged)', node: T(B.bed('left', { alarmState: 'ringing' })), note: 'the tile ignores the alarm state; only the sheet shows Snooze and Stop' },
+      { label: 'Hot Flash Mode, cooling down', node: T(B.bed('right', { hotFlash: true })) },
+      { label: 'Hot Flash Mode, holding (countdown)', node: T(B.bed('right', { hotFlash: true }), '10:12 Remaining') },
+      { label: 'Solo Trip, home resident', node: T(B.bed('left', { scope: 'whole' })) },
+      { label: 'Solo Trip, traveler (read only)', node: T(B.bed('right', { scope: 'traveler' })) },
+    ], { surfaces: PAGE, min: 200 });
+  }
+  function wakeStates(ctx) {
+    return CM.grid(ctx, [
+      { label: 'Armed: next alarm', node: WT() },
+      { label: 'Active (ramping 42%)', node: WT({ phase: 'ramping', brightness: 42 }) },
+      { label: 'Waiting to resume', node: WT({ phase: 'recovering' }) },
+      { label: 'No alarm enabled (off)', node: WT({ alarms: B.wake().alarms.map(function (a) { return Object.assign({}, a, { enabled: false }); }) }) },
+      { label: 'Execution blocked', node: WT({ blockers: ['x'] }) },
+      { label: 'Vacation Mode blocks runs', node: WT({ vacation: 'on' }) },
+      { label: 'Unavailable (Setup · Unavailable)', node: WT({ available: false }) },
+    ], { surfaces: PAGE, min: 200 });
+  }
+  function inContext(ctx) {
+    function grid(n) { return CM.fitGrid(K.TileGrid({ items: [B.wakeTile(B.wake()), T(B.bed('left')), T(B.bed('right'))], min: 160, max: 3 })); }
+    return CM.grid(ctx, [
+      { label: 'iPhone width (370 pt content: 2 columns)', node: grid(), w: 402 },
+      { label: 'iPad portrait width (3 columns)', node: grid(), w: 802 },
+    ], { surfaces: PAGE });
+  }
+  var heating = function () { return B.bed('left'); };
+  Mock.mount({
+    kind: 'component', id: 'bed-side-tile', title: 'Bed side and wake light tiles', area: 'bedroom', status: 'in-flight:claude/tile-rollout', frame: false,
+    summary: 'The two room tiles of the Bedroom 1\'s Sleep & Wake group, drawn by the room page\'s RoomCardView (the dedicated BedSideTile and WakeLightTile views are deleted; the Bedroom Devices gallery renders the same cards). A bed side is a navigation tile in the heating or cooling family with a Power disc left of the chevron (turning off asks first); the wake light is the lights-family navigation tile. The bed tile ticks once a second for countdowns.',
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedSideSheet.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/ThermostatTileFace.swift', 'apple/Sources/HassUI/Features/Gallery/BedroomGallery.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['bedroom-devices', 'entity-tile', 'motion'],
+    hig: ['Buttons', 'Color', 'Dynamic Type'],
+    entities: ['climate.demo_climate_2', 'climate.demo_climate_3', 'sensor.demo_bedroom_1_light_1'],
+    kitComponents: ['GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Bed side tile states', render: bedStates },
+      'wake-light': { title: 'Wake light tile states', render: wakeStates },
+      'in-context': { title: 'In the Sleep & Wake grid', note: 'DynamicGridLayout(minCellWidth: 160, maxColumns: 3) as in the gallery; the room page itself belongs to the rooms batch', render: inContext },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'tiles stack glyph over text and take one column', render: function (ctx) { return CM.grid(ctx, [{ label: 'Bed side (heating)', node: T(heating()) }, { label: 'Wake light', node: WT() }], { surfaces: PAGE, min: 340 }); } },
+    },
+    motion: [
+      { id: 'tile-state', what: 'A side turns off (or on): the tile\'s ground, ink and glyph cross-fade together', token: 'state 0.6 s easeInOut, colour only (0.2 s reduced)', state: 'default',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile", TileColorKey); motion-components.md (BedSideTile, WakeLightTile inherit)', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-tile'); return Mock.anim.toggleState(t, ['off'], ['on']).then(function () { return Mock.sleep(500); }).then(function () { return Mock.anim.toggleState(t, ['on'], ['off']); }); } },
+      { id: 'countdown-tick', what: 'Hot Flash Mode holds: the subtitle counts down once a second (a plain text update; no numeric transition)', token: 'none (TimelineView .periodic by 1 s; no animation)', state: 'default',
+        source: 'BedSideTile EverySecond { tileSubtitle(now:) }', reduce: 'the same',
+        play: function (stage) { var tiles = stage.querySelectorAll('.ui-tile'), t = tiles[8]; var st = t && t.querySelector('.st'); if (!st) return Promise.resolve(); var s = 612; return new Promise(function (res) { var iv = setInterval(function () { s--; st.textContent = Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2) + ' Remaining'; if (s <= 607) { clearInterval(iv); res(); } }, 1000); }); } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'Name and value', note: 'Each tile is one button: "Alex\'s Bed, Heating • +3" (identifier room.card.Alex\'s Bed, with the disc "Turn Off Alex\'s Bed" as room.card.Alex\'s Bed.action.power) and "Wake-Light Alarms" (room.card.Wake-Light Alarms). The chevron is hidden; the hint is the navigate role (opens the sheet).' },
+      { rule: 'State is not colour alone', note: 'The subtitle says Heating, Cooling, Idle, Off, Hot Flash Mode or Away · Read Only; the fill (orange or teal) only repeats it; off tiles keep the family glyph on the dark face.' },
+      { rule: 'Targets and text', note: 'Tiles are at least 72 pt tall; at accessibility sizes they stack glyph over text and take one column; titles wrap to two lines then three.' },
+      { rule: 'Contrast', note: 'Heating fill #A8440A and cooling fill #1B6F78 take white text at 4.5:1 or better (ColorFamily, direction-g.md).' },
+      { rule: 'Updates', note: 'The once-a-second countdown is a visible text change, not a VoiceOver announcement; the tile value is read when focused.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Buttons: a tappable tile has an affordance', verdict: 'pass', note: 'Navigate tiles carry a trailing chevron (hidden from VoiceOver).' },
+        { rule: 'Color: state accurate and not colour alone', verdict: 'pass', note: 'BedSideTile passes isUnavailable: !controller.sideAvailable (BedSideTile.swift), so an unavailable side dims and says Unavailable; WakeLightTile fills only while a wake runs (WakeLight.fillsTile, WakeLightContract.swift), not whenever an alarm is armed.' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'GlassTile stacks glyph over text and goes one column at AX sizes.' },
+        { rule: 'Accessibility: live text', verdict: 'pass', note: 'The countdown is a visible text update, not an announcement; the value is read on focus.' },
+      ],
+      swiftui: [
+        { rule: 'Performance: tick only when needed', verdict: 'pass', note: 'EverySecond takes isRunning and BedSideTile passes hotFlashHolding, so no timeline runs otherwise (BedroomComponents.swift:236, BedSideTile.swift)' },
+        { rule: 'Do not recreate shared components', verdict: 'pass', note: 'Both tiles are GlassTile with a ThermostatTileFace or lights family.' },
+        { rule: 'Motion: colour with the app token', verdict: 'pass', note: 'GlassTile owns the transition; neither tile adds its own.' },
+      ],
+    },
+    notes: [
+      'Docs versus code (idle): ThermostatTileFace.bedSide returns isActive true for idle, so an idle side is filled; direction-g.md and the BedroomStyle.face comment say idle and off keep the glyph on the dark face. The code is drawn.',
+      'Docs versus code (ringing): the catalog says the tile shows the alarm; BedSideTile does not read alarmState. Only the sheet shows it.',
+      'Unavailable bed: the tile is not marked unavailable; it takes the neutral face, inactive, and reads "Off".',
+      'Wake tile active means "available and some alarm enabled" (not "running"); a blocked or vacation-blocked wake light still shows as active with its blocker text.',
+      'This is a component mockup (no device frame): Device selects the size class (iPhone compact, iPad regular).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

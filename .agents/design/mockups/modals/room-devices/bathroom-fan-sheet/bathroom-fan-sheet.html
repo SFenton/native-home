@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bathroom Fan · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_devices-vacuums.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv;
+
+  /* BathroomFanSheet = RoomDeviceSheetChrome { ScrollView { BathroomFanControls } }, hassSheet(.form), fitted. Title "<Room> Fan", no subtitle. */
+  function sheet(ctx, o) {
+    o = o || {};
+    var content = h('div.dv-col', { style: { maxWidth: '560px' } }, dv.fanControls(o.fan));
+    return dv.sheet(ctx, { kind: 'fan', title: 'Bathroom 1 Fan', content: content, detent: o.detent, connection: o.connection, tileState: o.tile, noPresenter: o.noPresenter });
+  }
+  var OFF = { power: 'off', locked: false, timer: 'idle' };
+  var RUN = { power: 'on', locked: true, timer: 'running', text: '12:34', fraction: 0.84 };
+  var RUN_TILE = { on: true, locked: true, status: 'Off in 12:34' };
+  var S = function (fan, tile) { return function (c) { return sheet(c, { fan: fan, tile: tile }); }; };
+
+  function sheetTile(stage, title) { return Array.prototype.filter.call(stage.querySelectorAll('.ui-sheet .ui-tile'), function (t) { return t.querySelector('.ti').textContent === title; })[0]; }
+
+  Mock.mount({
+    kind: 'modal', id: 'bathroom-fan-sheet', title: 'Bathroom fan sheet', area: 'room-devices', status: 'shipped',
+    summary: 'Opened from the fan tile on a bathroom room page (Guest and Master). Power and Lock tiles, then a timer: six lengths and one button, or a running orange countdown. A fitted form sheet that follows the system appearance.',
+    source: ['apple/Sources/HassUI/Features/RoomDevices/BathroomFanSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKDeviceKit.swift', 'apple/Sources/HassUI/Features/RoomDevices/RoomDeviceSheetChrome.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift',
+      'apple/Sources/HassCore/RoomDevices/BathroomFanController.swift', 'apple/Sources/HassCore/Config/RoomDeviceConfig.swift'],
+    spec: ['.agents/patterns/room-device-sheets.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['room-device-sheets', 'modal-sheet', 'entity-tile', 'dynamic-grid'],
+    hig: ['Sheets', 'Buttons', 'Segmented controls', 'Progress indicators', 'Color', 'Dynamic Type'],
+    entities: ['switch.demo_bathroom_1_fan_1', 'input_boolean.demo_bathroom_1_fan_1', 'input_boolean.demo_bathroom_1_fan_2', 'input_datetime.demo_bathroom_1_fan_1', 'timer.demo_bathroom_1_fan_1', 'script.demo_driveway_recording_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Fan off, timer picker (30m chosen)', render: S(OFF) },
+      'running': { title: 'Fan on, locked, timer running', note: 'orange countdown, bar 84% full, Clear Timer; the room tile reads "Off in 12:34"', render: S(RUN, RUN_TILE) },
+      'on-no-timer': { title: 'Fan on and unlocked, no timer', render: S({ power: 'on', locked: false, timer: 'idle', minutes: 60 }, { on: true, status: 'On' }) },
+      'error': { title: 'Unavailable', note: 'both tiles dim with the word "Unavailable", the timer button is disabled; the room tile hides its rail', render: S({ power: 'unavailable', timer: 'unavailable' }, { status: 'Unavailable' }) },
+      'offline': { title: 'Over an offline room page', note: 'the sheet has no offline UI: it keeps the last known values; the page behind carries the offline chip', render: function (c) { return sheet(c, { fan: RUN, tile: RUN_TILE, connection: 'offline' }); } },
+      'medium': { title: 'Medium detent', note: 'the provisional height before the first measurement', render: function (c) { return sheet(c, { fan: OFF, detent: 'medium' }); } },
+      'large': { title: 'Large detent', note: 'only when the content is taller than the window (AX sizes)', render: function (c) { return sheet(c, { fan: OFF, detent: 'large' }); } },
+      'fitted': { title: 'Fitted detent (shipped)', render: function (c) { return sheet(c, { fan: RUN, tile: RUN_TILE, detent: 'fitted' }); } },
+      'closed': { title: 'Before presenting / after dismissing', render: function (c) { return dv.presenter('fan', c, 'live', { on: true, locked: true, status: 'Off in 12:34' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the length row wraps to three columns; the sheet grows to the large cap and scrolls', render: S(RUN, RUN_TILE) },
+      'ax5-picker': { title: 'AX5, timer picker', override: { ts: 'ax5' }, render: S(OFF) },
+    },
+
+    motion: [
+      { id: 'tile-colour', what: 'Power fills the air teal when the fan comes on and empties when it goes off (the Lock tile does the same in blue)', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'HassDesign/GlassTile.swift stateColorTransition; HassUI/Features/RoomDevices/BathroomFanSheet.swift; motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = sheetTile(stage, 'Power'); dv.setTile(t, true, 'On'); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { dv.setTile(t, false, 'Off'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'countdown-tick', what: 'The countdown and its bar step once a second while a timer runs; the bar empties as the time runs out', token: 'TimelineView(.periodic, by: 1), no animation modifier: the numerals and the bar width change at once', state: 'running',
+        source: 'HassUI/Features/RoomDevices/FanTimerRunning.swift, FanTimerProgressBar.swift', reduce: 'unchanged (nothing animates)',
+        play: function (stage) {
+          var t = stage.querySelector('.dv-run .t'), bar = stage.querySelector('.dv-bar i'), left = 754, total = 900, n = 0;
+          return new Promise(function (res) { var id = setInterval(function () { left -= 1; n++; var m = Math.floor(left / 60), s = left % 60; t.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; bar.style.width = (left / total * 100).toFixed(1) + '%'; if (n >= 5) { clearInterval(id); res(); } }, 1000); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Room page', to: 'Bathroom fan sheet', kind: 'sheet', state: 'closed', note: 'The fan tile\'s body opens the sheet (its Lock and Power buttons do not). A form sheet at its fitted height slides up; the room page scales back. Content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, { title: 'Bathroom 1 Fan', detent: 'fitted', size: 'form', content: h('div.dv-col', { style: { maxWidth: '560px' } }, dv.fanControls(RUN)) }, { hold: 1200 }); } },
+      { from: 'Bathroom fan sheet', to: 'Room page', kind: 'sheet', state: 'default', note: 'Circle x Close (device.sheet.done) or a swipe down.',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Turn Off in 30 Minutes', to: 'Running timer', kind: 'cut', state: 'default', note: 'The picker and the countdown are an if/else on the controller\'s timerPending flag: the controller shows the fan on and the timer pending at once (optimistic), and the section swaps with no animation.',
+        play: function (stage) {
+          var sec = stage.querySelectorAll('.ui-sheet .dv-sec')[0]; if (!sec) return Promise.resolve();
+          var body = sec.lastChild, run = dv.timerRunning({ text: '30:00', fraction: 1 });
+          return Mock.sleep(600).then(function () { sec.replaceChild(run, body); return Mock.sleep(1200); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Modal: title "Bathroom 1 Fan", Power, Lock, the "Timer" heading, the six lengths, "Turn Off in N Minutes", the footnote, and Close last in the bar (identifier device.sheet.done).' },
+      { rule: 'Tiles', note: 'Power and Lock are toggle buttons with values On/Off and Locked/Unlocked (identifiers fan.power, fan.lock); unavailable tiles dim the glyph only, the word "Unavailable" keeps full strength.' },
+      { rule: 'Length row', note: 'Six buttons named "5 minutes" ... "1 hour" (the glyph row reads 5m ... 1h), the chosen one carries the selected trait; each is 44 pt tall (fan.timerOption.N). Chosen = the label\'s opposite (white on black in a dark sheet, near-black with white text in a light one), at least 3:1 against the cell.' },
+      { rule: 'Running timer', note: 'One element: label "Timer", value as a duration ("12 minutes 34 seconds", identifier fan.remaining); the glyph is hidden; the progress bar is decorative. Clear Timer is a destructive button (fan.clearTimer), red on a tint, 44 pt.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the length row becomes a three-column grid, the countdown scales (up to 1.76x) and may shrink to half before it truncates, and every control stays reachable by scrolling.' },
+      { rule: 'State is not colour alone', note: 'Power and Lock differ by glyph (power, lock.fill / lock.open) and by words; the orange timer carries its glyph and digits.' },
+      { rule: 'Contrast', note: 'Timer orange is #FF9F0A on a dark sheet and #B35C00 on a light one (the web timer orange, darkened for 4.5:1); Clear Timer red is #FF6961 / #C21717 on its 16% / 8% tint.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: fitted, grabber, close control', verdict: 'pass', note: 'Fitted form sheet with grabber and circle-X Close; at AX5 it grows to the large cap and scrolls.' },
+        { rule: 'Segmented controls: about 5 on iPhone', verdict: 'departure', note: 'Six lengths (5m to 1h) in a custom row (FanTimerLengthRow.swift); owner design 2026-10-17 (room-device-sheets.md Fan). At AX sizes it reflows to three columns instead of a menu.' },
+        { rule: 'Buttons: 44 pt minimum target', verdict: 'pass', note: 'Segments 44 pt, primary Turn Off in N Minutes 50 pt, Clear Timer 44 pt.' },
+        { rule: 'Accessibility: value changes announce', verdict: 'pass', note: 'FanTimerRunning speaks spokenCountdown (whole minutes), as the room tile does.' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Power and Lock differ by glyph (power, lock.fill/open) and subtitle; the timer has glyph and digits.' },
+        { rule: 'Progress indicators: determinate for a known duration', verdict: 'pass', note: 'A thin bar empties with the time left; hidden from VoiceOver because the countdown carries the value.' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'Countdown is @ScaledMetric(.largeTitle) and shrinks to 50% before truncating; segments use minimumScaleFactor 0.7.' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: scaled sizes, not forced fonts', verdict: 'pass', note: 'The 40 pt glyph and digits use .font(.system(size:)) driven by @ScaledMetric (FanTimerRunning.swift:9); acceptable on an iOS 17 target.' },
+        { rule: 'Performance: TimelineView only while it counts', verdict: 'pass', note: 'TimelineView(.periodic, by: 1) exists only in the running branch; the picker has no clock.' },
+        { rule: 'Design: adaptive colour tokens', verdict: 'pass', note: 'Surface.selectedSegment/Ink, Ink.timer and the tint opacity (16% dark, 8% light) adapt per scheme.' },
+        { rule: 'Motion: Reduce Motion', verdict: 'pass', note: 'Only colour animates (stateColorTransition); the 1 Hz clock has no animation.' },
+      ],
+    },
+
+    notes: [
+      'loading: there is no loading state. The controller reads EntityStore (ready from the snapshot); until the values arrive the tiles read Unavailable (the error state shows it).',
+      'Live Activity: the fan job tag (job.fan.<id>, HassCore/LiveActivity/LiveActivityClient.swift) is the Live Activity\'s key; Home Assistant starts and ends it. Nothing in this sheet starts one. See the widgets batch.',
+      'The presenter is a trimmed Bathroom 1 room page (the rooms batch owns the full page): a fan tile in the two-column grid. On a phone the real page gives the fan tile a full-width lead row (entity-tile.md); here it shares a row with a light tile to keep the page short.',
+      'The Guest Bathroom fan is the same sheet with the title "Guest Bathroom Fan" and its own entities.',
+      'Duo unfolded: the form sheet is centred in the window (placement is the system\'s; only pages were run on the unfolded simulator pose). Check on a device.',
+      'Promote to kit: dv.lengthRow, dv.timerRunning, dv.tintedCapsule, dv.section (modals/room-devices/_devices-vacuums.js).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: picker, running, unavailable, offline, detents, AX5; light and dark.' }],
+  });
+})();
+</script></body></html>

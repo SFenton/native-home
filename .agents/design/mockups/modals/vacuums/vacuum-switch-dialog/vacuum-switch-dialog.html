@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Use Area or Use Rooms · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../room-devices/_devices-vacuums.js"></script>
+<script src="../_devices-vacuums.js"></script>
+<script src="../../../proposals/action-navigation-tiles/_action-tiles.js"></script>
+<script src="../../../proposals/selection-tiles/_selection.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv, vac = dv.vac;
+  var AREA = { x: 24, y: 24, w: 150, h: 120 };
+  
+  /* One decision, one alert (alert-conventions, 2026-10-24; renamed 2026-10-28): the Use Area / Use Rooms tiles, a room tile and the map all raise the same system .alert,
+     "Use Rooms?" (an area is drawn) or "Use Area?" (rooms are selected): Cancel and a plain, bold confirming button (AlertCopy.useRooms / useArea). */
+  function dialog(kind) { return vac.switchAlert(kind === 'area' ? 'area' : 'rooms'); }
+  function S(kind, v, tab) { return function (c) { return vac.sheet(c, { v: v, tab: tab, alert: dialog(kind) }); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'vacuum-switch-dialog', title: 'Use Area / Use Rooms (confirmation)', area: 'vacuums', status: 'shipped',
+    summary: 'Rooms and Area cannot both be set, so choosing the other asks first. One system alert from the Use Area and Use Rooms tiles, the Rooms section and the map, with the same words on every path.',
+    source: ['apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassCore/Vacuums/VacuumController.swift'],
+    spec: ['.agents/patterns/vacuum-sheet.md', '.agents/pages/vacuums/spec.md'],
+    patterns: ['vacuum-sheet', 'modal-sheet'],
+    hig: ['Alerts', 'Buttons'],
+    entities: ['script.demo_main_floor_zone_1', 'script.demo_main_floor_3'],
+    kitComponents: ['Alert', 'HassModal', 'GlassTile'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Confirmation: Use Rooms? (an area is drawn)', note: 'alert "Use Rooms?", Cancel and a plain Use Rooms', render: S('rooms', vac.V({ selected: [], area: AREA })) },
+      'switch-area': { title: 'Confirmation: Use Area? (rooms are selected)', note: '"Continuing clears your selected rooms and opens area drawing."', render: S('area', vac.V({})) },
+      'alert-rooms': { title: 'Alert on the Rooms section', note: 'a room tile tapped while an area is drawn raises the same alert as the Use Rooms tile', render: S('alert', vac.V({ selected: [], area: AREA }), 'zones') },
+      'alert-map': { title: 'Alert from the map', note: 'tapping a room on the map does the same', render: S('alert', vac.V({ selected: [], area: AREA }), 'controls') },
+      'error': { title: 'Cancel path', note: 'there is no error state: Cancel leaves the area (or rooms) as it was and closes the dialog', render: S('rooms', vac.V({ selected: [], area: AREA })) },
+      'offline': { title: 'Over an offline Vacuums page', note: 'the dialog has no connection logic; the sheet behind carries the offline chip on its presenter', render: function (c) { return vac.sheet(c, { v: vac.V({ selected: [], area: AREA }), alert: dialog('rooms'), connection: 'offline' }); } },
+      'large': { title: 'Large detent (the sheet is full height)', render: S('rooms', vac.V({ selected: [], area: AREA })) },
+      'closed': { title: 'Before the dialog', note: 'Controls with the Area target: Edit Area, Clear Area and Use Rooms tiles', render: function (c) { return vac.sheet(c, { v: vac.V({ selected: [], area: AREA }) }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the alert grows with the text and stacks its buttons', render: S('rooms', vac.V({ selected: [], area: AREA })) },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Use Rooms tile (area drawn)', to: 'Use Rooms? alert', kind: 'fade', state: 'closed', note: 'The system presents the alert over the dimmed sheet. Cancel dismisses.',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), ctx = Mock.current;
+          var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), dialog('rooms')); host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+      { from: 'Room tile (area drawn)', to: 'Use Rooms? alert', kind: 'fade', state: 'closed', note: 'The alert scales and fades in over the sheet (system alert, never decorated).',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), ctx = Mock.current;
+          var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), dialog('alert')); host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Focus', note: 'A dialog is modal: VoiceOver lands on its title, then the message, then the actions; Cancel is always present and reachable by the escape gesture.' },
+      { rule: 'Confirming action', note: 'The confirming button repeats the title\'s verb (Use Rooms, Use Area) in the default role (plain, bold); Cancel is the cancel role. Nothing is drawn red: the alert asks, it does not destroy.' },
+      { rule: 'Copy', note: 'Both messages say what will be lost: "Using Rooms will discard that area" and "Continuing clears your selected rooms and opens area drawing."' },
+      { rule: 'Dynamic Type', note: 'System dialogs scale with Dynamic Type and stack their buttons when they no longer fit.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',   /* entries updated for the 2026-10-28 rename; the redesign is reviewed on its diff in the build PR */
+      hig: [
+        { rule: 'Alerts: titles and punctuation', verdict: 'pass', note: 'AlertCopy.useRooms / useArea: "Use Rooms?" and "Use Area?", the confirm button repeats the verb, on every path.', by: 'apple-hig skill' },
+        { rule: 'Alerts and action sheets: one decision, one presentation', verdict: 'pass', note: 'The tiles, room tiles and the map all raise the same .alert (View.switchToRoomsAlert); the earlier action-sheet drawing in the vacuum-sheet mockup was wrong and is now an alert.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Presentation: attach to its trigger', verdict: 'pass', note: 'An alert has no anchor, so there is nothing to attach to.', by: 'swiftui-pro skill' },
+        { rule: 'Do not repeat the same presenter', verdict: 'pass', note: 'View.switchToRoomsAlert is the one presenter for the room tiles and the map; the tiles use the same AlertCopy spec.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading: nothing loads here. error: there is no error state (see the Cancel path). medium and fitted: dialogs have no detents; the sheet behind is full height.',
+      'The decision is always a system .alert, centred on every device, including iPad. The vacuum-sheet mockup used to draw it as an action sheet (dv.actionSheet); fixed 2026-10-28.',
+      'Call sites: the Use Area and Use Rooms tiles in VacuumControlsTab, VacuumRoomsTab and VacuumMapFrame (VacuumTabs.swift, VacuumMapPanel.swift), all through AlertCopy.',
+      'Docs versus code: nothing in .agents describes the dialogs; the web copy lives in `confirmations.*` of vacuum.json (pages/vacuums/spec.md).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: both confirmation dialogs, the alert (Rooms section and map), offline, AX5; light and dark.' }, { date: '2026-10-28', note: 'Renamed Use Area? / Use Rooms? and drawn over the decided sheet.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' }],
+  });
+})();
+</script></body></html>

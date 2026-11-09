@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page indicators you can tap</title><style>
+/* Layout: one reading column, then live-size header crops on a wallpaper band: before/after, a playable fade, the spacing ruler, and device variants. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --fg: #16181d;
+  --fg2: #4b525e;
+  --line: #d9dde4;
+  --accent: #0066cc;
+  --accent-soft: #e3effc;
+  --bad: #b3261e;
+  --ok: #1e7b34;
+  --code-bg: #eceef2;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --disp: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+    --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101216; --surface: #1a1d23; --fg: #eef0f4; --fg2: #a6adba; --line: #2e333c;
+  --accent: #409cff; --accent-soft: #152a44; --bad: #ff6961; --ok: #30d158; --code-bg: #20242b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.col { max-width: 70ch; }
+h1 { font-family: var(--disp); font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance; }
+h2 { font-family: var(--disp); font-size: 24px; letter-spacing: -0.01em; margin: 56px 0 8px; text-wrap: balance; }
+h3 { font-family: var(--disp); font-size: 17px; margin: 0 0 4px; }
+p { margin: 0 0 12px; }
+.lede { font-size: 18px; color: var(--fg2); }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+ul { padding-left: 1.2em; margin: 0 0 12px; } li { margin-bottom: 4px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.tag.bad { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+.fg2 { color: var(--fg2); }
+.small { font-size: 14px; }
+
+
+.band{margin-top:20px;padding:24px 18px;border-radius:14px;background:radial-gradient(120% 140% at 20% 0%,#2c4256 0%,#16222f 55%,#0b1118 100%);display:flex;flex-wrap:wrap;gap:24px 28px;align-items:flex-start;color:#fff}
+.cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cap{color:#c9d3de;font-size:14px;max-width:402px}.cap b{color:#fff}
+.dev{width:var(--w);max-width:100%;border-radius:22px;border:1px solid rgba(255,255,255,.14);background:rgba(8,12,18,.55);padding:12px 0;overflow:hidden;font-family:var(--ui);font-size:calc(17px*var(--ts,1));color:#fff}
+.dev.ax{--ts:2.0}
+.pad{padding:0 16px}
+.grp{background:rgba(255,255,255,.09);border-radius:12px;margin:0 16px 10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 14px;border-bottom:.5px solid rgba(255,255,255,.14)}
+.row:last-child{border-bottom:0}.row .sp{flex:1;min-width:0}.row .sub{color:rgba(255,255,255,.6);font-size:.82em}
+.chev{opacity:.5;font-weight:600}.hdr{font-size:calc(20px*var(--ts,1));padding:6px 16px;font-weight:700}.hdr.semi{font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,.14);border:.5px solid rgba(255,255,255,.28)}
+.seg{display:inline-flex;background:rgba(255,255,255,.14);border-radius:9px;padding:2px;gap:2px}.seg span{padding:6px 14px;min-height:40px;display:grid;place-items:center;border-radius:7px}.seg .on{background:rgba(255,255,255,.9);color:#111}
+.dots{display:flex;gap:8px;justify-content:center;align-items:center;min-height:44px}.dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.35)}.dots i.on{background:#fff}
+.cam{position:relative;height:120px;border-radius:14px;background:linear-gradient(135deg,#3a5a3e,#1c2c26 60%,#40523a);margin:0 16px 8px;overflow:hidden}.cam .nm{position:absolute;left:6px;bottom:6px;right:6px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.75);font-size:calc(12px*var(--ts,1));width:fit-content;max-width:calc(100% - 12px)}
+.btn{display:inline-grid;place-items:center;min-height:44px;padding:0 18px;border-radius:999px;background:#0a84ff;font-weight:600}.btn.off{background:rgba(255,255,255,.14);color:rgba(255,255,255,.4)}
+.foot{color:rgba(255,255,255,.6);font-size:calc(13px*var(--ts,1));padding:4px 30px 8px}
+.tile{margin:0 16px 8px;border-radius:22px;background:rgba(255,255,255,.1);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;min-height:64px}
+.sw{width:51px;height:31px;border-radius:16px;background:#30d158;position:relative}.sw::after{content:"";position:absolute;right:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff}
+.tag.good{background:#e1f4e5;color:var(--ok)}.rec{border-left:4px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:8px}
+</style></head><body><div class="wrap"><div class="col"><span class="tag">Proposal · 2026-10-23 · Decided (2026-10-24): option A, a two-zone button strip with “n of N” past ten pages; one shared PageIndicator in both carousels</span><h1>Page indicators you can tap</h1><p class="lede">One shared page indicator for the Food carousel, Weather sheet and hourly row: tap either side to move, and a count instead of dots beyond ten pages.</p><p class="small fg2">Crops are live size (CSS px = pt), on the always-dark wallpaper. “AX” cells use a 2.0× text scale standing in for an accessibility size. Findings covered (apple-hig review of the atlas, #144):</p><ul class="small"><li>suggested-recipes-carousel.html:71 · dots not tappable</li><li>food-hub.html:87 · same dots on the page</li><li>weather-sheet.html:114 · indicator has adjustable action only</li><li>paged-row.html:113 · 12 pages at AX5</li><li>paged-row.html:118 · custom indicator ignores system styling and pointer</li></ul></div><h2>Food carousel and Weather sheet: dots you can tap</h2><div class="col"><p>Today the five dots are drawn circles with only a VoiceOver adjustable action. HIG, Page controls: tapping either side of the current dot moves a page.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class="pad"><div class="tile" style="height:120px;justify-content:center">Recipe card</div><div class="dots"><i class=""></i><i class=""></i><i class="on"></i><i class=""></i><i class=""></i></div></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>Swipe only for a touch user.</b></div></div><div class="cell"><div class="dev" style="--w:402px"><div class="pad"><div class="tile" style="height:120px;justify-content:center">Recipe card</div><div style="position:relative"><div class="dots"><i class=""></i><i class=""></i><i class="on"></i><i class=""></i><i class=""></i></div><div style="position:absolute;inset:0;display:flex;border:1px dashed #ffd60a;border-radius:8px"><div style="flex:1;border-right:1px dashed #ffd60a;color:#ffd60a;font-size:11px;padding:2px 6px">tap: previous</div><div style="flex:1;font-size:11px;color:#ffd60a;text-align:right;padding:2px 6px">tap: next</div></div></div></div></div><div class="cap"><span class="tag">Option A</span> <b>A: keep the capsule/dots look; make the 44 pt strip two tap zones (previous / next), plus the scrub-free adjustable action.</b></div></div><div class="cell"><div class="dev" style="--w:402px"><div class="pad"><div class="tile" style="height:120px;justify-content:center">Recipe card</div><div class="dots"><i class=""></i><i class=""></i><i class="on"></i><i class=""></i><i class=""></i></div></div></div><div class="cap"><span class="tag">Option B</span> <b>B: wrap <code>UIPageControl</code> (system colours, pointer, scrubbing, Switch Control).</b></div></div></div><h2>Weather hourly row at accessibility size</h2><div class="col"><p>24 hourly cells; at AX5 two cells fit a page, so the indicator would need 12 dots (past “about 10”). Today at default sizes it is 4 pages.</p></div><div class="band"><div class="cell"><div class="dev ax" style="--w:402px"><div class="pad"><div class="tile" style="height:120px;justify-content:center">Recipe card</div><div class="dots"><i class=""></i><i class=""></i><i class=""></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></div></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>12 dots at AX5: hard to count.</b></div></div><div class="cell"><div class="dev ax" style="--w:402px"><div class="pad"><div class="tile" style="height:120px;justify-content:center">Recipe card</div><div class="dots" style="font-variant-numeric:tabular-nums">4 of 12</div></div></div><div class="cap"><span class="tag">Proposed</span> <b>A/B: from 10 pages up, replace the dots with a “4 of 12” label, same 44 pt strip and same tap zones.</b></div></div></div><h2>Weather sheet on iPhone vs iPad</h2><div class="col"><p>Previous and Next buttons exist only at regular width (iPad, Duo landscape). On iPhone paging is swipe-only; the tap zones above give a touch alternative everywhere.</p></div><div class="band"><div class="cell"><div class="dev" style="--w:402px"><div class="pad"><div class="tile" style="height:120px;justify-content:center">Recipe card</div><div class="dots"><i class=""></i><i class="on"></i><i class=""></i><i class=""></i></div></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>iPhone: dots only.</b></div></div><div class="cell"><div class="dev" style="--w:700px"><div class="pad"><div class="tile" style="height:120px;justify-content:center">Recipe card</div><div class="dots"><i class=""></i><i class="on"></i><i class=""></i><i class=""></i><span class="chev">‹ ›</span></div></div></div><div class="cap"><span class="tag bad">Original (today)</span> <b>iPad: dots plus arrows today; tap zones add nothing there but are harmless.</b></div></div></div><h2>Comparison</h2><div class="col"><p></p></div><div class="col" style="max-width:none"><div class="tablewrap"><table><tr><th></th><th>Today</th><th>A (recommended)</th><th>B</th></tr><tr><td>Tap to move</td><td>no</td><td>yes</td><td>yes</td></tr><tr><td>Keeps resizing-capsule motion (0.2 s)</td><td>yes</td><td>yes</td><td>no (system dots)</td></tr><tr><td>Pointer / Full Keyboard Access</td><td>no</td><td>tap zones are Buttons: yes</td><td>yes</td></tr><tr><td>>10 pages</td><td>12 dots</td><td>“n of N” label</td><td>system shows up to its own limit</td></tr><tr><td>Cost</td><td>—</td><td>one shared component: <code>PageIndicator</code></td><td>new representable, loses card-ink colour</td></tr></table></div></div><h2>Recommendation</h2><div class="col rec"><b>Option A.</b> Keep the app’s own indicator look (it follows card ink and the 0.2 s capsule), make it a two-zone button strip, and show “n of N” past ten pages. Files: the shared page indicator in WeatherCarouselPaging / SuggestedRecipesCarousel (one component, sweep both). Tests: unit for the page count rule; UX and AX tests on iPhone, Duo, iPad.</div><h2>Open questions for the owner</h2><div class="col"><div class="q">Is the “n of N” label acceptable, or do you prefer system dots (B) even if the card ink colour is lost?</div></div></div></body></html>

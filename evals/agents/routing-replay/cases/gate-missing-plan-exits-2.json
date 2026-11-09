@@ -1,0 +1,16 @@
+{
+  "id": "gate-missing-plan-exits-2",
+  "source": "2026-11-02: jev_gate was silent (exit 0) on a plan file that did not exist; it now says so on stderr and exits 2.",
+  "recorded": "2026-11-02",
+  "kind": "gate_cli",
+  "input": {},
+  "expect": {
+    "exit": 2,
+    "stderr": {
+      "has": [
+        "jev_gate: cannot read"
+      ]
+    },
+    "stdout": ""
+  }
+}

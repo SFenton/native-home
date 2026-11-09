@@ -1,0 +1,16 @@
+{
+  "id": "dd-contact-tiles-open-closed-text",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Contact sensors modal: don't need \"Door Closed\"/etc. text",
+  "surface": "room-overview-contacts",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "4c69e653",
+  "fix_confidence": "high",
+  "expected": "Contact tiles drop the Open/Closed caption; flag leftover caption text."
+}

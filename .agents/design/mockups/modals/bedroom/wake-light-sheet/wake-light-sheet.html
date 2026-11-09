@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wake light sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom;
+  function W(o) { o = o || {}; return function (ctx) { return B.wakeSheet(ctx, { wake: o.wake, tab: o.tab, connection: o.connection }); }; }
+  var PBL = 'Presence lighting is not ready to hand control to the wake light, so the wake cannot start safely. Check presence lighting before trying again.';
+  var none = B.wake().alarms.map(function (a) { return Object.assign({}, a, { enabled: false, linked: false }); });
+  function selectTab(stage, tab) {
+    var w = B.wake(), col = stage.querySelector('.bd-col'), old = col.lastElementChild; col.removeChild(old);
+    var next = tab === 'defaults' ? B.wakeDefaultsTab(w) : B.wakeAlarmsTab(w); [].concat(next).forEach(function (n) { col.appendChild(n); });
+    stage.querySelectorAll('.ui-modaltabs button').forEach(function (b, i) { b.classList.toggle('sel', B.WAKE_TABS[i].id === tab); b.setAttribute('aria-selected', B.WAKE_TABS[i].id === tab ? 'true' : 'false'); });
+  }
+  Mock.mount({
+    kind: 'modal', id: 'wake-light-sheet', title: 'Wake light sheet', area: 'bedroom', status: 'shipped',
+    summary: 'The Bedroom 1\'s Wake-Light Alarms, opened from its tile. Two bottom tabs: Wake Alarms (the schedule, native alarms and the bed alarms the wake light follows, with Stop Wake-Light Episode while a wake runs) and Defaults (light ramp and post-wake hold). Adding or editing pushes an editor inside the sheet.',
+    source: ['apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassCore/Bedroom/WakeLightContract.swift', 'apple/Sources/HassCore/Bedroom/WakeLightController.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['bedroom-devices', 'modal-sheet', 'entity-tile', 'motion'],
+    hig: ['Sheets', 'Segmented controls', 'Toggles', 'Buttons', 'Dynamic Type'],
+    entities: ['sensor.demo_bedroom_1_light_1'],
+    kitComponents: ['HassModal', 'ModalTabBar', 'TileGrid', 'Toggle', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Wake Alarms tab (administrator)', note: 'two native alarms and two mirrored from the beds; Sam\'s Alarm is not linked (muted, switch off)', render: W() },
+      'waking': { title: 'A wake is running (ramping, 42%)', note: 'the subtitle reads "Active • 42%" and the Active Wake-Light Controls card shows Stop Wake-Light Episode in deep red', render: W({ wake: { phase: 'ramping', brightness: 42, active: [{ label: 'Weekday Wake', wakeAt: '6:45 AM' }] } }) },
+      'stopping': { title: 'Stopping the episode', render: W({ wake: { phase: 'ramping', brightness: 42, active: [{ label: 'Weekday Wake', wakeAt: '6:45 AM' }], stopping: true } }) },
+      'defaults': { title: 'Defaults tab', note: 'ramp 30 Minutes, hold 10 Minutes selected', render: W({ tab: 'defaults' }) },
+      'defaults-old': { title: 'Defaults, hold needs an integration update', note: 'contract below 6: the hold grid dims and the footnote says why', render: W({ tab: 'defaults', wake: { holdSupported: false } }) },
+      'read-only': { title: 'Non-administrator', note: 'switches dim, Add is replaced by "Only Home Assistant administrators can edit wake alarms."', render: W({ wake: { canEdit: false } }) },
+      'blocked': { title: 'Execution blocked', note: 'a readiness blocker from the integration (presence lighting not ready) above the schedule; the subtitle reads "Execution Blocked"', render: W({ wake: { blockers: [PBL] } }) },
+      'vacation': { title: 'Vacation Mode blocks runs', note: 'subtitle "Vacation Mode · Runs Blocked" and the blocker row of the same words', render: W({ wake: { vacation: 'on', blockers: ['Vacation Mode · Runs Blocked'] } }) },
+      'none-enabled': { title: 'No alarm enabled', note: 'subtitle "No Active Wake-Light Alarms"', render: W({ wake: { alarms: none } }) },
+      'empty': { title: 'No alarms at all', render: W({ wake: { alarms: [] } }) },
+      'unavailable': { title: 'Wake light unavailable', note: 'warning notice, subtitle "Setup · Unavailable", Add Wake Alarm disabled, switches dim', render: W({ wake: { available: false } }) },
+      'incompatible': { title: 'Integration needs an update', note: 'editing is off; saved alarms stay readable', render: W({ wake: { compatible: false, canEdit: true } }) },
+      'error': { title: 'A command was refused', note: 'the refused command\'s copy in an error notice (here a revision conflict), shown only on the root page', render: W({ wake: { error: 'Alarm configuration changed elsewhere. Review the latest settings before retrying.' } }) },
+      'offline': { title: 'Over an offline Bedroom 1 page', note: 'no offline UI of its own: the last snapshot shows; a command that gets no reply in 10 s rolls back with the transport message', render: W({ connection: 'offline' }) },
+      'large': { title: 'Large detent (the only one)', render: W() },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the bar title is the profile name without the room (the room name clipped at AX5)', render: W() },
+    },
+    motion: [
+      { id: 'tab-cut', what: 'Switching Wake Alarms and Defaults: a cut', token: 'none: modalTabBar switch is a cut (motion.md section 4.4)', state: 'default',
+        source: 'HassUI/Common/ModalTabBar.swift; WakeLightSheet.tab', reduce: 'the same cut',
+        play: function (stage) { selectTab(stage, 'defaults'); return Mock.sleep(800).then(function () { selectTab(stage, 'alarms'); return Mock.sleep(400); }); } },
+      { id: 'ramp-choice', what: 'A ramp or hold choice is picked: the tile fills with the action blue and its label turns white while the old one empties', token: 'state 0.6 s easeInOut, fill and ink together (0.2 s reduced)', state: 'defaults',
+        source: 'BedroomComponents.swift ChoiceGrid: stateColorTransition("ChoiceGrid"), stateForeground', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var c = stage.querySelectorAll('.bd-choice'); var from = stage.querySelector('.bd-choice.sel'), to = c[1]; to.classList.add('sel'); from.classList.remove('sel'); return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { from.classList.add('sel'); to.classList.remove('sel'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+      { id: 'alarm-switch', what: 'An alarm switch flips (optimistic for 8 s, then Home Assistant\'s answer)', token: 'knob standard 0.3 s; track state 0.6 s (0.2 s reduced)', state: 'default',
+        source: 'WakeLightSheet.nativeRow Toggle; WakeLightController (revert 8 s)', reduce: 'track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-toggle')[1]; t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+      { id: 'brightness-text', what: 'While a wake ramps, the subtitle counts up ("Active • 42%" to "Active • 43%")', token: 'none: plain text updates (no numeric transition in code)', state: 'waking',
+        source: 'WakeLightSheet subtitle Text(WakeLight.subtitle(...))', reduce: 'the same',
+        play: function (stage) { var el = stage.querySelector('.bd-sub'); var n = 42; var iv; return new Promise(function (res) { iv = setInterval(function () { n++; el.textContent = 'Active • ' + n + '%'; if (n >= 46) { clearInterval(iv); res(); } }, 400); }).then(function () { return Mock.sleep(400); }); } },
+    ],
+    transitions: [
+      { from: 'Wake-Light tile', to: 'Wake light sheet', kind: 'sheet', state: 'default', note: 'The tile presents the sheet at the large detent (page size on iPad and the unfolded Duo). Content is present on arrival.',
+        play: function (stage) { var ctx = Mock.current, w = B.wake(); return Mock.presentDemo(stage, { title: w.title, detent: 'large', size: 'page', content: B.wakeContent(w, 'alarms'), tabs: B.wakeTabs(ctx, 'alarms') }, { hold: 1000 }); } },
+      { from: 'Wake light sheet', to: 'Bedroom 1', kind: 'sheet', state: 'default', note: 'Close, or a swipe down.', play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(400); }); } },
+      { from: 'Add Wake Alarm', to: 'Wake alarm editor', kind: 'push', state: 'default', note: 'Add or an alarm row pushes the editor inside the sheet (system push); the tab bar stays with the root.',
+        play: function (stage) {
+          var sheet = stage.querySelector('.ui-sheet'), out = sheet.querySelector('.ui-modal'), w = B.wake();
+          var layer = h('div', { style: { position: 'absolute', inset: 0, background: 'var(--sheet-ground)', display: 'flex', flexDirection: 'column', zIndex: 6 } }, K.HassModal({ title: 'Add Wake Alarm', leading: 'back', trailing: 'none', content: B.wakeEditor({ w: w }) }));
+          sheet.appendChild(layer); return Mock.anim.push(out, layer).then(function () { return Mock.sleep(600); });
+        } },
+      { from: 'Open Linked-Device Alarm Editor', to: 'Bed side sheet (Alarms)', kind: 'sheet', state: 'default', note: 'This sheet dismisses first, and only then the bed\'s sheet presents on its Alarms tab (the host queues it until onDismiss): two sheets in a row, never stacked.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), parent = host.parentNode;
+          return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(200); }).then(function () {
+            var bed = B.bedSheet(ctx, { tab: 'alarms', side: 'left' }); parent.replaceChild(bed, host); return Mock.anim.sheet(bed, 'in').then(function () { return Mock.sleep(700); });
+          });
+        } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Wake-Light Alarms" (the profile name, without the room), the subtitle, alerts, Active Wake-Light Controls (heading, detail, the running alarm, Stop), blockers, the "Wake Alarm Schedule" heading, each alarm, Add Wake Alarm; the tab bar and Close come last.' },
+      { rule: 'Alarm rows', note: 'A native row is one element ("Weekday Wake, Weekdays · 6:45 AM, Ramp: 30 min") with the switch as its value and an "Edit" custom action (identifier wake.alarm.<id>); a mirrored row has a switch "Use room wake lights for the Alex\'s Alarm alarm" and a separate button "Open Linked-Device Alarm Editor".' },
+      { rule: 'Stop Wake-Light Episode', note: 'A destructive-role button on a deep red fill with white label (about 6:1); the label changes to "Stopping Wake Lights…" and the button disables while it runs; it skips the command queue so it works during a configuration change.' },
+      { rule: 'Choice tiles', note: 'Each ramp or hold tile is a button labelled "30 Minutes" with the selected trait; the group dims (not hides) when unavailable or read-only.' },
+      { rule: 'Targets', note: 'Rows and chips are 44 pt or more; Stop is 44 pt; the link button is 44 pt tall and left aligned.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the tab bar becomes a menu, the choice grid is one column, rows wrap, and the nav title stays on one line because the room name was dropped from it.' },
+      { rule: 'Contrast', note: '"Open Linked-Device Alarm Editor" uses primary ink: the accent blue measured 2.5:1 on the card.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: stable large height for a sheet with a section bar', verdict: 'pass', note: '.hassSheet(.page, height: .full) (modal-sheet.md requires it for a tabbed modal).' },
+        { rule: 'Segmented controls: icon segments', verdict: 'departure', note: 'Two icon-only segments on compact width, menu at AX (owner 2026-10-16); titles still reach VoiceOver.' },
+        { rule: 'Accessibility: row activation reachable by every input', verdict: 'pass', note: 'WakeLightSheet.nativeRow uses BedroomRow(onOpen:): the text is a Button and the Toggle a sibling.' },
+        { rule: 'Buttons: destructive action distinct, confirmation proportional', verdict: 'pass', note: 'Stop Wake-Light Episode is a deep red filled button and does not ask because it only ends one wake and leaves lights as they are.' },
+        { rule: 'Color: not by colour alone', verdict: 'pass', note: 'Muted alarms swap bell for waves glyph; the switch position is spoken.' },
+        { rule: 'Sheets: one sheet at a time', verdict: 'pass', note: 'Open Linked-Device Alarm Editor dismisses first and the host queues the bed sheet until onDismiss.' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: never onTapGesture for buttons', verdict: 'pass', note: 'WakeLightSheet.nativeRow: text area is a Button, Toggle is its sibling (BedroomRow).' },
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Already fixed: the native and mirrored switches use ControllerToggle and WakeLightDefaultsTab.binding uses ControllerBinding.make (WakeLightSheet.swift, WakeLightDefaultsTab.swift).' },
+        { rule: 'Navigation: typed path', verdict: 'pass', note: 'Route enum, one navigationDestination(for:), path.removeAll() on save.' },
+        { rule: 'Design: contrast over accent colour', verdict: 'pass', note: 'The link button uses primary ink because the accent measured 2.5:1 on the card (line 199).' },
+        { rule: 'Accessibility: titles that fit AX5', verdict: 'pass', note: 'Bar title is the profile name without the room (line 64).' },
+      ],
+    },
+    notes: [
+      'loading: none. The sheet reads the status sensor through EntityStore; the wake-light sensor\'s command responses have their own 10 s transport timeout (shown as an error notice).',
+      'medium and fitted: the sheet is large only (hassSheet(.page, height: .full)).',
+      'Docs versus code: bedroom-devices.md says "Two tabs" and the code matches; the room name was dropped from the bar title (the profile config title is "Wake-Light Alarms").',
+      'Fixture dates: the next alarm "10/24 6:45 AM" is derived (the gallery uses now + 9 h).',
+      'The wake light and the bed sheet share one BedroomDevices per room page, so edits made in one show in the other at once.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: alarms, defaults, waking, read only, blocked, vacation, unavailable, incompatible, error, offline.' }],
+  });
+})();
+</script></body></html>

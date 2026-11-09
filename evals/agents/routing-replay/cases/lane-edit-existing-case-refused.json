@@ -1,0 +1,25 @@
+{
+  "id": "lane-edit-existing-case-refused",
+  "source": "Rule: routing-replay cases are append-only; editing one is refused.",
+  "recorded": "2026-11-02",
+  "kind": "lane_check",
+  "input": {
+    "check": "paths",
+    "rows": [
+      [
+        "M",
+        "evals/agents/routing-replay/cases/route-feature-researcher-first.json",
+        "0000000000000000000000000000000000000000",
+        "1111111111111111111111111111111111111111"
+      ]
+    ]
+  },
+  "expect": {
+    "refused": true,
+    "message": {
+      "has": [
+        "append-only"
+      ]
+    }
+  }
+}

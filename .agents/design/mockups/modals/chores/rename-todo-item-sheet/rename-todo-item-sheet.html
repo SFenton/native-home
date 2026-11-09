@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rename to-do item sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/chores/_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Sheets: confirm before losing an edit", verdict: "pass", note: "DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask 'Discard changes?' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). RenameTodoItemSheet guards a changed name.", by: "apple-hig skill" },
+        { rule: "Buttons: show a disabled action only with a reason", verdict: "pass", note: "Reset to Original appears only when the draft differs or an error shows (lines 251-260), instead of a dimmed row that fails contrast.", by: "apple-hig skill" },
+        { rule: "Alerts and Writing: say why an action is unavailable", verdict: "pass", note: "A missing item uid produces \"This task cannot be edited because its Home Assistant identity is unavailable.\" as an error row (line 240) and Save stays disabled (canSave, lines 230-233).", by: "apple-hig skill" },
+        { rule: "Text fields: label and hint", verdict: "pass", note: "Task Name field with a footer that says where the text goes (lines 243-248).", by: "apple-hig skill" },
+        { rule: "Toolbars: confirm named Save", verdict: "departure", note: "direction-g.md Sheets: filled check labelled \"Save\", disabled until the trimmed name is new and non-empty.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Performance: canSave is a static pure function", verdict: "pass", note: "RenameTodoItemSheet.canSave(target:draft:) is testable and called from body and save (lines 230-233, 269, 277).", by: "swiftui-pro skill" },
+        { rule: "Views: TextField(axis: .vertical) for a title", verdict: "pass", note: "lineLimit(1...4) (line 244).", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.sheetConfig({
+    id: 'rename-todo-item-sheet', title: 'Rename to-do item sheet', file: 'TodoItemSheets.swift', fromLabel: 'To-Do', from: 'admin-todo',
+    summary: 'Edit Task for an admin to-do: one multi-line Task Name field with the same public-repository disclosure, a Reset to Original row once something changed, Cancel and a Save check that stays disabled until the name is new. A fitted form sheet.',
+    entities: ['todo.demo_todo_1'], patterns: [],
+    build: function (ctx, o) { return C.renameSheet(ctx, o); },
+    defaultTitle: 'Unchanged', defaultNote: 'the field holds the original title; Save is disabled; no Reset row (a disabled row fails the contrast audit)', defaultO: {},
+    errorTitle: 'Rename failed', errorNote: 'todo.update_item failed: "Unable to update task." above the field; Reset to Original appears', errorO: { draft: 'Port the Chores page to Lists', error: 'Unable to update task.' },
+    offlineO: { draft: 'Port the Chores page to Lists', error: 'Unable to update task.' },
+    ax5O: { draft: 'Port the Chores page to Lists' },
+    extra: {
+      'changed': { title: 'Name changed', note: 'Save enables and "Reset to Original" appears in the action tint', o: { draft: 'Port the Chores page to Lists' } },
+      'saving': { title: 'Saving', note: 'arc on the check, form disabled, sheet locked', o: { draft: 'Port the Chores page to Lists', busy: 'saving' } },
+      'no-identity': { title: 'Cannot be edited', note: 'the row has no uid: a red explanation and Save stays disabled', o: { noIdentity: true } },
+    },
+    a11y: [{ rule: 'Reset to Original', note: 'An accent-tinted list row that only exists when there is something to reset (draft differs or an error shows); activating it restores the title and clears the error.' }],
+    notes: [
+      'loading: the sheet loads nothing (the target is passed in from the row); the nearest state is Saving. The title field wraps to up to four lines.',
+      'Opened from the Edit glyph or the trailing Edit swipe on an admin to-do row. Choreapp pages use the larger task sheet instead.',
+    ],
+  }));
+
+})();
+</script></body></html>

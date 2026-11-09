@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recipes · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+  var PASTA = F.order('availability', 6, 'pasta');
+
+  function page(ctx, o) { return F.recipesPage(ctx, o || {}); }
+  /* A recipe open: a trailing pane where the window may split (iPad landscape, unfolded Duo landscape), else a sheet over the grid. */
+  function detail(ctx, o) { return F.detailOver(ctx, Object.assign({ over: 'recipes' }, o || {})); }
+  function controlSheet(ctx, opts) { return Mock.sheet(ctx, Object.assign({}, opts, { presenter: F.recipesPage(ctx, { count: 12 }) })); }
+
+  Mock.mount({
+    kind: 'page', id: 'recipes', title: 'Recipes', area: 'food', status: 'shipped',
+    summary: 'Every recipe Pantryhub can suggest: a card grid that loads endlessly, with the shared floating Search, Sort and Filter, "Sorted by Ingredients Available" under the title, and the recipe opening in a trailing pane where the window may split, else as a sheet. Sample data is fixture data.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift', 'apple/Sources/HassUI/Features/Food/FoodModels.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailView.swift (RecipeDetailPane)', 'apple/Sources/HassDesign/FloatingActionBar.swift',
+      'apple/Sources/HassDesign/ImageCard.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift', 'apple/Sources/HassUI/Features/Gallery/FoodGallery.swift'],
+    spec: ['.agents/pages/food/spec.md', '.agents/pages/food/ios.md'],
+    patterns: ['floating-actions', 'image-card', 'content-gate', 'modal-sheet', 'dynamic-grid', 'motion'],
+    hig: ['Collections', 'Searching', 'Sheets', 'Split views', 'Loading', 'Dynamic Type', 'Toolbars'],
+    entities: [],
+    kitComponents: ['ImageCard', 'FloatingActionBar', 'ContentGate', 'ArcProgress', 'PrimaryButton', 'ModalTabBar', 'SheetCloseItem'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Loaded: sorted by Ingredients Available', note: '160 pt cards, at least two columns, up to eight; the order leads with recipes 1, 6, 11 as the fixture sorts', render: function (c) { return page(c); } },
+      'loading': { title: 'First load: the page gate', note: '.page profile (spinner at once, at least 1 s); the floating actions are outside the gate so they are already there', render: function (c) { return page(c, { phase: 'loading' }); } },
+      'reload': { title: 'A search, sort or filter reloads', note: '.results profile: the old cards fade out (170 ms), the spinner fades in after 150 ms, the field and keyboard stay; sort and filter are active', render: function (c) { return page(c, { phase: 'reload', sort: 'expiry', sortActive: true, filterActive: true, query: 'soup' }); } },
+      'refreshing': { title: 'Reopened with results in memory', note: 'identical to default by design: the models live as long as the Food stack, so leaving and returning keeps results, search and filters and nothing reloads', render: function (c) { return page(c); } },
+      'empty': { title: '"No Recipes Found" (filters)', note: 'a scrolling stack, not ContentUnavailableView, so large text wraps whole; the copy follows whether a query is set', render: function (c) { return page(c, { phase: 'empty', filterActive: true }); } },
+      'empty-search': { title: '"No Recipes Found" (search)', render: function (c) { return page(c, { phase: 'empty-search', query: 'zzxq', filterActive: false }); } },
+      'error': { title: 'Unable to Load Recipes', note: 'the page\'s one primary action while nothing loaded (#0071E3 Retry, as wide as its label)', render: function (c) { return page(c, { phase: 'failed' }); } },
+      'search-open': { title: 'Search open', note: 'the field takes the bar\'s width and hides Sort and Filter; the close button clears the text and collapses; results narrow after 250 ms', render: function (c) { return page(c, { searchOpen: true, query: 'pasta', count: 6, order: PASTA }); } },
+      'searched': { title: 'Search collapsed with a query', note: 'the capsule shows the query in white (selected trait) instead of the prompt', render: function (c) { return page(c, { query: 'pasta', count: 6, order: PASTA }); } },
+      'active': { title: 'Sorted alphabetically, filters on', note: 'an applied sort or filter tints its circle #F2F2F7 under a black glyph (selected trait); "Sorted Alphabetically" under the title', render: function (c) { return page(c, { sort: 'alphabetical', sortActive: true, filterActive: true }); } },
+      'next-page-loading': { title: 'Loading more (8 cards from the end)', render: function (c) { return page(c, { footer: 'loading', count: 14 }); } },
+      'next-page-failed': { title: 'A later page failed', note: '"Unable to load more recipes." with a bordered Retry; the cards stay', render: function (c) { return page(c, { footer: 'failed', count: 14 }); } },
+      'hydrating': { title: 'Finding more recipes (3+ characters)', note: 'after 600 ms the remote catalogue is searched; new cards that pass the filters are appended and announced', render: function (c) { return page(c, { footer: 'hydrating', query: 'pasta', count: 6, order: PASTA }); } },
+      'detail': { title: 'A recipe open', note: 'beside the grid on a window that may split (the open card is outlined 3 pt and selected); a sheet over the grid everywhere else', render: function (c) { return detail(c, { tab: 'ingredients' }); } },
+      'offline': { title: 'No network', note: 'results and photos stay (disk cache); the offline chip sits under the header; a new search or sort would fail to "Unable to Load Recipes"', render: function (c) { return page(c, { pageOpts: { connection: 'offline' } }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: function (c) { return page(c, { pageOpts: { connection: 'reconnecting' } }); } },
+      'long-text': { title: 'A three-line title and a long query', render: function (c) { return page(c, { long: true, query: 'slow cooked pulled pork sandwiches' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of rows with a 72 pt thumbnail; the bar reflows to two rows (circles trailing); titles never truncate', render: function (c) { return page(c, { count: 8 }); } },
+    },
+
+    motion: [
+      { id: 'results-gate', what: 'A search, sort or filter reloads the results: the old cards fade out, the spinner fades in after a short delay, then the new cards fade in and rise 4 pt', token: 'gate .results profile: 170 ms out, 150 ms delay, 200 ms in, 140 ms spinner out, 170 ms content in (ease-out) with a 4 pt rise',
+        source: 'HassDesign/Loading/ContentGate.swift ContentGateModel.Profile.results (reloadTiming); patterns/content-gate.md; RecipesScreen.gatedResults', reduce: 'the fade stays, the 4 pt rise is dropped',
+        play: function (stage) { var g = stage.querySelector('.ui-gate'); return g ? Mock.anim.gate(g, { profile: 'results', loadMs: 700 }) : Promise.resolve(); } },
+      { id: 'pane-slide', what: 'Opening a recipe where the window splits: the pane slides in from the trailing edge while the grid narrows to half', token: 'standard 0.3 s smooth (.move(edge: .trailing)); under Reduce Motion quick 0.2 s opacity', state: 'detail',
+        source: 'HassUI/Features/Food/RecipesScreen.swift (.motionSafeAnimation(MotionTokens.standard, reduced: MotionTokens.quick, value: split && detail != nil))', reduce: 'the pane fades in over 0.2 s instead of sliding (HIG Motion); choose iPad landscape or Duo unfolded landscape to see it',
+        note: 'Needs a split-capable device (iPad landscape, unfolded Duo landscape); on the others a recipe opens as a sheet (see Transitions).',
+        play: function (stage) {
+          var pane = stage.querySelector('.fd-pane'), sc = stage.querySelector('.ui-scroll'), slot = stage.querySelector('.ui-actions-slot'); if (!pane || !sc) return Promise.resolve();
+          var ctx = Mock.current, inset = ctx.contentW - Math.floor(ctx.contentW / 2), ms = Mock.settings.reduceMotion ? Mock.anim.ms.quick() : Mock.anim.ms.standard(), ease = Mock.anim.easing.standard;
+          var a = [pane.animate(Mock.settings.reduceMotion ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'translateX(100%)' }, { transform: 'none' }], { duration: ms, easing: ease, fill: 'backwards' })];
+          [sc, slot].forEach(function (el) { if (el) a.push(el.animate([{ right: ctx.rail + 'px' }, { right: (ctx.rail + inset) + 'px' }], { duration: ms, easing: ease })); });
+          return Promise.all(a.map(function (x) { return x.finished.catch(function () {}); })).then(function () { return Mock.sleep(500); });
+        } },
+      { id: 'search-expand', what: 'Tapping Search: the capsule grows to the bar\'s width and Sort and Filter leave', token: 'standard 0.3 s smooth on the bar (.motionSafeAnimation(MotionTokens.standard, value: isExpanded))', state: 'default',
+        source: 'HassDesign/FloatingActionBar.swift', reduce: 'the capsule swaps in place without the spring',
+        play: function (stage) {
+          var bar = stage.querySelector('.ui-fab'); if (!bar) return Promise.resolve();
+          var next = F.floatingBar(Mock.current, { searchOpen: true, query: '' }), reduce = Mock.settings.reduceMotion;
+          bar.replaceWith(next);
+          return (reduce ? Promise.resolve() : Mock.anim.fade(next.firstChild, { ms: Mock.anim.ms.standard() })).then(function () { return Mock.sleep(900); });
+        } },
+      { id: 'active-tint', what: 'Applying a sort or filter: its circle fills #F2F2F7 and the glyph turns black', token: 'state 0.6 s ease-in-out, colour only (stateColorTransition "FloatingActionBar")', state: 'default',
+        source: 'HassDesign/FloatingActionBar.swift BarGlass, circleButton', reduce: 'still cross-fades, shortened to 0.2 s',
+        play: function (stage) {
+          var c = stage.querySelector('.ui-fab .circ'); if (!c) return Promise.resolve();
+          return Promise.all([Mock.anim.stateColor(c, 'backgroundColor', 'rgb(242,242,247)'), Mock.anim.stateColor(c, 'color', 'rgb(0,0,0)')]).then(function () { return Mock.sleep(500); });
+        } },
+      { id: 'photo-fade', what: 'A photo fades in over its card when it arrives', token: 'quick 0.2 s ease-out', state: 'default', source: 'HassDesign/Images/CachedImage.swift', reduce: 'not gated on Reduce Motion in the code (an opacity change, not movement)',
+        play: function (stage) { var ph = Array.prototype.slice.call(stage.querySelectorAll('.ui-img .photo')).slice(0, 8); ph.forEach(function (p) { p.style.opacity = 0; }); return Mock.sleep(60).then(function () { return Promise.all(ph.map(function (p, i) { return Mock.sleep(i * 40).then(function () { return Mock.anim.fade(p, { ms: Mock.anim.ms.quick() }); }); })); }).then(function () { ph.forEach(function (p) { p.style.opacity = ''; }); }); } },
+    ],
+
+    transitions: [
+      { from: 'Recipe card', to: 'Recipe detail (sheet)', kind: 'sheet', state: 'default', note: 'On a window that may not split (iPhone, folded Duo, any portrait) the card opens the recipe as a full-height sheet. A SHEET, not a zoom: motion.md 3 and 4.3 list the recipe card as a zoom, the code has no zoom call site (inventory note 1).',
+        play: function (stage) { return Mock.presentDemo(stage, F.detailOpts(Mock.current, { phase: 'loading' }), { hold: 1100 }); } },
+      { from: 'Sort circle', to: 'Sort Recipes sheet', kind: 'sheet', state: 'default', note: 'A fitted form sheet with Cancel and Apply; a swipe down drops the draft.',
+        play: function (stage) { return Mock.presentDemo(stage, F.sortOpts({}), { hold: 1100 }); } },
+      { from: 'Filter circle', to: 'Filter Recipes sheet', kind: 'sheet', state: 'default', note: 'A fitted form sheet (large only when the form outgrows the window); Apply enabled once the draft differs.',
+        play: function (stage) { return Mock.presentDemo(stage, F.filterOpts({ coverage: 60, expiringOnly: true, horizon: '30 Days', changed: true }), { hold: 1100 }); } },
+      { from: 'Apply', to: 'Results reload', kind: 'fade', state: 'default', note: 'Apply commits the draft and dismisses the sheet; the grid reloads through the results gate (floating actions stay).',
+        play: function (stage) {
+          return Mock.presentDemo(stage, F.sortOpts({ draft: 'alphabetical' }), { hold: 700 }).then(function () { var g = stage.querySelector('.ui-gate'); return g ? Mock.anim.gate(g, { profile: 'results', loadMs: 600 }) : null; });
+        } },
+      { from: 'Food & Recipes', to: 'Recipes', kind: 'push', state: 'default', note: 'System push from the All Recipes tile; the edge swipe pops back. The tab bar stays, the floating bar sits above it.',
+        play: function (stage) { return F.pushInto(stage, function (c) { return F.hubPage(c, {}); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back ("Food & Recipes"), Quick Links, Profile; the title "Recipes" (heading); "Sorted by Ingredients Available" (recesses behind the title); the cards in grid order; the footer (Retry or progress); the floating bar last (Search, Sort, Filter); the tab bar. Pushes inside a split leave the pane after the grid.' },
+      { rule: 'Cards', note: 'One element per card, its caption: label = title, value = "4 of 5 Ingredients", hint "Opens recipe details", button; the open card adds the selected trait and a 3 pt #409CFF outline (colour is not the only cue: the pane beside it names the recipe). Identifiers recipes.card.<id>.' },
+      { rule: 'Floating bar', note: 'Search is a button "Search recipes" whose value is the query (selected while one is set); Sort and Filter are 52 pt circles named Sort and Filter with the selected trait while applied; at AX sizes it is two rows with every target 44 pt or more. The expanded field is labelled "Search recipes" with a "Close Search" button.' },
+      { rule: 'Announcements', note: 'Results post polite announcements: "24 recipes.", "No recipes found.", "8 more recipes loaded; 32 total.", "Unable to load recipes."; hydration announces how many were added.' },
+      { rule: 'Empty and error', note: '"No Recipes Found" is a header-trait title with its explanation; "Unable to Load Recipes" is one container whose Retry keeps its own identifier (recipes.retry). A failed next page keeps the cards and offers Retry (recipes.nextPage.retry).' },
+      { rule: 'Split', note: 'The pane is a region "recipe.pane" with its own heading and a "Close" button of at least 44 pt; closing returns focus to the grid. Folding the Duo or rotating moves an open recipe into the sheet.' },
+      { rule: 'Dynamic Type', note: 'At AX sizes the grid uses 320 pt cells (one column on iPhone) and every card is a row with a 72 pt thumbnail; titles are never truncated; the sort line wraps; the empty block is a scrolling stack so it wraps whole (a ContentUnavailableView clipped on the folded Duo, AX audit 2026-10-12).' },
+      { rule: 'Reduce Motion and Transparency', note: 'The pane fades instead of sliding; the gate drops its rise; the bar swaps the search capsule in place; glass and card placeholders go opaque.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Searching: primary position and a descriptive prompt', verdict: 'pass', note: 'Search is a bottom glass capsule, as Notes places it, with the prompt "Search recipes" and the query shown when collapsed (FloatingActionBar.collapsedSearch).', by: 'apple-hig skill' },
+        { rule: 'Toolbars: icon-only controls keep a name', verdict: 'pass', note: 'Sort and Filter are 52 pt circles with labels as the VoiceOver name and the selected trait while applied (FloatingActionBar.swift circleButton).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: split columns adapt to the fold', verdict: 'pass', note: 'Fixed: RecipesScreen\'s grid and recipe pane are HingedPanes (SplitPolicy.columnWidths); the pane starts after the hinge.', by: 'apple-hig skill' },
+        { rule: 'Feedback: announce changed results', verdict: 'pass', note: 'collection.announcement posts a UIAccessibility announcement ("24 recipes.", "8 more recipes loaded") (RecipesScreen.swift:71, 163-168).', by: 'apple-hig skill' },
+        { rule: 'Empty states: say what happened and what to try', verdict: 'departure', note: '"No Recipes Found" is a scrolling VStack, not ContentUnavailableView.search, because the system view clipped its title on the folded Duo at large text (RecipesScreen.swift:111-113, AX audit 2026-10-12); the copy follows whether a query is set.', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: reflow rather than truncate', verdict: 'pass', note: 'The grid uses 320 pt cells at accessibility sizes and ImageCard becomes a row with a 72 pt thumbnail (RecipeGrid.columnCount); the bar reflows to two rows.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Data flow: Binding(get:set:) in a presenter', verdict: 'pass', note: 'Kept lazy on purpose: sheetRecipe stays a Binding(get:set:) read when SwiftUI presents, because a value captured in the body missed the first presentation at AX5 (iPhone journey testRecipeDetailAtAX5); the split decision is in that one binding.', by: 'swiftui-pro skill' },
+        { rule: 'Resizability: selection survives a fold', verdict: 'pass', note: 'selected and detail are @State above the split branch, so an open recipe moves between pane and sheet when the window folds (RecipesScreen.swift:143-150).', by: 'swiftui-pro skill' },
+        { rule: 'Motion with Reduce Motion', verdict: 'pass', note: 'The pane transition is .opacity under Reduce Motion and the animation uses motionSafeAnimation (RecipesScreen.swift:58, 72).', by: 'swiftui-pro skill' },
+        { rule: 'Performance: lazy grid and measured width', verdict: 'pass', note: 'LazyVGrid with onGeometryChange for the width (not a GeometryReader) and pagination from itemAppeared (RecipeGrid, :225).', by: 'swiftui-pro skill' },
+        { rule: 'Use task() rather than onAppear for async work', verdict: 'pass', note: 'RecipesScreen starts collection.appear() from .task (RecipesScreen.swift:67)' },
+      ],
+    },
+
+    notes: [
+      'refreshing: identical to default by design: the Food models live with the stack, so a return shows the results at once, with the search text, sort and filters kept (web useRecipeControls survives navigation).',
+      'Docs vs code (1): ios.md says the pane header is "title, Close" and the open card is "outlined and marked selected": both match the code; ios.md says nothing about the pane not honouring the Duo hinge (see the review "fix").',
+      'Docs vs code (2): floating-actions.md says FilterSheet takes a detents argument defaulting to medium and large; the code has height: .fitted or .full and no detents argument (components/modals/filter-sheet).',
+      'Docs vs code (3): the recipe card is a zoom in motion.md 3 and 4.3 but a sheet or pane in code (Transitions show what ships).',
+      'The pane\'s top edge here approximates where the large title ends (a non-scrolling pane starts below the navigation bar\'s large title); the grid column beside it is the half-width scroller.',
+      'Grid order and counts follow FixtureRecipeService (ties by id: recipes 1, 6, 11, ... by availability). Photos are drawn stand-ins in a hue per recipe.',
+      'Promote to kit: the expanded floating search (Food.floatingBar with searchOpen), the Recipes pane (Food.detailPane), the results ContentGate wrapper with a VoiceOver-only label (Food.gate), ContentUnavailableView (Food.cuv).',
+      'The duo-unfolded-portrait pose was not run on a simulator; chrome follows AUTHORING.md. It is always single page (a sheet opens recipes).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: nineteen states, five motion items, five transitions; the pane on iPad and Duo landscape, the sheet elsewhere.' }],
+  });
+})();
+</script></body></html>

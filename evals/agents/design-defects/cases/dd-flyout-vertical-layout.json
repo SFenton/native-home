@@ -1,0 +1,17 @@
+{
+  "id": "dd-flyout-vertical-layout",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Navbar flyout vertical layout doesn't match SwiftUI",
+  "surface": "navigation-flyout",
+  "poses": [
+    "duo-unfolded-portrait",
+    "ipad-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "fec0e3ca",
+  "fix_ref": "ec679d73",
+  "fix_confidence": "high",
+  "expected": "Flyout rows stack from the top under the heading with the spare height below; flag rows spread or centred vertically versus the SwiftUI flyout."
+}

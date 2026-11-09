@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sort Recipes · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+
+  /* Sort Recipes over the Recipes page. draft = the option ticked now, current = what is applied (the page's sort). */
+  function sheet(ctx, o) {
+    o = o || {};
+    var current = o.current || 'availability';
+    return Mock.sheet(ctx, Object.assign(F.sortOpts({ draft: o.draft || current, current: current, detent: o.detent }),
+      { presenter: F.recipesPage(ctx, { count: 12, sort: current, sortActive: current !== 'availability' }) }));
+  }
+  function S(o) { return function (c) { return sheet(c, o); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'recipe-sort-sheet', title: 'Sort Recipes (filter sheet)', area: 'food', status: 'shipped',
+    summary: 'The Sort circle on Recipes opens a fitted form sheet on FilterSheet: one section, "Sort By", three single-choice rows with a line of explanation each. It edits a draft; Apply commits it and closes, Cancel or a swipe down drops it. Follows the system appearance.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift (RecipeSortSheet, RecipeControlSheet)', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassCore/Recipes/RecipeModels.swift (RecipeSort)', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift'],
+    spec: ['.agents/pages/food/spec.md', '.agents/pages/food/ios.md', '.agents/patterns/floating-actions.md'],
+    patterns: ['floating-actions', 'modal-sheet', 'motion'],
+    hig: ['Sheets', 'Lists and tables', 'Toolbars', 'Buttons', 'Dynamic Type'],
+    entities: [],
+    kitComponents: ['FilterSheet', 'FilterSection', 'FilterOptionRow', 'HassModal', 'SheetCancelItem', 'SheetConfirmItem', 'FloatingActionBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Defaults: Ingredients Available', note: 'nothing changed: Apply is dimmed (visible, disabled) and there is no Reset row', render: S({}) },
+      'changed': { title: 'Alphabetical ticked, not applied', note: 'Apply fills #0071E3; "Reset to Defaults" appears (blue, never red) because the draft is not the default', render: S({ draft: 'alphabetical' }) },
+      'expiring': { title: 'Expiring Soon ticked', render: S({ draft: 'expiry' }) },
+      'applied': { title: 'Reopened with Alphabetical applied', note: 'draft equals what is applied: Apply dimmed again, Reset still shown; the Sort circle behind is tinted', render: S({ current: 'alphabetical' }) },
+      'medium': { title: 'Medium detent', note: 'what a fitted sheet opens at until its first measurement (it remembers its height per title after that)', render: S({ detent: 'medium' }) },
+      'large': { title: 'Large detent', note: 'only when the rows outgrow the window (accessibility sizes)', render: S({ detent: 'large' }) },
+      'fitted': { title: 'Fitted detent (shipped)', render: S({ detent: 'fitted' }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Recipes page the sheet scales back', render: function (c) { return F.recipesPage(c, { count: 12 }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'rows wrap whole words, the height reaches the large cap and the form scrolls', render: S({ draft: 'alphabetical' }) },
+    },
+
+    motion: [
+      { id: 'check-fade', what: 'Ticking another option: the old check fades out and the new one fades in; Apply fills blue and Reset to Defaults appears', token: 'quick 0.2 s ease-out on the check (quickTransition "FilterOptionRow"); Apply and Reset change with no animation of their own', state: 'default',
+        source: 'HassDesign/FilterSheet.swift FilterOptionRow; SheetEditToolbar.swift', reduce: 'the check\'s opacity change is not movement and stays; nothing else animates',
+        play: function (stage) {
+          var rows = stage.querySelectorAll('.ui-optrow'), ctx = Mock.current; if (rows.length < 3) return Promise.resolve();
+          return Mock.sleep(500).then(function () {
+            rows[0].classList.remove('sel'); rows[2].classList.add('sel');
+            var ok = stage.querySelector('.ui-confirm'); if (ok) ok.disabled = false;
+            var list = rows[0].closest('section').parentNode; if (!list.querySelector('.ui-reset')) list.appendChild(h('button.ui-reset', { type: 'button' }, 'Reset to Defaults'));
+            return Mock.sleep(Mock.anim.ms.quick() + 600);
+          });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Recipes (Sort circle)', to: 'Sort Recipes sheet', kind: 'sheet', state: 'closed', note: 'A form sheet fitted to its three rows (a 540 pt form sheet on iPad); Recipes scales back and dims. Content is present on arrival.',
+        play: function (stage) { return Mock.presentDemo(stage, F.sortOpts({}), { hold: 1200 }); } },
+      { from: 'Apply', to: 'Recipes', kind: 'sheet', state: 'changed', note: 'Apply commits the draft and dismisses; Cancel (circle x) and a swipe down dismiss and drop it. The grid then reloads through the results gate (see the Recipes page).',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: the title "Sort Recipes", Cancel, Apply, the "Sort By" header (heading), the three rows, "Reset to Defaults" when shown. Escape and the two-finger scrub dismiss.' },
+      { rule: 'Rows', note: 'Each option is one element (title and its explanation read together) with the selected trait on the ticked one; at least 44 pt tall, the whole row taps. Identifiers recipes.sort.availability, .expiry, .alphabetical.' },
+      { rule: 'Toolbar', note: 'Cancel and "Apply" are the system circle x and check (identifiers filterSheet.cancel, filterSheet.apply); Apply is dimmed and unpressable until the draft differs from what is applied, and is spoken as dimmed.' },
+      { rule: 'Reset', note: 'A list row "Reset to Defaults" in the action tint (#409CFF on dark, #0066CC on light), at least 44 pt; shown only when there is something to reset because a dimmed row fails the contrast audit; never red (resetting is not destructive).' },
+      { rule: 'Header contrast', note: '"Sort By" is 15 Semibold in the readable secondary ink (FormHeader), not the system header, which measured 3.1:1.' },
+      { rule: 'Dynamic Type', note: 'Titles and explanations wrap; the Reset row grows with the text (12 pt padding either side, not a fixed 44 pt floor); at AX5 the sheet reaches the large cap and scrolls.' },
+      { rule: 'Light and dark', note: 'Follows the system appearance: #2C2C2E rows on #1C1C1E, or white on #F2F2F7; explanations are secondary ink at 5:1 or better.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: Cancel leading, confirm trailing', verdict: 'pass', note: 'Cancel drops the draft and Apply commits and closes, disabled until the choice differs (FilterSheet.swift:77-82).', by: 'apple-hig skill' },
+        { rule: 'Lists: selection feedback for an option list', verdict: 'pass', note: 'FilterOptionRow shows a checkmark and the isSelected trait, with a subtitle explaining each order (FilterSheet.swift:118-160).', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type', verdict: 'pass', note: 'Rows wrap with fixedSize and a 44 pt minimum; the sheet re-fits when the type size changes (SheetFit).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Presentation: shared sheet chrome', verdict: 'pass', note: 'FilterSheet applies hassSheet(.form, height: .fitted), the visible grabber and an opaque ground (FilterSheet.swift:88).', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: radio rows', verdict: 'pass', note: 'FilterOptionRow combines its children and adds .isSelected (FilterSheet.swift:158-159); the checkmark is hidden.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading, error and offline: this sheet has none. It edits a local draft of three constants, so it never waits on the service; with no network it opens and applies like any other (the reload behind it is what fails, see the Recipes page).',
+      'Docs vs code: floating-actions.md says FilterSheet(detents:) defaults to medium and large (large only at AX sizes); the code takes height: .fitted (default) or .full and has no detents argument. The "medium" state here is the provisional detent a fitted sheet opens at before it has measured itself.',
+      'Docs vs code: spec.md says sort and filter "edit a draft with Cancel / Apply / Reset to Defaults"; the code and this mockup agree (Reset is a list row, not a toolbar button).',
+      'iPad and the unfolded Duo present a 540 pt form sheet fitted to the rows (iOS 18+); the Duo placement of a centred sheet across the hinge band is the system\'s (check on a device).',
+      'The presenter is the Recipes page with the Sort circle tinted when a non-default sort is applied.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: default, changed, applied, medium, large, fitted, AX5; light and dark in the gallery.' }],
+  });
+})();
+</script></body></html>

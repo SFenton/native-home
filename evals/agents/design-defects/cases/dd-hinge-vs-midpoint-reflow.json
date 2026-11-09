@@ -1,0 +1,17 @@
+{
+  "id": "dd-hinge-vs-midpoint-reflow",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "partial fold should be split at the hinge (is today), while unfolded landscape layouts should have page midpoint at midpoint of free space; animate reflow",
+  "surface": "dynamic-grid-layout",
+  "poses": [
+    "duo-unfolded-landscape",
+    "duo-partial-fold"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "31c89100",
+  "fix_ref": "367d2991",
+  "fix_confidence": "high",
+  "expected": "Partial fold: divider on the hinge band. Fully open: divider at the midpoint of the window minus the trailing rail. Moving between poses reflows with an animation, no jump."
+}

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Links sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/rooms/_rooms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = Mock.rooms;
+
+  /* QuickLinksSheet = HassPathModal { QuickLinksRoot }, hassSheet(.page, height: .fittedToTopPage): as tall as the page on top. Zooms out of the header button on every page (iOS 26). */
+  function root(o) { return h('div.rm-qlwrap', R.qlGrid(o)); }
+  function sheet(ctx, o) {
+    o = o || {};
+    return Mock.sheet(ctx, { title: 'Quick Links', detent: o.detent || 'fitted', size: 'page', trailing: 'close', content: root(o), presenter: R.homePresenter(ctx, o.connection) });
+  }
+  var S = function (o) { return function (ctx) { return sheet(ctx, o); }; };
+  function roomsOpts() { return { title: 'Rooms', leading: 'back', trailing: 'none', content: h('div', R.roomsGrid()) }; }
+  function securityOpts() { return { title: 'Security System', leading: 'back', trailing: 'none', content: h('div', { style: { maxWidth: '560px', margin: '0 auto' } }, K.AlarmPanel({ state: 'armed_home' })) }; }
+  function tileEl(stage, ident) { return stage.querySelector('[data-ident="' + ident + '"]'); }
+  function foodPage(ctx) { return Mock.page(ctx, { title: 'Food', section: 'home', back: 'Home', badge: 3, choresBadge: 2, body: [h('p', { style: { margin: 0, color: 'var(--g-secondary-on-wallpaper)', font: 'var(--fs-sub) var(--font)' } }, 'Food hub (Food batch).')] }); }
+
+  Mock.mount({
+    kind: 'modal', id: 'quick-links', title: 'Quick Links sheet', area: 'shell', status: 'shipped',
+    summary: 'The header\'s Quick Links button opens a page sheet, only as tall as its tiles and zooming out of the button, of up to seven solid-colour tiles: Rooms and Security System push inside the sheet, the rest close it and open their page. Tiles are one size, glyph top-leading and name on the bottom line. Follows the system appearance.',
+    source: ['apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift', 'apple/Sources/HassDesign/QuickLinkPalette.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassCore/Config/SprinklersConfig.swift'],
+    spec: ['.agents/pages/rooms/ios.md', '.agents/design/direction-g.md', '.agents/patterns/modal-sheet.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['modal-sheet', 'entity-tile', 'dynamic-grid', 'header-edge-fade', 'motion'],
+    hig: ['Sheets', 'Toolbars', 'Color', 'Dark Mode', 'Typography', 'Dynamic Type', 'Accessibility'],
+    entities: ['alarm_control_panel.demo_alarm_control_panel_1', 'sensor.demo_expired_items_1', 'sensor.demo_sensor_1', 'input_boolean.demo_input_boolean_1', 'script.demo_media_room_3'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid', 'NavigationGlass', 'ChipRail', 'WeatherCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Seven tiles, armed at home', note: 'Rooms navy, Security System in the Armed Home blue, Food green, Vacuums purple, Media pink, Custom Lights amber, Sprinklers water blue', render: S() },
+      'loading': { title: 'Nothing saved yet', note: 'no loading UI: counters read 0 so Food says "0 Items • 0 Expiring Soon", and Security System draws slate with "Unavailable"', render: S({ u: true }) },
+      'error': { title: 'Entities unavailable', note: 'the page links are pages, so they stay tappable; only their state lines and the Security colour change', render: S({ u: true }) },
+      'offline': { title: 'Over an offline page', note: 'the sheet has no offline UI of its own; values stay; the page behind carries the offline chip', render: S({ connection: 'offline' }) },
+      'sprinklers-hidden': { title: 'Sprinklers hidden', note: 'six tiles: Sprinklers shows only while input_boolean.demo_input_boolean_1 is on', render: S({ sprinklers: false }) },
+      'armed-away': { title: 'Security: Armed Away', note: 'red fill, plain shield', render: S({ alarm: 'armed_away' }) },
+      'armed-night': { title: 'Security: Armed Night', note: 'purple fill, moon glyph', render: S({ alarm: 'armed_night' }) },
+      'disarmed': { title: 'Security: Disarmed', note: 'green fill, shield with a slash', render: S({ alarm: 'disarmed' }) },
+      'triggered': { title: 'Security: Triggered', note: 'alarm red, exclamation shield; the tile reads "Triggered" (the chip says "Alarm Triggered")', render: S({ alarm: 'triggered' }) },
+      'redacted': { title: 'Screenshot redaction', note: 'FENTON_REDACT_PRIVATE: Security shows the plain shield on slate with "Hidden" so a screenshot cannot give the mode away', render: S({ redacted: true }) },
+      'food-counts': { title: 'One item, none expiring', render: S({ food: [1, 0] }) },
+      'was-full': { title: 'WAS (before 2026-10-26): large detent', note: 'hassSheet(.page, height: .full): rose from the bottom edge, then about half the sheet was empty under the tiles on iPhone', render: S({ detent: 'large' }) },
+      'medium': { title: 'Medium detent (provisional)', note: 'only until the first measurement, the first time the sheet opens in a build, window size and text size', render: S({ detent: 'medium' }) },
+      'large': { title: 'Large detent', note: 'only when the page on top is taller than the window (Rooms at AX sizes, the folded Duo); it then scrolls', render: S({ detent: 'large' }) },
+      'fitted': { title: 'Fitted detent (shipped)', note: 'fittedToTopPage: the tiles set the height; Rooms or Security System, once pushed, fit it to themselves and Back returns it (owner 2026-10-26)', render: S({ detent: 'fitted' }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the page the sheet scales back (Home here; the button is on every page)', render: function (ctx) { return R.homePresenter(ctx); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column, each tile as tall as its text needs', render: S() },
+    },
+
+    motion: [
+      { id: 'security-colour', what: 'The alarm mode changes while the sheet is open: the Security System tile cross-fades to the new mode\'s colour and its glyph swaps', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only; glyph swap is the system symbol replace', state: 'default',
+        source: 'HassDesign/GlassTile.swift stateColorTransition("GlassTile"); QuickLinkTile.fill / QuickLinks.securityAppearance; motion.md section 6', reduce: 'still cross-fades at 0.2 s; the glyph swap is an identity change',
+        play: function (stage) { var t = tileEl(stage, 'quickLinks.security-system'); t.style.setProperty('--fill', 'var(--fam-sec-away-fill)'); t.querySelector('.glyph').innerHTML = Mock.icon('shield', { fill: true }); t.querySelector('.st').textContent = 'Armed Away'; return Mock.sleep(Mock.anim.ms.state() + 300); } },
+    ],
+
+    transitions: [
+      { from: 'Header Quick Links button', to: 'Quick Links sheet', kind: 'sheet', state: 'closed', note: 'The sheet zooms out of the header button to its fitted height, like the camera viewer out of its card (owner 2026-10-26; matchedTransitionSource on the bar item, iOS 26; earlier systems rise from the bottom). Content is present on arrival (motion.md 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Quick Links', detent: 'fitted', size: 'page', trailing: 'close', content: root() }, { hold: 1100 }); } },
+      { from: 'Rooms tile', to: 'Rooms grid', kind: 'push', state: 'default', note: 'A detail tile appends to the sheet\'s own NavigationStack path: a plain system push inside the sheet with a Back circle (no zoom: owner 2026-10-22). The sheet then fits the Rooms grid (iPhone: grows, up to large); Back returns it to the tiles\' height. An iPad page sheet keeps the first height and the grid scrolls.',
+        play: function (stage) { return R.pushInSheet(stage, roomsOpts(), 1000); } },
+      { from: 'Security System tile', to: 'Alarm card', kind: 'push', state: 'default', note: 'The same push, to SecurityControls (the alarm card shared with the Security sheet).',
+        play: function (stage) { return R.pushInSheet(stage, securityOpts(), 1000); } },
+      { from: 'Food & Recipes tile', to: 'Food page', kind: 'push', state: 'default', note: 'A page link dismisses the sheet first; the route is held and pushed once the sheet has gone (QuickLinksSheet.go, quickLinksDismissed), so the push never races the dismissal.',
+        play: function (stage) { return R.sheetThenPush(stage, { title: 'Quick Links', detent: 'fitted', size: 'page', trailing: 'close', content: root() }, function () { return foodPage(Mock.current); }); } },
+      { from: 'Quick Links sheet', to: 'Page', kind: 'sheet', state: 'default', note: 'Close (circle x) or a swipe down.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: the title "Quick Links", then the tiles in order (Rooms, Security System, Food & Recipes, Vacuums, Media, Custom Lights, Sprinklers), Close last. The header button that opens it is labelled "Quick Links" (44 pt, Large Content Viewer).' },
+      { rule: 'Tiles', note: 'One button per tile: "Security System, Armed Home" with the hint "Opens Security System in Quick Links"; page links say "Opens the Media page". Identifiers quickLinks.<id>; the tile is the control (no wrapping Button).' },
+      { rule: 'State is not colour alone', note: 'Security System\'s mode is in words and in the glyph (shield, house shield, moon, slashed shield, exclamation shield), not only the fill.' },
+      { rule: 'Contrast', note: 'White ink on every fill passes 4.5:1 (QuickLinkPalette); Rooms navy is at least 0.05 OKLab from every room, family and alarm fill so it never reads as a state.' },
+      { rule: 'Targets', note: 'Tiles 96 pt at the default size (two-line reserve), growing with Dynamic Type; the Close circle 44 pt.' },
+      { rule: 'Dynamic Type', note: 'Minimum tile width is a scaled 140 pt: two columns up to about xxxLarge, one at AX sizes; titles reserve two lines so a one-line name sits on the bottom line.' },
+      { rule: 'Light and dark', note: 'Tiles are fixed fills with white ink in both appearances; only the sheet ground (#F2F2F7 or #1C1C1E) and the Close glass change.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: give a modal a clear way out at every depth', verdict: 'pass', note: 'QuickLinksSheet adds SheetCloseItem to the pushed Rooms and Security System pages (owner 2026-10-24, sheet-stacking-close).', by: 'apple-hig skill' },
+        { rule: 'Sheets: use the smallest detent that shows the content', verdict: 'pass', note: '.hassSheet(.page, height: .fittedToTopPage): each page fits the sheet (owner 2026-10-26, replacing the .full departure).', by: 'apple-hig skill' },
+        { rule: 'Sheets: grabber and a Close glyph, page or form size on iPad', verdict: 'pass', note: 'Grabber visible (HassModal.swift:191); Button(role: .close) on iOS 26 (HassModal.swift:46); .page sizing on iPad.', by: 'apple-hig skill' },
+        { rule: 'Color: use colour consistently for meaning', verdict: 'departure', note: 'A fixed solid fill per destination (QuickLinkPalette.swift) rather than state colour: direction-g.md Colour, owner 2026-10-16.', by: 'apple-hig skill' },
+        { rule: 'Color: never colour alone; contrast', verdict: 'pass', note: 'Every tile has a title and glyph; Security System\'s mode is a word in the state line. White on every fill is documented at 4.5:1 or better (QuickLinkPalette.swift:10-11).', by: 'apple-hig skill' },
+        { rule: 'Layout / Dynamic Type: grids reflow', verdict: 'pass', note: 'DynamicGridLayout, maxColumns 2, minimum width @ScaledMetric(.subheadline) 140 pt, equal row heights, two title lines reserved (QuickLinksSheet.swift:129-139).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Navigate after a sheet is gone, never during it', verdict: 'pass', note: 'The route is held and pushed from .sheet(onDismiss:) (ShellHeader.swift:182-191).', by: 'swiftui-pro skill' },
+        { rule: 'The tile is the control; no Button around a non-hit-testable label', verdict: 'pass', note: 'GlassTile carries the action and the hint (QuickLinksSheet.swift:143-147).', by: 'swiftui-pro skill' },
+        { rule: 'Use NavigationStack(path:) with navigationDestination(for:) inside a sheet', verdict: 'pass', note: 'QuickLinksSheet.swift:55-62; QuickLink.Detail is the path element.', by: 'swiftui-pro skill' },
+        { rule: 'Scaled metrics for text-tied sizes', verdict: 'pass', note: 'minTileWidth is a ScaledMetric; at AX sizes the grid drops to one column.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Folded Duo (owner, 2026-11-01): Security System carries the Arm Home / Disarm disc, so its title, state, disc and chevron do not fit two 165 pt tracks and the tile takes a full row. The sheet is then five rows, taller than the largest sheet, and scrolls; the bottom band is checked with the last tile scrolled into view. iPhone and iPad keep two columns. Content-aware span: .agents/patterns/action-tiles.md.',
+      'Fitted height (owner, 2026-10-28, option B of proposals/sheet-bottom-gap): under the last tile there is one page padding and the home-indicator area, no second 34 pt band (20 pt on an iPad). Measured, tiles sheet: iPhone 17 Pro 587 pt visible (was 620), folded Duo 615 (649), iPad portrait 524 (544); the last tile ends 56, 58 and 43 pt above the window\'s bottom edge (was 89, 92, 63).',
+      'Duo unfolded: the page sheet is centred in the window and crosses the hinge band here (the system decides placement; the unfolded pose was only run for pages). Check on a device.',
+      'Detents: fitted to the page on top (hassSheet(.page, height: .fittedToTopPage), owner 2026-10-26); large only when that page outgrows the window. Until 2026-10-26 it was one large detent (state was-full).',
+      'loading, error and offline: the sheet has no UI of its own for these; it reads EntityStore. Empty store: Security System draws the unknown slate (#4C6270) and "Unavailable"; Food reads "0 Items • 0 Expiring Soon".',
+      'Docs versus code: the catalog and pages/rooms/ios.md say the flyout lists no Quick Links row and the button is on every page: drawn as such. pages/rooms/ios.md still describes Quick Links as a header button "in compact width before iOS 26, on section roots" with a floating glass circle in regular width; the shell header now carries it on every page and width.',
+      'Pushed levels: drawn with Back and no Close (see the review finding). The room tiles in the pushed Rooms grid are quick-links-rooms; the alarm card is quick-links-security-system.',
+      'Tiles that show only while a visibility entity is on: Sprinklers (input_boolean.demo_input_boolean_1). The rooms docs do not describe this.',
+      'Food & Recipes carries a fixed web wash (FOOD_CARD_BACKGROUND_COLOR) in config that the native tile ignores; it uses the food family fill.',
+      'Sprinklers, Vacuums, Media, Custom Lights and Food are other batches\' pages.',
+    ],
+    changelog: [{ date: '2026-11-04', note: 'The last row fills in whole tracks on the lines above (a lone Sprinklers spans the row; two in three tracks are 1 + 2).' }, { date: '2026-10-28', note: 'Fitted height no longer carries a second bottom band (proposals/sheet-bottom-gap, option B); status in-flight.' }, { date: '2026-10-23', note: 'First pass: seven tiles, alarm modes, redaction, pushes inside the sheet, page link sequence, light and dark.' }],
+  });
+})();
+</script></body></html>

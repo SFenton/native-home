@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PrimaryButton · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+  var base = Mock.componentConfig('PrimaryButton');
+  function sw(items, o) { return function (ctx) { return HF.surfaces(ctx, items, o); }; }
+  function B(p) { return function () { return K.PrimaryButton(p); }; }
+
+  Mock.mount(Object.assign(base, {
+    kind: 'component', id: 'primary-button', title: 'PrimaryButton and PrimaryButtonStyle', area: 'design', status: 'shipped',
+    summary: 'A screen\'s one primary action: a 50 pt capsule filled #0071E3 with a white semibold label, or on a sheet about one owner\'s thing that owner\'s family colour with dark text (Sprinklers cyan). The label wraps and the button grows at large text rather than truncating. There are no white or grey primary buttons; a secondary action is a plain grey capsule or a glass capsule on a floating bar.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift', 'apple/Sources/HassDesign/PrimaryButtonStyle.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/Features/Sprinklers/SprinklerControllerSheet.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailView.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/floating-actions.md'],
+    patterns: ['motion'],
+    hig: ['Buttons', 'Color', 'Dynamic Type', 'Accessibility (contrast)'],
+    entities: [],
+    kitComponents: ['PrimaryButton', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: Object.assign({}, base.states, {
+      'pressed': { title: 'Pressed', note: 'the press dims to 80%; no button scales: the style stores pressedScale (the sign-in button passes 0.96) but PrimaryButtonBody never applies it', render: sw([
+        { label: 'default pressed (80%)', node: function () { var b = K.PrimaryButton({ title: 'Retry' }); b.style.opacity = .8; return b; } },
+        { label: 'family pressed (80%)', node: function () { var b = K.PrimaryButton({ title: 'Start Watering', family: 'water', symbol: 'sprinkler.and.droplets' }); b.style.opacity = .8; return b; } },
+        { label: 'sign-in pressed (80%; pressedScale 0.96 is not applied)', node: function () { var b = K.PrimaryButton({ title: 'Sign In' }); b.style.opacity = .8; return b; } },
+      ]) },
+      'busy': { title: 'Busy (sign-in): arc and the label', note: 'the button stays solid while working; the arc is silent and the button\'s accessibility value says it is busy; a second press is ignored', render: sw([
+        { label: 'working', node: function () { return h('button.ui-primary', { type: 'button', 'aria-label': 'Signing In', 'aria-busy': 'true', style: { gap: '8px' } }, K.ArcSpinner({ size: 'inline' }), 'Signing In'); } },
+      ]) },
+      'in-context': { title: 'Real usages', note: 'at most one per screen; the Recipes and Inventory failure states and the sheets\' footers', render: sw([
+        { label: 'Recipes failed to load · RecipesScreen', only: 'page', node: function () { return HF.contentUnavailable({ symbol: 'exclamationmark.triangle', title: 'Unable to Load Recipes', action: { title: 'Retry' } }); } },
+        { label: 'Inventory failed to load · InventoryEmptyState', only: 'page', node: function () { return HF.contentUnavailable({ symbol: 'exclamationmark.triangle', title: 'Unable to Load Pantry', description: 'Try again in a moment, or scan an item while pantry is unavailable.', action: { title: 'Try Again' }, stack: true }); } },
+        { label: 'Open in Cookidoo · RecipeDetailView (link trait)', only: 'sheet', node: function () { return K.PrimaryButton({ title: 'Open in Cookidoo', symbol: 'link' }); } },
+        { label: 'Start Watering · SprinklerControllerSheet (water cyan, dark text)', only: 'sheet', node: function () { return K.PrimaryButton({ title: 'Start Watering', family: 'water', symbol: 'sprinkler.and.droplets' }); } },
+        { label: 'Apply · Sprinklers schedule (water cyan, checkmark)', only: 'sheet', node: function () { return K.PrimaryButton({ title: 'Apply', family: 'water', symbol: 'checkmark' }); } },
+        { label: 'Location permission · LocationPermissionView', only: 'sheet', node: function () { return K.PrimaryButton({ title: 'Continue' }); } },
+      ], { basis: 300 }) },
+      'ax5': { title: 'Accessibility 5: the label wraps', override: { ts: 'ax5' }, note: 'the button takes the height the wrapped label needs (the audit read "Open in Cookidoo" as possibly clipped when the height was proposed)', render: sw([
+        { label: 'Open in Cookidoo', node: B({ title: 'Open in Cookidoo', symbol: 'link' }) },
+        { label: 'Start Watering', node: B({ title: 'Start Watering', family: 'water' }) },
+      ], { basis: 300 }) },
+    }),
+
+    motion: [
+      { id: 'enable-fade', what: 'The button enables or disables (a form becomes valid): it fades between 40% and full opacity', token: 'quick 0.2 s easeOut on opacity', state: 'states',
+        source: 'HassDesign/PrimaryButtonStyle.swift .quickTransition("PrimaryButton", value: isEnabled)', reduce: 'unchanged (opacity is not motion)',
+        play: function (stage) { var b = stage.querySelector('.ui-primary[disabled]'); if (!b) return Promise.resolve(); b.style.transition = 'opacity var(--t-quick) var(--ease-quick)'; b.disabled = false; return Mock.sleep(Mock.anim.ms.quick() + 700).then(function () { b.disabled = true; return Mock.sleep(Mock.anim.ms.quick() + 300); }); } },
+      { id: 'fill-change', what: 'The fill changes with the owner (a sheet switching family): the capsule cross-fades from #0071E3 to the family colour', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'variants',
+        source: 'HassDesign/PrimaryButtonStyle.swift .stateColorTransition("PrimaryButton", value: colors.fill)', reduce: 'still cross-fades, shortened to 0.2 s',
+        play: function (stage) { var b = stage.querySelector('.ui-primary:not(.family)'); if (!b) return Promise.resolve(); b.style.transition = 'background-color var(--t-state) var(--ease-state), color var(--t-state) var(--ease-state)'; b.style.background = '#4CC9F0'; b.style.color = '#1C1C1E'; return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { b.style.background = ''; b.style.color = ''; return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'sign-in-press', what: 'Pressing the sign-in button: it dims to 80%, then returns (the 0.96 pressedScale it passes is not applied)', token: 'immediate press dim; no scale (pressedScale is stored, never read in PrimaryButtonBody)', state: 'pressed',
+        source: 'HassDesign/PrimaryButtonStyle.swift pressedScale; LoginView.signInButton', reduce: 'unchanged: there is no scale to drop; the dim remains',
+        play: function (stage) { var b = stage.querySelectorAll('.ui-primary')[2]; if (!b) return Promise.resolve(); var rm = Mock.settings.reduceMotion; b.style.transform = 'none'; b.style.opacity = 1; b.style.transition = 'transform 120ms ease-out, opacity 120ms ease-out';
+          return Mock.sleep(120).then(function () { b.style.opacity = .8; return Mock.sleep(500); }).then(function () { b.style.opacity = 1; b.style.transform = 'none'; return Mock.sleep(300); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Name and trait', note: 'A Button named by its title (symbol hidden); "Open in Cookidoo" adds the link trait. The disabled state is spoken as dimmed (not available).' },
+      { rule: 'Contrast', note: 'White on #0071E3 is 4.6:1 in both appearances; the family variant is dark #1C1C1E ink on the family colour (cyan, about 9:1). Fixed in light and dark sheets alike.' },
+      { rule: 'Targets', note: '50 pt minimum height, full width (or as wide as its label with fixedSize), so over 44 pt; it grows when the label wraps.' },
+      { rule: 'Busy', note: 'While signing in the arc is hidden from VoiceOver and the button\'s value says it is busy; the button stays enabled-looking so the label stays readable (a faded button would fail contrast).' },
+      { rule: 'Dynamic Type', note: 'The label is a body-semibold wrapping Text with fixedSize vertical; at AX5 a long label takes several lines and the capsule grows into a rounded block (corner radius stays 25 pt).' },
+      { rule: 'Reduce Motion', note: 'Nothing scales (the sign-in pressedScale is never applied), so there is no press motion to drop; fill and enable changes still cross-fade (0.2 s).' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Buttons: make the most likely action the prominent one; 44 pt target", verdict: "pass", note: "One 50 pt capsule per screen (no white or grey primaries), full width or as wide as its label, growing when the label wraps; PrimaryButtonStyle.height is the floor and the whole capsule is the hit shape.", by: "apple-hig skill" },
+
+        { rule: "Buttons: prefer system button styles", verdict: "departure", note: "The capsule is custom (#0071E3 or a family colour) instead of .borderedProminent or the iOS 26 .glassProminent, to match direction G and the web (direction-g.md Controls: Primary buttons); it is a plain SwiftUI Button, so focus, Voice Control and Switch Control behave as for any button.", by: "apple-hig skill" },
+
+        { rule: "Color: contrast 4.5:1 for text on a filled control", verdict: "pass", note: "White on #0071E3 is 4.6:1 (Ink.actionFill); the family variant is #1C1C1E ink on the family glyph colour (about 9:1), fixed in light and dark sheets.", by: "apple-hig skill" },
+
+        { rule: "Buttons: disabled and in-progress states stay readable", verdict: "pass", note: "Disabled is 0.4 opacity with a 0.2 s quick fade (a disabled control is exempt from contrast); a working sign-in button stays solid, shows the inline arc (hidden from VoiceOver), and speaks a busy accessibilityValue while the model ignores a second press.", by: "apple-hig skill" },
+
+        { rule: "Typography: wrap at large Dynamic Type; fixed shapes must follow", verdict: "pass", note: "PrimaryButtonBody draws Capsule(style: .continuous) for fill and content shape, so the ends stay round at any height (PrimaryButtonStyle.swift).", by: "apple-hig skill" },
+
+        { rule: "Motion and Feedback: press feedback", verdict: "pass", note: "Already fixed: PrimaryButtonStyle no longer stores a pressedScale (PrimaryButtonStyle.swift); the 80% press dim is the feedback and the mockup was corrected.", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "API: ButtonStyle reads isEnabled through a view", verdict: "pass", note: "A ButtonStyle cannot read the environment, so PrimaryButtonBody wraps it; stateForeground and stateColorTransition cross-fade the fill and label while only opacity (quick) animates enabling.", by: "swiftui-pro skill" },
+
+        { rule: "Accessibility: label, symbol and traits come from the Button", verdict: "pass", note: "PrimaryButton builds a Label (title plus symbol) or Text inside a Button, so VoiceOver reads the title and the symbol is decorative; callers add traits (the link trait on 'Open in Cookidoo') and values (busy).", by: "swiftui-pro skill" },
+
+        { rule: "Views: avoid unused stored properties", verdict: "pass", note: "PrimaryButtonBody no longer carries pressedScale or the Reduce Motion read (PrimaryButtonStyle.swift:34)" },
+
+        { rule: "Design: hard-coded colours and radii in a shared control", verdict: "pass", note: "Fixed: the family label colour is HassTokens.Ink.onFamilyFill and the 0.4 and 0.8 opacities are HassTokens.ControlState.disabledOpacity and pressedOpacity (PrimaryButtonStyle.swift).", by: "swiftui-pro skill" },
+
+        { rule: "Localization: button titles", verdict: "pass", note: "Not applicable until the app is localized: no string catalog ships and callers pass runtime strings, so a LocalizedStringResource title would need a verbatim overload on every call site.", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'Corrected 2026-10-23 (skill review): the mockup drew a 0.96 press scale on the sign-in button. PrimaryButtonStyle stores pressedScale and PrimaryButtonBody receives it but never applies it (no scaleEffect in PrimaryButtonStyle.swift; LoginView passes pressedScale: 0.96), so the app only dims to 80%.',
+      'Swatches (Variants, States) come from the kit on the page and sheet surfaces; Pressed, Busy, Real usages and AX5 are added here.',
+      'The sign-in button lives in the Login batch; it is drawn here only to show its busy arc and press dim.',
+      'Which sheets use PrimaryButton directly: Sprinklers (Start Watering, Apply), Recipe detail (Open in Cookidoo, link trait), Scan Item and Location permission; Bed side, Wake light, Vacuum and Vacation use PrimaryButtonStyle with their own label.',
+      'The Location permission label "Continue" is a fixture (the copy is in the Location batch).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: default, family, long label, disabled, pressed, busy, usages and AX5.' }],
+  }));
+})();
+</script></body></html>

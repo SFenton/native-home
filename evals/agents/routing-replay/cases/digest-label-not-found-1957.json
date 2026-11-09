@@ -1,0 +1,33 @@
+{
+  "id": "digest-label-not-found-1957",
+  "source": "2026-11-02: 1,957 \"label not found\" lines in one run; the digest counts them as one tool_error class.",
+  "recorded": "2026-11-02",
+  "kind": "digest",
+  "input": {
+    "args": [
+      "--log",
+      "{dir}/worker.log"
+    ],
+    "files": {
+      "worker.log": {
+        "$repeat": {
+          "line": "could not add label: 'Workflow' not found",
+          "n": 1957
+        }
+      }
+    }
+  },
+  "expect": {
+    "triggers": {
+      "has": [
+        "tool_error"
+      ]
+    },
+    "counts.tool_errors.label_not_found": 1957,
+    "evidence.tool_error": {
+      "has": [
+        "label_not_found x1957"
+      ]
+    }
+  }
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Weather highlight tiles · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_home-weather.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, HW = Mock.HW, K = Mock.components, T = HW.tiles;
+
+  function colW(ctx) { return ctx.regular ? 704 : Math.min(ctx.w, 466); }
+  /** A grid of tiles on DynamicGridLayout inside the sheet's column; items are [node, wide?] */
+  function grid(ctx, items) {
+    var nodes = [], span = {};
+    items.forEach(function (it, i) { nodes.push(it[0]); if (it[1]) span[i] = 2; });
+    return HW.win(ctx, K.TileGrid({ items: nodes, span: span, min: 150, max: 4, equal: false }), { width: colW(ctx) });
+  }
+  function S(items, surface) {
+    return function (ctx) { return HW.swatches(ctx, items.map(function (it) { return { cap: it.cap, note: it.note, surface: it.surface || surface || 'rain', width: colW(ctx) + 28, node: function () { return grid(ctx, it.tiles(ctx)); } }; })); };
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'weather-highlights-tiles', title: 'Weather sheet: highlight and metric tiles', area: 'home', status: 'shipped', frame: false,
+    summary: 'The Highlights grid in the Weather sheet: air quality, precipitation chance and accumulation, humidity and cloud cover as bar charts, then feels like, UV, wind with its compass, sun arc, visibility and the pressure gauge. Wide tiles span two tracks; the grid reflows to one column at AX5. Always dark.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift'],
+    spec: ['.agents/patterns/weather.md', '.agents/patterns/dynamic-grid.md'],
+    patterns: ['weather', 'dynamic-grid'],
+    hig: ['Charting data', 'Gauges', 'Layout', 'Typography', 'Color'],
+    entities: ['weather.demo_weather_1', 'sun.sun', 'sensor.demo_air_quality_1'],
+    kitComponents: ['TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'all': { title: 'The whole Highlights grid', note: 'two tracks on a phone, four on the 704 pt page sheet; wide tiles span two', render: function (ctx) { return HW.swatches(ctx, [{ cap: 'weather surface · rain scene', surface: 'rain', width: colW(ctx) + 28, node: function () { return HW.win(ctx, HW.highlightsPanel(ctx, {}), { width: colW(ctx) }); } }]); } },
+      'wind': { title: 'Wind tile: direction and calm', note: 'the needle points where the wind blows to; the dot is the side it comes from; calm has no needle and no E and W', render: S([{ cap: 'from 250 (WSW), from 0 (N), from 135 (SE), calm', tiles: function (c) { return [[T.wind(c, { bearing: 250 }), true], [T.wind(c, { bearing: 0 }), true], [T.wind(c, { bearing: 135 }), true], [T.wind(c, { calm: true }), true]]; } }]) },
+      'pressure': { title: 'Pressure gauge', note: '49 ticks over 250 degrees from 970 to 1050 hPa; the current reading\'s tick is lit and thick', render: S([{ cap: 'low 29.40, fixture 29.92, high 30.30 inHg', tiles: function () { return [[T.pressure(29.4)], [T.pressure(29.92)], [T.pressure(30.3)]]; } }]) },
+      'sun': { title: 'Sun arc: day, dusk and night', note: 'the title follows the next event; at night there is no marker', render: S([{ cap: 'morning, midday, late, night', tiles: function () { return [[T.sun(false, 12)], [T.sun(false, 50)], [T.sun(false, 92)], [T.sun(true)]]; } }]) },
+      'aqi': { title: 'Air quality across the six bands', note: 'the rail is a whole-track scale with a marker; the category word is always beside the number', render: S([{ cap: 'Good, Moderate, Sensitive, Unhealthy, Very Unhealthy, Hazardous', tiles: function () { return [30, 72, 130, 180, 250, 350].map(function (v) { return [T.aqi(v), true]; }); } }]) },
+      'rails': { title: 'Feels like, UV and visibility rails', render: S([{ cap: 'feels cooler, warmer; UV low, extreme; visibility poor, clear', tiles: function () { return [[T.feels(-8)], [T.feels(10)], [T.uv(2)], [T.uv(11)], [T.visibility(2)], [T.visibility(10)]]; } }]) },
+      'charts': { title: 'Six-hour charts', note: 'bars scaled to a nice domain (the peak rounded up to the next 10), a three-level y axis and a thinned hour axis', render: S([{ cap: 'precipitation chance, accumulation, humidity, cloud cover', tiles: function () { return [[T.chart('chance'), true], [T.chart('accumulation'), true], [T.chart('humidity'), true], [T.chart('cloud'), true]]; } }]) },
+      'unavailable': { title: 'No forecast: charts say Unavailable', note: 'the current-conditions tiles still draw; air quality unavailable shows "--"', render: S([{ cap: 'charts without hourly data, AQI unavailable', surface: 'neutral', tiles: function () { return [[T.aqi(null), true], [T.chart('chance', false), true], [T.chart('accumulation', false), true], [T.chart('humidity', false), true], [T.chart('cloud', false), true]]; } },
+        { cap: 'a highlight with no reading', surface: 'neutral', tiles: function () { return [[T.unavailable('Feels Like', 'thermometer.medium', 'feels')], [T.unavailable('UV Index', 'sun.max.fill', 'uv')], [T.unavailable('Visibility', 'eye.fill', 'visibility')], [T.unavailable('Pressure', 'gauge.with.dots.needle.33percent', 'pressure')]]; } }]) },
+      'no-aqi': { title: 'No air-quality sensor', note: 'the Air Quality tile is left out of the grid', render: function (ctx) { return HW.swatches(ctx, [{ cap: 'weather surface · rain scene', width: colW(ctx) + 28, surface: 'rain', node: function () { return HW.win(ctx, HW.highlightsPanel(ctx, { aqi: false }), { width: colW(ctx) }); } }]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the minimum tile width scales with text (150 pt times 3), so the grid is one column; the compass stays at most 160 pt and sits under its readouts', render: function (ctx) { return HW.swatches(ctx, [{ cap: 'weather surface · AX5', surface: 'rain', width: colW(ctx) + 28, node: function () { return HW.win(ctx, HW.highlightsPanel(ctx, {}), { width: colW(ctx) }); } }]); } },
+    },
+
+    motion: [
+      { id: 'compass-needle', what: 'The needle turns the short way round to a new bearing (a 350 to 10 change turns 20 degrees, not 340)', token: 'standard 0.3 s smooth, rotation only', state: 'wind',
+        source: 'WeatherCompass.swift onChange(sourceDegrees); WeatherPresentation.shortestBearingDelta', reduce: 'no animation: the needle jumps',
+        play: function (stage) { var nd = stage.querySelector('.hw-compass .nd'); if (!nd) return Promise.resolve(); function turn(d) { nd.style.transform = 'rotate(' + d + 'deg)'; return Mock.sleep(Mock.settings.reduceMotion ? 250 : 650); } return turn(290).then(function () { return turn(350); }).then(function () { return turn(370); }).then(function () { nd.style.transition = 'none'; nd.style.transform = 'rotate(250deg)'; void nd.offsetWidth; nd.style.transition = ''; return Mock.sleep(300); }); } },
+      { id: 'rail-marker', what: 'A rail moves its span and marker when the value changes', token: 'standard 0.3 s smooth (WeatherRail motionSafeAnimation standard)', state: 'rails',
+        source: 'WeatherRail.swift', reduce: 'the rail jumps',
+        play: function (stage) { var mk = stage.querySelector('[data-tile="feels"] .mk'); if (!mk) return Promise.resolve(); var was = mk.style.left; mk.style.left = 'calc((100% - 12px) * .1)'; return Mock.sleep(900).then(function () { mk.style.left = was; return Mock.sleep(500); }); } },
+    ],
+    transitions: [],
+
+    a11y: [
+      { rule: 'One element per tile', note: 'Each tile is a single element with the web\'s aria-label ("Feels Like 75°F", "UV Index 7 High", "Outdoor air quality 72, Moderate", "Wind 9 mph; Gusts 14 mph; From west-southwest, 250 degrees"). The charts, rails, compass, gauge and sun arc are hidden: the tile speaks the series ("Now 80%, 10 AM 72%, ...").' },
+      { rule: 'State is not colour alone', note: 'AQI shows the number and the category word; UV the number and Low to Extreme; the rail colour only repeats it. The pressure and the sun read as text in or under the drawing.' },
+      { rule: 'Dynamic Type', note: 'The grid\'s minimum tile width is a @ScaledMetric (150 pt at footnote), so it drops to fewer columns instead of clipping; chart axis labels scale and the hour axis thins by label width; the wind tile stacks readouts over a compass capped at 160 pt.' },
+      { rule: 'Contrast', note: 'White at 100% for values and 85% for titles and categories on a black 28% wash over gradients no lighter than 5.6:1 with white. Chart bars are decorative; their values are in the tile\'s spoken series.' },
+      { rule: 'Motion', note: 'Rails and the needle animate on standard (0.3 s) and jump under Reduce Motion; the bars have no motion.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Charting data: keep it simple, make every chart accessible", verdict: 'pass', note: "Charts and rails are hidden and each tile is one element: 'Feels Like 75°F', or the bar series as a spoken value (WeatherTile.swift:26-28, WeatherMetricTile.swift:28-34).", by: 'apple-hig skill' },
+        { rule: "Gauges: label the current value", verdict: 'pass', note: "The pressure dial prints its value and unit as real text in the centre, scaling with type (WeatherPressureGauge.swift:24-27).", by: 'apple-hig skill' },
+        { rule: "Color: gradients are decoration; value is text", verdict: 'pass', note: "AQI, UV and feels-like rails are gradient tracks with a marker; the number and status word sit above (WeatherRail.swift:39-65, WeatherHighlightTile.swift:41-46).", by: 'apple-hig skill' },
+        { rule: "Layout: wide tiles span two tracks and the grid reflows", verdict: 'pass', note: "gridSpan(2) on six tiles with a @ScaledMetric 150 minimum, one column at AX5 (WeatherHighlightsPanel.swift:15, 24-34).", by: 'apple-hig skill' },
+        { rule: "Typography: smallest sizes", verdict: 'pass', note: "WeatherBarChart axis and hour labels and the WeatherPressureGauge unit are .caption.", by: 'apple-hig skill' },
+        { rule: "Materials: darken, do not blur, behind white text", verdict: 'pass', note: "A 28% black wash with a hairline stroke keeps contrast on every scene and needs no blur, so Reduce Transparency changes nothing (WeatherSurface.swift:8-21).", by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: "Group related tiles as one element with a label", verdict: 'pass', note: "The panel is .contain with the label 'Weather highlights' and a header-trait title (WeatherHighlightsPanel.swift:21-23, 37-38).", by: 'swiftui-pro skill' },
+        { rule: "Use Label for icon plus text", verdict: 'pass', note: "Tile title uses Label with its icon (WeatherTile.swift:17-21).", by: 'swiftui-pro skill' },
+        { rule: "Avoid fontWeight(.bold)", verdict: 'pass', note: "Every .weight(.bold) in a font is now .bold() (WeatherHighlightTile.swift, WeatherAqiTile.swift:16)", by: 'swiftui-pro skill' },
+        { rule: "Canvas drawings are decorative and hidden", verdict: 'pass', note: "Sun arc, compass, gauge and rail set accessibilityHidden (WeatherSunArc.swift:31, WeatherPressureGauge.swift:31, WeatherRail.swift:64).", by: 'swiftui-pro skill' },
+        { rule: "Animation with Reduce Motion", verdict: 'pass', note: "Rail changes use motionSafeAnimation(MotionTokens.standard, value:) (WeatherRail.swift:60).", by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: patterns/weather.md says wide tiles are `gridSpan(2)`; the code spans the AQI, precipitation, accumulation, humidity, cloud-cover and wind tiles by two and the rest by one (WeatherHighlightsPanel).',
+      'The sun tile\'s time and marker are plausible stand-ins (the gallery fixture uses offsets from now). The pressure value is the fixture 29.92 inHg (54% on the 970 to 1050 hPa scale).',
+      'Promote to kit: the compass, gauge, sun arc and rail builders in components/weather/_home-weather.js, and the icons eye.fill, sunrise.fill, sunset.fill, location.north.fill and gauge.with.dots.needle.33percent.',
+      'Humidity and cloud-cover charts share one builder; their tints are teal #66D9CC and pale blue #CCDBF2 (WeatherMetricTile).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: all tiles and their value ranges, unavailable, no-AQI, AX5.' }],
+  });
+})();
+</script></body></html>

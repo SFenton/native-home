@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprinklers · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, S = Mock.VS.S;
+
+  var OFFLINE_CTRL = { available: false, battery: null, hub: false, lastRun: { time: null, run: null } };
+  function page(snaps, o) { return function (ctx) { return S.page(ctx, Object.assign({ snaps: snaps }, o)); }; }
+
+  Mock.mount({
+    kind: 'page', id: 'sprinklers', title: 'Sprinklers', area: 'sprinklers', status: 'shipped',
+    summary: 'Two Orbit B-hyve controllers, one card each: a low battery alert, then the controller as a navigation tile (Stop Watering disc, chevron; opens its sheet) over one module holding Battery, Next Watering, Last Watering and Hub. Reached from the Quick Links tile, which shows only while input_boolean.demo_input_boolean_1 is on. Sample data is fixture data.',
+    source: ['apple/Sources/HassUI/Features/Sprinklers/SprinklersScreen.swift', 'apple/Sources/HassUI/Features/Home/HomeRoute.swift', 'apple/Sources/HassDesign/StatusPill.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKModule.swift',
+      'apple/Sources/HassCore/Sprinklers/SprinklerSnapshot.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerFormat.swift', 'apple/Sources/HassCore/Config/SprinklersConfig.swift'],
+    spec: ['.agents/pages/sprinklers/spec.md', '.agents/pages/sprinklers/ios.md'],
+    patterns: ['module-list', 'status-pill', 'dynamic-grid', 'header-edge-fade', 'page-backdrop', 'motion'],
+    hig: ['Lists and tables', 'Layout', 'Color', 'Dynamic Type', 'Toolbars', 'Sheets'],
+    entities: ['sensor.demo_front_yard_state_item_1', 'select.demo_front_yard_mode_1', 'sensor.demo_front_yard_battery_1', 'binary_sensor.demo_front_yard_1', 'sensor.demo_front_yard_1', 'valve.demo_front_yard_zone_item_1', 'sensor.demo_backyard_state_1', 'valve.demo_backyard_zone_4', 'input_boolean.demo_input_boolean_1'],
+    kitComponents: ['PageSectionHeader', 'TileGrid', 'ModuleList', 'StatusPill', 'InlineAlert', 'BackButton', 'QuickLinksButton', 'ProfileButton', 'TabBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Front Yard ready, Backyard low battery and watering House', render: page(S.pair()) },
+      'all-idle': { title: 'Both controllers idle, batteries fine', note: 'dark tiles with the Stop Watering disc dimmed; thin module; no alert', render: page(S.pair({}, { active: null, battery: 64, next: '6:30 AM' })) },
+      'watering': { title: 'Front Yard watering', note: 'water-coloured glyph and status text', render: page(S.pair({ active: 0 }, { active: null, battery: 71 })) },
+      'battery-low': { title: 'Battery low', note: 'warning alert above the card; module goes dense; the Battery pill icon is orange', render: page(S.pair({ battery: 12 }, { active: null })) },
+      'hub-unavailable': { title: 'Hub unavailable', note: 'Hub pill reads Unavailable with a grey icon; the controller still opens', render: page(S.pair({}, { hub: false, active: null, battery: 55 })) },
+      'offline-controller': { title: 'One controller unavailable', note: 'subtitle reads Unavailable; pills say Unavailable and No history; the tile still opens its sheet', render: page(S.pair({}, Object.assign({}, OFFLINE_CTRL))) },
+      'error': { title: 'Fault', note: 'status word Fault; fault only shows on an available controller and outranks watering', render: page(S.pair({ fault: true, active: null }, { active: null, battery: 55 })) },
+      'loading': { title: 'Nothing saved, entities not yet read', note: 'there is no loading UI: every entity reads unavailable until Home Assistant answers, so both cards show the unavailable-controller state; no spinner, no pending bars', render: page(S.pair(OFFLINE_CTRL, OFFLINE_CTRL)) },
+      'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design: values change in place, nothing re-fades (invariant: no reload on reopen)', render: page(S.pair()) },
+      'offline': { title: 'No network', note: 'values stay; offline chip under the header; cloud badge on Profile', render: page(S.pair(), { connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: page(S.pair(), { connection: 'reconnecting' }) },
+      'long-text': { title: 'Longest strings the cards produce', note: 'times are the widest (12:30 PM); the subtitle, alert and pill values wrap instead of truncating', render: page(S.pair({ next: '12:30 PM', lastRun: { time: '12:30 PM', run: 15 } }, { next: '12:30 PM', battery: 15, lastRun: { time: '12:30 PM', run: 10 } })) },
+      'sheet-open': { title: 'Controller sheet open over the page', note: 'the tile opens the sheet even while the controller is offline; see the controller sheet mockup for every sheet state', render: function (ctx) { return S.sheet(ctx, { snap: S.snap('backyard') }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column; pills stack one per row; the alert and subtitles wrap', render: page(S.pair()) },
+      'duo-part-fold': { title: 'Duo partly folded: one controller per side (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'the section divides at its blocks: Controllers and Front Yard lead, Garden Faucet trails level with it; each card whole on one side at every text size', render: page(S.pair()) },
+      'duo-part-fold-ax5': { title: 'Duo partly folded at AX5', override: { device: 'duo-unfolded-landscape', posture: 'part', ts: 'ax5' }, note: 'still one card per side (was: the 340 pt grid fell back to one track across the band above Large)', render: page(S.pair()) },
+    },
+
+    motion: [
+      { id: 'watering-colour', what: 'A controller starts watering: the tile fills in the water colour and the Stop Watering disc comes alive', token: 'state 0.6 s ease-in-out, colour only', state: 'all-idle',
+        source: 'HassUI/Features/Sprinklers/SprinklersScreen.swift SprinklerControllerTile (family .water, isActive, the Stop Watering disc); motion.md section 6 (live colour changes)', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) {
+          var tile = stage.querySelector('.ui-tile'), su = tile.querySelector('.st'), disc = tile.querySelector('.disc'), ms = Mock.anim.ms.state();
+          return Mock.anim.toggleState(tile, ['on'], ['off']).then(function () { su.textContent = 'Watering · Next 7:00 AM'; disc.classList.remove('dim'); return Mock.sleep(ms + 700); })
+            .then(function () { return Mock.anim.toggleState(tile, ['off'], ['on']); }).then(function () { su.textContent = 'Auto · Next 7:00 AM'; disc.classList.add('dim'); return Mock.sleep(300); });
+        } },
+      { id: 'hub-tone', what: 'The Hub pill icon changes tone when the hub drops (green to grey)', token: 'state 0.6 s ease-in-out, icon colour only', state: 'all-idle',
+        source: 'HassDesign/StatusPill.swift stateForeground("StatusPill"), stateColorTransition("StatusPill"); motion.md section 6 ("pills changing tone")', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) {
+          var pills = stage.querySelectorAll('.ui-pill'), hub = pills[3], ico = hub.querySelector('.ico'), ms = Mock.anim.ms.state();
+          ico.style.transition = 'color ' + ms + 'ms ease-in-out'; ico.style.color = '#8E8E93'; hub.querySelector('.va').textContent = 'Unavailable';
+          return Mock.sleep(ms + 700).then(function () { ico.style.color = '#34C759'; hub.querySelector('.va').textContent = 'Connected'; return Mock.sleep(ms + 300); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Quick Links tile "Sprinklers"', to: 'Sprinklers', kind: 'push', state: 'default', note: 'The tile closes the Quick Links sheet and the page pushes onto the current tab\'s stack (HomeRoute.sprinklers, pageChrome). System push, interactive back swipe; never replaced or decorated (motion.md section 4.2).',
+        play: function (stage) {
+          var ctx = Mock.current, cur = stage.querySelector('.ui-page');
+          var home = Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home() })] });
+          cur.parentNode.insertBefore(home, cur);
+          return Mock.anim.push(home, cur).then(function () { return Mock.sleep(500); }).then(function () { home.remove(); });
+        } },
+      { from: 'Sprinklers', to: 'Controller sheet', kind: 'sheet', state: 'default', note: 'The controller row presents the sheet at large (hassSheet(.page, height: .full)); the page scales back and dims. Content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Front Yard', subtitle: 'Auto · Next 7:00 AM', detent: 'large', size: 'page', trailing: 'close', content: S.overview(S.snap('frontYard')) }, { hold: 1200 }); } },
+      { from: 'Controller sheet', to: 'Sprinklers', kind: 'sheet', state: 'sheet-open', note: 'Close (circle x) or swipe down. The sheet slides away and the page returns to full size.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back ("Home"), the large title "Sprinklers", the "Controllers" heading, then each card top to bottom: low battery warning (read as "Warning: Garden Faucet Battery 15%"), the controller tile (its Stop Watering disc after it), then Battery, Next Watering, Last Watering, Hub. Quick Links and Profile follow the header per the shell.' },
+      { rule: 'Controller tile', note: 'Rollout M (2026-10-28): a navigation tile with a Stop Watering disc (<id>.action.stop, dimmed in place while idle) and a chevron. The tile is one button: label is the controller name, value is the status line ("Watering · Next 6:30 AM", or "Unavailable"), hint "Opens the controller." (identifier sprinklers.controller.<id>). The chevron and glyph are hidden from VoiceOver.' },
+      { rule: 'Status pills', note: 'Read-only, one element each: label "Battery", value "15%" (a detail is appended after a comma). Never buttons. The tone colours the icon only, so state is never colour alone: the value and the alert say it in words.' },
+      { rule: 'Targets', note: 'The tile is at least 72 pt and the disc 44 pt, pills are 44 pt minimum; both are far past the 44 pt minimum at AX5.' },
+      { rule: 'Dynamic Type', note: 'minCardWidth 340 and minPillWidth 150 are @ScaledMetric: at AX5 the cards go to one column and the four pills to one per row; every string wraps (fixedSize vertical), nothing truncates. Checked at AX5 below.' },
+      { rule: 'Contrast', note: 'White ink on the module (#1C1C1E at 66% thin, #141416 at 78% dense when the battery is low). The water glyph #4CC9F0 and orange (#FF9500 icon) are decorative or paired with text.' },
+      { rule: 'Reduce Motion / Transparency', note: 'Only colour cross-fades (0.2 s reduced). With Reduce Transparency the module draws a solid #1C1C1E.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Layout: grids reflow with Dynamic Type", verdict: "pass", note: "minCardWidth 340 and minPillWidth 150 are @ScaledMetric (SprinklersScreen.swift lines 13, 58), so cards and pills drop to one column at AX sizes (Chores and Solo Trip, by contrast, use literal minimums).", by: "apple-hig skill" },
+        { rule: "Lists and tables: a navigating row shows a disclosure and is at least 44 pt", verdict: "pass", note: "SprinklerControllerTile is a navigation GlassTile with a chevron, button trait and hint \"Opens the controller.\"; the Stop Watering disc is a separate 44 pt button.", by: "apple-hig skill" },
+        { rule: "Color: do not rely on colour alone", verdict: "pass", note: "Watering, Battery 15%, Unavailable and Fault are words; the tone colours only the pill icon (StatusPill.swift lines 41-70).", by: "apple-hig skill" },
+        { rule: "Color and Accessibility: contrast of warm text on the thin module", verdict: "pass", note: "The module goes dense while the battery pill is orange (SprinklersScreen.swift line 67), so the orange icon and white text keep 4.5:1 over the photo.", by: "apple-hig skill" },
+        { rule: "Alerts and Writing: a low battery warning that says what to do", verdict: "pass", note: "SprinklerFormat.lowBatteryWarning: \"Garden Faucet battery is low (15%). Replace the batteries soon.\"", by: "apple-hig skill" },
+        { rule: "Loading: a cold launch shows believable content", verdict: "pass", note: "EntityStore.hasReceivedFirstState (false only before any snapshot or live set) drives EnvironmentValues.valuesPending: StatusPill and the controller row show a muted PendingValueBar (VoiceOver \"Loading\") instead of \"Unavailable\", and the header shows one \"Connecting to Home Assistant\" arc with no delay (ReconnectingPolicy.showsArc, ReconnectingIndicatorHost). A snapshot launch is unchanged.", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: two-up card grid stays clear of the fold", verdict: "pass", note: "DynamicGridLayout(maxColumns: 2) rounds to an even count under a hinge (DynamicGridLayout.swift lines 186-195), so the unfolded Duo shows two cards or one, never a card across the fold.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Accessibility: container with a button row and read-only pills", verdict: "pass", note: "accessibilityElement(children: .contain) on the card (line 84), the row ignores children and sets label, value, hint, trait (lines 103-107); StatusPill is one element each.", by: "swiftui-pro skill" },
+        { rule: "Design: avoid hard-coded spacing", verdict: "pass", note: "Not applicable: the grid pads to Spacing.l on purpose so it lines up with the page header and the other card pages; the system margin would shift it on every device.", by: "swiftui-pro skill" },
+        { rule: "Views: sheet(item:) on the controller", verdict: "pass", note: "sheet(item: $open) with hassSheet(.page, height: .full) because pages push inside it (lines 44-48).", by: "swiftui-pro skill" },
+        { rule: "Performance: telemetry only while scrolling", verdict: "pass", note: "scrollTelemetry(\"Sprinklers\") and no per-frame state (line 41).", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'Partly folded Duo (claude/section-sides, section-sides.md): controller cards by configured order, one per side, in fold columns at every text size (was: the 340 pt section grid, which put the cards across the band once text grew past Large); every other pose unchanged.',
+      'empty: there is no empty state. The page lists the two controllers from SprinklersConfig; a missing entity shows the controller as unavailable instead (see the offline-controller state).',
+      'loading and refreshing: no loading UI exists. Values come from EntityStore (snapshot first), so a cold launch with nothing saved reads unavailable until the first state arrives. The Hub pill then shows Unavailable, which is what the code draws.',
+      'Quick Links: Sprinklers is a Quick Links tile shown only while input_boolean.demo_input_boolean_1 is on (SprinklersConfig.visibilityEntityId). Not described in the rooms docs (docs gap noted in the atlas inventory).',
+      'Docs vs code: ios.md says the sheet is .large everywhere and the page is full width in every pose: both match. A modal is not a split view, so the Duo and iPad landscape poses show the same two-up grid.',
+      'The Hub pill uses the module surface (no fill); the pill component documents a material page fill and a solid grouped-list fill for other places (status-pill.md).',
+      'Wallpaper, glyphs and the top-bar chrome are kit stand-ins. Times are fixture values in the en_US short style.',
+    ],
+    changelog: [{ date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; states duo-part-fold, duo-part-fold-ax5.' }, { date: '2026-10-28', note: 'Rollout M: the controller row became a navigation tile with a Stop Watering disc and chevron.' }, { date: '2026-10-23', note: 'First pass: both controllers, battery, hub, watering, unavailable, fault, offline, AX5, motion and transitions.' }],
+  });
+})();
+</script></body></html>

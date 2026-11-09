@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grill · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_devices-vacuums.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv;
+
+  /* GrillSheet = RoomDeviceSheetChrome(title "<Room>: <Title>" = "Back Deck: Grill Probe", subtitle = the state) { GrillControls }, hassSheet(.form), fitted.
+     NB: the class lives in AirPurifierSheet.swift. */
+  function sheet(ctx, o) {
+    o = o || {};
+    var g = Object.assign({ state: 'Cooking' }, o.g);
+    return dv.sheet(ctx, { kind: 'grill', title: 'Back Deck: Grill Probe', subtitle: g.state, content: h('div.dv-col', { style: { maxWidth: '560px' } }, dv.grillControls(g)), detent: o.detent, connection: o.connection });
+  }
+  var G = function (g) { return function (c) { return sheet(c, { g: g }); }; };
+  function tile(stage, title) { return Array.prototype.filter.call(stage.querySelectorAll('.ui-sheet .ui-tile'), function (t) { return t.querySelector('.ti').textContent === title; })[0]; }
+
+  Mock.mount({
+    kind: 'modal', id: 'grill-sheet', title: 'Grill (Grill Probe) sheet', area: 'room-devices', status: 'shipped',
+    summary: 'Opened from the Grill Probe tile on the Back Deck page. A state header and four cooking-family cards: probe and pellet readings (read only) and the Keep Warm and Super Smoke switches. Fitted form sheet.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift', 'apple/Sources/HassUI/Features/RoomDevices/RoomDeviceSheetChrome.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift',
+      'apple/Sources/HassCore/RoomDevices/AirPurifierController.swift', 'apple/Sources/HassCore/Config/RoomDeviceConfig.swift'],
+    spec: ['.agents/patterns/room-device-sheets.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['room-device-sheets', 'modal-sheet', 'entity-tile'],
+    hig: ['Sheets', 'Toggles', 'Color', 'Dynamic Type'],
+    entities: ['sensor.demo_state_2', 'sensor.demo_sensor_10', 'sensor.demo_level_1', 'switch.demo_enabled_2', 'switch.demo_enabled_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Cooking: probe 165 °F, pellets 72%, Super Smoke on', render: G({ state: 'Cooking', probe: '165 °F', pellet: '72%', warm: false, smoke: true }) },
+      'warm': { title: 'Keep Warm on', render: G({ state: 'Keep Warm', probe: '140 °F', pellet: '68%', warm: true, smoke: false }) },
+      'off': { title: 'Off (cold grill)', note: 'the grill state is "off": the flame circle goes grey; the sensor cards keep their readings', render: G({ state: 'Off', probe: '72 °F', pellet: '72%', warm: false, smoke: false }) },
+      'error': { title: 'Unavailable', note: 'the state reads Unavailable; every card dims its glyph and reads "Unavailable"; the switches stop responding', render: G({ state: 'Unavailable' }) },
+      'offline': { title: 'Over an offline room page', note: 'no offline UI of its own; the last known readings stay', render: function (c) { return sheet(c, { connection: 'offline' }); } },
+      'medium': { title: 'Medium detent', render: function (c) { return sheet(c, { detent: 'medium' }); } },
+      'large': { title: 'Large detent', render: function (c) { return sheet(c, { detent: 'large' }); } },
+      'fitted': { title: 'Fitted detent (shipped)', render: function (c) { return sheet(c, { detent: 'fitted' }); } },
+      'closed': { title: 'Before presenting / after dismissing', render: function (c) { return dv.presenter('grill', c, 'live'); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of stacked cards; the header grows; the sheet scrolls', render: G({ state: 'Cooking' }) },
+    },
+
+    motion: [
+      { id: 'switch-tile', what: 'Tapping Keep Warm or Super Smoke fills or empties the card in the cooking orange; the value flips at once (optimistic)', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'HassDesign/GlassTile.swift stateColorTransition; GrillController.toggle (explicit turn_on / turn_off, 2 s revert); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = tile(stage, 'Keep Warm'); dv.setTile(t, true, 'On'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { dv.setTile(t, false, 'Off'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'header-circle', what: 'The flame circle fills the cooking orange when the grill comes on and goes grey when it is off', token: 'state 0.6 s ease-in-out (stateForeground and stateColorTransition "GrillControls")', state: 'off',
+        source: 'HassUI/Features/RoomDevices/AirPurifierSheet.swift GrillControls', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var c = stage.querySelector('.dv-grillhead .c'); c.classList.add('on'); stage.querySelector('.dv-grillhead .su').textContent = 'Cooking'; return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { c.classList.remove('on'); stage.querySelector('.dv-grillhead .su').textContent = 'Off'; return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Back Deck page', to: 'Grill sheet', kind: 'sheet', state: 'closed', note: 'The Grill Probe tile opens a fitted form sheet; the page scales back. Content is present on arrival.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Back Deck: Grill Probe', subtitle: 'Cooking', detent: 'fitted', size: 'form', content: h('div.dv-col', { style: { maxWidth: '560px' } }, dv.grillControls({ state: 'Cooking' })) }, { hold: 1200 }); } },
+      { from: 'Grill sheet', to: 'Back Deck page', kind: 'sheet', state: 'default', note: 'Circle x Close (device.sheet.done) or a swipe down.',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Back Deck: Grill Probe" with its state as the subtitle; the header ("Grill Probe, Cooking", identifier grill.header); the four cards in order (Probe 1, Pellet Level, Keep Warm, Super Smoke); Close last.' },
+      { rule: 'Cards', note: 'Sensor cards are static text (label and value with its unit, "165 °F", "72%"); the two switch cards are toggle buttons with the value On or Off. Identifiers grill.<title>.' },
+      { rule: 'Not colour alone', note: 'Every card has its glyph and a spoken value; an active card is the cooking orange, an off one is neutral; unavailable cards read the word "Unavailable".' },
+      { rule: 'Targets', note: 'Cards are at least 72 pt tall; the header circle is 44 pt.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the grid is one column and cards stack their glyph above the text; the sheet scrolls.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Sheets: fitted form sheet with a close control', verdict: 'pass', note: '.hassSheet(.form), grabber, circle-X Close; sheet subtitle carries the grill state.' },
+        { rule: 'Toggles: a switch-like control reads its state', verdict: 'pass', note: 'Keep Warm and Super Smoke are toggle tiles with On/Off values; direction G keeps switches to list rows, so a tile with a value is the grill\'s switch (room-device-sheets.md).' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Glyph, title and value on every card; unavailable cards read the word "Unavailable".' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'GrillControls header circle is @ScaledMetric(relativeTo: .title2) 44, so the flame stays inside it (GrillSheet.swift).' },
+        { rule: 'Layout: tile grid reflows', verdict: 'pass', note: 'DeviceTileGrid(maxColumns: 2) with a scaled 132 pt minimum goes to one column at AX5.' },
+      ],
+      swiftui: [
+        { rule: 'Hygiene: one type per file', verdict: 'pass', note: 'GrillSheet and GrillControls now live in GrillSheet.swift' },
+        { rule: 'Accessibility: sensor cards are not buttons', verdict: 'pass', note: 'GlassTile(kind: .state) draws no press state and no button trait; the header combines its children.' },
+        { rule: 'Data: explicit service calls', verdict: 'pass', note: 'turn_on / turn_off with a 2 s revert, never toggle.' },
+        { rule: 'Motion: colour with the app token', verdict: 'pass', note: 'stateColorTransition on the cards and the header circle; 0.2 s under Reduce Motion.' },
+      ],
+    },
+
+    notes: [
+      'loading: there is no loading state; the controller reads EntityStore (ready from the snapshot). Not-yet-loaded values read Unavailable.',
+      'Code location: GrillSheet and GrillControls live in AirPurifierSheet.swift (the catalog notes it); the file name is misleading.',
+      'The state strings are the entity\'s state title-cased ("Cooking", "Idle", "Off"); this mockup shows Cooking, Keep Warm and Off as representative values; the exact state vocabulary comes from the Traeger integration, not the app.',
+      'Sensor cards never fill: EntityState.isActive is true only for on, open, unlocked and similar states, so a numeric probe or pellet reading draws the neutral face with the cooking-orange glyph. Only a switch that is on fills the card.',
+      'Presenter is a trimmed Back Deck page with a Grill Probe navigate tile.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: cooking, keep warm, off, unavailable, offline, detents, AX5; light and dark.' }],
+  });
+})();
+</script></body></html>

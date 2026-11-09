@@ -1,0 +1,30 @@
+{
+  "id": "digest-slot-wait-3h22m",
+  "source": "2026-11-02: a lane waited 3h22m for a devcap slot; slot_wait fires (>= 20 minutes) and the wait is 202 minutes.",
+  "recorded": "2026-11-02",
+  "kind": "digest",
+  "input": {
+    "args": [
+      "--log",
+      "{dir}/worker.log"
+    ],
+    "files": {
+      "worker.log": [
+        "devcap: still waiting (3h22m) for a slot",
+        {
+          "type": "result",
+          "num_turns": 3,
+          "duration_ms": 1000
+        }
+      ]
+    }
+  },
+  "expect": {
+    "triggers": {
+      "has": [
+        "slot_wait"
+      ]
+    },
+    "durations.slot_wait_minutes": 202
+  }
+}

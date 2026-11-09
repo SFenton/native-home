@@ -1,0 +1,16 @@
+{
+  "id": "dd-quick-links-tile-sizes",
+  "date": "2026-10-17",
+  "source": "b2164581",
+  "owner_report": "Quick Links now have different tile sizes (prefer consistency of what we had before), and no color there as well",
+  "surface": "quick-link-tile",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "sizing",
+  "pre_fix_ref": "3b0b9c9a",
+  "fix_ref": "347c57c3",
+  "fix_confidence": "high",
+  "expected": "Quick Links tiles are one size with the colour families; flag differing frames."
+}

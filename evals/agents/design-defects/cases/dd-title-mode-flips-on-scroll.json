@@ -1,0 +1,16 @@
+{
+  "id": "dd-title-mode-flips-on-scroll",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "if I scroll down, title is centered instead of left-aligned next to hamburger like it was before; big title text also appears when scrolling up",
+  "surface": "shell-header-items",
+  "poses": [
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "ae5daf89",
+  "fix_ref": "244c4124",
+  "fix_confidence": "medium",
+  "expected": "The inline title and large title follow the system pivot: no custom centred title at rest or mid-scroll, and the large title never reappears after the page settles."
+}

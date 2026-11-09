@@ -1,0 +1,17 @@
+# configuration.yaml of the S+H test Home Assistant instance (provision.sh pushes this).
+# Demo data only. No APNs entry, no real integrations.
+default_config:
+
+homeassistant:
+  packages: !include_dir_named packages
+
+# Serves the DemoHouse document through the fenton_home integration (config/fenton_home/house.json). No config entry is made:
+# the entry needs an APNs key, which stays off this instance. Whether the bare line activates the websocket commands is
+# plan open question 1 (the step-6 spike).
+fenton_home:
+
+# The test-only todo, valve, camera and remote entities.
+fenton_demo:
+
+# No http: block on purpose. Core 2026.11 ignores it and keeps the settings in .storage/http;
+# provision.sh applies them over the websocket (http_config.py).

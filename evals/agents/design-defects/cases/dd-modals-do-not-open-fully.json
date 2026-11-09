@@ -1,0 +1,17 @@
+{
+  "id": "dd-modals-do-not-open-fully",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Some modals don't open all the way (cameras). Both issues need fixing for all modals in the app.",
+  "surface": "camera-viewer",
+  "poses": [
+    "duo-folded",
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "sizing",
+  "pre_fix_ref": "d92730e2",
+  "fix_ref": "c02db678",
+  "fix_confidence": "medium",
+  "expected": "On the folded Duo and in landscape every sheet opens full height from the bottom with no zoom; compare each sheet's top edge to the window top."
+}

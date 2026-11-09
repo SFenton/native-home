@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motion tokens · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, CM = Mock.cm, A = Mock.anim;
+  var EASE = { quick: 'cubic-bezier(0,0,.58,1)', state: 'cubic-bezier(.42,0,.58,1)', standard: 'cubic-bezier(.4,0,.2,1)', moment: 'cubic-bezier(.42,0,.58,1)', press: 'cubic-bezier(0,0,.58,1)', intro: 'cubic-bezier(0,0,.58,1)' };
+  function go(el, frames, o) { return CM.anim(el, frames, o); }
+  function sleep(ms) { return Mock.sleep(ms); }
+
+  /* ---- a damped spring sampled into keyframes: MotionTokens.emphasized = .spring(response: 0.5, dampingFraction: 0.8) */
+  function spring(from, to, response, zeta, n) {
+    var w0 = 2 * Math.PI / response, wd = w0 * Math.sqrt(1 - zeta * zeta), frames = [], dur = 1.1;
+    for (var i = 0; i <= n; i++) {
+      var t = dur * i / n, x = 1 - Math.exp(-zeta * w0 * t) * (Math.cos(wd * t) + (zeta * w0 / wd) * Math.sin(wd * t));
+      frames.push({ offset: i / n, transform: 'scale(' + (from + (to - from) * x).toFixed(4) + ')' });
+    }
+    return { frames: frames, ms: dur * 1000 };
+  }
+  /* ---- the house-and-heart mark (AppIconArtwork geometry, 100-unit box; the heart's ring is cut out of the house) */
+  var HOUSE = 'M50 12 L90 44 Q92 46 89 47 L82 47 L82 84 Q82 88 78 88 L22 88 Q18 88 18 84 L18 47 L11 47 Q8 46 10 44 Z M25 59h9.5v9.5H25zM37 59h9.5v9.5H37zM25 71h9.5v9.5H25zM37 71h9.5v9.5H37z';
+  var HEART = 'M50 88 C20 66 8 50 8 34 C8 20 19 10 32 10 C40 10 46 14 50 21 C54 14 60 10 68 10 C81 10 92 20 92 34 C92 50 80 66 50 88 Z';
+  var uid = 0;
+  function mark(size, color) {
+    var id = 'mk' + (++uid);
+    return h('span', { style: { display: 'inline-block', width: size + 'px', height: size + 'px' }, html: '<svg viewBox="0 0 100 100" width="' + size + '" height="' + size + '" aria-hidden="true"><defs><mask id="' + id + '"><rect width="100" height="100" fill="#fff"/><path d="' + HEART + '" transform="translate(55 60) scale(.4)" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round"/></mask></defs><path d="' + HOUSE + '" fill-rule="evenodd" fill="' + (color || '#7CC4FF') + '" mask="url(#' + id + ')"/><path d="' + HEART + '" transform="translate(55 60) scale(.4)" fill="' + (color || '#7CC4FF') + '"/></svg>' });
+  }
+
+  /* ---- demos: each returns {node, play()} for one column; `rm` is the Reduce Motion variant (a .k-reduce-motion wrapper scopes the kit's colour variables) */
+  function digits(rm) {
+    var box = h('span', { style: { display: 'inline-block', overflow: 'hidden', height: '1.2em', verticalAlign: 'top', font: '300 44px/1.2 var(--font-d)', fontVariantNumeric: 'tabular-nums' } }), cur = h('span', { style: { display: 'block' } }, '2');
+    box.appendChild(cur); var unit = h('span', { style: { font: '700 18px var(--font)', verticalAlign: 'top', marginLeft: '2px', position: 'relative', top: '6px' } }, '°F');
+    var btn = h('button.cm-chip', { type: 'button', style: { border: 0, marginLeft: '16px', transition: 'none' } }, 'Update');
+    var n = h('div.cm-row', { style: { gap: 0 } }, h('span', { style: { display: 'inline-flex', alignItems: 'flex-start' } }, h('span', { style: { font: '300 44px/1.2 var(--font-d)' } }, '7'), box, unit), btn);
+    return { node: n, play: function () {
+      var next = h('span', { style: { display: 'block' } }, '3');
+      if (rm) { cur.textContent = '3'; return go(cur, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: EASE.quick }).then(function () { return go(btn, [{ opacity: 1 }, { opacity: .4 }, { opacity: 1 }], { duration: 400, easing: EASE.quick }); }).then(function () { return sleep(500); }).then(function () { cur.textContent = '2'; }); }
+      var col = h('span', { style: { display: 'block' } }, [h('span', { style: { display: 'block' } }, '2'), next]); box.replaceChild(col, cur);
+      return go(col, [{ transform: 'translateY(0)' }, { transform: 'translateY(-50%)' }], { duration: 200, easing: EASE.quick }).then(function () { return go(btn, [{ opacity: 1 }, { opacity: .4 }, { opacity: 1 }], { duration: 400, easing: EASE.quick }); }).then(function () { return sleep(500); }).then(function () { box.replaceChild(cur, col); cur.textContent = '2'; });
+    } };
+  }
+  function stateDemo(rm) {
+    var chip = h('span.cm-chip', { style: { transitionDuration: (rm ? .2 : .6) + 's' } }, h('span', { html: Mock.icon('lightbulb') }), 'Lights');
+    var tile = K.GlassTile({ title: 'Office', subtitle: 'Cooling to 72°', symbol: 'snowflake', family: 'cooling', isActive: false }); tile.style.width = '190px'; tile.style.transitionDuration = (rm ? .2 : .6) + 's';
+    var n = h('div.cm-row', chip, tile);
+    return { node: n, play: function () { chip.classList.add('on'); tile.classList.remove('off'); tile.classList.add('on'); return sleep((rm ? 200 : 600) + 700).then(function () { chip.classList.remove('on'); tile.classList.remove('on'); tile.classList.add('off'); return sleep((rm ? 200 : 600) + 200); }); } };
+  }
+  function standardDemo(rm) {
+    var rows = ['Weekday Wake', 'Weekend Sleep-In'].map(function (t) { return h('div', { style: { height: '44px', borderRadius: '14px', background: 'var(--fill-tertiary)', display: 'flex', alignItems: 'center', padding: '0 14px', font: '600 15px var(--font)' } }, t); });
+    var host = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', width: '230px', minHeight: '140px' } }, rows);
+    var add = h('div', { style: { height: '44px', borderRadius: '14px', background: 'var(--g-tint-fill)', color: '#fff', display: 'flex', alignItems: 'center', padding: '0 14px', font: '600 15px var(--font)', overflow: 'hidden' } }, 'New alarm');
+    return { node: host, play: function () {
+      host.insertBefore(add, null);
+      var p = rm ? Promise.resolve() : go(add, [{ height: '0px', opacity: 0, marginTop: '-8px' }, { height: '44px', opacity: 1, marginTop: '0px' }], { duration: 300, easing: EASE.standard });
+      return p.then(function () { return sleep(700); }).then(function () { var q = rm ? Promise.resolve() : go(add, [{ height: '44px', opacity: 1 }, { height: '0px', opacity: 0, marginTop: '-8px' }], { duration: 300, easing: EASE.standard }); return q; }).then(function () { add.remove(); add.getAnimations().forEach(function (a) { a.cancel(); }); });
+    } };
+  }
+  function springDemo(rm) {
+    var m = mark(88, '#7CC4FF'), box = h('div', { style: { width: '120px', height: '120px', display: 'grid', placeItems: 'center' } }, m);
+    return { node: box, play: function () {
+      if (rm) return go(m, [{ opacity: 0 }, { opacity: 1 }], { duration: 350, easing: EASE.moment }).then(function () { return sleep(500); });
+      var s = spring(.86, 1, .5, .8, 44);
+      return go(m, [{ opacity: 0, transform: 'scale(.86)' }, { opacity: 1, transform: 'scale(.86)', offset: .05 }].concat(s.frames.slice(1).map(function (f) { return { transform: f.transform, offset: .05 + .95 * f.offset }; })), { duration: s.ms, easing: 'linear' }).then(function () { return sleep(400); });
+    } };
+  }
+  function staggerDemo(rm) {
+    var bars = []; for (var i = 0; i < 10; i++) bars.push(h('div', { style: { height: '14px', borderRadius: '7px', background: i < 8 ? 'var(--g-tint-fill)' : 'var(--fam-water-glyph)', opacity: .9 } }));
+    var host = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', width: '170px' }, 'aria-label': 'Ten items; the first eight stagger' }, bars);
+    return { node: host, play: function () {
+      if (rm) return Promise.all(bars.map(function (b) { return go(b, [{ opacity: 0 }, { opacity: .9 }], { duration: 350, easing: EASE.moment }); })).then(function () { return sleep(500); });
+      return Promise.all(bars.map(function (b, i) { return go(b, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: .9, transform: 'none' }], { duration: 300, delay: i < 8 ? i * 60 : 7 * 60, easing: EASE.standard, fill: 'backwards' }); })).then(function () { return sleep(500); });
+    } };
+  }
+  function momentDemo(rm) {
+    var a = h('div', { style: { width: '90px', height: '70px', borderRadius: '12px', background: 'var(--g-tint-fill)', display: 'grid', placeItems: 'center', color: '#fff', font: '600 13px var(--font)' } }, 'Sign in');
+    var b = h('div', { style: { width: '90px', height: '70px', borderRadius: '12px', background: 'var(--fam-water-fill)', display: 'grid', placeItems: 'center', color: '#fff', font: '600 13px var(--font)', position: 'absolute', left: 0, top: 0, opacity: 0 } }, 'Home');
+    var host = h('div', { style: { position: 'relative', width: '90px', height: '70px' } }, a, b);
+    return { node: host, play: function () { return Promise.all([go(a, [{ opacity: 1 }, { opacity: 0 }], { duration: 350, easing: EASE.moment }), go(b, [{ opacity: 0 }, { opacity: 1 }], { duration: 350, easing: EASE.moment })]).then(function () { return sleep(600); }).then(function () { [a, b].forEach(function (e) { e.getAnimations().forEach(function (x) { x.cancel(); }); }); }); } };
+  }
+  function pressDemo(rm) {
+    var b = h('button.cm-chip', { type: 'button', style: { border: 0, transition: 'none', padding: '12px 22px' } }, 'Sign In');
+    return { node: b, play: function () { return go(b, [{ transform: 'scale(1)' }, { transform: 'scale(.96)' }], { duration: 120, easing: EASE.press }).then(function () { return sleep(250); }).then(function () { return go(b, [{ transform: 'scale(.96)' }, { transform: 'scale(1)' }], { duration: 120, easing: EASE.press }); }); } };
+  }
+  function introDemo(rm) {
+    var glow = h('div', { style: { position: 'absolute', inset: 0, background: 'radial-gradient(60% 50% at 50% 30%, rgba(124,196,255,.45), transparent 70%)', opacity: 0 } });
+    var m = mark(54, '#7CC4FF'), mk = h('div', { style: { position: 'absolute', left: '50%', top: '18px', marginLeft: '-27px', opacity: 0 } }, m);
+    var title = h('div', { style: { position: 'absolute', left: 0, right: 0, top: '84px', textAlign: 'center', font: '700 20px var(--font-d)', opacity: 0 } }, 'S+H');
+    var form = h('div', { style: { position: 'absolute', left: '18px', right: '18px', top: '124px', height: '44px', borderRadius: '14px', background: 'var(--g-module-thin)', opacity: 0 } });
+    var host = h('div', { style: { position: 'relative', width: '230px', height: '190px', borderRadius: '18px', background: '#0d1624', overflow: 'hidden', color: '#fff' } }, glow, mk, title, form);
+    return { node: host, play: function () {
+      [glow, mk, title, form].forEach(function (e) { e.getAnimations().forEach(function (x) { x.cancel(); }); e.style.opacity = 0; });
+      if (rm) return Promise.all([glow, mk, title, form].map(function (e) { return go(e, [{ opacity: 0 }, { opacity: 1 }], { duration: 350, easing: EASE.moment }); })).then(function () { return sleep(500); });
+      return Promise.all([
+        go(glow, [{ opacity: 0 }, { opacity: 1 }], { duration: 500, easing: EASE.intro }),
+        go(mk, [{ opacity: 0, transform: 'scale(.86)' }, { opacity: 1, transform: 'scale(1.03)' }], { duration: 280, delay: 150, easing: EASE.intro, fill: 'both' }),
+        go(title, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 400, delay: 460, easing: EASE.intro }),
+        go(form, [{ opacity: 0, transform: 'translateY(28px)' }, { opacity: 1, transform: 'none' }], { duration: 450, delay: 710, easing: EASE.intro })]).then(function () { return sleep(500); });
+    } };
+  }
+  function arrivalDemo(rm) {
+    var wall = h('div', { style: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg,#32465f,#16222f 60%,#0b1118)' } });
+    var chips = [0, 1, 2].map(function () { return h('div', { style: { height: '16px', width: '44px', borderRadius: '8px', background: 'var(--fam-occupancy-fill)' } }); });
+    var cards = [0, 1, 2, 3, 4, 5].map(function () { return h('div', { style: { height: '34px', borderRadius: '10px', background: 'rgba(28,28,30,.7)' } }); });
+    var layer = h('div', { style: { position: 'absolute', inset: 0, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: '8px' } }, h('div', { style: { font: '700 16px var(--font-d)', color: '#fff' } }, 'Home'), h('div', { style: { display: 'flex', gap: '6px' } }, chips), h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' } }, cards));
+    var host = h('div', { style: { position: 'relative', width: '170px', height: '190px', borderRadius: '18px', overflow: 'hidden' } }, wall, layer);
+    return { node: host, play: function () {
+      var all = [wall].concat(chips, cards); all.forEach(function (e) { e.getAnimations().forEach(function (x) { x.cancel(); }); });
+      if (rm) return Promise.all(all.concat([layer.firstChild]).map(function (e) { return go(e, [{ opacity: 0 }, { opacity: 1 }], { duration: 350, easing: EASE.moment }); })).then(function () { return sleep(500); });
+      var out = [go(wall, [{ opacity: 0, transform: 'scale(1.06)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 600, easing: EASE.intro })];
+      chips.forEach(function (c) { out.push(go(c, [{ opacity: 0, transform: 'translateX(30px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 120 + 80, easing: EASE.standard, fill: 'backwards' })); });
+      cards.forEach(function (c, i) { out.push(go(c, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 200 + Math.min(i, 4) * 60, easing: EASE.standard, fill: 'backwards' })); });
+      return Promise.all(out).then(function () { return sleep(500); });
+    } };
+  }
+
+  var TOKENS = [
+    { id: 'quick', name: 'quick', swift: '.easeOut(duration: 0.2)', ms: '0.2 s', use: 'Numbers (contentTransition(.numericText)), small fades, button state, a checkmark appearing, a disabled button dimming, the dial following its target.', rm: 'The numeric transition becomes a plain cross-fade; opacity fades stay (opacity is not motion).', where: 'motion.md sections 6 and 7', demo: digits },
+    { id: 'state', name: 'state', swift: '.easeInOut(duration: 0.6)  ·  stateReduced .easeInOut(duration: 0.2)', ms: '0.6 s (0.2 s reduced)', use: 'Every background, fill, tint and rim colour that changes with state: tiles lit or unlit, chips, pills, selected segments and day chips, the alarm panel, button active states. Colour only, never layout.', rm: 'Still a cross-fade (a colour change is not motion), shortened to 0.2 s.', where: 'motion.md sections 6 and 7; .stateColorTransition(value:)', demo: stateDemo },
+    { id: 'standard', name: 'standard', swift: '.smooth(duration: 0.3)', ms: '0.3 s, no bounce', use: 'Layout a person caused: a row added or removed, a section expanding, a pane opening, the flyout.', rm: 'The layout change applies at once (motionSafeAnimation with no reduced animation); lists keep the system\'s own change.', where: 'motion.md sections 6 and 7', demo: standardDemo },
+    { id: 'emphasized', name: 'emphasized', swift: '.spring(response: 0.5, dampingFraction: 0.8)', ms: 'about 0.5 s settle (spring)', use: 'The house-and-heart mark in the launch intro, and nothing else. Never on content.', rm: 'No spring, no scale: the mark cross-fades with the rest of the moment (about 0.35 s).', where: 'motion.md section 7; MotionTokens.Intro supersedes it for the intro\'s own mark rise (easeOut 0.28 s, 0.86 to 1.03)', demo: springDemo },
+    { id: 'arrivalStagger', name: 'arrivalStagger', swift: 'arrivalStagger = 0.06  ·  arrivalStaggerCap = 8  ·  arrival = .smooth(duration: 0.3)  ·  arrivalRise = 8  ·  arrivalDelay(index:)', ms: '0.06 s per item, first screenful only', use: 'The sign-in arrival and nothing else: items rise and fade in one after another; items past the cap appear with the last staggered one. Once per session.', rm: 'One cross-fade of about 0.35 s for the whole set: no rise, scale, spring or stagger.', where: 'motion.md sections 3 and 7; .arrivalMotion(_:index:)', demo: staggerDemo },
+    { id: 'reducedMoment', name: 'reducedMoment', swift: '.easeInOut(duration: 0.35)  ·  crossFadeDuration 0.35', ms: '0.35 s cross-fade', use: 'What a moment (intro, arrival) does under Reduce Motion, and what any moment-sized change falls back to.', rm: 'It is the Reduce Motion variant.', where: 'motion.md section 8', demo: momentDemo },
+    { id: 'press', name: 'press', swift: '.easeOut(duration: 0.12)', ms: '0.12 s', use: 'A button shrinking under a finger (the sign-in lane\'s name; the system button style handles most presses: instant down, release on quick).', rm: 'The system button style applies; no extra scale.', where: 'MotionTokens.press (the sign-in lane\'s names)', demo: pressDemo },
+    { id: 'intro', name: 'Intro (sequence)', swift: 'glow easeOut 0.5  ·  mark delay 0.15, rise 0.28 (0.86 to 1.03)  ·  title delay 0.46, 0.4, rises 10  ·  form delay 0.71, 0.45, rises 28', ms: 'about 1.16 s (a moment)', use: 'Launch while signed out: glow, mark, title, form. The only place motion runs past 0.4 s besides the arrival.', rm: 'Cross-fade only, about 0.35 s in total.', where: 'motion.md section 3; MotionTokens.Intro', demo: introDemo },
+    { id: 'arrival', name: 'Arrival (sequence)', swift: 'lift -18 pt / 0.97, easeOut 0.4  ·  backdrop 1.06 to 1, easeOut 0.6  ·  chips slide 30 pt, delay 0.12  ·  first delay 0.20, rise 16 pt, 0.06 s stagger, limit 5', ms: 'about 0.9 s (a moment)', use: 'Home after a sign-in: the sign-in layer lifts away, the house photo settles, the title and chips arrive, tiles rise with a stagger, the tab bar rises. Once per session.', rm: 'Cross-fades only, about 0.35 s.', where: 'motion.md section 3; MotionTokens.Arrival', demo: arrivalDemo },
+  ];
+  var GATE_ROWS = [['gate', 'per content-gate.md', '.results: spinner after 150 ms, in 200 ms, out 140 ms, content in 170 ms + 4 pt rise; .page: spinner at once, held at least 1 s, out 500 ms', 'Rise dropped, fade kept; the spinner keeps turning (half speed)'],
+    ['Navigation', 'system', 'push, sheet, zoom, tab switch (a cut): the system\'s own motion, never replaced or decorated', 'The system turns slides and zooms into cross-fades']];
+
+  function tokenCard(ctx, t) {
+    var a = t.demo(false), b = t.demo(true);
+    var play = CM.play(function () { return Promise.all([a.play(), b.play()]); }, 'Play');
+    var card = h('div', { dataset: { tok: t.id }, style: { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' } },
+      h('div.cm-row', { style: { justifyContent: 'space-between', alignItems: 'baseline' } }, h('h3', { style: { margin: 0, font: '700 17px var(--font-d)', color: 'inherit' } }, t.name), h('span.k-cap', { style: { opacity: .7, font: '600 12px var(--mono)' } }, t.ms)),
+      h('code', { style: { font: '12px var(--mono)', opacity: .85, display: 'block', whiteSpace: 'normal' } }, t.swift),
+      h('p', { style: { margin: 0, font: 'var(--fs-sub) var(--font)' } }, t.use),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '12px' } },
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, h('span', { style: { font: '600 11px var(--mono)', opacity: .6 } }, 'NORMAL'), h('div', a.node)),
+        h('div.k-reduce-motion', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, h('span', { style: { font: '600 11px var(--mono)', opacity: .6 } }, 'REDUCE MOTION'), h('div', b.node))),
+      h('p', { style: { margin: 0, font: '12px var(--font)', opacity: .8 } }, h('b', 'Reduce Motion: '), t.rm), h('div.cm-row', play, h('span', { style: { font: '12px var(--mono)', opacity: .6 } }, t.where)));
+    card.__play = function () { return Promise.all([a.play(), b.play()]); };
+    return card;
+  }
+  function tokensOn(surface, only) {
+    return function (ctx) {
+      var out = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } });
+      TOKENS.filter(function (t) { return !only || only.indexOf(t.id) >= 0; }).forEach(function (t) { out.appendChild(h('div.k-swatch-grid', CM.swatch(ctx, surface, t.name, tokenCard(ctx, t), null, { min: 520 }))); });
+      return out;
+    };
+  }
+  function tableState(ctx) {
+    var rows = TOKENS.map(function (t) { return h('tr', h('th', { scope: 'row' }, h('code', t.name)), h('td', h('code', t.swift)), h('td', t.ms), h('td', t.rm)); });
+    GATE_ROWS.forEach(function (r) { rows.push(h('tr', h('th', { scope: 'row' }, h('code', r[0])), h('td', r[1]), h('td', r[2]), h('td', r[3]))); });
+    var tbl = h('table.cm-tbl', h('thead', h('tr', h('th', 'Token'), h('th', 'Value (MotionTokens.swift)'), h('th', 'Duration'), h('th', 'Reduce Motion'))), h('tbody', rows));
+    var never = h('ul', { style: { margin: '10px 0 0', paddingLeft: '1.2em', font: 'var(--fs-foot) var(--font)' } },
+      ['Durations over 0.4 s, except the two moments and colour cross-fades (state).', 'bounce above 0.15.', 'repeatForever, except spinners and pending pulses.', 'Raw durations or .animation(_:) without a value at a call site (tools/lint_motion.sh).', 'Animating tab switches, content that was already there, or anything while scrolling.'].map(function (t) { return h('li', t); }));
+    return CM.grid(ctx, [{ label: 'MotionTokens', node: h('div', { style: { overflowX: 'auto' } }, tbl), w: 920 }, { label: 'Never', node: never, w: 460 }], { surfaces: ['sheet'] });
+  }
+  function boundsState(ctx) {
+    function bar(label, ms, max) { return h('div', { style: { display: 'grid', gridTemplateColumns: '130px 1fr 64px', gap: '8px', alignItems: 'center', font: '12px var(--mono)' } }, h('span', label), h('div', { style: { height: '10px', borderRadius: '5px', background: 'color-mix(in srgb, var(--ink,#fff) 12%, transparent)' } }, h('div', { style: { height: '100%', width: Math.round(ms / max * 100) + '%', borderRadius: '5px', background: ms > 400 ? 'var(--g-orange)' : 'var(--g-tint-fill)' } })), h('span', ms + ' ms')); }
+    var n = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' } }, bar('quick', 200, 1200), bar('standard', 300, 1200), bar('reducedMoment', 350, 1200), bar('state (reduced)', 200, 1200), bar('state', 600, 1200), bar('Arrival (moment)', 900, 1200), bar('Intro (moment)', 1160, 1200), h('p', { style: { margin: '6px 0 0', font: '12px var(--font)', opacity: .75 } }, 'Orange: over the 0.4 s ceiling (allowed only for state colour fades and the two moments).'));
+    return CM.grid(ctx, [{ label: 'Durations against the 0.4 s ceiling', node: n, w: 560 }], { surfaces: ['page'] });
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'motion-tokens', title: 'Motion tokens (quick, state, standard, emphasized)', area: 'design', status: 'shipped', frame: false,
+    summary: 'The only animation values in the app (MotionTokens.swift), each as a playable demonstration beside its Reduce Motion variant: quick (numbers, small fades), state (every colour change), standard (layout a person caused), emphasized (the intro mark), arrivalStagger, the Reduce Motion cross-fade, plus the intro and arrival sequences. Call sites never write a duration.',
+    source: ['apple/Sources/HassDesign/Motion/MotionTokens.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKMotion.swift', 'apple/Sources/HassDesign/Motion/StateColorTransition.swift', 'apple/Sources/HassUI/App/Motion/MotionPolicy.swift', 'apple/Sources/HassUI/UIKitPort/App/Motion/UKArrivalMotion.swift'],
+    spec: ['.agents/design/motion.md', '.agents/design/motion-components.md', '.agents/patterns/motion.md'],
+    patterns: ['motion', 'content-gate'],
+    hig: ['Motion', 'Accessibility: Reduce Motion', 'Loading'],
+    entities: [],
+    kitComponents: ['GlassTile', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Every token, playable (on the page surface)', note: 'each card plays the normal and the Reduce Motion variant together', render: tokensOn('page') },
+      'sheet': { title: 'Colour and number tokens on a sheet', note: 'follows the Sheet appearance control', render: tokensOn('sheet', ['quick', 'state', 'standard']) },
+      'table': { title: 'Token table and the "never" list', render: tableState },
+      'bounds': { title: 'Durations against the 0.4 s ceiling', render: boundsState },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: tokensOn('page', ['quick', 'state']) },
+    },
+    motion: [
+      { id: 'quick', what: 'Numbers roll and small fades: a changed digit slides, a button dims and returns', token: 'quick .easeOut(0.2 s)', source: 'HassDesign/Motion/MotionTokens.swift', reduce: 'a plain cross-fade for the number; fades unchanged', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=quick]').__play(); } },
+      { id: 'state', what: 'A chip and a tile fill with their colour on a state change, then empty', token: 'state .easeInOut(0.6 s), stateReduced 0.2 s', source: 'MotionTokens.state; StateColorTransition.swift', reduce: 'still cross-fades, at 0.2 s', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=state]').__play(); } },
+      { id: 'standard', what: 'A row the person added grows into place, then is removed', token: 'standard .smooth(0.3 s), no bounce', source: 'MotionTokens.standard', reduce: 'applies at once, no movement', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=standard]').__play(); } },
+      { id: 'emphasized', what: 'The house-and-heart mark springs in (the intro, nothing else)', token: 'emphasized .spring(response 0.5, damping 0.8)', source: 'MotionTokens.emphasized', reduce: 'cross-fade about 0.35 s, no scale', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=emphasized]').__play(); } },
+      { id: 'arrivalStagger', what: 'Eight items rise 16 pt and fade in 0.06 s apart; items nine and ten arrive with the last', token: 'arrivalStagger 0.06 s, cap 8; arrival .smooth(0.3 s)', source: 'MotionTokens.arrivalStagger, arrivalDelay(index:)', reduce: 'one cross-fade, about 0.35 s', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=arrivalStagger]').__play(); } },
+      { id: 'reducedMoment', what: 'A screen cross-fades into another', token: 'reducedMoment .easeInOut(0.35 s)', source: 'MotionTokens.reducedMoment', reduce: 'this is the Reduce Motion variant', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=reducedMoment]').__play(); } },
+      { id: 'press', what: 'A button shrinks under a finger and returns', token: 'press .easeOut(0.12 s)', source: 'MotionTokens.press', reduce: 'system button style only', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=press]').__play(); } },
+      { id: 'intro', what: 'Launch while signed out: glow, mark, title and form arrive in turn', token: 'Intro: glow 0.5, mark 0.15 + 0.28, title 0.46 + 0.4, form 0.71 + 0.45', source: 'MotionTokens.Intro', reduce: 'cross-fade about 0.35 s', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=intro]').__play(); } },
+      { id: 'arrival', what: 'Home arrives after sign-in: photo settles, chips slide, tiles rise with a stagger', token: 'Arrival: backdrop 0.6, chips 30 pt, tiles 16 pt, 0.06 s stagger', source: 'MotionTokens.Arrival; MotionPolicy (once per session)', reduce: 'cross-fade about 0.35 s', state: 'default', play: function (stage) { return stage.querySelector('[data-tok=arrival]').__play(); } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'Reduce Motion', note: 'Every token has a variant: moments become a 0.35 s cross-fade (no rise, scale, spring or stagger); zoom, push and sheet are the system\'s; numbers may cross-fade; colour changes still cross-fade at 0.2 s; spinners keep turning at half speed; pulses stop. The switch above this page applies to Play, and each card also plays the variant beside the normal one.' },
+      { rule: 'Not the only cue', note: 'Motion never carries information alone: a changed value is also text, a changed state also has a word or glyph (motion.md section 1: animate change, not presence).' },
+      { rule: 'Input stays live', note: 'Nothing blocks taps during a transition; every navigation transition is interruptible and the arrival lets taps through.' },
+      { rule: 'No flashing', note: 'No pulse brighter than 0.35 to 1 opacity at 1.4 s, nothing flashes more than three times a second; the triggered alarm wash holds steady (no pulse).' },
+      { rule: 'Dynamic Type', note: 'Tokens carry no sizes, so layout is unaffected; the demonstrations here use text styles and wrap at AX5.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Motion: add motion purposefully; keep feedback animations brief and precise", verdict: "pass", note: "Tokens are quick 0.2 s, standard 0.3 s smooth with no bounce, press 0.12 s and a 0.35 s reduced moment; only the one-time Intro (about 1.2 s) and Arrival (about 0.9 s) run past 0.4 s, and each plays once per session (MotionPolicy).", by: "apple-hig skill" },
+        { rule: "Motion: avoid animation on frequently repeated custom interactions", verdict: "departure", note: "Every state colour change cross-fades over 0.6 s (MotionTokens.state), longer than 'brief', on tiles and chips that change many times a day; the owner set it to the status chip's timing on 2026-10-18 and it animates colour only, so it never delays a tap.", by: "apple-hig skill" },
+        { rule: "Accessibility: with Reduce Motion, reduce automatic and repetitive animation (zooming, scaling, peripheral motion)", verdict: "pass", note: "A moment becomes a 0.35 s cross-fade with no rise, scale, spring or stagger (reducedMoment); ArrivalEffect drops the offset and uses crossFade; state colour shortens to 0.2 s; navigation, sheet and zoom stay the system's.", by: "apple-hig skill" },
+        { rule: "Motion: never the only way to communicate important information; no flashing", verdict: "pass", note: "A changed value is also text and a changed state also a word or glyph; the pending pulse is 0.35 to 1 opacity every 1.4 s, far under three flashes a second, and stops under Reduce Motion.", by: "apple-hig skill" },
+        { rule: "Motion: let people cancel animations rather than wait; input stays live", verdict: "pass", note: "No transition blocks input: the arrival lets taps through, navigation transitions are interruptible, and press goes down at once and fades on release.", by: "apple-hig skill" },
+        { rule: "Motion: the spring and scale are for one moment only", verdict: "pass", note: "emphasized (response 0.5, damping 0.8) and the mark's 0.86 to 1.03 scale are used only for the intro house-and-heart; the arrival backdrop scale 1.06 to 1 is a moment too and falls to a cross-fade with Reduce Motion.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Animation: always provide a value to watch; scope animation to colour", verdict: "pass", note: "motionSafeAnimation wraps .animation(_, value:), and stateColor uses animation(_:body:) so only the modifiers inside the closure animate, never layout (StateColorTransition.swift).", by: "swiftui-pro skill" },
+        { rule: "Animation: one set of timings", verdict: "pass", note: "BadgedTabSegment uses MotionTokens.segment, SummaryPanel MotionTokens.contentFade, SummaryChoresTab MotionTokens.standard with stateReduced; SmoothContentSwap keeps its own chained timing like ContentGateModel by design (documented on MotionTokens.contentFade).", by: "swiftui-pro skill" },
+        { rule: "Animation: chain with completion, not delays", verdict: "pass", note: "Decided (motion-timings): the intro's delays stay declarative on one timeline (chaining would shift the title 0.03 s and the form 0.25 s later); the sign-in layer's removal now chains by withAnimation completion (RootView.signedIn).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: read Reduce Motion from the environment", verdict: "pass", note: "Views use @Environment(\\.accessibilityReduceMotion); MotionPolicy mirrors UIAccessibility only for code outside a view and refreshes on the system notification.", by: "swiftui-pro skill" },
+        { rule: "API: current spring spelling", verdict: "pass", note: "Fixed on claude/hig-motion-1ec6c6: emphasized is spring(duration: 0.5, bounce: 0.2) (MotionTokens.swift). Was: emphasized is spring(response: 0.5, dampingFraction: 0.8), the older parameterization; .spring(duration: 0.5, bounce: 0.2) is the current form and shares its units with .smooth and .snappy. Low.", by: "swiftui-pro skill" },
+        { rule: "Hygiene: tests that assert animation exists", verdict: "pass", note: "MotionAudit records each stateColorTransition in debug and test builds only (empty in release) so StateColorTransitionTests fails when a component loses its fade; AGENTS.md requires signposts and perf metrics for motion work.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Docs versus code: motion.md section 7 says arrival items rise by the token and lists no rise size; the code has two (arrivalRise 8 pt for .arrivalMotion, Arrival.riseDistance 16 pt for HomeArrival) and two caps (8 and 5). The demo draws 16 pt and a cap of 8 as motion.md and the sign-in mockup do.',
+      'The spring is the exact damped-spring response (0.5 s, damping 0.8) sampled into keyframes; the intro mark itself uses Intro.markRise (easeOut 0.28 s, 0.86 to 1.03), which is why both are listed.',
+      'The gate token is not a MotionTokens value: its profile constants live in ContentGateModel (see the content-gate mockup). Navigation (push, sheet, zoom, tab cut) has no token.',
+      'zoom: motion.md section 4.3 describes the zoom, but the helpers are unused and the owner (2026-10-22) says none inside sheets; it is the zoom-transition item (designed-not-wired).',
+      'Easing curves are the CSS equivalents of SwiftUI\'s easeOut and easeInOut; .smooth is approximated by a standard Material curve. Durations are exact.',
+      'The demos on this page are mockup stand-ins (the mark is the app icon\'s house-and-heart geometry; tiles are the kit GlassTile).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: nine playable tokens and sequences with Reduce Motion variants, token table, durations chart.' }],
+  });
+})();
+</script></body></html>

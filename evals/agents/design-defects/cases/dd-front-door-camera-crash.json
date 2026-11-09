@@ -1,0 +1,17 @@
+{
+  "id": "dd-front-door-camera-crash",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Clicking front door camera crashes the app",
+  "surface": "camera-viewer",
+  "poses": [
+    "duo-unfolded-landscape",
+    "duo-partial-fold"
+  ],
+  "app": "uikit",
+  "category": "crash",
+  "pre_fix_ref": "20836844",
+  "fix_ref": "18205cc5",
+  "fix_confidence": "high",
+  "expected": "Opening the camera viewer on a hinge device must not loop in layout: open it in each pose and confirm the app is still running."
+}

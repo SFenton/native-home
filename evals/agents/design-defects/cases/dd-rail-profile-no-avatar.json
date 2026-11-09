@@ -1,0 +1,17 @@
+{
+  "id": "dd-rail-profile-no-avatar",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "profile chip in rail does not show signed in profile icon",
+  "surface": "profile-button",
+  "poses": [
+    "duo-folded",
+    "duo-unfolded-landscape"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "8f369bb5",
+  "fix_confidence": "high",
+  "expected": "The rail's Profile item shows the signed-in avatar, not a generic symbol."
+}

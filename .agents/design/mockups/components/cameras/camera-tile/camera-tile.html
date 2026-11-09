@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Camera tile and grid · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = MLC.cams;
+  function tile(i, st, o) { return MLC.cameraTile(Object.assign({ title: C[i][0], scene: C[i][1], state: st }, o)); }
+  function one(ctx, label, node, o) { return MLC.sw(ctx, 'page', label, h('div', { style: { width: '170px' } }, node), Object.assign({ flex: '0 0 auto' }, o)); }
+
+  Mock.mount({
+    kind: 'component', id: 'camera-tile', title: 'Camera tile and grid', area: 'cameras', status: 'shipped', frame: false,
+    summary: 'A camera card on Home and Security: the shared stream over its latest snapshot, nearly square (1 : 0.78), nothing over the picture but a small name capsule with a red live dot while frames show. Four in a 2 × 2 grid.',
+    source: ['apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassUI/Features/Cameras/CameraLiveView.swift', 'apple/Sources/HassUI/Features/Cameras/CameraStreamPool.swift'],
+    spec: ['.agents/patterns/camera-streams.md', '.agents/design/direction-g.md', '.agents/patterns/dynamic-grid.md', '.agents/patterns/image-cache.md'],
+    patterns: ['camera-streams', 'dynamic-grid', 'image-cache'], hig: ['HomeKit cameras', 'Layout', 'Playing video'], entities: ['camera.demo_front_door_camera_item_1', 'camera.demo_garage_camera_item_1', 'camera.demo_upper_deck_camera_1', 'camera.demo_lower_deck_camera_item_1'],
+    kitComponents: ['CameraTile', 'TileGrid', 'PageSectionHeader'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'live': { title: 'Live: red dot and name', note: 'the dot shows only while the stream shows frames; VoiceOver reads "Live"', render: function (ctx) { return MLC.grid([one(ctx, 'live', tile(0, 'live'))]); } },
+      'connecting': { title: 'Connecting: snapshot only', note: 'the last snapshot with the name; no dot, no pill on the tile (the pill "Connecting" or "Last live" is the viewer\'s; the kit CameraTile draws one on the tile, the app does not)', render: function (ctx) { return MLC.grid([one(ctx, 'connecting', tile(2, 'connecting'))]); } },
+      'stalled': { title: 'Stalled or failed: snapshot, dot gone', note: 'a stalled stream puts the snapshot back and restarts by backoff; a failed one retries by itself (2, 4, 8, 16, 32 s)', render: function (ctx) { return MLC.grid([one(ctx, 'stalled / failed', tile(1, 'snapshot'))]); } },
+      'paused': { title: 'Behind another tab: stream paused, last frame stays', note: 'after 4 s with no viewer the stream stops; the last live frame stays on the tile so it never goes back to an old still; the dot goes', render: function (ctx) { return MLC.grid([one(ctx, 'paused (last live frame)', tile(3, 'snapshot'))]); } },
+      'redacted': { title: 'Redacted (shared screenshots)', note: 'FENTON_REDACT_PRIVATE: the blurred snapshot always covers the video; the live dot still shows', render: function (ctx) { return MLC.grid([one(ctx, 'redacted', tile(0, 'live', { redacted: true }))]); } },
+      'grid': { title: 'Four tiles in a grid (min 160 pt, up to four columns)', note: 'each camera\'s own aspect ratio (4:3, 10:3, 16:9, 16:9) is cropped to the card; the viewer keeps it', render: function (ctx) { var tiles = C.map(function (c, i) { return tile(i, 'live'); }); return MLC.sw(ctx, 'page', 'Cameras · 2 × 2', h('div', { style: { width: ctx.compact ? '360px' : '560px', maxWidth: '100%' } }, h('div.ui-section', K.PageSectionHeader({ title: 'Cameras' }), K.TileGrid({ items: tiles, min: MLC.fitMin(ctx, 160, 32), max: 4, equal: false }))), { flex: '0 0 auto' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the name capsule wraps over the picture; the grid goes to one column', render: function (ctx) { return MLC.grid([one(ctx, 'live', tile(0, 'live'), { width: '460px' })]); } },
+    },
+    motion: [
+      { id: 'arrival', what: 'After sign-in the tiles rise one after another (first screenful only)', token: 'arrivalStagger 0.06 s per item, 16 pt rise, standard curve', state: 'grid', source: 'HomeArrival, CameraGrid.arrivalMotion(index:); motion.md section 3', reduce: 'cross-fade only, about 0.35 s',
+        play: function (stage) { return Mock.anim.stagger(Array.prototype.slice.call(stage.querySelectorAll('.ui-cam'))); } },
+      { id: 'phase-fade', what: 'The stream shows its first frame: the snapshot cross-fades out and the live dot appears', token: 'quick 0.2 s easeOut on the phase', state: 'connecting', source: 'CameraLiveView.motionSafeAnimation(quick, value: phase)', reduce: 'unchanged (opacity)',
+        play: function (stage) { var c = stage.querySelector('.ui-cam'), ph = c.querySelector('.photo'); ph.style.transition = 'filter .2s'; ph.style.filter = 'none'; var n = c.querySelector('.name > span'); var d = h('span.dot', { 'aria-hidden': 'true' }); n.insertBefore(d, n.firstChild); return Mock.anim.fade(d, { ms: 200 }).then(function () { return Mock.sleep(800); }).then(function () { d.remove(); ph.style.filter = ''; }); } },
+      { id: 'shared-stream', what: 'A tile and the viewer it opens show the same stream: no second connection, no restart', token: 'none (one CameraLiveModel per camera in CameraStreamPool)', state: 'live', source: 'CameraStreamPool; patterns/camera-streams.md', reduce: 'unchanged', note: 'Not an animation: the viewer opens on frames that are already playing.', play: function () { return Mock.sleep(300); } },
+    ],
+    a11y: [
+      { rule: 'Element', note: 'The tile (a button in the grid) is "<name> camera", value "Live" or "Snapshot", hint "Opens the camera"; the picture and the live dot are hidden (decorative).' },
+      { rule: 'Not colour alone', note: 'Live is the red dot, the word in the value and the missing dot while stalled; the name is always present.' },
+      { rule: 'Targets', note: 'Tiles are at least 160 pt wide and about 205 pt tall.' },
+      { rule: 'Dynamic Type', note: 'The name capsule wraps (fixedSize vertical) instead of truncating; the grid minimum scales with type.' },
+      { rule: 'Reduce Motion', note: 'The arrival becomes a cross-fade; the snapshot to live fade is opacity and stays.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'HomeKit cameras: avoid covering the camera view', verdict: 'pass', note: 'Only a small name capsule over the picture, the live dot inside it (CameraGrid.swift:61-74).' },
+        { by: 'apple-hig skill', rule: 'Layout: adaptive grid', verdict: 'pass', note: 'DynamicGridLayout with a 160 pt minimum and up to four columns (line 19); the card keeps 1 : 0.78 and the video fills and crops (line 48).' },
+        { by: 'apple-hig skill', rule: 'Color: live is a shape cue, not hue alone', verdict: 'pass', note: 'The red dot appears only while frames show and goes when the stream stalls; VoiceOver speaks "Live" or "Snapshot" (lines 28, 77-80). There is no visible word, so the dot is the whole sighted cue.' },
+        { by: 'apple-hig skill', rule: 'Typography: the smallest styles', verdict: 'pass', note: 'CameraTile name capsule is .footnote.weight(.semibold) (CameraGrid.swift).' },
+        { by: 'apple-hig skill', rule: 'Privacy and battery: stop what is not on screen', verdict: 'pass', note: 'Retained streams pause after 4 s with no showing view, and a tile behind another tab does not count (CameraStreamPool.swift:48, 72; CameraLiveView.swift:71-76).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: one Button with label, value and hint', verdict: 'pass', note: 'The tile Button reads "<name> camera", Live or Snapshot and "Opens the camera"; the video is hidden for the tile style (CameraGrid.swift:21-30; CameraLiveView.swift:192-194).' },
+        { by: 'swiftui-pro skill', rule: 'views.md: animate with a value', verdict: 'pass', note: 'motionSafeAnimation(MotionTokens.quick, value: phase) is opacity only (CameraLiveView.swift:70).' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: no per-frame work in the view', verdict: 'pass', note: 'The pool owns decoding and presence; the tile reads one model state and writes nothing per frame.' },
+      ],
+    },
+    notes: ['The pictures are kit stand-ins (no real frames or names).', 'Kit gap: the kit CameraTile adds a "Last live" or "Connecting" pill on the tile; the app draws none (the pill belongs to the viewer). MLC.cameraTile strips it; promote the fix to the kit.', 'Behind another tab the tile stays alive but its stream stops after 4 s (CameraStreamPool.pauseAfterHidden); the pool, not the view, owns the policy.'],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign Out of Home Assistant? · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../../settings/_settings-account.js"></script>
+<script src="../_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var Y = function (o) { return function (ctx) { return SA.summarySheet(ctx, Object.assign({ tab: 'profile', alert: SA.signOutAlert() }, o)); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'sign-out-alert', title: 'Sign Out of Home Assistant? (alert)', area: 'shell', status: 'shipped',
+    summary: 'The alert behind Sign Out on the Your Summary sheet’s Profile tab: "Sign Out of Home Assistant?" with a message and a red Sign Out beside Cancel. It sits over the sheet, which follows the system appearance; switch Sheet appearance above.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift'],
+    spec: ['.agents/pages/settings/profile.md', '.agents/design/direction-g.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Alerts', 'Modality'],
+    entities: [],
+    kitComponents: ['Alert', 'HassModal', 'ModalTabBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Sign Out asks first', note: 'Cancel on the left, the red destructive Sign Out on the right', render: Y({}) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the alert stacks its buttons; the title and message wrap', render: Y({}) },
+    },
+    motion: [],
+    transitions: [
+      { from: 'Sign Out', to: 'Alert', kind: 'fade', note: 'The system alert scales and fades in over the sheet (never decorated). Confirming runs session.confirmedSignOut(); on success the sheet dismisses and the root returns to sign-in; on failure the failed alert appears.',
+        play: function (stage) { var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = SA.alertScrim(ctx, SA.signOutAlert()); scrim.style.opacity = 0; host.appendChild(scrim); return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1000); }); } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The alert is modal: the title "Sign Out of Home Assistant?", the message, then Cancel and Sign Out. The sheet and page behind are hidden from VoiceOver.' },
+      { rule: 'Roles', note: 'Sign Out has the destructive role (account.signOut.confirm) and is red, #C21717 on a light alert and #FF6961 on a dark one; Cancel has the cancel role. The destructive button is also named, so colour is not the only cue.' },
+      { rule: 'Dynamic Type', note: 'The system scales the alert; at AX sizes the buttons stack and the alert scrolls if taller than the window.' },
+      { rule: 'Escape and focus', note: 'Escape or the two-finger scrub cancels; focus returns to the Sign Out button on the Profile tab.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Alerts: confirm a destructive action that is hard to undo; red destructive button and a Cancel', verdict: 'pass', note: 'Button("Sign Out", role: .destructive) and Button("Cancel", role: .cancel) with a message saying what the person must do to return (YourSummarySheet.swift:72-78).', by: 'apple-hig skill' },
+        { rule: 'Alerts: sentence-style title for a sentence, one pattern for one decision', verdict: 'pass', note: 'One alert, AlertCopy.signOut, on both surfaces.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'alert(_:isPresented:) with Button roles', verdict: 'pass', note: 'Roles and identifiers set; the state lives in the sheet because the Profile tab is rebuilt per tab (.id(tab), SummaryPanel.swift:25).', by: 'swiftui-pro skill' },
+        { rule: 'Guard a second press while async work runs', verdict: 'pass', note: 'isSigningOut is checked before the task starts (YourSummarySheet.swift:85-88).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading, error and offline: not applicable to an alert (the session calls the server after the tap; a failure is the sign-out-failed-alert). medium, large and fitted: an alert has no detents. Drawn over the Profile tab of the Summary sheet (modals/shell/your-summary).',
+      'Docs and code: direction-g.md says Sign Out is an alert; this alert and the Home Assistant cover’s confirmationDialog disagree in presentation and spelling (see ha-sign-out-dialog).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

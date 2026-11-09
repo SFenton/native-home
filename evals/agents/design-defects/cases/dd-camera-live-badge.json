@@ -1,0 +1,16 @@
+{
+  "id": "dd-camera-live-badge",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "On camera reconnect, \"Live\" never appears on the cards again",
+  "surface": "camera-tile",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "parity",
+  "pre_fix_ref": "e57d3182",
+  "fix_ref": "cc156f47",
+  "fix_confidence": "medium",
+  "expected": "After a reconnect the Live badge returns; foreground the app after a background and read the card's state."
+}

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bed alarm editor · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, B = Mock.bedroom;
+  /* BedAlarmEditor: pushed inside BedSideSheet from Add Alarm (Alarms tab: pick days; day page: the day is locked) or from an alarm row (edit, day locked). */
+  function E(o) {
+    return function (ctx) {
+      var m = B.bed(o.side || 'left', o.bed), e = Object.assign({ m: m }, o.editor);
+      var host = B.sheet(ctx, { title: B.bedEditorTitle(m, e), leading: 'back', trailing: 'none', content: B.bedEditor(e), connection: o.connection, presenterBed: m,
+        alert: o.del ? B.actionSheet(ctx, 'Delete alarm set for ' + B.clock(e.time || '06:30') + ' on ' + B.dayLabel(e.day || 'monday') + '?', [{ title: 'Delete Alarm', role: 'destructive' }]) : null });
+      return host;
+    };
+  }
+  Mock.mount({
+    kind: 'modal', id: 'bed-alarm-editor', title: 'Bed alarm editor (pushed)', area: 'bedroom', status: 'shipped',
+    summary: 'Adds or edits one Bed alarm, pushed inside the bed sheet. From the Alarms tab a day picker shows; from a day page or an existing alarm the day is locked and named in the title. Time, Alarm Enabled (edit only), Use Room Wake Lights, Save and (edit) Delete. Save and Delete save through the wake-light link first.',
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift', 'apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassCore/Bedroom/BedSideController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/schedule-date-fields.md'],
+    patterns: ['bedroom-devices', 'modal-sheet', 'schedule-date-fields', 'optimistic-actions'],
+    hig: ['Sheets', 'Pickers', 'Toggles', 'Action sheets', 'Buttons'],
+    entities: ['sensor.demo_bedroom_1_5'],
+    kitComponents: ['HassModal', 'BackButton', 'Toggle', 'PrimaryButton', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Add from a day page (day locked: Monday)', note: 'no day picker; Save is enabled; the title names the day', render: E({ editor: { day: 'monday', time: '07:00' } }) },
+      'add-days': { title: 'Add from the Alarms tab (weekday picker)', note: 'Monday to Friday preselected; on iPhone the seven chips wrap to 5 + 2 (52 pt minimum cells)', render: E({ editor: { time: '07:00' } }) },
+      'edit': { title: 'Edit Monday 6:30 AM', note: 'adds the Alarm Enabled switch and Delete', render: E({ editor: { editing: true, day: 'monday', time: '06:30', enabled: true, wake: true } }) },
+      'edit-disabled': { title: 'Edit a disabled alarm', render: E({ editor: { editing: true, day: 'saturday', time: '08:00', enabled: false, wake: false } }) },
+      'problem-days': { title: 'No day chosen', note: 'Save disables and a warning names the fix', render: E({ editor: { days: [], time: '07:00', problems: ['Select at least one day.'] } }) },
+      'saving': { title: 'Saving', note: 'the button reads "Saving…" and disables; the Back button also waits (the controller saves the wake-light link first and stops if it is refused)', render: E({ editor: { editing: true, day: 'monday', time: '06:30', saving: true } }) },
+      'delete-confirm': { title: 'Delete asks first', note: 'confirmationDialog: "Delete alarm set for 6:30 AM on Monday?" with Delete Alarm and Cancel', render: E({ del: true, editor: { editing: true, day: 'monday', time: '06:30' } }) },
+      'error': { title: 'Wake light refused the link', note: 'a wake-light error notice sits above the fields; nothing is saved', render: E({ editor: { editing: true, day: 'monday', time: '06:30', wakeError: 'The wake light change was rejected. Review the settings, then try again.' } }) },
+      'unavailable': { title: 'Alarm schedule unavailable', note: 'problems list explains; Save and Delete disable', render: E({ bed: { alarmsAvailable: false }, editor: { editing: true, day: 'monday', time: '06:30', problems: ['Home Assistant alarm schedule data is unavailable.'] } }) },
+      'read-only': { title: 'Solo Trip, traveler\'s side', render: E({ side: 'right', bed: { scope: 'traveler' }, editor: { editing: true, day: 'monday', time: '07:15', problems: ['Away · Read Only'] } }) },
+      'ringing': { title: 'Alarm ringing (card on top)', render: E({ bed: { alarmState: 'ringing' }, editor: { day: 'monday', time: '07:00' } }) },
+      'offline': { title: 'Over an offline Bedroom 1 page', render: E({ connection: 'offline', editor: { day: 'monday', time: '07:00' } }) },
+      'large': { title: 'Large detent (the only one)', render: E({ editor: { editing: true, day: 'monday', time: '06:30' } }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the long nav title "Add Alex\'s Bed Monday Alarm" wraps in the kit header; check on a device', render: E({ editor: { editing: true, day: 'monday', time: '06:30' } }) },
+    },
+    motion: [
+      { id: 'day-chip', what: 'A day chip is chosen or cleared: its capsule fills with the action blue and the label turns white', token: 'state 0.6 s easeInOut, fill and ink together (0.2 s reduced)', state: 'add-days',
+        source: 'BedroomComponents.swift WeekdayPicker: stateColorTransition("WeekdayPicker") and stateForeground; motion-components.md', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var c = stage.querySelectorAll('.bd-choice.cap'); var sat = c[6], sun = c[0]; sat.classList.add('sel'); sun.classList.add('sel'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { sat.classList.remove('sel'); sun.classList.remove('sel'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+      { id: 'wake-switch', what: 'Use Room Wake Lights flips: the knob slides, the track fills green', token: 'knob standard 0.3 s; track state 0.6 s (0.2 s reduced)', state: 'default',
+        source: 'system Toggle in BedAlarmEditor', reduce: 'track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-toggle'); t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { t.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state()); }); } },
+      { id: 'save-label', what: 'Save is pressed: the label becomes "Saving…" and the button dims while the wake-light link and the schedule publish', token: 'quick 0.2 s (disabled opacity, PrimaryButtonStyle)', state: 'default',
+        source: 'PrimaryButtonStyle; BedAlarmEditor.save()', reduce: 'the same fade',
+        play: function (stage) { var b = stage.querySelector('.ui-primary'); b.textContent = 'Saving…'; return Mock.anim.fade(b, { from: 1, to: .4, ms: Mock.anim.ms.quick() }).then(function () { return Mock.sleep(900); }); } },
+    ],
+    transitions: [
+      { from: 'Alarms tab / day page', to: 'Bed alarm editor', kind: 'push', state: 'default', note: 'Add Alarm or an alarm row pushes the editor inside the sheet (system push).',
+        play: function (stage) {
+          var sheet = stage.querySelector('.ui-sheet'), inEl = sheet.querySelector('.ui-modal'), ctx = Mock.current, m = B.bed('left');
+          var base = h('div', { style: { position: 'absolute', inset: 0, background: 'var(--sheet-ground)', display: 'flex', flexDirection: 'column' } }, K.HassModal({ title: 'Monday Alarms', leading: 'back', trailing: 'none', content: B.dayPage(m, 'monday') }));
+          sheet.appendChild(base); inEl.style.position = 'relative'; inEl.style.zIndex = 7; inEl.style.background = 'var(--sheet-ground)';
+          return Mock.anim.push(base, inEl).then(function () { return Mock.sleep(600); }).then(function () { base.remove(); });
+        } },
+      { from: 'Save', to: 'Alarms tab', kind: 'push', state: 'default', note: 'On success the path is cleared (path.removeAll()): the stack pops straight to the Alarms tab, not one level, with the system pop.',
+        play: function (stage) {
+          var ctx = Mock.current, sheet = stage.querySelector('.ui-sheet'), page = sheet.querySelector('.ui-modal'), m = B.bed('left');
+          var under = h('div', { style: { position: 'absolute', inset: 0, background: 'var(--sheet-ground)', display: 'flex', flexDirection: 'column' } }, K.HassModal({ title: m.sheetTitle, content: B.bedContent(ctx, m, 'alarms'), tabs: B.bedTabs(ctx, 'alarms') }));
+          sheet.insertBefore(under, page); page.style.position = 'relative'; page.style.zIndex = 7; page.style.background = 'var(--sheet-ground)';
+          return Mock.anim.push(page, under, { back: true }).then(function () { return Mock.sleep(500); });
+        } },
+      { from: 'Delete tap', to: 'Delete alarm? dialog', kind: 'overlay', state: 'edit', note: 'A confirmation dialog fades in (a popover on iPad); Delete Alarm is red, Cancel always present.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), B.actionSheet(ctx, 'Delete alarm set for 6:30 AM on Monday?', [{ title: 'Delete Alarm', role: 'destructive' }]));
+          if (!ctx.regular) scrim.style.placeItems = 'end center'; host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1000); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Title, a ringing alarm card if any, an optional wake-light error, the Days group (when shown), Time, Alarm Enabled, Use Room Wake Lights, problems, Save, Delete.' },
+      { rule: 'Day chips', note: 'Each chip is labelled with the full day ("Monday"), carries the selected trait when chosen, and is at least 44 pt tall; the group is a container named "Days".' },
+      { rule: 'Time', note: 'A compact time picker (the system DatePicker) labelled "Time", identifier bed.editor.time; its value is spoken as the time.' },
+      { rule: 'Save', note: 'Disabled until the draft is valid; the warning notices above it say why ("Select at least one day."). While saving the label is "Saving…". There is no confirm tick in the bar here: Save is the one primary button.' },
+      { rule: 'Delete', note: 'Filled deep red with a white label (about 6:1; a bordered red button missed 4.5:1) behind a confirmation dialog.' },
+      { rule: 'Dynamic Type', note: 'The picker rows wrap at AX5; the day chips reach one column; the nav title is long ("Add Alex\'s Bed Monday Alarm") and wraps in the header.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Pickers: system time picker', verdict: 'pass', note: 'ClockTimeField is a compact DatePicker(.hourAndMinute) with a 44 pt minimum height.' },
+        { rule: 'Sheets: unsaved edits', verdict: 'pass', note: 'DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask \'Discard changes?\' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). BedAlarmEditor uses SheetBackItem(hasChanges:) and hides the system Back.' },
+        { rule: 'Buttons: one primary action', verdict: 'pass', note: 'Save is the only PrimaryButtonStyle; Delete is a filled deep red (about 6:1) behind a confirmation.' },
+        { rule: 'Navigation bars: confirm in the bar', verdict: 'departure', note: 'Save is an in-body button, not a toolbar confirmation, because the editor is a pushed level inside a viewing sheet (modal-sheet.md; direction-g.md Sheets).' },
+        { rule: 'Action sheets: Cancel present on destructive confirms', verdict: 'pass', note: '"Delete alarm set for 6:30 AM on Monday?" with Delete Alarm (.destructive) and Cancel (.cancel).' },
+        { rule: 'Color: contrast of text on tint', verdict: 'pass', note: 'Selected chips #0071E3 with white 4.6:1; Delete #C21F1F with white about 6:1 (BedroomStyle.danger).' },
+        { rule: 'Accessibility: selection state not by colour alone', verdict: 'pass', note: 'WeekdayPicker chips keep .isSelected and draw a checkmark when Differentiate Without Color is on (WeekdayPicker.showsCheckmark).' },
+      ],
+      swiftui: [
+        { rule: 'Data: draft state separate from the model', verdict: 'pass', note: '@State draft; controller.save commits, so Back never half-writes.' },
+        { rule: 'Navigation: confirmationDialog attached to its control', verdict: 'pass', note: 'Fixed on claude/hig-alerts: the presenter now sits on the triggering button (or a sibling). The dialog is attached to the ScrollView (BedAlarmsTab.swift) rather than the Delete button, so the iPad popover and Liquid Glass origin do not anchor to the control (navigation.md).' },
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Fixed: ClockTimeField binds through the private computed `date` (Binding.projected) and reads the environment calendar (BedroomComponents.swift).' },
+        { rule: 'Design: disable, do not hide, unavailable actions', verdict: 'pass', note: 'Save and Delete disable with an InlineAlert naming the cause.' },
+        { rule: 'Motion: Reduce Motion', verdict: 'pass', note: 'stateColorTransition on chips (0.2 s reduced); no custom movement.' },
+      ],
+    },
+    notes: [
+      'loading: none; Save shows the saving state. medium and fitted: the sheet is large only.',
+      'The DatePicker is drawn as a pill ("6:30 AM"); the system compact picker opens a wheel popover.',
+      'The Days group appears only when the editor opens from the Alarms tab (lockedDay == nil); an existing alarm always has its day locked and one day.',
+      'The nav title includes the bed name and day, so it is long. Verify on a device at AX5 (the wake-light sheet\'s own bar title already dropped the room name for this reason).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: add (locked and unlocked day), edit, problems, saving, delete dialog, error, read-only.' }],
+  });
+})();
+</script></body></html>

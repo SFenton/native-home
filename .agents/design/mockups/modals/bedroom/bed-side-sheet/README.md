@@ -1,0 +1,9 @@
+# Bed side sheet (modal)
+> **What:** the Bed bed sheet: level dial, power, hint and alarm card above four bottom tabs (Temperature, Special Modes, Alarms, Status). **Read when:** you change `BedSideSheet`, the bed dial mapping, the alarm card, Solo Trip behaviour or the two-column landscape layout.
+- Mockup: [bed-side-sheet.html](bed-side-sheet.html) · status shipped · reviewed 2026-10-23
+- Source: `apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift`, `apple/Sources/HassUI/Features/Bedroom/BedDial.swift`, `apple/Sources/HassUI/Features/Bedroom/BedActiveAlarm.swift`, `apple/Sources/HassUI/Features/Bedroom/BedScheduleTab.swift`, `apple/Sources/HassUI/Features/Bedroom/BedSpecialModesTab.swift`, `apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift`, `apple/Sources/HassUI/Features/Bedroom/BedStatusTab.swift` · Spec: .agents/patterns/bedroom-devices.md, thermostat-dial.md, modal-sheet.md · Patterns: bedroom-devices, thermostat-dial, modal-sheet, entity-tile, motion
+- States covered: default, cooling, off, special-modes, hot-flash, alarms (+ empty, unavailable), status, ringing, snoozed, unavailable, solo-trip (+ traveler), error, offline, power-confirm, large, ax5; dark and light
+- Motion: dial follows its target (quick 0.2 s, none under Reduce Motion), tab switch is a cut, Hot Flash tile fill (state 0.6 s), alarm switch, alarm card insert (no animation). Transitions: present, dismiss, push to day page, second sheet, power dialog
+- Devices: iPhone, Duo folded, Duo unfolded portrait and landscape, iPad portrait and landscape (hero beside the tab in landscape)
+- Open notes: alarm card insert shifts layout (review: fix); bed tile idle is filled in code but documented as dark; no medium or fitted detent (large only)
+- Change log: 2026-10-28 tile rollout R: Hot Flash Mode is an action tile (snowflake / stop disc); the cancel x is gone.

@@ -1,0 +1,28 @@
+{
+  "id": "owner_msg.about_workflow",
+  "version": 1,
+  "type": "noul",
+  "mode": "active",
+  "description": "Steward entry B: is an owner message about how the agents work (standing rules, roles, routing, Jev, evals, process, autonomy)? A hint that adds the Steward; the rule decides first.",
+  "instructions": "A developer runs a team of AI coding agents on an iOS app and sends `owner_message`. Is the message about how the agents themselves work (their roles, routing, rules, prompts, hooks, tools, the decision model, evals, the review and merge process, autonomy), rather than about the app, its design, its bugs or a specific product task?",
+  "criteria": {
+    "true": "It asks to change, explain or judge how the agents, their rules, tools, routing, evals or process work",
+    "false": "It is about the app, its design, its behaviour, a product task, a status check or a plain approval"
+  },
+  "state": {
+    "fields": [
+      "owner_message"
+    ],
+    "max_chars": 4000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.7,
+    "no_below": 0.3
+  },
+  "target": {
+    "precision": 0.85
+  },
+  "output": "Hint line for the orchestrator and the triage router: route the message to the Steward first. Adds a step, never skips one; one-off orchestration instructions stay with the orchestrator.",
+  "evidence": "contracts/jev/derived/measurements.md, owner-message corpus 2026-11-02: test AUC 0.962; pooled dev+test precision 16/18 at p>=0.7 (23/28 at 0.5, below target, so the band starts at 0.7)"
+}

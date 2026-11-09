@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Task ledger entry",
+  "description": "build/tasks/<id>.json (git-ignored). The orchestrator creates entries and adds checks; agents only flip `passes` and attach `evidence` with tools/tasks.py flip.",
+  "type": "object",
+  "required": ["id", "intake", "level", "brief", "acceptance", "rounds", "budget", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "intake": {"type": "string", "description": "Where the work came from: an issue, a request, a PR."},
+    "level": {"enum": ["L0", "L1", "L2", "L3"]},
+    "brief": {"type": "string", "description": "Path to the brief or the brief text."},
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "check", "passes", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,15}$"},
+          "check": {"type": "string"},
+          "passes": {"type": "boolean"},
+          "evidence": {"type": ["string", "null"], "description": "Path of the file that shows the check passing."}
+        }
+      }
+    },
+    "rounds": {
+      "type": "object",
+      "required": ["design", "review"],
+      "additionalProperties": false,
+      "properties": {"design": {"type": "integer", "minimum": 0}, "review": {"type": "integer", "minimum": 0}}
+    },
+    "budget": {
+      "type": "object",
+      "required": ["usd", "turns"],
+      "additionalProperties": false,
+      "properties": {"usd": {"type": "number", "minimum": 0}, "turns": {"type": "integer", "minimum": 0}}
+    },
+    "route": {
+      "type": "object",
+      "description": "Optional. Who the router sent the work to first: the rule's role and Jev's route.role hint (shadow, null when none).",
+      "required": ["rule", "jev"],
+      "additionalProperties": false,
+      "properties": {"rule": {"type": "string"}, "jev": {"type": ["string", "null"]}}
+    },
+    "level_history": {
+      "type": "array",
+      "description": "Optional. Each raise of `level` (tools/tasks.py set-level); a level is never lowered.",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "reason", "at"],
+        "additionalProperties": false,
+        "properties": {
+          "from": {"enum": ["L0", "L1", "L2", "L3"]},
+          "to": {"enum": ["L0", "L1", "L2", "L3"]},
+          "reason": {"type": "string"},
+          "at": {"type": "string", "description": "UTC, ISO 8601 to the second."}
+        }
+      }
+    },
+    "status": {"enum": ["new", "in_progress", "in_review", "needs_decision", "blocked", "done"]}
+  }
+}

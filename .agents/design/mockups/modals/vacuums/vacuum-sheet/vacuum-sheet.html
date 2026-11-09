@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vacuum sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../room-devices/_devices-vacuums.js"></script>
+<script src="../_devices-vacuums.js"></script>
+<script src="../../../proposals/action-navigation-tiles/_action-tiles.js"></script>
+<script src="../../../proposals/selection-tiles/_selection.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv, vac = dv.vac;
+
+  /* VacuumSheet, decided design (owner 2026-10-28, vacuum-sheet-redesign): NavigationStack { map + status tiles column, then the section's panel } inside hassSheet(.page, height: .full); the section bar is the bottom
+     ModalTabBar (icons at compact width, five sections); the Close circle trails; subtitle "State · battery". Two columns (map and status | tabs) where a split is allowed and the sheet is 640 pt or wider.
+     The panels come from the shared vacuum helpers (vac.controlsD, roomsD, autoD, dockD), which use the action and selection tiles of the tile patterns. */
+  function S(o) { return function (c) { return vac.sheet(c, o); }; }
+  var V = vac.V;
+  var AREA = { x: 24, y: 24, w: 150, h: 120 };   // a drawn area (viewBox units)
+  function tabCol(stage) { return stage.querySelector('.ui-sheet .vc-tabcol'); }
+  function swapTabs(stage, tab) {
+    var ctx = Mock.current, col = tabCol(stage), v = V({}), bar = stage.querySelector('.ui-modaltabs');
+    if (!col) return Promise.resolve();
+    if (bar) bar.querySelectorAll('button').forEach(function (b) { var on = b.title === (tab === 'zones' ? 'Rooms' : 'Controls'); b.classList.toggle('sel', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    var next = vac.tabBody(v, tab, ctx);
+    if (Mock.settings.reduceMotion) { col.replaceChildren(next); return Mock.sleep(400); }
+    return Mock.anim.fade(col, { from: 1, to: 0, ms: 130 }).then(function () { col.replaceChildren(next); return Mock.anim.fade(col, { from: 0, to: 1, ms: 170 }); }).then(function () { return Mock.sleep(300); });
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'vacuum-sheet', title: 'Vacuum sheet (Controls, Rooms, Auto-Clean, Dock, Info)', area: 'vacuums', status: 'shipped',
+    summary: 'Opened from a robot tile on the Vacuums page and from a room page. The map (no room names) and three equal status tiles lead; the section\'s panel follows; the five sections sit in the bottom glass bar. Settings are pop-up rows, every command is an action tile, Rooms and Auto-Clean are selection tiles. While a clean runs the map grows and the setup collapses to Pause and Stop tiles. Full-height page sheet, light and dark.',
+    source: ['apple/Sources/HassUI/Features/Vacuums/VacuumSheet.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumTabs.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumCleanTarget.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumComponents.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumComponents.swift',
+      'apple/Sources/HassUI/Features/Vacuums/ValetudoMapView.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/UIKitPort/Common/UKSmoothContentSwap.swift', 'apple/Sources/HassCore/Vacuums/VacuumController.swift', 'apple/Sources/HassCore/Vacuums/VacuumStatus.swift',
+      'apple/Sources/HassCore/Vacuums/VacuumOutcomes.swift', 'apple/Sources/HassCore/Config/VacuumConfig.swift'],
+    spec: ['.agents/patterns/vacuum-sheet.md', '.agents/pages/vacuums/ios.md', '.agents/pages/vacuums/spec.md', '.agents/patterns/valetudo-map.md'],
+    patterns: ['vacuum-sheet', 'valetudo-map', 'modal-sheet', 'module-list', 'status-pill'],
+    hig: ['Sheets', 'Pop-up buttons', 'Buttons', 'Lists', 'Color', 'Dynamic Type', 'Layout'],
+    entities: ['vacuum.demo_vacuum_1', 'sensor.demo_main_floor_status_1', 'sensor.demo_level_1', 'sensor.demo_status_2', 'camera.demo_lower_deck_camera_item_1',
+      'select.demo_mode_5', 'select.demo_fan_3', 'select.demo_select_2', 'input_select.demo_main_floor_1', 'script.demo_main_floor_3', 'script.demo_main_floor_zone_1', 'sensor.demo_main_floor_state_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ModalTabBar', 'ModuleList', 'PrimaryButton', 'InlineAlert', 'InfoBox', 'ArcSpinner', 'GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Main Floor, docked 87%, Controls (Kitchen then Living Room selected)', note: 'Selected Rooms summary and a Use Area tile, Cleaning Settings pop-up rows, Clean. Two columns on iPad and Duo landscape; one column elsewhere', render: S({}) },
+      'no-selection': { title: 'No rooms selected', note: '"Full Clean" with the warning that every mapped area will be cleaned; the Use Area tile stays', render: S({ v: V({ selected: [] }) }) },
+      'area': { title: 'Area target, area drawn', note: 'The map outlines the area; Edit Area (with its size), Clear Area and Use Rooms are action tiles; the same settings and the same Clean button', render: S({ v: V({ selected: [], area: AREA }) }) },
+      'rooms': { title: 'Rooms section', note: 'selection tiles in two columns: chosen is the filled face with the order disc, unchosen is dark with an empty circle; long names wrap; footer below; the map mirrors it (white, order badge)', render: S({ tab: 'zones' }) },
+      'auto-clean': { title: 'Auto-Clean section', note: 'Check-disc tiles: checked is included, unchecked says Skipped and is hatched on the map (Guest Room)', render: S({ tab: 'autoClean' }) },
+      'auto-clean-unavailable': { title: 'Auto-Clean, one room unavailable', note: 'Gym\'s switch has not reported: its tile is dimmed and says Unavailable; the footer explains', render: S({ tab: 'autoClean', unavailable: ['gym'] }) },
+      'dock': { title: 'Dock section', note: 'Clean Mop Dock, Dry Mops and Empty Bin are action tiles; what each does is a footer under its tile', render: S({ tab: 'more' }) },
+      'dock-washing': { title: 'Dock washing the mop pads', note: 'the Dock status tile reads Washing; Clean Mop Dock becomes Stop Dock Clean on the filled face; Dry Mops and Empty Bin dim in place', render: S({ tab: 'more', v: V({ dock: 'cleaning', dockLabel: 'Washing' }) }) },
+      'dock-mop-missing': { title: 'Dock, mop pads detached', note: 'Clean Mop Dock and Dry Mops dim in place; a footer says why', render: S({ tab: 'more', v: V({ mop: false }) }) },
+      'info': { title: 'Info section', note: 'bin state and consumables: soon is orange (7h left), due is red (Due), the rest neutral', render: S({ tab: 'info' }) },
+      'mode-vacuum': { title: 'Mode: Vacuum (Water row absent)', note: 'Water is available only when Mode includes mopping; the row is absent and the group has three rows', render: S({ v: V({ modeValue: 'Vacuum' }) }) },
+      'mode-mop': { title: 'Mode: Mop (Fan row absent)', note: 'a mop-only run has no fan setting, so the Fan row is absent (the code already hides it)', render: S({ v: V({ modeValue: 'Mop' }) }) },
+      'music': { title: 'Studio, docked 100%', note: 'a focused map of three rooms; no Auto-Clean section', render: S({ v: V({ robot: 'music' }) }) },
+      'theater': { title: 'Media Room, docked 64%', note: 'no room selection (mapRoomSelection off): no Rooms section and no Selected Rooms row; Use Area is the target; Full Clean is not offered', render: S({ v: V({ robot: 'theater' }) }) },
+      'cleaning': { title: 'Cleaning (runtime minimal)', note: 'the map grows to 460 pt; the setup collapses to Pause and Stop action tiles with no description and no duplicate state header (the subtitle and the Status tile say it); Rooms and Dock leave the section bar', render: S({ v: V({ scenario: 'cleaning' }) }) },
+      'dock-prep': { title: 'Cleaning, dock washing the mop pads', note: 'Pause is dim until the robot leaves the dock (its reason is the one footer under the tiles); Stop becomes Cancel Cleaning Session; the Dock section is its footer alone, the Dock tile says Washing', render: S({ v: V({ scenario: 'dock-prep' }) }) },
+      'paused': { title: 'Paused', note: 'Resume and Stop as action tiles', render: S({ v: V({ scenario: 'paused' }) }) },
+      'error': { title: 'Error (stuck, current issue)', note: '"Current Issue: Main brush jammed"; Stop and Dock tiles', render: S({ v: V({ scenario: 'error' }) }) },
+      'resumable': { title: 'Docked with an interrupted run', note: 'Resume and Cancel tiles; the cleaning setup is hidden until one is chosen', render: S({ v: V({ scenario: 'resumable' }) }) },
+      'low-battery': { title: 'Low battery (12%)', note: 'an Error section with the raw text; no actions', render: S({ v: V({ scenario: 'lowbattery' }) }) },
+      'unavailable': { title: 'Unavailable, last reported map', note: 'grey robot, "Last Reported Position" warning, Unknown battery', render: S({ v: V({ scenario: 'unavailable' }) }) },
+      'error-nomap': { title: 'Unavailable, no map', note: '"Map Unavailable" on the dark card; the status InfoBox explains', render: S({ v: V({ scenario: 'unavailable', map: 'none' }) }) },
+      'loading': { title: 'Map loading', note: 'the only loading state: an arc and "Loading Current Map…" on the dark card while the picture downloads; the status tiles and everything else are already on screen', render: S({ v: V({ map: 'loading' }) }) },
+      'offline': { title: 'Over an offline Vacuums page', note: 'no offline UI of its own: the last values stay; the page behind carries the offline chip', render: S({ connection: 'offline' }) },
+      'clean-error': { title: 'Clean failed to start', note: 'red text under the Clean button: "The vacuum did not begin cleaning within 30 seconds."', render: S({ cleanError: 'The vacuum did not begin cleaning within 30 seconds.' }) },
+      'report-notice': { title: 'Report still being prepared', note: 'the cleaning report row becomes a warning (incomplete, malformed or incompatible report)', render: S({ v: V({ report: 'incomplete' }) }) },
+      'large': { title: 'Large detent (shipped, full height)', render: S({ detent: 'large' }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Vacuums page', render: function (c) { return vac.pagePresenter(c, { scenarios: ['docked', 'docked', 'docked'] }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the section bar is a menu button; the status tiles stack in one column; action tiles take full rows; pop-up rows put the value under the title; the sheet scrolls', render: S({}) },
+      'ax5-rooms': { title: 'AX5, Rooms section', override: { ts: 'ax5' }, note: 'selection tiles in one column', render: S({ tab: 'zones' }) },
+    },
+
+    motion: [
+      { id: 'tab-swap', what: 'Choosing a section fades the old panel out, swaps it while hidden, and fades the new one in; only the panel redraws, never the map', token: 'SmoothContentSwap.Timing: fade out 0.13 s easeOut, fade in 0.17 s easeOut (not a MotionTokens entry; see notes)', state: 'default',
+        source: 'HassUI/UIKitPort/Common/UKSmoothContentSwap.swift, VacuumSheetContent in VacuumSheet.swift; patterns/modal-sheet.md', reduce: 'swaps at once, no fades',
+        play: function (stage) { return swapTabs(stage, 'zones'); } },
+      { id: 'run-mode-swap', what: 'A clean starts: the panel fades out, the setup collapses to one card with Pause and Stop and the map grows (the section bar loses Rooms and Dock) while the content is hidden, then it fades in', token: 'fade out 0.13 s, layout animation 0.28 s easeInOut, fade in 0.17 s (SmoothContentSwap.Timing.layout; animatesLayout only when the runtime mode changes)', state: 'default',
+        source: 'VacuumSheetContent.swap.animatesLayout; VacuumMapFrame.maxHeight (300 to 460 pt); web useVacuumRuntimeContentTransition', reduce: 'swaps at once, the map jumps to its new size',
+        play: function (stage) {
+          var ctx = Mock.current, col = tabCol(stage), v = V({ scenario: 'cleaning' }), mapin = stage.querySelector('.vc-mapin'), bar = stage.querySelector('.ui-mtabs');
+          if (!col) return Promise.resolve();
+          var next = vac.tabBody(v, 'controls', ctx), rm = Mock.settings.reduceMotion;
+          function mid() { col.replaceChildren(next); if (mapin) mapin.classList.add('big'); if (bar) bar.replaceChildren(vac.tabBar(v, 'controls', ctx)); }
+          if (rm) { mid(); return Mock.sleep(500); }
+          return Mock.anim.fade(col, { from: 1, to: 0, ms: 130 }).then(function () { mid(); return Mock.sleep(300); }).then(function () { return Mock.anim.fade(col, { from: 0, to: 1, ms: 170 }); }).then(function () { return Mock.sleep(400); });
+        } },
+      { id: 'room-tile-select', what: 'A Rooms tile fills to the selected face with its order disc when chosen and empties when cleared; the disc number rolls in', token: 'state 0.6 s ease-in-out for the colour, quick 0.2 s for the disc (selection-tiles; stateColorTransition "VacuumRoomsTab")', state: 'rooms',
+        source: 'HassUI/Features/Vacuums/VacuumRoomsTab.swift VacuumRoomsTab; patterns/action-navigation-tiles; motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) {
+          return Mock.sel.apply(stage, [{ id: 'office', order: 3 }]).then(function () { return Mock.sleep(700); }).then(function () { return Mock.sel.apply(stage, [{ id: 'office', order: 0 }]); }).then(function () { return Mock.sleep(300); });
+        } },
+      { id: 'water-row', what: 'Choosing a Mode without mopping removes the Water row, and choosing one with mopping brings it back; the group, the footer and the Clean button resize and slide with it', token: 'standard 0.3 s smooth (the row\'s height) with the content fading at quick 0.2 s (motion.md section 7: rows in or out; section 6: List row insert and delete)', state: 'default',
+        source: 'HassUI/Features/Vacuums/VacuumTabs.swift (Cleaning Settings, withAnimation(MotionTokens.standard)); patterns/vacuum-sheet.md', reduce: 'the row cross-fades in place at 0.2 s and the height changes at once',
+        play: function (stage) {
+          var row = stage.querySelector('[data-k="Water"]'); if (!row) return Promise.resolve();
+          return vac.toggleRow(row, false).then(function () { return Mock.sleep(700); }).then(function () { return vac.toggleRow(row, true); }).then(function () { return Mock.sleep(400); });
+        } },
+      { id: 'fan-row', what: 'Mode Mop removes the Fan row by the same mechanism; the target group changes between rooms and area mode the same way (summary and Use Area tile out, Edit Area, Clear Area and Use Rooms tiles in)', token: 'standard 0.3 s with content at quick 0.2 s (same as the Water row)', state: 'default',
+        source: 'HassUI/Features/Vacuums/VacuumTabs.swift; deferred while the sheet scrolls and never on a reconnect or a cold launch from the snapshot', reduce: 'cross-fades in place, the height changes at once',
+        play: function (stage) {
+          var row = stage.querySelector('[data-k="Fan"]'); if (!row) return Promise.resolve();
+          return vac.toggleRow(row, false).then(function () { return Mock.sleep(700); }).then(function () { return vac.toggleRow(row, true); }).then(function () { return Mock.sleep(400); });
+        } },
+      { id: 'map-selection', what: 'Selecting a room on the Rooms section marks it white on the map at once (no animation: the mask is built once per room)', token: 'no animation: each room\'s mask is rasterised with the map and drawn or not', state: 'rooms',
+        source: 'HassUI/Features/Vacuums/ValetudoMapView.swift ValetudoMapScene.masks', reduce: 'unchanged',
+        play: function (stage) { var c = Mock.current; var f = stage.querySelector('.vc-map'); if (!f) return Promise.resolve(); var v = V({ selected: ['kitchen', 'living_room', 'office'] }); var next = vac.mapCanvas({ map: 'main', selected: v.selected, robot: 'dock' }); return Mock.sleep(500).then(function () { f.replaceWith(next); return Mock.sleep(900); }); } },
+    ],
+
+    transitions: [
+      { from: 'Vacuums page', to: 'Vacuum sheet', kind: 'sheet', state: 'closed', note: 'A robot tile presents the full-height page sheet; the page scales back. The robot\'s Live Activity cards open this sheet from the room page too. Content is present on arrival; the map picture follows when it arrives (motion.md section 4.4).',
+        play: function (stage) { var c = Mock.current; return Mock.presentDemo(stage, { title: 'Main Floor Robot Vacuum', subtitle: 'Docked · 87%', detent: 'large', size: 'page', content: vac.content(c, V({}), 'controls'), tabs: vac.tabBar(V({}), 'controls', c) }, { hold: 1300 }); } },
+      { from: 'Vacuum sheet', to: 'Vacuums page', kind: 'sheet', state: 'default', note: 'Circle x Close, or a swipe down.', play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Controls', to: 'Rooms section', kind: 'fade', state: 'default', note: 'The panel cross-fades through hidden (0.13 s out, 0.17 s in); the bar selection moves at once.', play: function (stage) { return swapTabs(stage, 'zones'); } },
+      { from: 'Edit Area tile / Use Area', to: 'Area editor', kind: 'push', state: 'area', note: 'The system push inside the sheet (see vacuum-area-editor): the section bar does not follow onto the pushed page. Edit Area pushes it; Use Area with nothing to discard does too.',
+        play: function (stage) { return vac.pushDemo(stage, { title: 'Main Floor Cleaning Area', content: vac.areaEditor({ area: AREA, draw: false }) }); } },
+      { from: 'Cleaning Report row', to: 'Report detail', kind: 'push', state: 'default', note: 'The row pushes the room-by-room report (see vacuum-outcome-report).',
+        play: function (stage) { return vac.pushDemo(stage, { title: 'Cleaning Report', subtitle: 'Main Floor · Automatic · 4 rooms', content: vac.reportDetail('interrupted') }); } },
+      { from: 'Use Area tile / Use Rooms tile', to: 'Use Area? / Use Rooms? alert', kind: 'fade', state: 'area', note: 'Choosing the other target while the first is set raises a system .alert (AlertCopy.useArea / useRooms), the same on every path (see vacuum-switch-dialog).',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), ctx = Mock.current;
+          var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), vac.switchAlert('rooms'));
+          host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Main Floor Robot Vacuum" with the subtitle "Docked · 87%"; the map (one decorative element with the selected rooms as its value); Locate; the three status tiles (Status, Battery, Dock); notices; the Cleaning Report row; then the section\'s panel; the section bar ("Main Floor sections") and Close last.' },
+      { rule: 'Map', note: 'The map is one element named "Main Floor Valetudo map" with the selected rooms as its value. Room names are not drawn (owner 2026-10-28), so the Rooms section and the Selected Rooms summary are where rooms are named; order badges are drawn but hidden from VoiceOver.' },
+      { rule: 'Rooms and Auto-Clean tiles', note: 'Each Rooms tile is a toggle ("Kitchen, cleaning order 1", value On/Off) at least 76 pt tall; each Auto-Clean tile is a toggle ("Guest Room, Skipped", Included / Skipped) with a check disc; an unavailable tile is dimmed and not actionable. The Selected Rooms summary reads each chip as "1. Kitchen" and its hint says it opens the Rooms section.' },
+      { rule: 'Status tiles', note: 'Each tile is one read-only element (label "Battery", value "87%"); the glyph tint is decorative because the value says it. Locate stays a 44 pt glass button on the map.' },
+      { rule: 'Action tiles', note: 'Use Area, Use Rooms, Edit Area, Clear Area, Pause, Stop, Resume and every dock command are action tiles: the whole tile is the button, the disc is decorative; a tracked command shows its in-flight disc as a value. A command that is unavailable is dimmed and its footer, the only description, is also its accessibility hint.' },
+      { rule: 'Settings', note: 'Mode, Fan, Water and Passes are pop-up rows: the title leads, the value and chevron trail in the action colour (button, "Water, Medium", haspopup menu); only the value is the menu source (the whole row as a Menu label made it vanish while open). The long description lines are the VoiceOver hint.' },
+      { rule: 'Dynamic Type', note: 'At AX sizes the status tiles stack in one column, action and selection tiles take full rows, pop-up rows put the value under the title, the section bar is a menu; two columns never apply because they need a split-capable window.' },
+      { rule: 'Reduce Motion', note: 'Section and run-mode swaps happen at once; colour changes shorten to 0.2 s; the Water and Fan rows cross-fade in place at 0.2 s with the height changing at once.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',   /* the entries above the redesign line predate it; the redesign is reviewed on its diff (swiftui-pro, apple-hig) in the build PR */
+      hig: [
+        { rule: 'Sheets: grabber and size', verdict: 'pass', note: 'hassSheet shows the grabber and an opaque ground; a full-height page sheet suits a map plus five sections (VacuumsScreen.swift:66; owner 2026-10-16: tabbed modals stay full so the height never changes with a tab).', by: 'apple-hig skill' },
+        { rule: 'Sheets: Cancel or Done in the toolbar', verdict: 'departure', note: 'The root carries a trailing circle-X Close instead of Cancel and Done (SheetCloseItem, HassModal.swift:20-29); owner 2026-10-13: "circle X close button like FestivalNativeApps".', by: 'apple-hig skill' },
+        { rule: 'Pop-up buttons: one grammar for choices (redesign 2026-10-28)', verdict: 'departure', note: 'Every select in Cleaning Settings is a pop-up row, including the three-option Mode and Passes where a segmented control would be one tap: one grammar beats one saved tap (owner, option B; direction-g "Choosing one option" allows pop-ups). Departure from Segmented controls: use for few, same-kind options.', by: 'apple-hig skill' },
+        { rule: 'Segmented controls and tab bars: section switcher', verdict: 'departure', note: 'Five sections sit in a glass segmented control of icons (ModalTabBar.swift) rather than a tab bar or text; owner 2026-10-16 "show icons like the web app instead of text titles", direction G Sheets; segments keep titles for VoiceOver and become a menu at AX sizes.', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: respect the fold', verdict: 'pass', note: 'Fixed: VacuumSheet\'s two columns are HingedPanes (SplitPolicy.columnWidths), not proxy.size.width / 2. The custom bottom section bar stays horizontal (owner call: it is a tab bar of the sheet, not a system bar).', by: 'apple-hig skill' },
+        { rule: 'Materials: Liquid Glass on the navigation layer only', verdict: 'pass', note: 'The section bar is a navigation-layer glass capsule over scrolling content; cards and map stay on opaque sheet cells (ModalTabBar.swift navigationGlass).', by: 'apple-hig skill' },
+        { rule: 'Buttons: say why a command is disabled', verdict: 'pass', note: 'Fixed: VacuumActionButton now sets the reason as accessibilityValue while disabled (VacuumComponents.swift). ', by: 'apple-hig skill' },
+        { rule: 'Feedback: confirm a started command', verdict: 'pass', note: 'Fixed in VacuumComponents.swift (VacuumActionButton) and VacuumMapPanel.swift (Locate): TapFeedback.tap on every action.', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: reflow', verdict: 'pass', note: 'Sections become a menu of text titles, settings become menus, Pause and Stop stack (VacuumTabs.swift:151-152, VacuumSettingRow).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Performance: keep fast-changing state out of the sheet body', verdict: 'pass', note: 'VacuumSheetContent is its own @Observable and VacuumSheetChrome a ViewModifier, so a tab or battery change redraws only the bar and column, never the map (VacuumSheet.swift:131-203).', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility and Reduce Motion for the section swap', verdict: 'pass', note: 'SmoothContentSwap.show(_, reduceMotion:) fades the panel (0.13 s out, 0.17 s in) and hides it from hit testing meanwhile (VacuumSheet.swift:224-225).', by: 'swiftui-pro skill' },
+        { rule: 'Layout: custom bars use safeAreaBar on iOS 26', verdict: 'pass', note: 'Tried and kept as safeAreaInset: safeAreaBar on modalTabBar swallowed taps beside the bar in BedroomJourneyTests, so the section bar stays an inset (comment at View.modalTabBar).', by: 'swiftui-pro skill' },
+        { rule: 'Design: no UIKit colours', verdict: 'pass', note: 'The shared sheet ground reads HassTokens.Surface.systemGround (HassModal.swift:257, 271)' },
+      ],
+    },
+
+    notes: [
+      'medium and fitted: this sheet has neither; it is hassSheet(.page, height: .full) so it opens large only (the large state is the shipped one). The pattern doc calls it "large detent".',
+      'Docs versus catalog: the catalog\'s motionHint says "tab switch is a cut", but the vacuum sheet fades its panel through SmoothContentSwap (statesHint is right). The humidifier sheet\'s tab switch is a cut.',
+      'Docs versus code: ModalTabBar\'s comment and vacuum-sheet.md say fewer than five sections "read as text"; the code shows icons at compact width whatever the count (ModalTabBarStyle.form). Drawn as code.',
+      'Docs versus code: the SmoothContentSwap durations (0.13 s, 0.17 s, 0.28 s) live only in Swift and modal-sheet.md; motion.md section 7 has no token for them.',
+      'Tab names in the UI are Controls, Rooms (zones), Auto-Clean, Dock (more), Info; docs and gallery flags use zones and more.',
+      'Fixture data is the VacuumGallery fixtures: Main Floor 87%, Kitchen then Living Room selected, Guest Room skipped by Auto-Clean, Dustbag Full, Main Filter 7 h left, Sensors Due, the four-room report. The map is a stand-in floor plan drawn by the helper (a real map is decoded from the Valetudo PNG).',
+      'The two columns put the map and status on the left and the tabs on the right; at iPad landscape that is a 704 pt sheet (352 pt each).',
+      'In-sheet toasts: none. The pushed area editor and report open from here (see their mockups); the confirmation dialogs are in vacuum-switch-dialog.',
+      'Decided details accepted with the page: Fan is hidden in Mop mode as Water is in Vacuum mode (same animation); long room names wrap to two lines; Clean reads "Clean" in both modes; Selected Rooms has no chevron; Edit Area shows the area size; the row is "Passes" (not "Cleaning Passes"); Mode reads "Vacuum and Mop"; a run in progress shows three sections (Controls, Auto-Clean, Info).',
+      'Not drawn live here: the open pop-up menu and the Rooms/Area target swap animation (see the proposal page, section Decided, for the live Water row and filmstrip; the motion items here play the same helper).',
+      'Open: the theater robot (no room selection) shows only the Use Area tile under Cleaning Target; the design did not draw that robot.',
+      'Promote to kit: vac.statusTiles, vac.actionTile, vac.settingsGroup, vac.toggleRow, vac.targetSection, vac.roomsD, vac.autoD, vac.dockD (modals/vacuums/_devices-vacuums.js); the tile helpers still load from proposals/action-navigation-tiles and proposals/selection-tiles.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: five sections, runtime modes, scenarios (docked, cleaning, paused, error, resumable, low battery, unavailable), map states, two columns, AX5; light and dark.' },
+      { date: '2026-10-28', note: 'Redrawn to the owner-decided redesign: no room names, status tiles, pop-up settings with the animated Water and Fan rows, Use Area / Use Rooms tiles, selection tiles for Rooms and Auto-Clean, action tiles with footers for Dock and the run section.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' }],
+  });
+})();
+</script></body></html>

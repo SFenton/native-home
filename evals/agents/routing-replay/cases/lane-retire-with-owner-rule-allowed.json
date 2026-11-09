@@ -1,0 +1,35 @@
+{
+  "id": "lane-retire-with-owner-rule-allowed",
+  "source": "Rule: a retire move with an owner_rule reason (date and quote) is accepted.",
+  "recorded": "2026-11-02",
+  "kind": "lane_check",
+  "input": {
+    "check": "retired",
+    "blobs": {
+      "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr": "{\"kind\": \"owner_rule\", \"date\": \"2026-11-02\", \"quote\": \"drop that rule\"}"
+    },
+    "rows": [
+      [
+        "D",
+        "evals/agents/routing-replay/cases/old.json",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "0000000000000000000000000000000000000000"
+      ],
+      [
+        "A",
+        "evals/agents/routing-replay/retired/old.json",
+        "0000000000000000000000000000000000000000",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      [
+        "A",
+        "evals/agents/routing-replay/retired/old.json.reason.json",
+        "0000000000000000000000000000000000000000",
+        "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+      ]
+    ]
+  },
+  "expect": {
+    "refused": false
+  }
+}

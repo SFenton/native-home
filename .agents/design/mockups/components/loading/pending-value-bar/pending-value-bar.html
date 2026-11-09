@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PendingValueBar · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, CM = Mock.cm;
+  var TILES = [
+    { title: 'Kitchen Lights', subtitle: 'On at 70%', symbol: 'lightbulb', family: 'lights', isActive: true },
+    { title: 'Front Door', subtitle: 'Locked', symbol: 'lock', family: 'contact', isActive: false },
+    { title: 'Thermostat', subtitle: 'Heating to 70°', symbol: 'thermometer.medium', family: 'heating', isActive: true },
+    { title: 'Office Fan', subtitle: 'High', symbol: 'fan', family: 'air', isActive: true },
+    { title: 'Robot Vacuum', subtitle: 'Docked', symbol: 'robotic.vacuum', family: 'cleaning', isActive: false },
+    { title: 'Guest Room', subtitle: 'Clear', symbol: 'figure.walk.motion', family: 'occupancy', isActive: false },
+  ];
+  function grid(pending) { return CM.fitGrid(K.TileGrid({ items: TILES.map(function (t) { return Object.assign({}, t, { pending: pending, isActive: pending ? false : t.isActive }); }), min: 150, max: 2 })); }
+  function pendingState(ctx) { return CM.grid(ctx, [{ label: 'First sign-in: names at once, a soft bar where the value goes', node: grid(true), w: 402 }], { surfaces: ['page'] }); }
+  function arrivedState(ctx) { return CM.grid(ctx, [{ label: 'Values arrived (store.freshness is no longer empty)', node: grid(false), w: 402 }], { surfaces: ['page'] }); }
+  function bar() { return h('span', { style: { position: 'relative', display: 'block', width: '100%', height: 'calc(12px * var(--sc))' } }, K.PendingValueBar()); }
+  function anatomy(ctx) {
+    var rm = h('div.k-reduce-motion', { style: { position: 'relative', width: '100%', height: 'calc(12px * var(--sc))' } }, K.PendingValueBar());
+    return CM.grid(ctx, [
+      { label: 'The bar: 56 pt wide, 12 pt (scaled) tall, white 32%', node: h('div', { 'data-pulse': 'true', style: { display: 'flex', flexDirection: 'column', gap: '10px' } }, bar(), h('div.cm-note', { style: { marginTop: 0 } }, 'The tile keeps its height: the bar is sized to the footnote value line it replaces.')), w: 300 },
+      { label: 'Reduce Motion: held still at 65%', node: h('div', rm, h('div.cm-note', { style: { marginTop: '10px' } }, 'A loop of movement or light is what the setting asks to avoid, so the bar holds half way.')), w: 300 },
+    ], { surfaces: ['page'] });
+  }
+  function readout(ctx) {
+    var out = h('div', { 'data-readout': 'true', style: { font: '600 15px var(--mono)', fontVariantNumeric: 'tabular-nums' } }, 'opacity 0.675');
+    var meter = h('div', { style: { height: '12px', borderRadius: '6px', background: 'color-mix(in srgb, #fff 14%, transparent)', overflow: 'hidden' } }, h('div', { 'data-meter': 'true', style: { height: '100%', width: '67%', background: '#fff', opacity: .6 } }));
+    var b = h('div', { style: { position: 'relative', height: '12px', width: '100%' } }, K.PendingValueBar());
+    var host = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } }, b, out, meter);
+    host.__play = function () {
+      var el = b.firstChild, a = el.getAnimations(); a.forEach(function (x) { x.cancel(); });
+      el.style.animation = 'none'; var t0 = performance.now(), dur = 4200, rm = Mock.settings.reduceMotion;
+      return new Promise(function (res) { (function tick(now) { var t = Math.min(now - t0, dur), ph = (t % 1400) / 1400, o = rm ? .65 : .675 + .325 * Math.sin(ph * 2 * Math.PI); el.style.opacity = o; out.textContent = 'opacity ' + o.toFixed(3) + '  (' + (t / 1000).toFixed(1) + ' s)'; meter.firstChild.style.width = Math.round(o * 100) + '%'; if (t < dur) requestAnimationFrame(tick); else { el.style.animation = ''; el.style.opacity = ''; res(); } })(t0); });
+    };
+    return CM.grid(ctx, [{ label: 'The pulse, measured: 0.675 + 0.325 sin(phase), 1.4 s a cycle', node: host, w: 360 }], { surfaces: ['page'] });
+  }
+  function arriveDemo(ctx) {
+    var t = K.GlassTile(Object.assign({}, TILES[2], { pending: true, isActive: false }));
+    var host = h('div', { style: { width: '190px' } }, t);
+    host.__play = function () {
+      var st = t.querySelector('.st-wrap'); return Mock.sleep(500).then(function () { st.querySelector('.ui-pending').remove(); st.querySelector('.st').style.visibility = 'visible'; t.classList.remove('off'); t.classList.add('on'); return Mock.sleep(Mock.anim.ms.state() + 700); }).then(function () {
+        t.classList.remove('on'); t.classList.add('off'); st.querySelector('.st').style.visibility = 'hidden'; st.appendChild(h('span.ui-pending', { 'aria-hidden': 'true' })); });
+    };
+    return CM.grid(ctx, [{ label: 'The value arrives: the bar is replaced at once, the tile colour fades in', node: host, w: 260 }], { surfaces: ['page'] });
+  }
+  function relaunch(ctx) {
+    return CM.grid(ctx, [{ label: 'A relaunch draws the saved values at once', node: h('div', grid(false), h('p.cm-note', 'The pending bar exists only on the first sign-in, before the disk snapshot exists and before Home Assistant has sent its first full set (store.freshness == .empty). Every later launch, reopen and reconnect shows the snapshot: nothing blanks, nothing pulses.')), w: 402 }], { surfaces: ['page'] });
+  }
+  function ax(ctx) { return CM.grid(ctx, [{ label: 'AX5: one column, the bar scales with footnote text', node: grid(true), min: 340 }], { surfaces: ['page'] }); }
+  Mock.mount({
+    kind: 'component', id: 'pending-value-bar', title: 'PendingValueBar (first-run soft bar)', area: 'design', status: 'shipped', frame: false,
+    summary: 'The soft placeholder where a tile\'s value will go on the first sign-in, before any value has arrived: a rounded bar that breathes between 35% and 100% of a soft white (1.4 s). Tiles keep their names at once; there is no full-screen spinner and no shimmer. It holds still under Reduce Motion.',
+    source: ['apple/Sources/HassDesign/PendingValue.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/design/motion.md', '.agents/patterns/entity-tile.md'],
+    patterns: ['entity-tile', 'content-gate', 'motion'],
+    hig: ['Loading', 'Motion', 'Accessibility: Reduce Motion'],
+    entities: [],
+    kitComponents: ['GlassTile', 'TileGrid', 'PendingValueBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'Pending (first sign-in)', render: pendingState },
+      'arrived': { title: 'Values arrived', render: arrivedState },
+      'anatomy': { title: 'Anatomy and Reduce Motion', render: anatomy },
+      'pulse': { title: 'The pulse, measured', render: readout },
+      'value-arrives': { title: 'A value arrives', render: arriveDemo },
+      'relaunch': { title: 'Relaunch: no bar', render: relaunch },
+      'loading': { title: 'Pending is the loading state of a tile', note: 'a tile reads "Loading" to VoiceOver while pending', render: pendingState },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: ax },
+    },
+    motion: [
+      { id: 'pulse', what: 'The bar breathes while a tile\'s value is pending', token: 'PendingValueBar.period 1.4 s, opacity 0.35 to 1 (a pending pulse: the second allowed repeatForever)', state: 'pulse',
+        source: 'HassDesign/PendingValue.swift opacity(at:reduceMotion:); motion.md sections 5 and 7', reduce: 'static: opacity fixed at 0.65, no timeline',
+        play: function (stage) { return stage.querySelector('[data-readout]').parentNode.__play(); } },
+      { id: 'value-arrives', what: 'The first value lands: the bar is swapped for the text at once and the tile fills with its colour', token: 'swap: none (presence); colour: state 0.6 s (0.2 s reduced)', state: 'value-arrives',
+        source: 'GlassTile.text (if subtitle != nil, valuesPending); stateColorTransition("GlassTile")', reduce: 'the colour still cross-fades at 0.2 s',
+        play: function (stage) { return stage.querySelector('.ui-tile').parentNode.__play(); } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'Name and value', note: 'A pending tile is one element: its name, with the value spoken as "Loading". The bar itself is hidden from accessibility.' },
+      { rule: 'Reduce Motion', note: 'The pulse stops (opacity held at 0.65); the TimelineView is paused so nothing redraws.' },
+      { rule: 'Contrast', note: 'The bar is decorative: white at 32% over the tile, not text; the name above it keeps its normal contrast.' },
+      { rule: 'Layout', note: 'The bar is the height of the value line (12 pt scaled with footnote text), so the tile does not change height when the value arrives.' },
+      { rule: 'No shimmer', note: 'No moving gradients or skeleton sweeps (motion.md section 5): they cost a full-screen animated pass and say nothing a pulse does not.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Loading: show something quickly; use placeholders until content arrives; no full-screen spinner", verdict: "pass", note: "On the first sign-in tiles keep their names and draw a soft bar where the value goes (owner 2026-10-17); a relaunch draws the disk snapshot at once, so the bar never appears twice, and the bar sizes to the footnote value line so the tile does not change height when the value arrives.", by: "apple-hig skill" },
+        { rule: "Motion and Accessibility: Reduce Motion stops repetitive animation; no flashing", verdict: "pass", note: "The pulse is 0.35 to 1 opacity over 1.4 s (well under three flashes a second) and under Reduce Motion the bar holds at 0.65 with its TimelineView paused; unlike the arc spinner it carries no meaning beyond 'value pending', so it can stop.", by: "apple-hig skill" },
+        { rule: "Accessibility: placeholders are named, not read as empty", verdict: "pass", note: "The bar is accessibilityHidden; a pending tile (subtitle or toggle kind) speaks its name with the value 'Loading' (GlassTile.accessibilityValue), so VoiceOver never reads an empty value.", by: "apple-hig skill" },
+        { rule: "Typography: placeholder scales with Dynamic Type", verdict: "pass", note: "PendingValueBar width is @ScaledMetric(relativeTo: .footnote) 56, scaling with its height (PendingValue.swift).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Performance: keep per-frame work small and shared", verdict: "pass", note: "One repeating opacity animation per bar, run by Core Animation; no TimelineView or per-frame sine on the main actor.", by: "swiftui-pro skill" },
+        { rule: "Animation: derive from time, honour the environment", verdict: "pass", note: "opacity(at:reduceMotion:) is a pure nonisolated function of the date, tested directly, and the timeline is paused with Reduce Motion or animationsPaused (so XCUITest can go idle).", by: "swiftui-pro skill" },
+        { rule: "API: @Entry and small value views", verdict: "pass", note: "valuesPending is an @Entry Bool defaulting to false, written once by the shell and read only by GlassTile; PendingValueBar has no initializer parameters and one Capsule.", by: "swiftui-pro skill" },
+        { rule: "Design: reuse an environment key named for something else", verdict: "pass", note: "Key renamed animationsPaused and moved to AnimationsPaused.swift; ArcSpinner, PendingValueBar and ReconnectingChip read it.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Docs versus code: the kit\'s StatusChip has a pending state and Skeleton lines; the app has neither (valuesPending is read only by GlassTile). Status chips are not drawn pending here.',
+      'Docs versus code: the kit pulses 0.35 to 1 to 0.35 with an ease-in-out; the app uses a sine (0.675 + 0.325 sin) starting at its midpoint: same range and period, a different phase.',
+      'valuesPending applies to tiles with a subtitle or the toggle kind; a navigate tile with no subtitle keeps its name only.',
+      'Component mockup: no device frame; Device selects the size class.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

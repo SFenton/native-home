@@ -1,0 +1,16 @@
+{
+  "id": "dd-rows-common-component",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Rows should inherit from a common component if they don't already (perhaps even the checkmark rows?)",
+  "surface": "settings-link-row",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "2b237fed",
+  "fix_ref": "5ad25f48",
+  "fix_confidence": "high",
+  "expected": "Rows of the same kind share metrics: heights, leading glyph column and text insets match across Settings, forms and check rows."
+}

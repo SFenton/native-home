@@ -1,0 +1,17 @@
+{
+  "id": "dd-camera-cards-square",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "Camera cards should be square like web app (regular view in modals)",
+  "surface": "camera-tile",
+  "poses": [
+    "iphone",
+    "ipad-portrait"
+  ],
+  "app": "swiftui",
+  "category": "sizing",
+  "pre_fix_ref": "5ca163ea",
+  "fix_ref": "e57d3182",
+  "fix_confidence": "high",
+  "expected": "Camera cards are near-square at every width, as in the web dashboard; measure aspect ratio per pose."
+}

@@ -1,0 +1,17 @@
+{
+  "id": "dd-rotation-not-working",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Rotation not working.",
+  "surface": "tab-navigation",
+  "poses": [
+    "duo-folded",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "crash",
+  "pre_fix_ref": "c6a2baf4",
+  "fix_ref": "e62321d5",
+  "fix_confidence": "medium",
+  "expected": "After rotate-in the window re-lays out to the new orientation within a second; flag a window still laid out for the old orientation."
+}

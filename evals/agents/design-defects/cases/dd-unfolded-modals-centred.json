@@ -1,0 +1,17 @@
+{
+  "id": "dd-unfolded-modals-centred",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Modals still opening centered when unfolded. Use this as a guideline",
+  "surface": "hass-modal",
+  "poses": [
+    "duo-unfolded-landscape",
+    "duo-partial-fold"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "91607412",
+  "fix_ref": "0bcafd95",
+  "fix_confidence": "high",
+  "expected": "On a hinge device, sheets use the system leading placement, never a centred form sheet."
+}

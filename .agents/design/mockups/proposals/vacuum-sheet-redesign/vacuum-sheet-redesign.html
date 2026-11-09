@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vacuum sheet redesign</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../modals/room-devices/_devices-vacuums.js"></script>
+<script src="../../modals/vacuums/_devices-vacuums.js"></script>
+<script src="../action-navigation-tiles/_action-tiles.js"></script>
+<script src="../selection-tiles/_selection.js"></script>
+<style>
+/* Proposal furniture only. Everything inside a crop or a device frame is the kit's own components (map canvas, ModuleList, ModalTabBar, Mock.sheet). */
+.pr-lede { font-size: 18px; color: var(--k-fg2); max-width: 70ch; }
+.pr-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 0; font-size: 13px; color: var(--k-fg2); }
+.pr-bar .k-btn[aria-pressed="true"] { background: var(--k-accent); color: #fff; border-color: transparent; }
+.pr-grid3 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); margin: 12px 0 8px; }
+.pr-card { background: var(--k-surface); border: 1px solid var(--k-line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.pr-card h3 { margin: 0 0 4px; } .pr-card p { margin: 0 0 8px; font-size: 14px; } .pr-card p:last-child { margin: 0; }
+.pr-ev { font: 12.5px/1.45 var(--mono); color: var(--k-fg2); overflow-wrap: anywhere; }
+.pr-opts { display: grid; gap: 22px 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; margin: 14px 0 6px; padding: 18px 16px; border-radius: 16px; background: var(--k-stage); }
+.pr-opts.one { grid-template-columns: minmax(0, 1fr); }
+.pr-opt { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.pr-opt > figcaption { font-size: 13px; color: var(--k-fg2); max-width: 46ch; }
+.pr-opt > figcaption b { color: var(--k-fg); }
+.pr-badge { align-self: flex-start; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 10px; border-radius: 99px; }
+.pr-badge.today { background: color-mix(in srgb, var(--k-fg2) 20%, transparent); color: var(--k-fg); }
+.pr-badge.rec { background: color-mix(in srgb, var(--k-ok) 18%, transparent); color: var(--k-ok); }
+.pr-badge.alt { background: var(--k-accent-soft); color: var(--k-accent); }
+.pr-crop { width: 100%; max-width: 402px; padding: 16px; border-radius: 20px; background: var(--sheet-ground); color: var(--ink); border: 1px solid var(--k-line); font-family: var(--font); position: relative; display: flex; flex-direction: column; gap: 12px; }
+.pr-crop.wide { max-width: 760px; }
+.pr-fscroll { overflow-x: auto; max-width: 100%; }
+.pr-fscroll .k-gz { width: max-content; }
+.pr-sub { margin: 30px 0 4px; font: 700 18px/1.25 var(--font-d); }
+.pr-note { font-size: 13px; color: var(--k-fg2); max-width: 80ch; margin: 6px 0 0; }
+.k-wrap table.pr-tbl { font-size: 13.5px; }
+.k-wrap table.pr-tbl td, .k-wrap table.pr-tbl th { vertical-align: top; border-bottom: 1px solid var(--k-line); }
+.pr-tblwrap { overflow-x: auto; margin: 10px 0; }
+.pr-tblwrap table { min-width: 880px; }
+.pr-tbl tr.rec td:nth-child(2) { font-weight: 600; }
+/* map labels (the proposal draws them itself so Today shows what the code draws: every name, spilling) */
+.pr-lbs { position: absolute; inset: 0; pointer-events: none; }
+.pr-lb { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; font: 600 11px/1.1 var(--font); color: rgba(255,255,255,.92); white-space: nowrap; text-align: center; }
+.pr-lb.sel { color: #1C1C1E; } .pr-lb .bd { width: 22px; height: 22px; border-radius: 50%; background: #1C1C1E; color: #fff; display: grid; place-items: center; font: 700 12px/1 var(--font); }
+.pr-lb.corner { transform: none; } .pr-lb.glyph { opacity: .8; } .pr-lb.glyph.sel { opacity: 1; }
+.pr-lb svg { width: 18px; height: 18px; }
+/* status tiles and strip */
+.pr-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ts-ax5 .pr-tiles { grid-template-columns: 1fr; }
+.pr-tile { display: flex; align-items: center; gap: 10px; min-height: calc(60px * var(--sc)); padding: 10px 12px; border-radius: var(--radius-tile); background: var(--sheet-cell); color: var(--ink); border: 0; text-align: left; font: inherit; min-width: 0; }
+.pr-tile .g { font-size: var(--fs-t3); flex: none; display: inline-flex; }
+.pr-tile .tx { display: flex; flex-direction: column; min-width: 0; }
+.pr-tile .cap { font-size: var(--fs-foot); color: var(--ink-sheet-2); line-height: 1.2; }
+.pr-tile .val { font: 600 var(--fs-body)/1.25 var(--font); overflow-wrap: anywhere; }
+button.pr-tile { cursor: pointer; } button.pr-tile .val, button.pr-tile .g { color: var(--ink-action); }
+.pr-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--sheet-cell); border-radius: var(--radius-module); padding: 12px 0; }
+.pr-strip > div { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 0 6px; min-width: 0; border-left: .5px solid var(--sep); }
+.pr-strip > div:first-child { border-left: 0; }
+.pr-strip .g { font-size: var(--fs-t3); display: inline-flex; } .pr-strip .val { font: 600 var(--fs-body)/1.25 var(--font); overflow-wrap: anywhere; } .pr-strip .cap { font-size: var(--fs-foot); color: var(--ink-sheet-2); }
+.ts-ax5 .pr-strip { grid-template-columns: 1fr; gap: 12px; } .ts-ax5 .pr-strip > div { border-left: 0; }
+/* pop-up rows and the open menu */
+.pr-popwrap .ui-mlist { overflow: visible; } .pr-rel { position: relative; }
+.pr-pop { position: absolute; right: 8px; top: 46px; z-index: 30; min-width: 190px; padding: 6px; border-radius: 16px; background: rgba(250,250,252,.96); color: #000; box-shadow: 0 10px 34px rgba(0,0,0,.35); border: .5px solid rgba(0,0,0,.08); }
+.g-dark .pr-pop { background: rgba(58,58,60,.97); color: #fff; border-color: rgba(255,255,255,.12); }
+.pr-pop div { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px 0 8px; border-radius: 10px; font-size: var(--fs-body); }
+.pr-pop div .ck { width: 22px; display: inline-flex; justify-content: center; opacity: 0; } .pr-pop div.sel .ck { opacity: 1; } .pr-pop div.sel { font-weight: 600; }
+.pr-link { background: none; border: 0; color: var(--ink-action); font: 500 var(--fs-body)/1.2 var(--font); min-height: 44px; padding: 0 8px; cursor: pointer; }
+.pr-acts { display: inline-flex; gap: 4px; }
+.pr-segrows .ui-mrow { padding-bottom: 4px; } .pr-segrows .ui-seg { margin: 0 16px 12px; }
+.pr-note-box { padding: 10px 14px; border-radius: 12px; background: var(--sheet-cell); color: var(--ink-sheet-2); font-size: var(--fs-foot); }
+.pr-ann { font-size: 12px; font-weight: 600; color: var(--ink-sheet-2); margin: 0; text-transform: uppercase; letter-spacing: .05em; }
+  <p class="pr-note pr-toc">Jump: <a href="#decided">Decided design</a><a href="#history">Options considered</a></p>
+/* Decided section (owner, 2026-10-28): furniture only. Tiles, lists, tabs and sheets are the kit's and the shipped tile helpers'. */
+.pr-banner { margin: 14px 0 0; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--k-line); border-left: 4px solid var(--k-ok); background: var(--k-surface); font-size: 15px; max-width: 80ch; }
+.pr-banner b { color: var(--k-ok); }
+.pr-wrapt .ui-tile .ti, .pr-wrapt .ui-tile .st { white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere; }
+.pr-st .ui-grid { margin: 0; }
+.pr-st .ui-tile { min-height: 0; } .pr-st .ui-tile .ti { font-size: var(--fs-foot); font-weight: 400; opacity: .8; } .pr-st .ui-tile .st { font: 600 var(--fs-body)/1.25 var(--font); opacity: 1; color: inherit; }
+.pr-live .ui-mlist { overflow: hidden; } .pr-live .ui-mlist.menu-open { overflow: visible; }
+.pr-live [data-k] { overflow-wrap: anywhere; }
+.pr-film { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); margin: 12px 0; }
+.pr-film figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; } .pr-film figcaption { font-size: 13px; color: var(--k-fg2); }
+.pr-film .pr-crop { max-width: 402px; }
+.pr-tgt { display: flex; flex-direction: column; gap: 8px; min-width: 0; } .pr-tgt .ui-mlist { overflow: hidden; }
+.pr-stack { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pr-dec-tbl td:first-child { white-space: nowrap; font-weight: 600; }
+.pr-history{margin-top:56px;border-top:1px solid var(--k-line,rgba(127,127,127,.3));padding-top:12px}.pr-history>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;list-style-position:inside}.pr-history>summary h2{display:inline;margin:0}
+</style>
+</head><body>
+<div class="k-wrap" id="top">
+<header>
+  <p class="k-eyebrow">proposal · vacuums · S+H mockup atlas</p>
+  <span class="k-tag">Decided · 2026-10-28</span>
+  <h1>Vacuum sheet redesign: names off the map, equal status tiles, one grammar for settings</h1>
+  <p class="pr-lede">The owner flagged three things in the vacuum sheet: room names on the map, uneven status chips, and mixed pop-up and segmented settings. A pass over every section found more of the same kind. This page draws the design the owner chose, at live size.</p>
+  <div class="pr-bar" role="group" aria-label="Sheet appearance">Sheets: <button class="k-btn small" data-ap="auto" aria-pressed="true" type="button">Auto</button><button class="k-btn small" data-ap="dark" aria-pressed="false" type="button">Dark</button><button class="k-btn small" data-ap="light" aria-pressed="false" type="button">Light</button><span>Every frame and crop below is drawn with the kit's components; it follows the page theme in Auto.</span></div>
+  <p class="pr-banner"><b>Decided 2026-10-28.</b> The owner picked option B, the Recommended column, with amendments (no Locate tile, Rooms keeps its own section, tiles for every action, selection tiles in Rooms and Auto-Clean, Use Area and Use Rooms, an animated Water row). The final design is below; the options that were weighed are folded away at the end as the record.</p>
+  <p class="pr-note pr-toc">Jump: <a href="#decided">Decided design</a><a href="#history">Options considered</a></p>
+</header>
+
+<section id="decided">
+<h2>Decided design (owner, 2026-10-28)</h2>
+<p class="pr-lede" style="font-size:16px">Option B with the owner's amendments, drawn as the sheet will look. Every state is on iPhone portrait; the full docked sheet is also on iPad landscape; one accessibility state (AX5) shows where layout changes. Tiles are the shipped action and selection tiles (<code>action-navigation-tiles.md</code>), lists and tabs are the kit's, and the Water row below plays for real.</p>
+<div class="pr-tblwrap"><table class="pr-tbl pr-dec-tbl">
+<thead><tr><th>Area</th><th>Decision</th></tr></thead>
+<tbody>
+<tr><td>Map</td><td>No room names anywhere (sheet, area editor, report). Selected rooms are white with the order badge; Auto-Clean skipped rooms hatched. Locate stays the floating glass circle on the map.</td></tr>
+<tr><td>Status</td><td>Three equal read-only flat tiles in one row: Status, Battery, Dock (caption over value, toned glyph). One column at AX5.</td></tr>
+<tr><td>Controls</td><td>No segmented control. Rooms: a "Selected Rooms" summary and a "Use Area" action tile. Area: "Edit Area", "Clear Area" and "Use Rooms" tiles. Alerts: "Use Area?" and "Use Rooms?". Cleaning Settings: Mode, Fan, Water, Passes, all pop-up rows, a footer under the group, one blue Clean button.</td></tr>
+<tr><td>Water row</td><td>Absent when Mode is Vacuum; animates in and out (live below). The same mechanism covers every container that changes shape.</td></tr>
+<tr><td>Rooms</td><td>Own section. Selection tiles in two columns: chosen is the filled face with the numbered order disc, unchosen is dark with an empty circle disc. Footer under the grid.</td></tr>
+<tr><td>Auto-Clean</td><td>Selection tiles with a check disc: checked is included, unchecked is skipped (hatched on the map). One tile unavailable. Footer below.</td></tr>
+<tr><td>Cleaning</td><td>Map grown, no duplicate state header, Pause and Stop as action tiles side by side with no description.</td></tr>
+<tr><td>Dock</td><td>Every dock command is an action tile (the real list from <code>VacuumController.dockActions</code>); washing shows as the tracked transitional disc; explanations are footers under the tile.</td></tr>
+<tr><td>Info, editor, report</td><td>Info unchanged. Area editor and report maps have no names.</td></tr>
+</tbody></table></div>
+
+<h3 class="pr-sub" id="d-map">a. Map and status</h3>
+<p class="pr-note">Rooms mode with Kitchen, Living Room and Office chosen; the Auto-Clean view with Guest Room hatched; Area mode with a drawn area. The glass Locate circle stays top-left. Under the map: Status, Battery and Dock tiles of equal size whatever the value ("Returning", "87%", "Washing"). At AX5 they stack in one column.</p>
+<div data-slot="d-map"></div>
+<div data-slot="d-status"></div>
+
+<h3 class="pr-sub" id="d-controls">b. Controls, with the Water row live</h3>
+<div class="pr-bar" role="group" aria-label="Water row animation controls"><button class="k-btn small" id="pr-replay" type="button">Replay</button><button class="k-btn small" id="pr-rm" aria-pressed="false" type="button">Reduce Motion</button><span id="pr-state" aria-live="polite">Open Mode in the sheet and choose Vacuum, Mop or Vacuum and Mop.</span></div>
+<p class="pr-note"><b>Motion token: <code>standard</code></b> (0.3 s smooth, no bounce; <code>motion.md</code> section 7: "layout a person caused: rows in or out, expanding sections", section 6 "rows the person adds or deletes animate with the standard List animation"). The row's height collapses or expands with <code>standard</code>; its content fades with <code>quick</code> (0.2 s). The group's own background, hairlines and 26 pt corners belong to the container, so they stay correct at every frame; Fan, the footer and the Clean button are plain layout below the row and slide with it, no jump. Reduce Motion: the row cross-fades in place at 0.2 s and the height changes at once (no slide). The same mechanism (one container whose height animates with <code>standard</code>, children fading with <code>quick</code>) runs wherever the sheet changes shape: Fan hides when Mode is Mop only, and the target group changes between Rooms mode and Area mode (summary row and Use Area tile in, Edit Area, Clear Area and Use Rooms tiles out). It is deferred while the sheet scrolls and never runs on a reconnect or a cold launch from the snapshot, like the tile action-set exception.</p>
+<div class="pr-opts one" style="padding:14px 10px"><figure class="pr-opt"><span class="pr-badge rec">Decided · live</span><div data-slot="d-live"></div></figure></div>
+<h4 class="pr-sub" style="font-size:15px;margin-top:20px">Filmstrip: before, mid, after (switching Mode from Vacuum to Vacuum and Mop)</h4>
+<div data-slot="d-film"></div>
+<h4 class="pr-sub" style="font-size:15px;margin-top:20px">Area mode</h4>
+<p class="pr-note">With an area drawn the map outlines it; "Edit Area", "Clear Area" and "Use Rooms" are action tiles. Choosing Use Area with rooms selected, or Use Rooms with an area drawn, raises the alert (titles replace "Switch to ...").</p>
+<div data-slot="d-area"></div>
+<h4 class="pr-sub" style="font-size:15px;margin-top:20px">AX5: where layout changes</h4>
+<p class="pr-note">Status tiles stack in one column, the action tiles take full rows, pop-up rows move their value under the title (ModuleRow rule), the footer and the Clean button keep their order.</p>
+<div data-slot="d-ax"></div>
+<h4 class="pr-sub" style="font-size:15px;margin-top:20px">iPad landscape and Duo unfolded landscape</h4>
+<p class="pr-note">Where the window can split (SplitPolicy), the map and status take the left column and the Controls section the right.</p>
+<div data-slot="d-wide"></div>
+
+<h3 class="pr-sub" id="d-rooms">c. Rooms, Auto-Clean</h3>
+<p class="pr-note">Rooms keeps its own section; the bar keeps its five sections (Controls, Rooms, Auto-Clean, Dock, Info). Rooms uses the selection tile with the numbered order disc (chosen: filled face, disc 1 to 3; unchosen: dark, empty circle) and a footer under the grid. Auto-Clean uses the check disc: checked rooms are included in automatic cleans, unchecked rooms say "Skipped" and are hatched on the map; Gym shows unavailable (dimmed disc).</p>
+<div data-slot="d-rooms"></div>
+
+<h3 class="pr-sub" id="d-cleaning">d. Cleaning</h3>
+<p class="pr-note">A run in progress: the map grown, no state header (the subtitle and the Status tile already say it), and Pause and Stop as action tiles side by side with no description. Paused swaps Pause for Resume.</p>
+<div data-slot="d-cleaning"></div>
+
+<h3 class="pr-sub" id="d-dock">e. Dock and Info</h3>
+<p class="pr-note">Every command in <code>dockActions</code> is an action tile, text then disc: Clean Mop Dock, Dry Mops, Empty Bin (momentary; the disc carries the action). While the dock washes, the Clean Mop Dock tile becomes Stop Dock Clean on the filled face: it first shows the tracked spinner, then the stop disc, and the Dock status tile reads "Washing". Explanations sit under each tile as footers. During a cleaning run's own wash there are no commands, so the section is its footer alone.</p>
+<div data-slot="d-dock"></div>
+<div data-slot="d-dock2"></div>
+
+<h3 class="pr-sub" id="d-pushed">f. Area editor, report, alerts</h3>
+<p class="pr-note">The area editor's map has no names. The report page has no map (the report row sits under the sheet's map, which has none either). The two alerts use the new titles.</p>
+<div data-slot="d-pushed"></div>
+
+<h3 class="pr-sub" id="d-notes">g. Decisions taken inside the option</h3>
+<ul>
+  <li><b>Row title "Fan"</b> stays (the entity's name); "Cleaning Passes" is shortened to "Passes" as in the brief.</li>
+  <li><b>Fan also animates out</b> when Mode is Mop only (the code already hides it); it uses the same mechanism as Water.</li>
+  <li><b>Mode values</b> read "Vacuum", "Mop", "Vacuum and Mop" (title case; the entity's options are "Vacuum And Mop").</li>
+  <li><b>Pop-up rows drop the long setting descriptions;</b> the Cleaning Settings footer and VoiceOver hints carry them.</li>
+  <li><b>The Clean button</b> reads "Clean" in both Rooms and Area mode (today's area button is "Start Area Clean").</li>
+  <li><b>"Selected Rooms" has no chevron:</b> it switches to the Rooms section rather than pushing (disclosure-indicators decision).</li>
+  <li><b>Dock during a run's own wash:</b> no commands, footer only (the fake "Washing Mop Pads" row is gone; the Dock tile says "Washing").</li>
+  <li><b>Tile helpers</b> (<code>_action-tiles.js</code>, <code>_selection.js</code>) are still proposal-local, loaded from here by the atlas mockups; the vacuum-specific builders now live in the shared <code>modals/vacuums/_devices-vacuums.js</code>. Promote the tile helpers to the kit when the vacuum build lands.</li>
+</ul>
+</section>
+
+<details id="history" class="pr-history"><summary><h2>Options considered (the proposal as reviewed)</h2></summary>
+<section id="cause">
+<h2>1. Cause: what the owner reported, and what the deep pass found</h2>
+<div class="pr-grid3">
+  <div class="pr-card"><h3>1. Room names on the map are a non-starter</h3><p>The map draws every room name, caption2 semibold, and lets it spill past a small room (the 2026-10-24 owner rule "Room names are always drawn"). On a 300 x 360 map with 11 rooms the names collide with badges and each other.</p><p class="pr-ev">ValetudoMapView.swift:344 drawNames; patterns/valetudo-map.md:22</p></div>
+  <div class="pr-card"><h3>2. Status chips are uneven widths</h3><p>Status, Battery and Dock are pills in a FlowLayout, so each is as wide as its value ("Returning", "Dock Washing") and they wrap raggedly. The web uses a two-column grid of equal pills, with Locate as the fourth.</p><p class="pr-ev">VacuumMapPanel.swift:197 FlowLayout of VacuumStatusChip; web ha-sfenton-react-dash@11cdab2:src/components/hass/VacuumCard.tsx:1266 (DynamicGrid columns=2: Status, Battery, Dock Status, Locate pill)</p></div>
+  <div class="pr-card"><h3>3. Settings mix pop-ups and segmented controls</h3><p>Suction (5 options) is a pop-up; Passes is a segmented control beside its title; Mode and Water are segmented under their titles; Rooms/Area is another segmented control. Four grammars in one list.</p><p class="pr-ev">VacuumComponents.swift:314 VacuumSettingRow (2-4 options segmented, 5+ menu); VacuumTabs.swift:170 Rooms/Area segmented</p></div>
+</div>
+<h3 style="margin-top:18px">What else the deep pass found</h3>
+<ul>
+  <li><b>State is shown three times while cleaning.</b> The sheet subtitle ("Cleaning · 74%"), the Status chip, and the run card's own header ("Cleaning") say the same thing. <span class="pr-ev">VacuumSheet.swift:195 subtitle; VacuumMapPanel.swift:197; VacuumTabs.swift:147 runtimeCard header</span></li>
+  <li><b>Auto-Clean checkmarks are inverted.</b> A tick means the room is <i>skipped</i>; everywhere else in the app a tick or a switch means included or on. <span class="pr-ev">VacuumTabs.swift:362-384</span></li>
+  <li><b>Five sections force symbol-only tabs.</b> At compact width the bottom bar shows icons only (ModalTabBar.swift:17, owner 2026-10-16); its own doc comment says fewer than five read as text, which the code does not do either.</li>
+  <li><b>"Selected Rooms" jumps to another tab.</b> The chips row on Controls is a button that switches to the Rooms section, so choosing rooms means leaving the screen that has the Clean button. <span class="pr-ev">VacuumTabs.swift:220-252 onOpenRooms</span></li>
+  <li><b>Locate is a glass button over the map.</b> It floats on the picture, a different grammar from every other command on the sheet, and the web has it in the status grid. <span class="pr-ev">VacuumMapPanel.swift:120</span></li>
+  <li><b>Mockup versus code (noted, not changed):</b> the atlas mockup draws a name only when it fits; the code draws all of them and lets them spill. Today is drawn here as the code does it.</li>
+</ul>
+</section>
+
+<section id="areas">
+<h2>2. Today, recommended and alternative, area by area</h2>
+<p>Fixture data is the atlas's: Main Floor (11 rooms), Kitchen, Living Room and Office selected in that order, Guest Room skipped by Auto-Clean. Options: <span class="pr-badge today">Today</span> <span class="pr-badge rec">Recommended</span> <span class="pr-badge alt">Alternative</span></p>
+
+<h3 class="pr-sub" id="a-map">a. Map: names, no names, or a glyph per room</h3>
+<p class="pr-note">Recommended: no text on the map. A selected room is white with its numbered badge, a skipped room is hatched, the rest are flat. Alternative: a room SF Symbol per room; Closet and Hallway share a wardrobe glyph and the two bathrooms share a shower, so the glyph alone is ambiguous. Performance: dropping names removes a per-draw Text resolve and measure for every room.</p>
+<div data-slot="map-sel"></div>
+<div data-slot="map-hatch"></div>
+
+<h3 class="pr-sub" id="b-status">b. Status: equal tiles instead of ragged chips</h3>
+<p class="pr-note">Recommended: a 2 x 2 grid of equal tiles (caption over value, toned glyph): Status, Battery, Dock, and Locate as a button tile, which moves the glass Locate off the map and matches the web. At accessibility sizes the grid is one column. Alternative: one 3-up equal strip in a single card; Locate stays on the map. Shown with the long values "Returning" and "Dock Washing".</p>
+<div data-slot="status"></div>
+<div data-slot="status-ax"></div>
+
+<h3 class="pr-sub" id="c-settings">c. Cleaning settings: one grammar</h3>
+<p class="pr-note">Recommended: every select is a pop-up row, title left, value and chevron.up.chevron.down trailing in action blue, for Mode, Suction, Water and Passes under one "Cleaning Settings" header (direction-g "Choosing one option" already allows pop-ups for suction and passes; the web uses selects for all). The open menu is drawn on Suction. Alternative: all segmented under the title; five suction segments are tall and break at accessibility sizes. Today's row title is "Fan" in the code; the brief calls it Suction (see open questions). The long description lines under today's rows are dropped in the recommended rows to keep them 52 pt; they stay as the VoiceOver hint.</p>
+<div data-slot="settings"></div>
+<div data-slot="settings-ax"></div>
+
+<h3 class="pr-sub" id="d-structure">d. Section structure: five sections or four</h3>
+<p class="pr-note">Recommended: four sections. The Rooms section merges into a single <b>Clean</b> section (map, status grid, room cards at 76 pt minimum with order badges, a "Draw Area..." row, Cleaning Settings, one blue Clean button), then Auto-Clean, Dock, Info. The Rooms/Area segmented control and the "Selected Rooms" jump go; with four sections the bar can show text labels. Alternative: keep five sections and only replace the Rooms/Area segmented control with a Selected Rooms row plus a Draw Area row. The frames are tall (the real sheet scrolls) so the whole section shows.</p>
+<div data-slot="structure"></div>
+<h4 class="pr-sub" style="font-size:15px;margin-top:20px">Area drawn</h4>
+<p class="pr-note">With an area drawn, the room grid is replaced by one Area row with Edit and Clear. Clear returns the grid. Choosing Draw Area... while rooms are selected raises the existing "Switch to Area?" alert (see h).</p>
+<div data-slot="structure-area"></div>
+<h4 class="pr-sub" style="font-size:15px;margin-top:20px">The bottom bar</h4>
+<div data-slot="bar"></div>
+<h4 class="pr-sub" style="font-size:15px;margin-top:20px">Two columns: iPad landscape and Duo unfolded landscape</h4>
+<p class="pr-note">Where the window can split (SplitPolicy), the map and status take the left column and the Clean section the right. The whole sheet is shown at the window's real size; the sheet's own scroll covers what does not fit.</p>
+<div data-slot="wide-ipad"></div>
+<div data-slot="wide-duo"></div>
+
+<h3 class="pr-sub" id="e-cleaning">e. Cleaning (minimal) state</h3>
+<p class="pr-note">While a run is going the map grows and the setup collapses. Recommended: the run card drops its state header (the subtitle and the Status tile already say it); Pause and Stop stay. A third crop shows the paused state, where Resume is the one primary button.</p>
+<div data-slot="cleaning"></div>
+
+<h3 class="pr-sub" id="f-auto">f. Auto-Clean: switches, on means included</h3>
+<p class="pr-note">Today a checkmark means skipped. Recommended: a switch row per room, on = included, the subtitle reads "Skipped" when off, and the map hatches skipped rooms (precedent: the Main Floor pause switch on the Vacuums page is already inverted for the same reason). First seven of eleven rooms are shown.</p>
+<div data-slot="auto"></div>
+
+<h3 class="pr-sub" id="g-dock">g. Dock and Info</h3>
+<p class="pr-note">Mostly unchanged: blue-title action rows in Dock, trailing values in Info (orange soon, red due). The one change: while the dock washes the mop pads during a run, that fact lives in the Dock tile of the status grid, not in a fake "Washing Mop Pads" row. With the row gone the Dock section has no commands during the wash, so its explanatory text becomes a footer (see open questions).</p>
+<div data-slot="dock"></div>
+
+<h3 class="pr-sub" id="h-pushed">h. Area editor, switch dialog, cleaning report</h3>
+<p class="pr-note">The area editor's map loses its names like every other map; nothing else changes. The "Switch to Area?" alert stays: it now follows the Draw Area... row instead of the segment. Anything else I found while reading their current mockups is listed after the crops.</p>
+<div data-slot="pushed"></div>
+<ul>
+  <li>The area editor mockup draws names on its map and hard-codes it (vac.areaEditor passed names: true); decided: it draws none now (the atlas mockup follows).</li>
+  <li>The switch-dialog mockup file is titled as an alert but its sibling in the vacuum-sheet mockup builds the same decision with <code>dv.actionSheet</code> (a bottom-style action sheet) while the code uses <code>.alert</code> (AlertCopy.swift:105-117). The sheet mockup's copy ("Are you sure you want to continue?") also differs from the shipped message.</li>
+  <li>The report row title reads "Main Floor Cleaning Report (4)" under a section header "Cleaning Report": the robot name and the count repeat what the header and the page already say.</li>
+  <li>"Edit Area / Clear Area" on Controls and "Redraw / Clear" in the editor use the same trash glyph with different labels.</li>
+  <li>"Power Settings" holds Mode, Fan and Water, while Passes sits in the Controls list above it; the recommendation puts all four under "Cleaning Settings".</li>
+</ul>
+</section>
+
+<section id="compare">
+<h2>3. Comparison against the owner's rules</h2>
+<p>Owner order of priority for this pass: consistency, then performance, then HIG and design philosophy. HIG sections are named as in the Human Interface Guidelines (Segmented controls, Pop-up buttons, Toggles, Layout, Tab bars); wording below is a paraphrase.</p>
+<div class="pr-tblwrap"><table class="pr-tbl">
+<thead><tr><th>Area</th><th>Option</th><th>Consistency</th><th>Performance</th><th>HIG</th><th>Honest cost</th></tr></thead>
+<tbody>
+<tr><td rowspan="3">Map</td><td>Today: names</td><td>Only surface in the app with text drawn into a canvas</td><td>Text resolve and measure per room per draw</td><td>Layout: legibility; labels collide at caption2 size</td><td>Self-describing map</td></tr>
+<tr class="rec"><td>Recommended: no text, badges</td><td>Map is a picture, rooms are named by cards and chips</td><td>Fewer draw ops; badges only on selected rooms</td><td>Layout: do not overload dense graphics with text</td><td>Reverses the 2026-10-24 rule; the map alone no longer says which room is which, so naming relies on the cards below it and VoiceOver</td></tr>
+<tr><td>Alternative: glyph per room</td><td>Reuses the room glyphs of the cards</td><td>One symbol draw per room: cheaper than text, not free; measure with ios_scrollcost.sh</td><td>Icons: pair with text where meaning is not universal</td><td>Closet/Hallway and the two bathrooms share glyphs, so it is still ambiguous</td></tr>
+<tr><td rowspan="3">Status</td><td>Today: FlowLayout chips</td><td>Differs from web</td><td>Custom Layout pass over variable-width views</td><td>Layout: align and size related items alike</td><td>Ragged edges, wraps at long values</td></tr>
+<tr class="rec"><td>Recommended: 2 x 2 tiles</td><td>Matches the web grid; Locate becomes a normal command</td><td>Fixed grid, four equal cells</td><td>Layout: consistent sizes, one column at AX sizes</td><td>Taller than one row of chips (about 128 pt against 36 pt); one more tap target to learn</td></tr>
+<tr><td>Alternative: 3-up strip</td><td>Compact, keeps Locate on the map</td><td>Cheapest: one card, three cells</td><td>Layout: equal columns; stacks at AX</td><td>Keeps the glass Locate button over the map, the grammar the owner did not raise but I flagged</td></tr>
+<tr><td rowspan="3">Settings</td><td>Today: mixed</td><td>Four grammars in one list</td><td>n/a</td><td>Segmented controls: use for few, same-kind options (Suction has five)</td><td>Rows differ in height and in where the value sits</td></tr>
+<tr class="rec"><td>Recommended: pop-up rows</td><td>One grammar, matches web selects</td><td>No per-option views until opened</td><td>Pop-up buttons: mutually exclusive options, shows the current value</td><td>One extra tap to change a three-option setting that is one tap today; description lines move to the hint</td></tr>
+<tr><td>Alternative: all segmented</td><td>One grammar</td><td>Five suction segments render all labels always</td><td>Segmented controls: about five segments is the ceiling; labels must not truncate</td><td>Tall rows; at AX sizes they fall back to menus anyway, so the grammar splits again</td></tr>
+<tr><td rowspan="3">Structure</td><td>Today: 5 sections</td><td>Selected Rooms row jumps tabs; symbol-only bar</td><td>Tab swap redraws only the panel</td><td>Tab bars: up to five items; labels help</td><td>Choosing rooms and pressing Clean are on different screens</td></tr>
+<tr class="rec"><td>Recommended: 4 sections, Clean merged</td><td>Map taps, cards and Clean on one screen; bar gets text labels (the ModalTabBar comment already promised it)</td><td>Longer scroll (about 1650 pt against 1150 pt) and map selection and 11 cards share one body; needs an ios_scrollcost.sh measurement</td><td>Tab bars: fewer, labelled items. Toggles/Lists: rooms stay cards</td><td>A longer Clean section; the room grid is now below the status grid, so the Clean button is further from the map. Journeys that tap the segments change</td></tr>
+<tr><td>Alternative: keep 5</td><td>Smallest change; Rooms tab stays the place for rooms</td><td>No new cost</td><td>Tab bars: five symbol-only items</td><td>Keeps the jump and the symbol-only bar the deep pass flagged</td></tr>
+<tr><td>Auto-Clean</td><td>Switch rows</td><td>On = included, like the rest of the app</td><td>Same row count</td><td>Toggles: a switch for a binary state in a list</td><td>Inverts the stored meaning in the UI (the entity is "disabled"): the row maps switch = not disabled</td></tr>
+<tr><td>Cleaning</td><td>Run card without header</td><td>State said twice, not three times</td><td>One fewer Text view</td><td>Layout: remove redundancy</td><td>The card is just two buttons</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="recommend">
+<h2>4. Recommendation</h2>
+<p><b>Take every recommended option.</b> The three complaints are one problem: the sheet uses a different control grammar for each row. The recommendation gives one tile grammar for status, one pop-up grammar for choices, one switch grammar for on and off, and one screen for choosing rooms and cleaning them. Each part is independent; if you want less, the alternatives above drop in one by one (the 3-up strip and "keep five sections" are the cheapest).</p>
+<h3>What it touches</h3>
+<ul>
+  <li><b>Map:</b> ValetudoMapView.swift (remove drawNames, keep order badges and the hatch). Pattern patterns/valetudo-map.md: reverse "Room names are always drawn" (owner 2026-10-24) with the 2026-10-28 decision.</li>
+  <li><b>Status and Locate:</b> VacuumMapPanel.swift (VacuumStatusChip FlowLayout becomes a four-tile grid, Locate leaves the map), VacuumComponents.swift (new tile view; VacuumSettingRow becomes pop-up only, or pop-up rows beside the existing segmented path if the alternative is chosen).</li>
+  <li><b>Structure:</b> VacuumTabs.swift (VacuumControlsTab absorbs VacuumRoomsTab; target picker and the Selected Rooms row go; area row; VacuumAutoCleanTab toggles), VacuumSheet.swift (tab list, VacuumRuntime.tabs), ModalTabBar.swift (titled form for four or fewer sections at compact width). Pattern patterns/vacuum-sheet.md.</li>
+  <li><b>Atlas:</b> update vacuum-sheet, vacuum-area-editor and vacuum-switch-dialog mockups in the same PR; hub republish.</li>
+  <li><b>Tests:</b> journeys that tap the <code>vacuum.target</code> segments (VacuumJourneyTests, VacuumFlowTests, LightSheets journeys) and anything reading <code>vacuum.tabs</code> change; new accessibility tests on iPhone, Duo and iPad for the tile grid at AX5 (one column), the pop-up rows, the switch rows (name, role, value) and the four-item bar; unit tests for the merged tab's selection and area state; a scroll-cost measurement for the longer Clean section.</li>
+  <li><b>New motion:</b> none. Colour cross-fades on room cards and tiles reuse the state token.</li>
+</ul>
+</section>
+
+<section id="questions">
+<h2>5. Open questions for the owner</h2>
+<ol>
+  <li>Confirm reversing the 2026-10-24 rule: no room names on the map, ever, with badges kept?</li>
+  <li>Locate as a tile in the status grid (web parity), or stay on the map?</li>
+  <li>Four sections (Clean, Auto-Clean, Dock, Info) with text labels: OK?</li>
+  <li>When Mode is Vacuum only, hide the Water row or show it disabled? (Today it is hidden; Fan hides in Mop-only mode.)</li>
+</ol>
+<p class="pr-note">Added while rendering, small and reversible: (a) the row is titled "Fan" in the code and "Suction" in the brief; I drew Suction in the recommendation. (b) The description lines under today's setting rows are dropped from the pop-up rows. (c) During a run's dock wash the Dock section shows its explanation as a footer once the fake row is gone. (d) The "Switch to Area?" alert stays when Draw Area... is chosen with rooms selected.</p>
+</section>
+</details>
+</div>
+
+<script>
+(function () {
+  var h = Mock.h, I = Mock.icon, K = Mock.components, dv = Mock.dv, vac = dv.vac, V = vac.V;
+  var mode = 'auto', APP = 'dark';
+  var AREA = { x: 24, y: 24, w: 150, h: 120 };
+  var SEL = ['kitchen', 'living_room', 'office'];
+  function appearance() { return mode === 'auto' ? (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode; }
+  function ctx(key, ts) { var c = Mock.ctx(key || 'iphone', { appearance: APP, ts: ts || 'default' }); Mock.current = c; return c; }
+  function crop(c, kids, o) {
+    o = o || {}; var cls = Mock.textSizes[c.ts].cls;
+    var el = h('div.pr-crop.k-plain.ui-root.in-sheet.g-' + c.appearance + (cls ? '.' + cls : '') + (o.wide ? '.wide' : ''), kids);
+    if (o.minH) el.style.minHeight = o.minH + 'px';
+    return el;
+  }
+
+  /* ------------------------------------------------------------ map: rooms and labels (Main Floor, viewBox 300 x 360, drawn rotated 180 like the app) */
+  var ROOMS = [['living_room', 'Living Room', 'sofa', 0, 0, 150, 150], ['dining_room', 'Dining Room', 'fork.knife', 150, 0, 150, 70], ['kitchen', 'Kitchen', 'refrigerator', 150, 70, 150, 80], ['hallway', 'Hallway', 'cabinet', 0, 150, 300, 30],
+    ['bedroom_1', 'Bedroom 1', 'bed.double', 0, 180, 110, 180], ['bathroom_1', 'Bathroom 1', 'shower', 110, 180, 90, 80], ['closet', 'Bedroom 1 Closet', 'cabinet', 110, 260, 90, 100], ['office', 'Office', 'laptopcomputer', 200, 180, 100, 50],
+    ['gym', 'Gym', 'dumbbell', 200, 230, 100, 50], ['guest_room', 'Guest Room', 'bed.double', 200, 280, 50, 80], ['guest_bathroom', 'Guest Bathroom', 'shower', 250, 280, 50, 80]];
+  function overlay(labels, sel) {
+    var box = h('div.pr-lbs', { 'aria-hidden': 'true' });
+    ROOMS.forEach(function (r) {
+      var x = 300 - r[3] - r[5], y = 360 - r[4] - r[6], cx = (x + r[5] / 2) / 3, cy = (y + r[6] / 2) / 3.6, order = sel.indexOf(r[0]) + 1, on = order > 0;
+      var st = { left: cx + '%', top: cy + '%' };
+      if (labels === 'names') { var kids = []; if (on) kids.push(h('span.bd', String(order))); kids.push(h('span', r[1])); box.appendChild(h('div.pr-lb' + (on ? '.sel' : ''), { style: st }, kids)); }
+      else if (labels === 'none') { if (on) box.appendChild(h('div.pr-lb.sel', { style: st }, h('span.bd', String(order)))); }
+      else if (labels === 'glyph') {
+        box.appendChild(h('div.pr-lb.glyph' + (on ? '.sel' : ''), { style: st }, h('span', { html: I(r[2], { size: '18px' }) })));
+        if (on) box.appendChild(h('div.pr-lb.sel.corner', { style: { left: (x / 3 + 1.5) + '%', top: (y / 3.6 + 1.5) + '%' } }, h('span.bd', { style: { width: '18px', height: '18px', fontSize: '11px' } }, String(order))));
+      }
+    });
+    return box;
+  }
+  /** The map card (vac.mapCard) with the proposal's own labels. o: {labels:'names'|'none'|'glyph', selected, skipped, big, locate, area, robot, path} */
+  function map(o) {
+    var sel = o.selected || [];
+    var card = vac.mapCard({ map: 'main', selected: sel, skipped: o.skipped || [], robot: o.robot || 'dock', path: o.path || null, big: !!o.big, locate: !!o.locate, names: false, area: o.area || null, title: 'Main Floor' });
+    var m = card.querySelector('.vc-map'); if (m) m.appendChild(overlay(o.labels, sel));
+    return card;
+  }
+  var PATH = [[40, 50], [110, 80], [170, 40], [240, 90], [220, 110]];
+
+  /* ------------------------------------------------------------ layout helpers */
+  var BADGE = { today: 'Today', rec: 'Recommended', alt: 'Alternative' };
+  function opts(items, o) {
+    o = o || {};
+    return h('div.pr-opts' + (o.one ? '.one' : ''), items.map(function (it) {
+      return h('figure.pr-opt', h('span.pr-badge.' + it.kind, it.badge || BADGE[it.kind]), it.node, it.note ? h('figcaption', it.title ? [h('b', it.title + '. '), it.note] : it.note) : (it.title ? h('figcaption', h('b', it.title)) : null));
+    }));
+  }
+  /** A device frame (Mock.frame) around a sheet; tall custom heights show a whole scrolling section. */
+  function framed(key, ts, build, o) {
+    o = o || {}; var devKey = key;
+    if (o.h) { devKey = key + '-pr' + o.h; if (!Mock.devices[devKey]) Mock.devices[devKey] = Object.assign({}, Mock.devices[key], { key: devKey, h: o.h }); }
+    var c = ctx(devKey, ts), node = Mock.frame(c, build(c)), d = c.device, fw = d.w + 2 * d.bezel;
+    var gz = h('div.k-gz', { dataset: { fw: String(fw), minz: String(o.minZ || .5) } }, node);
+    return h('div.pr-fscroll', gz);
+  }
+  function fitFrames() {
+    document.querySelectorAll('.k-gz[data-fw]').forEach(function (g) {
+      var pw = g.parentNode.clientWidth || 340, z = Math.max(parseFloat(g.dataset.minz), Math.min(.92, (pw - 2) / parseFloat(g.dataset.fw)));
+      g.style.setProperty('--gz', z.toFixed(3));
+    });
+  }
+
+  /* ------------------------------------------------------------ status */
+  var BATT = function (b) { return b < 13 ? 'battery.0percent' : b < 38 ? 'battery.25percent' : b < 63 ? 'battery.50percent' : b < 88 ? 'battery.75percent' : 'battery.100percent'; };
+  function statusFacts(v) {
+    var st = { cleaning: ['sparkles', 'var(--vc-active)'], docked: ['checkmark.circle.fill', 'var(--ink-success)'], returning: ['arrow.uturn.left.circle', 'var(--ink-action)'], paused: ['pause.circle', 'var(--ink-warning)'], error: ['exclamationmark.circle', 'var(--ink-danger)'] }[v.state] || ['robotic.vacuum', 'var(--ink-sheet-2)'];
+    var washing = v.dock === 'cleaning', drying = v.dock === 'drying';
+    return [
+      { label: 'Status', value: vac.stateLabel(v), symbol: st[0], tint: st[1], fill: /fill$/.test(st[0]) },
+      { label: 'Battery', value: v.battery + '%', symbol: BATT(v.battery), tint: 'var(--ink)' },
+      { label: 'Dock', value: v.dockLabel, symbol: washing ? 'drop' : drying ? 'wind' : 'ev.charger', tint: washing || drying ? 'var(--vc-active)' : 'var(--ink)' }];
+  }
+  function tile(o) {
+    var kids = [h('span.g', { style: { color: o.tint || 'var(--ink)' }, html: I(o.symbol, { fill: o.fill }) }), h('span.tx', h('span.cap', o.label), h('span.val', o.value))];
+    return o.button ? h('button.pr-tile', { type: 'button', 'aria-label': o.aria || o.label }, kids) : h('div.pr-tile', { role: 'group', 'aria-label': o.label + ': ' + o.value }, kids);
+  }
+  function tileGrid(v, locate) {
+    var f = statusFacts(v).map(tile);
+    if (locate) f.push(tile({ button: true, label: 'Robot', value: 'Locate', symbol: 'scope', aria: 'Locate' }));
+    return h('div.pr-tiles', f);
+  }
+  function strip(v) {
+    return h('div.pr-strip', statusFacts(v).map(function (o) { return h('div', { role: 'group', 'aria-label': o.label + ': ' + o.value }, h('span.g', { style: { color: o.tint }, html: I(o.symbol, { fill: o.fill }) }), h('span.val', o.value), h('span.cap', o.label)); }));
+  }
+  /** Today's chips with the dock label exactly as the app builds it ("Dock Washing"). */
+  function todayChips(v) { return vac.statusSummary(v); }
+
+  /* ------------------------------------------------------------ settings */
+  var SETTINGS = [['Mode', 'robotic.vacuum', 'Vacuum And Mop', ['Vacuum', 'Mop', 'Vacuum And Mop']], ['Suction', 'fan', 'Medium', ['Low', 'Medium', 'High', 'Max', 'Turbo']], ['Water', 'drop', 'Medium', ['Low', 'Medium', 'High']], ['Passes', 'number', '1x', ['1x', '2x', '3x']]];
+  function popRow(s, openMenu) {
+    var menu = h('span.vc-menu', { role: 'button', 'aria-haspopup': 'menu', 'aria-label': s[0] + ', ' + s[2] }, s[2], h('span', { html: I('chevron.up.chevron.down', { weight: 2.2, size: '.8em' }) }));
+    var row = K.ModuleRow({ title: s[0], symbol: s[1], accessory: menu });
+    if (!openMenu) return h('div.vc-set', row);
+    var pop = h('div.pr-pop', { role: 'menu' }, s[3].map(function (o) { return h('div' + (o === s[2] ? '.sel' : ''), { role: 'menuitemradio', 'aria-checked': o === s[2] ? 'true' : 'false' }, h('span.ck', { html: I('checkmark', { weight: 2.4, size: '.9em' }) }), o); }));
+    return h('div.vc-set.pr-rel', row, pop);
+  }
+  function popSettings(c, openTitle) {
+    return vac.section('Cleaning Settings', [h('div.pr-popwrap', K.ModuleList({ rows: SETTINGS.map(function (s) { return popRow(s, s[0] === openTitle); }) }))]);
+  }
+  function segSettings(c) {
+    var rows = SETTINGS.map(function (s) {
+      var row = K.ModuleRow({ title: s[0], symbol: s[1] });
+      return h('div.vc-set', row, K.SegmentedChoice({ options: s[3], selected: s[2], label: s[0], style: c.axSize ? undefined : 'segmented', large: true, ctx: c }));
+    });
+    return vac.section('Cleaning Settings', [h('div.pr-segrows', K.ModuleList({ rows: rows }))]);
+  }
+  function todaySettings(c) {
+    var v = V({});
+    return [vac.section('Power Settings', [K.ModuleList({ rows: vac.settings(v).map(function (s) { return vac.settingRow(s, c); }) })]),
+      h('div.vc-gap12', { style: { gap: '4px' } }, h('p.pr-ann', 'Cleaning Passes sits in the Controls list above'), K.ModuleList({ rows: [vac.settingRow(vac.passes(v), c)] }))];
+  }
+
+  /* ------------------------------------------------------------ structure: today, recommended, alternative */
+  function tabsToday(c, sel) { return vac.tabBar(V({}), sel || 'controls', c); }
+  var TABS4 = [{ id: 'clean', title: 'Clean', symbol: 'robotic.vacuum' }, { id: 'auto', title: 'Auto-Clean', symbol: 'clock.arrow.circlepath' }, { id: 'dock', title: 'Dock', symbol: 'ev.charger' }, { id: 'info', title: 'Info', symbol: 'info.circle' }];
+  function tabsRec(c) { return K.ModalTabBar({ ctx: Object.assign({}, c, { compact: false }), tabs: TABS4, selected: 'clean' }); }
+  function roomGrid(sel) {
+    var ids = ['living_room', 'bedroom_1', 'kitchen', 'office', 'hallway', 'guest_room', 'bathroom_1', 'guest_bathroom', 'gym', 'closet', 'dining_room'];
+    return h('div.vc-rooms.two', { role: 'group', 'aria-label': 'Rooms' }, ids.map(function (id) { var i = sel.indexOf(id); return vac.roomCard(id, { order: i >= 0 ? i + 1 : null }); }));
+  }
+  function drawRow() { return K.ModuleList({ rows: [K.ModuleRow({ title: 'Draw Area…', symbol: 'rectangle.dashed', chevron: true })] }); }
+  function areaRow() {
+    var acts = h('span.pr-acts', h('button.pr-link', { type: 'button' }, 'Edit'), h('button.pr-link', { type: 'button' }, 'Clear'));
+    return K.ModuleList({ rows: [K.ModuleRow({ title: 'Cleaning Area', subtitle: '3.8 m × 2.6 m · 9.88 m²', symbol: 'rectangle.dashed', accessory: acts })] });
+  }
+  function recMapCol(c, o) {
+    var v = V({ selected: o.area ? [] : SEL, area: o.area || null, scenario: o.scenario });
+    var kids = [map({ labels: 'none', selected: v.selected, area: o.area, big: v.minimal, locate: false, robot: o.scenario === 'cleaning' ? [220, 110] : 'dock', path: o.scenario === 'cleaning' ? PATH : null }), tileGrid(v, true)];
+    if (v.report) kids.push(vac.reportRow(v, v.report));
+    return h('div.vc-gap12', kids);
+  }
+  function recTabCol(c, o) {
+    var kids = [];
+    if (o.area) kids.push(vac.section('Area', [areaRow()], 'The vacuum cleans inside the drawn area, with the settings below.'));
+    else kids.push(vac.section('Rooms', [vac.desc('Tap rooms here or on the map. Rooms are cleaned in the order you pick them.'), roomGrid(SEL), drawRow()]));
+    kids.push(popSettings(c));
+    kids.push(vac.actionButton({ title: 'Clean', symbol: 'play.fill', tone: 'primary' }));
+    return h('div.vc-col', { style: { gap: '20px' } }, kids);
+  }
+  function recContent(c, o) {
+    o = o || {}; var mc = recMapCol(c, o), tc = recTabCol(c, o);
+    if (c.canSplit) return h('div.dv-two', { style: { margin: '0 -16px' } }, h('div', mc), h('div', tc));
+    return h('div.dv-col', { style: { maxWidth: '640px' } }, h('div.vc-col', mc, tc));
+  }
+  function sheet(c, content, tabs, sub) { return Mock.sheet(c, { title: 'Main Floor Robot Vacuum', subtitle: sub || 'Docked · 87%', detent: 'large', size: 'page', trailing: 'close', content: content, tabs: tabs, presenter: null }); }
+  function todaySheet(c, o) { o = o || {}; var v = V({ selected: o.area ? [] : SEL, area: o.area || null }); return sheet(c, vac.content(c, v, 'controls', { legacy: true }), vac.tabBar(v, 'controls', c)); }
+  function recSheet(c, o) { return sheet(c, recContent(c, o), tabsRec(c)); }
+  function altControlsBody(c, o) {
+    var v = V({ selected: o.area ? [] : SEL, area: o.area || null }), rows = [];
+    if (o.area) rows.push(areaRow().querySelector('.ui-mrow'));
+    else {
+      rows.push(h('button.vc-selrow', { type: 'button', 'aria-label': 'Selected Rooms' }, h('span.t', h('span', 'Selected Rooms'), h('span', { html: I('chevron.right', { weight: 2.4 }) })), h('div.vc-flow', { style: { gap: '6px' } }, SEL.map(function (id, i) { return vac.orderChip(i + 1, vac.zoneTitle(id)); }))));
+      rows.push(K.ModuleRow({ title: 'Draw Area…', symbol: 'rectangle.dashed', chevron: true }));
+    }
+    rows.push(vac.settingRow(vac.passes(v), c));
+    return h('div.vc-col', h('div.vc-gap12', { style: { gap: '16px' } }, h('div.vc-gap12', { style: { gap: '8px' } }, K.ModuleList({ rows: rows, hasGlyphs: false }), vac.desc(o.area ? 'The vacuum cleans inside the drawn area.' : 'The vacuum cleans the selected rooms in order.')), vac.actionButton({ title: 'Clean', symbol: 'play.fill', tone: 'primary' })),
+      vac.section('Power Settings', [K.ModuleList({ rows: vac.settings(v).map(function (s) { return vac.settingRow(s, c); }) })]));
+  }
+  function altSheet(c, o) {
+    o = o || {}; var v = V({ selected: o.area ? [] : SEL, area: o.area || null }), mc = vac.mapColumn(c, v, 'controls', { legacy: true }), tc = altControlsBody(c, o);
+    var content = c.canSplit ? h('div.dv-two', { style: { margin: '0 -16px' } }, h('div', mc), h('div', tc)) : h('div.dv-col', { style: { maxWidth: '640px' } }, h('div.vc-col', mc, tc));
+    return sheet(c, content, vac.tabBar(v, 'controls', c));
+  }
+
+  /* ------------------------------------------------------------ the slots */
+  var S = {};
+  S['map-sel'] = function () {
+    var c = ctx();
+    function m(labels) { return crop(c, map({ labels: labels, selected: SEL, locate: true })); }
+    return opts([
+      { kind: 'today', node: m('names'), title: 'Names always drawn', note: 'Main Floor, 3 rooms selected. Eleven names at caption2 collide with the badges; "Bedroom 1 Closet" spills over its neighbours.' },
+      { kind: 'rec', node: crop(c, map({ labels: 'none', selected: SEL, locate: false })), title: 'No text', note: 'White rooms with numbered badges 1 to 3 (Kitchen, Living Room, Office). Rooms are named by the cards below.' },
+      { kind: 'alt', node: crop(c, map({ labels: 'glyph', selected: SEL, locate: false })), title: 'A glyph per room', note: 'Same selection. Closet and Hallway both draw the cabinet, Master and Guest Bathroom both the shower: ambiguity.' }]);
+  };
+  S['map-hatch'] = function () {
+    var c = ctx(), SK = ['guest_room'];
+    return opts([
+      { kind: 'today', node: crop(c, map({ labels: 'names', selected: [], skipped: SK, locate: true })), title: 'Auto-Clean view with names', note: 'Guest Room hatched.' },
+      { kind: 'rec', node: crop(c, map({ labels: 'none', selected: [], skipped: SK, locate: false })), title: 'Auto-Clean view, no names', note: 'Hatch on Guest Room; the Auto-Clean list is the legend.' },
+      { kind: 'alt', node: crop(c, map({ labels: 'glyph', selected: [], skipped: SK, locate: false })), title: 'Glyph', note: 'The hatch covers the Guest Room glyph; a skipped room draws it dimmer.' }]);
+  };
+  function statusV() { return V({ scenario: 'returning', dock: 'cleaning', dockLabel: 'Washing' }); }
+  S['status'] = function () {
+    var c = ctx(), v = statusV(), mp = { selected: SEL };
+    return opts([
+      { kind: 'today', node: crop(c, [map(Object.assign({ labels: 'none', locate: true }, mp)), todayChips(v)]), title: 'Chips', note: 'Returning, 87%, Dock Washing: three widths on a ragged row; the glass Locate button sits on the map.' },
+      { kind: 'rec', node: crop(c, [map(Object.assign({ labels: 'none', locate: false }, mp)), tileGrid(v, true)]), title: '2 x 2 equal tiles', note: 'Status, Battery, Dock and Locate as a button tile (blue). Same value text as today with the "Dock" prefix moved into the caption.' },
+      { kind: 'alt', node: crop(c, [map(Object.assign({ labels: 'none', locate: true }, mp)), strip(v)]), title: '3-up strip', note: 'One card, three equal cells; Locate stays on the map.' }]);
+  };
+  S['status-ax'] = function () {
+    var c = ctx('iphone', 'ax5'), v = statusV();
+    return opts([
+      { kind: 'today', node: crop(c, todayChips(v)), title: 'AX5 chips', note: 'Chips wrap one per line, each a different width.' },
+      { kind: 'rec', node: crop(c, tileGrid(v, true)), title: 'AX5 tiles', note: 'One column of four equal tiles.' },
+      { kind: 'alt', node: crop(c, strip(v)), title: 'AX5 strip', note: 'The strip stacks to rows.' }]);
+  };
+  S['settings'] = function () {
+    var c = ctx();
+    return opts([
+      { kind: 'today', node: crop(c, todaySettings(c)), title: 'Mixed', note: 'Mode and Water segmented under their title (with description lines), Fan a pop-up, Passes segmented beside the title in a separate list.' },
+      { kind: 'rec', node: crop(c, popSettings(c, 'Suction'), { minH: 380 }), title: 'Uniform pop-up rows', note: 'Suction menu open: check on the current value. Mode, Water and Passes read the same.' },
+      { kind: 'alt', node: crop(c, segSettings(c)), title: 'All segmented', note: 'Suction needs five segments at 402 pt; every row is two lines tall.' }]);
+  };
+  S['settings-ax'] = function () {
+    var c = ctx('iphone', 'ax5');
+    return opts([
+      { kind: 'today', node: crop(c, todaySettings(c)), title: 'AX5 today', note: 'Segmented controls already turn into menus at accessibility sizes, so today has two grammars at AX and four at default.' },
+      { kind: 'rec', node: crop(c, popSettings(c)), title: 'AX5 pop-up rows', note: 'The value moves under the title (ModuleRow rule); the grammar does not change.' },
+      { kind: 'alt', node: crop(c, segSettings(c)), title: 'AX5 segmented', note: 'Falls back to menus (SegmentedChoice), so the "uniform segmented" grammar does not survive AX.' }]);
+  };
+  S['structure'] = function () {
+    return opts([
+      { kind: 'today', node: framed('iphone', 'default', function (c) { return todaySheet(c); }, { h: 1580 }), title: 'Five sections', note: 'Rooms/Area segmented, a Selected Rooms row that jumps to the Rooms tab, Passes, Clean, then Power Settings. Five icon-only tabs.' },
+      { kind: 'rec', node: framed('iphone', 'default', function (c) { return recSheet(c); }, { h: 1900 }), title: 'Four sections, one Clean section', note: 'Map, status tiles, room cards (76 pt min, order badges), Draw Area..., Cleaning Settings, Clean. Text-labelled bar.' },
+      { kind: 'alt', node: framed('iphone', 'default', function (c) { return altSheet(c); }, { h: 1640 }), title: 'Keep five, replace the target control', note: 'Selected Rooms row plus a Draw Area row replace the segmented control. The jump and the icon-only bar remain.' }]);
+  };
+  S['structure-area'] = function () {
+    return opts([
+      { kind: 'today', node: framed('iphone', 'default', function (c) { return todaySheet(c, { area: AREA }); }, { h: 1580 }), title: 'Area target', note: 'Area segment, description, Edit Area and Clear Area pills, passes, Start Area Clean.' },
+      { kind: 'rec', node: framed('iphone', 'default', function (c) { return recSheet(c, { area: AREA }); }, { h: 1520 }), title: 'Area row replaces the grid', note: 'The map outlines the area; one row with Edit and Clear; the same settings and the same Clean button.' },
+      { kind: 'alt', node: framed('iphone', 'default', function (c) { return altSheet(c, { area: AREA }); }, { h: 1580 }), title: 'Five sections kept', note: 'The Area row replaces the rooms row in the Controls list.' }]);
+  };
+  S['bar'] = function () {
+    var c = ctx(), cax = ctx('iphone', 'ax5');
+    function bar(cc, node) { return crop(cc, [node, h('p.pr-ann', cc.axSize ? 'AX5: a menu button' : '')]); }
+    var rec = function () { var cc = ctx(); return crop(cc, tabsRec(cc)); };
+    return opts([
+      { kind: 'today', node: crop(c, vac.tabBar(V({}), 'controls', c)), title: 'Five icons', note: 'Symbols only at compact width (named for VoiceOver by title).' },
+      { kind: 'rec', node: rec(), title: 'Four, icon and text', note: 'Titles fit at four. This needs ModalTabBar to use its titled form for four or fewer sections at compact width.' },
+      { kind: 'rec', badge: 'Recommended · AX5', node: (function () { var cc = ctx('iphone', 'ax5'); return crop(cc, tabsRec(cc)); })(), title: 'AX5', note: 'The existing menu form, unchanged: the current section name and a chevron.' }]);
+  };
+  S['wide-ipad'] = function () {
+    return opts([
+      { kind: 'today', node: framed('ipad-landscape', 'default', function (c) { return todaySheet(c); }, { minZ: .4 }), title: 'iPad landscape, today', note: 'Map and status left; tabs right, the Controls panel.' },
+      { kind: 'rec', node: framed('ipad-landscape', 'default', function (c) { return recSheet(c); }, { minZ: .4 }), title: 'iPad landscape, recommended', note: 'The Clean section sits in the right column with the room grid and Clean in one scroll.' }], { one: true });
+  };
+  S['wide-duo'] = function () {
+    return opts([
+      { kind: 'rec', node: framed('duo-unfolded-landscape', 'default', function (c) { return recSheet(c); }, { minZ: .4 }), title: 'Duo unfolded landscape, recommended (fully open)', note: 'The split is geometric (SplitPolicy), not a device-name check; the same builder as iPad.' }], { one: true });
+  };
+  function runCard(v, c) {
+    var acts = vac.actions(v);
+    return h('div.vc-card', { role: 'group' }, h('div.vc-btnrow' + (c.axSize ? '.stack' : ''), acts.map(function (a) { return vac.actionButton(Object.assign({}, a, { showDetail: a.disabled })); })));
+  }
+  S['cleaning'] = function () {
+    var c = ctx(), v = V({ scenario: 'cleaning' }), vp = V({ scenario: 'paused' });
+    var todayCol = h('div.vc-col', vac.mapColumn(c, v, 'controls', { legacy: true }), vac.controls(v, c));
+    var recMap = h('div.vc-gap12', map({ labels: 'none', selected: SEL, big: true, locate: false, robot: [220, 110], path: PATH }), tileGrid(v, true), vac.reportRow(v, v.report));
+    var pausedMap = h('div.vc-gap12', map({ labels: 'none', selected: SEL, big: true, locate: false, robot: [150, 165] }), tileGrid(vp, true));
+    return opts([
+      { kind: 'today', node: crop(c, todayCol), title: 'Today', note: 'Subtitle, Status chip and the run card header each say "Cleaning".' },
+      { kind: 'rec', node: crop(c, h('div.vc-col', recMap, runCard(v, c))), title: 'Header removed', note: 'Map grown, four tiles, the card is just Pause and Stop.' },
+      { kind: 'rec', badge: 'Recommended · paused', node: crop(c, h('div.vc-col', pausedMap, runCard(vp, c))), title: 'Paused', note: 'Resume is the one primary button; Stop beside it.' }]);
+  };
+  function autoToday(c, rows) {
+    var sec = vac.autoClean(V({})); var all = sec.querySelectorAll('.ui-mrow');
+    for (var i = rows; i < all.length; i++) all[i].remove();
+    return sec;
+  }
+  function autoRec(c, rows) {
+    var list = ROOMS.filter(function (r) { return r[0] !== 'dining_room' && r[0] !== 'closet' && r[0] !== 'gym' && r[0] !== 'guest_bathroom'; });
+    var order = ['living_room', 'bedroom_1', 'kitchen', 'office', 'hallway', 'guest_room', 'bathroom_1'];
+    var rs = order.slice(0, rows).map(function (id) { var r = ROOMS.filter(function (x) { return x[0] === id; })[0], on = id !== 'guest_room';
+      return K.ModuleRow({ title: r[1], subtitle: on ? null : 'Skipped', symbol: r[2], accessory: K.Toggle({ on: on, label: r[1] + ' auto-clean' }) }); });
+    return vac.section('Auto-Clean Rooms', [K.ModuleList({ rows: rs })], 'Rooms switched off are skipped when the coordinator starts an automatic away clean. Manual cleans are unaffected.');
+  }
+  S['auto'] = function () {
+    var c = ctx(), SK = ['guest_room'];
+    return opts([
+      { kind: 'today', node: crop(c, [map({ labels: 'names', skipped: SK, locate: false }), autoToday(c, 7)]), title: 'Checkmarks', note: 'A tick means skipped; the footer has to say so ("Checked rooms are skipped").' },
+      { kind: 'rec', node: crop(c, [map({ labels: 'none', skipped: SK, locate: false }), autoRec(c, 7)]), title: 'Switches', note: 'On = included. Guest Room is off with "Skipped" under it and hatched on the map.' }]);
+  };
+  S['dock'] = function () {
+    var c = ctx(), vd = V({}), vw = V({ scenario: 'dock-prep' }); vw.dockLabel = 'Washing';
+    var today = crop(c, [h('p.pr-ann', 'Status area during the wash'), vac.statusSummary(vw), h('p.pr-ann', 'Dock section'), vac.dock(vw)]);
+    var rec = crop(c, [h('p.pr-ann', 'Status area during the wash'), tileGrid(vw, true), h('p.pr-ann', 'Dock section'), vac.section('Dock Controls', [h('div.pr-note-box', 'The dock is washing the mop pads for the current cleaning session. To stop, use Cancel Cleaning Session on the Clean section.')])]);
+    return opts([
+      { kind: 'rec', badge: 'Unchanged', node: crop(c, vac.dock(vd)), title: 'Dock, docked', note: 'Blue-title action rows; identical in today and recommended.' },
+      { kind: 'today', node: today, title: 'Washing during a run', note: 'A "Dock Washing" chip and a fake "Washing Mop Pads" row.' },
+      { kind: 'rec', node: rec, title: 'Washing in the Dock tile', note: 'The tile carries the fact; the section keeps the explanation as text, with no invented row.' },
+      { kind: 'rec', badge: 'Unchanged', node: crop(c, vac.info(vd)), title: 'Info', note: 'Trailing values; orange for soon (Main Filter 7h left), red for due (Sensors).' }]);
+  };
+  function noNames(node) { node.querySelectorAll('.vc-map .lb').forEach(function (l) { l.remove(); }); return node; }
+  S['pushed'] = function () {
+    var c = ctx();
+    var dlg = h('div', { style: { position: 'relative', minHeight: '280px', background: 'rgba(0,0,0,.4)', borderRadius: '14px', display: 'grid', placeItems: 'center', padding: '16px' } },
+      K.Alert({ title: 'Switch to Area?', message: 'Continuing clears your selected rooms and opens area drawing.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Switch to Area' }], stacked: false }));
+    return opts([
+      { kind: 'today', node: crop(c, vac.areaEditor({ area: AREA, draw: false, names: true })), title: 'Area editor, names drawn', note: 'Its map still draws every room name behind the area.' },
+      { kind: 'rec', node: crop(c, noNames(vac.areaEditor({ area: AREA, draw: false }))), title: 'Area editor, no names', note: 'Same page; the map follows the new rule.' },
+      { kind: 'rec', badge: 'Recommended · dialog', node: crop(c, dlg), title: 'Switch to Area?', note: 'Unchanged copy. It follows the Draw Area... row when rooms are selected, instead of the segment.' }]);
+  };
+
+  /* ============================================================ DECIDED (owner, 2026-10-28) */
+  var AT = Mock.at, SELT = Mock.sel;
+  var AREA_TXT = '3.8 m × 2.6 m';
+  var ROOM_IDS = ['living_room', 'bedroom_1', 'kitchen', 'office', 'hallway', 'guest_room', 'bathroom_1', 'guest_bathroom', 'gym', 'closet', 'dining_room'];
+  var ORDER = ['kitchen', 'living_room', 'office'];
+
+  /* The tile, status and settings builders moved to the shared vacuum helpers (modals/vacuums/_devices-vacuums.js, vac.*) when the design was decided; the atlas mockups use the same ones. */
+  var actionTile = vac.actionTile, tiles = vac.tiles, statusTiles = vac.statusTiles;
+
+  /** Map column: map (no names, Locate on the map), status tiles, report row. tab: 'controls' | 'rooms' | 'auto' */
+  function decMapCol(c, v, tab, o) {
+    o = o || {};
+    var kids = [map({ labels: 'none', selected: tab === 'auto' ? [] : v.selected, skipped: tab === 'auto' ? v.skipped : [], area: o.area || v.area, big: v.minimal, locate: true,
+      robot: v.scenario === 'cleaning' ? [220, 110] : v.scenario === 'paused' ? [150, 165] : 'dock', path: v.scenario === 'cleaning' ? PATH : null }), statusTiles(v)];
+    if (v.report) kids.push(vac.reportRow(v, v.report));
+    return h('div.vc-gap12', kids);
+  }
+
+  /* ---- Cleaning Settings: the pop-up rows and the animated Water and Fan rows are vac.settingsGroup / vac.applyMode / vac.wireSettings */
+  var settingsSection = function (mode) { return vac.settingsGroup({ modeValue: mode }); };
+  var applyMode = vac.applyMode;
+  function wireSettings(root) {
+    vac.wireSettings(root, { onMode: function (m, fan, water) { var st = document.getElementById('pr-state'); if (st) st.textContent = 'Mode: ' + m + (water ? ', Water shown' : ', Water hidden') + (fan ? '' : ', Fan hidden'); } });
+  }
+  function cleanButton() { return vac.actionButton({ title: 'Clean', symbol: 'play.fill', tone: 'primary' }); }
+  function settingsStack(mode) { return h('div.vc-col', { style: { gap: '20px' } }, settingsSection(mode), cleanButton()); }
+
+  /* ---- Controls */
+  function targetRooms(c, v) {
+    var chips = h('button.vc-selrow', { type: 'button', 'aria-label': 'Selected Rooms', 'aria-description': 'Opens the Rooms section.' }, h('span.t', h('span', 'Selected Rooms')),
+      h('div.vc-flow', { style: { gap: '6px' } }, v.selected.map(function (id, i) { return vac.orderChip(i + 1, vac.zoneTitle(id)); })));
+    return h('div.pr-tgt', vac.section('Cleaning Target', [K.ModuleList({ rows: [chips], hasGlyphs: false }), tiles([actionTile({ title: 'Use Area', symbol: 'rectangle.dashed', full: true })], c)], 'The vacuum cleans the selected rooms in order.'));
+  }
+  function targetArea(c) {
+    return h('div.pr-tgt', vac.section('Cleaning Target', [tiles([actionTile({ title: 'Edit Area', subtitle: AREA_TXT, symbol: 'pencil' }), actionTile({ title: 'Clear Area', symbol: 'trash' }), actionTile({ title: 'Use Rooms', symbol: 'square.split.2x2', full: true })], c)], 'The vacuum cleans inside the drawn area, with the settings below.'));
+  }
+  function controlsCol(c, o) {
+    o = o || {}; var v = V({ selected: o.area ? [] : SEL, area: o.area || null });
+    return h('div.vc-col.pr-live', { style: { gap: '24px' } }, o.area ? targetArea(c) : targetRooms(c, v), settingsStack(o.mode || 'Vacuum and Mop'));
+  }
+  function tabs5(c, sel, v) { return vac.tabBar(v || V({}), sel, c); }
+  function wrapTwo(c, mc, tc) { return c.canSplit ? h('div.dv-two', { style: { margin: '0 -16px' } }, h('div', mc), h('div', tc)) : h('div.dv-col', { style: { maxWidth: '640px' } }, h('div.vc-col', mc, tc)); }
+  function controlsSheet(c, o) {
+    o = o || {}; var v = V({ selected: o.area ? [] : SEL, area: o.area || null }), col = controlsCol(c, o);
+    return sheet(c, wrapTwo(c, decMapCol(c, v, 'controls', { area: o.area }), col), tabs5(c, 'controls', v));
+  }
+  function liveFrame(h2) {
+    var f = framed('iphone', 'default', function (c) { return controlsSheet(c); }, { h: h2 || 1430, minZ: .5 });
+    var root = f.querySelector('.pr-live'); if (root) { root.classList.add('pr-live-root'); wireSettings(root); }
+    return f;
+  }
+
+  /* ---- Rooms and Auto-Clean tabs */
+  function roomsBody() {
+    var c0 = { family: 'cleaning', multi: true };
+    var items = ROOM_IDS.map(function (id) { var i = ORDER.indexOf(id); return { id: id, title: vac.zoneTitle(id), symbol: 'circle', order: i >= 0 ? i + 1 : 0 }; });
+    var grid = AT.grid(items.map(function (it) { return SELT.tile('C', it, c0); }), null, { max: 2, compact: true }); grid.classList.add('pr-wrapt');
+    return vac.section('Rooms', [grid], 'Tap rooms here or on the map. Rooms are cleaned in the order you choose them; the numbers show the order. Rooms can\'t be changed while cleaning.');
+  }
+  function autoBody() {
+    var c0 = { family: 'cleaning', multi: false, one: null };
+    var SK = ['guest_room', 'closet'];
+    var items = ROOM_IDS.map(function (id) { return { id: id, title: vac.zoneTitle(id), symbol: 'circle', sel: SK.indexOf(id) < 0 && id !== 'gym', unavail: id === 'gym' }; });
+    var ts = items.map(function (it) {
+      var t = SELT.tile('A', it, c0);
+      if (!it.sel && !it.unavail) { t.querySelector('.tx').appendChild(h('span.st', 'Skipped')); t.setAttribute('aria-label', it.title + ', Skipped'); }
+      return t;
+    });
+    return vac.section('Auto-Clean Rooms', [(function () { var g = AT.grid(ts, null, { max: 2, compact: true }); g.classList.add('pr-wrapt'); return g; })()], 'Checked rooms are included when the coordinator starts an automatic away clean. Unchecked rooms are skipped and hatched on the map. Manual cleans from Rooms are unaffected. Gym is unavailable until its switch reports in.');
+  }
+  function sectionSheet(c, tab, body, v) {
+    v = v || V({}); v.skipped = ['guest_room', 'closet'];
+    return sheet(c, wrapTwo(c, decMapCol(c, v, tab === 'autoClean' ? 'auto' : tab), body), tabs5(c, tab, v));
+  }
+
+  /* ---- Cleaning, Dock */
+  function cleaningSheet(c, sc) {
+    var v = V({ scenario: sc }), run = sc === 'paused'
+      ? [actionTile({ title: 'Resume', symbol: 'play.fill' }), actionTile({ title: 'Stop', symbol: 'stop.fill' })] : [actionTile({ title: 'Pause', symbol: 'pause.fill' }), actionTile({ title: 'Stop', symbol: 'stop.fill' })];
+    return sheet(c, wrapTwo(c, decMapCol(c, v, 'controls'), h('div.vc-col', tiles(run, c))), tabs5(c, 'controls', v), vac.subtitle(v));
+  }
+  function foot(t) { return vac.desc(t); }
+  function dockBody(kind, c) {
+    var parts = [];
+    function item(t, f) { parts.push(h('div.pr-stack', t, f ? foot(f) : null)); }
+    var D = { clean: 'Start the mop-dock cleaning phase. Use Stop Dock Clean when finished so the dock drains the wash tray.', stop: 'Finish the dock-cleaning phase and drain the wash tray into the dirty-water tank.',
+      dry: 'Start drying the attached mop pads.', bin: 'Trigger the dock to empty the robot dustbin into its dust bag.' };
+    if (kind === 'idle') {
+      item(actionTile({ title: 'Clean Mop Dock', symbol: 'drop', full: true }), D.clean); item(actionTile({ title: 'Dry Mops', symbol: 'wind', full: true }), D.dry); item(actionTile({ title: 'Empty Bin', symbol: 'trash.circle', full: true }), D.bin);
+    } else if (kind === 'sending') {
+      item(actionTile({ title: 'Stop Dock Clean', subtitle: 'Starting…', symbol: 'stop.fill', active: true, phase: 'inflight', full: true }), D.stop); item(actionTile({ title: 'Dry Mops', symbol: 'wind', phase: 'disabled', full: true }), D.dry); item(actionTile({ title: 'Empty Bin', symbol: 'trash.circle', phase: 'disabled', full: true }), D.bin);
+    } else if (kind === 'washing') {
+      item(actionTile({ title: 'Stop Dock Clean', subtitle: 'Washing', symbol: 'stop.fill', active: true, full: true }), D.stop); item(actionTile({ title: 'Dry Mops', symbol: 'wind', phase: 'disabled', full: true }), D.dry); item(actionTile({ title: 'Empty Bin', symbol: 'trash.circle', phase: 'disabled', full: true }), D.bin);
+    } else if (kind === 'nomop') {
+      item(actionTile({ title: 'Clean Mop Dock', symbol: 'drop', phase: 'disabled', full: true }), null); item(actionTile({ title: 'Dry Mops', symbol: 'wind', phase: 'disabled', full: true }), null); item(actionTile({ title: 'Empty Bin', symbol: 'trash.circle', full: true }), D.bin);
+      parts.push(foot('Attach the mop pads before cleaning or drying them at the dock.'));
+    } else parts.push(foot('The dock is washing the mop pads for the current cleaning session. To stop, use Cancel Cleaning Session on the Controls section.'));
+    return vac.section('Dock Controls', [h('div.vc-col', { style: { gap: '16px' } }, parts)]);
+  }
+  function dockV(kind) { return kind === 'washing' || kind === 'sending' ? V({ dock: 'cleaning', dockLabel: 'Washing' }) : kind === 'prep' ? (function () { var v = V({ scenario: 'dock-prep' }); v.dockLabel = 'Washing'; return v; })() : V({}); }
+  function dockSheet(c, kind) {
+    var v = dockV(kind);
+    return sheet(c, wrapTwo(c, decMapCol(c, v, 'dock'), dockBody(kind, c)), tabs5(c, 'more', v), vac.subtitle(v));
+  }
+
+  /* ---- slots */
+  S['d-map'] = function () {
+    var c = ctx(), SK = ['guest_room', 'closet'];
+    return opts([
+      { kind: 'rec', badge: 'Decided', node: crop(c, map({ labels: 'none', selected: ORDER, locate: true })), title: 'Rooms mode', note: 'No text. Kitchen, Living Room and Office are white with badges 1 to 3. The glass Locate circle stays top-left.' },
+      { kind: 'rec', badge: 'Decided', node: crop(c, map({ labels: 'none', selected: [], skipped: SK, locate: true })), title: 'Auto-Clean view', note: 'Guest Room and Closet hatched (skipped); nothing selected.' },
+      { kind: 'rec', badge: 'Decided', node: crop(c, map({ labels: 'none', selected: [], area: AREA, locate: true })), title: 'Area mode', note: 'The drawn area outlines on the map; no names.' }]);
+  };
+  S['d-status'] = function () {
+    var c = ctx(), cax = ctx('iphone', 'ax5'), a = V({ scenario: 'returning', dock: 'cleaning', dockLabel: 'Washing' }), b = V({ scenario: 'cleaning' });
+    return opts([
+      { kind: 'rec', badge: 'Decided', node: crop(c, statusTiles(a)), title: 'Returning, 87%, Washing', note: 'Three equal tiles in one row, read-only and flat: caption over value, toned glyph. Values differ in length; the tiles do not.' },
+      { kind: 'rec', badge: 'Decided', node: crop(c, statusTiles(b)), title: 'Cleaning, 74%, Idle', note: 'Same tiles, another run state.' },
+      { kind: 'rec', badge: 'Decided · AX5', node: crop(cax, statusTiles(a)), title: 'AX5', note: 'One column of three equal tiles.' }]);
+  };
+  S['d-live'] = function () { return liveFrame(); };
+  S['d-film'] = function () {
+    var c = ctx();
+    function frame(mode, p) {
+      var st = settingsStack(mode), w = st.querySelector('[data-k="Water"]');
+      if (p != null && w) { w.hidden = false; w.style.overflow = 'hidden'; w.style.height = 'calc(52px * var(--sc, 1) * ' + p + ')'; w.style.opacity = String(Math.min(1, p * 1.35)); }
+      return crop(c, h('div.pr-live', st));
+    }
+    function fig(node, cap) { return h('figure', node, h('figcaption', cap)); }
+    return h('div.pr-film',
+      fig(frame('Vacuum', null), [h('b', 'Before, t = 0. '), 'Mode is Vacuum: no Water row. The group is three rows; the footer and the Clean button sit directly below.']),
+      fig(frame('Vacuum and Mop', .55), [h('b', 'Mid, t ≈ 0.15 s. '), 'The Water row is half open and half faded; the group has grown by the same amount, and Passes, the footer and the button have slid down with it. Hairlines and corners are the group\'s.']),
+      fig(frame('Vacuum and Mop', null), [h('b', 'After, t = 0.3 s. '), 'Water is in, at rest: four rows, the last row has the bottom corners, the footer and Clean are one row lower.']));
+  };
+  S['d-area'] = function () {
+    var dlg = function (kind) {
+      var area = kind === 'area';
+      return K.Alert({ title: area ? 'Use Area?' : 'Use Rooms?', message: area ? 'Continuing clears your selected rooms and opens area drawing.' : 'You have an area drawn right now. Using Rooms will discard that area.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: area ? 'Use Area' : 'Use Rooms' }] });
+    };
+    return opts([
+      { kind: 'rec', badge: 'Decided', node: framed('iphone', 'default', function (c) { return controlsSheet(c, { area: AREA }); }, { h: 1560 }), title: 'Area mode', note: 'Edit Area (with the size), Clear Area, Use Rooms: action tiles. Same Cleaning Settings and Clean button.' },
+      { kind: 'rec', badge: 'Decided · alert', node: framed('iphone', 'default', function (c) { var v = V({ selected: SEL }); return Mock.sheet(c, { title: 'Main Floor Robot Vacuum', subtitle: 'Docked · 87%', detent: 'large', size: 'page', trailing: 'close', content: wrapTwo(c, decMapCol(c, v, 'controls'), controlsCol(c)), tabs: tabs5(c, 'controls', v), presenter: null, alert: dlg('area') }); }, { h: 1100 }), title: 'The Use Area alert', note: 'Raised by Use Area while rooms are selected.' },
+      { kind: 'rec', badge: 'Decided · alert', node: framed('iphone', 'default', function (c) { var v = V({ selected: [], area: AREA }); return Mock.sheet(c, { title: 'Main Floor Robot Vacuum', subtitle: 'Docked · 87%', detent: 'large', size: 'page', trailing: 'close', content: wrapTwo(c, decMapCol(c, v, 'controls', { area: AREA }), controlsCol(c, { area: AREA })), tabs: tabs5(c, 'controls', v), presenter: null, alert: dlg('rooms') }); }, { h: 1100 }), title: 'The Use Rooms alert', note: 'Raised by Use Rooms while an area is drawn, and by a room tap or map tap.' }]);
+  };
+  S['d-ax'] = function () {
+    return opts([{ kind: 'rec', badge: 'Decided · AX5', node: framed('iphone', 'ax5', function (c) { return controlsSheet(c); }, { h: 5600, minZ: .45 }), title: 'Controls at AX5', note: 'One column of status tiles, full-row action tiles, values under the pop-up row titles.' }], { one: true });
+  };
+  S['d-wide'] = function () {
+    return opts([{ kind: 'rec', badge: 'Decided', node: framed('ipad-landscape', 'default', function (c) { return controlsSheet(c); }, { minZ: .4 }), title: 'iPad landscape', note: 'Map and status left, Controls right, same builders. Duo unfolded landscape uses the same split.' }], { one: true });
+  };
+  S['d-rooms'] = function () {
+    return opts([
+      { kind: 'rec', badge: 'Decided', node: framed('iphone', 'default', function (c) { return sectionSheet(c, 'zones', roomsBody()); }, { h: 1480 }), title: 'Rooms', note: 'Two columns; chosen tiles fill with the order disc, the rest are dark with an empty circle. Footer below the grid. Long names (Bathroom 1) wrap to two lines.' },
+      { kind: 'rec', badge: 'Decided', node: framed('iphone', 'default', function (c) { return sectionSheet(c, 'autoClean', autoBody()); }, { h: 1540 }), title: 'Auto-Clean', note: 'Check discs: included or skipped. Guest Room and Closet say "Skipped" and hatch on the map; Gym is unavailable.' }]);
+  };
+  S['d-cleaning'] = function () {
+    return opts([
+      { kind: 'rec', badge: 'Decided', node: framed('iphone', 'default', function (c) { return cleaningSheet(c, 'cleaning'); }, { h: 960 }), title: 'Cleaning', note: 'Map grown, Status tile says Cleaning, Pause and Stop as action tiles, no text under them.' },
+      { kind: 'rec', badge: 'Decided · paused', node: framed('iphone', 'default', function (c) { return cleaningSheet(c, 'paused'); }, { h: 960 }), title: 'Paused', note: 'Resume and Stop.' }]);
+  };
+  S['d-dock'] = function () {
+    return opts([
+      { kind: 'rec', badge: 'Decided', node: framed('iphone', 'default', function (c) { return dockSheet(c, 'idle'); }, { h: 1150 }), title: 'Dock, docked', note: 'Clean Mop Dock, Dry Mops, Empty Bin as action tiles; the explanation is a footer under each.' },
+      { kind: 'rec', badge: 'Decided · washing', node: framed('iphone', 'default', function (c) { return dockSheet(c, 'washing'); }, { h: 1150 }), title: 'Washing', note: 'The Dock tile reads Washing; Clean Mop Dock became Stop Dock Clean on the filled face; the other commands dim in place.' }]);
+  };
+  S['d-dock2'] = function () {
+    var c = ctx();
+    return opts([
+      { kind: 'rec', badge: 'Decided · just tapped', node: crop(c, [statusTiles(dockV('sending')), dockBody('sending', c)]), title: 'Tracked: starting', note: 'After the tap the disc turns to the arc spinner (tracked feedback) until the dock reports Washing.' },
+      { kind: 'rec', badge: 'Decided · mop pads off', node: crop(c, [statusTiles(V({})), dockBody('nomop', c)]), title: 'Mop pads not attached', note: 'The wash and dry tiles dim in place; the footer says why.' },
+      { kind: 'rec', badge: 'Decided · wash during a run', node: crop(c, [statusTiles(dockV('prep')), dockBody('prep', c)]), title: 'Dock washing before the robot leaves', note: 'No commands, so the section is its footer; the Dock tile says Washing.' },
+      { kind: 'rec', badge: 'Unchanged', node: crop(c, vac.info(V({}))), title: 'Info', note: 'Trailing values; orange for soon, red for due.' }]);
+  };
+  S['d-pushed'] = function () {
+    var c = ctx();
+    return opts([
+      { kind: 'rec', badge: 'Decided', node: crop(c, noNames(vac.areaEditor({ area: AREA, draw: false }))), title: 'Area editor', note: 'The map has no names; tools, summary and Use This Area unchanged.' },
+      { kind: 'rec', badge: 'Decided', node: crop(c, vac.reportDetail('interrupted')), title: 'Cleaning report page', note: 'The room rows are the page; there is no map. The report row under the sheet\'s map is unchanged.' }]);
+  };
+  function wireControls() {
+    var rp = document.getElementById('pr-replay'), rm = document.getElementById('pr-rm'), st = document.getElementById('pr-state');
+    if (rp) rp.addEventListener('click', function () {
+      var root = document.querySelector('.pr-live-root'); if (!root) return;
+      var set = function (m) { root.querySelector('[data-k="Mode"] .v').textContent = m; };
+      rp.disabled = true; set('Vacuum and Mop'); applyMode(root, 'Vacuum and Mop', { instant: true });
+      if (st) st.textContent = 'Replay: Mode Vacuum, Water slides out…';
+      setTimeout(function () { set('Vacuum'); applyMode(root, 'Vacuum').then(function () {
+        if (st) st.textContent = 'Replay: Mode Vacuum and Mop, Water slides in…';
+        setTimeout(function () { set('Vacuum and Mop'); applyMode(root, 'Vacuum and Mop').then(function () { rp.disabled = false; if (st) st.textContent = 'Replay finished. Open Mode to try Vacuum, Mop or Vacuum and Mop.'; }); }, 900); }); }, 500);
+    });
+    if (rm) rm.addEventListener('click', function () {
+      var on = rm.getAttribute('aria-pressed') !== 'true'; rm.setAttribute('aria-pressed', String(on)); Mock.settings.reduceMotion = on;
+      document.querySelectorAll('.pr-live-root').forEach(function (r) { r.classList.toggle('k-reduce-motion', on); });
+      if (st) st.textContent = on ? 'Reduce Motion on: the row cross-fades in place, no slide.' : 'Reduce Motion off.';
+    });
+  }
+
+  /* ------------------------------------------------------------ render */
+  var timer;
+  function renderAll() {
+    APP = appearance();
+    document.documentElement.setAttribute('data-theme', mode === 'auto' ? '' : mode);
+    if (mode === 'auto') document.documentElement.removeAttribute('data-theme');
+    document.querySelectorAll('[data-slot]').forEach(function (el) {
+      var fn = S[el.getAttribute('data-slot')];
+      try { el.replaceChildren(fn ? fn() : document.createTextNode('missing slot')); } catch (e) { el.textContent = 'Could not render ' + el.getAttribute('data-slot') + ': ' + e.message; console.error(e); }
+    });
+    fitFrames();
+  }
+  document.querySelectorAll('[data-ap]').forEach(function (b) {
+    b.addEventListener('click', function () { mode = b.getAttribute('data-ap'); document.querySelectorAll('[data-ap]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); renderAll(); });
+  });
+  window.addEventListener('resize', function () { clearTimeout(timer); timer = setTimeout(fitFrames, 120); });
+  if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { if (mode === 'auto') renderAll(); });
+  Mock.settings.reduceMotion = false;
+  wireControls();
+  renderAll();
+})();
+</script>
+<script>(function(){var d=document.getElementById('history');if(d)d.addEventListener('toggle',function(){window.dispatchEvent(new Event('resize'));});})();</script>
+</body></html>

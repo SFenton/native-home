@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Colour families and palettes · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../weather/_home-weather.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, HW = Mock.HW, M = Mock.color;
+
+  /* ColorFamily.spec (glyph, fill, darkInk), glyphLightRGB and the chip fill and glyph, as in apple/Sources/HassDesign/ColorFamily.swift.
+     css = the kit's --fam-<css>-* variable name; chip = [fill, glyph] when it differs from the family's own. */
+  var FAMS = [
+    // device families
+    ['lights', 'Lights', 'FF9630', null, 'BD6F24', false, ['7A4A00', 'FF9630'], 'The warm lit tile (no fill); Lights chip; Custom Lights Quick Link', 'device'],
+    ['heating', 'Heating', 'FF7A2F', 'A8440A', 'CF6326', false, null, 'Thermostats and bed sides while heating', 'device'],
+    ['cooling', 'Cooling', '3FC6D2', '1B6F78', '2D8F97', false, null, 'Thermostats and bed sides while cooling', 'device'],
+    ['vents', 'Vents', '8FA8FF', '3B58B8', '6D80C2', false, null, 'Vents', 'device'],
+    ['air', 'Air', '2FD3C1', '006E62', '209285', false, ['006E62', '2FD3C1'], 'Fans, purifiers, bath fans, air quality', 'device'],
+    ['water', 'Water', '4CC9F0', '076C91', '358DA8', false, null, 'Humidifiers, sprinklers', 'device'],
+    ['occupancy', 'Occupancy', '5BD16A', '2A732E', '40924A', false, null, 'Presence and motion sensors, guest stays', 'device'],
+    ['contact', 'Contact', '7ED787', '3B523E', '54905A', false, ['3B523E', '7ED787'], 'Contact sensors, the garage', 'device'],
+    ['media', 'Media', 'FF7AA8', 'A03A61', 'C96085', false, null, 'TVs, remotes, consoles, PCs, speakers', 'device'],
+    ['cleaning', 'Cleaning', 'C88CFA', '7A3FB0', '9C6DC3', false, null, 'Vacuums, dishwasher, laundry', 'device'],
+    ['power', 'Power', 'FFD60A', 'FFD60A', '998006', true, null, 'Plugs, towel rack, chargers (dark ink)', 'device'],
+    ['cooking', 'Cooking', 'FF8A4C', 'A8420E', 'C46A3B', false, null, 'Grill and oven', 'device'],
+    ['climate', 'Climate', 'FFCC00', '195482', '9E7E00', false, ['195482', 'FFCC00'], 'Whole-home climate status (navy, yellow thermometer)', 'device'],
+    ['neutral', 'Neutral', '8E8E93', null, '818186', false, null, 'Anything without a family: grey glyph, no fill', 'device'],
+    // security modes
+    ['sec-home', 'Security Home', '64B0FF', '1565C0', '4C86C2', false, null, 'Armed Home', 'security'],
+    ['sec-away', 'Security Away', 'FF6961', 'C62828', 'D95952', false, null, 'Armed Away', 'security'],
+    ['sec-night', 'Security Night', 'D08CF0', '7B1FA2', 'A26DBB', false, null, 'Armed Night', 'security'],
+    ['sec-disarmed', 'Security Disarmed', '5BD16A', '2A732E', '40924A', false, null, 'Disarmed', 'security'],
+    ['sec-triggered', 'Security Triggered', 'FF6961', 'D70015', 'D95952', false, null, 'Alarm triggered', 'security'],
+    // chores
+    ['chore-resident1', 'Chores: Alex', '8FA0FF', '0022CC', '0022CC', false, null, 'Ultramarine; Chores quick-link tile', 'chores'],
+    ['chore-resident2', 'Chores: Sam', 'FF8CF7', 'B410AE', 'B410AE', false, null, 'Magenta', 'chores'],
+    ['chore-unassigned', 'Chores: Unassigned', 'FF8FBF', 'C2127A', 'C2127A', false, null, 'Raspberry', 'chores'],
+    ['chore-home', 'Chores: Home', 'B98CFF', '6600CC', '6600CC', false, null, 'Violet', 'chores'],
+    ['groceries', 'Groceries', 'E0916F', '802200', '802200', false, null, 'Chestnut', 'chores'],
+    // food
+    ['pantry', 'Pantry', 'AC8F6B', '855A25', 'A28665', false, null, 'Food hub tile', 'food'],
+    ['fridge', 'Fridge', '639AB6', '196B94', '5D91AB', false, null, 'Food hub tile (also All Recipes)', 'food'],
+    ['freezer', 'Freezer', '8292C5', '2F4A9E', '7A89B9', false, null, 'Food hub tile', 'food'],
+    ['spice', 'Spice Rack', 'C5826C', 'AA4727', 'B97A66', false, null, 'Food hub tile', 'food'],
+    ['cabinet', 'Cabinet', '9A928B', '6A5F55', '918983', false, null, 'Food hub tile', 'food'],
+    ['food', 'All Food', '849A87', '4A6B4E', '7B8F7E', false, null, 'The web\'s sage green', 'food'],
+    ['recipes', 'All Recipes', '639AB6', '196B94', '5D91AB', false, null, 'The web\'s blue (same as the Fridge)', 'food'],
+  ];
+  var ROOMS = [['living-room', 'Living Room', '8A6F44'], ['guest-room', 'Guest Room', '0D8457'], ['gym', 'Gym', 'AF5F00'], ['master-bedroom', 'Bedroom 1', '3E3EB7'], ['office', 'Office', '007E94'], ['hallway', 'Hallway', '72492D'], ['kitchen', 'Kitchen', '547F12'], ['music-room', 'Studio', '901E79'],
+    ['garage', 'Garage', 'A6222C'], ['theater-room', 'Media Room', '453057'], ['back-deck', 'Back Deck', '195E20'], ['downstairs-hallway', 'Downstairs Hallway', '637145'], ['guest-bathroom', 'Guest Bathroom', '407B6E'], ['master-bathroom', 'Bathroom 1', '59596F'], ['dining-room', 'Dining Room', '975B46'], ['entryway', 'Entryway', '7D7200']];
+  var QLS = [['rooms', 'Rooms', '1F3A5F', 'square.split.2x2', 'A deep navy none of the sixteen rooms, the families or the alarm modes use: the tile stands for all of them'], ['security-system', 'Security System', '(alarm mode fill)', 'shield', 'The current mode\'s fill, or the unknown slate #4C6270 while unknown or redacted'], ['food', 'Food & Recipes', '4A6B4E', 'fork.knife', 'Food green'], ['vacuums', 'Vacuums', '7A3FB0', 'robotic.vacuum', 'Cleaning purple'],
+    ['media', 'Media', 'A03A61', 'tv', 'Media pink'], ['custom-lights', 'Custom Lights', '7A4A00', 'lightbulb', 'The Lights chip amber (lights have no tile fill)'], ['sprinklers', 'Sprinklers', '076C91', 'sprinkler.and.droplets', 'Water blue']];
+
+  function rgb(hex) { return M.rgb('#' + hex.replace('#', '')); }
+  function cr(a, b) { return M.contrast(rgb(a), rgb(b)).toFixed(1); }
+  function dot(hex, o) { o = o || {}; return h('span', { style: { display: 'inline-block', width: '16px', height: '16px', borderRadius: o.sq ? '4px' : '50%', background: '#' + hex, verticalAlign: '-3px', marginRight: '6px', boxShadow: 'inset 0 0 0 1px rgba(128,128,128,.45)' } }); }
+  function mixHex(a, b, amt) { var m = M.mix(rgb(a), rgb(b), amt); return M.hex((m[0] << 16) | (m[1] << 8) | m[2]).slice(1); }
+  function table(head, rows) { return h('div.k-table-wrap', h('table', h('thead', h('tr', head.map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); })))); }
+  function sheetSurface(ctx) { return { dark: ctx.appearance === 'dark' }; }
+
+  function famTile(f, on) {
+    return { title: f[1], subtitle: on ? 'On' : 'Off', symbol: { lights: 'lightbulb', heating: 'thermometer.medium', cooling: 'snowflake', vents: 'wind', air: 'fan', water: 'humidity', occupancy: 'figure.walk.motion', contact: 'door.left.hand.closed', media: 'tv', cleaning: 'robotic.vacuum', power: 'bolt.fill', cooking: 'flame', climate: 'thermometer.medium', neutral: 'circle.lefthalf.filled',
+      'sec-home': 'shield', 'sec-away': 'shield', 'sec-night': 'moon', 'sec-disarmed': 'shield', 'sec-triggered': 'exclamationmark.shield', 'chore-resident1': 'checklist', 'chore-resident2': 'checklist', 'chore-unassigned': 'tray', 'chore-home': 'house', groceries: 'cart', pantry: 'cabinet', fridge: 'refrigerator', freezer: 'snowflake', spice: 'flame', cabinet: 'cabinet', food: 'fork.knife', recipes: 'fork.knife' }[f[0]] || 'circle.lefthalf.filled', family: f[0], isActive: on };
+  }
+  function tileGrid(list, on) { return K.TileGrid({ min: 150, max: 4, items: list.map(function (f) { return famTile(f, on); }) }); }
+  function pair(ctx, list, capPrefix) {
+    return HW.swatches(ctx, [
+      { cap: 'page · ' + capPrefix + ' · on (filled, tinted glass)', surface: 'page', node: tileGrid(list, true) },
+      { cap: 'page · ' + capPrefix + ' · off (dark, glyph in the family colour)', surface: 'page', node: tileGrid(list, false) },
+      { cap: 'sheet · ' + capPrefix + ' · on (opaque fill)', surface: 'sheet', node: tileGrid(list, true) },
+      { cap: 'sheet · ' + capPrefix + ' · off (glyph darkened to 3:1 in a light sheet)', surface: 'sheet', node: tileGrid(list, false) }]);
+  }
+  function by(kind) { return FAMS.filter(function (f) { return f[8] === kind; }); }
+
+  Mock.mount({
+    kind: 'component', id: 'color-families', title: 'Colour families and palettes (tokens)', area: 'design', status: 'shipped', frame: false,
+    summary: 'The colours the app uses to say what a thing is: one family per kind of device (glyph, on-fill, chip fill), the five alarm modes, the Chores and Food families, sixteen room fills and seven Quick Link fills, plus the ink and ground tokens of direction G. Each row computes its own contrast, so the numbers cannot drift from the swatches.',
+    source: ['apple/Sources/HassDesign/ColorFamily.swift', 'apple/Sources/HassDesign/ColorFamily+Glass.swift', 'apple/Sources/HassDesign/HassTokens.swift', 'apple/Sources/HassDesign/RoomPalette.swift', 'apple/Sources/HassDesign/QuickLinkPalette.swift', 'apple/Sources/HassDesign/FinishColor.swift', 'apple/Sources/HassDesign/ChipTint.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/entity-tile.md', '.agents/patterns/status-rail.md'],
+    patterns: ['entity-tile', 'status-rail'],
+    hig: ['Color', 'Dark Mode', 'Accessibility (contrast)', 'Materials'],
+    entities: [],
+    kitComponents: ['GlassTile', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'families': { title: 'Device families: on, off, in a sheet', note: 'a family is one colour everywhere: tile glyph, filled tile, chip fill. Red is never a family; alerts draw a red glyph on whatever tile they belong to', render: function (ctx) { return pair(ctx, by('device').filter(function (f) { return f[0] !== 'neutral'; }), 'device families'); } },
+      'security': { title: 'Security modes', note: 'the alarm mode fills the tile, the chip and the Quick Link tile with the same colour (web alarmColor); triggered is #D70015', render: function (ctx) { return pair(ctx, by('security'), 'security modes'); } },
+      'chores-food': { title: 'Chores and Food families', note: 'distinct from every device, security, Food and room fill (at least 0.05 OKLab apart); Food tiles are the web colours darkened until white passes 4.5:1', render: function (ctx) { return pair(ctx, by('chores').concat(by('food')), 'chores and food'); } },
+      'rooms': { title: 'Room palette (16)', note: 'a solid fill with a filled white glyph and white text on and off, the same on a page and in a sheet; each keeps its web hue and white holds at least 4.7:1', render: function (ctx) {
+        var tiles = ROOMS.map(function (r) { return { title: r[1], symbol: 'house', room: r[0], layout: 'stack', titleLines: 2, kind: 'navigate' }; });
+        var rows = ROOMS.map(function (r) { return [dot(r[2], { sq: true }), r[1], '#' + r[2], 'white ' + cr('FFFFFF', r[2]) + ':1']; });
+        return HW.swatches(ctx, [{ cap: 'page · room tiles (Rooms grid)', surface: 'page', node: K.TileGrid({ min: 150, max: 4, items: tiles }) }, { cap: 'sheet · room tiles', surface: 'sheet', node: K.TileGrid({ min: 150, max: 4, items: tiles }) }, { cap: 'values', surface: 'page', width: 520, node: table(['', 'Room', 'Fill', 'Contrast'], rows) }]); } },
+      'quick-links': { title: 'Quick Links palette', note: 'nothing new but Rooms: each page keeps the colour its own screens use', render: function (ctx) {
+        var QF = { 'rooms': 'var(--ql-rooms)', 'security-system': 'var(--fam-sec-home-fill)', 'food': 'var(--fam-food-fill)', 'vacuums': 'var(--fam-cleaning-fill)', 'media': 'var(--fam-media-fill)', 'custom-lights': 'var(--ql-custom-lights)', 'sprinklers': 'var(--fam-water-fill)' };
+        var tiles = QLS.map(function (q) { return { title: q[1], symbol: q[3], fill: QF[q[0]], layout: 'stack', titleLines: 2, kind: 'navigate' }; });
+        var rows = QLS.map(function (q) { return [q[1], /^[0-9A-F]{6}$/.test(q[2]) ? [dot(q[2], { sq: true }), '#' + q[2] + ' · white ' + cr('FFFFFF', q[2]) + ':1'] : q[2], q[4]]; });
+        return HW.swatches(ctx, [{ cap: 'page · Quick Links tiles (Security System shown armed home)', surface: 'page', node: K.TileGrid({ min: 150, max: 4, items: tiles }) }, { cap: 'values', surface: 'page', width: 640, node: table(['Link', 'Fill', 'Why'], rows) }]); } },
+      'values': { title: 'Every family value with contrast', note: 'white on the fill, the glyph on the dark ground and the light-sheet glyph on white; all computed here from the hex', render: function (ctx) {
+        var rows = FAMS.map(function (f) {
+          var fillTxt = f[3] ? [dot(f[3], { sq: true }), '#' + f[3], f[5] ? ' · dark ink ' + cr('1C1C1E', f[3]) + ':1' : ' · white ' + cr('FFFFFF', f[3]) + ':1'] : 'none',
+              chip = f[6] ? [dot(f[6][0], { sq: true }), '#' + f[6][0], ' / ', dot(f[6][1]), '#' + f[6][1]] : (f[3] ? [dot(f[3], { sq: true }), 'family fill, white glyph'] : '—');
+          return [f[1], [dot(f[2]), '#' + f[2], ' · on #1C1C1E ' + cr(f[2], '1C1C1E') + ':1'], fillTxt, [dot(f[4]), '#' + f[4], ' · on white ' + cr(f[4], 'FFFFFF') + ':1'], chip];
+        });
+        return HW.swatches(ctx, [{ cap: 'page · ColorFamily.spec, glyphLightRGB, chipFillRGB', surface: 'page', width: 1000, node: table(['Family', 'Glyph (dark)', 'On-tile fill', 'Glyph (light sheet)', 'Chip fill / glyph'], rows) }]); } },
+      'glyph-off': { title: 'Off glyphs: the family colour mixed toward grey', note: 'an off tile keeps its kind of device visible without reading as on: the glyph mixed 72% with grey (88% under tinted glass, lifted toward white until it holds 3:1 on the lightest ground)', render: function (ctx) {
+        var rows = by('device').filter(function (f) { return f[0] !== 'neutral'; }).map(function (f) {
+          var offDark = mixHex(f[2], '8E8E93', .72), offGlass = mixHex(f[2], '8E8E93', .88), offLight = mixHex(f[4], '6C6C70', .72);
+          return [f[1], [dot(f[2]), '#' + f[2]], [dot(offDark), '#' + offDark + ' · ' + cr(offDark, '1C1C1E') + ':1 on #1C1C1E'], [dot(offGlass), '#' + offGlass + ' (before the lift)'], [dot(offLight), '#' + offLight + ' · ' + cr(offLight, 'FFFFFF') + ':1 on white']];
+        });
+        return HW.swatches(ctx, [{ cap: 'page · off glyph values', surface: 'page', width: 900, node: table(['Family', 'Glyph', 'Off (solid, 72%)', 'Off (tinted glass, 88%)', 'Off (light sheet)'], rows) }]); } },
+      'ink-surface': { title: 'Ink and surface tokens (HassTokens)', note: 'pages are always dark; the sheet tokens are light and dark pairs that follow the sheet\'s appearance', render: function (ctx) {
+        var P = [['Sheet ground', '1C1C1E', 'F2F2F7', 'sheetGround'], ['Sheet cell / tile', '2C2C2E', 'FFFFFF', 'sheetCell'], ['Thin module (66%)', '1C1C1E', '—', 'moduleThin: cards, chips, tiles on the wallpaper'], ['Dense module (78%)', '141416', '—', 'moduleDense: red and orange text, Reduce Transparency'], ['Tint text', '409CFF', '0066CC', 'Ink.action'], ['Tint fill (white label)', '0071E3', '0071E3', 'Ink.actionFill'],
+          ['Red (error, destructive)', 'FF6961', 'C21717', 'Ink.error / danger'], ['Orange (soon, warning)', 'FFB340', '995400', 'Ink.warning'], ['Success', '30D158', '1E7B34', 'Ink.success'], ['Badge', 'D93025', 'D93025', 'count badges under white numerals'], ['Secondary label', 'EBEBF5 at 60% / 68% / 85%', '3C3C43 at 76%', 'secondaryInSheet / onModule / onWallpaper']];
+        var rows = P.map(function (r) { var d = /^[0-9A-F]{6}$/.test(r[1]), l = /^[0-9A-F]{6}$/.test(r[2]); return [r[0], d ? [dot(r[1], { sq: true }), '#' + r[1]] : r[1], l ? [dot(r[2], { sq: true }), '#' + r[2]] : r[2], r[3]]; });
+        return HW.swatches(ctx, [{ cap: 'page · HassTokens.Palette', surface: 'page', width: 860, node: table(['Token', 'Dark', 'Light (sheets only)', 'Used for'], rows) }]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'tiles reflow to one column and stack glyph over text', render: function (ctx) { return HW.swatches(ctx, [{ cap: 'page · three families at AX5', surface: 'page', width: 520, node: tileGrid([FAMS[1], FAMS[6], FAMS[14]], true) }]); } },
+    },
+
+    motion: [
+      { id: 'family-fill', what: 'A tile turns on: the family colour fills the tinted glass and the glyph turns white', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'families',
+        source: 'GlassTile.swift stateColorTransition("GlassTile"); motion.md section 6', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-tile'); var off = Array.prototype.filter.call(t, function (x) { return !x.classList.contains('on') && !x.classList.contains('lit') && !x.classList.contains('power'); })[0]; if (!off) return Promise.resolve(); var fam = off.dataset.family; return Mock.anim.toggleState(off, ['on'], ['tinted']).then(function () { return Mock.anim.toggleState(off, [], ['on']); }); } },
+    ],
+    transitions: [],
+
+    a11y: [
+      { rule: 'Colour is never the only signal', note: 'A family colour sits beside a glyph, a title and a state word on every tile and chip; red is reserved for alerts so a red glyph always means something is wrong.' },
+      { rule: 'Text on fills', note: 'White (or the dark ink on the power yellow) holds at least 4.5:1 on every on-tile and chip fill; supporting text is white at 92%, 4.5:1 or better on every fill (WCAG 1.4.3). The table above computes each ratio.' },
+      { rule: 'Glyphs', note: 'The glyph holds at least 3:1 on its ground (WCAG 1.4.11): the dark values on pages and dark sheets, the darkened glyphLightRGB on a light sheet and its cell, the lifted off glyph under tinted glass.' },
+      { rule: 'Increase Contrast and Reduce Transparency', note: 'The tinted glass finish falls back to the solid finish (opaque family fill, thin module when off); the colours themselves do not change.' },
+      { rule: 'Colour-blind separation', note: 'Rooms, families and alarm modes are at least 0.05 in OKLab from each other (tests in ColorFamilyTests and RoomPaletteTests), so a room tile never reads as a device or as an alarm state.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Color: avoid relying solely on color; convey with text labels or glyph shapes", verdict: "pass", note: "A family colour always sits beside a glyph, a title and a state word; red is never a family, so a red glyph with 'Didn't respond' always means a fault.", by: "apple-hig skill" },
+        { rule: "Color: contrast at least 4.5:1 in light and dark; supply light and dark variants for custom colors", verdict: "pass", note: "ColorFamily.Spec fills carry white or dark ink at 4.5:1 or better (power uses dark ink), glyphLightRGB darkens every glyph to 3:1 on a light sheet, and ColorFamilyTests assert the ratios; the mockup's table recomputes them.", by: "apple-hig skill" },
+        { rule: "Color: custom colors need a significantly more differentiated Increased Contrast option", verdict: "pass", note: "HassTokens.Ink.secondary and the dynamic Ink colors (error, danger, warning, action) step toward the extreme under Increase Contrast (Ink.increasedContrast, 35%).", by: "apple-hig skill" },
+        { rule: "Color: avoid colors people with color blindness might not distinguish", verdict: "pass", note: "Not applicable: no family, room or state is carried by hue alone; each pairs a glyph, a title and a state word (see GlassTile, GlassStateTile, WeekdayPicker checkmark), which is what the HIG asks for.", by: "apple-hig skill" },
+        { rule: "Color: avoid hard-coding color values; prefer system colors", verdict: "departure", note: "Owner 2026-10-14 ('codify some colors for device families... so we have distinct tile colors throughout the app') and direction-g.md Colour fix an app palette; system label, separator and sheet grounds are still mapped to the system's values (#1C1C1E, #2C2C2E, #F2F2F7).", by: "apple-hig skill" },
+        { rule: "Dark Mode: pages are always dark on the wallpaper; sheets follow the appearance", verdict: "departure", note: "Pages draw one dark appearance over the house wallpaper (direction-g.md Layers); only sheets switch, through Surface.sheetGround and sheetCell pairs and followsSystemAppearance.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Design: shared enum of constants for colours, spacing and radii", verdict: "pass", note: "HassTokens (Spacing, Radius, Palette, Ink, Surface) and ColorFamily.spec keep raw 0xRRGGBB values in one place so tests can check contrast; views never write literals.", by: "swiftui-pro skill" },
+        { rule: "Design: avoid UIColor in SwiftUI; prefer Color or asset-catalog colours", verdict: "pass", note: "Not applicable: Color.adaptive and Ink.dynamic are the one place UIColor trait closures live; SwiftUI has no trait-dependent Color before iOS 26 and a Color Set per token would add resource bundles to the Swift package for no pixel change.", by: "swiftui-pro skill" },
+        { rule: "Design: prefer system hierarchical styles over manual opacity", verdict: "departure", note: "Ink.secondary and Surface.secondaryOn* are plain Colors at fixed opacities because .secondary picks up vibrancy on a material and measured 3.1:1 over the wallpaper (HassTokens.swift Ink doc comment, ArcProgressViewStyle comment).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: respect differentiateWithoutColor where colour is the differentiator", verdict: "pass", note: "No view reads accessibilityDifferentiateWithoutColor, and none needs to: every colour-coded state also changes a glyph variant (fill versus outline), a state word or a toggle value.", by: "swiftui-pro skill" },
+        { rule: "Data: colours as pure values with tests", verdict: "pass", note: "ColorFamily is a Sendable enum with computed specs and no environment access, so a tile, a chip and a Live Activity can share it; the glyph choice by scheme is one function (glyphRGB(_:)).", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'In the kit the CSS variables are --fam-<name>-glyph|glyph-light|fill; the kit calls Spice Rack "spice" and the chores "chore-resident1" and so on (the Swift names are spiceRack and choreResident1).',
+      'The Security System Quick Link takes the current alarm mode\'s fill; it is drawn armed home here.',
+      'The glyph-off table shows both mixes (72% on solid, 88% under tinted glass); the further lift toward white that tinted glass applies (ColorFamily.offGlyphRGB(_:under:)) is not drawn.',
+      'Chip fills for Climate and Air Quality are computed from Home Assistant colours (ChipTint.fromWeb); the table shows their defaults (navy, teal). See the Status chip mockup for the computed ones.',
+      'Not drawn: HassTokens.Tint (light, security, climate, presence, contact, water), the web-card tints kept for non-tile uses.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: families, security, chores and food, rooms, Quick Links, values with live contrast, off glyphs, ink tokens.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,17 @@
+{
+  "id": "dd-settings-split-placeholder",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Settings page should be left-side, general sections, right side should be empty state \"Select a setting to see more options\"",
+  "surface": "settings",
+  "poses": [
+    "duo-unfolded-landscape",
+    "ipad-landscape"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "931ae01e",
+  "fix_confidence": "high",
+  "expected": "Settings splits where the window does: list leads, chosen page opens trailing, placeholder when nothing is selected."
+}

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ModalTabBar · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, F = Food;
+  function sw(ctx, items, o) { return F.swatches(ctx, items, Object.assign({ surfaces: ['sheet'], min: 320 }, o)); }
+  var cfg = Mock.componentConfig('ModalTabBar', { surfaces: ['sheet'] });
+
+  /* The sections of every tabbed sheet (ModalTabSymbols.swift, titles from each sheet). Glyphs are the kit's nearest stand-ins for the SymbolMap results. */
+  var RECIPE = [{ id: 'g', title: 'General', symbol: 'info.circle' }, { id: 'i', title: 'Ingredients', symbol: 'checklist' }, { id: 'n', title: 'Instructions', symbol: 'frying.pan' }];
+  var SHEETS = [
+    ['Recipe detail', RECIPE, 'g'],
+    ['Thermostat', [{ id: 'c', title: 'Control', symbol: 'thermometer.medium' }, { id: 's', title: 'Schedule', symbol: 'calendar' }, { id: 'x', title: 'Settings', symbol: 'gearshape' }], 'c'],
+    ['Media remote', [{ id: 'c', title: 'Controls', symbol: 'slider.vertical.3' }, { id: 'a', title: 'Apps', symbol: 'square.grid.2x2' }, { id: 'd', title: 'Devices', symbol: 'display' }, { id: 'h', title: 'Hue Sync', symbol: 'lightbulb.2' }], 'c'],
+    ['Humidifier', [{ id: 'c', title: 'Controls', symbol: 'humidifier' }, { id: 's', title: 'Schedules', symbol: 'calendar' }, { id: 'i', title: 'Info', symbol: 'info.circle' }], 'c'],
+    ['Bed side', [{ id: 't', title: 'Temperature', symbol: 'thermometer.medium' }, { id: 'm', title: 'Special Modes', symbol: 'snowflake' }, { id: 'a', title: 'Alarms', symbol: 'bell' }, { id: 's', title: 'Status', symbol: 'info.circle' }], 't'],
+    ['Wake light', [{ id: 'a', title: 'Alarms', symbol: 'bell' }, { id: 'd', title: 'Defaults', symbol: 'slider.vertical.3' }], 'a'],
+  ];
+  var SUMMARY = [{ id: 'p', title: 'Profile', symbol: 'person' }, { id: 'o', title: 'Overdue Chores', symbol: 'exclamationmark.circle', badge: 3 }, { id: 'u', title: 'Upcoming Chores', symbol: 'calendar' }, { id: 'f', title: 'Expired Food', symbol: 'refrigerator', badge: 12 }];
+  var COMPACT = { compact: true, regular: false, axSize: false }, REGULAR = { compact: false, regular: true, axSize: false }, AX = { compact: true, axSize: true };
+  function bar(tabs, sel, ctx) { return F.tabBar(ctx, tabs, sel); }
+  function over(c2) { return F.hubPage(c2, {}); }
+  function recipeSheet(c2) { return Mock.sheet(c2, Object.assign(F.detailOpts(c2, { tab: 'ingredients' }), { presenter: over(c2) })); }
+  function summarySheet(c2) {
+    var q = { title: 'Your Summary', detent: 'large', size: 'form', trailing: 'close', presenter: Mock.page(c2, { title: 'Home', section: 'home', badge: 3, body: [] }),
+      content: h('div', { style: { padding: '8px 0' } }, K.ModuleList({ rows: [{ title: 'Replace the furnace filter', subtitle: 'Overdue · 3 days', subtitleInk: 'var(--g-red)', symbol: 'exclamationmark.circle', glyph: 'var(--g-red)' }, { title: 'Water the planters', subtitle: 'Overdue · 1 day', subtitleInk: 'var(--g-red)', symbol: 'drop', glyph: 'var(--g-red)' }] })),
+      tabs: bar(SUMMARY, 'o', c2) };
+    return Mock.sheet(c2, q);
+  }
+  function glide(stage, from, to) {
+    var b = stage.querySelector('.ui-modaltabs'); if (!b) return Promise.resolve();
+    var btns = b.querySelectorAll('button'), a = btns[from], c = btns[to], ms = Mock.settings.reduceMotion ? 0 : 200;
+    function sel(i) { Array.prototype.forEach.call(btns, function (x, k) { x.classList.toggle('sel', k === i); x.setAttribute('aria-selected', k === i); }); }
+    if (!ms) { sel(to); return Mock.sleep(500); }
+    b.style.position = 'relative';
+    var pill = h('span', { 'aria-hidden': 'true', style: { position: 'absolute', zIndex: 0, top: a.offsetTop + 'px', left: a.offsetLeft + 'px', width: a.offsetWidth + 'px', height: a.offsetHeight + 'px', borderRadius: '999px', background: 'var(--g-selected-segment)' } });
+    b.insertBefore(pill, b.firstChild);
+    Array.prototype.forEach.call(btns, function (x) { x.style.position = 'relative'; x.style.zIndex = 1; x.style.background = 'transparent'; });
+    var anim = pill.animate([{ left: a.offsetLeft + 'px', width: a.offsetWidth + 'px' }, { left: c.offsetLeft + 'px', width: c.offsetWidth + 'px' }], { duration: ms, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
+    return anim.finished.then(function () { pill.remove(); Array.prototype.forEach.call(btns, function (x) { x.style.background = ''; x.style.position = ''; x.style.zIndex = ''; }); sel(to); return Mock.sleep(400); });
+  }
+
+  Mock.mount(Object.assign(cfg, {
+    id: 'modal-tab-bar', title: 'ModalTabBar (glass segmented control, badges, menu)', area: 'design', status: 'shipped',
+    summary: 'The one section switcher for a tabbed sheet: a segmented control on a Liquid Glass capsule pinned along the bottom (media remote, thermostat, humidifier, bed, wake light, vacuum, recipe detail, Your Summary). Icons on compact width, titles (or an icon over its title when it has badges) on regular width, a menu naming the section at accessibility sizes.',
+    source: ['apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift', 'apple/Sources/HassUI/Common/ModalTabSymbols.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailView.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlass.swift'],
+    spec: ['.agents/patterns/modal-sheet.md', '.agents/design/direction-g.md (Sheets)', '.agents/design/motion.md (4.4)'],
+    patterns: ['modal-sheet', 'motion'],
+    hig: ['Segmented controls', 'Tab bars', 'Materials', 'Menus', 'Dynamic Type', 'Badging'],
+    kitComponents: ['ModalTabBar', 'HassModal', 'ModuleList'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'forms': { title: 'The three forms: icons, titles, menu', note: 'chosen by ModalTabBarStyle.form(hasSymbols:hasBadges:compactWidth:accessibilitySize:)', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'compact width (iPhone, folded Duo): icons', note: 'each segment still carries its title for VoiceOver', width: 340, render: function () { return bar(RECIPE, 'i', COMPACT); } },
+          { label: 'regular width (iPad, unfolded Duo): titles', width: 460, render: function () { return bar(RECIPE, 'i', REGULAR); } },
+          { label: 'accessibility sizes: a menu naming the section', width: 340, render: function () { return bar(RECIPE, 'i', AX); } },
+        ]); } },
+      'badged': { title: 'With count badges (Your Summary)', note: 'a system segmented control cannot draw a badge or speak a count for one segment, so a bar with badges draws its own segments on the same glass; "9+" past nine', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'compact: icons with badges', width: 340, render: function () { return bar(SUMMARY, 'o', COMPACT); } },
+          { label: 'regular: an icon over its title, badges', width: 520, render: function () { return bar(SUMMARY, 'o', REGULAR); } },
+          { label: 'accessibility sizes: a menu, the count in the item ("Overdue Chores, 3")', width: 340, render: function () { return bar(SUMMARY, 'o', AX); } },
+        ]); } },
+      'sheets': { title: 'Every tabbed sheet', note: 'sections of the six sheets that use it (glyphs here are the kit\'s nearest stand-ins for the SymbolMap results)', render: function (ctx) {
+        return sw(ctx, SHEETS.map(function (s) { return { label: s[0] + ' (' + s[1].length + ' sections)', width: 340, render: function () { return bar(s[1], s[2], COMPACT); } }; })); } },
+      'in-context': { title: 'In context: recipe detail, Your Summary', render: function (ctx) {
+        return sw(ctx, [
+          { label: 'Recipe detail on iPhone: icons', width: 285, render: function () { return F.miniDevice(ctx, 'iphone', recipeSheet, .62); } },
+          { label: 'Recipe detail on iPad: titles', width: 400, render: function () { return F.miniDevice(ctx, 'ipad-portrait', recipeSheet, .4); } },
+          { label: 'Your Summary on iPhone: badged icons', width: 285, render: function () { return F.miniDevice(ctx, 'iphone', summarySheet, .62); } },
+        ]); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'a menu of text titles on the same glass capsule, at least 44 pt, naming the current section', render: function (ctx) {
+        return sw(ctx, [{ label: 'menu form', width: 440, render: function () { return bar(RECIPE, 'i', AX); } }, { label: 'menu form, badged', width: 440, render: function () { return bar(SUMMARY, 'o', AX); } }]); } },
+    },
+
+    motion: [
+      { id: 'selection', what: 'Choosing a section: the selected segment glides to it (the badged bar\'s own segments); the system segmented control slides its own thumb', token: 'badged bar: .snappy(duration: 0.2) with matchedGeometryEffect, not a MotionToken; system control: the system\'s; the content below is a cut', state: 'badged',
+        source: 'HassUI/Common/BadgedTabSegment.swift select(); motion.md 4.4 (the content is a cut)', reduce: 'the selected segment jumps (withAnimation(nil)); the system control follows the system setting',
+        play: function (stage) { return Mock.sleep(400).then(function () { return glide(stage, 1, 0); }).then(function () { return glide(stage, 0, 3); }).then(function () { return glide(stage, 3, 1); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Name and role', note: 'The bar is a segmented control labelled by the caller ("Recipe sections", "Thermostat sections"); each segment is named by its title even when only an icon shows, with the selected trait. A bar with badges draws buttons, each "Overdue Chores, 3 items" (identifier summary.tabs.<id>), the count badge hidden because the name speaks it.' },
+      { rule: 'Targets', note: 'Icon segments are at least 44 pt tall, an icon over its title 56 pt; the glass capsule adds 4 pt of inset; the menu form is at least 44 pt.' },
+      { rule: 'Text at AX sizes', note: 'Segments cannot grow, so the bar is a pop-up menu of text titles naming the selected one ("keep text labels at accessibility sizes", owner 2026-10-16); each item carries its count.' },
+      { rule: 'Not a tab bar', note: 'HIG: a segmented control for closely related views of one thing; a tab bar for separate app sections. A modal\'s sections are related views of one device, so it stays a segmented control on glass.' },
+      { rule: 'Contrast', note: 'In the badged bar the selected segment is lifted onto the sheet cell colour (#2C2C2E dark, white light) with primary ink, the others in secondary ink; badges are #D93025 under white numerals (the header\'s Profile badge colour). The system control draws its own thumb.' },
+      { rule: 'Material', note: 'The capsule is Liquid Glass on iOS 26 (a navigation control, HIG Materials) and a thin-material capsule before (navigationGlass(in: Capsule())); content scrolls under it.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+
+        { rule: "Segmented controls: closely related views of one thing; about five segments on iPhone; do not mix text and images in one control", verdict: "pass", note: "A modal's sections are related views of one device, so the control stays segmented, not a tab bar; ModalTabBarStyle.form picks icons (compact) or titles (regular), never a mix, and the badged regular form is icon over title in every segment.", by: "apple-hig skill" },
+
+        { rule: "Segmented controls: labels that make each segment's purpose clear", verdict: "departure", note: "On compact width the segments are icons only, to fit five sections like the web's ModalIconTabNav (owner 2026-10-16: 'show icons like the web app instead of text titles'); each segment keeps its title for VoiceOver and Voice Control, and regular width and accessibility sizes show text.", by: "apple-hig skill" },
+
+        { rule: "Accessibility: Dynamic Type; keep labels at accessibility sizes", verdict: "pass", note: "At accessibility sizes the bar becomes a pop-up menu of text titles naming the selected section, each with its count; a segmented control cannot grow (owner 2026-10-16).", by: "apple-hig skill" },
+
+        { rule: "Buttons: 44 pt minimum target", verdict: "pass", note: "ModalTabBar segmented form states frame(minHeight: HassTokens.minTarget) beside controlSize(.large); badged segments already assert 44/56 pt.", by: "apple-hig skill" },
+
+        { rule: "Materials: Liquid Glass for navigation controls floating over content", verdict: "pass", note: "The capsule is glass on iOS 26 and a thin-material capsule before (navigationGlass), pinned along the bottom with content fading beneath; the selected segment lifts onto the sheet-cell colour so selection does not depend on the glass.", by: "apple-hig skill" },
+
+        { rule: "Typography: avoid caption2 and capped Dynamic Type for informative text", verdict: "pass", note: "SegmentBadge is .caption.bold() and capped at accessibility1, not xLarge (BadgedTabSegment.swift).", by: "apple-hig skill" },
+
+      ],
+
+      swiftui: [
+
+        { rule: "API: automatic grammar agreement for plurals", verdict: "pass", note: 'Not applicable here: the inflect markup is not resolved by String(localized:) (host test showed the raw markup), so the spoken title keeps an explicit singular and plural.', by: "swiftui-pro skill" },
+
+        { rule: "Accessibility: icon-only controls keep a text label and selection traits", verdict: "pass", note: "Icon segments use Label(...).labelStyle(.iconOnly); the badged buttons set accessibilityLabel with the count, an isSelected trait, the badge hidden, and the bar is a .contain group named by the caller.", by: "swiftui-pro skill" },
+
+        { rule: "Animation: tokens, Reduce Motion, one transition", verdict: "pass", note: "Fixed on claude/hig-motion-1ec6c6: segment glide is MotionTokens.segment (BadgedTabSegment.swift). Was: The selected capsule glides with matchedGeometryEffect and a literal .snappy(duration: 0.2), nil under Reduce Motion (BadgedTabSegment.swift line 51); it is not a MotionTokens entry (motion.md does not list it), unlike the rest of the app's transitions. Low.", by: "swiftui-pro skill" },
+
+        { rule: "Navigation: a bar pinned with safeAreaInset", verdict: "pass", note: "modalTabBar uses safeAreaInset(edge:), so the content's safe area grows by the bar and the last row clears it at every size; placement is a parameter (top or bottom) and nothing branches on a device name.", by: "swiftui-pro skill" },
+
+        { rule: "Data flow: pass a binding and values, closures for per-item values", verdict: "pass", note: "ModalTabBar maps tabs to ModalTabSegment values once in init; BadgedTabSegments takes the segments, no escaping closures.", by: "swiftui-pro skill" },
+
+        { rule: "Views: avoid reimplementing a system control", verdict: "departure", note: "BadgedTabSegments rebuilds a segmented control from buttons because the system control cannot draw a badge or give VoiceOver a per-segment count (ModalTabBar.swift lines 59 to 60); the cost is a custom selection animation and no system keyboard or Switch Control grouping.", by: "swiftui-pro skill" },
+
+      ],
+
+    },
+
+    notes: [
+      'Docs vs code: the catalog hint says "selection change is a cut" for the whole component. The content swap is a cut (motion.md 4.4); the selected segment itself moves: the badged bar glides it with .snappy(0.2) (BadgedTabSegment), and the system segmented control animates its thumb. Neither is a MotionToken, and motion.md does not list them.',
+      'Docs vs code: modal-sheet.md says the badged form draws "icons on compact width, an icon over its title on regular width", the code agrees; the sections are each caller\'s tab list (Your Summary shows Profile and Expired Food only to someone who is not a household resident).',
+      'Before iOS 26 the capsule is a thin-material capsule (navigationGlass); the kit draws the iOS 26 Liquid Glass stand-in only.',
+      'The kit draws the selected segment as a white (dark) or #1C1C1E (light) pill on glass: a stand-in. The real badged bar lifts it onto the sheet cell colour, and the system segmented control draws its own thumb.',
+      'Glyphs for media remote, bed and wake light are nearest kit stand-ins; the SymbolMap names are in ModalTabSymbols.swift.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: icons, titles, menu, badged, every tabbed sheet, in context, AX5; selection glide.' }],
+  }));
+})();
+</script></body></html>

@@ -1,0 +1,57 @@
+--- a/compose_orchestrator.sh
++++ b/compose_orchestrator.sh
+@@ -38,2 +38,3 @@
+ OPENCLAW_VM_NAME="openclaw"
++TEST_HA_VM_NAME="homeassistant-test"
+ 
+@@ -574,2 +575,12 @@
+ 
++# Test Home Assistant VM (App Review / CI demo house). Always called guarded
++# (|| log_warn) from the boot sequence so it can never abort the main boot.
++start_test_ha_vm() {
++    start_vm "$TEST_HA_VM_NAME" "Test Home Assistant"
++}
++
++stop_test_ha_vm() {
++    stop_vm "$TEST_HA_VM_NAME" "Test Home Assistant"
++}
++
+ restart_services() {
+@@ -601,3 +612,3 @@
+     echo -e "\n${YELLOW}=== Home Assistant VM ===${NC}"
+-    virsh list --all | grep "$HA_VM_NAME" || echo "VM not found"
++    virsh list --all | awk -v n="$HA_VM_NAME" '$2==n' | grep . || echo "VM not found"
+ 
+@@ -605,2 +616,5 @@
+     virsh list --all | grep "$OPENCLAW_VM_NAME" || echo "VM not found"
++
++    echo -e "\n${YELLOW}=== Test Home Assistant VM ===${NC}"
++    virsh list --all | grep "$TEST_HA_VM_NAME" || echo "VM not found"
+ }
+@@ -623,2 +637,3 @@
+     start_ha_vm
++    start_test_ha_vm || log_warn "Test Home Assistant VM did not start; continuing boot."
+ 
+@@ -647,2 +662,3 @@
+     stop_openclaw_vm
++    stop_test_ha_vm || log_warn "Test Home Assistant VM did not stop cleanly; continuing shutdown."
+     stop_ha_vm
+@@ -653,3 +669,3 @@
+ usage() {
+-    echo "Usage: $0 {start|stop|restart|status|boot-start|boot-stop|start-vm|stop-vm|start-openclaw-vm|stop-openclaw-vm}"
++    echo "Usage: $0 {start|stop|restart|status|boot-start|boot-stop|start-vm|stop-vm|start-openclaw-vm|stop-openclaw-vm|start-test-vm|stop-test-vm}"
+     echo ""
+@@ -666,2 +682,4 @@
+     echo "  stop-openclaw-vm  - Stop only the OpenClaw VM"
++    echo "  start-test-vm - Start only the test Home Assistant VM"
++    echo "  stop-test-vm  - Stop only the test Home Assistant VM"
+     exit 1
+@@ -701,2 +719,8 @@
+         ;;
++    start-test-vm)
++        start_test_ha_vm
++        ;;
++    stop-test-vm)
++        stop_test_ha_vm
++        ;;
+     *)

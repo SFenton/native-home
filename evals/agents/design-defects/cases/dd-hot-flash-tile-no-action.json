@@ -1,0 +1,16 @@
+{
+  "id": "dd-hot-flash-tile-no-action",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Hot Flash Mode tile does not have action",
+  "surface": "bed-side-tile",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "15425f20",
+  "fix_ref": "40084c01",
+  "fix_confidence": "medium",
+  "expected": "Every tile in a state of the atlas that has an action performs it and reports the call; a tile with no action is a defect."
+}

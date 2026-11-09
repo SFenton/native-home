@@ -1,0 +1,17 @@
+{
+  "id": "dd-food-recipes-no-support",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Food & Recipes needs support",
+  "surface": "food-hub",
+  "poses": [
+    "duo-unfolded-landscape",
+    "duo-partial-fold"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "0ef93b5e",
+  "fix_confidence": "medium",
+  "expected": "Food hub grids follow the fold rule like the other pages; flag one that ignores the hinge."
+}

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Activity parts · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function dark(kids, w) { return h('div', { style: { background: '#17181e', borderRadius: '20px', padding: '16px', color: '#fff', width: w || 'auto', maxWidth: '100%', boxSizing: 'border-box' } }, kids); }
+  function panel(title, note, kids) {
+    return h('section', { style: { margin: '0 0 22px' } }, h('h3', { style: { margin: '0 0 4px', font: '600 15px var(--font)' } }, title), note ? h('p.la-note', { style: { margin: '0 0 10px' } }, note) : null, kids);
+  }
+  function row(kids) { return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '16px 22px', alignItems: 'flex-end' } }, kids); }
+  function cell(node, label, wide) { return h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: 'var(--mono)', color: 'rgba(255,255,255,.65)', textAlign: 'center', width: wide ? 'auto' : '112px', maxWidth: wide ? '100%' : '112px', overflowWrap: 'anywhere' } }, node, label); }
+  function ringCard(name) { return LA.card(LA.fx(name)); }
+
+  function marks() {
+    return panel('Corner mark: the house and heart in the foreground colour of the app icon you picked', 'No tile. 24 pt on a job card and beside the island camera, 40 pt on a problem card. The widget reads the choice from the app group (appIconChoice) and falls back to Navy + Sky; the heart sits in a ring cut out of the house, so the ground shows through.',
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px' } },
+        dark(row(LA.ICON_CHOICES.map(function (c) { return cell(row([LA.mark(24, c[0]), LA.mark(40, c[0])]), c[1] + ' ' + '#' + c[2].toString(16).toUpperCase()); }))),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '16px' } },
+          LA.fig(LA.jobCard(LA.fx('dishwasher'), { choice: 'plumLilac' }), 'job card · Plum + Lilac'),
+          LA.fig(LA.problemCard(LA.fx('problem-navigation-stuck'), { choice: 'midnightGold' }), 'problem card · Midnight + Gold'))));
+  }
+  function glyphs() {
+    function g(id) { return cell(LA.glyph(id, 28, '#fff'), id + ' · ' + LA.SYMBOL[id]); }
+    return panel('Glyph set', 'The wire carries ids, never symbol names, so the set can change in the app without a relay update; an unknown id reads generic (a dashed circle). Drawn here with stand-ins for the SF Symbols the app names.',
+      dark([h('div.la-note', { style: { margin: '0 0 8px' } }, 'Jobs (7)'), row(LA.JOB_GLYPHS.map(g)), h('div.la-note', { style: { margin: '14px 0 8px' } }, 'Problems (12)'), row(LA.PROBLEM_GLYPHS.map(g)),
+        h('div.la-note', { style: { margin: '14px 0 8px' } }, 'In the job\'s tint (a check once the job is Complete)'),
+        row(['air', 'cleaning', 'water', 'cooling', 'neutral'].map(function (t) { return cell(LA.glyph('fan', 28, LA.accent(t)), t + ' (ColorFamily)'); }).concat([cell(LA.headerGlyph(LA.card(LA.fx('dryer-complete')), 28), 'complete: check')]))]));
+  }
+  function rings() {
+    var names = [['fan', 'timer 51%'], ['dishwasher', 'timer 76%'], ['dishwasher-percent', 'fraction 62%'], ['hotflash-cooling', 'fraction 45%'], ['dryer', 'steady (count-up)'], ['vacuum', 'track: no ring, glyph alone'], ['dishwasher-complete', 'complete']];
+    return panel('Ring', 'Not on the Lock Screen card (layout L4 has none). It is 32 pt in the small family and 24 pt in the compact and minimal island; the doc also lists 34 pt beside the island camera, which the code does not draw. A time range fills itself with ProgressView(timerInterval:); the track drops on Always-On (isLuminanceReduced).',
+      dark([row(names.map(function (n) { return cell(LA.card(LA.fx(n[0])).showsRing ? LA.ring(LA.card(LA.fx(n[0])), 64) : LA.headerGlyph(LA.card(LA.fx(n[0])), 28), n[1]); })),
+        h('div.la-note', { style: { margin: '14px 0 8px' } }, 'Sizes in use'), row([cell(LA.ring(ringCard('dishwasher'), 32), '32 pt small family'), cell(LA.ring(ringCard('dishwasher'), 24), '24 pt island compact and minimal'), cell(LA.ring(ringCard('dishwasher'), 64), '64 pt (ActivityStyle.ringSize, gallery only)')])]));
+  }
+  function sevs() {
+    return panel('Severity circle', 'A solid circle with the problem glyph in white: red when it stopped, amber when it carries on. 44 pt on the problem card, 30 pt in the small family, 28 pt beside the island camera, 24 pt in the compact and minimal island.',
+      dark(row([['critical', 44], ['critical', 30], ['critical', 28], ['critical', 24], ['warning', 44], ['warning', 30], ['warning', 28], ['warning', 24]].map(function (s, i) { return cell(LA.sev(['alert', 'door', 'battery', 'brush', 'water', 'mop', 'bag', 'door_dish'][i], s[0], s[1]), s[0] + ' ' + s[1]); }))));
+  }
+  function buttons() {
+    var stuck = LA.card(LA.fx('problem-navigation-stuck')), fan = LA.card(LA.fx('fan')), vac = LA.card(LA.fx('vacuum')), pend = LA.card(LA.fx('fan-pending')), stale = LA.card(LA.fx('fan-pending-stale'));
+    return panel('Buttons, chips and the pending label', 'Up to two pills on a job card, three on a problem card; the first is white with black text, the rest dark with white text, each a 44 pt hit area around a 36 pt pill. A vacuum job card draws Pause, Resume and Dock as 44 pt round icon buttons. All are named in words for VoiceOver.',
+      dark(h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+        row([cell(LA.buttons(fan, fan.buttons, { fills: false }), 'job pill: Stop', true), cell(LA.buttons(stuck, stuck.buttons, { fills: false, chips: ['Error 88'] }), 'problem: Resume, Dock, Done + chip', true), cell(LA.buttons(vac, vac.buttons, { fills: false }), 'vacuum round icons', true),
+          cell(LA.buttons(LA.card(LA.fx('vacuum-paused')), LA.card(LA.fx('vacuum-paused')).buttons, { fills: false }), 'paused: play + dock', true)]),
+        row([cell(LA.buttons(pend, pend.buttons, { fills: false }), 'pending: Stopping…', true), cell(LA.buttons(stale, stale.buttons, { fills: false }), 'stale: Not confirmed + Stop', true)]))));
+  }
+  function bars() {
+    var list = [['fan', 'timer 51%'], ['dishwasher-percent', 'fraction 62%'], ['hotflash-cooling', 'fraction 45%'], ['dishwasher-complete', 'full']];
+    return panel('Bar', '5 pt, in the job\'s tint, only when the card has progress (a countdown, a percentage, a fraction or Complete). Count-ups, text values and vacuums have none. Decoration: the value above says the same in words.',
+      dark(h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '338px' } }, list.map(function (n) { var c = ringCard(n[0]); return h('div', { style: { fontSize: '11px', fontFamily: 'var(--mono)', color: 'rgba(255,255,255,.65)' } }, n[1] + ' · ' + c.a.tint, h('div', { style: { height: '6px' } }), LA.bar(c)); }))));
+  }
+  function type() {
+    var rows = [['Title', '17 pt headline (semibold), wraps to 2 lines; 16 pt fixed in the island', 'ActivityFontModifier relativeTo .headline'], ['Figure', '32 pt semibold, monospaced digits, 0.8 scale floor (0.5 for a word)', 'relativeTo .largeTitle'],
+      ['Big line (vacuum)', '24 pt semibold, white even when paused, up to 2 lines', 'relativeTo .title'], ['Compact time', '15 pt semibold monospaced (.subheadline), rigid template width', 'island, capped at xxxLarge'],
+      ['Compact word', '13 pt semibold (.footnote), at most 56 pt wide', 'island'], ['Notice', 'subheadline semibold, #FFD59A, 2 lines', 'in place of the figure for one update'],
+      ['Buttons', 'subheadline semibold', 'pill label'], ['Problem', 'device headline, problem subheadline semibold in the light tint, instruction subheadline at 82% white', 'ProblemCardView']];
+    return panel('Type', null, h('div', { style: { background: '#14161c', borderRadius: '16px', padding: '14px', overflowX: 'auto' } }, h('table.la-tbl', h('thead', h('tr', ['Role', 'Size', 'Notes'].map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); })))));
+  }
+  function palette() {
+    function sw(label, css) { return h('div.la-sw', h('i', { style: { background: css } }), label); }
+    return panel('Colour and metrics', 'The ground is dark on every surface: the Lock Screen tint is rgba(23, 24, 30, .78) and the island is black, so family accents use the dark values of ColorFamily.',
+      dark(h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '10px 26px', font: '12px var(--font)' } },
+        sw('cardFill #17181E 78%', 'rgba(23,24,30,.78)'), sw('primary text #FFF', '#fff'), sw('secondary 78% white', 'rgba(255,255,255,.78)'), sw('notice #FFD59A', '#FFD59A'), sw('track 14% white', 'rgba(255,255,255,.14)'),
+        sw('critical circle #FF453A', '#FF453A'), sw('critical light #FFB4AE', '#FFB4AE'), sw('warning circle #FF9F0A', '#FF9F0A'), sw('warning light #FFD59A', '#FFD59A'),
+        h('span', 'corner radius 24 pt · hit area 44 pt · pill 36 pt · bar 5 pt · ring 64 pt · mark 24 / 40 pt · glyph 22 pt (island 24) · Lock Screen limit 160 pt'))));
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'live-activity-parts', title: 'Live Activity parts (corner mark, glyph, ring, buttons, severity circle)', area: 'live-activity', status: 'shipped', frame: false,
+    summary: 'The pieces every Live Activity presentation is built from, in each of their variants.',
+    source: ['apple/Sources/FentonActivityViews/CornerMark.swift', 'apple/Sources/FentonActivityViews/CornerMarkPalette.swift', 'apple/Sources/FentonActivityViews/ActivityHeaderGlyph.swift', 'apple/Sources/FentonActivityViews/ActivityGlyphImage.swift',
+      'apple/Sources/FentonActivityViews/ActivityRing.swift', 'apple/Sources/FentonActivityViews/ActivityButtons.swift', 'apple/Sources/FentonActivityViews/SeverityCircle.swift', 'apple/Sources/FentonActivityViews/ActivityFont.swift',
+      'apple/Sources/FentonActivityViews/ActivityBar.swift', 'apple/Sources/FentonActivityViews/ActivityStyle.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: [],
+    hig: ['Live Activities', 'Color', 'Typography'],
+    devices: ['iphone'],
+    states: {
+      'default': { title: 'Corner mark', render: marks },
+      glyphs: { title: 'Glyph set', render: glyphs },
+      ring: { title: 'Ring', render: rings },
+      severity: { title: 'Severity circle', render: sevs },
+      buttons: { title: 'Buttons and chips', render: buttons },
+      bar: { title: 'Bar', render: bars },
+      type: { title: 'Type', render: type },
+      palette: { title: 'Colour and metrics', render: palette },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'buttons and chips at AX5 (the island parts are capped at xxxLarge)', render: function (ctx) {
+        var stuck = LA.card(LA.fx('problem-navigation-stuck'));
+        return LA.stage([LA.fig(LA.problemCard(LA.fx('problem-navigation-stuck'), { ctx: ctx }), 'problem card'), LA.fig(LA.jobCard(LA.fx('vacuum'), { ctx: ctx }), 'vacuum card')]); } },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'Decoration is hidden', note: 'The corner mark, header glyph, ring, severity circle and bar are accessibilityHidden: the card\'s own phrase says what they show.' },
+      { rule: 'Buttons', note: 'Each button is a real control named for its device ("Stop Guest Bath Fan"); the round vacuum buttons carry the label on the button, not on the glyph; targets are 44 pt.' },
+      { rule: 'Pending and unconfirmed', note: '"Stopping…" replaces the buttons (identifier liveactivity.pending); once stale, "Not confirmed" (liveactivity.unconfirmed) sits beside the restored buttons.' },
+      { rule: 'Colour', note: 'Every accent is the dark value of its ColorFamily (at least 3:1 on black, WCAG 1.4.11); text colours are tested at 4.5:1 on the card ground.' },
+      { rule: 'Dynamic Type', note: 'Parts that hold text (buttons, chips, notice) follow the text style; ring, glyph, circle and mark are fixed sizes.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'SF Symbols: glyphs match the content', verdict: 'pass', note: 'Each glyph id maps to a named symbol and robotic.vacuum falls back to sparkles before iOS 18 (ActivityGlyphImage.swift:4-36).' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt hit area, named for the device', verdict: 'pass', note: 'ActivityButtons.pill sets accessibilityLabel from the card (line 78) and the icon variants are 44 pt circles (lines 82-95).' },
+        { by: 'apple-hig skill', rule: 'Color: decoration hidden, text spoken', verdict: 'pass', note: 'Ring, header glyph, severity circle, corner mark and bar are accessibilityHidden (ActivityRing.swift:25; ActivityHeaderGlyph.swift:23; SeverityCircle.swift:15; CornerMark.swift:27; ActivityBar.swift:21).' },
+        { by: 'apple-hig skill', rule: 'Typography: small status text', verdict: 'pass', note: 'ActivityButtons status and chips are .footnote.weight(.semibold).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'views.md: avoid manual geometry hacks', verdict: 'pass', note: 'Not applicable: same as the job card, the timer variant cannot be redrawn without pushes.' },
+        { by: 'swiftui-pro skill', rule: 'performance.md: avoid AnyView', verdict: 'departure', note: 'ActivityButtons.iconLabel and ActivityActions return AnyView (ActivityButtons.swift:77-95) so the package need not name the extension\'s intent.' },
+        { by: 'swiftui-pro skill', rule: 'hygiene.md: one source of truth', verdict: 'departure', note: 'CornerMarkPalette duplicates the eight AppIconChoice foreground colors because the widget does not link HassCore; a HassUI test compares them so they cannot drift.' },
+        { by: 'swiftui-pro skill', rule: 'views.md: shapes in widgets', verdict: 'pass', note: 'HouseHeartShape is a Shape, which draws reliably in widgets and Live Activities (CornerMark.swift:24).' },
+      ],
+    },
+    notes: [
+      'Doc versus code: per-job spec section 8 says the ring is 64 pt on the Lock Screen and 34 pt beside the island camera; the shipped layout (8a, L4) has no Lock Screen ring and the island puts a 24 pt glyph beside the camera. Rings exist at 32 pt (small family) and 24 pt (compact, minimal). The 64 pt ring is still defined (ActivityStyle.ringSize) and used by the debug gallery.',
+      'Doc versus code: the corner mark doc says 40 pt on every card; job cards and the island use 24 pt, problem cards 40 pt.',
+      'Glyphs and the house and heart are kit stand-ins; the mark geometry is the app\'s own (AppIconArtwork), drawn as an SVG with the heart ring cut out.',
+      'No motion of their own. Promote to kit: the glyph drawings, LA.ring, LA.sev, LA.mark.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

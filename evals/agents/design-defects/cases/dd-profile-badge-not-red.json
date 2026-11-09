@@ -1,0 +1,16 @@
+{
+  "id": "dd-profile-badge-not-red",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "In unfolded portrait, notification count is just white on profile image, not red with white number",
+  "surface": "profile-button",
+  "poses": [
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "cb1e722e",
+  "fix_confidence": "high",
+  "expected": "The Profile item shows a system badge: red fill with a white count, as in the SwiftUI app."
+}

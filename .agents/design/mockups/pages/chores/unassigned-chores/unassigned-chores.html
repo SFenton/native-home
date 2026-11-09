@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unassigned Chores · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: same swipe and menu conventions on every chores page", verdict: "pass", note: "Unassigned uses the same TodoListSection and TodoRowActions, so Complete, Edit and Delete are in the same places as on a resident page.", by: "apple-hig skill" },
+        { rule: "Writing: say what the list is and what to do", verdict: "pass", note: "ChoresConfig.unassignedChores emptyDescription is \"There are no unassigned chores due. Nice job!\"; the hyphen typo is gone. Add Task stays in the page chrome.", by: "apple-hig skill" },
+        { rule: "Undo and redo: a task completed by anyone", verdict: "pass", note: "Undo also covers unassigned chores: the same todo.update_item needs_action call restores it to every resident's list within the 5 s window (TodoListController.undo).", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: keep content clear of the fold", verdict: "pass", note: "Fixed: TodoPageView lays the list in HingedPanes with the task form in the trailing pane where the window splits; the list ends at the hinge.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Sheets: Add Task creates \"Anyone\"", verdict: "pass", note: "defaultAssignee flows into DonetickTaskForm(defaultAssignee:) (DonetickTaskSheet.swift lines 33-34).", by: "swiftui-pro skill" },
+        { rule: "Views: ForEach rows produce one view each", verdict: "pass", note: "TodoListSection ForEach emits one row view per item with modifiers applied outside (lines 42-55), so List identity stays by item id.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: duplicated Edit action", verdict: "pass", note: "TodoRowActions: Edit offered once, as the button.", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.pageConfig('unassigned-chores', {
+    title: 'Unassigned Chores',
+    summary: 'Chores with nobody assigned: Past Due, Due Today, Upcoming, No Due Date, empty lists hidden. Opened from the Chores Quick Links; Add Task creates an unassigned task ("Anyone"). Fixture tasks.',
+    entities: ['todo.demo_todo_21', 'todo.demo_todo_22', 'todo.demo_todo_23', 'todo.demo_todo_24', 'input_boolean.demo_mode_4'],
+    defaultTitle: 'Past Due and No Due Date',
+    a11y: [{ rule: 'Reading order', note: 'Back (Chores), Quick Links, Profile; the title "Unassigned Chores" (heading); each list heading and its rows; Add Task; tab bar.' }],
+    notes: [
+      'Unassigned Chores reads the plain unassigned_* lists: there is no _with_unassigned view for it. The resident pages and the Chores tab include these tasks too, so a task here also appears on Alex\'s page.',
+      'The empty copy is "There are no unassigned chores due. Nice job!" ("Enjoy vacation!" while Vacation Mode is on). The Add Task sheet opens with Assignee "Anyone".',
+    ],
+  }));
+
+})();
+</script></body></html>

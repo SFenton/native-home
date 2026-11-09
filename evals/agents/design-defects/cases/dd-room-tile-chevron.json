@@ -1,0 +1,16 @@
+{
+  "id": "dd-room-tile-chevron",
+  "date": "2026-10-16",
+  "source": "b2164581",
+  "owner_report": "Room tile (and potentially other tile) carats should be vertically centered",
+  "surface": "room-card-tile",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "alignment",
+  "pre_fix_ref": "3aff513f",
+  "fix_ref": "15d25539",
+  "fix_confidence": "high",
+  "expected": "Chevrons on tiles are vertically centred on the tile; measure the glyph centre against the tile centre."
+}

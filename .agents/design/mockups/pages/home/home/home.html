@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/weather/_home-weather.js"></script>
+<script src="../../../components/house-config/_house-config-states.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, HW = Mock.HW, HC = Mock.HC;
+
+  /* ---- the Home page body, section order as HomeScreen.swift draws it: status rail, weather, guests (only while a toggle is on), cameras.
+     Unfolded Duo landscape splits on the hinge (HomeColumns): the chip rail spans the whole page above both columns and scrolls over the hinge (owner 2026-10-26), weather leads, cameras and guests trail; iPad landscape stays one column. */
+  function appMin(n) { var c = Mock.current; return n / ((c && c.scale) || 1); } /* the app's ControlTileGrid (110) and CameraGrid (160) pass a plain number: not @ScaledMetric, so they do not follow Dynamic Type; the kit TileGrid scales min, so divide it out */
+  function section(title, kids) { return h('div.ui-section', K.PageSectionHeader({ title: title }), kids); }
+  function cameras(o) {
+    var s = o.cams || ['live', 'live', 'live', 'live'];
+    var names = [['Front Door', 'front-door'], ['Driveway', 'driveway'], ['Upper Deck', 'upper-deck'], ['Lower Deck', 'lower-deck']];
+    return section('Cameras', K.TileGrid({ min: appMin(160), max: 4, equal: false, items: names.map(function (n, i) { return K.CameraTile({ title: n[0], scene: n[1], state: s[i] }); }) }));
+  }
+  function guests() {
+    return section('Guests Staying Over', [h('p', 'Guest mode skips some away automations. Review security, climate, and auto-clean controls before leaving.'),
+      K.TileGrid({ min: appMin(110), max: 6, items: [
+        { title: 'Guest Room', subtitle: 'Guests staying', symbol: 'bed.double', family: 'occupancy', isActive: true },
+        { title: 'Studio', subtitle: 'No guests', symbol: 'guitars', family: 'occupancy', isActive: false },
+        { title: 'Media Room', subtitle: 'Guests staying', symbol: 'videoprojector', family: 'occupancy', isActive: true }] })]);
+  }
+  function body(ctx, o) {
+    o = o || {};
+    var chips = K.ChipRail({ chips: o.chips || Mock.chips.home(o.chipOpts), });
+    var wx = HW.card(ctx, Object.assign({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38, narrow: !!ctx.splitAtHinge }, o.weather));
+    var cams = cameras(o), g = o.guests ? guests() : null;
+    /* HomeColumns.resolve: two columns only while the band exists (partly folded); flat, Home is one column and the weather spans (owner 2026-11-03). Home is the first fold-columns consumer (section-sides.md). */
+    var fold = Mock.foldColumns(ctx, { top: [chips], leading: [wx], trailing: [cams, g] });
+    if (fold) return fold;
+    return [chips, wx, g, cams];
+  }
+  function page(ctx, o) {
+    o = o || {};
+    return Mock.page(ctx, Object.assign({ title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: body(ctx, o) }, o.page));
+  }
+  var UNAVAIL = [Mock.chips.unavailable('Lights', 'lightbulb.2'), Mock.chips.security('unknown'), Mock.chips.unavailable('Climate', 'thermometer.medium'), Mock.chips.unavailable('Occupancy', 'person'), Mock.chips.unavailable('Contact Sensors', 'door.left.hand.closed'), Mock.chips.unavailable('Air Quality', 'aqi.medium')];
+  var PENDING = Mock.chips.home().map(function (c) { return Object.assign({}, c, { pending: true, isActive: false, tint: null }); });
+
+  /* A Home sheet for the transition demos: the Security System sheet (a fitted page sheet) and the camera viewer (dark by design). */
+  function securitySheet(ctx) { return { title: 'Security System', detent: 'fitted', size: 'page', content: h('div', { style: { padding: '24px 16px', font: '15px var(--font)' } }, 'Armed Home · Since 6:12 PM') }; }
+  function cameraSheet() { return { title: 'Front Door', detent: 'fitted', size: 'page', appearance: 'dark', content: h('div', { style: { aspectRatio: '16 / 9', borderRadius: '20px', background: Mock.scene('front-door') } }) }; }
+
+  function chipEl(stage, title) { return stage.querySelector('.ui-chip[data-chip="' + title + '"]'); }
+
+  Mock.mount({
+    kind: 'page', id: 'home', title: 'Home', area: 'home', status: 'shipped',
+    summary: 'The At a Glance overview: status chips, weather, guests (while a toggle is on) and four cameras, on the dimmed house photo. Sample data is fixture data.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift', 'apple/Sources/HassUI/Features/Home/HomeColumns.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCard.swift', 'apple/Sources/HassCore/Config/HomeConfig.swift'],
+    spec: ['.agents/pages/home/spec.md', '.agents/pages/home/ios.md'],
+    patterns: ['status-rail', 'dynamic-grid', 'page-backdrop', 'header-edge-fade', 'entity-tile', 'content-gate', 'motion'],
+    hig: ['Tab bars', 'Toolbars', 'Materials', 'Color', 'Dynamic Type', 'Motion', 'Loading'],
+    entities: ['light.demo_light_2', 'alarm_control_panel.demo_alarm_control_panel_1', 'input_text.demo_pm25_range_1', 'input_text.demo_color_4', 'binary_sensor.demo_binary_sensor_1', 'binary_sensor.demo_contact_2', 'input_text.demo_pm25_range_1', 'weather.demo_weather_1', 'input_boolean.demo_guest_room_2', 'camera.demo_front_door_camera_item_1'],
+    kitComponents: ['ChipRail', 'StatusChip', 'WeatherCard', 'CameraTile', 'TileGrid', 'GlassTile', 'PageSectionHeader', 'TabBar', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Signed in, house online', render: function (d) { return page(d); } },
+      'loading': { title: 'First sign-in, nothing saved', note: 'chips: names at once and soft pulsing bars where values go; the weather card has no bars: it reads "--" and Weather Unavailable over static placeholder hours until the entity arrives', render: function (d) {
+        return page(d, { chips: PENDING, weather: { loading: true }, cams: ['connecting', 'connecting', 'connecting', 'connecting'] }); } },
+      'no-layout-skeleton': { title: 'No house layout yet: the skeleton', note: 'house-config-states rule 11: no saved layout and the store is idle or loading (offline too): four chip capsules, the weather module, a section bar and camera-shaped tiles pulse like the pending bars; one VoiceOver element "Getting your home from Home Assistant"; the header keeps its one Connecting arc', render: function (d) {
+        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.skeletonHome(d), connection: 'reconnecting' }); } },
+      'no-layout-admin': { title: 'No house layout: integration missing, administrator', note: 'rule 12: a state message in place of the page, the shell kept; the action opens the Home Assistant modal on Integrations (houseConfig.state, houseConfig.action)', render: function (d) {
+        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.message(d, 'missing', 'admin') }); } },
+      'no-layout-member': { title: 'No house layout: member', note: 'the same message with the ask-someone text and no action', render: function (d) {
+        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.message(d, 'missing', 'member') }); } },
+      'no-layout-timeout': { title: 'No house layout: 10 s with no answer', note: 'Try Again for everyone; the button shows "Trying Again" while it asks', render: function (d) {
+        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.message(d, 'timeout', 'member') }); } },
+      'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design: no spinner, no pill, nothing re-fades (owner 2026-10-17)', render: function (d) { return page(d); } },
+      'error': { title: 'Entities unavailable', note: 'chips read "Unavailable", dimmed, and still open their sheet', render: function (d) {
+        return page(d, { chips: UNAVAIL, weather: { condition: 'Weather Unavailable', temp: null, glyph: 'cloudy' }, cams: ['snapshot', 'snapshot', 'snapshot', 'snapshot'] }); } },
+      'offline': { title: 'No network', note: 'values stay; offline chip under the header; cloud badge on Profile', render: function (d) {
+        return page(d, { cams: ['snapshot', 'snapshot', 'snapshot', 'snapshot'], page: { connection: 'offline' } }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: function (d) {
+        return page(d, { cams: ['snapshot', 'connecting', 'snapshot', 'snapshot'], page: { connection: 'reconnecting' } }); } },
+      'long-text': { title: 'Long weather condition and long chip text', render: function (d) {
+        return page(d, { weather: { condition: 'Heavy Thunderstorm With Hail', glyph: 'storm' }, chipOpts: { security: 'triggered', contacts: ['armed', 3], aqi: ['AQI 118–142 · PM2.5 38–54'], climate: ['83.4–87.9°F', 85], lights: 14 } }); } },
+      'guests': { title: 'Guests staying over', note: 'the section shows only while a guest toggle is on', render: function (d) { return page(d, { guests: true }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: function (d) { return page(d, { guests: true }); } },
+      'duo-part-fold': { title: 'Duo partly folded: the model for every page', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'HomeColumns (fold columns, section-sides.md): the rail spans the top, weather leads; Cameras sit top right, level with the weather, then Guests (rule 11, owner 2026-11-03: "Cameras top right like home page"). At accessibility sizes the rail wraps and heads the leading column, so Cameras stays top right', render: function (d) { return page(d, { guests: true }); } },
+      'duo-flat': { title: 'Duo lying flat: one column', override: { device: 'duo-unfolded-landscape', posture: 'open' }, note: 'no band, so no columns: the weather spans the page (owner 2026-11-03: "weather takes the whole span when unfolded")', render: function (d) { return page(d, { guests: true }); } },
+    },
+
+    motion: [
+      { id: 'chip-colour', what: 'A status chip fills when the house changes (a door opens: Contact Sensors goes soft green to amber)', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only',
+        source: 'HassUI/Features/Home/StatusRail.swift StatusChipStyle.colorAnimation; design/motion.md section 6', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) { var c = chipEl(stage, 'Contact Sensors'); c.style.setProperty('--cf', 'var(--chip-contact-home-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-home-glyph)'); c.querySelector('.su').textContent = '2 Open'; return Mock.sleep(Mock.anim.ms.state() + 300); } },
+      { id: 'chip-off', what: 'The Lights chip goes neutral when the last light turns off (3 On to All Off)', token: 'state 0.6 s ease-in-out', source: 'StatusRail.swift; motion.md section 6', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var c = chipEl(stage, 'Lights'); c.classList.remove('filled'); c.style.setProperty('--cf', 'rgba(28,28,30,.66)'); c.style.setProperty('--cg', 'var(--g-secondary-on-module)'); c.querySelector('.su').textContent = 'All Off'; return Mock.sleep(Mock.anim.ms.state() + 300); } },
+      { id: 'weather-number', what: 'The temperature rolls to a new value', token: 'quick 0.2 s easeOut, contentTransition(.numericText)', source: 'WeatherCardContent.swift; motion.md section 6 Numbers',
+        reduce: 'plain cross-fade', play: function (stage) { var n = stage.querySelector('.ui-wxhdr .num'); return Mock.anim.roll(n, '49°'); } },
+      { id: 'weather-ticker', what: 'A long weather condition scrolls like a ticker (option D)', token: '30 pt/s, 1.5 s holds, soft edge fade, three passes then rests', state: 'long-text',
+        source: 'design/weather-card-header.md (exception to motion.md 9.6 and 9.10)', reduce: 'no ticker: the condition wraps to two lines',
+        play: function (stage) { var t = stage.querySelector('.ui-tick'); return t ? Mock.anim.ticker(t) : Promise.resolve(); } },
+      { id: 'reconnecting-arc', what: 'The reconnecting arc fades in after 2 s offline and out when live', token: '0.35 s ease-in-out each way, arc turns every 0.82 s', state: 'reconnecting',
+        source: 'ReconnectingArc.swift; ReconnectingPolicy.delay 2 s', reduce: 'fade unchanged (opacity is not motion); the arc turns at half speed, never frozen',
+        play: function (stage) { var s = stage.querySelector('.ui-slot'); return Mock.anim.arc(s, false).then(function () { return Mock.sleep(500); }).then(function () { return Mock.anim.arc(s, true); }).then(function () { return Mock.sleep(700); }); } },
+      { id: 'arrival', what: 'Arrival into Home after signing in (once per session)', token: 'about 0.9 s: photo settles, chips slide 30 pt, cards rise 16 pt with a 60 ms stagger, tab bar rises',
+        source: 'HassUI/App/Motion/ArrivalMotion.swift, HomeArrival; direction-g.md Launch and sign-in motion', reduce: 'cross-fades only, about 0.35 s',
+        play: function (stage) { return Mock.anim.arrival(stage); } },
+      { id: 'pending-pulse', what: 'First sign-in: a soft bar pulses where each value will go', token: 'opacity 0.35 to 1 over 1.4 s, repeats until live data lands', state: 'loading',
+        source: 'HassDesign/PendingValue.swift; motion.md section 5', reduce: 'static at 65% opacity', play: function () { return Mock.sleep(2800); } },
+    ],
+
+    transitions: [
+      { from: 'Home', to: 'Security System sheet', kind: 'sheet', note: 'Tap the Security chip. The system sheet slides up fitted; Home scales back and dims. Content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, securitySheet(Mock.current)); } },
+      { from: 'Camera tile', to: 'Camera viewer sheet', kind: 'sheet', note: 'The camera card opens a SHEET (dark by design), not a zoom: motion.md 4.3 lists it as a zoom candidate, the code presents a sheet (patterns/motion.md Departures).',
+        play: function (stage) { return Mock.presentDemo(stage, cameraSheet()); } },
+      { from: 'Home', to: 'Security tab', kind: 'cut', note: 'A tab switch is a cut: no slide, no fade; each tab keeps its stack and scroll position (motion.md section 4.1).',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = Mock.page(ctx, { title: 'Security', section: 'security', body: [K.ChipRail({ chips: [Mock.chips.security('armed_home'), Mock.chips.contacts('closed', 0)] })] });
+          a.hidden = true; a.parentNode.insertBefore(b, a); return Mock.sleep(800).then(function () { b.remove(); a.hidden = false; });
+        } },
+      { from: 'Header', to: 'Open Navigation flyout', kind: 'overlay', note: 'The iPad (regular width, no hinge) and the iPhone hamburger: a full-height drawer slides over the content with a scrim; the content never resizes. Standard 0.3 s smooth; Reduce Motion cross-fades.',
+        play: function (stage) {
+          var ctx = Mock.current, page = stage.querySelector('.ui-page'), fly = K.NavigationFlyout({ selected: 'home', badges: { chores: 2 } }); page.appendChild(fly);
+          return Mock.anim.flyout(stage, true).then(function () { return Mock.sleep(700); }).then(function () { return Mock.anim.flyout(stage, false); }).then(function () { fly.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Open Navigation (iPhone, iPad), then the reconnecting arc when present, Quick Links, Profile; then the page title (heading), the status chips, the weather card, Guests Staying Over, Cameras; the tab bar last.' },
+      { rule: 'Chips', note: 'Each chip is a button named "<title>, <summary>" ("Security, Armed Home") with the hint "Opens <title>". State is colour AND glyph AND words: the contact chip adds an alert triangle when armed, and "n Open" counts.' },
+      { rule: 'Weather card', note: 'One button: "<condition>, <n> degrees". The ticker text is hidden from VoiceOver; the condition is never truncated. Accessibility sizes stack the header and wrap the condition.' },
+      { rule: 'Cameras', note: 'Each tile is "<name> camera" with value "Live" or "Snapshot" and the hint "Opens the camera". The red live dot is decorative.' },
+      { rule: 'Targets', note: 'Chips are at least 48 pt tall, header circles 44 pt, tab bar items 44 pt or more, camera tiles far larger.' },
+      { rule: 'Dynamic Type', note: 'Text sizes use the HIG styles (large title 34, section header 20, chip title 15, state 12). At AX5 the chip row still scrolls on compact width and wraps on regular, the guest tiles (110 pt) and cameras (160 pt) keep their plain, unscaled minimums (ControlTileGrid, CameraGrid are not @ScaledMetric), so they stay three and two columns wide and the guest text clips; section headers stack.' },
+      { rule: 'Reduce Motion', note: 'The ticker stops (the condition wraps), the arrival becomes a 0.35 s cross-fade, the reconnecting arc turns at half speed, colour changes shorten to 0.2 s.' },
+      { rule: 'Reduce Transparency and Increase Contrast', note: 'The wallpaper becomes the plain base colour, modules and tiles go opaque (the solid finish).' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Layout: choose layout from size classes and keep functionality constant (Adaptability and size classes)", verdict: 'pass', note: "HomeScreen.swift:56 resolves one column or two hinge halves from the measured container, horizontalSizeClass == .regular and the window hinge, never an idiom; the sheet @State sits above the branch (line 12), so folding or rotating cannot reset a presented sheet.", by: 'apple-hig skill' },
+        { rule: "Designing for iPhone Duo: use margins and safe areas, expand the existing layout with space", verdict: 'pass', note: "Unfolded landscape gives chips and weather the leading half and cameras and guests the trailing half with an empty hinge band (HomeScreen.swift:58-77); the chip rail stops 24 pt short of the fold (ChipRailLayout.swift:19). Rendered on duo-unfolded-landscape.", by: 'apple-hig skill' },
+        { rule: "Layout and Scroll views: do not hide content off screen when there is room; make scrollable content apparent", verdict: 'pass', note: "Fixed: ChipRailMode.resolve takes isAccessibilitySize and wraps at accessibility sizes, so every chip shows (ChipRailLayout.swift, ChipRail.swift).", by: 'apple-hig skill' },
+        { rule: "Accessibility: do not rely on colour alone; convey state and function another way", verdict: 'pass', note: "Every chip pairs fill with words in the summary line and a filled-glyph variant (StatusRail.swift:71-81); the armed-and-open contact chip swaps to a triangle (StatusChipAppearance.swift:49); camera tiles speak Live or Snapshot as a value (CameraGrid.swift:28).", by: 'apple-hig skill' },
+        { rule: "Sheets: show one sheet at a time, include a grabber, size by content", verdict: 'pass', note: "Chips and cameras share one sheet(item:) over an enum (HomeScreen.swift:33), so two cannot stack; the security sheet is fitted, the room overviews full, and the grabber is visible (HassModal.swift:191).", by: 'apple-hig skill' },
+        { rule: "HomeKit: avoid covering camera views", verdict: 'pass', note: "CameraTile puts the name below the picture at accessibility sizes (CameraTile.namesBelowPicture) and keeps the small capsule otherwise.", by: 'apple-hig skill' },
+        { rule: "Materials: standard materials for the content layer, Liquid Glass for navigation", verdict: 'departure', note: "Modules, chips and tiles are flat tinted fills over a once-rendered wallpaper, not live thin materials (GlassTile.swift:600, ModuleBackground.tint); direction-g.md Layers records the GPU-cost reason. Glass stays on the header circles and tab bar.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Never rely on UIScreen.main; measure with onGeometryChange, not a per-frame state write", verdict: 'pass', note: "HomeScreen.swift:26 reads only the horizontal frame through onGeometryChange (the vertical position is dropped, lines 23-25), so scrolling does not re-evaluate the page; no UIScreen use.", by: 'swiftui-pro skill' },
+        { rule: "Typography: avoid .caption for state text and scattered fontWeight()", verdict: 'pass', note: "Fixed in part, rest deliberate: the semibold weights are HassTokens.Typography tokens (same pixels). The 12 pt state line stays .caption by design on the 48 pt chip; bold() would change the weight the mockup draws.", by: 'swiftui-pro skill' },
+        { rule: "Accessibility: never use onTapGesture for a tappable element; use Button", verdict: 'pass', note: "Not applicable: the weather card's header cardButton is a real Button with the open label; the module tap is a touch convenience.", by: 'swiftui-pro skill' },
+        { rule: "Avoid UIKit unless needed (HostedHorizontalScroll)", verdict: 'departure', note: "The compact chip rail hosts a UIScrollView (ChipRail.swift:60) because a nested SwiftUI ScrollView cost main-thread time every frame (AGENTS.md main-thread invariant, patterns/status-rail.md).", by: 'swiftui-pro skill' },
+        { rule: "Accessibility: Reduce Motion replaces large motion with opacity", verdict: 'pass', note: "arrivalMotion fades only under Reduce Motion (ArrivalMotion.swift:41-43); colour changes keep a 0.2 s fade through stateColorTransition (StateColorTransition.swift:57).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'empty: Home has no empty state: the status rail and weather render from config and the four cameras are always present; an unavailable entity shows in the error state instead.',
+      'Code and docs disagree on first sign-in: direction-g.md "Loading and feedback" says one centred arc spinner on the wallpaper; the later design/motion.md section 5 says never a full-screen spinner and shows names with pulsing bars. The mockup shows motion.md.',
+      'Wallpaper, camera pictures and weather glyphs are stand-ins drawn by the kit (no external images). Chip and tile colours, radii and finishes are the real tokens.',
+      'Promote to kit: nothing local; every piece is a kit component.',
+      'The duo-unfolded-portrait pose was not run on a simulator (design/apple/duo.md); its chrome is drawn from the code (ShellChrome.resolve: the menu button leading, the large title that collapses beside it, the floating tab bar; no vertical bar).',
+
+      "Corrected 2026-10-23 (skill review): the guest tiles (ControlTileGrid, min 110) and cameras (CameraGrid, min 160) are plain numbers in the app, not @ScaledMetric, so at AX5 they stay three and two columns wide; the mockup had drawn one column because the kit TileGrid scales every minimum. Home now passes appMin() to undo the scaling.",
+
+    ],
+    changelog: [{ date: '2026-11-03', note: 'In flight (claude/section-sides): Cameras top right made a rule (section-sides.md rule 11, owner: "Cameras top right like home page"); partly folded at accessibility sizes the wrapped rail heads the leading column instead of spanning, so Cameras stays top right.' }, { date: '2026-11-03', note: 'Corrected: the two columns are drawn only while the Duo is partly folded (HomeColumns.resolve needs the band); lying flat Home is one column. States duo-part-fold and duo-flat. Home is the model for fold columns (section-sides.md).' }, { date: '2026-10-23', note: 'First pass built with the kit (iPhone, folded Duo, unfolded Duo, iPad).' }, { date: '2026-10-26', note: 'In flight (fix/duo-tabbar-chip-rail, owner): the chip rail spans the whole page above the unfolded Duo\'s two columns and scrolls over the hinge; iPad shows one scrolling row; the unfolded Duo keeps the tab bar (trailing vertical bar).' }],
+  });
+})();
+</script></body></html>

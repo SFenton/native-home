@@ -1,0 +1,832 @@
+{
+ "version": 1,
+ "date": "2026-11-01",
+ "note": "Candidates only; question files stay in contracts/jev/questions owned by ar-jev-tools. Wording here is the measured wording.",
+ "candidates": [
+  {
+   "id": "owner_msg.reports_failed_fix",
+   "role": "Orchestrator",
+   "consumer": "ledger + Steward KPI table",
+   "output": "Ledger field rounds.owner_qa[] gets {fix_failed: true, quote}. Two in a row on one task prints a one-line hint to the Orchestrator: 'owner reported the same fix failing twice; dispatch a Researcher (rearchitect?) instead of a third patch'. Steward weekly KPI: owner QA rounds per task and failed-fix rate.",
+   "type": "noul",
+   "instructions": "Does `owner_message` say that something the agent already changed or fixed still does not work, still looks wrong, or came back? A first report of a new problem is no.",
+   "state_fields": [
+    "owner_message"
+   ],
+   "label_source": "Owner messages in session history (labelled here); later the owner_msg ledger itself.",
+   "deterministic_floor": "Regex over still|again|same|not fixed|nope|didn't work catches the easy half; Jev is for paraphrase ('feels about the same').",
+   "expected_value": "About 10k tokens per escalated task: in the UIKit port and perf sessions the owner reported the same defect 3 to 5 times before the cause changed (Settings scroll: 9 'still' rounds). An early rearchitect request is the largest single saving in the audit. The KPI is the only automatic measure of 'owner was the QA'.",
+   "risk": "Low. Hint and counter only; a false positive adds a line, a miss loses the KPI row.",
+   "fit": "good",
+   "fit_reason": "Classifies what a message says, near-literal; the cue words are in the text.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "The message reports that an earlier change or fix did not work, did not help, or the problem returned",
+    "false": "The message is a new problem, a request, an answer, an approval or a question"
+   },
+   "labels": "labels/owner_msg.reports_failed_fix.jsonl",
+   "measurement": "AUC 0.957; p>=0.5: precision 0.955, recall 0.81 (n=59); keyword baseline 0.774/0.923"
+  },
+  {
+   "id": "owner_msg.standing_rule",
+   "role": "Orchestrator",
+   "consumer": "Steward learning queue",
+   "output": "Appends {quote, session, task} to build/learning/queue.jsonl for the end-of-task compound step; learning.home (planned) then picks the file. Output to the owner digest: 'new standing rules heard today: n'.",
+   "type": "noul",
+   "instructions": "Does `owner_message` set a rule, preference or fact that should apply to future work as well, not only to the task at hand? 'Always', 'from now on', a product decision or a standing constraint count; a one-time instruction or answer does not.",
+   "state_fields": [
+    "owner_message"
+   ],
+   "label_source": "Owner messages (labelled here).",
+   "deterministic_floor": "Regex on always|never|from now on|going forward|we're going to call; Jev for rules stated as decisions ('Manual is a deprecated feature').",
+   "expected_value": "Rules the owner states once get re-asked later (the proposals-first rule was re-stated across four sessions before it was codified). A reliable queue moves codification from owner memory to the compound step; about 3 owner messages and a repeat session per rule.",
+   "risk": "Low: it only queues; a human-reviewed step writes the rule (L3 for agents/hooks).",
+   "fit": "good",
+   "fit_reason": "Reads what the text says; no outcome prediction.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "The message sets a rule, preference or product fact meant to apply beyond the current task",
+    "false": "The message is a one-time instruction, answer, approval, question or report"
+   },
+   "labels": "labels/owner_msg.standing_rule.jsonl",
+   "measurement": "AUC 0.858; p>=0.7: precision 0.80, recall 0.57 (n=58); below target; keyword baseline 0.923/0.429"
+  },
+  {
+   "id": "owner_msg.partial_approval",
+   "role": "Orchestrator",
+   "consumer": "hook decision on ledger flips",
+   "output": "When the owner's reply to a proposal is an approval, this noul decides whether the approval is bare. P(true) >= 0.5 blocks the automatic 'proposal approved' flip and prints 'approval carries conditions: restate them in the brief' (makes the flow stricter only). Also fills the Steward KPI 'approvals with conditions'.",
+   "type": "noul",
+   "instructions": "`owner_message` replies to a proposal. Does it approve the proposal but also add a condition, an exclusion or extra work to do with it? A bare yes is no.",
+   "state_fields": [
+    "owner_message"
+   ],
+   "label_source": "Owner approvals (labelled here).",
+   "deterministic_floor": "Message length and presence of ',' / 'but' / 'and' after the yes is the floor; a bare yes/approve/go/merge is decided by regex.",
+   "expected_value": "Prevents the costly miss: acting on 'Yes, don't run journeys' as a full go. One wrongly executed approval costs a rework of 20k+ tokens plus owner trust.",
+   "risk": "Medium if it ever loosens; it only tightens (never auto-approves).",
+   "fit": "good",
+   "fit_reason": "Compositional but the text states the condition.",
+   "start_mode": "shadow",
+   "target_precision": 0.8,
+   "criteria": {
+    "true": "It approves and also adds a condition, exclusion, ordering, scope cut or extra task",
+    "false": "It approves with nothing added, or it is not an approval"
+   },
+   "labels": "labels/owner_msg.partial_approval.jsonl",
+   "measurement": "AUC 0.930; p>=0.85: precision 0.812, recall 0.765 (n=43)"
+  },
+  {
+   "id": "owner_msg.defers_or_cuts_scope",
+   "role": "Orchestrator",
+   "consumer": "ledger acceptance waiver",
+   "output": "Writes acceptance item status 'waived_by_owner' with the quote, so the Verifier and Reviewer do not require that check and the Steward can report waived checks. Never applies without the quoted text being printed back in the one-line report.",
+   "type": "noul",
+   "instructions": "Does `owner_message` tell the agent to skip, defer or not do part of the work (for example skip tests, handle it in a follow-up, not now)?",
+   "state_fields": [
+    "owner_message"
+   ],
+   "label_source": "Owner messages, labelled from 'redirect' items in owner_msg.kind set.",
+   "deterministic_floor": "Regex skip|defer|follow-up|not now|don't worry about.",
+   "expected_value": "Stops agents re-adding journeys or device runs the owner already waived (seen in four sessions: 'Skip journeys', 'skip perf run on device', 'Don't worry about tests'); about 5k tokens each.",
+   "risk": "Medium: a wrong waiver drops a needed check, so the waiver is shown back and only the Orchestrator writes it.",
+   "fit": "measure-first",
+   "fit_reason": "One judgment but scope words matter; needs labels beyond this corpus.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "The message tells the agent to skip, defer or postpone some work or check",
+    "false": "The message asks for work, approves, answers or reports"
+   }
+  },
+  {
+   "id": "task.needs_physical_device",
+   "role": "Orchestrator",
+   "consumer": "level raise (L3)",
+   "output": "Raises the task to L3 and parks it as Needs Decision with 'needs the owner's device' unless the owner already gave a device window. Never lowers a level (a decision-models rule).",
+   "type": "noul",
+   "instructions": "Does the work in `task` need to run on a physical iPhone, iPad or Duo rather than a simulator (for example frame rate on hardware, thermal, Wi-Fi switching, camera, haptics, push)?",
+   "state_fields": [
+    "task"
+   ],
+   "label_source": "PR and owner text; labelled where performance or hardware is named.",
+   "deterministic_floor": "Regex physical|on device|iPhone 18 Pro|Wi-Fi|thermal|frame rate on hardware.",
+   "expected_value": "Prevents a doomed simulator loop: three sessions burned 1 to 2 hours of agent turns on perf work that only the phone could settle.",
+   "risk": "Low: raising a level is the safe direction.",
+   "fit": "good",
+   "fit_reason": "Reads a stated requirement.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "The task needs real hardware to be answered or verified",
+    "false": "A simulator or host test is enough"
+   }
+  },
+  {
+   "id": "task.device_scope",
+   "role": "Designer",
+   "consumer": "brief field device_families + evidence pack poses",
+   "output": "Fills brief.device_families and the required poses in build/evidence/<branch>/manifest.json (pose-matrix skill). 'all_families' is the default. Narrower scopes only skip poses when the brief writer confirms; a wrong narrowing is caught by Reviewer.",
+   "type": "choice",
+   "instructions": "On which device families must the change described in `task` be checked? Choose by what the text says, not by what would be safe.",
+   "state_fields": [
+    "task"
+   ],
+   "label_source": "PR titles and owner messages (labelled here).",
+   "deterministic_floor": "Regex over Duo|iPad|iPhone|fold and by file paths (tools/ docs only => no_ui).",
+   "expected_value": "Largest measurable saver on the verification side: a Duo-only fix does not need 3 families; one family run costs 10 to 20 min of slot time and 5 to 15k agent tokens. Owner repeats Duo-only asks often.",
+   "risk": "Medium: under-scoping misses a regression; hence default all_families and abstain below 0.6.",
+   "fit": "measure-first",
+   "fit_reason": "Classification of stated scope; confusion between all_families and a named family is the risk.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "all_families": "Applies to every phone and tablet layout, or the text does not say",
+    "iphone_only": "Only the iPhone",
+    "duo_only": "Only the foldable iPhone Duo (folded, unfolded, partial fold, hinge)",
+    "ipad_only": "Only the iPad",
+    "duo_and_ipad": "iPad and Duo only, for example split view, landscape panes, larger layouts",
+    "no_ui": "Nothing the device draws: tooling, CI, docs, tests or logic with no screen involved"
+   },
+   "labels": "labels/task.device_scope.jsonl",
+   "measurement": "accuracy 0.82; confidence>=0.6: 0.912 on 68% (n=50); errors lean to all_families (safe)"
+  },
+  {
+   "id": "session.kind",
+   "role": "Steward",
+   "consumer": "KPI table: tokens and turns per session kind",
+   "output": "Tags a session from its first owner message so the weekly KPI table shows cost per kind (implementation, debugging, research, ops, design review, chat).",
+   "type": "choice",
+   "instructions": "What is the main kind of work asked for in `first_message`?",
+   "state_fields": [
+    "first_message"
+   ],
+   "label_source": "Session titles in history (23 sessions).",
+   "deterministic_floor": "Session title keywords.",
+   "expected_value": "Measurement only: lets the Steward see that debugging-by-owner sessions cost 3x. No direct token saving; guides the next derivation.",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "Easy classification but a session drifts; first message only labels intent.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "implement": "Build or change product code",
+    "debug": "Fix a reported defect or performance problem",
+    "research": "Investigate and report",
+    "ops": "Machine, CI, accounts, release or deployment",
+    "design": "Mockups, layout, copy, motion",
+    "review_admin": "Merge, cleanup, status"
+   }
+  },
+  {
+   "id": "research.question_kind",
+   "role": "Researcher",
+   "consumer": "note template + source plan",
+   "output": "Chooses the research-note variant and its mandatory source types (e.g. 'measure' requires a Verifier pairing; 'platform_support' requires Apple docs + release notes).",
+   "type": "choice",
+   "instructions": "What kind of answer does the research request in `request` need?",
+   "state_fields": [
+    "request"
+   ],
+   "label_source": "Research asks in history (about 14).",
+   "deterministic_floor": "none.",
+   "expected_value": "Saves a clarification round (about 4k tokens) and mis-scoped notes.",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "Few labels; categories overlap.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "how_do_others": "How other apps or open source repos solve it",
+    "platform_support": "Whether an Apple API or HIG rule allows or recommends something",
+    "measure": "Needs a measurement or profile to answer",
+    "compare_options": "Choose among named alternatives",
+    "root_cause": "Explain why something is slow or broken",
+    "inventory": "List or bucket what exists"
+   }
+  },
+  {
+   "id": "research.needs_measurement",
+   "role": "Researcher",
+   "consumer": "dispatch pairing with Verifier",
+   "output": "Adds a Verifier task (measurement run) alongside the Researcher and tells the note to cite the numbers. Prevents opinion-only notes on performance questions.",
+   "type": "noul",
+   "instructions": "Can the research question in `request` only be settled by running a measurement (frame rate, memory, timing) and not by reading?",
+   "state_fields": [
+    "request"
+   ],
+   "label_source": "Owner perf asks (about 10).",
+   "deterministic_floor": "Regex fps|memory|CPU|profile|measure|trace.",
+   "expected_value": "Moderate: perf debates cost whole sessions (the Settings scroll investigation); a measurement-first note saves a re-research.",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "Clear text cue; labels thin.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "Only a measurement can settle it",
+    "false": "Reading code, docs or sources can settle it"
+   }
+  },
+  {
+   "id": "design.change_scope",
+   "role": "Designer",
+   "consumer": "brief template + sweep size",
+   "output": "Picks the design brief template and sets sweep=true for pattern, cross_surface or navigation (every consumer of the pattern must be swept, mockup atlas surfaces updated).",
+   "type": "choice",
+   "instructions": "How far does the visible change described in `request` reach?",
+   "state_fields": [
+    "request"
+   ],
+   "label_source": "PR titles and file counts (token only vs pattern vs 20+ surfaces).",
+   "deterministic_floor": "File count and touched pattern ids (contracts/patterns.json) if a diff exists; for a request there is no diff.",
+   "expected_value": "Moderate: decides whether the Designer mocks one surface or a pattern; wrong scope costs a design round (about 15k Opus tokens).",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "Boundary between component and pattern is fuzzy.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "token": "One value changes (colour, size, copy, timing) in one place",
+    "one_component": "One component or screen",
+    "pattern": "A behavior shared by several screens",
+    "cross_surface": "Many pages and modals",
+    "navigation": "How people move between screens or the shell"
+   }
+  },
+  {
+   "id": "design.reply_adds_requirement",
+   "role": "Designer",
+   "consumer": "autonomy level",
+   "output": "Distinguishes 'fix to match the existing spec' (L1, loop continues) from 'a new requirement' (L2: park, propose first). Raises to L2 only; never lowers.",
+   "type": "noul",
+   "instructions": "`owner_reply` answers a design that was shown. Does it ask for something the shown design never specified (a new element, layout, behavior or rule), rather than fixing a deviation from it?",
+   "state_fields": [
+    "owner_reply",
+    "design_summary"
+   ],
+   "label_source": "Owner design feedback (about 40 messages).",
+   "deterministic_floor": "none.",
+   "expected_value": "Moderate: avoids an L1 auto-merge of a visible new choice (propose-first violation) and a pointless design round.",
+   "risk": "Medium: wrong 'no' lets a new choice slip; hence raise only.",
+   "fit": "measure-first",
+   "fit_reason": "Needs both the design summary and the reply; comparing them is closer to reasoning.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It asks for something the design did not specify",
+    "false": "It reports a deviation from the design or approves it"
+   }
+  },
+  {
+   "id": "pr.user_visible",
+   "role": "Coder",
+   "consumer": "hint line in tools/ship.sh --note",
+   "output": "ship.sh prints 'Release-Note suggested: needed (p=0.81) / none'. check-notes (code) still decides whether a trailer is required by path; Jev only helps choose 'none' vs a note.",
+   "type": "noul",
+   "instructions": "Would a person who uses the app notice this change in how it looks, behaves or performs? Tests, tooling, docs, refactors, internal fixes and mockups are no.",
+   "state_fields": [
+    "change"
+   ],
+   "label_source": "Release-Note trailers in 15 merged PRs (6 notes, 9 none) plus judged PRs.",
+   "deterministic_floor": "versioning.py check-notes decides by app paths; only the none-vs-note choice is left.",
+   "expected_value": "Small per PR (2k tokens) but removes a recurring review comment and keeps release notes honest.",
+   "risk": "Low; hint.",
+   "fit": "good",
+   "fit_reason": "Classifies what text says.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "The change alters what the app shows, does or how fast it feels",
+    "false": "Nothing a user of the app can see changes"
+   },
+   "labels": "labels/pr.user_visible.jsonl",
+   "measurement": "AUC 0.987; p>=0.7: precision 0.897, recall 0.946; p<0.3 never a miss (n=79); keyword baseline 0.552/0.865"
+  },
+  {
+   "id": "digest.failure_cause",
+   "role": "Verifier",
+   "consumer": "ledger evidence failure_class + dispatch",
+   "output": "Per failing line: build_error -> Coder; stale_test -> Coder fixes the test or fixture; infra -> Menial reruns once then reports infra; timing -> rerun once, then real; layout_measure and real_behavior -> Coder with the line. Written into evidence manifest failure_class (real|infra|known-flaky) and the Steward flake table.",
+   "type": "choice",
+   "instructions": "`failure` is one line from a test run summary. What kind of failure does it show?",
+   "state_fields": [
+    "failure"
+   ],
+   "label_source": "build/runs digests (115) and their failure lines (labelled here).",
+   "deterministic_floor": "log_digest.py INFRA regexes and 'No matches found' / compiler error patterns decide first; Jev handles the rest.",
+   "expected_value": "Large on reruns: infra mistaken for real costs a Coder turn chain (10 to 30k tokens); real mistaken for infra loses a regression. The digest already catches the clear infra cases.",
+   "risk": "Medium: never rerun-and-hide; a second failure is always real.",
+   "fit": "measure-first",
+   "fit_reason": "Classification of message form; root cause remains with the Coder.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "real_behavior": "An assertion about what the app did or showed was false",
+    "stale_test": "The test could not find an element, identifier or fixture it expects",
+    "layout_measure": "A number about a size, position or frame was out of range",
+    "timing": "A wait or timeout ran out, or an async result arrived late",
+    "infra": "The machine, simulator, keychain, lock or runner failed, not the test",
+    "build_error": "Compiling or linking failed"
+   },
+   "labels": "labels/digest.failure_cause.jsonl",
+   "measurement": "accuracy 0.918; confidence>=0.6: 0.978 on 92% (n=49)"
+  },
+  {
+   "id": "evidence.claims_poses",
+   "role": "Verifier",
+   "consumer": "pr-checks comparison against manifest",
+   "output": "Noul per pose (7 poses + rotate-in/out) over the PR body: does the text claim this pose was verified? Code compares the claimed set with manifest.json and fails the check on any claim without evidence (stricter only).",
+   "type": "noul-set",
+   "instructions": "Does `pr_body` claim that the change was checked on the pose in each criterion?",
+   "state_fields": [
+    "pr_body"
+   ],
+   "label_source": "PR bodies in merged PRs.",
+   "deterministic_floor": "Regex iPhone|Duo|iPad|folded|landscape finds most; the manifest comparison is code.",
+   "expected_value": "Small to moderate: catches 'all three families' claims with one family run. Regex gets most of it.",
+   "risk": "Low (stricter).",
+   "fit": "measure-first",
+   "fit_reason": "Mostly lookup; Jev adds paraphrase coverage only.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "iphone": "The text says it was checked on iPhone",
+    "duo_folded": "Checked on the folded Duo",
+    "duo_unfolded": "Checked on the unfolded Duo (portrait or landscape)",
+    "ipad": "Checked on iPad"
+   }
+  },
+  {
+   "id": "finding.severity",
+   "role": "Reviewer",
+   "consumer": "review record + Steward KPI",
+   "output": "Normalizes the severity of each finding (nit, minor, major, blocker) across reviewers; a reviewer 'changes' verdict made only of nits prints a hint 'only nits: consider land with notes'. Verdict itself stays the Reviewer's.",
+   "type": "score",
+   "instructions": "How serious is the problem described in `finding` for the correctness or safety of the change?",
+   "state_fields": [
+    "finding"
+   ],
+   "label_source": "build/review/*.json findings (too few: about 14 across worktrees).",
+   "deterministic_floor": "Reviewer-assigned severity field.",
+   "expected_value": "Moderate: a nit-only second review round costs about 40k Opus tokens.",
+   "risk": "Medium: hiding a major as a nit; hint only.",
+   "fit": "measure-first",
+   "fit_reason": "Needs more findings; severity judgments need code context.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": [
+    "Nit: style, wording, naming; nothing breaks",
+    "Minor: wrong in an edge case or a doc inaccuracy",
+    "Major: a real bug or missing test with a plausible path to harm",
+    "Blocker: data loss, security, or a broken main path"
+   ]
+  },
+  {
+   "id": "turn.waiting_narration",
+   "role": "Steward",
+   "consumer": "transcript audit KPI",
+   "output": "Steward weekly audit counts agent turns that only narrate waiting. Output: share of idle-narration turns per session (target < 5%) in the KPI table; a persistent offender adds a 'poll/wait' rule violation to the Workflow issue. A hook never blocks on it.",
+   "type": "noul",
+   "instructions": "An AI agent wrote `turn` while it works. Does it only say that the agent is waiting or that nothing has changed, with no new result, decision or action?",
+   "state_fields": [
+    "turn"
+   ],
+   "label_source": "Assistant text turns in the project's own transcripts (labelled here).",
+   "deterministic_floor": "Regex Still waiting|No change|I'm waiting|queued.",
+   "expected_value": "The token-burn audit found long waits re-reading 300k+ contexts; every narrated wait turn costs a full context re-read (about 100k+ cache-read tokens). Measuring it directs the next fix; potential saving is large only if turns can then be eliminated by ending the turn (bg_run).",
+   "risk": "Low.",
+   "fit": "good",
+   "fit_reason": "Classifies what the text says.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It only says it is waiting, queued or that nothing has changed",
+    "false": "It reports a result, takes or announces an action, plans, hits a problem or asks"
+   },
+   "labels": "labels/turn.waiting_narration.jsonl",
+   "measurement": "AUC 0.988; p>=0.3: precision 1.0, recall 0.87 (n=80); keyword baseline 0.833/0.87"
+  },
+  {
+   "id": "owner_msg.asks_status",
+   "role": "Steward",
+   "consumer": "KPI: status pings per task",
+   "output": "Counts owner status/ETA messages per task. Three or more on one task adds a note to the Workflow issue: the one-line report was not enough. A digest message is pushed after 2 pings.",
+   "type": "noul",
+   "instructions": "Does `owner_message` ask how the work is going, for the status or an estimate, or whether something has finished?",
+   "state_fields": [
+    "owner_message"
+   ],
+   "label_source": "owner_msg.kind labels (status_ping).",
+   "deterministic_floor": "Regex status|how is|how long|eta|are we done.",
+   "expected_value": "Measurement and small push-digest saving (an owner ping triggers a 10k-token status turn).",
+   "risk": "Low.",
+   "fit": "good",
+   "fit_reason": "Regex floor is strong; Jev adds paraphrase.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It asks about progress, status, estimate or completion",
+    "false": "Anything else"
+   }
+  },
+  {
+   "id": "workflow.friction_kind",
+   "role": "Steward",
+   "consumer": "Workflow issue label + lane",
+   "output": "Labels each friction note (from owner complaints, hook blocks, retries) as tool_bug, rule_gap, agent_behavior, infra or cost so the issue lands in the right lane.",
+   "type": "choice",
+   "instructions": "What is the main cause of the friction described in `note`?",
+   "state_fields": [
+    "note"
+   ],
+   "label_source": "Workflow issues once they exist.",
+   "deterministic_floor": "none.",
+   "expected_value": "Moderate: triage time; but needs data.",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "No labels yet.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "tool_bug": "A script or hook misbehaves",
+    "rule_gap": "No rule covers the case or rules conflict",
+    "agent_behavior": "An agent did the wrong thing or wasted turns",
+    "infra": "Machine, simulator, network or account problem",
+    "cost": "Too slow or too many tokens"
+   }
+  },
+  {
+   "id": "request.surface",
+   "role": "Triage Router",
+   "consumer": "router branch -> page spec + journey set + lane",
+   "output": "Picks the surface so the worker prompt loads the right pattern doc / .agents/pages spec, journey class and lane (app_ui to the UI lane, tooling_ci to a tools lane).",
+   "type": "choice",
+   "instructions": "Which part of the project does the change described in `pr` land in?",
+   "state_fields": [
+    "pr"
+   ],
+   "label_source": "Files changed in merged PRs (deterministic): majority of changed paths.",
+   "deterministic_floor": "For a PR the files decide. For an issue there are no files, so Jev classifies the text.",
+   "expected_value": "Moderate: right lane first time saves a re-route (about 5k tokens).",
+   "risk": "Low.",
+   "fit": "good",
+   "fit_reason": "Classify the text; strong cue words.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "app_ui": "SwiftUI screens, sheets, tiles, shared UI components",
+    "core_logic": "Home Assistant connection, entity store, parsing, services, location",
+    "extension_or_activity": "Widgets, Live Activities, notifications, watch",
+    "tests": "Tests only",
+    "tooling_ci": "Scripts, hooks, CI, build and release tooling",
+    "rules_docs": "Agent rules, workflow documents, specs",
+    "mockups_or_design_docs": "Mockups and design documents"
+   },
+   "labels": "labels/request.surface.jsonl",
+   "measurement": "accuracy 0.603 (n=73); text cannot tell docs, tests and mockups apart from app code; use files for PRs"
+  },
+  {
+   "id": "request.page",
+   "role": "Triage Router",
+   "consumer": "brief: link .agents/pages/<id>/spec.md",
+   "output": "Choice over the 13 page ids plus shell, modal, none. The brief links that page's spec and journey test class. Pair with a Noul 'names_a_page' to decide whether to act.",
+   "type": "choice",
+   "instructions": "Which page of the app does the report in `request` concern?",
+   "state_fields": [
+    "request"
+   ],
+   "label_source": "Request issues once there are more than 3; PR titles that name a page.",
+   "deterministic_floor": "Page-name keywords from .agents/pages; Jev for 'the thing with the beds'.",
+   "expected_value": "Moderate: the spec lookup saves a search (3 to 8k tokens) per task; the owner's reports name pages in half of the cases.",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "Needs labels from real reports.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "chores": "chores",
+    "climate": "climate",
+    "custom-lights": "custom-lights",
+    "food": "food",
+    "home": "home",
+    "inventory": "inventory",
+    "media": "media",
+    "rooms": "rooms",
+    "security": "security",
+    "settings": "settings",
+    "sprinklers": "sprinklers",
+    "vacation": "vacation",
+    "vacuums": "vacuums",
+    "shell_or_modal": "Navigation, header, tab bar or a sheet shared by pages",
+    "none": "No page"
+   }
+  },
+  {
+   "id": "request.severity",
+   "role": "Triage Router",
+   "consumer": "queue order + digest priority",
+   "output": "Orders the triage queue: crash/data loss first, cosmetic last; level 3 also pings the owner digest.",
+   "type": "score",
+   "instructions": "How bad is the problem that `owner_message` reports for the person using the app?",
+   "state_fields": [
+    "owner_message"
+   ],
+   "label_source": "Bug reports in owner messages (labelled here: 39).",
+   "deterministic_floor": "Words crash|crashes|freezes force 3.",
+   "expected_value": "Moderate: queue ordering; the owner currently orders by chat.",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "Ordinal judgment on stated impact; levels are situations.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": [
+    "Cosmetic: looks or animates slightly wrong, everything works",
+    "Annoying: janky, slow, inconsistent or misplaced, but the task can be done",
+    "Broken: a feature or control does not work or shows wrong data",
+    "Crash or data loss: the app quits or loses what was entered"
+   ],
+   "labels": "labels/request.severity.jsonl",
+   "measurement": "Spearman 0.826, exact 0.897, within-1 1.0 (n=39; only 2 crash and 6 broken items)"
+  },
+  {
+   "id": "request.needs_info",
+   "role": "Triage Router",
+   "consumer": "router branch: Needs Info",
+   "output": "Marks the issue Needs Info with a templated question when the report names no screen or behavior; no worker starts.",
+   "type": "noul",
+   "instructions": "Does `request` fail to say what screen or behavior is wrong or wanted, so that nobody could start without asking?",
+   "state_fields": [
+    "request"
+   ],
+   "label_source": "Request issues (too few) and chat bug reports.",
+   "deterministic_floor": "Body length < 40 chars and no page word.",
+   "expected_value": "Moderate: avoids a failed worker run (30k+ tokens).",
+   "risk": "Medium: a false positive delays a clear report; the template asks one question only.",
+   "fit": "measure-first",
+   "fit_reason": "Needs labels from real reports.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It cannot be acted on without asking",
+    "false": "It names the problem or request well enough to start"
+   }
+  },
+  {
+   "id": "request.ha_side",
+   "role": "Triage Router",
+   "consumer": "router branch: Coder vs HA operator",
+   "output": "Sends non-app problems to the HA operator queue (Needs Decision for live writes, L3) instead of a Coder.",
+   "type": "choice",
+   "instructions": "Where does the problem in `request` most likely live?",
+   "state_fields": [
+    "request"
+   ],
+   "label_source": "None yet (the app's reports come with HA version and entity ids).",
+   "deterministic_floor": "Entity id in the report against the entity store (code).",
+   "expected_value": "Moderate once HA tickets exist.",
+   "risk": "Medium: misrouting an app bug to HA wastes a turn; hint.",
+   "fit": "measure-first",
+   "fit_reason": "No labels exist.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "options": {
+    "app_ui": "The app draws or behaves wrongly",
+    "app_logic": "The app sends or interprets the wrong thing",
+    "ha_automation": "A Home Assistant automation or script",
+    "ha_integration": "A Home Assistant integration or entity",
+    "device_or_network": "Hardware, Wi-Fi or the internet",
+    "unclear": "Cannot tell"
+   }
+  },
+  {
+   "id": "ha.change_risk",
+   "role": "HA operator",
+   "consumer": "required steps before a config write",
+   "output": "Sets what the operator must do: reload-safe -> backup + ha core check; restart -> also announce; safety -> L3 owner approval. Code rule first: entity domains lock, alarm_control_panel, cover garage, plus secrets.yaml and core files force 'safety'. Jev may only raise.",
+   "type": "score",
+   "instructions": "How risky is the Home Assistant change described in `change`?",
+   "state_fields": [
+    "change"
+   ],
+   "label_source": "None yet; ssh hass history.",
+   "deterministic_floor": "Entity/domain/file denylist first (code).",
+   "expected_value": "Prevents an unreviewed write to a lock or alarm; value is risk avoidance, not tokens.",
+   "risk": "High: a miss writes a bad config; therefore floor-first and L3 for anything safety.",
+   "fit": "measure-first",
+   "fit_reason": "Safety gate: Jev can only tighten.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": [
+    "Read only: no change to the running house",
+    "Reload-safe: changes take effect on a reload",
+    "Needs a restart of Home Assistant or an integration",
+    "Touches locks, alarms, garage doors, or anything safety related"
+   ]
+  },
+  {
+   "id": "task.touches_signing_or_credentials",
+   "role": "Orchestrator",
+   "consumer": "level raise (L3)",
+   "output": "Raises the task to L3 (owner only) and names the reason. Code first: paths (entitlements, *.p8, .github/workflows, provisioning, tools/hass_creds.sh, ASC secrets) always raise; Jev reads the request text for the cases where no path is known yet. Raise only.",
+   "type": "noul",
+   "instructions": "Does the work in `task` need signing certificates, App Store Connect or developer-account access, passwords, tokens or API keys, or changes to how they are stored?",
+   "state_fields": [
+    "task"
+   ],
+   "label_source": "Owner messages about App Store Connect, Team ID, secrets (not sent to Jev: they contain identifiers); PR titles.",
+   "deterministic_floor": "Path rules decide for diffs.",
+   "expected_value": "Small token value, large safety value: avoids an agent touching L3 areas before a diff exists.",
+   "risk": "Low (raises only).",
+   "fit": "good",
+   "fit_reason": "Reads a stated requirement.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It involves credentials, signing, account access or secrets",
+    "false": "It does not"
+   }
+  },
+  {
+   "id": "review.pr_body_states_why",
+   "role": "Reviewer",
+   "consumer": "hint line in reviewer pre-read",
+   "output": "Prints 'PR body has no rationale for the change' when the body only lists what was done. Reviewer decides; no gate.",
+   "type": "noul",
+   "instructions": "Does `pr_body` say why the change is needed (the problem, the owner's request or a measurement), not only what was changed?",
+   "state_fields": [
+    "pr_body"
+   ],
+   "label_source": "Merged PR bodies.",
+   "deterministic_floor": "Presence of Summary/Why headings is a regex.",
+   "expected_value": "Small: saves one reviewer question per PR.",
+   "risk": "Low.",
+   "fit": "measure-first",
+   "fit_reason": "Many bodies already carry a Why; regex nearly enough.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It states the problem, request or evidence behind the change",
+    "false": "It only lists what changed"
+   }
+  },
+  {
+   "id": "request.web_parity",
+   "role": "Triage Router",
+   "consumer": "brief step: read the React dashboard",
+   "output": "Adds the step 'read ha-sfenton-react-dash for this behavior and cite file@sha:line' to the brief and links the source folder, so parity bugs start from the web implementation (AGENTS.md web parity rule).",
+   "type": "noul",
+   "instructions": "Does `request` say the app should look or behave like the web dashboard or web app?",
+   "state_fields": [
+    "request"
+   ],
+   "label_source": "Owner messages: 'like web app', 'web parity' (about 8).",
+   "deterministic_floor": "Regex web|dashboard|parity|like the web.",
+   "expected_value": "Moderate: saves the discovery turn (5 to 10k tokens) for parity items.",
+   "risk": "Low.",
+   "fit": "good",
+   "fit_reason": "Stated comparison in text.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It asks for web parity or compares with the web dashboard",
+    "false": "It does not mention the web dashboard"
+   }
+  },
+  {
+   "id": "owner_msg.wants_visuals",
+   "role": "Orchestrator",
+   "consumer": "hook: final report must attach images",
+   "output": "When true, the final one-line report must include screenshot or gif paths from build/evidence or the Stop hook asks for them once.",
+   "type": "noul",
+   "instructions": "Does `owner_message` ask to see screenshots, images, recordings or mockups of the result?",
+   "state_fields": [
+    "owner_message"
+   ],
+   "label_source": "Owner messages (show me images, screenshots/gifs, show me the mockups).",
+   "deterministic_floor": "Regex show me|screenshot|gif|images.",
+   "expected_value": "Small: avoids one round trip (about 3k tokens).",
+   "risk": "Low.",
+   "fit": "good",
+   "fit_reason": "Regex covers most.",
+   "start_mode": "shadow",
+   "target_precision": 0.85,
+   "criteria": {
+    "true": "It asks to see images, screenshots, recordings or mockups",
+    "false": "It does not"
+   }
+  }
+ ],
+ "rejected": [
+  {
+   "id": "owner_msg.wrong_session",
+   "reason": "Needs a comparison against what the task is; positives are too rare (2) to measure. Keep only if the Steward counts incidents.",
+   "role": "Orchestrator"
+  },
+  {
+   "id": "owner_msg.device_ready",
+   "reason": "The safety value lies in not using it as approval; the regex floor already covers it.",
+   "role": "Orchestrator"
+  },
+  {
+   "id": "request.is_pipeline_probe",
+   "reason": "Label and title decide; Jev adds nothing.",
+   "role": "Triage Router"
+  },
+  {
+   "id": "ha.log_is_ours",
+   "reason": "Substring match decides.",
+   "role": "HA operator"
+  },
+  {
+   "id": "test.is_multi_step",
+   "reason": "Count taps/steps in the test source in code (a count). Names alone do not decide it.",
+   "role": "Verifier"
+  },
+  {
+   "id": "pr.body_overclaims_device_coverage",
+   "reason": "Comparison of claimed numbers and poses with manifest.json is a lookup; Jev only adds paraphrase (kept as evidence.claims_poses).",
+   "role": "Verifier"
+  },
+  {
+   "id": "review.finding_addressed_by_commit",
+   "reason": "Needs reasoning over the diff against the finding; known bad fit (code review).",
+   "role": "Reviewer"
+  },
+  {
+   "id": "owner_msg.grants_device_access",
+   "reason": "Would loosen the physical-device gate (L3). The grant is an exact phrase checked in code, never a model answer.",
+   "role": "Orchestrator"
+  },
+  {
+   "id": "task.sweep_needed",
+   "reason": "Always true by owner rule (generalise fixes): policy, not a judgment.",
+   "role": "Orchestrator"
+  },
+  {
+   "id": "menial.task_needs_no_judgment",
+   "reason": "Duplicates the planned route.complexity and route.role.",
+   "role": "Menial"
+  },
+  {
+   "id": "research.recommendation_stated",
+   "reason": "A required field of the research note, parsed by code.",
+   "role": "Researcher"
+  },
+  {
+   "id": "ha.check_result_kind",
+   "reason": "ha core check output is machine-readable; parse it.",
+   "role": "HA operator"
+  },
+  {
+   "id": "release_note.deprecates_api_we_use",
+   "reason": "Needs the repo's API usage list (a grep) and release text: covered by planned research.release_impact.",
+   "role": "Researcher"
+  },
+  {
+   "id": "pr.will_pass_review",
+   "reason": "Outcome prediction over code; check.tests found no signal (AUC 0.45 to 0.72).",
+   "role": "Reviewer"
+  },
+  {
+   "id": "eta.how_long_will_this_take",
+   "reason": "Dates and durations: compute from the history of run times in code (owner asks 'how long' 8 times).",
+   "role": "Orchestrator"
+  },
+  {
+   "id": "design.mockup_matches_hig",
+   "reason": "Perception plus reasoning over a spec; Jev is text-only.",
+   "role": "Designer"
+  },
+  {
+   "id": "evidence.screenshot_shows_fix",
+   "reason": "Image perception, not text.",
+   "role": "Verifier"
+  },
+  {
+   "id": "copy.is_good",
+   "reason": "Taste; no ground truth.",
+   "role": "Designer"
+  },
+  {
+   "id": "owner_msg.picks_option_A_or_B",
+   "reason": "Parse the reply token (A/B/1/2) in code.",
+   "role": "Orchestrator"
+  }
+ ],
+ "top8_by_expected_value": [
+  "owner_msg.reports_failed_fix",
+  "digest.failure_cause",
+  "task.device_scope",
+  "turn.waiting_narration",
+  "owner_msg.partial_approval",
+  "pr.user_visible",
+  "owner_msg.standing_rule",
+  "request.severity"
+ ],
+ "bonus_measured": [
+  "request.surface"
+ ]
+}

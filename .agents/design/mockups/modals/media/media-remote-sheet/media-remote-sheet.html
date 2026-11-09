@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media Remote · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, R = MLC.remotes;
+
+  /* The page behind: the Media page (every remote opens from its lead tile; room pages open them too). */
+  function presenter(ctx, connection) { return MLC.mediaPage(ctx, { connection: connection }); }
+  /* The sheet: MediaRemoteSheet = NavigationStack { ContentGate { layout } } + modalTabBar, hassSheet(.page, height: .full) (a remote keeps its height across tabs). */
+  function opts(ctx, id, o) {
+    o = o || {}; var r = R[id || 'living-room-shield'], tab = o.tab || 'controls';
+    var body = MLC.remoteBody(ctx, r, o);
+    var content = o.gate ? K.ContentGate({ phase: o.gate, content: body, minHeight: 420 }) : body;
+    return { title: r.title, subtitle: o.subtitle != null ? o.subtitle : (o.unavailable ? 'Unavailable' : (o.power === 'off' ? 'Off' : r.sub)), detent: 'large', size: 'page', trailing: 'close', content: content, tabs: MLC.remoteTabs(ctx, r, tab) };
+  }
+  function sheet(ctx, id, o) {
+    o = o || {};
+    return Mock.sheet(ctx, Object.assign(opts(ctx, id, o), { presenter: o.noPresenter ? null : presenter(ctx, o.connection) }));
+  }
+  var S = function (id, o) { return function (ctx) { return sheet(ctx, id, o); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'media-remote-sheet', title: 'Media remote sheet', area: 'media', status: 'shipped',
+    summary: 'One sheet for every TV in the house: the 3 × 3 pad with power in its top-right cell, the volume card and Pause/Play under it, and Apps, Devices and Hue Sync in a glass section bar. Page sheet at full height; two columns when the window may split. Follows the system appearance (the States gallery shows both).',
+    source: ['apple/Sources/HassUI/Features/MediaRemote/MediaRemoteSheet.swift', 'apple/Sources/HassUI/Features/MediaRemote/MediaRemoteControls.swift', 'apple/Sources/HassUI/Features/MediaRemote/MediaRemoteTabs.swift',
+      'apple/Sources/HassUI/Features/Media/MediaScreen.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassCore/Config/MediaRemotes.swift', 'apple/Sources/HassCore/Config/MediaRemoteConfig.swift',
+      'apple/Sources/HassCore/MediaRemote/MediaRemoteController.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassUI/Features/Gallery/MediaRemoteGallery.swift'],
+    spec: ['.agents/patterns/media-remote.md', '.agents/design/direction-g.md', '.agents/pages/media/spec.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['media-remote', 'modal-sheet', 'content-gate', 'image-cache', 'option-picker'],
+    hig: ['Sheets', 'Segmented controls', 'Buttons', 'Game controllers and remotes', 'Playing haptics', 'Lists and tables'],
+    entities: ['media_player.demo_living_room_1', 'media_player.demo_media_player_1', 'media_player.demo_bedroom_1_1', 'media_player.demo_bedroom_1_1', 'media_player.demo_media_room_1', 'media_player.demo_media_player_3', 'media_player.demo_media_player_2', 'media_player.demo_media_room_1', 'media_player.demo_media_player_4', 'sensor.demo_media_room_2', 'switch.demo_guest_room_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ModalTabBar', 'ContentGate', 'ModuleList', 'ModuleRow', 'Toggle', 'Slider', 'SegmentedChoice', 'PageSectionHeader', 'TileGrid'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Living Room Streaming Box, Remote section', note: 'one column on iPhone, folded Duo and portrait; iPad and Duo landscape draw two columns (pad leads, section trails)', render: S() },
+      'loading': { title: 'Gate: spinner until every app\'s artwork has loaded', note: 'ContentGate; a reopen with the artwork in memory has no spinner and no fade; gives up waiting after 4 s', render: S('living-room-shield', { gate: 'spinner' }) },
+      'error': { title: 'Everything unavailable (Studio)', note: 'directions, playback and volume disabled (40%); Power stays enabled and reads green; the volume card stays because showVolumeWhenOff', render: S('music-room-remote', { unavailable: true }) },
+      'offline': { title: 'Over an offline Media page', note: 'the sheet has no offline UI: values stay on their last state; the page behind carries the offline chip', render: S('living-room-shield', { connection: 'offline' }) },
+      'off': { title: 'TV off', note: 'directions and playback dim; Power turns green (it is how the TV turns on); the title line drops the app', render: S('living-room-shield', { power: 'off' }) },
+      'keyboard': { title: 'Inline keyboard open', note: 'the Keyboard key reads Expanded; the field, Send (disabled while blank) and Cancel sit above the volume card; two columns switch the section back to Remote', render: S('living-room-shield', { keyboard: true }) },
+      'keyboard-typed': { title: 'Keyboard with text typed', note: 'Send enables; stacks vertically at accessibility sizes', render: S('living-room-shield', { keyboard: true, text: 'stranger things' }) },
+      'pressed': { title: 'A key held down (Up)', note: 'scales to 0.94 on quick; with Reduce Motion it dims to 70% instead', render: S('living-room-shield', { pressed: 'Up' }) },
+      'apple-tv': { title: 'Bedroom 1 Streamer', note: 'Menu chevron, a dot on Select, the house on Home, the keyboard corner left empty', render: S('master-bedroom-apple-tv') },
+      'theater': { title: 'Media Room Streaming Box (Receiver Volume)', note: 'adds a Devices section; the volume card shows even while the receiver is off', render: S('theater-room-shield') },
+      'music-room': { title: 'Studio Remote (power is a switch)', note: 'four sections including Hue Sync; no keyboard key; Power carries the switch trait', render: S('music-room-remote') },
+      'apps': { title: 'Apps section (artwork tiles)', note: 'artwork squares with the name under them; the stand-in artwork is a lettered tile (the app draws the server\'s images)', render: S('living-room-shield', { tab: 'apps' }) },
+      'apps-loading': { title: 'Apps: artwork not loaded (icon fallback)', note: 'Studio Quick App Launch: Game shows the controller icon until its artwork exists on the server', render: S('music-room-remote', { tab: 'apps', art: 'loading' }) },
+      'apps-playing': { title: 'Apps: the running app (ring and "Playing")', note: 'only an app with a state entity (Game) can be marked; the ring is the media pink', render: S('music-room-remote', { tab: 'apps', active: 'Game' }) },
+      'devices': { title: 'Devices (Media Room): switches', note: 'inset list: every actionable device is a switch', render: S('theater-room-shield', { tab: 'devices' }) },
+      'devices-music': { title: 'Devices (Studio): switches, choices, a plain row', note: 'TV and Game Console are switches, Server and Computer are checkmark choices, Soundbar only reports', render: S('music-room-remote', { tab: 'devices' }) },
+      'devices-unavailable': { title: 'Devices unavailable', note: 'actionable rows disable; the read-only row does not', render: S('music-room-remote', { tab: 'devices', unavailable: true }) },
+      'hue': { title: 'Hue Sync section', note: 'Power and Sync switches, Sync Mode and Intensity segments, Brightness, HDMI inputs (HDMI 4 unplugged and disabled)', render: S('music-room-remote', { tab: 'hue' }) },
+      'hue-unavailable': { title: 'Hue Sync unavailable', note: 'switches disable, the selects read "Unavailable", Brightness reads "Unavailable"', render: S('music-room-remote', { tab: 'hue', unavailable: true }) },
+      'large': { title: 'Large detent (what ships)', note: '.hassSheet(.page, height: .full): a remote never changes height with its tab', render: S() },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Media page the sheet scales back', render: function (c) { return presenter(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'pad keys 104 pt (capped to the column in two columns), section bar becomes a menu, the keyboard form stacks, Apps goes to one column', render: S('living-room-shield', { keyboard: true }) },
+      'ax5-hue': { title: 'Accessibility 5: Hue Sync', override: { ts: 'ax5' }, note: 'segmented controls become menus naming the choice', render: S('music-room-remote', { tab: 'hue' }) },
+    },
+
+    motion: [
+      { id: 'key-press', what: 'A pad key presses in', token: 'quick 0.2 s easeOut: scale 1 to 0.94; a light haptic', state: 'default',
+        source: 'HassUI/Features/MediaRemote/MediaRemoteControls.swift RoundButtonStyle (motionSafeAnimation quick); motion-components.md RemoteIconButton', reduce: 'no scale: the key dims to 70% instead (opacity is not motion)',
+        play: function (stage) { var keys = stage.querySelectorAll('.mlc-pad .mlc-key:not(.gap)'); var up = stage.querySelector('.mlc-key[aria-label="Up"]'), sel = stage.querySelector('.mlc-key[aria-label="Select"]'); return MLC.press(up).then(function () { return MLC.press(sel); }); } },
+      { id: 'power-colour', what: 'The TV turns off: Power turns from red to green and the keys dim', token: 'state 0.6 s ease-in-out on the glyph colour (0.2 s reduced); the keys dim on quick', state: 'default',
+        source: 'RemoteButtonIcon.stateForeground("RemoteButtonIcon"); motion-components.md PowerButton (done)', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) {
+          var pwr = stage.querySelector('.mlc-key.pwr'), keys = stage.querySelectorAll('.mlc-pad .mlc-key:not(.pwr):not(.gap), .mlc-trans .mlc-key');
+          pwr.classList.add('off'); keys.forEach(function (k) { k.disabled = true; });
+          return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { pwr.classList.remove('off'); keys.forEach(function (k) { k.disabled = false; }); return Mock.sleep(Mock.anim.ms.state() + 200); });
+        } },
+      { id: 'keyboard-form', what: 'The Keyboard key opens the inline field above the volume card', token: 'SwiftUI .default animation (about 0.35 s): opacity plus a move from the top edge. NOT a MotionTokens value: motion.md section 7 asks for a token', state: 'default',
+        source: 'RemoteControlsTab.motionSafeAnimation(.default, value: keyboard.isOpen); keyboardForm .transition', reduce: 'opacity only, no move',
+        note: 'Flagged in the review: this is the one raw animation in the remote; standard (0.3 s smooth) would be the token for "layout a person caused".',
+        play: function (stage) {
+          var ctx = Mock.current, col = stage.querySelector('.mlc-controls'), form = MLC.keyboardForm(ctx, {}); col.insertBefore(form, col.firstChild);
+          var key = stage.querySelector('.mlc-key[aria-label="Keyboard"]'); if (key) key.setAttribute('aria-expanded', 'true');
+          var frames = Mock.settings.reduceMotion ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(-14px)' }, { opacity: 1, transform: 'none' }];
+          var a = form.animate(frames, { duration: 350, easing: 'ease-in-out' });
+          return a.finished.then(function () { return Mock.sleep(800); }).then(function () { return form.animate(frames.slice().reverse(), { duration: 350, easing: 'ease-in-out', fill: 'forwards' }).finished; }).then(function () { form.remove(); if (key) key.setAttribute('aria-expanded', 'false'); });
+        } },
+      { id: 'content-gate', what: 'The sheet opens with no saved artwork: spinner, then the whole content fades in at once', token: 'gate: spinner after 150 ms, out over 140 ms; content in over 170 ms and 4 pt rise', state: 'loading',
+        source: 'MediaRemoteSheet ContentGate(page: "Media Remote"); patterns/content-gate.md; motion.md section 5', reduce: 'the rise is dropped, the fade stays',
+        play: function (stage) { var g = stage.querySelector('.ui-gate'); return g ? Mock.anim.gate(g, { loadMs: 1000 }) : Promise.resolve(); } },
+    ],
+
+    transitions: [
+      { from: 'Media page', to: 'Living Room Streaming Box remote', kind: 'sheet', state: 'closed', note: 'The lead tile presents the sheet at large; the page scales back and dims. Content is present on arrival unless the artwork is still loading (the gate).',
+        play: function (stage) { var ctx = Mock.current; return Mock.presentDemo(stage, opts(ctx, 'living-room-shield', {}), { hold: 1400 }); } },
+      { from: 'Remote section', to: 'Apps section', kind: 'cut', state: 'default', note: 'The glass section bar switches with a cut: no slide, no fade (motion.md 4.4). The sheet keeps its height.',
+        play: function (stage) {
+          var ctx = Mock.current, r = R['living-room-shield'], sc = stage.querySelector('.ui-mscroll'), before = sc.firstChild, apps = MLC.remoteBody(ctx, r, { tab: 'apps' });
+          var tabs = stage.querySelectorAll('.ui-modaltabs button'); function sel(i) { tabs.forEach(function (b, k) { b.classList.toggle('sel', k === i); b.setAttribute('aria-selected', k === i ? 'true' : 'false'); }); }
+          sc.replaceChild(apps, before); sel(1);
+          return Mock.sleep(1100).then(function () { sc.replaceChild(before, apps); sel(0); });
+        } },
+      { from: 'Remote sheet', to: 'Media page', kind: 'sheet', state: 'default', note: 'Close (circle x) or swipe down. Cameras reopen muted; a remote has no such state, but its keyboard text is dropped.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Focus lands on the title (with the app and state as its subtitle), then Power first (accessibilitySortPriority 1: it used to sit above the pad), Back, Up, Left, Select, Right, Home, Down, Keyboard; the keyboard form when open; the volume card; Pause and Play; Close; the section bar last.' },
+      { rule: 'Pad group', note: 'Labelled "<title> remote controls"; each key uses its config label (Up, Select, Menu...). Select on a streaming box has no glyph but keeps its 76 pt body. A light haptic fires on every press.' },
+      { rule: 'Power', note: 'Label "Power", value On or Off; Voice Control also accepts "Power On" and "Power Off". The Studio remote adds the switch trait (toggle semantics). Red when on, green when off, so state is colour plus the value (the glyph never changes).' },
+      { rule: 'Keyboard key', note: 'Value Expanded or Collapsed. The field is "Text to send"; Send is disabled while blank; the submit key sends.' },
+      { rule: 'Volume card', note: 'Container named by the speaker ("Speaker Volume"); the slider is "<title> volume", value "32 percent", adjustable by swipe up or down and committing at once for such steps (one call per drag, not per point); Mute, Volume Down and Volume Up are 44 pt buttons.' },
+      { rule: 'Apps', note: 'Each tile is a button named by the app; the running one adds the selected trait. Unavailable dims only the artwork so the name keeps its contrast.' },
+      { rule: 'Devices and Hue Sync', note: 'Toggles are switches (On or Off), choices carry the selected trait, a read-only device is plain text and not a button. Unplugged HDMI ports read as dimmed. Sync Mode and Intensity are segmented controls.' },
+      { rule: 'Section bar', note: 'Labelled "<remote title> sections"; icons on compact width are named by their titles, titles on regular width, a menu at accessibility sizes. Only sections with content appear (2 to 4).' },
+      { rule: 'Targets and Dynamic Type', note: 'Pad keys 64 to 104 pt, transport keys 44 to 88 pt, row controls 44 pt; at AX5 the pad is capped to its column (never under 44 pt), the keyboard form stacks, segmented controls become menus.' },
+      { rule: 'Reduce Motion', note: 'Key press dims instead of scaling; the keyboard form fades without moving; the gate drops its rise. The Power cross-fade stays at 0.2 s.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Sheets: one height across sections; page size on iPad', verdict: 'pass', note: '.hassSheet(.page, height: .full) (MediaScreen.swift:60): a remote with a section bar keeps one height as people move between sections; iPad and the unfolded Duo get the page-size sheet.' },
+        { by: 'apple-hig skill', rule: 'Color: do not rely on color alone for power state', verdict: 'pass', note: 'Same fix as media-remote-controls: RemoteButtonIcon draws a filled success disc on and a neutral ring off; red is gone.' },
+        { by: 'apple-hig skill', rule: 'Loading: do not hold controls behind a spinner', verdict: 'pass', note: 'MediaRemoteSheet no longer wraps the layout in ContentGate: Power and every control are live on the first frame; app tiles fade their artwork in (CachedImage) and the prefetch only warms the cache in the background.' },
+        { by: 'apple-hig skill', rule: 'Segmented controls: icon-only segments on compact width', verdict: 'departure', note: 'ModalTabBar draws icons on iPhone and the folded Duo and a menu at accessibility sizes (ModalTabBar.swift:15-27); owner 2026-10-16 ("show icons like the web app"). Each segment keeps its title for VoiceOver.' },
+        { by: 'apple-hig skill', rule: 'Playing haptics: feedback on every press', verdict: 'pass', note: 'Fixed in MediaRemoteControls.swift: RemoteIconButton and PowerButton play tapFeedback for every key.' },
+        { by: 'apple-hig skill', rule: 'Buttons: 44 pt targets', verdict: 'pass', note: 'Pad keys 64 to 104 pt scaled, transport 44 to 88 pt, volume and mute HassTokens.minTarget (MediaRemoteControls.swift:193-203, 319, 377).' },
+        { by: 'apple-hig skill', rule: 'Layout: two columns only where the window may split', verdict: 'pass', note: 'MediaRemoteLayout.usesTwoColumns needs SplitPolicy.allowsSplit and a 640 pt container (MediaRemoteSheet.swift:209-216), so the folded Duo, unfolded portrait and iPad portrait stay one column; hinge placement of the unfolded Duo sheet was not run on a device.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'views.md: animate with a value and a motion token', verdict: 'pass', note: 'RemoteControlsTab animates the keyboard form with MotionTokens.standard.' },
+        { by: 'swiftui-pro skill', rule: 'swift.md: never use Grand Central Dispatch', verdict: 'pass', note: 'WindowMetricsReader hops with Task { @MainActor } (MediaRemoteSheet.swift:250)' },
+        { by: 'swiftui-pro skill', rule: 'resizability.md: size class from the window, not the idiom', verdict: 'departure', note: 'The UIKit window probe (MediaRemoteSheet.swift:243-275) exists because a sheet\'s own size class is compact on iPad (source comment, line 235); it reads the window\'s horizontalSizeClass, not userInterfaceIdiom.' },
+        { by: 'swiftui-pro skill', rule: 'design.md: wrap Slider in LabeledContent inside a List', verdict: 'pass', note: 'Not applicable: HueSyncTab.brightnessField gives the slider its label and value as one element on purpose; see the slider findings.' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: image buttons keep text; Reduce Motion', verdict: 'pass', note: 'RemoteIconButton labels every glyph (MediaRemoteControls.swift:86); RoundButtonStyle dims instead of scaling under Reduce Motion (lines 60-61) and the keyboard form drops its move (line 455).' },
+      ],
+    },
+
+    notes: [
+      'medium and fitted: this sheet has neither. It is .hassSheet(.page, height: .full) because a remote and any modal with a section bar keep one height across tabs (modal-sheet.md); the "large" state is the shipped detent. The brief\'s medium/fitted keys are therefore explained here, not drawn.',
+      'Code versus docs: media-remote.md "Using it" shows `.hassSheet(.page)` (fitted); the code on main passes `height: .full` (MediaScreen and the gallery), and modal-sheet.md says the same.',
+      'Subtitle: "Plex · Playing" needs the media player\'s app_name attribute (streaming box, Streamer); the gallery fixtures carry only a state, so a fixture run shows "Playing". The Media Room and Studio subtitles read the state alone ("On").',
+      'Four remotes: the Bedroom 1 Streamer opens from the Bedroom 1 room page and the room-card sheets, not from the Media page (web parity). Tabs appear only when the remote has more than one section; all four today have 2 to 4.',
+      'In two columns the Duo hinge falls between the pad and the section: the columns are 50/50 (MediaRemoteLayout). Placement of a centred page sheet over the hinge on the unfolded Duo was not run on a device (duo.md).',
+      'Stand-in artwork: lettered tiles stand in for the server\'s app images (direction-g.md: placeholder icons, not real app icons). Everything else is the real structure, copy and colour.',
+      'Promote to kit: MLC.pad / MLC.volumeCard / MLC.transport / MLC.keyboardForm / MLC.appTile / MLC.deviceRow / MLC.hueTab (components/media/_media-lights-cameras.js), and the nine symbols added there at run time.',
+      'Hue Sync: segmented control labels are title-cased option names; the fixture options are video, music, game and subtle, moderate, high, intense.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: four remotes, five sections, keyboard, unavailable and off states, two columns, AX5, light and dark.' }],
+  });
+})();
+</script></body></html>

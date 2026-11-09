@@ -1,0 +1,16 @@
+{
+  "id": "dd-header-fade-choppy",
+  "date": "2026-10-27",
+  "source": "7c5a44f2",
+  "owner_report": "Header animation when it fades in and out feels slow and choppy",
+  "surface": "header-edge-fade",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "perf",
+  "pre_fix_ref": "95a6f94b",
+  "fix_ref": "0f9928f2",
+  "fix_confidence": "medium",
+  "expected": "The header fade is a soft scroll-edge effect, not a mask redrawn each frame; the verdict asks for a frame-rate measurement."
+}

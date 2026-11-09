@@ -1,0 +1,7 @@
+#!/bin/sh
+# Refuse a push whose new commits match the private house denylist (tools/prepush_denylist.py).
+# Git passes "<remote name> <url>" as arguments and "<local ref> <local sha> <remote ref> <remote sha>" lines on stdin.
+# Install with tools/setup.sh. See .agents/workflow/house-data-gate.md.
+root="$(cd "$(dirname "$0")/.." && pwd)" || exit 1
+command -v python3 >/dev/null 2>&1 || { echo "pre-push: python3 not found; refusing the push." >&2; exit 1; }
+exec python3 "$root/tools/prepush_denylist.py" "$@"

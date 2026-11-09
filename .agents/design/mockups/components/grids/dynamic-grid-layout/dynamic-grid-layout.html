@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DynamicGridLayout · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  var NAMES = ['Kitchen', 'Office', 'Gym', 'Guest Room', 'Hallway', 'Garage', 'Back Deck'];
+  function tiles(n) { return NAMES.slice(0, n).map(function (t) { return { title: t + ' Light', subtitle: 'Off', symbol: 'lightbulb', family: 'lights' }; }); }
+  /** DynamicGridMetrics.init: columns = floor((width + spacing) / (min + spacing)) clamped to 1...max, rounded down to even with a hinge. */
+  function cols(w, min, max, gap, even, sc) { var m = min * (sc || 1), n = Math.min(Math.max(Math.floor((w + gap) / (m + gap)), 1), Math.max(max, 1)); if (even && n >= 2) n -= n % 2; return n; }
+  function ruler(c, w, o) {
+    o = o || {}; var min = o.min || 150, max = o.max || 6, gap = 12, n = cols(w, min, max, gap, o.even, c.scale), cell = ((w - gap * (n - 1)) / n).toFixed(1);
+    return V.swatch('page', w + ' pt wide (' + (o.label || '') + '): ' + n + ' column' + (n > 1 ? 's' : '') + ', cell ' + cell + ' pt', K.TileGrid({ items: tiles(o.count || 7), min: min, max: max }), c, w + 28);
+  }
+  function el(s, kids) { return h('div.ui-section', kids); }
+  function embedHome(cx) {
+    var names = [['Front Door', 'front-door'], ['Driveway', 'driveway'], ['Upper Deck', 'upper-deck'], ['Lower Deck', 'lower-deck']];
+    return Mock.page(cx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [h('div.ui-section', K.PageSectionHeader({ title: 'Cameras' }), K.TileGrid({ min: 160, max: 4, equal: false, items: names.map(function (n) { return K.CameraTile({ title: n[0], scene: n[1], state: 'live' }); }) }))] });
+  }
+  function embedRoom(cx) {
+    function sec(t, items) { return h('div.ui-section', K.PageSectionHeader({ title: t }), K.TileGrid({ min: 150, max: 2, items: items })); }
+    var lights = tiles(3), devs = [{ title: 'Dishwasher', subtitle: 'Idle', symbol: 'drop', family: 'water' }, { title: 'Humidifier', subtitle: 'Off', symbol: 'humidifier', family: 'water' }, { title: 'Range Hood', subtitle: 'Off', symbol: 'fan', family: 'vents' }, { title: 'Bedroom 1 Closet Light', subtitle: 'Off', symbol: 'lightbulb', family: 'lights' }];
+    return Mock.page(cx, { title: 'Kitchen', back: 'Rooms', section: 'home', badge: 3, choresBadge: 2, body: [K.TileGrid({ min: 340, max: 2, equal: false, gap: 24, items: [sec('Lights', lights), sec('Devices', devs)] })] });
+  }
+
+  var base = Mock.componentConfig('TileGrid', { surfaces: ['page', 'sheet'] });
+  var cfg = Object.assign(base, {
+    states: base.states,
+    id: 'dynamic-grid-layout', title: 'DynamicGridLayout (equal heights, spans, grid headers)', area: 'design', status: 'shipped',
+    summary: 'The one responsive grid: columns = floor((width + spacing) / (min cell + spacing)) clamped to 1 to max; leftover width is shared; a short row fills its section (one row: equal shares; more rows: whole tracks on the track lines; never across the band; duo-widths, in flight); the minimum scales with Dynamic Type (one column at AX5); equalRowHeights lifts every row to the tallest tile; gridSpan and gridHeader place wide items and section titles; the unfolded Duo rounds the count down to an even number.',
+    source: ['apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift'],
+    spec: ['.agents/patterns/dynamic-grid.md', '.agents/design/direction-g.md'],
+    patterns: ['dynamic-grid', 'entity-tile', 'status-pill'],
+    hig: ['Layout', 'Collections', 'Dynamic Type', 'Split views'],
+    kitComponents: ['TileGrid', 'GlassTile', 'PageSectionHeader', 'CameraTile'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    a11y: [
+      { rule: 'Reading order', note: 'Tiles read in placement order: row by row, leading to trailing; a gridHeader is its heading row. The layout never reorders for a live value change (motion.md section 6).' },
+      { rule: 'Targets', note: 'Tiles are at least 44 pt in both directions at any size (the 150 pt minimum width is scaled with the text).' },
+      { rule: 'Dynamic Type', note: 'minCellWidth is multiplied by the text scale, so AX5 yields a single column and no tile truncates; equalRowHeights follows the larger text on every layout pass.' },
+      { rule: 'Rotation and unfolding', note: 'The column count is recomputed on each pass; on the unfolded Duo (any pose) it rounds down to an even number (never below two) so no tile straddles the fold.' },
+      { rule: 'Spans', note: 'An item never spans more columns than exist; a short row fills its section: equal shares in a one-row grid, whole tracks (spare tracks to the narrowest item, ties to the later) in a grid of more rows; fill none keeps small controls, aspect media, choice chips and remote apps leading (duo-widths rules 1 and 4, in flight).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "iPhone Duo: prefer a layout container that adapts automatically and even grid column counts", verdict: "pass", note: "evenRounded makes the count even (never below two) whenever windowHinge is set, so the fold falls between tracks on any unfolded pose; a single track stays single.", by: "apple-hig skill" },
+        { rule: "Layout: adapt to size classes and window size, avoid fixed widths", verdict: "pass", note: "Columns are floor((width + spacing) / (min + spacing)) clamped to 1...max with leftover width shared equally, recomputed on every pass, so rotation, Split View and Stage Manager-style resizing need no device branch.", by: "apple-hig skill" },
+        { rule: "Typography: layouts must give way to larger text (Dynamic Type through AX5)", verdict: "pass", note: "Every tile grid now passes a @ScaledMetric minimum: CameraGrid, ChoreQuickLinks, ControlTileGrid (guest presence), FoodHubScreen, SoloTripScreen and PresenceOverrideDetail; recorded in .agents/patterns/dynamic-grid.md.", by: "apple-hig skill" },
+        { rule: "Layout: keep equal visual weight; align rows and headings", verdict: "pass", note: "equalRowHeights lifts every tile row to the tallest while gridHeader rows keep their own height; an incomplete last row stays leading-aligned instead of stretching.", by: "apple-hig skill" },
+        { rule: "Accessibility: reading order follows visual order", verdict: "pass", note: "Placement is row by row leading to trailing, headers take the whole row, and a live value change never reorders (motion.md section 6).", by: "apple-hig skill" },
+        { rule: "Collections: do not let content straddle device regions", verdict: "pass", note: "Tiles are whole-track cells; no tile spans the fold because the hinge only ever removes columns.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Layout protocol with a measurement cache", verdict: "pass", note: "A custom Layout with makeCache and updateCache keyed on width: each tile is measured once per width per pass, which cut layout work on room pages (DynamicGridLayout.swift lines 114 to 124).", by: "swiftui-pro skill" },
+        { rule: "Performance: use lazy containers for large data", verdict: "pass", note: "Not applicable: equal row heights and spans need every child measured, which is the price of the equal-height grid; ios_scrollcost.sh watches it.", by: "swiftui-pro skill" },
+        { rule: "Resizability: read hinge from the environment, not from screen metrics", verdict: "pass", note: "A Layout cannot read the environment, so callAsFunction wraps it in HingeAwareGrid, which reads \\.windowHinge and wraps AnyLayout; no UIScreen or device name.", by: "swiftui-pro skill" },
+        { rule: "Performance: avoid AnyView and type erasure in hot paths", verdict: "departure", note: "AnyLayout (not AnyView) is used so evenColumns can flip with the hinge without changing structural identity of the content; one small wrapper per grid.", by: "swiftui-pro skill" },
+        { rule: "Views: pure metrics type with unit tests", verdict: "pass", note: "DynamicGridMetrics (columns, spans, placements) is a plain Equatable struct separate from the Layout, which is how the mockup reproduces the same formula.", by: "swiftui-pro skill" },
+        { rule: "Design: layout-value keys instead of wrapper views", verdict: "pass", note: "gridSpan and gridHeader use LayoutValueKey, so a span or header marks a child without changing view structure; gridHeader uses Int.max to take a whole row.", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'The kit\'s TileGrid uses CSS auto-fill to reproduce the rule; the column counts in the width states are computed with the same formula as DynamicGridMetrics (the swatch title states the count).',
+      'Hinge rounding applies on any unfolded Duo pose (the environment hinge is set whenever the fold is open), including portrait, where a 3-column fit becomes 2.',
+      'Used by: Home cameras (min 160, max 4), room pages (two 340 pt section columns, each max 2), Chores quick links (max 4), Media (up to three columns), the room overview sheets (equal heights with headers), Sprinklers pills, Vacation sections (min 340, max 2).',
+      'TODO(orchestrator) in the pattern doc: the web\'s content-aware spans are not ported.',
+      'motion: none. A rotation or unfolding re-lays the grid with the system\'s own transition; nothing is animated by the layout.',
+    ],
+    changelog: [{ date: '2026-11-04', note: "The kit TileGrid fills short rows (one row equal shares, more rows whole tracks, never across the band); fill: 'none' for small controls, aspect media, choice chips and remote apps." }, { date: '2026-10-23', note: 'First pass: width ruler, spans, grid headers with equal heights, hinge-even columns, AX5 single column, in context.' }],
+  });
+  cfg.states['widths'] = { title: 'Columns by width (min 150, max 6)', note: 'iPhone 370 pt content: 2; iPad portrait 802: 5; iPad landscape 1162: 6 (the cap). Counts follow floor((w + 12) / 162)', render: function (c) {
+    return V.grid([ruler(c, 370, { label: 'iPhone' }), ruler(c, 434, { label: 'unfolded Duo half' }), ruler(c, 560, { label: 'a narrow pane' }), ruler(c, 802, { label: 'iPad portrait' }), ruler(c, 1162, { label: 'iPad landscape, capped at 6', count: 7 })]); } };
+  cfg.states['spans-headers'] = { title: 'gridSpan(2), gridHeader and equal heights', note: 'a spanning tile takes two tracks; an incomplete last row fills in whole tracks; one wrapping title (Bedroom 1 Closet Light) lifts every tile row; a gridHeader takes a whole row and keeps its own height', render: function (c) {
+    function hdr(t) { var n = K.PageSectionHeader({ title: t }); n.classList.add('gridheader'); return n; }
+    function items() { return [hdr('Lights'), { title: 'Kitchen Light', subtitle: 'On', symbol: 'lightbulb', family: 'lights', isActive: true }, { title: 'Bedroom 1 Closet Light', subtitle: 'Off', symbol: 'lightbulb', family: 'lights' }, { title: 'Hall Light', subtitle: 'Off', symbol: 'lightbulb', family: 'lights' }, hdr('Devices'), { title: 'Dishwasher', subtitle: 'Idle', symbol: 'drop', family: 'water' }]; }
+    var grid = K.TileGrid({ items: items(), min: 150, max: 6, span: { 5: 2 } });
+    return V.grid([V.swatch('page', 'one grid, two headed runs, a span-2 last tile', grid, c, 380), V.swatch('page', 'same, equalRowHeights off (rows keep their own height)', K.TileGrid({ items: items().slice(0, 4), min: 150, max: 6, equal: false }), c, 380)]); } };
+  cfg.states['hinge'] = { title: 'Even columns on the unfolded Duo', note: 'unfolded portrait has no vertical bar, so the content is about 637 pt and 4 columns fit, already even; landscape (vertical bar, vertical fold) rounds a 5-column fit to 4 so no tile straddles the fold', render: function (c) {
+    return h('div', V.embed('duo-unfolded-portrait', c, function (cx) { return Mock.page(cx, { title: 'Lights', back: 'Rooms', section: 'home', body: [K.TileGrid({ items: tiles(7), min: 150, max: 6 })] }); }, .5, 'Unfolded portrait: 4 fit, 4 used'),
+      V.embed('duo-unfolded-landscape', c, function (cx) { return Mock.page(cx, { title: 'Lights', back: 'Rooms', section: 'home', body: [K.TileGrid({ items: tiles(7), min: 150, max: 6 })] }); }, .5, 'Unfolded landscape: 5 fit, 4 used'),
+      V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Lights', back: 'Rooms', section: 'home', body: [K.TileGrid({ items: tiles(7), min: 150, max: 6 })] }); }, .5, 'iPhone: 2 columns')); } };
+  cfg.states['in-context'] = { title: 'In context: Home cameras and a room page', render: function (c) {
+    return h('div', V.embed('iphone', c, embedHome, .6, 'Home cameras: min 160, max 4 (2 on iPhone)'), V.embed('ipad-portrait', c, embedRoom, .45, 'Room page: two section columns side by side, each its own max-2 grid'), V.embed('iphone', c, embedRoom, .6, 'The same room page on iPhone: sections stack')); } };
+  cfg.states['ax5'] = { title: 'Accessibility 5: one column', override: { ts: 'ax5' }, note: 'the minimum cell width scales with the text, so the grid collapses to a single column', render: function (c) { return V.grid([V.swatch('page', 'AX5, 370 pt: 1 column', K.TileGrid({ items: tiles(3), min: 150, max: 6 }), c, 398)]); } };
+  cfg.motion = [];
+  Mock.mount(cfg);
+})();
+</script></body></html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Task sheet (create and edit) · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/chores/_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Sheets and Modality: confirm before losing changes", verdict: "pass", note: "DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask 'Discard changes?' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). DonetickTaskSheet guards form != initialForm.", by: "apple-hig skill" },
+        { rule: "Progress indicators and Loading: a failed load needs a way forward", verdict: "pass", note: "DonetickTaskSheet.page: the failed load is a StateMessage with Try Again (task.retry) that reloads in place with an arc, and offline wording from LoadFailure.of.", by: "apple-hig skill" },
+        { rule: "Keyboards: a number pad needs a way to finish", verdict: "pass", note: "View.keyboardDone(focused:) (HassDesign/KeyboardDone.swift) adds a Done button above the keyboard on Repeat Every (DonetickTaskFormFields); Done clears focus, which normalises the value. Journey: ChoresTaskFormJourneyTests.testRepeatEveryNumberPadHasDone.", by: "apple-hig skill" },
+        { rule: "Action sheets: confirm a destructive delete, attach to the control", verdict: "pass", note: "Delete Task row is destructive and asks \"Delete {name}?\" with Delete Task and the system Cancel (lines 64-67, 257-262). The dialog has no \"This can't be undone.\" message that the list dialog carries. Low copy gap.", by: "apple-hig skill" },
+        { rule: "Toggles and Date pickers: optional date and time", verdict: "pass", note: "Due Date and Due Time are switches revealing compact DatePickers (lines 194-205); Repeat is a menu picker (line 210). Turning the date on picks today, time noon.", by: "apple-hig skill" },
+        { rule: "Toolbars: Cancel and a verb-named check", verdict: "departure", note: "direction-g.md Sheets: circle x leading, filled check \"Create\" or \"Save\" trailing, disabled until valid or changed (SheetEditState, lines 73-77).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Performance: no formatter creation in bindings", verdict: "pass", note: "DonetickDueBinding builds its two formatters once (DonetickTaskSheet.swift:270-290)", by: "swiftui-pro skill" },
+        { rule: "Navigation: attach confirmationDialog to its trigger", verdict: "pass", note: "The delete confirmation is attached to the Delete Task button, so on iPad the popover anchors to it (claude/hig-alerts).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: weekday rows are selectable buttons", verdict: "pass", note: "Each day is a Button with the .isSelected trait and a checkmark (lines 233-246); the checkmark image is not hidden, so VoiceOver may read \"checkmark\" after the day. Minor.", by: "swiftui-pro skill" },
+        { rule: "Views: Group around a single branch chain", verdict: "pass", note: "Group { if loaded … else if error … else ProgressView } is a legitimate multi-branch group (lines 42-52).", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.sheetConfig({
+    id: 'donetick-task-sheet', title: 'Task sheet (create and edit)', file: 'DonetickTaskSheet.swift', fromLabel: 'Chores', from: 'chores',
+    summary: 'New Task and Edit Task for Choreapp chores: name, description, assignee and priority, due date and time, repeat, vacation. A fitted form sheet with Cancel and a check (Create or Save). Follows the system appearance; switch Sheet appearance above (the States gallery shows both).',
+    source: ['apple/Sources/HassCore/Todo/DonetickTaskForm.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift'],
+    docs: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md', '.agents/patterns/modal-sheet.md', '.agents/patterns/schedule-date-fields.md'],
+    patterns: ['schedule-date-fields'], entities: ['todo.demo_todo_10', 'input_boolean.demo_mode_4'],
+    build: function (ctx, o) { return C.taskSheet(ctx, o); },
+    defaultTitle: 'New Task, empty', defaultNote: 'Create is disabled until the name has text; Priority starts at P4 and Hide While On Vacation on (DonetickTaskForm defaults)', defaultO: { mode: 'create' },
+    loadingTitle: 'Edit Task: loading the task', loadingNote: 'donetick.get_task is in flight: an arc and "Loading task", Save disabled', loadingO: { mode: 'edit', phase: 'loading' },
+    errorTitle: 'Edit Task: Unable to Load Task', errorNote: 'get_task failed: ContentUnavailableView with the message; Save stays disabled, Cancel closes', errorO: { mode: 'edit', phase: 'load-error' },
+    offlineO: { mode: 'edit', changed: true, error: 'Unable to save task' },
+    ax5O: { mode: 'create', form: { name: 'Take out the recycling' } },
+    extra: {
+      'create-filled': { title: 'New Task, named', note: 'the name enables Create; Assignee preset by the page (here Anyone from the Chores tab)', o: { mode: 'create', focusName: true, form: { name: 'Sweep the garage', description: 'Front half first, then the shelves.' } } },
+      'create-due': { title: 'Due date and time on', note: 'turning Due Date on picks today, Due Time picks noon; each adds a compact date picker row', o: { mode: 'create', form: { name: 'Sweep the garage', dueDate: 'Oct 23, 2026', dueTime: '12:00 PM', recurrence: 'daily' } } },
+      'recurrence-interval': { title: 'Repeat: Custom Interval', note: 'adds Repeat Every (1 to 365, number pad) and Interval Unit', o: { mode: 'create', form: { name: 'Replace the furnace filter', recurrence: 'interval', interval: '3', unit: 'Months' } } },
+      'recurrence-days': { title: 'Repeat: Specific Days of Week', note: 'a checkmark list in week order (a departure from the web\'s multi-select box)', o: { mode: 'create', form: { name: 'Put the bins out', recurrence: 'days_of_the_week', days: ['Monday', 'Thursday'] } } },
+      'edit': { title: 'Edit Task, loaded', note: 'Save is disabled until something changes; Repeat gains Adaptive; Delete Task at the bottom', o: { mode: 'edit' } },
+      'edit-changed': { title: 'Edit Task, changed', note: 'a change enables Save', o: { mode: 'edit', changed: true, form: { name: 'Water the plants and herbs' } } },
+      'saving': { title: 'Saving', note: 'the check becomes an arc, Cancel dims, the form disables, the sheet cannot be swiped away', o: { mode: 'edit', changed: true, busy: 'saving', form: { name: 'Water the plants and herbs' } } },
+      'create-error': { title: 'Create failed', note: 'the red error line sits above the fields; the form stays filled', o: { mode: 'create', form: { name: 'Sweep the garage' }, error: 'Unable to create task' } },
+      'delete-confirm': { title: 'Delete Task asks first', note: 'confirmationDialog "Delete {name}?" with Delete Task (destructive) and Cancel', o: { mode: 'edit', deleteDialog: true } },
+    },
+    a11y: [
+      { rule: 'Pickers', note: 'Assignee, Priority, Repeat and Interval Unit are menu pickers (a pop-up anchored over the row, direction-g.md Controls: "Choosing one option"); each reads "Assignee, Anyone" and opens its menu. The two date rows are compact DatePickers labelled "Date" and "Time".' },
+      { rule: 'Days of Week', note: 'Each weekday is a button with the selected trait; the check is decoration. Repeat Every takes a number pad and clamps to 1...365 when editing ends.' },
+      { rule: 'Delete Task', note: 'A destructive button in its own section (red text, not colour alone: the words say Delete); it asks "Delete {name}?" before removing anything.' },
+    ],
+    notes: [
+      'Opened from the Chores tab, the four resident and list pages and the Your Summary sheet\'s Overdue and Upcoming Chores tabs (a sheet over a sheet there). The mockup presents over the Chores tab; the form is identical everywhere.',
+      'loading: only edit loads (donetick.get_task); creating has no loading state. Priority P1 to P4 maps to Choreapp low...critical; a new task defaults to P4 ("critical"), which is why the default state reads P4.',
+      'The Delete Task dialog is attached to the sheet\'s own NavigationStack, so on iPad its popover anchor is the sheet content (not verified on a device; see todo-delete-dialog).',
+      'The form rebuilds from the loaded task: Assignee reads "You" for the signed-in resident, the other resident\'s name, "Anyone" or "Home Improvement"; an unknown id shows as "User {id}".',
+    ],
+  }));
+
+})();
+</script></body></html>

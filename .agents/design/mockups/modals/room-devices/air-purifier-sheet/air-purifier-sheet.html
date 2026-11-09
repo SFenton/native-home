@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Air Quality · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_devices-vacuums.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv;
+
+  /* AirPurifierSheet = RoomDeviceSheetChrome(title "<Room> Air Quality", subtitle = controller.summary) { ScrollView { AirPurifierControls } }, hassSheet(.form), fitted. */
+  function sheet(ctx, o) {
+    o = o || {};
+    var pc = Object.assign({ ctx: ctx, room: 'Office' }, o.pc);
+    return dv.sheet(ctx, { kind: 'purifier', title: 'Office Air Quality', subtitle: o.subtitle || '12 AQI • 3 µg/m³', content: h('div.dv-col', { style: { maxWidth: '640px' } }, dv.purifierControls(pc)), detent: o.detent, connection: o.connection });
+  }
+  var P = function (pc, sub) { return function (c) { return sheet(c, { pc: pc, subtitle: sub }); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'air-purifier-sheet', title: 'Air purifier sheet', area: 'room-devices', status: 'shipped',
+    summary: 'Opened from a room\'s Air Quality tile and from the Air Quality chip\'s room overview. Each section is one short choice: Fan Mode, then Auto\'s sub-mode or Manual\'s speed. The header subtitle is the AQI and PM2.5 summary.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift', 'apple/Sources/HassUI/Features/RoomDevices/RoomDeviceSheetChrome.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift',
+      'apple/Sources/HassCore/RoomDevices/AirPurifierController.swift', 'apple/Sources/HassCore/Config/RoomDeviceConfig.swift'],
+    spec: ['.agents/patterns/room-device-sheets.md', '.agents/patterns/option-picker.md'],
+    patterns: ['room-device-sheets', 'modal-sheet', 'option-picker'],
+    hig: ['Sheets', 'Segmented controls', 'Pop-up buttons', 'Dynamic Type'],
+    entities: ['fan.demo_office_1', 'select.demo_office_mode_1', 'select.demo_office_mode_1', 'sensor.demo_air_quality_1', 'sensor.demo_office_2'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'SegmentedChoice', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Office, Auto (Default sub-mode)', note: 'Auto shows two sections: Fan Mode and Auto Mode', render: P({ mode: 'Auto', auto: 'Default' }) },
+      'auto-quiet': { title: 'Auto, Quiet', render: P({ mode: 'Auto', auto: 'Quiet' }) },
+      'manual-medium': { title: 'Manual, Medium (66%)', note: 'Manual shows four speeds: Off 0, Low 33, Medium 66, High 100 (fan.set_percentage)', render: P({ mode: 'Manual', speed: 'Medium' }) },
+      'manual-off': { title: 'Manual, speed Off', render: P({ mode: 'Manual', speed: 'Off' }) },
+      'sleep': { title: 'Sleep', note: 'Sleep has no sub-choice: only Fan Mode shows', render: P({ mode: 'Sleep' }) },
+      'error': { title: 'Unavailable', note: 'the mode entity is unavailable: Fan Mode is disabled with nothing chosen; the summary reads "Unavailable"', render: P({ mode: '', unavailable: { mode: true } }, 'Unavailable • Unavailable') },
+      'offline': { title: 'Over an offline room page', note: 'no offline UI of its own: the last known choice stays; the page behind carries the offline chip', render: function (c) { return sheet(c, { pc: { mode: 'Auto', auto: 'Default' }, connection: 'offline' }); } },
+      'medium': { title: 'Medium detent', render: function (c) { return sheet(c, { pc: { mode: 'Auto', auto: 'Default' }, detent: 'medium' }); } },
+      'large': { title: 'Large detent', render: function (c) { return sheet(c, { pc: { mode: 'Manual', speed: 'High' }, detent: 'large' }); } },
+      'fitted': { title: 'Fitted detent (shipped)', render: function (c) { return sheet(c, { pc: { mode: 'Auto', auto: 'Default' }, detent: 'fitted' }); } },
+      'closed': { title: 'Before presenting / after dismissing', render: function (c) { return dv.presenter('purifier', c, 'live'); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'every segmented control becomes a pop-up menu button (a segmented control cannot hold AX text)', render: P({ mode: 'Manual', speed: 'Medium' }) },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Room page', to: 'Air quality sheet', kind: 'sheet', state: 'closed', note: 'The Air Quality tile opens a fitted form sheet; the room page scales back. Content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Office Air Quality', subtitle: '12 AQI • 3 µg/m³', detent: 'fitted', size: 'form', content: h('div.dv-col', { style: { maxWidth: '640px' } }, dv.purifierControls({ mode: 'Auto', auto: 'Default', ctx: Mock.current })) }, { hold: 1200 }); } },
+      { from: 'Air quality sheet', to: 'Room page', kind: 'sheet', state: 'default', note: 'Circle x Close (device.sheet.done) or a swipe down.',
+        play: function (stage) { return Mock.anim.sheet(stage.querySelector('.ui-host'), 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Fan Mode: Auto', to: 'Fan Mode: Manual', kind: 'cut', state: 'default', note: 'Picking Manual swaps the Auto Mode section for Fan Speed. The choice shows at once (optimistic, cleared on the next live change, reverted after 2 s) and the section swap has no animation modifier.',
+        play: function (stage) {
+          var ctx = Mock.current, col = stage.querySelector('.ui-sheet .dv-stack'); if (!col) return Promise.resolve();
+          var next = dv.purifierControls({ mode: 'Manual', speed: 'Low', ctx: ctx });
+          return Mock.sleep(700).then(function () { col.replaceWith(next); return Mock.sleep(1300); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Title "Office Air Quality" with its subtitle "12 AQI • 3 µg/m³", then each section: its heading, then its choice; Close last. The group is labelled "Office air purifier controls".' },
+      { rule: 'Segmented controls', note: 'Each is a system segmented control (identifiers purifier.mode, purifier.auto, purifier.speed) with the section title as its label; at least 44 pt tall in the sheet. The chosen segment is spoken as selected; a disabled control is dimmed and spoken as dimmed.' },
+      { rule: 'Accessibility sizes', note: 'At AX sizes every control is a pop-up menu button showing "Title: value" (a segmented control cannot hold AX text); the menu lists the options.' },
+      { rule: 'No colour-only state', note: 'The sheet is neutral (no family colour): choice is the segment fill and the word.' },
+      { rule: 'Optimistic feedback', note: 'A pick shows at once; if Home Assistant does not confirm within 2 s the control reverts to the live value.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Segmented controls: about 5 segments on iPhone', verdict: 'pass', note: 'Fan Mode has 3 or 4 options and Fan Speed 4; SegmentedChoice is a system Picker(.segmented) and becomes a menu at accessibility sizes (SegmentedChoice.swift:41).' },
+        { rule: 'Sheets: fitted height, grabber, close control', verdict: 'pass', note: '.hassSheet(.form) fits the measured content and shows the grabber; Close is the circle-X trailing.' },
+        { rule: 'Sheets: prefer form sizing on iPad for a short list of controls', verdict: 'pass', note: '540 pt form sheet, fitted vertically (HassModal.swift:218).' },
+        { rule: 'Toolbars: title with subtitle', verdict: 'pass', note: 'sheetSubtitle shows the AQI and PM2.5 summary under the title on iOS 26; earlier systems show the title alone.' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'Choices become menus showing "Title: value" at AX sizes; no truncation.' },
+        { rule: 'Feedback: optimistic change with a revert', verdict: 'pass', note: 'A pick shows at once and reverts after 2 s if Home Assistant does not confirm; system picker haptics apply.' },
+      ],
+      swiftui: [
+        { rule: 'Use system controls where they exist', verdict: 'pass', note: 'Picker(.segmented) / Picker(.menu) through SegmentedChoice; nothing custom.' },
+        { rule: 'Accessibility: label every control', verdict: 'pass', note: 'Each picker carries its section title; the group is labelled "<room> air purifier controls".' },
+        { rule: 'Hygiene: one type per file, docs match code', verdict: 'pass', note: 'GrillSheet and GrillControls moved to GrillSheet.swift; RoomDeviceSheetChrome doc says Close' },
+        { rule: 'Motion: no decorative animation', verdict: 'pass', note: 'Only the system segmented selection animates; section swaps are cuts.' },
+      ],
+    },
+
+    notes: [
+      'loading: there is no loading state: the controller reads EntityStore, ready from the snapshot. An entity not loaded yet reads Unavailable (the error state).',
+      'Motion: none of its own. The system animates the segmented selection; sections swap with no animation modifier (see the Transitions list).',
+      'The room overview "Air Quality" chip opens this same sheet (catalog presentedFrom room-overview-air-quality); the room-overview batch draws that page.',
+      'The header here is two lines (title and subtitle) on iOS 26; before iOS 26 the sheet shows the title alone (patterns/room-device-sheets.md Header).',
+      'Presenter is a trimmed Office room page with an Air Quality navigate tile.',
+      'Promote to kit: dv.section and dv.tileGrid are DeviceSection and DeviceTileGrid (modals/room-devices/_devices-vacuums.js).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: Auto, Manual, Sleep, unavailable, offline, detents, AX5 menus; light and dark.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,16 @@
+{
+  "id": "dd-summary-default-tab",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Your Summary should default to profile tab in modal",
+  "surface": "your-summary",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "e842d916",
+  "fix_ref": "8f369bb5",
+  "fix_confidence": "high",
+  "expected": "Your Summary opens with the Profile tab selected."
+}

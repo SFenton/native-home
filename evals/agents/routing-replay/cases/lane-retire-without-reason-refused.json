@@ -1,0 +1,31 @@
+{
+  "id": "lane-retire-without-reason-refused",
+  "source": "2026-11-02: a retire move had no reason file; it is refused.",
+  "recorded": "2026-11-02",
+  "kind": "lane_check",
+  "input": {
+    "check": "retired",
+    "rows": [
+      [
+        "D",
+        "evals/agents/routing-replay/cases/old.json",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "0000000000000000000000000000000000000000"
+      ],
+      [
+        "A",
+        "evals/agents/routing-replay/retired/old.json",
+        "0000000000000000000000000000000000000000",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ]
+    ]
+  },
+  "expect": {
+    "refused": true,
+    "message": {
+      "has": [
+        "old.json.reason.json"
+      ]
+    }
+  }
+}

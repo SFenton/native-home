@@ -1,0 +1,17 @@
+{
+  "id": "gate-no-jev-request-parks-failsafe",
+  "source": "Owner clarification 2026-11-03: request-driven work with Jev unavailable parks (the owner decides), basis=request.",
+  "recorded": "2026-11-03",
+  "kind": "gate_cli",
+  "input": {
+    "plan": "Owner's request: make the chips bigger\n\nPlan: chips grow."
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": {
+      "has": [
+        "gate: park basis=request answer=unavailable"
+      ]
+    }
+  }
+}

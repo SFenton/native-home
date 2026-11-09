@@ -1,0 +1,1 @@
+- [Grid engine and web precedent](reference_grid_engine_and_web_precedent.md) — where grid math lives, readable web copy, stale-doc and zsh gotchas

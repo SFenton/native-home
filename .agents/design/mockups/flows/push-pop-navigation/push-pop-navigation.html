@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Push and pop navigation · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/navigation/_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  function home(c, o) { return SN.rootPage(c, 'home', o); }
+  function kitchen(c, o) { return SN.pushedPage(c, o); }
+  /* Two pages part-way through the single-page push (single-page-motion.md S2): the new one at `x` (a fraction of the width still to travel), the old one gone the same fraction the other way, a full width each, no dim or shadow. */
+  function mid(c, x, o) {
+    var a = home(c), b = kitchen(c);
+    a.style.transform = 'translateX(' + (-(1 - x) * 100) + '%)';
+    b.style.transform = 'translateX(' + (x * 100) + '%)';
+    if (o && o.finger) SN.finger(b, o.finger, { label: o.label, drag: o.drag, trail: o.trail });
+    return [a, b];
+  }
+  function play(back) {
+    return function (stage) {
+      var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = back ? home(ctx) : kitchen(ctx);
+      if (back) a.parentNode.insertBefore(b, a); else a.parentNode.insertBefore(b, a.nextSibling);
+      return Mock.anim.slide(a, b, { back: back }).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); b.remove(); });
+    };
+  }
+
+  Mock.mount({
+    kind: 'flow', id: 'push-pop-navigation', title: 'Push and pop within a section stack', area: 'shell', status: 'shipped',
+    summary: 'A page pushed under a section root (a room, Food, Media), and back. The columns' motion with one column (owner, 2026-11-02): both pages move a full width over the one still wallpaper, no dim, shadow or fade; the edge swipe back follows the finger. The destination\'s content is present in its first frame; the header buttons stay on the pushed page, with Back replacing the menu.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKStackMotion.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift'],
+    spec: ['.agents/design/motion.md', '.agents/patterns/motion.md', '.agents/design/apple/iphone.md', '.agents/design/direction-g.md'],
+    patterns: ['motion', 'header-edge-fade', 'page-backdrop'],
+    hig: ['Navigation bars', 'Navigation and search', 'Gestures', 'Motion'],
+    kitComponents: ['NavigationGlass', 'TabBar', 'NavigationFlyout', 'BackButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'root': { title: '1. Home root', note: 'pushes come from Quick Links (flow quick-links-to-page), a notification link, a Chores list or a Settings row; Open Navigation leads (not on the folded Duo)', render: function (c) { return home(c); } },
+      'push': { title: '2. Page pushes in (half way)', note: 'both pages move a full width: the new page from the trailing edge, Home out by the leading edge, over the one still wallpaper; no dim, no shadow; the new page\'s content is already there', render: function (c) { return mid(c, .5); } },
+      'pushed-page-keeps-header-buttons': { title: '3. Pushed: Back replaces the menu, header buttons stay', note: 'Quick Links and Profile are on every page; the tab bar stays; the wallpaper is the same crop', render: function (c) { var p = kitchen(c); SN.finger(p, 'button[aria-label="Home"]', { label: 'Back' }); return p; } },
+      'swipe-back': { title: '4a. Swipe back (interactive, mid-drag)', note: 'follows the finger 1:1 from the leading edge, the page before it adjacent; release past half (or a flick) completes, else it reverses; only on a pushed page (the root edge is the flyout swipe); iOS 26 content swipe is off, the edge only', render: function (c) { return mid(c, .42, { finger: { x: 4, y: c.h * .5 }, label: 'drag right from the edge', trail: { x: 6 - c.contentW * .42, y: c.h * .5 } }); } },
+      'pop-back': { title: '4b. Back tapped: pop (half way)', note: 'the reverse of the push: the page goes out by the trailing edge, Home comes in from the leading edge', render: function (c) { return mid(c, .55); } },
+      'popped': { title: '5. Back at the Home root', note: 'Home is exactly as left: same scroll position, nothing re-fetched', render: function (c) { return home(c); } },
+      'long-title': { title: 'A long page title', note: 'Back is the circle (no text); the large title wraps instead of truncating', render: function (c) { return kitchen(c, { title: 'Bathroom 1 Heated Floor and Towel Rack' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'header circles keep 44 pt; the title and sections grow', render: function (c) { return kitchen(c); } },
+    },
+    motion: [
+      { id: 'slide-push', what: 'The pushed page slides in from the trailing edge while the page underneath leaves by the leading edge, a full width each, over the one still wallpaper', token: '`standard` (smooth spring 0.3 s); no dim, shadow or fade (single-page-motion.md S2, motion.md 4.2 exception)', state: 'root',
+        source: 'UKStackMotion.swift (UKStackTransition) returned from UKSectionNavigationController\'s delegate; the columns\' UKColumnsViewController.transition is the same motion', reduce: 'a 0.2 s cross-fade in place (`quick`), no slide',
+        play: play(false) },
+      { id: 'slide-pop', what: 'Back (button or swipe) slides the page out to the trailing edge and Home in from the leading edge', token: '`standard`, the reverse of the push; interactive with the edge swipe', state: 'pushed-page-keeps-header-buttons',
+        source: 'UKStackMotion.swift; the Back button is the system back item', reduce: 'cross-fade',
+        play: play(true) },
+      { id: 'swipe-back-drag', what: 'Dragging from the leading edge moves the page with the finger; releasing past the middle completes the pop', token: 'UKStackInteraction (UIPercentDrivenInteractiveTransition) driven by an edge pan: 1:1, completes past 0.5 or at 600 pt/s, else reverses', state: 'pushed-page-keeps-header-buttons',
+        source: 'UKStackMotion.swift edge pan; replaces interactivePopGestureRecognizer and, on iOS 26, interactiveContentPopGestureRecognizer', reduce: 'the swipe still pops and scrubs the cross-fade',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = home(ctx), dot = SN.finger(a, { x: 6, y: ctx.h * .5 }, { label: 'drag' });
+          a.parentNode.insertBefore(b, a); b.style.transform = 'translateX(-100%)';
+          var steps = 14, i = 0;
+          return new Promise(function (res) { (function step() { var t = i / steps; a.style.transform = 'translateX(' + (t * 70) + '%)'; b.style.transform = 'translateX(' + (-100 * (1 - t * .7)) + '%)'; dot.style.left = (6 + t * .7 * ctx.contentW) + 'px'; if (++i <= steps) setTimeout(step, 35); else res(); })(); })
+            .then(function () { return Mock.anim.slide(a, b, { back: true }); }).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); a.style.transform = ''; b.remove(); dot.remove(); });
+        } },
+      { id: 'content-first-frame', what: 'The destination shows its content in its first frame (no fade or cascade in onAppear)', token: 'none: presence does not animate (motion.md 4.2)', state: 'pushed-page-keeps-header-buttons',
+        source: 'HomeRouteDestination reads EntityStore synchronously; motion.md 4.2', reduce: 'unchanged',
+        play: play(false) },
+    ],
+    transitions: [
+      { from: 'Home root', to: 'Pushed page', kind: 'push', state: 'root', note: 'A tile or Quick Links choice appends a HomeRoute to the section path; the section stack animates it (UKStackMotion). Heavy setup (streams, maps) starts after the transition settles.', play: play(false) },
+      { from: 'Pushed page', to: 'Home root (Back)', kind: 'push', state: 'pushed-page-keeps-header-buttons', note: 'Back pops; the root keeps its scroll position.', play: play(true) },
+      { from: 'Pushed page', to: 'Home root (swipe)', kind: 'push', state: 'pushed-page-keeps-header-buttons', note: 'The leading-edge swipe is UKStackMotion\'s edge pan; the flyout swipe is off while a page is pushed.', play: play(true) },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'Back first (labelled with the previous page\'s title, "Home"), then the reconnecting arc if present, Quick Links, Profile; then the title as a heading and the page.' },
+      { rule: 'Focus on push', note: 'VoiceOver announces the new page (screen change) and starts at its first element; on pop it returns to the element that opened the page.' },
+      { rule: 'Targets', note: 'Back, Quick Links, Profile 44 pt; tiles far larger.' },
+      { rule: 'Dynamic Type / AX5', note: 'The large title wraps; the Back circle has no text, so nothing truncates.' },
+      { rule: 'Reduce Motion', note: 'The push and pop are a 0.2 s cross-fade in place (UKStackMotion); the swipe back still pops and scrubs the fade.' },
+      { rule: 'Gestures', note: 'Swipe back works from the leading edge on pushed pages (not the iOS 26 content swipe); the flyout swipe is disabled there (ShellNavigator.isAtRoot).' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Navigation bars: use the system Back and back swipe', verdict: 'pass', note: 'No custom back button on pushed pages; only HumidifierSchedulesTab hides it while saving (HumidifierSchedulesTab.swift:187).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: keep the bar on a pushed page', verdict: 'pass', note: 'Hidden only in flyout style (MainTabView.swift:254).', by: 'apple-hig skill' },
+        { rule: 'Gestures: do not compete with the back swipe', verdict: 'pass', note: 'The menu button and edge swipe exist only at a section root (ShellNavigator.swift:85-90; AppSection.swift:119-123).', by: 'apple-hig skill' },
+        { rule: 'Motion: system transition, Reduce Motion by default', verdict: 'departure', note: 'Owner, 2026-11-02: single-page layouts use the columns\' motion instead of the system push (single-page-motion.md); Reduce Motion cross-fades and the swipe back stays.', by: 'apple-hig skill' },
+        { rule: 'Toolbars: the same shell buttons on every pushed page', verdict: 'pass', note: 'pageChrome() adds Quick Links and Profile to every destination (MainTabView.swift:247-257).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'One navigationDestination(for:) per type per stack', verdict: 'pass', note: 'HomeRoute, HouseholdSettingsPage and SettingsRoute are registered once per section stack (MainTabView.swift:153-155).', by: 'swiftui-pro skill' },
+        { rule: 'Chrome that every page needs should not depend on each caller', verdict: 'pass', note: 'Fixed: pageDestination(for:) in MainTabView.swift applies pageChrome once per registered destination.', by: 'swiftui-pro skill' },
+        { rule: 'Measure transitions', verdict: 'pass', note: 'measuresNavigation(.push, page:) in pageChrome (MainTabView.swift:237).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: none for push and pop. The Pop signpost is not recorded yet (patterns/motion.md Departures), so motion.md 10 lists it ahead of the code.',
+      'The Duo folded draws the pushed page with the title in the header row beside the Back circle; the unfolded Duo portrait pose was not run on a simulator (design/apple/duo.md).',
+      'The wallpaper does not move with the push: the window has one wallpaper behind the tab controller and the pages are transparent (page-backdrop R2a); the kit page draws its own copy, so the mid-push states show two slightly different wallpapers.',
+      'The mid-transition states are static compositions (new page at a fraction of the width, old page gone the same fraction the other way); the real transition is `UKStackMotion`\'s. Applies to the single-page layouts (iPhone, folded Duo, Duo and iPad portrait); where the window splits (Settings on the unfolded Duo or iPad landscape) the columns do the same motion.',
+    ],
+    changelog: [{ date: '2026-11-02', note: 'Single-page motion: push and pop use the columns\' motion over one still wallpaper (single-page-motion.md); mid-push frames, motion items, Reduce Motion and gesture notes updated. `in-flight:claude/settings-motion`.' }, { date: '2026-10-23', note: 'First pass: push, header buttons, swipe back, pop, long title, AX5.' }],
+  });
+})();
+</script></body></html>

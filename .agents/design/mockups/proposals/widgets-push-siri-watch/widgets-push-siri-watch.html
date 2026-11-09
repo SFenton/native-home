@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Push, Siri, Watch proposals</title>
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--soft:#e3effc;--code:#eceef2;--ui:-apple-system,system-ui,sans-serif;--mono:ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--soft:#152a44;--code:#20242b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--soft:#152a44;--code:#20242b;color-scheme:dark}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui);margin:0}
+.wrap{max-width:1000px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(26px,4vw,38px);line-height:1.1;margin:0 0 8px}h2{font-size:22px;margin:48px 0 8px}h3{font-size:16px;margin:0 0 4px}
+code{font-family:var(--mono);font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+.fg2{color:var(--fg2)}.tag{font-size:12px;font-weight:600;text-transform:uppercase;background:var(--soft);color:var(--accent);padding:2px 8px;border-radius:99px}
+.band{display:flex;flex-wrap:wrap;gap:20px;margin-top:12px}
+.cell{flex:1 1 300px;min-width:0}.cap{font-size:14px;color:var(--fg2);margin-bottom:6px}.cap b{color:var(--fg)}
+.dev{background:#0b1118;color:#fff;border-radius:22px;padding:18px 16px;min-height:200px;border:1px solid var(--line)}
+.dev.ax{font-size:22px}
+.card{background:rgba(255,255,255,.12);border-radius:14px;padding:12px 14px;margin-top:10px}
+.btn{display:block;text-align:center;background:#0a84ff;color:#fff;border-radius:12px;padding:12px;margin-top:10px;font-weight:600;min-height:44px}
+.btn.g{background:rgba(255,255,255,.16)}
+.sm{font-size:13px;opacity:.75}
+.watch{width:150px;height:180px;border-radius:38px;background:#000;color:#fff;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:6px solid #2b2f36;text-align:center;font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:14px;margin-top:10px}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--soft)}
+.rec{border-left:4px solid var(--accent);background:var(--surface);padding:10px 14px;border-radius:0 10px 10px 0;margin-top:10px}
+</style></head><body><div class="wrap">
+<span class="tag">Proposal · 2026-10-23</span>
+<h1>Push permission, Siri phrases, Watch and Settings recovery</h1>
+<p class="fg2">Bucket "Widgets, push, Siri &amp; Watch". The other eight findings are fixed in code; these four change what people see or hear, so nothing is built until the owner picks. Mockups below are stand-ins drawn in this page, not device captures: Watch is not validated on hardware.</p>
+
+<h2>1. Notification permission asked in context</h2>
+<p><b>Today:</b> <code>PushCoordinator.didConnect</code> calls <code>requestAuthorization()</code> right after sign-in, before anything has been explained (HIG Notifications: ask when the value is clear). Same on iPhone, Duo and iPad.</p>
+<div class="band">
+ <div class="cell"><div class="cap"><b>Original</b> · iPhone / Duo / iPad, default text</div><div class="dev"><div class="sm">Just signed in, Home appears</div><div class="card"><b>“S+H” Would Like to Send You Notifications</b><div class="sm">System alert, no explanation</div></div></div></div>
+ <div class="cell"><div class="cap"><b>Option A</b> · explain first, then ask</div><div class="dev"><div class="sm">Settings → Notifications row, and a one-time Home banner</div><div class="card"><b>Get door and camera alerts</b><div class="sm">S+H can tell you when a door is left open or someone rings.</div></div><span class="btn">Turn On Notifications</span><span class="btn g">Not Now</span></div></div>
+ <div class="cell"><div class="cap"><b>Option A</b> · Accessibility 5 (stacked, scrolls)</div><div class="dev ax"><div class="card"><b>Get door and camera alerts</b></div><span class="btn">Turn On Notifications</span><span class="btn g">Not Now</span></div></div>
+ <div class="cell"><div class="cap"><b>Option B</b> · ask the first time an automation or camera notification is needed</div><div class="dev"><div class="sm">Settings → Cameras → Notify me</div><div class="card"><b>Doorbell alerts</b><div class="sm">Toggle on → system prompt appears here.</div></div></div></div>
+</div>
+
+<h2>2. Siri phrases that only open a page</h2>
+<p><b>Today:</b> “Check the locks in S+H” and “Show the thermostat in S+H” just open Security or Climate; Siri says nothing about the state. <code>OpenPageIntent</code> lists Settings but no phrase offers it.</p>
+<table><tr><th>Option</th><th>Siri says / does</th><th>Cost</th></tr>
+<tr><td>Original</td><td>Opens the page, silent</td><td>Phrase promises an answer it doesn't give</td></tr>
+<tr><td>A · rename</td><td>“Open Security / Open Climate in S+H”; drop “Check/Show…” promises; add “Open Settings in S+H”</td><td>Smallest; no new intent</td></tr>
+<tr><td>B · answer</td><td>New read-only intents return a dialog (“The front door is locked; 2 of 3 locks locked”, “Living room is 21°, heating to 22°”) and a snippet; page opens only on tap</td><td>Two intents reading <code>EntityStore</code>; Siri works while locked, so lock state is spoken aloud → needs <code>requiresAuthentication</code></td></tr></table>
+
+<h2>3. Watch app “Coming soon”</h2>
+<div class="band">
+ <div class="cell"><div class="cap"><b>Original</b> (stand-in)</div><div class="watch"><div>🏠</div><b>S+H</b><span class="sm">Coming soon</span></div></div>
+ <div class="cell"><div class="cap"><b>Option A</b> · ship nothing until it works: remove the Watch target from release builds</div><div class="watch"><span class="sm">No Watch app installed</span></div></div>
+ <div class="cell"><div class="cap"><b>Option B</b> · minimal useful scope: favourite scenes + status glance</div><div class="watch"><b>Scenes</b><span>Good Night</span><span>Movie</span><span class="sm">Tap to run</span></div></div>
+</div>
+
+<h2>4. Camera denied in the scan sheet</h2>
+<p><b>Today:</b> message says “Allow it in Settings” with no button. <b>Proposed:</b> add a secondary <code>Open Settings</code> button (44 pt, <code>UIApplication.openSettingsURLString</code>) beside <i>Enter Name Manually</i>; at AX5 the two stack.</p>
+<div class="band"><div class="cell"><div class="cap"><b>Original</b></div><div class="dev"><div class="card">Camera access is off. Allow it in Settings, or enter the details manually.</div><span class="btn g">Manually Enter Name</span></div></div>
+<div class="cell"><div class="cap"><b>Proposed</b></div><div class="dev"><div class="card">Camera access is off. Allow it in Settings, or enter the details manually.</div><span class="btn">Open Settings</span><span class="btn g">Manually Enter Name</span></div></div></div>
+
+<h2>Comparison</h2>
+<table><tr><th>Item</th><th>HIG</th><th>Owner rules</th></tr>
+<tr><td>1 Permission</td><td>Notifications: request in context</td><td>No reload/blank; adds one banner or row (shared Settings pattern)</td></tr>
+<tr><td>2 Siri</td><td>Siri/App Intents: phrase must match result</td><td>HA is source of truth: B reads <code>EntityStore</code> only</td></tr>
+<tr><td>3 Watch</td><td>watchOS: don't ship an empty app</td><td>Devices rule: Watch is out of the journeys until built</td></tr>
+<tr><td>4 Settings</td><td>Privacy: offer a path to Settings</td><td>Uses the existing modal button style</td></tr></table>
+
+<h2>Recommendation</h2>
+<div class="rec"><b>1 → A</b> (explain with a Home banner + Settings row, ask on tap). <b>2 → A</b> now (rename, add Settings phrase); B later as its own feature. <b>3 → A</b> (hold the Watch target out of release builds until B-scope is specced). <b>4 → add the button.</b> Files: PushCoordinator, Settings notifications row, SHShortcuts, project.yml watch target, ScanCamera/ScanItemSheet; each with UX and accessibility tests on iPhone, Duo and iPad.</div>
+
+<h2>Open questions</h2>
+<ul><li>Is a Watch app wanted for the next release, or should it be hidden until a scope is chosen?</li><li>For Siri, should lock state ever be spoken while the phone is locked?</li><li>Banner copy for item 1: “Get door and camera alerts” fine?</li></ul>
+</div></body></html>

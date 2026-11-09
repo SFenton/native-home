@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contact Sensors overview sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_room-overview-data.js"></script>
+<script src="../_room-overview.js"></script>
+</head><body>
+<script>
+(function () {
+  var kind = 'contacts', room = "Office";
+  var states = RO.overviewStates(kind, { room: room });
+  states['from-security'] = { title: 'Opened from the Security page', note: 'the same full-height sheet over Security (its Contact Sensors chip); only the page behind differs', render: function (ctx) { return RO.sheet(ctx, { kind: kind, W: RO.world('mixed'), from: 'security' }); } };
+  states.room.note = 'a plain push with Back; the first line is the room summary ("All Windows Open" or "1 Window Open"), then the sensors under "Contact Sensors"';
+  Mock.mount({
+    kind: 'modal', id: 'room-overview-contacts', title: 'Contact Sensors overview sheet', area: 'home', status: 'shipped',
+    summary: "Opened by the Contact Sensors chip on Home and on Security. Every room with doors or windows, each card saying what is open (\"Door Open\", \"1 Window Open\", \"All Windows Closed\"); a card with something open fills soft green. Each pushes the room's sensors inside the sheet. A full-height page sheet that follows the system appearance.",
+    source: [
+      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift',
+      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift',
+      'apple/Sources/HassCore/Rooms/RoomOverview.swift',
+      'apple/Sources/HassCore/Rooms/RoomGroups.swift',
+      'apple/Sources/HassCore/Rooms/RoomFormat.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift',
+      'apple/Sources/HassDesign/DynamicGridLayout.swift',
+      'apple/Sources/HassDesign/HassModal.swift',
+      'apple/Sources/HassUI/Features/Security/SecurityScreen.swift'
+],
+    spec: [".agents/pages/home/spec.md", ".agents/pages/home/ios.md", ".agents/patterns/room-overview-sheet.md"],
+    patterns: ['room-overview-sheet', 'modal-sheet', 'dynamic-grid', 'entity-tile', 'status-rail'],
+    hig: ['Sheets', 'Toolbars', 'Layout', 'Typography', 'Accessibility'],
+    entities: ["binary_sensor.demo_front_door_contact_1", "binary_sensor.demo_office_contact_2", "binary_sensor.demo_garage_contact_1"],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'ChipRail', 'WeatherCard', 'AlarmPanel'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: states,
+    motion: RO.overviewMotion(kind),
+    transitions: RO.transitions(kind, room),
+
+    a11y: [
+      {
+            "rule": "Reading order",
+            "note": "The sheet is modal: focus lands on the title \"Contact Sensors\" and its subtitle (\"3 Open\" or \"All Closed\"), then the \"Rooms\" heading, the 11 room cards in grid order, then Close (identifier overview.contacts)."
+      },
+      {
+            "rule": "Room cards",
+            "note": "One button each: label the room, value the summary (\"1 Window Open\", \"Door Closed\"), hint \"Opens Office Contact Sensors\". Identifier overview.contacts.room.<room>. 72 pt minimum height."
+      },
+      {
+            "rule": "State is not colour alone",
+            "note": "An open card is filled soft green with an open door or window glyph and the words \"Open\"; a closed card is dark with the closed glyph and \"Closed\". Doors and windows have different glyphs."
+      },
+      {
+            "rule": "Two entry points",
+            "note": "The same sheet opens from Home's chip and from Security's Contact Sensors chip, full height both times; the chip itself reads the house (armed with something open adds a triangle) but the sheet does not."
+      },
+      {
+            "rule": "Equal heights and Dynamic Type",
+            "note": "Every card has the height of the tallest; the minimum width scales and the grid is one column of stacked tiles at AX5."
+      },
+      {
+            "rule": "Close",
+            "note": "The circle x is labelled Close for VoiceOver (never \"Done\"); it stays in the bar when a room is pushed, and dismisses the whole sheet from any depth."
+      },
+      {
+            "rule": "Light and dark",
+            "note": "The sheet follows the system appearance (white cells on #F2F2F7, or #2C2C2E on #1C1C1E); family fills and the lit tile are fixed in both. Reduce Transparency draws the solid tile finish."
+      }
+],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Accessibility: indicate when something is unavailable; do not misstate it", verdict: 'pass', note: "RoomOverview.cardSubtitle(.contacts) returns \"Unavailable\" when every contact sensor is dead instead of \"All Windows Closed\"; the tile stays navigable.", by: 'apple-hig skill' },
+        { rule: "Color: not the only differentiator", verdict: 'pass', note: "'Door Open', '1 Window Open' and 'All Windows Closed' are words, and the glyph swaps between open and closed door and window symbols (RoomOverviewStyle.swift:31-33).", by: 'apple-hig skill' },
+        { rule: "Sheets: full height where the sheet pushes pages", verdict: 'departure', note: "Large only from Home and from Security (SecurityScreen.swift:95); hassSheet doc, HassModal.swift:132-136, owner 2026-10-16.", by: 'apple-hig skill' },
+        { rule: "Designing for iPhone Duo: even columns across the fold", verdict: 'pass', note: "With a hinge DynamicGridLayout rounds to an even count (DynamicGridLayout.swift:16-27, 190-194) so a card never straddles the fold; a 704 pt page sheet gives four columns.", by: 'apple-hig skill' },
+        { rule: "Accessibility: section headings", verdict: 'pass', note: "The 'Rooms' heading carries the header trait (RoomSupport.swift:167).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "State reaches VoiceOver", verdict: 'pass', note: "Card label is the room, value its subtitle, hint 'Opens <room> Contact Sensors' (RoomOverviewTile.swift:26, GlassTile.swift:140-142).", by: 'swiftui-pro skill' },
+        { rule: "One state path through EntityStore", verdict: 'pass', note: "Cards read per entity through closures over the store (RoomOverviewTile.swift:40).", by: 'swiftui-pro skill' },
+        { rule: "Fixed sizes", verdict: 'pass', note: "Glyph and text scale with Dynamic Type (GlassTile.swift:298-299).", by: 'swiftui-pro skill' },
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      "loading: there is no loading state. The sheet reads EntityStore, so the \"loading\" state here is an empty store: every room reads closed. No spinner or pending bar exists on these cards.",
+      "from-security: the Security page's Contact Sensors chip opens this same sheet with hassSheet(.page, height: .full); only the page behind differs (SecurityScreen.swift).",
+      "Summaries (RoomFormat.contactSummary): one door \"Door Open\" / \"Door Closed\"; several of one kind \"2 Doors Open\" / \"All Windows Closed\"; Bedroom 1's one sensor stands for two Side Windows (contactCount 2), so one open sensor reads \"1 Window Open\".",
+      "Unavailable rooms: the overview cards carry no unavailable face; an unavailable sensor reads closed here (RoomFormat.isOpen is false). The pushed tiles dim and read Unavailable.",
+      "Sections: this sheet has one heading, \"Rooms\"; the cards do not reorder when something opens.",
+      "medium and fitted: not offered. The sheet is hassSheet(.page, height: .full), so large is the only detent; on iPad and the unfolded Duo it is the 704 pt page sheet. Dismiss is Close or a swipe down (Transitions list); there is no confirmation.",
+      "Docs versus code: direction-g.md says room cards in the chip overviews are \"status tiles, not navigation\", but the code draws them with kind .navigate (a trailing chevron) and pushes the room; patterns/motion.md still lists the overview room tiles as a zoom, but the code is a plain push (owner 2026-10-22, motion.md 4.3, .measuresNavigation(.push)). Drawn as the code.",
+      "Duo unfolded: the page sheet is centred in the window and crosses the hinge band here; a 704 pt sheet gives four even columns. Placement is the system's (the unfolded simulator pose was run for pages only): check on a device.",
+      "Kit gaps (promote to kit): symbols window.vertical.open|closed, figure.stand, desktopcomputer, stove, stairs, bathtub (added at runtime in modals/home/_room-overview.js); TileGrid with equal rows stretches a section header to the tile height and its track overflows a narrow container at AX5 (the helper equalises in JS and caps the track); BrightnessTile prints \"On at 70%\" where the app prints \"70%\".",
+      "Fixture: values are invented; room names, entity ids and the group lists are the app's (HassCore/Rooms/RoomGroups.swift)."
+],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: overview in every state, the pushed room, present and push transitions, light and dark.' }],
+  });
+})();
+</script></body></html>

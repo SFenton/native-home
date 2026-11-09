@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>S+H Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one reading column; a heading and a responsive card grid per group; search filters the cards. */
+:root{
+  --bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--accent-soft:#e3effc;--code:#eceef2;
+  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--accent-soft:#152a44;--code:#20242b}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--accent-soft:#152a44;--code:#20242b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1100px;margin:0 auto;padding-block:40px 72px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;letter-spacing:-.02em;margin:0 0 10px;text-wrap:balance}
+h2{font-size:20px;letter-spacing:-.01em;margin:0 0 2px;text-wrap:balance}
+p{margin:0}
+.lede{font-size:17px;color:var(--fg2);max-width:64ch}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin:24px 0 8px}
+.bar input{flex:1 1 220px;min-width:0;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:0 14px;font:inherit;font-size:15px}
+.bar input:focus-visible,a.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{font-size:13px;color:var(--fg2);font-variant-numeric:tabular-nums}
+section{margin-top:40px}
+h3{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg2);margin:22px 0 10px}
+.kinds{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.kinds a{font-size:14px;padding:6px 12px;border-radius:99px;background:var(--surface);border:1px solid var(--line);color:inherit;text-decoration:none}
+.kinds a:hover{border-color:var(--accent)}.kinds b{font-variant-numeric:tabular-nums;color:var(--fg2);font-weight:500;margin-left:4px}
+.tag{align-self:flex-start;font-size:11px;font-weight:600;letter-spacing:.03em;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+.blurb{font-size:14px;color:var(--fg2);margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:14px}
+a.card{display:flex;flex-direction:column;gap:6px;min-width:0;padding:16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);color:inherit;text-decoration:none}
+a.card:hover{border-color:var(--accent)}
+a.card strong{font-size:17px;line-height:1.25}
+a.card span.sum{font-size:14px;color:var(--fg2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+a.card .meta{margin-top:auto;padding-top:6px;font-size:12px;color:var(--fg2);font-family:var(--mono);overflow-wrap:anywhere}
+.empty{color:var(--fg2);margin-top:28px}
+details#whyd>summary{font-size:20px;font-weight:600;letter-spacing:-.01em;cursor:pointer;padding:6px 0;min-height:44px;display:flex;align-items:center;gap:8px}
+details#whyd>summary b{font-size:13px;font-weight:500;color:var(--fg2);font-variant-numeric:tabular-nums}
+details#whyd>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+details#whyd{border-top:1px solid var(--line);padding-top:8px}
+.foot{margin-top:48px;font-size:13px;color:var(--fg2);max-width:72ch}
+code{font-family:var(--mono);font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+</style></head>
+<body>
+<div class="wrap">
+<h1>S+H Mockups</h1>
+<p class="lede">The mockup atlas for the S+H app: every page, modal, component and flow as the app draws it today on iPhone, Duo and iPad, plus the owner-review proposals. Each opens as its own page with device, state, text size and motion controls; the pill at its corner comes back here.</p>
+<nav class="kinds" aria-label="Sections">__NAV__</nav>
+<div class="bar"><input id="q" type="search" placeholder="Filter mockups" aria-label="Filter mockups" autocomplete="off"><span class="count" id="n" aria-live="polite">__COUNT__</span></div>
+__SECTIONS__
+<p class="empty" id="none" hidden>No mockup matches that filter.</p>
+<p class="foot">Source of truth: <code>.agents/design/mockups/</code> in the repo; <code>catalog.json</code> there lists every item. This page is built by <code>tools/mockups_hub.py</code> and republished to the same link, so edit the repo files, not this page.</p>
+</div>
+<script>
+(function(){
+  var q=document.getElementById("q"),n=document.getElementById("n"),none=document.getElementById("none");
+  var cards=[].slice.call(document.querySelectorAll("a.card")),secs=[].slice.call(document.querySelectorAll("section"));
+  function run(){
+    var t=q.value.trim().toLowerCase(),shown=0;
+    cards.forEach(function(c){var on=!t||c.textContent.toLowerCase().indexOf(t)>-1;c.hidden=!on;if(on)shown++;});
+    [].slice.call(document.querySelectorAll(".area")).forEach(function(a){a.hidden=!a.querySelector("a.card:not([hidden])");});
+    secs.forEach(function(s){s.hidden=!s.querySelector("a.card:not([hidden])");});
+    var why=document.getElementById("whyd");if(why&&t)why.open=!!why.querySelector("a.card:not([hidden])");
+    none.hidden=shown>0;n.textContent=shown+(shown===1?" mockup":" mockups");
+  }
+  q.addEventListener("input",run);
+})();
+</script>
+</body></html>

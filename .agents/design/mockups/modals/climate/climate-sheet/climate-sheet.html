@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Advanced Controls sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+
+  function sheet(ctx, o) { return SC.climateSheet(ctx, o); }
+  /** A pushed level, for the push transition: the new .ui-modal slides over the current one inside the same sheet panel. */
+  function pushDemo(stage, o, back) {
+    var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), cur = panel.querySelector('.ui-modal');
+    var host = SC.climateSheet(ctx, Object.assign({ noPresenter: true }, o)), next = host.querySelector('.ui-modal');
+    next.style.cssText += ';position:absolute;left:0;right:0;top:0;bottom:0;background:var(--sheet-ground);z-index:6';
+    panel.appendChild(next);
+    var go = back ? Mock.anim.push(next, cur, { back: true }) : Mock.anim.push(cur, next);
+    return go.then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(panel); next.remove(); });
+  }
+  function tabTo(stage, tab) {
+    var ctx = Mock.current, host = SC.climateSheet(ctx, { noPresenter: true, tab: tab }), src = host.querySelector('.ui-mscroll'), dst = stage.querySelector('.ui-mscroll');
+    dst.innerHTML = ''; Array.prototype.slice.call(src.childNodes).forEach(function (n) { dst.appendChild(n); });
+    var bar = stage.querySelector('.ui-mtabs'), nbar = host.querySelector('.ui-mtabs'); if (bar && nbar) { bar.innerHTML = ''; Array.prototype.slice.call(nbar.childNodes).forEach(function (n) { bar.appendChild(n); }); }
+  }
+  var AUTO = { tab: 'automation' }, TRACK = { tab: 'tracking' };
+
+  Mock.mount({
+    kind: 'modal', id: 'climate-sheet', title: 'Advanced Controls (Rooms, Automation, Tracking)', area: 'climate', status: 'shipped',
+    summary: 'The thermostat sheet the three Climate rows open: a large page sheet with a NavigationStack, dark system Forms (the sheet\'s ground and cells), and the section tab bar on a glass capsule at the bottom. Rooms is a grid of room tiles; Automation and Tracking are toggles and openers. Details push with Back (climate-room-detail, climate-automation-details).',
+    source: ['apple/Sources/HassUI/Features/Climate/ClimateSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift', 'apple/Sources/HassUI/Features/Climate/ClimateScreen.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/Common/ModalTabSymbols.swift',
+      'apple/Sources/HassCore/Config/ClimateConfig.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Climate/ClimateController.swift'],
+    spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/patterns/modal-sheet.md'],
+    patterns: ['modal-sheet', 'thermostat-dial', 'module-list', 'dynamic-grid', 'optimistic-actions', 'motion'],
+    hig: ['Sheets', 'Segmented controls', 'Lists and tables', 'Toggles', 'Toolbars'],
+    entities: ['switch.demo_contact_1', 'select.demo_contact_2', 'switch.demo_contact_4', 'switch.demo_contact_6'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ModalTabBar', 'ModuleList', 'ModuleRow', 'Toggle', 'GlassTile', 'TileGrid', 'TabBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Rooms tab', note: 'eleven room tiles in the Rooms grid\'s colours, two lines each ("70.9°F" over "Occupied"), then the tab\'s description', render: function (c) { return sheet(c, {}); } },
+      'automation': { title: 'Automation tab', render: function (c) { return sheet(c, AUTO); } },
+      'tracking': { title: 'Tracking tab', note: 'Selected Rooms and Critical Protection open only while Track Selected Rooms is on (and the critical select says Track Select Critical)', render: function (c) { return sheet(c, TRACK); } },
+      'tracking-off': { title: 'Tracking tab, Track Selected Rooms off', note: 'the two openers dim and say "Enable Track Selected Rooms first"', render: function (c) { return sheet(c, { tab: 'tracking', data: { trackSelected: false } }); } },
+      'automation-off': { title: 'Automation tab, everything off', note: 'Predictive Comfort off hides the Current Prediction opener; the subtitle reads Off', render: function (c) { return sheet(c, { tab: 'automation', data: { integration: false, eco: false, predictive: false } }); } },
+      'pushed': { title: 'A pushed level (Living Room)', note: 'Back replaces the leading space and the tab bar is gone; Close stays', render: function (c) { return sheet(c, { content: SC.roomDetail(c, SC.room('living-room')), title: 'Living Room' }); } },
+      'loading': { title: 'First sign-in, nothing saved', note: 'every toggle disabled and off, the room tiles say "--°F / Unknown", the eco openers dim (no options); the sheet has no spinner or pending bars', render: function (c) { return sheet(c, { data: { unavailable: true }, scenario: 'unavailable' }); } },
+      'loading-automation': { title: 'Automation, nothing saved', render: function (c) { return sheet(c, { tab: 'automation', data: { unavailable: true }, scenario: 'unavailable' }); } },
+      'error': { title: 'Entities unavailable (Home Assistant reports it)', note: 'the same as loading: switches are disabled when unavailable (the web left room checkboxes tappable)', render: function (c) { return sheet(c, { tab: 'tracking', data: { unavailable: true }, scenario: 'unavailable' }); } },
+      'offline': { title: 'Over an offline Climate page', note: 'the sheet has no offline UI; the page behind carries the offline chip; a toggle tap shows its optimistic value, then rolls back', render: function (c) { return sheet(c, { tab: 'automation', connection: 'offline' }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'only the page behind shows the arc; the sheet is unchanged', render: function (c) { return sheet(c, { connection: 'reconnecting' }); } },
+      'large': { title: 'Large detent (shipped)', note: 'hassSheet(.page, height: .full): a sheet with a section tab bar opens at large and never measures', render: function (c) { return sheet(c, {}); } },
+      'closed': { title: 'Before presenting / after dismissing', render: function (c) { return SC.climatePage(c, SC.climateScenario(c, 'home')); } },
+      'ax5': { title: 'Accessibility 5 text size (menu tabs)', override: { ts: 'ax5' }, note: 'the section switcher becomes a menu showing the current section; tiles go to one column; rows wrap their text and their value under it', render: function (c) { return sheet(c, {}); } },
+      'ax5-automation': { title: 'Automation at AX5', override: { ts: 'ax5' }, render: function (c) { return sheet(c, AUTO); } },
+    },
+
+    motion: [
+      { id: 'toggle', what: 'A switch is turned on: the knob slides and the track fills green', token: 'standard 0.3 s smooth for the knob, state 0.6 s ease-in-out for the track colour (system switch)', state: 'automation',
+        source: 'SwiftUI Toggle (system) in ClimateToggleRow (ClimateFormPieces.swift); motion.md section 6', reduce: 'the knob still moves (the system switch); colour cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-toggle'); var eco = t[1]; eco.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { eco.classList.toggle('on'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'tab-cut', what: 'A section is chosen on the tab bar: the content swaps at once', token: 'cut (no animation), like the app\'s tab bar', state: 'default',
+        source: 'ClimateSheet.body (switch tab) with modalTabBar; motion.md section 4.1', reduce: 'unchanged (a cut)',
+        play: function (stage) { return Mock.sleep(500).then(function () { tabTo(stage, 'automation'); return Mock.sleep(900); }).then(function () { tabTo(stage, 'tracking'); return Mock.sleep(900); }).then(function () { tabTo(stage, 'rooms'); return Mock.sleep(500); }); } },
+      { id: 'tab-selection', what: 'The selected segment of the tab bar changes', token: 'system segmented control (glass capsule): the system draws the selection move', state: 'default',
+        source: 'ModalTabBar.swift (BadgedTabSegments)', reduce: 'the system follows Reduce Motion',
+        play: function (stage) { var tabs = stage.querySelectorAll('.ui-modaltabs button'); return Mock.sleep(300).then(function () { if (tabs[1]) { tabs[0].classList.remove('sel'); tabs[1].classList.add('sel'); } return Mock.sleep(900); }).then(function () { if (tabs[1]) { tabs[1].classList.remove('sel'); tabs[0].classList.add('sel'); } return Mock.sleep(400); }); } },
+    ],
+
+    transitions: [
+      { from: 'Advanced Controls row (Climate)', to: 'Advanced Controls sheet', kind: 'sheet', note: 'Each of the three rows presents the sheet at large on its tab (Room Thermostats → Rooms, Advanced Configuration → Automation, Room Tracking → Tracking). The system slides it up; the Climate page scales back and dims; content is present on arrival.',
+        play: function (stage) { var ctx = Mock.current; return Mock.presentDemo(stage, SC.climateSheetOpts(ctx, {}), { hold: 1100 }); } },
+      { from: 'Rooms tab', to: 'Room detail', kind: 'push', note: 'A room tile pushes its page on the sheet\'s NavigationStack: the new page slides in from the trailing edge, the old one shifts left about 30% and dims. Back or the edge swipe returns to the tab (it keeps its place).', state: 'default',
+        play: function (stage) { var ctx = Mock.current; return pushDemo(stage, { content: SC.roomDetail(ctx, SC.room('living-room')), title: 'Living Room' }); } },
+      { from: 'Room detail', to: 'Rooms tab', kind: 'push', note: 'Back (the glass circle leading, or the edge swipe, which is interactive and system-owned).', state: 'default',
+        play: function (stage) { return pushDemo(stage, {}, true); } },
+      { from: 'Automation tab', to: 'Eco or Predictive detail', kind: 'push', note: 'A NavigationLink row pushes its page the same way; the row\'s chevron is the affordance.', state: 'automation',
+        play: function (stage) { var ctx = Mock.current; return pushDemo(stage, { content: SC.ecoDetail(ctx, 'critical'), title: 'Eco Mode Critical Tracking' }); } },
+      { from: 'Advanced Controls sheet', to: 'Climate', kind: 'sheet', note: 'Close (the glass circle x trailing) or swipe down; the system slides the sheet away and the page returns to full size.', state: 'default',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Advanced Controls", then the content top to bottom, then the section control, with Close in the bar (and Back on pushed pages). Escape and the two-finger scrub dismiss.' },
+      { rule: 'Section control', note: 'A segmented control named "Thermostat sections" (climate.sheet.tabs): Rooms, Automation, Tracking; on iPhone each segment is an icon named for VoiceOver by its title; on iPad and the unfolded Duo it shows the titles; at accessibility sizes it is a menu that reads the current section.' },
+      { rule: 'Room tiles', note: 'Buttons named by the room with the value "70.9°F, Occupied"; the tile fill is decorative; identifier climate.room.<key>.' },
+      { rule: 'Toggles', note: 'Each switch is labelled by its row title with the description as the hint (Automatic Thermostat: "Turn Home Assistant\'s automatic thermostat control on or off."); Predictive Comfort reads "Predictive Comfort, On · Pre-Cool". Unavailable switches are disabled.' },
+      { rule: 'Openers', note: 'NavigationLinks with the title as label and the current choice or count as the value ("Eco Mode Critical Tracking, Track Select Critical"); a disabled opener reads "dimmed" and its subtitle says why ("Enable Track Selected Rooms first").' },
+      { rule: 'Targets', note: 'Form rows are 52 pt (60 with a subtitle); tiles 96 pt; switches 51 x 31 with the whole row as the target; the tab bar segments 44 pt.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the tab control is a menu, tiles are one column, row values drop under the titles and everything wraps; the sheet scrolls.' },
+      { rule: 'Reduce Motion', note: 'Pushes become cross-fades; colour cross-fades shorten to 0.2 s.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Segmented controls: closely related subviews, about 5 segments on iPhone, text or images not a mix", verdict: 'pass', note: "Three sections as a system segmented Picker, icons on compact width, titles on regular; every icon segment is a Label with its title for VoiceOver (ModalTabBar.swift:66-84).", by: 'apple-hig skill' },
+        { rule: "Segmented controls: use a tab bar for completely separate sections", verdict: 'departure', note: "The sections are one task's subviews inside a sheet, drawn as a segmented control on a glass capsule at the bottom (ModalTabBar.swift:9-14, direction-g.md Sheets).", by: 'apple-hig skill' },
+        { rule: "Accessibility: Dynamic Type at accessibility sizes", verdict: 'pass', note: "At AX sizes the control becomes a menu of text titles naming the selected section (ModalTabBar.swift:40-57, 122); targets are at least 44 pt (line 53).", by: 'apple-hig skill' },
+        { rule: "Materials: Liquid Glass for navigation controls floating over content", verdict: 'pass', note: "The tab capsule uses navigationGlass over content that fades beneath it (ModalTabBar.swift:57, 64, 83; HassModal.swift:116-127); forms and rows stay on solid sheet cells.", by: 'apple-hig skill' },
+        { rule: "Sheets: full height for a sheet with a section tab bar", verdict: 'departure', note: ".hassSheet(.page, height: .full) so a tab or a pushed page never changes the height (ClimateScreen.swift:88, HassModal.swift:132-136, owner 2026-10-16).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+        { rule: "Pin bars with safeAreaInset", verdict: 'pass', note: "The tab bar is a safeAreaInset(edge: .bottom) (ModalTabBar.swift:155), so content scrolls clear of it with no guessed padding.", by: 'swiftui-pro skill' },
+        { rule: "Keep state above a branch that swaps hierarchies", verdict: 'pass', note: "Fixed: ClimateSheet keeps all three tabs in one ZStack (hidden ones are transparent, not hit-testable, hidden from accessibility), so a tab keeps its scroll position and edits.", by: 'swiftui-pro skill' },
+        { rule: "Navigation: navigationDestination(for:) registered once", verdict: 'pass', note: "ClimateRoute is the single registered type (ClimateSheet.swift).", by: 'swiftui-pro skill' },
+        { rule: "Prefer Binding projected from state over Binding(get:set:)", verdict: 'pass', note: "Already fixed: the toggle rows use ActionToggle and ControllerToggle (ClimateFormPieces.swift, ClimateAutomationTab.swift).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Duo unfolded: the page sheet is centred in the window and crosses the hinge band here (the system decides placement on the Duo; the unfolded pose was only run for pages). Check on a device before relying on it.',
+      'medium and fitted: not used. A sheet with a section tab bar always opens at large (hassSheet(.page, height: .full); direction-g.md Height), so there is no measured fit; Mock.sheet draws large.',
+      'Docs versus code: ios.md says "every device and pose is single page inside the sheet"; true. split-view.md lists the thermostat as a sheet, the earlier page-entry grid of three columns is not built.',
+      'Docs versus code: spec.md says the Rooms tab is a "2-column grid of the 11 rooms" with a thermometer icon per room; the code draws RoomPalette tiles in the Rooms grid\'s DynamicGridLayout (min 150, up to 4 columns) with each room\'s own glyph and a two-line subtitle.',
+      'The sheet is drawn with kit rows (ModuleList in the sheet cell colour) standing in for the system grouped Form: radius and spacing are close, not exact.',
+      'Tab symbols follow ModalTabSymbols: thermometer.variable (Rooms), gearshape (Automation), figure.walk.motion (Tracking), stand-ins drawn.',
+      'The presenter is the Climate page (scenario home). Fixtures: ClimateGallery (3 tracked rooms, Guest Room forced critical, two occupied-only bathrooms, Predictive Comfort on with a Pre-Cool recommendation).',
+      'Critical Protection\'s count reads "1 rooms forced" (the code does not pluralise); drawn as the code does.',
+      'Promote to kit: SecClimate.roomsTab, automationTab, trackingTab and the Form section helper.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: three tabs, pushed level, off, unavailable, offline, AX5, five transitions.' }],
+  });
+})();
+</script></body></html>

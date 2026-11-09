@@ -1,0 +1,16 @@
+{
+  "id": "dd-recipes-page-n-of-n",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Suggested Recipes- don't need \"Page 3 of 5\"",
+  "surface": "suggested-recipes-carousel",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "bda3e4ba",
+  "fix_confidence": "high",
+  "expected": "The carousel shows no 'Page n of N' text."
+}

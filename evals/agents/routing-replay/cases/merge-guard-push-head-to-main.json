@@ -1,0 +1,17 @@
+{
+  "id": "merge-guard-push-head-to-main",
+  "source": "2026-11-02: Bypass shape: HEAD:main smuggles a push to main.",
+  "recorded": "2026-11-02",
+  "kind": "merge_guard",
+  "input": {
+    "command": "git push origin HEAD:main"
+  },
+  "expect": {
+    "blocked": true,
+    "reason": {
+      "has": [
+        "agents/*"
+      ]
+    }
+  }
+}

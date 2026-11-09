@@ -1,0 +1,23 @@
+{
+  "id": "code.custom_machinery",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Does the change hand-write something a system API or an existing pattern already provides?",
+  "instructions": "Does the change described in `title`, `body` and `files` add a hand-written control, modifier, layout, animation or utility that a SwiftUI system API on iOS 17 or an existing app pattern already provides?",
+  "state": {
+    "fields": [
+      "title",
+      "body",
+      "files"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.75,
+    "no_below": 0.25
+  },
+  "output": "Reviewer pre-read hint line: ask for the rung-0 note (system API, precedent, why not enough) before reading the diff.",
+  "evidence": "unmeasured"
+}

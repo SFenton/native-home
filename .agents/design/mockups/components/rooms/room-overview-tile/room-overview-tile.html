@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Room overview tile · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../modals/home/_room-overview-data.js"></script>
+<script src="../../../modals/home/_room-overview.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, A = Mock.anim;
+  var W = {}; function world(n) { return W[n] || (W[n] = RO.world(n)); }
+  /** One swatch: a room card of a kind in a world. */
+  function T(kind, room, label, o) {
+    o = o || {};
+    return { label: label, note: o.note, w: o.w, build: function () { return h('div', { style: { width: '100%' } }, RO.overviewTile(kind, RO.group(kind, room), world(o.world || 'mixed'), o)); } };
+  }
+  function air(room, label, color, aqi, pm, note) {
+    return { label: label, note: note, build: function () { var w = RO.world('mixed'); w.e['sensor.' + room + 'a'] = { st: String(aqi) }; var r = [room, 'sensor.' + room + 'a', 'sensor.' + room + 'p']; w.e[r[2]] = { st: String(pm), unit: 'µg/m³' }; w.e['color:' + room] = { st: color }; if (aqi == null) { delete w.e[r[1]]; delete w.e[r[2]]; delete w.e['color:' + room]; } return h('div', { style: { width: '100%' } }, RO.airTile(r, w)); } };
+  }
+  function S(list, o) { return function (ctx) { return RO.swatches(ctx, list, o); }; }
+
+  var states = {
+    'lights': { title: 'Lights cards', note: 'on is the warm lit tile with a count; off is dark with the outline bulb; two bulbs for a room with several lights, one bulb for a single light',
+      render: S([T('lights', 'Living Room', 'On, several lights ("2 On")'), T('lights', 'Gym', 'Off'), T('lights', 'Entryway', 'On, one light ("On")'), T('lights', 'Kitchen', 'On ("2 On")'), T('lights', 'Bedroom 1 Closet', 'Wraps to three lines')]) },
+    'climate': { title: 'Climate cards', note: 'always dark with the room\'s own glyph (sofa, bed, stove...); the range is text, truncated to one decimal; a card never fills',
+      render: S([T('climate', 'Living Room', 'Range from the helper'), T('climate', 'Office', 'Range from the helper, desktop glyph'), T('climate', 'Hallway', 'Helper unavailable: falls back to the sensors\' min and max', { world: 'unavailable' }), T('climate', 'Entryway', 'No readings: "1 sensors" (as shipped)', { world: 'unavailable' }), T('climate', 'Guest Bathroom', 'Shower glyph')]) },
+    'occupancy': { title: 'Occupancy cards', note: 'occupied fills green with a walking figure; clear is dark with a standing figure; redacted builds say Hidden and never fill',
+      render: S([T('occupancy', 'Living Room', 'Occupied'), T('occupancy', 'Gym', 'Not Occupied'), T('occupancy', 'Living Room', 'Redacted build (FENTON_REDACT_PRIVATE)', { redact: true }), T('occupancy', 'Gym', 'Unavailable sensor: reads Not Occupied', { world: 'unavailable' })]) },
+    'contacts': { title: 'Contact Sensors cards', note: 'something open fills soft green with the open glyph; doors and windows have their own glyphs; the summary names what is open',
+      render: S([T('contacts', 'Garage', 'Door open ("Door Open")'), T('contacts', 'Office', 'Two windows, one open ("1 Window Open")'), T('contacts', 'Bedroom 1', 'One sensor for two Side Windows ("1 Window Open")'), T('contacts', 'Entryway', 'Door closed ("Door Closed")'), T('contacts', 'Living Room', 'Window closed ("Window Closed")'), T('contacts', 'Office', 'All closed ("All Windows Closed")', { world: 'quiet' })]) },
+    'air-quality': { title: 'Air Quality cards', note: 'read-only (no chevron, no button): glyph and rim in the room\'s AQI colour, "AQI • PM2.5" text; unavailable reads twice and keeps the teal fallback',
+      render: S([air('Living Room', 'Good (AQI 12, green)', '#33cc66', 12, 3.1), air('Office', 'Moderate (AQI 58, yellow)', '#ffd60a', 58, 16.2), air('Studio', 'Unhealthy for sensitive groups (AQI 120, orange)', '#ff9f0a', 120, 41.5), air('Bedroom 1', 'Unhealthy (AQI 165, red)', '#ff453a', 165, 68.0), air('Media Room', 'Unavailable (teal fallback)', '#009688', null, null)]) },
+    'in-context': { title: 'In context: a full overview grid in the sheet', note: 'sections headed inside one grid, every card the height of the tallest', wide: true,
+      render: function (ctx) { return RO.swatches(ctx, [{ label: 'Lights overview (first rows)', wide: true, build: function () { var g = RO.overviewGrid('lights', world('mixed')); g.style.maxHeight = '420px'; g.style.overflow = 'hidden'; return g; } }, { label: 'Occupancy overview (first rows)', wide: true, build: function () { var g = RO.overviewGrid('occupancy', world('mixed')); g.style.maxHeight = '300px'; g.style.overflow = 'hidden'; return g; } }]); } },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'stacked: glyph above, name and state below; one column in a phone sheet',
+      render: S([T('lights', 'Living Room', 'Lights on'), T('occupancy', 'Gym', 'Occupancy clear'), T('contacts', 'Office', 'Contacts open')]) },
+  };
+
+  Mock.mount({
+    kind: 'component', id: 'room-overview-tile', title: 'Room overview tile (per room, per kind)', area: 'home', status: 'shipped', frame: false,
+    summary: 'The card a room is in an overview sheet: its name, its state as words, a glyph, and a fill only while something is lit, occupied or open. Five kinds (Lights, Climate, Occupancy, Contact Sensors, Air Quality). Four kinds are buttons that push the room; Air Quality cards are read-only. Drawn on the sheet surface (these tiles never appear on a page); the Device control picks the size class.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassCore/Rooms/RoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomFormat.swift'],
+    spec: ['.agents/patterns/room-overview-sheet.md', '.agents/patterns/entity-tile.md', '.agents/design/direction-g.md'],
+    patterns: ['room-overview-sheet', 'entity-tile', 'dynamic-grid'],
+    hig: ['Color', 'Accessibility', 'Typography'], entities: ['light.demo_living_room_item_1', 'binary_sensor.demo_living_room_presence_4', 'binary_sensor.demo_garage_contact_1', 'sensor.demo_living_room_2'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'card-fills', what: 'A room\'s state changes (lights on, occupied, door open): the card cross-fades between its dark and filled faces', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced); glyph .symbolEffect(.replace), identity under Reduce Motion', state: 'lights',
+        source: 'HassDesign/GlassTile.swift GlassTileFace .stateColorTransition("GlassTile"); motion-components.md rows RoomOverviewTile, AirQualityRoomTile',
+        reduce: 'colour still cross-fades at 0.2 s; the glyph swaps without the effect',
+        play: function (stage) { var t = stage.querySelector('[data-room="Gym"]'); return RO.flipTile(t, true, { symbolName: 'lightbulb', subtitle: 'On' }).then(function () { return Mock.sleep(500); }).then(function () { return RO.flipTile(t, false, { symbolName: 'lightbulb', subtitle: 'Off' }); }); } },
+      { id: 'card-fills-occupancy', what: 'A clear room becomes occupied: green fill and the walking figure', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'occupancy',
+        source: 'GlassTileFace .stateColorTransition("GlassTile")', reduce: 'colour still cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('[data-room="Gym"]'); return RO.flipTile(t, true, { symbol: 'figure.walk.motion', subtitle: 'Occupied' }).then(function () { return Mock.sleep(500); }).then(function () { return RO.flipTile(t, false, { symbol: 'figure.stand', subtitle: 'Not Occupied' }); }); } },
+      { id: 'aqi-rim', what: 'The air changes band: the glyph and rim cross-fade to the new AQI colour', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'air-quality',
+        source: 'AirQualityRoomTile via GlassTileFace; motion-components.md', reduce: 'still cross-fades, at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('[data-room="Living Room"]'), from = '#33cc66', to = '#ffd60a'; function rim(c) { return 'inset 0 0 0 1px color-mix(in srgb, ' + c + ' 50%, transparent)'; }
+          t.style.setProperty('--glyph', to); t.style.setProperty('--glyph-light', to); t.querySelector('.st').textContent = '66 • 18.4 µg/m³';
+          return t.animate([{ boxShadow: rim(from) }, { boxShadow: rim(to) }], { duration: A.ms.state(), easing: A.easing.state, fill: 'both' }).finished.then(function () { return Mock.sleep(500); }).then(function () { t.style.setProperty('--glyph', from); t.style.setProperty('--glyph-light', from); t.querySelector('.st').textContent = '12 • 3.1 µg/m³'; return t.animate([{ boxShadow: rim(to) }, { boxShadow: rim(from) }], { duration: A.ms.state(), easing: A.easing.state, fill: 'both' }).finished; }); } },
+    ],
+    transitions: [],
+
+    a11y: [
+      { rule: 'Role and label', note: 'Lights, Climate, Occupancy and Contacts cards are buttons: label the room, value the state ("2 On", "70.1 - 72.4°F", "Occupied", "1 Window Open"), hint "Opens <room> <group>". Air Quality cards are grouped static elements (label the room, value "12 • 3.1 µg/m³"), with no button trait or hint.' },
+      { rule: 'Identifiers', note: 'overview.<kind>.room.<room>; Air Quality overview.airQuality.room.<room>.' },
+      { rule: 'Target size', note: 'A 72 pt minimum row (GlassTile Row layout), wider than 44 pt; the chevron is decorative and the whole card is the target.' },
+      { rule: 'State is not colour alone', note: 'Lit or filled cards also change glyph (filled bulb, walking figure, open door or window) and say it in words; Climate cards never fill. The Air Quality band is carried by colour only (the numbers are text): see Reviews.' },
+      { rule: 'Dynamic Type', note: 'The grid\'s minimum card width scales with text size (140 pt at Large); at AX5 the card switches to the stacked layout (glyph above, name and state below) and a long name such as Bedroom 1 Closet wraps instead of truncating.' },
+      { rule: 'Equal heights', note: 'Cards in one grid take the tallest card\'s height (equalHeightTiles), so a wrapping name lifts the row and every other row.' },
+      { rule: 'Reduce Transparency and light', note: 'The solid tile finish replaces the tinted glass; in a light sheet an off card is a white cell with a hairline and a darker glyph (--glyph-light).' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Color: do not rely on colour alone", verdict: 'pass', note: "Lights, occupancy and contact cards fill and swap glyph and subtitle; Climate and Air Quality never fill and print their values (RoomOverviewTile.swift:19-38, RoomOverviewStyle.swift:23-27).", by: 'apple-hig skill' },
+        { rule: "Accessibility: indicate when something is unavailable", verdict: 'pass', note: "RoomOverview.cardSubtitle shows \"Unavailable\" when every sensor in a room is dead (RoomOverview.allUnavailable), spokenSubtitle adds the count for a partial outage; the tile stays navigable (hig-decisions VoiceOver bucket).", by: 'apple-hig skill' },
+        { rule: "Lists and tables: chevron only where it navigates", verdict: 'pass', note: "Four kinds are .navigate with a chevron and 'Opens' hint; Air Quality is .state with none (RoomOverviewTile.swift:23-26, AirQualityRoomTile.swift:19).", by: 'apple-hig skill' },
+        { rule: "Dynamic Type: a name that wraps lifts the row", verdict: 'pass', note: "Faces grow at large sizes and the grid equalises heights (GlassTile.swift:328-331, RoomOverviewGrid.swift:14, 31).", by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: "A tile is a Button with label, value and hint", verdict: 'pass', note: "GlassTile Button with accessibilityLabel(title), value subtitle, hint set by the caller (GlassTile.swift:135-145).", by: 'swiftui-pro skill' },
+        { rule: "Hard-coded colours", verdict: 'pass', note: "Colours come from ColorFamily and Surface tokens, light inks on sheet cells via TileAppearance (GlassTile.swift:301-302, 505-530).", by: 'swiftui-pro skill' },
+        { rule: "Typography", verdict: 'pass', note: "GlassTileFace tile titles use .subheadline.bold().", by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Docs versus code: direction-g.md calls these cards "status tiles, not navigation", but four of the five kinds draw kind .navigate (a trailing chevron) and push the room (a plain push inside the sheet, no zoom: owner 2026-10-22, motion.md 4.3). Air Quality cards are the only read-only kind. Drawn as the code.',
+      'Unavailable rooms: the cards have no unavailable face (RoomOverviewTile passes no isUnavailable). A room whose members are unavailable reads as off, clear or closed; the pushed tiles dim.',
+      'A mixed room (doors and windows together) reads from RoomFormat.contactSummary, for example "Window Open, Door Closed"-style joins of the open kinds; no fixture room is mixed, so none is drawn.',
+      'The mockup draws the Large / AX5 faces on the sheet surface only. The tiles never sit on a page.',
+      'Kit gaps (promote to kit): symbols window.vertical.open|closed, figure.stand, desktopcomputer, stove, stairs, bathtub (added at runtime in modals/home/_room-overview.js); TileGrid with section headers and equal rows.',
+      'Fixture values are invented; room names and entity ids are the app\'s.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: five kinds, unavailable and redacted faces, in-context grid, AX5, fill motion.' }],
+  });
+})();
+</script></body></html>

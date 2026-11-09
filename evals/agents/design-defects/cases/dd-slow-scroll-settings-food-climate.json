@@ -1,0 +1,16 @@
+{
+  "id": "dd-slow-scroll-settings-food-climate",
+  "date": "2026-10-27",
+  "source": "7c5a44f2",
+  "owner_report": "specific \"slow scrolling\" on Settings page, food pages, climate page",
+  "surface": "settings",
+  "poses": [
+    "iphone"
+  ],
+  "app": "swiftui",
+  "category": "perf",
+  "pre_fix_ref": "95a6f94b",
+  "fix_ref": "0f9928f2",
+  "fix_confidence": "medium",
+  "expected": "Scroll cost on Settings, Food and Climate is within the budget of tools/ios_scrollcost.sh; a design review cannot see this, so the case checks that the verdict defers to a measurement."
+}

@@ -1,0 +1,64 @@
+{
+  "configurations": [
+    {
+      "id": "94421D0D-3570-5493-BB8F-22422C367520",
+      "name": "Configuration 1",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "defaultTestExecutionTimeAllowance": 300,
+    "maximumTestExecutionTimeAllowance": 900,
+    "codeCoverage": false
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:FentonHome.xcodeproj",
+        "name": "FentonHomeUITests"
+      },
+      "parallelizable": false,
+      "selectedTests": [
+        "AdaptiveLayoutJourneyTests/testHomeChipsWrapAtAX5AndKeepTheirNames()",
+        "BackdropBlurJourneyTests/testSliderRowKeepsTargetsAtAX5()",
+        "FoodHubJourneyTests/testHubAtAX5()",
+        "FoodRecipeDetailJourneyTests/testRecipeDetailAtAX5()",
+        "FoodRecipeDetailJourneyTests/testRecipeGridAtAX5()",
+        "HeaderButtonsJourneyTests/testBarKeepsItsSizesAtAX5()",
+        "HeaderButtonsJourneyTests/testPhotoButtonKeepsItsSizeAtAX5()",
+        "LiveActivityJourneyTests/testAX5CardDishwasherLongStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardFanStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardFanXLongStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardHotFlashAlexBySamStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardHotFlashCoolingStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardProblemNavigationStuckStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardProblemVendorError88StaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardVacuumLongStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5CardVacuumStaysOnScreen()",
+        "PerformanceJourneyTests/testPerformanceScreenAtAX5()",
+        "RoomDevicesFanJourneyTests/testFanAX5GuestTimerOptions()",
+        "RoomDevicesFanJourneyTests/testFanAX5MasterRemainingAndClear()",
+        "RoomsFanJourneyTests/testFanRailMovesBelowTheTextAtAX5()",
+        "ScrollKeepsMovingJourneyTests/testDragsKeepScrollingTheLongPageAtAX5()",
+        "ScrollKeepsMovingJourneyTests/testSwipesKeepScrollingTheLongPageAtAX5()",
+        "SinglePageMotionJourneyTests/testPushAndPopAtAX5()",
+        "SummaryJourneyTests/testAtAX5TheTabBarIsAMenuWithCounts()",
+        "SummaryJourneyTests/testProfilePhotosAtAX5()",
+        "TileLayoutJourneyTests/testTileLayoutAX5AnchoredBottomKeepsTilesReadable()",
+        "TileLayoutJourneyTests/testTileLayoutAX5CenteredStackKeepsTilesReadable()",
+        "TileLayoutJourneyTests/testTileLayoutAX5RowKeepsTilesReadable()",
+        "TileLayoutJourneyTests/testTileLayoutAX5RowPassesAudit()",
+        "TileLayoutJourneyTests/testTileLayoutAX5StackedTopKeepsTilesReadable()",
+        "TilesRound2JourneyTests/testQuickLinkTilesStayOneSizeAtAX5()",
+        "TilesRound2JourneyTests/testRoomsTilesGrowTogetherAtAX5()",
+        "WeatherHeaderJourneyTests/testWeatherCardNameAX5()",
+        "WeatherHeaderJourneyTests/testWeatherNumeralWholeAX5Long()",
+        "WeatherHeaderJourneyTests/testWeatherNumeralWholeAX5Short()",
+        "WeatherJourneyTests/testCardAtAX5()",
+        "WeatherJourneyTests/testSheetAtAX5()"
+      ]
+    }
+  ],
+  "version": 1
+}

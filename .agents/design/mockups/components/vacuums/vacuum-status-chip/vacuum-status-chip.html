@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vacuum status tiles, settings rows and tiles · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../modals/room-devices/_devices-vacuums.js"></script>
+<script src="../../../modals/vacuums/_devices-vacuums.js"></script>
+<script src="../../../proposals/action-navigation-tiles/_action-tiles.js"></script>
+<script src="../../../proposals/selection-tiles/_selection.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv, vac = dv.vac, V = vac.V;
+  function sw(label, build, note, w) { return { label: label, surface: 'sheet', w: w || 340, build: build, note: note }; }
+  function tiles(v) { return function () { return vac.statusTiles(v); }; }
+  function list(rows) { return function (ctx) { return K.ModuleList({ rows: rows(ctx) }); }; }
+  function stack(fn) { return function (ctx) { return h('div.vc-col.vc-live', { style: { gap: '16px' } }, fn(ctx)); }; }
+
+  Mock.mount({
+    kind: 'component', id: 'vacuum-status-chip', title: 'Vacuum status tiles, order chip, pop-up setting rows, action and selection tiles', area: 'vacuums', status: 'shipped', frame: false,
+    summary: 'The vacuum sheet\'s small parts as decided 2026-10-28 (the id keeps its old name, "status chip"): three equal read-only status tiles, the numbered order chip and badge, pop-up setting rows with the animated Water and Fan rows, and the action and selection tiles that replaced the capsule buttons, blue-title rows and room cards. Sheet surface, light and dark.',
+    source: ['apple/Sources/HassUI/Features/Vacuums/VacuumComponents.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumComponents.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassCore/Vacuums/VacuumController.swift'],
+    spec: ['.agents/design/vacuum-sheet-redesign.md', '.agents/patterns/vacuum-sheet.md', '.agents/design/action-navigation-tiles.md'],
+    patterns: ['vacuum-sheet', 'action-tiles', 'module-list'],
+    hig: ['Buttons', 'Pop-up buttons', 'Lists', 'Color', 'Dynamic Type', 'Layout'],
+    entities: ['sensor.demo_level_1', 'sensor.demo_status_2', 'select.demo_mode_5', 'select.demo_fan_3', 'select.demo_select_2', 'input_select.demo_main_floor_1'],
+    kitComponents: ['GlassTile', 'TileGrid', 'ModuleList', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'status-tile': { title: 'Status tiles (VacuumStatusTile x3)', render: function (ctx) { return dv.swatches(ctx, [
+        sw('Docked, 87%, Idle', tiles(V({})), 'three equal flat read-only tiles: caption over value, glyph toned by state; no sheen, press or chevron; values never size a tile (the web\'s equal cells)'),
+        sw('Cleaning, 74%, Idle', tiles(V({ scenario: 'cleaning' })), 'Status glyph purple (active)'),
+        sw('Returning, Washing', tiles(V({ scenario: 'returning', dock: 'cleaning', dockLabel: 'Washing' })), 'the longest values the sheet shows; the tiles stay equal'),
+        sw('Error, 12%', tiles(V({ scenario: 'lowbattery' })), 'Status glyph red; the issue text is an InlineAlert below the tiles'),
+        sw('Unavailable', tiles(V({ scenario: 'unavailable' })), 'grey glyphs, Battery reads Unknown, Dock reads Unavailable')], ['sheet']); } },
+      'order': { title: 'Order chip and badge', render: function (ctx) { return dv.swatches(ctx, [sw('Selected rooms in order (the Selected Rooms summary)', function () { return h('div.vc-flow', { style: { gap: '6px' } }, [vac.orderChip(1, 'Kitchen'), vac.orderChip(2, 'Living Room'), vac.orderChip(3, 'Bathroom 1')]); }, 'white capsule with ink #1C1C1E and a black numbered disc in a dark sheet; the reverse in a light sheet'),
+        sw('Badge alone', function () { return h('div.vc-flow', [vac.badge(1), vac.badge(2), vac.badge(10)]); }, 'a 24 pt disc (scaled), 13 pt bold numeral; on the map it is the only text')], ['sheet']); } },
+      'setting-row': { title: 'Cleaning Settings: pop-up rows (VacuumSettingRow)', render: function (ctx) { return dv.swatches(ctx, [
+        sw('Vacuum and Mop: all four rows', stack(function () { return [vac.settingsGroup(V({}))]; }), 'title left, value and chevron.up.chevron.down trailing in the action colour; one grammar for 3 and 5 options; footer under the group'),
+        sw('Vacuum: no Water row', stack(function () { return [vac.settingsGroup(V({ modeValue: 'Vacuum' }))]; }), 'Water is available only when Mode includes mopping'),
+        sw('Mop: no Fan row', stack(function () { return [vac.settingsGroup(V({ modeValue: 'Mop' }))]; }), 'a mop-only run has no fan setting')], ['sheet']); } },
+      'action-tile': { title: 'Action tiles (target, run, dock)', render: function (ctx) { return dv.swatches(ctx, [
+        sw('Cleaning target', function (c) { return vac.tiles([vac.actionTile({ title: 'Edit Area', subtitle: vac.AREA_TXT, symbol: 'pencil' }), vac.actionTile({ title: 'Clear Area', symbol: 'trash' }), vac.actionTile({ title: 'Use Rooms', symbol: 'square.split.2x2', full: true })], c); }, 'text then disc; the whole tile is the button; a lone tile takes the row'),
+        sw('Run: Pause and Stop, no description', function (c) { return vac.tiles([vac.actionTile({ title: 'Pause', symbol: 'pause.fill' }), vac.actionTile({ title: 'Stop', symbol: 'stop.fill' })], c); }, 'momentary discs; nothing under the tiles'),
+        sw('Unavailable command with its footer', function (c) { return h('div.vc-stack', vac.tiles([vac.actionTile({ title: 'Pause', symbol: 'pause.fill', phase: 'disabled' })], c), vac.desc('Pause becomes available after the robot leaves the dock.')); }, 'the disc dims in place; the reason is one footer below, also the accessibility hint'),
+        sw('Dock command with its footer', function () { return h('div.vc-stack', vac.actionTile({ title: 'Clean Mop Dock', symbol: 'drop', full: true }), vac.desc('Start the mop-dock cleaning phase. Use Stop Dock Clean when finished so the dock drains the wash tray.')); }, 'explanation sits below the tile like an iOS footer under a toggle row'),
+        sw('Dock command, tracked then active', function () { return h('div.vc-col', { style: { gap: '12px' } }, vac.actionTile({ title: 'Stop Dock Clean', subtitle: 'Starting…', symbol: 'stop.fill', active: true, phase: 'inflight', full: true }), vac.actionTile({ title: 'Stop Dock Clean', subtitle: 'Washing', symbol: 'stop.fill', active: true, full: true })); }, 'the arc spinner until the dock reports Washing, then the stop disc on the filled face')], ['sheet']); } },
+      'selection-tile': { title: 'Selection tiles (Rooms, Auto-Clean)', render: function (ctx) { return dv.swatches(ctx, [
+        sw('Rooms: order disc', function () { return vac.roomsD(V({ selected: ['kitchen', 'living_room'] })); }, 'chosen: filled face with the numbered disc ("Cleans 1st"); unchosen: dark with an empty circle; long names wrap to two lines', 360),
+        sw('Auto-Clean: check disc', function () { return vac.autoD(V({}), { unavailable: ['gym'] }); }, 'checked = included; unchecked says Skipped (hatched on the map); an unavailable tile dims', 360)], ['sheet']); } },
+      'buttons': { title: 'Clean button (VacuumActionButton, primary)', render: function (ctx) { return dv.swatches(ctx, [
+        sw('Primary: the screen\'s one filled button', function () { return h('div.vc-gap12', vac.cleanButton(), vac.cleanButton({ disabled: true })); }, 'the #0071E3 capsule, 50 pt, "Clean" in rooms and area mode; disabled is 40% opacity')], ['sheet']); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'status tiles stack in one column; pop-up rows put the value under the title; tiles take full rows', render: function (ctx) { return dv.swatches(ctx, [
+        sw('Status tiles', tiles(V({}))),
+        sw('Setting rows', stack(function () { return [vac.settingsGroup(V({}))]; })),
+        sw('Action tiles', function (c) { return vac.tiles([vac.actionTile({ title: 'Pause', symbol: 'pause.fill' }), vac.actionTile({ title: 'Stop', symbol: 'stop.fill' })], c); })], ['sheet']); } },
+    },
+
+    motion: [
+      { id: 'water-row', what: 'Choosing a Mode without mopping removes the Water row and choosing one with mopping brings it back; the group, footer and next control resize with it', token: 'standard 0.3 s smooth (height) with content at quick 0.2 s; the group background and corners belong to the container', state: 'setting-row',
+        source: 'HassUI/Features/Vacuums/VacuumSettingRow.swift VacuumRowReveal (withAnimation(MotionTokens.standard)); motion.md section 6 exception', reduce: 'the row cross-fades in place at 0.2 s and the height changes at once',
+        play: function (stage) { var row = stage.querySelector('[data-k="Water"]'); if (!row) return Promise.resolve(); return vac.toggleRow(row, false).then(function () { return Mock.sleep(700); }).then(function () { return vac.toggleRow(row, true); }).then(function () { return Mock.sleep(400); }); } },
+      { id: 'selection-disc', what: 'A Rooms tile fills and its order disc appears when chosen, and empties when cleared', token: 'state 0.6 s ease-in-out colour, quick 0.2 s disc', state: 'selection-tile',
+        source: 'HassUI/Features/Vacuums/VacuumRoomsTab.swift VacuumRoomsTab', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { return Mock.sel.apply(stage, [{ id: 'office', order: 3 }]).then(function () { return Mock.sleep(600); }).then(function () { return Mock.sel.apply(stage, [{ id: 'office', order: 0 }]); }); } },
+    ],
+
+    a11y: [
+      { rule: 'Status tile', note: 'One read-only element: label "Battery", value "87%" (identifier vacuum.status for the state tile); the glyph is hidden because the value says it; tiles are not buttons.' },
+      { rule: 'Order chip and badge', note: 'The chip reads "1. Kitchen"; the bare badge is hidden (the room tile\'s label carries "cleaning order 1").' },
+      { rule: 'Setting rows', note: 'A menu button named with the row\'s title (vacuum.setting.<title>) and the selection as its value, haspopup menu; at accessibility sizes the value sits under the title; 44 pt minimum. The long description is the hint.' },
+      { rule: 'Action tiles', note: 'The whole tile is one button named by its title (vacuum.action.<kind>), the disc is decorative; a tracked command speaks its state as a value; an unavailable one is dimmed and its footer is the hint.' },
+      { rule: 'Selection tiles', note: 'A toggle: "Kitchen, cleaning order 1" with value On/Off in Rooms, "Guest Room, Skipped" with Included/Skipped in Auto-Clean; unavailable tiles are not actionable.' },
+      { rule: 'Clean button', note: 'The primary capsule is at least 50 pt tall; at AX sizes it keeps its full row.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',   /* the entries below predate the redesign (chips, segmented rows, capsules); the redesign is reviewed on its diff in the build PR */
+      hig: [
+        { rule: 'Status: state in glyph and words', verdict: 'pass', note: 'The status tile pairs a toned glyph with the value ("Docked", "87%", "Idle") and speaks as label plus value; not colour alone.', by: 'apple-hig skill' },
+        { rule: 'Pop-up buttons: one grammar for choices', verdict: 'departure', note: 'Mode (3 options) and Passes (3) are pop-ups where a segmented control would be one tap: one grammar beats one saved tap (owner, option B, 2026-10-28; direction-g "Choosing one option").', by: 'apple-hig skill' },
+        { rule: 'Color: orange and red text fail contrast', verdict: 'pass', note: 'Tile titles keep primary ink and the glyph carries the tone; the menu value uses the action blue.', by: 'apple-hig skill' },
+        { rule: 'Buttons: 44 pt or more', verdict: 'pass', note: 'Tiles are at least 76 pt, the disc is 44 pt, the Clean capsule 50 pt, the pop-up value 44 pt (HassTokens.minTarget).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: hints describe the action, not state', verdict: 'pass', note: 'An unavailable command speaks its reason as value, not as a hint (VacuumActionButton, carried to the action tile).', by: 'swiftui-pro skill' },
+        { rule: 'Menu: title as well as the glyph', verdict: 'pass', note: 'The setting menu is a Menu with an inline Picker, labelled with the setting title and valued with the selection; the row stays visible while the menu is open.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading, error, offline: not applicable to small parts; the states they express (Unavailable, Unknown, disabled) are drawn above.',
+      'Status chips became tiles, segmented settings became pop-up rows, room cards, Auto-Clean rows, capsule buttons and blue-title dock rows became selection and action tiles. The id stays "vacuum-status-chip" because other docs link to it.',
+      'The battery glyph names the nearest level; the app asks for battery.100percent, 75, 50, 25 and 0 (VacuumStatusSummary.batterySymbol).',
+      'The status tile of the vacuum sheet is not the Home status rail\'s StatusChip.',
+      'Promote to kit: vac.statusTiles, vac.actionTile, vac.settingsGroup, vac.roomsD, vac.autoD, vac.orderChip (modals/vacuums/_devices-vacuums.js; tile helpers still in proposals/).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: chips, order chip, setting rows, action rows, command buttons, AX5.' }, { date: '2026-10-28', note: 'Redrawn to the decided redesign: status tiles, pop-up rows, action and selection tiles.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' }],
+  });
+})();
+</script></body></html>

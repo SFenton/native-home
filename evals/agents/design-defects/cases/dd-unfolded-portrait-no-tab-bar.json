@@ -1,0 +1,16 @@
+{
+  "id": "dd-unfolded-portrait-no-tab-bar",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Unfolded portrait doesn't have bottom tab nav",
+  "surface": "tab-bar",
+  "poses": [
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "fec0e3ca",
+  "fix_ref": "ae5daf89",
+  "fix_confidence": "high",
+  "expected": "The unfolded Duo in portrait keeps the bottom tab bar; flag a tree with no tab bar and no section buttons."
+}

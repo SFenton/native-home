@@ -1,0 +1,43 @@
+{"id": "own240", "text": "Merge", "label": false, "why": "merge", "source": "owner message, session 8159ecf9"}
+{"id": "own22", "text": "Thanks. I approve you to implement, commit, and push these changes.\n\nFor the context size one- is the answer to that basically, individual sessions for individual items?", "label": false, "why": "approves implement/commit/push", "source": "owner message, session 0911ab73"}
+{"id": "own268", "text": "Run the follow-ups", "label": false, "why": "run follow-ups", "source": "owner message, session 8c8e3015"}
+{"id": "own215", "text": "Yes", "label": false, "why": "yes", "source": "owner message, session 7c5a44f2"}
+{"id": "own69", "text": "Make the capacity tool’s timer count sleep. It uses a clock that stops while the Mac sleeps, so a 25-minute run stretched to 8.6 hours. That accounts for about 45 of the 266 simulator-hours. <-- Disregard this one. Implement the rest in a new worktree and prioritize testing this and analyzing improvements (don't re-run original for now, just compare to old runs)", "label": true, "why": "implement the rest, disregard one item", "source": "owner message, session 39cacdae"}
+{"id": "own91", "text": "Yep, validate this works.", "label": false, "why": "validate this works", "source": "owner message, session 39cacdae"}
+{"id": "own399", "text": "You're approved to restart the app when you're able to.", "label": false, "why": "approved to restart", "source": "owner message, session c6c95432"}
+{"id": "own173", "text": "OK, delete 1–3. Skip measurement on my phone for now.", "label": true, "why": "delete 1-3, skip measurement", "source": "owner message, session 7c5a44f2"}
+{"id": "own38", "text": "Yes, but should we just update the manifest now anyways?", "label": true, "why": "yes but asks to update manifest too", "source": "owner message, session 28ba4778"}
+{"id": "own421", "text": "Yes, and merge when ready.", "label": false, "why": "yes, merge when ready", "source": "owner message, session cbb2ba74"}
+{"id": "own462", "text": "Approve.", "label": false, "why": "approve", "source": "owner message, session 4ac44105"}
+{"id": "own24", "text": "Yes.", "label": false, "why": "plain yes", "source": "owner message, session 0911ab73"}
+{"id": "own219", "text": "Do them all", "label": false, "why": "do them all", "source": "owner message, session 7c5a44f2"}
+{"id": "own203", "text": "Yes, 24 is the right font. This should go in a PR stacked on top of 211, so 211 can stay where it is now. Do a deep code and architectural review with swift-ui pro to make sure this is only a folded-Duo change.\n\nIn addition, there are some orientations of Duo- folded but rotated, portrait unfolded- that don't show title anywhere. Folded portrait, sometimes it shows, but then I navigate somewhere else and I don't see ", "label": true, "why": "24 is right, stack on 211, deep review", "source": "owner message, session 7c5a44f2"}
+{"id": "own66", "text": "These look good- commit and merge to main via PR.", "label": false, "why": "looks good, merge", "source": "owner message, session 2b2c1a81"}
+{"id": "own85", "text": "Yes. SPlit all multi-step tests into single tests that can be dynamically brought together into suites that can be run.", "label": false, "why": "yes, split all multi-step tests", "source": "owner message, session 39cacdae"}
+{"id": "own15", "text": "Yep, independent review, then consider me signed off", "label": true, "why": "yes, with review required first", "source": "owner message, session 0295d57e"}
+{"id": "own279", "text": "Yep, and make sure old worktrees are cleared too.", "label": true, "why": "yep plus clear old worktrees", "source": "owner message, session acbe5519"}
+{"id": "own250", "text": "Approve", "label": false, "why": "approve", "source": "owner message, session 8c8e3015"}
+{"id": "own50", "text": "Merge in the appropriate order and yes, remove that trigger.", "label": true, "why": "merge in order, remove trigger", "source": "owner message, session 28ba4778"}
+{"id": "own41", "text": "Yes. Match the flow I described above (so only version bumps push to TestFlight, and those bumps need to push in queued order)", "label": true, "why": "yes, restates only version bumps push to TestFlight", "source": "owner message, session 28ba4778"}
+{"id": "own445", "text": "Yes", "label": false, "why": "yes", "source": "owner message, session 4ac44105"}
+{"id": "own460", "text": "Yes.", "label": false, "why": "yes", "source": "owner message, session 4ac44105"}
+{"id": "own39", "text": "Yes, but correlate with what other repos do too, and if there's any Apple-guided way we can check for that sort of thing as well.", "label": true, "why": "yes but correlate with other repos", "source": "owner message, session 28ba4778"}
+{"id": "own291", "text": "Yes that's okay to ask.", "label": false, "why": "okay to ask", "source": "owner message, session b2164581"}
+{"id": "own351", "text": "Fan looks good, approve", "label": false, "why": "looks good approve", "source": "owner message, session b2164581"}
+{"id": "own201", "text": "Try it yep", "label": false, "why": "try it", "source": "owner message, session 7c5a44f2"}
+{"id": "own37", "text": "Yep, go for the rec. Start a new worktree, build off that, PR, and then delete worktree when done/in TestFlight.", "label": true, "why": "go for the rec, plus worktree/PR/cleanup instructions", "source": "owner message, session 28ba4778"}
+{"id": "own89", "text": "Yep, as long as it doesn't impact the production app.", "label": true, "why": "yes as long as production is unaffected", "source": "owner message, session 39cacdae"}
+{"id": "own397", "text": "Yes, add the scroll space iOS work investigation", "label": false, "why": "yes add investigation", "source": "owner message, session c6c95432"}
+{"id": "own420", "text": "These changes you made should be in a new worktree off main so we wouldn't have other changes anyways? And yes, we would republish artifacts.", "label": true, "why": "new worktree off main, republish", "source": "owner message, session cbb2ba74"}
+{"id": "own11", "text": "Yes, I think that split is reasonable.", "label": false, "why": "yes to a proposed split", "source": "owner message, session 0295d57e"}
+{"id": "own242", "text": "Yes, start a session in ~/repos/FestivalNativeApps to port sim_slim.sh and the simslim profiles into ios_sim.py's boot path.", "label": false, "why": "yes, start session", "source": "owner message, session 860c69f8"}
+{"id": "own226", "text": "If I approve it, iPhone 18 Pro is fine for now.", "label": true, "why": "fine if I approve, per-run", "source": "owner message, session 7c5a44f2"}
+{"id": "own225", "text": "Phone is unlocked and plugged in, go ahead", "label": false, "why": "go ahead", "source": "owner message, session 7c5a44f2"}
+{"id": "own426", "text": "Nice job. Commit and push to branch, merge to main via PR, then make sure it's brought into other working sessions.", "label": false, "why": "commit push merge", "source": "owner message, session e9157afe"}
+{"id": "own62", "text": "Yes, delete the two duplicate Artifacts (7ULfv41zMy5CWmRjLeR5nN and MSRCuD2YdNZvd5Rx6BM6vE).", "label": false, "why": "yes delete two artifacts", "source": "owner message, session 2b2c1a81"}
+{"id": "own130", "text": "Approved for the status rebuilds and router. I'm going to take the phone for now; test on simulator.", "label": true, "why": "approved, test on simulator only", "source": "owner message, session 7c5a44f2"}
+{"id": "own353", "text": "Looks great. Be sure to instrument perf tests as part of this as well", "label": true, "why": "looks great, instrument perf tests", "source": "owner message, session b2164581"}
+{"id": "own129", "text": "Yes, home switch (and switch to public if home drops for whatever reason). Build this, then continue investigating the 50ms reconnect. I'm wondering if there's some abstracted layer we can build that handles network changes (so we control that layer) and then that layer signals to reconnect- but potentially we also handle more silent reconnects/connects to home in the background and then \"swap\" connections or somethi", "label": true, "why": "yes home switch, build, then investigate", "source": "owner message, session 7c5a44f2"}
+{"id": "own88", "text": "Yes to 1.", "label": false, "why": "yes to 1", "source": "owner message, session 39cacdae"}
+{"id": "own218", "text": "Approve the merge", "label": false, "why": "approve merge", "source": "owner message, session 7c5a44f2"}
+{"id": "own82", "text": "Yes. Don’t run journeys- roll it out and then we’re going to focus on breaking down other test suites similarly to how we broke down Chores", "label": true, "why": "yes, don't run journeys", "source": "owner message, session 39cacdae"}

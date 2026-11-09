@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>App icon artwork · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../_bedroom-motion.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, CM = Mock.cm, I = Mock.icon;
+  /* AppIconChoice (HassCore/Settings/AppIconChoice.swift): tint 0xRRGGBB at 0.86 over the dusk glow, glyph 0xRRGGBB. */
+  var CHOICES = [
+    ['navySky', 'Navy + Sky', 0x0E1E46, 0x7CC4FF, 'AppIcon'], ['tealMint', 'Teal + Mint', 0x063A3E, 0x6EE7C8, 'AppIcon-TealMint'], ['plumLilac', 'Plum + Lilac', 0x3A1648, 0xD3A8FF, 'AppIcon-PlumLilac'],
+    ['forestGreen', 'Forest + Green', 0x10301E, 0x9BE29B, 'AppIcon-ForestGreen'], ['burgundyRose', 'Burgundy + Rose', 0x48101E, 0xFF9EB0, 'AppIcon-BurgundyRose'], ['indigoPeriwinkle', 'Indigo + Periwinkle', 0x221C5A, 0xA8B4FF, 'AppIcon-IndigoPeriwinkle'],
+    ['espressoAmber', 'Espresso + Amber', 0x342014, 0xFFB35C, 'AppIcon-EspressoAmber'], ['midnightGold', 'Midnight + Gold', 0x101630, 0xFFD36B, 'AppIcon-MidnightGold'],
+  ].map(function (c) { return { id: c[0], name: c[1], tint: c[2], glyph: c[3], asset: c[4], isDefault: c[0] === 'navySky' }; });
+  function hex(n) { return '#' + ('000000' + n.toString(16)).slice(-6).toUpperCase(); }
+  function rgba(r, g, b, a) { return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')'; }
+  var HOUSE = 'M50 12 L90 44 Q92 46 89 47 L82 47 L82 84 Q82 88 78 88 L22 88 Q18 88 18 84 L18 47 L11 47 Q8 46 10 44 Z M25 59h9.5v9.5H25zM37 59h9.5v9.5H37zM25 71h9.5v9.5H25zM37 71h9.5v9.5H37z';
+  var HEART = 'M50 88 C20 66 8 50 8 34 C8 20 19 10 32 10 C40 10 46 14 50 21 C54 14 60 10 68 10 C81 10 92 20 92 34 C92 50 80 66 50 88 Z';
+  var uid = 0;
+  /** AppIconArtwork as SVG (100-unit square, full bleed, no corner mask). appearance: standard | dark | tinted. */
+  function art(c, appearance) {
+    var id = 'ai' + (++uid), P;
+    if (appearance === 'dark') P = { bg: [['0', '#0C121E'], ['.48', '#1B1B20'], ['1', '#33271A']], glows: [[.74, .80, .42, rgba(255, 184, 102, .26)], [.22, .72, .36, rgba(255, 214, 150, .14)]], tile: hex(c.tint), to: .92, glyph: hex(c.glyph) };
+    else if (appearance === 'tinted') P = { bg: [['0', '#2A2A2C'], ['.48', '#161617'], ['1', '#3A3A3C']], glows: [[.74, .80, .42, rgba(140, 140, 140, .40)], [.22, .72, .36, rgba(179, 179, 179, .2)]], tile: '#292929', to: .82, glyph: '#F5F5F5' };
+    else P = { bg: [['0', '#23324D'], ['.48', '#4B4A52'], ['1', '#7A5E3A']], glows: [[.74, .80, .42, rgba(255, 184, 102, .55)], [.22, .72, .36, rgba(255, 214, 150, .32)]], tile: hex(c.tint), to: .86, glyph: hex(c.glyph) };
+    var a = 165 * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a), len = 100 * (Math.abs(Math.sin(a)) + Math.abs(Math.cos(a)));
+    var x1 = 50 - dx * len / 2, y1 = 50 - dy * len / 2, x2 = 50 + dx * len / 2, y2 = 50 + dy * len / 2;
+    var defs = '<linearGradient id="' + id + 'b" gradientUnits="userSpaceOnUse" x1="' + x1.toFixed(2) + '" y1="' + y1.toFixed(2) + '" x2="' + x2.toFixed(2) + '" y2="' + y2.toFixed(2) + '">' + P.bg.map(function (s) { return '<stop offset="' + s[0] + '" stop-color="' + s[1] + '"/>'; }).join('') + '</linearGradient>' +
+      P.glows.map(function (g, i) { var r = 100 * Math.hypot(Math.max(g[0], 1 - g[0]), Math.max(g[1], 1 - g[1])) * g[2]; var col = g[3]; return '<radialGradient id="' + id + 'g' + i + '" gradientUnits="userSpaceOnUse" cx="' + g[0] * 100 + '" cy="' + g[1] * 100 + '" r="' + r.toFixed(2) + '"><stop offset="0" stop-color="' + col + '"/><stop offset="1" stop-color="' + col.replace(/,[\d.]+\)$/, ',0)') + '"/></radialGradient>'; }).join('') +
+      '<linearGradient id="' + id + 'l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<mask id="' + id + 'm"><rect width="100" height="100" fill="#fff"/><path d="' + HEART + '" transform="translate(55 60) scale(.4)" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round"/></mask>';
+    var body = '<rect width="100" height="100" fill="url(#' + id + 'b)"/>' + P.glows.map(function (g, i) { return '<rect width="100" height="100" fill="url(#' + id + 'g' + i + ')"/>'; }).join('') +
+      '<rect width="100" height="100" fill="' + P.tile + '" fill-opacity="' + P.to + '"/><rect width="100" height="100" fill="url(#' + id + 'l)"/>' +
+      '<g transform="translate(10 10) scale(.8)"><path d="' + HOUSE + '" fill-rule="evenodd" fill="' + P.glyph + '" mask="url(#' + id + 'm)"/><path d="' + HEART + '" transform="translate(55 60) scale(.4)" fill="' + P.glyph + '"/></g>';
+    return '<svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true"><defs>' + defs + '</defs>' + body + '</svg>';
+  }
+  /** AppIconPreview: the art clipped to the system's icon corner radius (22.37% of the side) with a hairline. */
+  function preview(c, side, appearance) {
+    return h('span', { style: { display: 'inline-block', width: side + 'px', height: side + 'px', borderRadius: (side * .2237) + 'px', overflow: 'hidden', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)', flex: 'none', position: 'relative' }, html: art(c, appearance || 'standard') });
+  }
+  function choiceButton(c, selected, side) {
+    var ring = h('span', { style: { display: 'inline-block', padding: '5px', borderRadius: (side * .2237 + 5) + 'px', boxShadow: 'inset 0 0 0 3px ' + (selected ? 'var(--ink-action)' : 'transparent'), transition: 'box-shadow var(--t-state) var(--ease-state)' }, dataset: { ring: '1' } }, preview(c, side));
+    var b = h('button', { type: 'button', 'aria-label': c.name.replace(' + ', ' and ') + (c.isDefault ? ', default' : '') + ', ' + (selected ? 'Selected' : 'Not selected'), style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minHeight: '44px', background: 'none', border: 0, color: 'var(--ink)', font: 'inherit', cursor: 'pointer', width: '100%' } },
+      ring, h('span', { style: { display: 'flex', alignItems: 'center', gap: '4px', font: '600 var(--fs-sub) var(--font)', textAlign: 'center' } }, selected ? h('span', { 'data-check': '1', style: { color: 'var(--ink-action)', display: 'inline-flex' }, html: I('checkmark.circle.fill', { fill: true }) }) : null, c.name), c.isDefault ? h('span', { style: { font: 'var(--fs-c1) var(--font)', color: 'var(--ink-sheet-2)' } }, 'Default') : null);
+    return b;
+  }
+  function cap(t, sub) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center', font: '12px var(--font)' } }, h('b', t), sub ? h('span', { style: { opacity: .7, font: '11px var(--mono)' } }, sub) : null); }
+  function all(ctx) {
+    return CM.grid(ctx, CHOICES.map(function (c) { return { label: c.name, node: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' } }, preview(c, 120), cap(c.name + (c.isDefault ? ' (default)' : ''), hex(c.tint) + ' · ' + hex(c.glyph))), w: 200 }; }), { surfaces: ['page'] });
+  }
+  function appearances(ctx) {
+    var c = CHOICES[0];
+    var home = function (ap, bg) { return h('div', { style: { background: bg, borderRadius: '22px', padding: '18px', display: 'flex', gap: '14px', alignItems: 'center' } }, preview(c, 60, ap), preview(CHOICES[3], 60, ap), preview(CHOICES[4], 60, ap)); };
+    return CM.grid(ctx, [
+      { label: 'Any (the default appearance)', node: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' } }, preview(c, 160, 'standard'), cap('standard', 'dusk glow, tint at 0.86')), w: 230 },
+      { label: 'Dark', node: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' } }, preview(c, 160, 'dark'), cap('dark', 'deeper dusk, tint at 0.92')), w: 230 },
+      { label: 'Tinted (greyscale for the system tint)', node: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' } }, preview(c, 160, 'tinted'), cap('tinted', 'dark ground, mid-grey glass, near-white glyph')), w: 230 },
+      { label: 'On a light Home Screen', node: home('standard', 'linear-gradient(160deg,#cfe0f2,#e9d8c4)'), w: 300 },
+      { label: 'On a dark Home Screen (dark icons)', node: home('dark', 'linear-gradient(160deg,#10131a,#1a1410)'), w: 300 },
+    ], { surfaces: ['page'] });
+  }
+  function sizes(ctx) {
+    var c = CHOICES[0], rows = [[30, 'Settings row preview (AppIconSettingsRow)'], [60, 'Home Screen icon'], [88, 'Picker choice (ScaledMetric 88 pt)'], [180, 'Large preview'], [1024, 'Rendered asset (tools/render_app_icons.sh), shown at 256']];
+    var n = h('div', { style: { display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap' } }, rows.map(function (r) { var s = r[0] > 256 ? 256 : r[0]; return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', maxWidth: '150px' } }, preview(c, s), cap(r[0] + ' pt', r[1])); }));
+    return CM.grid(ctx, [{ label: 'One source of truth: the Settings preview and the asset catalog PNGs are the same art', node: n, w: 860 }], { surfaces: ['page'] });
+  }
+  function picker(ctx) {
+    var sel = 'navySky', cols = ctx.axSize ? 1 : (ctx.regular ? 3 : 2);
+    var grid = h('div', { 'data-picker': 'true', style: { display: 'grid', gridTemplateColumns: 'repeat(' + cols + ',1fr)', gap: '24px 16px', width: '100%' } }, CHOICES.map(function (c) { return choiceButton(c, c.id === sel, ctx.axSize ? 176 : 88); }));
+    var foot = h('p', { style: { margin: '12px 0 0', font: 'var(--fs-foot) var(--font)', color: 'var(--ink-sheet-2)' } }, 'iOS shows its own notice when the icon changes. Every icon also has dark and tinted Home Screen versions.');
+    return CM.grid(ctx, [{ label: 'Settings, App Icon (hassSheet(.form)): ' + cols + ' column' + (cols > 1 ? 's' : ''), node: h('div', grid, foot), w: ctx.regular ? 540 : 402 }], { surfaces: ['sheet'] });
+  }
+  function corner(ctx) {
+    function mark(color, bg, label) {
+      var id = 'hh' + (++uid);
+      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' } }, h('div', { style: { width: '120px', height: '90px', borderRadius: '18px', background: bg, display: 'grid', placeItems: 'center' }, html: '<svg viewBox="0 0 100 100" width="56" height="56" aria-hidden="true"><defs><mask id="' + id + '"><rect width="100" height="100" fill="#fff"/><path d="' + HEART + '" transform="translate(55 60) scale(.4)" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round"/></mask></defs><path d="' + HOUSE + '" fill-rule="evenodd" fill="' + color + '" mask="url(#' + id + ')"/><path d="' + HEART + '" transform="translate(55 60) scale(.4)" fill="' + color + '"/></svg>' }), cap(label));
+    }
+    return CM.grid(ctx, [{ label: 'HouseHeartShape: one colour, the ring is real transparency (Live Activity corner mark)', node: h('div', { style: { display: 'flex', gap: '14px', flexWrap: 'wrap' } }, mark('#fff', 'linear-gradient(135deg,#1f6fb2,#0e3c66)', 'on a blue card'), mark('#fff', 'linear-gradient(135deg,#a8440a,#6a2a06)', 'on a heating card'), mark('#7CC4FF', '#14181f', 'tinted on dark'), mark('#1C1C1E', '#f2f2f7', 'on a light card')), w: 620 }], { surfaces: ['page'] });
+  }
+  function layers(ctx) {
+    var c = CHOICES[0];
+    function step(t, svg) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', width: '110px' } }, h('span', { style: { display: 'inline-block', width: '100px', height: '100px', borderRadius: '22px', overflow: 'hidden', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.2)' }, html: svg }), cap(t)); }
+    var id = 'ly' + (++uid);
+    var bg = '<svg viewBox="0 0 100 100" width="100%" height="100%"><defs><linearGradient id="' + id + 'a" gradientUnits="userSpaceOnUse" x1="34.16" y1="-9.1" x2="65.84" y2="109.1"><stop offset="0" stop-color="#23324D"/><stop offset=".48" stop-color="#4B4A52"/><stop offset="1" stop-color="#7A5E3A"/></linearGradient><radialGradient id="' + id + 'g" gradientUnits="userSpaceOnUse" cx="74" cy="80" r="45.8"><stop offset="0" stop-color="rgba(255,184,102,.55)"/><stop offset="1" stop-color="rgba(255,184,102,0)"/></radialGradient></defs><rect width="100" height="100" fill="url(#' + id + 'a)"/><rect width="100" height="100" fill="url(#' + id + 'g)"/></svg>';
+    var tint = '<svg viewBox="0 0 100 100" width="100%" height="100%"><rect width="100" height="100" fill="#0E1E46" fill-opacity=".86"/></svg>';
+    var glyph = '<svg viewBox="0 0 100 100" width="100%" height="100%"><rect width="100" height="100" fill="#222"/><g transform="translate(10 10) scale(.8)"><path d="' + HOUSE + '" fill-rule="evenodd" fill="#7CC4FF"/><path d="' + HEART + '" transform="translate(55 60) scale(.4)" fill="#FF9EB0"/></g></svg>';
+    return CM.grid(ctx, [{ label: 'Layers, bottom to top', node: h('div', { style: { display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' } }, step('1 dusk glow', bg), step('2 tint across the square', tint), step('3 top light (white 18% to 0 by 46%)', '<svg viewBox="0 0 100 100" width="100%" height="100%"><rect width="100" height="100" fill="#444"/><defs><linearGradient id="' + id + 'l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect width="100" height="100" fill="url(#' + id + 'l)"/></svg>'), step('4 house, 4-pane window cut out', glyph), step('5 the finished icon', art(c, 'standard'))), w: 700 }], { surfaces: ['page'] });
+  }
+  Mock.mount({
+    kind: 'component', id: 'app-icon-artwork', title: 'App icon artwork (eight tinted-glass icons)', area: 'design', status: 'shipped', frame: false,
+    summary: 'The app icon\'s art: a full-bleed tinted-glass square over a dusk glow with a house and a heart on it, in eight colour pairs (Navy + Sky is the default) and three Home Screen appearances (default, dark, tinted). One view (AppIconArtwork) is the source of truth: the asset catalog PNGs are rendered from it and Settings, App Icon draws it as the preview, so the two cannot drift. HouseHeartShape is the same mark as one colour for Live Activities.',
+    source: ['apple/Sources/HassDesign/AppIconArtwork.swift', 'apple/Sources/HassDesign/HouseHeartShape.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconPreview.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon.swift', 'apple/Sources/HassCore/Settings/AppIconChoice.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/platforms/apple/app-name.md'],
+    patterns: ['modal-sheet'],
+    hig: ['App icons', 'Sheets', 'Color', 'Accessibility: do not rely on colour alone'],
+    entities: [],
+    kitComponents: ['HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'default': { title: 'The eight icons', note: 'tint and glyph as 0xRRGGBB; the default is Navy + Sky (asset "AppIcon")', render: all },
+      'appearances': { title: 'Any, Dark and Tinted', render: appearances },
+      'sizes': { title: 'Sizes: one art, every use', render: sizes },
+      'picker': { title: 'Settings, App Icon (the picker)', note: 'two columns on iPhone, three on an iPad form sheet, one at accessibility sizes', render: picker },
+      'corner-mark': { title: 'HouseHeartShape (Live Activity corner mark)', render: corner },
+      'layers': { title: 'Layers', render: layers },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column; the icon grows with the text', render: picker },
+    },
+    motion: [
+      { id: 'choice-ring', what: 'A different icon is chosen: the new icon\'s ring and check fade in, the old one\'s fade out', token: 'state 0.6 s easeInOut on the ring (0.2 s reduced); the check appears with it', state: 'picker',
+        source: 'AppIconChoiceButton: stateColorTransition("AppIconChoiceButton", value: isSelected); the icon change itself is iOS\'s notice', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) {
+          var rings = stage.querySelectorAll('[data-ring]'), from = rings[0], to = rings[1];
+          to.style.boxShadow = 'inset 0 0 0 3px var(--ink-action)'; from.style.boxShadow = 'inset 0 0 0 3px transparent';
+          return Mock.sleep(Mock.anim.ms.state() + 900).then(function () { to.style.boxShadow = 'inset 0 0 0 3px transparent'; from.style.boxShadow = 'inset 0 0 0 3px var(--ink-action)'; return Mock.sleep(Mock.anim.ms.state() + 200); });
+        } },
+    ],
+    transitions: [],
+    a11y: [
+      { rule: 'Each choice', note: 'One button named "Navy and Sky, default" (a plus sign is read inconsistently, so the spoken name says "and") with the value "Selected" or "Not selected" (identifier appIcon.choice.<id>); at least 44 pt.' },
+      { rule: 'Not colour alone', note: 'The installed icon has a ring and a check mark and its value says Selected; the default carries the word "Default".' },
+      { rule: 'The art is decorative', note: 'AppIconPreview is accessibilityHidden; the button\'s label carries the name.' },
+      { rule: 'Contrast', note: 'The icon is an image, not text; its glyph colours are light (7CC4FF, 6EE7C8, FFD36B ...) on dark tinted glass (the AppIconChoice pairs).' },
+      { rule: 'Dynamic Type', note: 'The icon size is ScaledMetric(88 pt, relative to body), the grid is adaptive (130 pt scaled minimum), and accessibility sizes use one column.' },
+      { rule: 'Reduce Transparency and Increase Contrast', note: 'The icon art is a rendered image and does not change; the picker sheet is opaque.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "App icons: alternate icons chosen in settings; provide dark and tinted variants", verdict: "pass", note: "AppIconPickerSheet offers eight related icons and the footer states each has dark and tinted Home Screen versions; the preview draws the same AppIconArtwork the asset PNGs are rendered from.", by: "apple-hig skill" },
+        { rule: "Buttons: minimum 44 pt hit target", verdict: "pass", note: "AppIconChoiceButton sets minHeight HassTokens.minTarget on a contentShape(Rectangle()); the 88 pt (scaled) icon plus name is far larger.", by: "apple-hig skill" },
+        { rule: "Accessibility: do not rely on colour alone to show selection", verdict: "pass", note: "Selected adds a 3 pt ring, a checkmark.circle.fill and the spoken value 'Selected'; the default adds the word 'Default'.", by: "apple-hig skill" },
+        { rule: "Sheets: content-fitted form sheet with a close control", verdict: "pass", note: "HassModal('App Icon') wrapped in hassSheet(.form); close identifier appIcon.close; grid scrolls when it does not fit.", by: "apple-hig skill" },
+        { rule: "Typography: avoid very small text; support Dynamic Type", verdict: "pass", note: "AppIconChoiceButton 'Default' label is .footnote.", by: "apple-hig skill" },
+        { rule: "Alerts: say what happened and offer a way out", verdict: "pass", note: "'Couldn't Change Icon' with an OK button and the model's failure message; selection is disabled while model.isChanging.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Accessibility: Button carries label, value and identifier itself", verdict: "pass", note: "accessibilityLabel plus accessibilityValue sit on the Button; the preview is accessibilityHidden(true), so VoiceOver reads one element per icon.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: express selection with the isSelected trait", verdict: "pass", note: "AppIconChoiceButton adds .isSelected and no longer speaks a \"Selected\" value string (AppIconPickerTests).", by: "swiftui-pro skill" },
+        { rule: "Resizability: adaptive grid with a scaled minimum instead of fixed columns", verdict: "pass", note: "GridItem(.adaptive(minimum: cellMinimum)) with @ScaledMetric 130 and an @ScaledMetric 88 pt icon: two columns on iPhone, three on a form sheet, one at AX sizes, with no device-name branch (works unchanged on Duo's folded and unfolded widths).", by: "swiftui-pro skill" },
+        { rule: "Animation: scope the transition to a value and respect Reduce Motion", verdict: "pass", note: "The ring fades through stateColorTransition keyed on isSelected (colour only, shortened under Reduce Motion); the checkmark appears with it, no layout motion.", by: "swiftui-pro skill" },
+        { rule: "Design: hard-coded sizes and corner radii", verdict: "departure", note: "cornerFraction 0.2237 reproduces the Home Screen icon radius so the preview matches the real icon; it is deliberately not a ConcentricRectangle or a token (AppIconPreview.swift doc comment).", by: "swiftui-pro skill" },
+        { rule: "Localization: pass localizable text, not runtime strings", verdict: "pass", note: "Fixed: the spoken name and Selected/Not selected values are Text, so both forms are localizable resources (AppIconChoiceButton.swift).", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'Docs versus code: motion-components.md lists AppIconChoiceButton as "Check jumps, fix: quick"; the code fades the ring with stateColorTransition (0.6 s) and shows the check conditionally (it appears with the ring, no separate fade).',
+      'The SVG is a faithful port of the Canvas drawing (gradient angle, glow centres and reaches, tint opacity, top light, 80% glyph, ring cut by a mask); the colours are the exact AppIconChoice values. Rendering differences between Canvas and SVG are sub-pixel.',
+      'The app is named S+H to people (owner 2026-10-17); the icon carries no text, so the rename does not change it.',
+      'Component mockup: no device frame; Device selects the size class (the picker has two or three columns).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

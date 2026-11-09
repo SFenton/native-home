@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chores · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+  var ID = 'chores';
+  function page(ctx, o) { return C.page(ctx, ID, o); }
+  function section(stage, title) { return stage.querySelector('.ui-section[data-list="' + title + '"]'); }
+  function rowOf(stage, title) { return stage.querySelector('.cz-row[data-item="' + title + '"]'); }
+
+  Mock.mount({
+    kind: 'page', id: 'chores', title: 'Chores (tab root)', area: 'chores', status: 'shipped',
+    summary: 'The Chores tab: Quick Links (navigation tiles whose state line is the open count) to Groceries and each list of chores, then the signed-in resident\'s own chores grouped by Past Due and time of day, as inset lists on the dimmed house photo. Add Task floats at the bottom. Fixture data.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift', 'apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift', 'apple/Sources/HassUI/Features/Chores/TodoListSection.swift',
+      'apple/Sources/HassUI/Features/Chores/ChoresModel.swift', 'apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift',
+      'apple/Sources/HassCore/Config/ChoresConfig.swift', 'apple/Sources/HassCore/Todo/TodoItem.swift', 'apple/Sources/HassCore/Todo/TodoRowActions.swift', 'apple/Sources/HassCore/Todo/TodoListController.swift'],
+    spec: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md'],
+    patterns: ['module-list', 'floating-actions', 'dynamic-grid', 'entity-tile', 'page-backdrop', 'header-edge-fade', 'motion'],
+    hig: ['Lists and tables', 'Context menus', 'Tab bars', 'Buttons', 'Dynamic Type', 'Color', 'Motion', 'Loading'],
+    entities: ['todo.demo_todo_10', 'todo.demo_todo_4', 'todo.demo_todo_12', 'todo.demo_todo_14',
+      'todo.demo_todo_14', 'todo.demo_todo_15', 'todo.demo_todo_21', 'todo.demo_todo_27', 'todo.demo_todo_1', 'input_boolean.demo_mode_4'],
+    kitComponents: ['PageSectionHeader', 'TileGrid', 'GlassTile', 'ModuleList', 'InlineAlert', 'ArcSpinner', 'FloatingActionBar', 'Alert', 'TabBar', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Signed in as Alex, lists loaded', render: function (d) { return page(d); } },
+      'loading': { title: 'First launch, nothing saved: each list spins', note: 'the list entities say there are open items but nothing is fetched yet: header plus a compact arc per list; Quick Links already show their open counts', render: function (d) { return page(d, { mode: 'loading' }); } },
+      'refreshing': { title: 'Saved items on screen, a fetch swaps in', note: 'identical to default by design: TodoItemsCache shows the last items before the first fetch, and rows only move when the list really changed', render: function (d) { return page(d); } },
+      'empty': { title: 'Nothing due: "No Chores Due"', note: 'every visible list is settled and hidden; Quick Links stay and read "Nothing open"', render: function (d) { return page(d, { mode: 'empty' }); } },
+      'vacation': { title: 'Vacation Mode on', note: 'same empty state with "Enjoy vacation!" while input_boolean.demo_mode_4 is on', render: function (d) { return page(d, { mode: 'empty', vacation: true }); } },
+      'error': { title: 'A check-off failed and a list failed to load', note: 'inline warning under the list header; the failed check-off returns its row, the failed list keeps its arc', render: function (d) { return page(d, { mode: 'error' }); } },
+      'offline': { title: 'No network', note: 'last saved items stay; offline chip under the header and a cloud badge on Profile; check-offs would fail with "Unable to update task"', render: function (d) { return page(d, { connection: 'offline' }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: function (d) { return page(d, { connection: 'reconnecting' }); } },
+      'long-text': { title: 'Long task titles wrap, never truncate', note: 'title and due line wrap on the row; the row grows', render: function (d) { return page(d, { long: true }); } },
+      'swipe-complete': { title: 'Swipe from the leading edge: Complete', note: 'green; a full swipe performs it', render: function (d) { return page(d, { swipe: 'leading' }); } },
+      'swipe-trailing': { title: 'Swipe from the trailing edge: Delete then Edit', note: 'Delete (red) outermost, Edit (blue); a full swipe on Delete asks first', render: function (d) { return page(d, { swipe: 'trailing' }); } },
+      'swipe-delete-full': { title: 'Full trailing swipe', render: function (d) { return page(d, { swipe: 'trailing-full' }); } },
+      'context-menu': { title: 'Touch and hold a row', note: 'the same actions in swipe order, destructive last', render: function (d) { return page(d, { menu: true }); } },
+      'delete-confirm': { title: 'Delete asks first', note: 'confirmationDialog "Delete {title}?" (see the todo-delete-dialog mockup)', render: function (d) { return page(d, { dialog: { title: 'Delete Clean the gutters?', destructive: 'Delete Task' } }); } },
+      'viewer-sam': { title: 'Signed in as Sam', note: 'her own lists; the quick link titles swap ("Alex\'s Chores", "Your Chores"); no Chores badge (nothing past due)', render: function (d) { return page(d, { viewer: 'sam' }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'two Quick Links columns still (the 150 pt minimum is a literal, not scaled), so titles wrap inside 181 pt tiles; rows wrap, the Add button full width', render: function (d) { return page(d); } },
+    },
+
+    motion: [
+      { id: 'row-complete', what: 'Checking a task off: its row leaves the list and the module closes up', token: 'standard 0.3 s smooth (list animation keyed by the page layout); 0.2 s fade under Reduce Motion', state: 'default',
+        source: 'HassUI/Features/Chores/TodoPageView.swift motionSafeAnimation(MotionTokens.standard, reduced: .quick); motion.md section 6', reduce: 'the row fades out at 0.2 s (quick) and nothing slides',
+        play: function (stage) { var r = rowOf(stage, 'Replace Humidifier Filter'); return r ? C.leave(r).then(function () { return Mock.sleep(500); }) : Promise.resolve(); } },
+      { id: 'row-rollback', what: 'The check-off fails (or nothing confirms in 15 s): the row comes back and the list says why', token: 'standard 0.3 s; the alert row appears with it', state: 'default',
+        source: 'TodoListController.toggle (optimistic revert, error "Unable to update task"); TodoPageView animation', reduce: 'the row fades back at 0.2 s',
+        play: function (stage) {
+          var r = rowOf(stage, 'Clean the gutters'), s = section(stage, 'Past Due'); if (!r || !s) return Promise.resolve();
+          return C.leave(r).then(function () { return Mock.sleep(900); }).then(function () {
+            var al = K.InlineAlert({ message: 'Unable to update task' }); s.insertBefore(al, s.children[1]); C.enter(r); return Mock.anim.fade(al, { ms: Mock.anim.ms.standard() }).then(function () { return Mock.sleep(900); });
+          });
+        } },
+      { id: 'list-arrives', what: 'The first fetch lands: the arc gives way to the list\'s rows', token: 'standard 0.3 s (the same implicit list animation); the arc itself turns once per 0.82 s, linear', state: 'loading',
+        source: 'TodoListSection (controller.items nil: ArcSpinner(.compact)); ArcSpinner.swift', reduce: 'rows fade in at 0.2 s; the arc keeps turning at half speed',
+        play: function (stage) {
+          return Mock.sleep(1400).then(function () {
+            var jobs = [].slice.call(stage.querySelectorAll('.ui-section[data-list]')).map(function (s) {
+              var sp = s.querySelector('.cz-spin'); if (!sp) return Promise.resolve();
+              var secs = C.sections(ID), def = secs.filter(function (x) { return x.title === s.dataset.list; })[0]; if (!def) return Promise.resolve();
+              var fresh = C.section({ title: def.title, items: def.items, edit: true }).querySelector('.ui-mlist'); s.replaceChild(fresh, sp);
+              return Mock.anim.fade(fresh, { ms: Mock.settings.reduceMotion ? Mock.anim.ms.quick() : Mock.anim.ms.standard() });
+            });
+            return Promise.all(jobs);
+          }).then(function () { return Mock.sleep(500); });
+        } },
+      { id: 'swipe-settle', what: 'Swipe actions open and close with the row', token: 'system List swipe (spring, interactive, system-owned); the app adds nothing', state: 'default',
+        source: 'TodoListSection.swipeActions', reduce: 'the system cross-fades nothing here; swipe stays an interactive drag',
+        play: function (stage) {
+          var r = rowOf(stage, 'Clean the gutters'); if (!r) return Promise.resolve();
+          var l = C.swipeRow(r.cloneNode(true), 'leading', { dense: true }); var slide = l.querySelector('.slide'); slide.style.transform = 'none'; r.parentNode.replaceChild(l, r);
+          return Mock.sleep(60).then(function () { slide.style.transform = 'translateX(76px)'; return Mock.sleep(900); }).then(function () { slide.style.transform = 'none'; return Mock.sleep(500); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Quick Link tile', to: "Alex's Chores", kind: 'push', note: 'Each tile is a NavigationLink in the list\'s first section header: the page pushes from the trailing edge, the Chores tab slides left. A push, never a zoom (nothing in a tab root zooms; owner 2026-10-22). Back swipe is the system\'s.',
+        play: function (stage) { return C.pushDemo(stage, function (ctx) { return C.page(ctx, 'alexs-chores'); }); } },
+      { from: 'Add Task', to: 'New Task sheet', kind: 'sheet', note: 'The floating Add button presents the task form as a fitted form sheet (540 pt on iPad). Content is present on arrival (motion.md section 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, C.taskSheet(Mock.current, { mode: 'create', optsOnly: true }), { hold: 1200 }); } },
+      { from: 'Edit glyph or Edit swipe', to: 'Edit Task sheet', kind: 'sheet', note: 'Same sheet, loading the task first ("Loading task"), Save disabled until something changes.',
+        play: function (stage) { return Mock.presentDemo(stage, C.taskSheet(Mock.current, { mode: 'edit', optsOnly: true }), { hold: 1200 }); } },
+      { from: 'Full Delete swipe', to: 'Delete {title}? dialog', kind: 'overlay', note: 'An action sheet on iPhone (popover on iPad). It rises over the page; Cancel is always there. The row stays until Delete Task is chosen.',
+        play: function (stage) { return C.dialogDemo(stage, { title: 'Delete Clean the gutters?', destructive: 'Delete Task' }); } },
+      { from: 'Chores tab', to: 'Home tab', kind: 'cut', note: 'A tab switch is a cut; each tab keeps its stack and scroll position (motion.md section 4.1).',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = Mock.page(ctx, { title: 'Home', section: 'home', body: [K.ChipRail({ chips: Mock.chips.home() })] });
+          a.hidden = true; a.parentNode.insertBefore(b, a); return Mock.sleep(800).then(function () { b.remove(); a.hidden = false; });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Open Navigation (iPhone, iPad), Quick Links, Profile; then the title "Chores" (heading); "Quick Links" (heading) and its five tiles in order (Your Chores, Sam\'s Chores, Unassigned Tasks, Home Tasks, Groceries); then each list\'s heading and rows top to bottom; Add Task; the tab bar last.' },
+      { rule: 'Quick link tiles', note: 'One button each: label = title, value = state line ("3 open · 2 overdue"), identifier chores.link.<page>. Rollout M (2026-10-28): navigation tiles with a chevron, no count numeral.' },
+      { rule: 'Task rows', note: 'The left side is one toggle: label = title, value "Not done, Due in 3 days" or "Done", trait toggle, hint "Marks the task done." The Edit glyph is its own button "Edit {title}". Edit and Delete are also VoiceOver custom actions on the toggle (Complete is the toggle itself) and in the context menu.' },
+      { rule: 'Due state is not colour alone', note: 'Overdue under a day is orange text with a clock glyph and the words "3 hours overdue"; a day or more is red with the clock; future is a calendar glyph and "Due in 2 days". The module turns dense under orange or red text to keep 4.5:1.' },
+      { rule: 'Targets', note: 'Rows are 52 pt, 60 pt with a due line, the whole row is the hit area; the Edit button is 44 x 44; Add Task is a 52 pt capsule.' },
+      { rule: 'Dynamic Type', note: 'Titles wrap (fixedSize vertical), the check circle follows the title font inside a 24 pt scaled column, the Quick Links grid stays at two columns on an iPhone at AX5 (minCellWidth 150 is not scaled), the Add bar reflows to full width, section headers stack. Nothing is truncated.' },
+      { rule: 'Swipe, context menu and rotor', note: 'Swipe actions exist only as a convenience: Complete, Mark Not Done, Edit, Delete are all in the context menu and the actions rotor. Delete always confirms.' },
+      { rule: 'Reduce Motion', note: 'Rows fade instead of sliding when a task leaves or returns; the arc turns at half speed; push, sheet and tab transitions are the system\'s.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Lists and tables: primary action leads, destructive trails outermost", verdict: "pass", note: "TodoListSection.swift lines 48-53: Complete is the leading full swipe; Delete is the outermost trailing action, Edit inside it. TodoRowActions is the one source for swipe, menu and VoiceOver.", by: "apple-hig skill" },
+        { rule: "Undo and redo / Feedback: an easy action that removes content needs a way back", verdict: "pass", note: "The ticked chore stays 5 s with the done look and Undo (TodoListController.recentlyCompleted, TodoItemRow.onUndo); a failed tick drops it and shows the error. Journeys: ChoresCheckUndoJourneyTests.testCheckingOffAChoreKeepsItWithUndoThenHidesIt and ChoresCheckUndoJourneyTests.testUndoReopensTheChore.", by: "apple-hig skill" },
+        { rule: "Layout and Typography: a count must not collide with the title beside it", verdict: "pass", note: "Rollout M removed the numeral; the count is the state line.", by: "apple-hig skill" },
+        { rule: "Typography: Dynamic Type through AX5 without clipping", verdict: "pass", note: "ChoreQuickLinks.minTileWidth is @ScaledMetric(relativeTo: .subheadline) 150.", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo: keep content clear of the fold", verdict: "pass", note: "Fixed: TodoPageView lays the list in HingedPanes with the task form in the trailing pane (todo.pane) where the window splits; the list ends at the hinge, and the Quick Links grid is band-aware (DynamicGridMetrics band).", by: "apple-hig skill" },
+        { rule: "Feedback and Playing haptics: confirm a completed action", verdict: "pass", note: "Fixed: TodoItemRow plays TapFeedback.tap on check-off (TodoListSection.swift), and TodoPageView and SummaryChoresTab play the error haptic when a list reports an update or delete error (rollback).", by: "apple-hig skill" },
+        { rule: "Navigation: Quick Links as tiles in a list header", verdict: "departure", note: "ios.md 2026-10-16 and the comment at TodoPageView.swift lines 31-40: a list row of several NavigationLinks activates all of them, so the tiles are the first section header and AlignedToListMargins realigns them.", by: "apple-hig skill" },
+        { rule: "Color: chore tiles use colours nothing else uses", verdict: "departure", note: "Owner 2026-10-16: ultramarine, magenta, raspberry, violet and chestnut fills (ColorFamily.choreFamilies, ColorFamily.swift line 64) because the web colours collide with device families.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Use List for swipe actions before iOS 27", verdict: "departure", note: "ios.md 2026-10-16: the page is a real List whose plain rows draw their own module share (ModuleRowBackground) so swipe actions work on the iOS 17 target; swipeActionsContainer needs iOS 27.", by: "swiftui-pro skill" },
+        { rule: "Performance: no per-frame state while scrolling", verdict: "pass", note: "Nothing measures row positions any more: the quick links are a plain row with TodoPlainRow insets (TodoRowMetrics is gone).", by: "swiftui-pro skill" },
+        { rule: "Views: avoid negative-padding layout hacks", verdict: "pass", note: "Fixed: the quick links are a plain list row with TodoPlainRow insets and Button tiles that set a navigationDestination(item:); AlignedToListMargins and TodoRowMetrics are deleted; testQuickLinksAlignWithTheListMargins passes.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: one element per control, no duplicate actions", verdict: "pass", note: "TodoRowActions offers Delete as the custom action and Edit only as the button beside the row.", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'Corrected 2026-10-23 by the skill review: the AX5 Quick Links grid used a scaled 150 pt minimum and drew one column; ChoresScreen.swift line 70 passes a literal 150, so an iPhone gets two tracks and the words clip. Redrawn from the code.',
+      'Docs versus code: ios.md "Departures" still says quick links use the glass face with the web colour on the icon; the code draws filled tiles in ChoreFamily colours (owner 2026-10-16, same file further up). ios.md also says the Choreapp form opens at the large detent and one-field sheets at medium; the code fits every todo sheet to its content (TodoPageLayout.isShortPrompt is only kept for tests).',
+      'Docs versus code: split-view.md lists "Chores lists split to item detail"; there is no split, sub-pages push full width everywhere (ios.md last Departures bullet) and edits are sheets.',
+      'The Chores tab reads the viewer\'s lists in the order of choresTabLists(): Past Due, Evening, Afternoon, Morning, Due Any Time Today, No Due Date, Upcoming (Evening before Afternoon). Lists drop out while their entity count is 0.',
+      'First-launch edge, read from the code and not reproduced: with no entity states yet the viewer\'s lists are not visible and showsEmptyState is true for an empty set, so "No Chores Due" can show for a moment before the store fills; the disk snapshot normally prevents it.',
+      'iPad and Duo: inset-grouped List margins are the system\'s (16 pt on iPhone, wider elsewhere); the mockup draws 16 pt everywhere, so tile and module edges align but the margin on iPad is approximate. The unfolded Duo landscape does not split (OnDemandSplitStack has no adopter).',
+      'The check circle flips to a green filled glyph with a strikethrough title when a row is done, but every list hides completed items (hideCompleted default), so the optimistic completion removes the row at once; the done look is reachable only on the Summary sheet\'s tabs (see todo-list-section).',
+      'Wallpaper and glyphs are kit stand-ins. Task and list names are fixtures (ChoresGallery and invented chores), never the house.',
+      'Promote to kit: TodoItemRow / TodoListSection, ActionSheet (confirmationDialog), swipe-action drawing, and the SF Symbol drawings added by _chores.js (circle, square.and.pencil, chevron.up.chevron.down, cart/hammer/tray circle fills, photo.on.rectangle.angled).',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Rollout M: Quick Links are navigation tiles with "N open" state lines, no numeral.' }, { date: '2026-10-23', note: 'First pass: tab root with Quick Links and lists in all states, swipe, context menu, rollback and push motion.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,17 @@
+{
+  "id": "merge-guard-ack-base-headless",
+  "source": "2026-11-02: Only the owner accepts a moved base.",
+  "recorded": "2026-11-02",
+  "kind": "merge_guard",
+  "input": {
+    "command": "python3 tools/lane_land.py ack-base"
+  },
+  "expect": {
+    "blocked": true,
+    "reason": {
+      "has": [
+        "ack-base"
+      ]
+    }
+  }
+}

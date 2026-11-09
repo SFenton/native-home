@@ -1,0 +1,16 @@
+{
+  "id": "dd-flyout-slow",
+  "date": "2026-10-27",
+  "source": "7c5a44f2",
+  "owner_report": "Navbar flyout opening and closing feels slow",
+  "surface": "navigation-flyout",
+  "poses": [
+    "ipad-landscape"
+  ],
+  "app": "swiftui",
+  "category": "perf",
+  "pre_fix_ref": "95a6f94b",
+  "fix_ref": "0f9928f2",
+  "fix_confidence": "low",
+  "expected": "Flyout open and close cost is measured with ios_navperf.sh; the verdict does not pass or fail it from stills."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "dd-food-space-count-text",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Food Spaces don't need \"{n} items {dot} {N} expring soon\" text",
+  "surface": "food-hub",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "bda3e4ba",
+  "fix_confidence": "high",
+  "expected": "Food hub tiles and the space page header carry no item-count or expiring-soon line."
+}

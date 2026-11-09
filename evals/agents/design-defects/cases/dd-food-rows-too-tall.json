@@ -1,0 +1,17 @@
+{
+  "id": "dd-food-rows-too-tall",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Some food space rows are also way too tall, similar to what I described for summary modal",
+  "surface": "inventory-row",
+  "poses": [
+    "iphone",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "sizing",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "bda3e4ba",
+  "fix_confidence": "medium",
+  "expected": "Food rows measure at the proposed width; flag a row more than one wrapped line taller than its siblings."
+}

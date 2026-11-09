@@ -1,0 +1,28 @@
+{
+  "id": "decision.needs_owner",
+  "version": 1,
+  "type": "noul",
+  "mode": "active",
+  "description": "Does the researched plan leave a choice only the app's owner should make? Hint line at the post-research gate; may only raise an autonomy level.",
+  "instructions": "An agent has researched a change to a native iOS app and summarised its plan. Does the plan leave a choice only the app's owner should make: options or trade-offs that no existing pattern, recorded owner decision, web-dashboard behaviour or Apple guideline already settles?",
+  "criteria": {
+    "true": "Two or more reasonable options remain and nothing on record picks between them",
+    "false": "The plan has one sensible answer, or an existing rule, decision, parity or guideline settles it"
+  },
+  "state": {
+    "fields": [
+      "plan"
+    ],
+    "max_chars": 6000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.5,
+    "no_below": 0.3
+  },
+  "output": "Hint line at the post-research gate. p>=0.5 says the owner's pick is likely needed: L2 (policy or design per the gate). It never lowers a level; a no or the band says nothing.",
+  "evidence": "contracts/jev/derived/measurements.md, decision-gate corpus 2026-11-02: AUC 0.999, p>=0.5 precision 0.984, recall 0.926 (test split 124 of 165)",
+  "target": {
+    "precision": 0.95
+  }
+}

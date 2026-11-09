@@ -1,0 +1,25 @@
+{
+  "id": "triage.duplicate",
+  "version": 1,
+  "type": "score",
+  "mode": "shadow",
+  "description": "Pair match: do two reports describe the same problem? Levels are outcomes, so route on round(score).",
+  "instructions": "Do `report_a` and `report_b` describe the same problem or request?",
+  "criteria": [
+    "The two reports describe different problems or requests",
+    "They might describe the same problem, but the reports leave it unclear",
+    "They describe the same problem or request, so fixing one would close the other"
+  ],
+  "state": {
+    "fields": [
+      "report_a",
+      "report_b"
+    ],
+    "max_chars": 3000
+  },
+  "accept": {
+    "min_confidence": 0.7
+  },
+  "output": "Router decision: level 2 proposes linking the new item to the older one (a person or the orchestrator confirms); level 1 adds a `possible duplicate` note; level 0 does nothing.",
+  "evidence": "unmeasured"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "dd-subpage-not-full-width",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "Vacation page (maybe others) doesn't take full width available",
+  "surface": "vacation-chooser",
+  "poses": [
+    "duo-unfolded-landscape",
+    "ipad-landscape"
+  ],
+  "app": "uikit",
+  "category": "layout",
+  "pre_fix_ref": "f9a40ce6",
+  "fix_ref": "6449e9a8",
+  "fix_confidence": "high",
+  "expected": "A pane in a split fills its column and ends at the rail; flag a page whose content stops short of the column edge."
+}

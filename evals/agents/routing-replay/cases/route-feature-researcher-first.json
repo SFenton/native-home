@@ -1,0 +1,17 @@
+{
+  "id": "route-feature-researcher-first",
+  "source": "2026-11-02: a Feature went straight to the Designer; the rule is Researcher first, the post-research gate decides design.",
+  "recorded": "2026-11-02",
+  "kind": "route",
+  "input": {
+    "labels": [
+      "Feature"
+    ],
+    "title": "[Feature] Add a quick-links reorder",
+    "body": "Let me reorder the tiles on the home page."
+  },
+  "expect": {
+    "route": "researcher",
+    "level": "L1"
+  }
+}

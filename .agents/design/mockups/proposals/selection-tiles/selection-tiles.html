@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Selection tiles · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../action-navigation-tiles/_action-tiles.js"></script>
+<script src="_selection.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, SEL = Mock.sel, AT = Mock.at;
+
+  /* ------------------------------------------------------------------ helpers */
+  function seq(steps) { return steps.reduce(function (p, s) { return p.then(s); }, Promise.resolve()); }
+  function hold(ms) { return function () { return Mock.sleep(ms); }; }
+  function apply(stage, list) { return function () { return SEL.apply(stage, list); }; }
+  function page(key, o) { return function (ctx) { return SEL.pageFor(ctx, key, o); }; }
+  function box(kids) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '78ch' } }, kids); }
+  function table(head, rows, shade) {
+    return h('div.k-table-wrap', h('table.sl-cmp', h('thead', h('tr', head.map(function (x, i) { return h('th' + (shade === i ? '.c' : ''), x); }))),
+      h('tbody', rows.map(function (r) { return h('tr', r.map(function (x, i) { return h('td' + (shade === i ? '.c' : ''), x); })); }))));
+  }
+
+  /* ------------------------------------------------------------------ sections */
+  function goal() {
+    return box([
+      h('p', 'Some tiles choose rather than act. Picking one does not run a command of its own; it moves a selection, and the selection is what the app shows. Three places do it today, and the action-tiles rollout ([action-navigation-tiles](../action-navigation-tiles/action-navigation-tiles.html)) asks what their trailing control should be:'),
+      h('ul', [
+        h('li', [h('strong', 'Studio sources. '), 'Game Console, Server, Computer and Game on the Media page and the Studio room page. Exactly one is active, and picking one switches the TV input (', h('code', 'sensor.demo_media_room_2'), ' is the single source of truth; the tile runs the matching script and shows the choice at once).']),
+        h('li', [h('strong', 'Solo Trip travelers. '), 'Alex and Sam. Pick who travels; the other is the home resident.']),
+        h('li', [h('strong', 'Vacuum sheet Rooms cards. '), 'Multi-select, and the tap order sets the cleaning order, so each selected card shows its order number (1, 2, 3).']),
+      ]),
+      h('p', 'The first proposal was a check disc: ', h('code', 'checkmark.circle.fill'), ' when selected, ', h('code', 'circle'), ' when not. The owner asked (2026-10-27): "If it\'s a generic check/uncheck, why not a toggle action instead of a disc?" That is a fair question, since a toggle disc already exists (Power, guest toggles). This page draws the owner\'s idea two ways beside the disc, so the choice is made on what each looks and reads like, not on a description.'),
+      h('p', 'Evidence (from the code and the existing mockups): a tile of kind ', h('code', 'selection'), ' already exists in GlassTileKind and fills in its family colour when selected (so C is today\'s face plus a disc); the toggle-styled disc is the Power disc (white when on); the kit notes that switches appear only in list rows (direction-g.md Controls: Switches), and the Auto-Reset room toggles and guest toggles are the independent on/off cases.'),
+    ]);
+  }
+  function options() {
+    return [
+      h('p', 'Four phone-width swatches per case: A, B1, B2, C. The device stage above draws the same four on iPhone, Duo and iPad (flip the state and the device). Selected values: Game Console; Alex; rooms 1 Living Room, 2 Kitchen, 3 Office, Bedroom skipped. The vacuum swatches sit on the page ground here; in the app they are in the Vacuum sheet (use the Vacuum state for that).'),
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, [
+        h('p', [h('strong', 'A · Check disc. '), 'Action tile, text then disc. Disc is a 28 pt ', h('code', 'checkmark.circle.fill'), ' (white with the family colour tick) or ', h('code', 'circle'), ' in a 44 pt hit target. The face stays the off face; shape (tick against ring) says selected. Order: a numeral replaces the tick inside the disc. Drops the item glyph.']),
+        h('p', [h('strong', 'B1 · Toggle-styled disc. '), 'The Power disc, but carrying the item\'s own glyph (gamecontroller, server.rack, pc): white with a family-coloured glyph when on, the tile fills; 16% white and off-glyph when not. Keeps the glyph. Order: a small number badge on the disc corner. Reads as "this device is on".']),
+        h('p', [h('strong', 'B2 · System switch. '), 'A real ', h('code', 'Toggle'), ' (51 x 31 pt, green) trailing on the tile. Drops the glyph and the filled face. Order: has nowhere to go, so it moves into the text ("Cleans 2nd"). Reads as "this setting is on".']),
+        h('p', [h('strong', 'C · Selected face. '), 'The whole tile fills in the family colour when selected (today\'s selection face) with a white check disc; an unselected tile is the plain off face with an empty ring. Order: numeral in the disc. Near A with a stronger face, so one glance finds the choice.']),
+      ]),
+      SEL.cells('sources'), SEL.cells('travelers'), SEL.cells('vacuum'),
+      h('p', { style: { marginTop: '12px' } }, 'Switching the selection (Play on the Motion section, or pick the Sources state and press Play): the previous choice clears and the new one fills together, the indicator on quick (0.2 s), the tile colour on the existing state token (0.6 s, 0.2 s with Reduce Motion). For A and C the tick scales in from 0.5 while the ring fades; B1 cross-fades the disc fill; B2 slides the knob on standard (0.3 s). Reduce Motion: cross-fade only, no scale; the switch knob still moves because it is the control itself.'),
+    ];
+  }
+  function voiceover() {
+    return [
+      h('p', 'What VoiceOver says. A selection reads "selected, button"; a switch reads "on or off, switch". For the multi-select the order is spoken as the value, not only drawn.'),
+      table(['Option', 'Single choice (Game Console, selected)', 'Single choice (Server, not selected)', 'Vacuum room (Kitchen, second)'], [
+        ['A · Check disc', 'Game Console, selected, button', 'Server, button. Hint: Switches the TV input', 'Kitchen, cleans second, selected, button'],
+        ['B1 · Toggle disc', 'Game Console, on, toggle button', 'Server, off, toggle button', 'Kitchen, cleans second, on, toggle button'],
+        ['B2 · Switch', 'Game Console, on, switch button', 'Server, off, switch button', 'Kitchen, cleans second, on, switch button'],
+        ['C · Selected face', 'Game Console, selected, button', 'Server, button. Hint: Switches the TV input', 'Kitchen, cleans second, selected, button'],
+      ], null),
+      h('p', { style: { marginTop: '10px' } }, 'In A, B1 and C the tile is the one VoiceOver element (the disc is decorative and hidden), with the selected trait (', h('code', '.accessibilityAddTraits(.isSelected)'), ') for A and C and a toggle trait for B1. In B2 the Toggle is the control and speaks as a switch. Only B2 tells a VoiceOver user that turning a source "off" is possible, and it is not: the call it implies does nothing.'),
+    ];
+  }
+  function comparison() {
+    var rows = [
+      ['What it says to a sighted user', 'Choose this one; tick means chosen', '"This device is on", like Power', '"This setting is on or off"', 'Chosen one is lit; tick confirms'],
+      ['Matches the meaning (one of N)', 'Yes: a tick marks the choice, an empty ring is "pick me"', 'Partly: on/off wording, but looks right at a glance', 'No: off has no meaning; turning one on silently turns another off', 'Yes: same as A, stronger'],
+      ['HIG Toggles: a switch is for an independent on/off setting, not a choice among options', 'Pass (not a toggle)', 'Departure in spirit: a toggle look for a non-toggle', 'Departure: a switch used for a selection', 'Pass'],
+      ['HIG Lists and tables: a checkmark marks the selected row of a mutually exclusive set', 'Pass (check disc)', 'Not a checkmark', 'Not a checkmark', 'Pass (check disc)'],
+      ['HIG Buttons / Accessibility: 44 x 44 pt target; state not colour alone', 'Pass: 44 pt target, tick against ring', 'Pass: 44 pt disc, but fill is the main signal', 'Pass: switch is 51 x 31 and takes the 44 pt row height', 'Pass: tick against ring, plus the fill'],
+      ['VoiceOver', 'selected, button', 'on, toggle button (misleads)', 'on, switch (misleads)', 'selected, button'],
+      ['Order number (vacuum)', 'Numeral replaces the tick in the disc', 'Corner badge on the disc (small, 18 pt)', 'No place on the control; goes in the text only', 'Numeral in the disc'],
+      ['Item glyph (Game Console, PC, rooms)', 'Dropped: the disc carries selection (one glyph rule)', 'Kept: the disc carries the item glyph', 'Dropped', 'Dropped'],
+      ['Unavailable', 'Disc and body dim, "Unavailable"', 'Same', 'Switch dims and disables, "Unavailable"', 'Same'],
+      ['Visual weight on a page of 4 to 6 tiles', 'Quiet: one dark row, one marker', 'Strong: fills like a device that is on', 'Quiet but busy: several green switches', 'Strong, clearest "which one"'],
+      ['Departure from a repo rule', 'None', 'Reuses the Power look for a non-power thing', 'Switches only in list rows (direction-g.md Controls: Switches)', 'None; a selection tile already fills today'],
+      ['Cost to build', 'New small indicator view; one more pattern entry', 'Reuses TileActionButton; badge is new', 'Reuses Toggle; tile layout for a 51 pt control is new', 'Today\'s selection face plus the indicator view'],
+    ];
+    return [h('p', 'The recommended options (A for a quiet page, C for a clear one) are the shaded columns where relevant; B1 and B2 are drawn fairly and judged against the same rows.'),
+      table(['Row', 'A · Check disc', 'B1 · Toggle disc', 'B2 · Switch', 'C · Selected face'], rows, 4)];
+  }
+  function recommendation() {
+    return h('div', { style: { maxWidth: '78ch' } }, [
+      h('div.sl-rec', [h('p', { style: { margin: '0 0 8px' } }, h('strong', 'Recommendation: C for the single-choice tiles, a numbered disc for the multi-select rooms. A is the quieter fallback. The owner picks.')),
+        h('p', { style: { margin: 0 } }, 'A tile that chooses should look chosen and say "selected", not "on". C keeps today\'s selection face (the chosen source fills in its family colour) and adds a check disc so the choice is also in a shape, not colour alone. If the owner finds a filled tile reads as "this device is on", A is the same disc on the calm off face. Either keeps the trailing edge meaning "does something when tapped" and gets VoiceOver right.')]),
+      h('p', { style: { marginTop: '12px' } }, 'The owner\'s idea, treated fairly. A toggle is the right answer when the item is an independent on/off setting: the Auto-Reset room toggles and the guest toggles, which already use the toggle-styled power disc (B1\'s look). For those, a disc or switch that reads "on/off" is exactly what the user wants to hear and see. The three selection cases here are different in kind:'),
+      h('ul', [
+        h('li', [h('strong', 'B2, a real iOS switch, misleads on a one-of-N choice. '), 'The HIG says a switch is for an independent on/off setting. Turning a source "off" has no meaning (one source is always active, and the TV input does not turn off), and turning one on silently turns another off, which a switch is never supposed to do. VoiceOver says "switch, on", not "selected". It also needs the list-row context that direction-g.md gives switches.']),
+        h('li', [h('strong', 'B1, a toggle-styled disc, implies on/off in the same way. '), 'It keeps the item glyph, which is nice, but the white Power disc means "this is on", so a selected source reads as a device that is running.']),
+        h('li', [h('strong', 'Multi-select with order wants a number. '), 'The tap order sets the cleaning order, so a plain tick throws information away. Use a numbered disc: the order number when selected, ', h('code', 'circle'), ' when not (numeral inside the disc in A and C, so it needs no extra room). B2 cannot show it; B1 can only as a small badge.']),
+      ]),
+      h('p', { style: { marginTop: '12px' } }, 'What it asks of the app if C (or A) is picked:'),
+      h('ul', [
+        h('li', 'Files: HassDesign GlassTile gains a selection indicator (the check or numbered disc, a sibling of the body, hidden from VoiceOver); the Media source tiles, the Solo Trip traveler tiles and the Vacuum Rooms cards adopt it. The `selection` kind keeps its fill.'),
+        h('li', 'Motion: the indicator swaps on quick (0.2 s) while the old one clears and the new one fills; the tile colour keeps the existing state token. Reduce Motion cross-fades. No new tokens.'),
+        h('li', 'Accessibility: tile is the one element with the selected trait; the vacuum order is the accessibility value ("cleans second"). UX and accessibility tests on iPhone, Duo and iPad (44 pt targets, AX5 reflow, order spoken).'),
+        h('li', 'Docs: a Selection section in patterns/action-tiles.md; the three tiles\' mockups updated in the same PR.'),
+      ]),
+    ]);
+  }
+  function questions() {
+    var q = [
+      ['A or C for single choice?', 'C keeps today\'s filled selection face and adds the disc; A leaves the face calm and lets only the disc say chosen. Recommended: C.'],
+      ['Keep the item glyph?', 'A and C follow the one glyph rule (a leading glyph means the tile is not an action tile), so Game Console, Server, Computer and the rooms lose their glyph. Alternative: treat selection tiles as their own class and keep the leading glyph beside the disc (B1 shows what that is like, but with the toggle meaning). Recommended: drop it, the names carry it; confirm for the sources.'],
+      ['Order number: inside the disc, or also in the text?', 'The disc holds the numeral; the subtitle repeats it ("Cleans 2nd") so it is not drawn only. Recommended: both.'],
+      ['Should an already-selected single choice be tappable?', 'Tapping the selected source again does nothing in this proposal (there is no "none"). Recommended: yes, it is a no-op with the usual tap haptic.'],
+    ];
+    return h('div', { style: { maxWidth: '78ch' } }, q.map(function (x, i) { return h('div.sl-q', h('strong', (i + 1) + '. ' + x[0]), h('p', { style: { margin: '4px 0 0' } }, x[1])); }));
+  }
+
+  /* ------------------------------------------------------------------ mount */
+  Mock.mount({
+    kind: 'proposal', id: 'selection-tiles', title: 'Selection tiles', status: 'proposed',
+    summary: 'Proposal · 2026-10-27 · Tiles that choose rather than act (Studio sources, Solo Trip travelers, Vacuum Rooms cards): A check disc, B1 toggle-styled disc, B2 real iOS switch, C selected face. Answers the owner\'s question "why not a toggle instead of a disc?". Recommendation: C (or A) for single choice, a numbered disc for the ordered multi-select; a toggle is right for independent on/off items.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/GlassTileKind.swift', 'apple/Sources/HassUI/Features/Media/MediaScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumSheet.swift', 'apple/Sources/HassCore/Config/MediaRemotes.swift'],
+    spec: ['.agents/design/action-navigation-tiles.md', '.agents/patterns/action-tiles.md', '.agents/patterns/entity-tile.md', '.agents/pages/media/spec.md', '.agents/pages/vacation/spec.md'],
+    patterns: ['action-tiles', 'entity-tile', 'dynamic-grid', 'tap-feedback', 'motion'],
+    hig: ['Toggles', 'Buttons', 'Lists and tables', 'Accessibility', 'SF Symbols'],
+    entities: ['sensor.demo_media_room_2', 'sensor.demo_away_2'],
+    kitComponents: ['GlassTile', 'TileGrid', 'Toggle', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'sources': { title: 'Studio sources: all four options', note: 'Game Console is the active source. Four sections, A, B1, B2, C, each with Game Console, Server, Computer, Game as the app would draw them. Choose one: picking one clears the other.', render: page('sources') },
+      'travelers': { title: 'Solo Trip travelers: all four options', note: 'Alex is the traveler. Two tiles, choose one.', render: page('travelers') },
+      'vacuum': { title: 'Vacuum Rooms cards: all four options (multi-select)', note: 'Drawn in the Vacuum sheet. Tap order is cleaning order: Living Room 1, Kitchen 2, Office 3, Bedroom not included. A and C put the numeral in the disc; B1 a corner badge; B2 only the text "Cleans 2nd".', render: page('vacuum') },
+      'unavailable': { title: 'Unavailable', note: 'Server is unavailable (the input script is not reachable): the tile and its control dim in place and read "Unavailable"; it cannot be picked. The selected source stays selected.', render: function (ctx) {
+          var c = SEL.cases.sources, items = c.items.map(function (it) { return it.id === 'server' ? Object.assign({}, it, { unavail: true }) : it; });
+          return SEL.pageFor(ctx, 'sources', { items: items }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'One column; the control stays trailing at 66 pt (the switch keeps its system size) and the text wraps; the vacuum order numeral scales with the disc.', render: page('vacuum') },
+      'reduce-motion': { title: 'Reduce Motion', override: { reduceMotion: true }, note: 'The same page with Reduce Motion on: Play on the Motion section cross-fades the indicator with no scale.', render: page('sources') },
+    },
+
+    motion: [
+      { id: 'switch-source', what: 'Studio sources: tap Computer; Game Console clears and Computer fills at the same time in every option. A: the old tick fades out and shrinks while the new tick scales in; B1: the old white disc goes to 16% white and the new one fills white; B2: the old knob slides off and the new one slides on (two switches move, which is the clue that it is a choice); C: the old tile\'s fill cross-fades out while the new tile fills.',
+        token: 'indicator quick 0.2 s; tile fill state 0.6 s ease-in-out; switch knob standard 0.3 s', state: 'sources',
+        source: 'HassDesign/GlassTile.swift (selection kind); motion.md section 6 (Symbols, colour) and section 7', reduce: 'tick cross-fades with no scale; fill cross-fades at 0.2 s; the knob still slides',
+        play: function (stage) {
+          function pick(a, b) { return apply(stage, [{ id: a, sel: false }, { id: b, sel: true }]); }
+          return seq([hold(500), pick('Game Console', 'pc'), hold(1100), pick('pc', 'Game'), hold(1100), pick('Game', 'Game Console'), hold(600)]);
+        } },
+      { id: 'order-numbers', what: 'Vacuum rooms: tap Bedroom, it joins as number 4; tap Living Room, it drops out and the others renumber 1 Kitchen, 2 Office, 3 Bedroom.',
+        token: 'numeral and tick quick 0.2 s; tile fill state 0.6 s', state: 'vacuum',
+        source: 'HassUI/Features/Vacuums/VacuumSheet.swift (room order); motion.md section 7', reduce: 'cross-fade only',
+        play: function (stage) {
+          return seq([hold(500), apply(stage, [{ id: 'bedroom', order: 4 }]), hold(1000),
+            apply(stage, [{ id: 'living', order: 0 }, { id: 'kitchen', order: 1 }, { id: 'office', order: 2 }, { id: 'bedroom', order: 3 }]), hold(1100),
+            apply(stage, [{ id: 'living', order: 1 }, { id: 'kitchen', order: 2 }, { id: 'office', order: 3 }, { id: 'bedroom', order: 0 }]), hold(600)]);
+        } },
+    ],
+
+    a11y: [
+      { rule: 'A and C (check disc)', note: 'The tile is one VoiceOver element: label = name, value = "selected" (isSelected trait) or nothing, hint = what it does ("Switches the TV input"). The disc is decorative and hidden. For the vacuum rooms the order is the value: "Kitchen, cleans second, selected, button".' },
+      { rule: 'B1 (toggle disc)', note: 'The tile is one element with a toggle trait: "Game Console, on, toggle button". It says on/off, which does not describe a choice.' },
+      { rule: 'B2 (switch)', note: 'The Toggle speaks as a switch: "Game Console, on, switch button". It is its own control, so the tile body and the switch are two targets in the mock (SwiftUI would make the row one Toggle).' },
+      { rule: 'Targets', note: 'Every control is a 44 x 44 pt target (66 pt at AX5); the switch is 51 x 31 inside a 44 pt tall target.' },
+      { rule: 'State in shape, not colour alone', note: 'A and C: tick against empty ring plus the fill; the order is a numeral. B1 and B2 lean on fill and position.' },
+      { rule: 'Unavailable', note: 'The tile is disabled and reads "Unavailable"; the dimmed control keeps its shape (tick or ring).' },
+      { rule: 'Selection change', note: 'VoiceOver focus stays on the tile that was tapped; the tile\'s value updates ("selected") and the previous choice\'s value clears; nothing else is announced. For a failure the existing failure announcement applies (tap-feedback.md).' },
+      { rule: 'AX5', note: 'One column; indicator 66 pt max; text wraps; no tile loses its order number.' },
+    ],
+
+    reviews: {
+      date: '2026-10-27', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Toggles: use a switch for an independent on/off setting, not for a choice among options', verdict: 'fix', note: 'B2 fails this: a source cannot be switched off, and switching one on switches another off. Not recommended for the three selection cases; right for the Auto-Reset and guest toggles.' },
+        { rule: 'Lists and tables: a checkmark marks the selected row of a mutually exclusive set', verdict: 'pass', note: 'A and C use the check (disc) for the one-of-N choice.' },
+        { rule: 'Buttons: 44 x 44 pt hit region', verdict: 'pass', note: 'A, B1 and C: 44 pt indicator; B2: the switch inside a 44 pt tall tile.' },
+        { rule: 'Accessibility: do not rely on colour alone', verdict: 'pass', note: 'A and C add the tick-versus-ring shape and a numeral for order; the fill reinforces.' },
+        { rule: 'Accessibility: VoiceOver traits match the control', verdict: 'pass', note: 'A and C read "selected, button"; B1 and B2 read on/off, which is wrong for a choice.' },
+        { rule: 'SF Symbols: use numbered circles for order', verdict: 'pass', note: 'The numeral in the disc is the app\'s n.circle.fill symbol (SF Symbols has 0 to 50); the mock draws it as a numeral in a ring.' },
+        { rule: 'Layout: consistent affordance shape', verdict: 'departure', note: 'A selection tile has a trailing control but no leading glyph (the action-tile rule from the 2026-10-26 decision). Question 2 asks whether to keep the item glyph.' },
+        { rule: 'Lists and tables: switches live in rows (direction-g.md Controls: Switches)', verdict: 'departure', note: 'B2 would put a system switch on a tile, which direction-g says appears only in list rows.' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: one element per control, traits not labels', verdict: 'pass', note: 'accessibilityAddTraits(.isSelected) and an accessibilityValue for the order; the indicator is accessibilityHidden.' },
+        { rule: 'Views: no nested Button', verdict: 'fix', note: 'The mockup nests the B1 disc and the B2 switch in the tile button; in SwiftUI they are siblings (B2 would be a Toggle row).' },
+        { rule: 'Design: ScaledMetric for sizes tied to text', verdict: 'pass', note: 'Indicator 44 pt scaled and capped at 1.5x (66 pt); numeral scales with it.' },
+        { rule: 'Animation: contentTransition and Reduce Motion', verdict: 'pass', note: 'numericText for the order change, symbolEffect replace for the tick, .identity under Reduce Motion.' },
+      ],
+    },
+
+    sections: [
+      { id: 'goal', title: 'Cause and goal', build: goal },
+      { id: 'options', title: 'Options and cases', build: options },
+      { id: 'voiceover', title: 'What VoiceOver says', build: voiceover },
+      { id: 'comparison', title: 'Comparison', build: comparison },
+      { id: 'recommendation', title: 'Recommendation', build: recommendation },
+      { id: 'open-questions', title: 'Open questions', build: questions },
+    ],
+
+    notes: [
+      'State keys: this proposal compares one control, not page loading; the page keys loading, refreshing, empty, error, offline, reconnecting and long-text are not drawn. The unavailable, AX5 and Reduce Motion states are.',
+      'Each state draws all four options as four sections on the chosen device; the real page has one of them. Regular width lays the sections out in two columns.',
+      'The vacuum case is drawn in the Vacuum sheet (Mock.sheet); the Options section swatches show it on the page ground for width only.',
+      'A and C draw the tick and ring as a CSS stand-in for checkmark.circle.fill and circle (the kit symbol map aliases the fill variant to the outline); the app uses the SF Symbols.',
+      'B1 reuses the action-tiles TileActionButton disc (.at-disc, from the action-navigation-tiles helper); B2 reuses the kit Toggle.',
+      'The mockup nests the control in the tile button for brevity; the app draws it as a sibling.',
+      'Promote to kit if picked: _selection.js (selection indicator, SEL.tile).',
+    ],
+    changelog: [{ date: '2026-10-27', note: 'First pass: options A, B1, B2, C on three cases, unavailable, AX5 and Reduce Motion, with a recommendation.' }],
+  });
+})();
+</script></body></html>

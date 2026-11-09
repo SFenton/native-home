@@ -1,0 +1,17 @@
+{
+  "id": "merge-guard-push-main",
+  "source": "2026-11-02: A headless session may only push agents/* lanes.",
+  "recorded": "2026-11-02",
+  "kind": "merge_guard",
+  "input": {
+    "command": "git push origin main"
+  },
+  "expect": {
+    "blocked": true,
+    "reason": {
+      "has": [
+        "agents/*"
+      ]
+    }
+  }
+}

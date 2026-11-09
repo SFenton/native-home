@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scroll fit · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/weather/_home-weather.js"></script>
+<script src="../../../pages/settings/_household-forms.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+<script src="../../../components/media/_media-lights-cameras.js"></script>
+<script src="../../../pages/food/_food.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, HW = Mock.HW, HF = window.HF, Inv = Mock.inv, MLC = window.MLC, F = window.Food;
+
+  /* ------------------------------------------------------------------ the surfaces
+     Every example is a real screen from the atlas, built by the same helpers its own mockup uses, so the content is what the app draws. What is measured
+     is the scroller the app's scroll view becomes: .ui-scroll for a page, .ui-mscroll for a sheet. Nothing here decides static or scrolling: the
+     kit measures content height against viewport height (Mock.scrollFit) and prints it. */
+
+  /* Home, as HomeScreen.swift draws it (home.html): chips, weather card, four cameras. */
+  function appMin(n) { var c = Mock.current; return n / ((c && c.scale) || 1); }
+  function homePage(ctx) {
+    var names = [['Front Door', 'front-door'], ['Driveway', 'driveway'], ['Upper Deck', 'upper-deck'], ['Lower Deck', 'lower-deck']];
+    var cams = h('div.ui-section', K.PageSectionHeader({ title: 'Cameras' }), K.TileGrid({ min: appMin(160), max: 4, equal: false, items: names.map(function (n) { return K.CameraTile({ title: n[0], scene: n[1], state: 'live' }); }) }));
+    var chips = K.ChipRail({ chips: Mock.chips.home(), frame: { x: 0, w: ctx.splitGeometry ? ctx.splitGeometry.leading : ctx.contentW } });
+    var wx = HW.card(ctx, { condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38, narrow: !!ctx.splitGeometry });
+    var body = (ctx.splitGeometry && ctx.hinge) ? [Mock.split(ctx, { leading: [chips, wx], trailing: [cams] })] : [chips, wx, cams];
+    return Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: body });
+  }
+  /* The page a sheet opens from: only the header and one row, never measured (the kit skips the presenter). */
+  function behind(ctx) { return Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [K.ChipRail({ chips: Mock.chips.home(), ctx: ctx })] }); }
+
+  function securitySheet(ctx) {
+    return Mock.sheet(ctx, { title: 'Security System', detent: 'fitted', size: 'page', trailing: 'close', presenter: behind(ctx),
+      content: h('div', { style: { maxWidth: '560px', margin: '0 auto' } }, K.AlarmPanel({ state: 'armed_home' })) });
+  }
+  function cameraSheet(ctx) { return MLC.viewerSheet(ctx, { detent: 'fitted' }); }
+  function filterSheet(ctx) { return Mock.sheet(ctx, Object.assign(F.filterOpts({}), { presenter: behind(ctx) })); }
+  function weatherSheet(ctx) { return HW.sheet(ctx, { scene: 'rain' }); }
+  function inventoryPage(ctx) { return Inv.page(ctx, { space: 'cabinet' }); }
+
+  /* OptionPickerSheet in a sheet presented at .medium (the picker's own detents are medium and large). Short = an HVAC mode, long = Lighting Mode scenes. */
+  var MODES = ['Heat', 'Cool', 'Auto', 'Off'];
+  var SCENES = ['Warm White', 'Cool White', 'Daylight', 'Candle', 'Sunset', 'Sunrise', 'Reading', 'Movie', 'Relax', 'Focus', 'Forest', 'Ocean', 'Aurora', 'Rainbow'];
+  function pickerSheet(title, list) {
+    return function (ctx) {
+      return Mock.sheet(ctx, { title: title, detent: 'medium', size: 'form', trailing: 'close', presenter: behind(ctx),
+        content: K.OptionPickerSheet({ options: list.map(function (v) { return { value: v, label: v }; }), selected: list[0] }) });
+    };
+  }
+
+  var SURFACES = [
+    { id: 'page-short', group: 'Page', name: 'Special Device Modes (Settings sub-page)', build: function (ctx) { return HF.page(ctx, 'special-device-modes'); } },
+    { id: 'page-long', group: 'Page', name: 'Home', build: homePage },
+    { id: 'sheet-short', group: 'Sheet', name: 'Security System (fitted)', build: securitySheet },
+    { id: 'sheet-camera', group: 'Sheet', name: 'Camera viewer (fitted)', build: cameraSheet },
+    { id: 'sheet-filters', group: 'Sheet', name: 'Recipe filters (fitted)', build: filterSheet },
+    { id: 'sheet-weather', group: 'Sheet', name: 'Weather (large)', build: weatherSheet },
+    { id: 'list-short', group: 'List', name: 'Picker, 4 options (medium sheet)', build: pickerSheet('Mode', MODES) },
+    { id: 'list-long', group: 'List', name: 'Picker, 14 options (medium sheet)', build: pickerSheet('Lighting Mode', SCENES) },
+    { id: 'refresh-short', group: 'Pull to refresh', name: 'Inventory, Cabinet (short list)', build: inventoryPage, always: true },
+  ];
+  var BY_ID = {}; SURFACES.forEach(function (s) { BY_ID[s.id] = s; });
+  var SIZES = [['default', 'Default'], ['ax5', 'AX5']];
+
+  /* ------------------------------------------------------------------ measuring every surface on every window at two text sizes (the matrix)
+     Each surface is built once per device and size in an off-screen host at full size (same builders as the stage), laid out, then measured with Mock.scrollFit. */
+  var RESULT = {};   // RESULT[surfaceId][deviceKey + '/' + ts] = {short, over, content, viewport, cap}
+  var listeners = [];
+  function measureSurface(surf) {
+    var host = h('div', { 'aria-hidden': 'true', style: { position: 'fixed', left: '-30000px', top: '0', width: '1500px', visibility: 'hidden', pointerEvents: 'none' } });
+    document.body.appendChild(host);
+    var keep = Mock.current, keepRM = Mock.settings.reduceMotion, jobs = [];
+    Mock.deviceKeys.forEach(function (dk) {
+      SIZES.forEach(function (sz) {
+        var ctx = Mock.ctx(dk, { appearance: 'dark', ts: sz[0], reduceMotion: true, reduceTransparency: false, posture: 'open' });
+        Mock.current = ctx; Mock.settings.reduceMotion = true;
+        var frame;
+        try { frame = Mock.frame(ctx, surf.build(ctx)); } catch (e) { if (window.console) console.error(e); return; }
+        host.appendChild(frame);
+        jobs.push({ key: dk + '/' + sz[0], frame: frame });
+      });
+    });
+    Mock.current = keep; Mock.settings.reduceMotion = keepRM;
+    return new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(res, 60); }); }); }).then(function () {
+      RESULT[surf.id] = {};
+      jobs.forEach(function (j) {
+        var el = Mock.scrollFit.list(j.frame)[0];
+        if (!el) return;
+        var r = Mock.scrollFit(el, { always: surf.always });
+        RESULT[surf.id][j.key] = { short: r.short, over: r.over, content: r.content, viewport: r.viewport, cap: r.cap, label: r.label };
+      });
+      host.remove();
+      listeners.forEach(function (f) { f(surf.id); });
+    });
+  }
+  function measureAll() {
+    return SURFACES.reduce(function (p, s) { return p.then(function () { return measureSurface(s); }); }, Promise.resolve());
+  }
+
+  /* ------------------------------------------------------------------ the matrix section */
+  function setSel(id, v) { var s = document.getElementById(id); if (!s) return; s.value = v; s.dispatchEvent(new Event('change')); }
+  function matrixSection() {
+    var intro = h('p', 'The same nine surfaces on all six windows at the default text size and at Accessibility 5, measured from what the kit renders (content height against viewport height, in points). ',
+      h('b', 'Static'), ' = content fits: no bounce, no drag response, no indicator. ', h('b', 'Scrolls'), ' = content is taller by the number shown. ', h('b', 'Bounces'), ' = a pull-to-refresh list that fits but still rubber-bands so the refresh can be pulled. Click a cell to open that surface, window and text size in the stage.');
+    var head1 = h('tr', h('th', { rowspan: 2, scope: 'col' }, 'Surface'), Mock.deviceKeys.map(function (dk) { return h('th', { colspan: 2, scope: 'colgroup', style: { textAlign: 'center' } }, Mock.devices[dk].short); }));
+    var head2 = h('tr', Mock.deviceKeys.map(function () { return SIZES.map(function (sz) { return h('th', { scope: 'col', style: { textAlign: 'center' } }, sz[1]); }); }));
+    var cells = {};
+    var rows = SURFACES.map(function (s) {
+      return h('tr', h('th', { scope: 'row', style: { textTransform: 'none', letterSpacing: 0, fontSize: '13px', color: 'var(--k-fg)' } }, h('span', { style: { color: 'var(--k-fg2)' } }, s.group + ' · '), s.name),
+        Mock.deviceKeys.map(function (dk) {
+          return SIZES.map(function (sz) {
+            var b = h('button.k-mx', { type: 'button', 'aria-label': s.name + ', ' + Mock.devices[dk].short + ', ' + sz[1] + ' text: measuring' }, '…');
+            b.addEventListener('click', function () { setSel('c-text', sz[0]); setSel('c-device', dk); setSel('c-state', s.id); document.getElementById('stage').scrollIntoView({ behavior: 'smooth' }); });
+            cells[s.id + '|' + dk + '/' + sz[0]] = b;
+            return h('td', { style: { padding: '3px', textAlign: 'center' } }, b);
+          });
+        }));
+    });
+    var tbl = h('div.k-table-wrap', h('table.k-matrix', h('thead', head1, head2), h('tbody', rows)));
+    var tally = h('p', { role: 'status', style: { color: 'var(--k-fg2)', fontSize: '14px' } }, 'Measuring…');
+    function fill(id) {
+      var surf = BY_ID[id], r = RESULT[id] || {};
+      Mock.deviceKeys.forEach(function (dk) {
+        SIZES.forEach(function (sz) {
+          var m = r[dk + '/' + sz[0]], b = cells[id + '|' + dk + '/' + sz[0]];
+          if (!m) { b.textContent = 'n/a'; return; }
+          b.className = 'k-mx ' + m.short.toLowerCase();
+          b.textContent = m.short === 'Scrolls' ? 'Scrolls +' + m.over : m.short;
+          b.setAttribute('aria-label', surf.name + ', ' + Mock.devices[dk].short + ', ' + sz[1] + ' text: ' + m.label);
+          b.title = m.label;
+        });
+      });
+      var done = Object.keys(RESULT).length;
+      if (done === SURFACES.length) {
+        var flips = SURFACES.filter(function (s) { var shorts = {}; Object.keys(RESULT[s.id]).forEach(function (k) { shorts[RESULT[s.id][k].short] = 1; }); return Object.keys(shorts).length > 1; });
+        tally.textContent = flips.length + ' of ' + SURFACES.length + ' surfaces change between static and scrolling across the six windows and the two text sizes: ' + flips.map(function (s) { return s.name; }).join('; ') + '.';
+      } else tally.textContent = 'Measuring… ' + done + ' of ' + SURFACES.length + ' surfaces.';
+    }
+    listeners.push(fill);
+    Object.keys(RESULT).forEach(fill);
+    return [intro, tbl, tally];
+  }
+
+  /* ------------------------------------------------------------------ the same content, two windows
+     Pairs chosen from the matrix: the same builder rendered twice, so the flip can be seen as well as read. */
+  var PAIRS = [
+    { surf: 'sheet-filters', a: ['ipad-portrait', 'default'], b: ['duo-folded', 'default'], note: 'Recipe filters: a form sheet on iPad is as tall as its content; on the folded Duo the same content outgrows the large-detent cap.' },
+    { surf: 'page-long', a: ['ipad-landscape', 'default'], b: ['iphone', 'default'], note: 'Home: the whole page fits an iPad in landscape with almost nothing to spare; on an iPhone the same page is taller than the screen.' },
+    { surf: 'page-short', a: ['iphone', 'default'], b: ['iphone', 'ax5'], note: 'Special Device Modes: static at the default size; Accessibility 5 makes the tile and header taller.' },
+  ];
+  function miniFigure(surf, spec) {
+    var ctx = Mock.ctx(spec[0], { appearance: Mock.config ? 'dark' : 'dark', ts: spec[1], reduceMotion: true, reduceTransparency: false, posture: 'open' });
+    var keep = Mock.current; Mock.current = ctx;
+    var frame; try { frame = Mock.frame(ctx, surf.build(ctx)); } finally { Mock.current = keep; }
+    var d = Mock.devices[spec[0]], gz = Math.max(.2, Math.min(.42, 300 / (d.w + 2 * d.bezel)));
+    var box = h('div.k-gz', { style: { '--gz': gz.toFixed(3), width: (d.w + 2 * d.bezel) + 'px', height: (d.h + 2 * d.bezel) + 'px' } }, frame);
+    var fig = h('figure', box, h('figcaption', h('b', d.short + ' · ' + (spec[1] === 'ax5' ? 'Accessibility 5' : 'default text'))));
+    fig.appendChild(Mock.scrollFit.badge(box, { indicator: true, lock: true, always: surf.always }));
+    return fig;
+  }
+  function pairSection() {
+    var out = [h('p', 'Three of the flips from the matrix, drawn side by side. The measurement under each device is live: it is the same code that fills the matrix.')];
+    var gal = h('div.k-gallery');
+    out.push(gal);
+    var jobs = PAIRS.map(function (p) {
+      return function () {
+        var surf = BY_ID[p.surf];
+        var group = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '100%' } }, h('p', { style: { margin: 0, font: '600 14px/1.4 var(--font)', color: 'var(--k-fg)', maxWidth: '640px' } }, p.note),
+          h('div', { style: { display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' } }, miniFigure(surf, p.a), miniFigure(surf, p.b)));
+        gal.appendChild(group);
+      };
+    });
+    (function next() { var j = jobs.shift(); if (j) { j(); setTimeout(next, 0); } })();
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ states: one per surface */
+  function st(title, note, surf, extra) {
+    return Object.assign({ title: title, note: note, render: function (ctx) { return BY_ID[surf].build(ctx); } }, extra);
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'scroll-fit', title: 'Scroll fit: scroll only when there is something to scroll', area: 'shell', status: 'shipped',
+    summary: 'Owner decision 2026-10-24, one rule app-wide: a vertical scroll view whose content fits its viewport is static (no bounce, no drag response, no indicator); one whose content is taller scrolls and bounces as normal. The decision is geometry, so the same screen is static on an iPad and scrolls on an iPhone or the folded Duo, and flips at an accessibility text size. Pull-to-refresh lists are the one exception.',
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassUI/UIKitPort/App/Page/UKScrollFit.swift'],
+    spec: ['.agents/patterns/scroll-fit.md', '.agents/patterns/modal-sheet.md', '.agents/design/apple/split-view.md'],
+    patterns: ['modal-sheet'],
+    hig: ['Scroll views', 'Sheets', 'Layout', 'Dynamic Type', 'Pull to refresh'],
+    kitComponents: ['HassModal', 'OptionPickerSheet', 'ChipRail', 'TileGrid', 'AlarmPanel', 'FilterSheet', 'FloatingActionBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    scrollFit: { indicator: true, lock: true },
+
+    states: {
+      'page-short': st('Page, short: Special Device Modes', 'one tile under one header: static on every window at the default size; the badge under the device is measured, not drawn', 'page-short'),
+      'page-long': st('Page, long: Home', 'chips, weather card and four cameras: scrolls on the phone-sized windows; the chip rail is a horizontal scroller and keeps its own behavior', 'page-long'),
+      'sheet-short': st('Sheet, short: Security System (fitted)', 'a fitted sheet is exactly as tall as its content, so it is static', 'sheet-short'),
+      'sheet-camera': st('Sheet, short: camera viewer (fitted)', 'video and one row of controls; static until the window is too short for it', 'sheet-camera'),
+      'sheet-filters': st('Sheet, tall: Recipe filters (fitted)', 'three sections: static where the window is tall, scrolls where the content passes the large-detent cap', 'sheet-filters'),
+      'sheet-capped': st('Sheet, capped: Recipe filters at AX5', 'a fitted sheet outgrows its detent: it stops growing at the large detent and scrolls from there (this state pins AX5)', 'sheet-filters', { override: { ts: 'ax5' } }),
+      'sheet-weather': st('Sheet, tall: Weather (large)', 'a full sheet with hourly, daily and highlights: scrolls everywhere it is shown', 'sheet-weather'),
+      'list-short': st('List, short: picker with 4 options', 'a list in a medium sheet: the four rows fit, so the list is static', 'list-short'),
+      'list-long': st('List, overflowing: picker with 14 options', 'the same list with fourteen scenes overflows the medium sheet and scrolls', 'list-long'),
+      'refresh-short': st('Pull to refresh: Inventory, Cabinet', 'a short list that still rubber-bands, on purpose: .refreshable cannot start on a scroll view that does not bounce, so it uses pullToRefresh { }', 'refresh-short', { scrollFit: { always: true } }),
+    },
+
+    sections: [
+      { id: 'matrix', title: 'Device and text size matrix', after: 'states', build: matrixSection },
+      { id: 'pairs', title: 'Same content, two windows', after: 'states', build: pairSection },
+    ],
+
+    motion: [
+      { id: 'drag-scrolls', what: 'Dragging a page that overflows past its end: it stretches and springs back (the system rubber band)', token: 'system UIScrollView bounce (not a MotionToken; the app draws no scroll animation of its own)', state: 'page-long',
+        source: 'HassUI/App/MainTabView.swift PageChrome (scrollsOnlyWhenNeeded); HassDesign/ScrollFit.swift', reduce: 'The system rubber band is not affected by Reduce Motion, and neither is scrolling. The mockup holds a dashed outline for 0.6 s instead of travelling.',
+        play: function (stage) { return Mock.scrollFit.bounce(stage); } },
+      { id: 'drag-static', what: 'Dragging a page that fits: nothing moves, no indicator appears', token: 'none: scrollBounceBehavior(.basedOnSize) leaves the scroll view still', state: 'page-short',
+        source: 'HassDesign/ScrollFit.swift scrollsOnlyWhenNeeded', reduce: 'Nothing to reduce: the page does not move. The mockup flashes a green outline for 0.9 s, which is a colour change only.',
+        play: function (stage) { return Mock.scrollFit.bounce(stage); } },
+      { id: 'drag-sheet-capped', what: 'Dragging a fitted sheet that outgrew the large detent: it scrolls and stretches at the end', token: 'system sheet scroll (not a MotionToken)', state: 'sheet-capped',
+        source: 'HassDesign/HassModal.swift modalChrome; HassDesign/SheetFit.swift', reduce: 'Unchanged by Reduce Motion; the mockup holds an outline instead of travelling.',
+        play: function (stage) { return Mock.scrollFit.bounce(stage); } },
+      { id: 'drag-sheet-fitted', what: 'Dragging a fitted sheet that fits: the content stays put (only the swipe-down dismiss still works)', token: 'none', state: 'sheet-short',
+        source: 'HassDesign/HassModal.swift modalChrome', reduce: 'Nothing moves; a green outline flashes.',
+        play: function (stage) { return Mock.scrollFit.bounce(stage); } },
+      { id: 'pull-refresh', what: 'Pulling down a short Inventory list: it stretches, the refresh spinner shows, then it springs back', token: 'system refresh control (not a MotionToken)', state: 'refresh-short',
+        source: 'HassUI/Features/Inventory/InventoryScreen.swift pullToRefresh; HassDesign/ScrollFit.swift', reduce: 'The system refresh control is unchanged; the mockup holds an outline and shows the spinner without the stretch.',
+        play: function (stage) { return Mock.scrollFit.bounce(stage, { always: true, refresh: true }); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order and reach', note: 'Unchanged. A static screen has everything on screen, so VoiceOver reaches every element by swiping; on a scrolling screen VoiceOver scrolls by itself when focus moves to an element that is off screen, as today.' },
+      { rule: 'Dynamic Type', note: 'Larger text turns a static screen into a scrolling one (the matrix AX5 columns). Nothing is clipped or fixed in height; the content keeps its natural size and the scroll view takes the extra. Check every screen at AX5 on the folded Duo, the smallest window.' },
+      { rule: 'Scroll gestures and actions', note: 'A static scroll view offers no scroll action to VoiceOver, Switch Control or full keyboard access, which is correct: there is nothing to scroll. A scrolling one offers them as before.' },
+      { rule: 'Indicator', note: 'The mockup draws the scroll indicator only on a scroller that scrolls, as iOS does. Do not use the indicator to tell the states apart: the annotation under each device says it in words ("Static", "Scrolls", "Bounces").' },
+      { rule: 'Targets', note: '44 pt targets unchanged. The annotation and the matrix cells here are mockup furniture, but they are real buttons with a text label, not colour alone.' },
+      { rule: 'Pull to refresh', note: 'A refreshable list keeps its Refresh toolbar button on Performance, so people who cannot pull still can; Inventory and Expired food refresh when they open and when connection returns (see the open note).' },
+    ],
+
+    reviews: {
+      date: '2026-10-24',
+      hig: [
+        { rule: 'Scroll views: content should scroll only when it exceeds the view', verdict: 'pass', note: 'Matches the guidance for scroll views: no scrolling and no bounce when everything fits, a scroll indicator only when it scrolls.', by: 'apple-hig skill' },
+        { rule: 'Sheets: a content-fitted sheet resizes to its content, up to the large detent', verdict: 'pass', note: 'A fitted sheet is static until its content passes the large-detent cap (Recipe filters at AX5), then it scrolls.', by: 'apple-hig skill' },
+        { rule: 'Layout: adapt to the window and text size, never to the device', verdict: 'pass', note: 'The rule reads content height against viewport height, so it follows the window (iPad, unfolded Duo, split panes) and Dynamic Type with no device branch (AGENTS.md, SplitPolicy).', by: 'apple-hig skill' },
+        { rule: 'Pull to refresh: refreshing is a standard gesture on lists of data', verdict: 'departure', note: 'A refreshable list is not static: it always bounces, even when short (owner decision 2026-10-24). Without it the refresh could not be pulled.', by: 'apple-hig skill' },
+        { rule: 'Rubber banding on short content is the default scroll feel on iOS', verdict: 'departure', note: 'The default stretches and snaps back even on a short page; the owner found it read as the screen resetting (2026-10-24), so short content is held still.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'API: scrollBounceBehavior(.basedOnSize, axes: .vertical)', verdict: 'pass', note: 'One environment value applied once per layer (PageChrome, modalChrome, RootView), inherited by ScrollView, List and Form; horizontal scrollers are untouched by axes: .vertical.', by: 'swiftui-pro skill' },
+        { rule: 'Design: motion and gestures respect Reduce Motion', verdict: 'pass', note: 'The app adds no animation: the bounce is the system\'s, and a static view simply does not move. The mockup\'s drag demos hold an outline when Reduce Motion is on.', by: 'swiftui-pro skill' },
+        { rule: 'Views: one modifier, not a modifier on every scroll view', verdict: 'pass', note: 'scrollsOnlyWhenNeeded() is applied by the chrome, never by a feature, and pullToRefresh(_:) is the single exception call site (searchable).', by: 'swiftui-pro skill' },
+        { rule: 'API: .refreshable needs a scroll view that can bounce', verdict: 'pass', note: 'pullToRefresh pairs .scrollBounceBehavior(.always) with .refreshable; a bare .refreshable on a short list would stop being pullable under the app-wide rule.', by: 'swiftui-pro skill' },
+        { rule: 'Design: content that fits must not be hidden behind a fixed-height container', verdict: 'fix', note: 'The measurements count the space reserved under the floating tab bar as content (the safe-area inset), as SwiftUI does; a page that is a few points under the viewport can still tip into scrolling when that inset changes. Low: it matches the system, but check borderline pages on a device.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Shipped in #152: the rule is applied by ScrollFit.swift, PageChrome, modalChrome and RootView; pullToRefresh keeps Inventory, Expired food and Performance bouncing.',
+      'How the numbers are made: Mock.scrollFit(el) reads the real rendered scrollHeight (content) and clientHeight (viewport) of the kit\'s .ui-scroll (page) or .ui-mscroll (sheet). A page\'s content includes the space reserved under the floating tab bar (the safe-area inset) and its viewport is the full screen height, because SwiftUI scrolls under the header; a sheet\'s viewport is the area under its header. For a fitted sheet the viewport is the sheet\'s own height, so the badge also gives the cap it would stop growing at.',
+      'The matrix builds every surface off screen at full size once per window and text size (Mock.ctx, Mock.frame) and measures it; the stage and the States gallery measure the device you are looking at. Both call the same function. The sample content is the atlas fixtures, so a number moves when a page gains a row.',
+      'Expired food (Profile and summary sheet) is also refreshable but is a tab inside a larger sheet; Inventory stands in for the pull-to-refresh exception. Performance (a List) behaves the same.',
+      'Horizontal scrollers are out of scope: the Home chip rail scrolls sideways on compact windows and wraps on regular ones; its annotation row under the Home device says so. Paged carousels (the weather hours, the camera grid pages) keep their own behavior.',
+      'The picker lists render at the .medium detent on compact windows; on iPad and the unfolded Duo the kit draws the form sheet fitted to its content (iOS 18 and later), so the long picker overflows only when the content passes the form sheet\'s maximum height.',
+      'Tapping the status bar to scroll to top skips a scroll view that cannot scroll (ScrollToTop.mainScrollView); there is nothing to scroll back from, which is correct.',
+      'Kit additions in this change: Mock.scrollFit (_kit/lib/chrome.js), the scrollFit and sections options of Mock.mount, and the .k-fit, .k-sbar and .k-pull styles. See _kit/CHANGELOG.md.',
+    ],
+    changelog: [{ date: '2026-10-24', note: 'First pass: ten surfaces (short and long page, short and tall and capped sheets, short and overflowing picker list, pull-to-refresh Inventory), live measurement per device, the device by text size matrix and three side-by-side flips; drag demos for scrolling, static and pull-to-refresh.' }],
+  });
+
+  /* The matrix needs the page to be up first, then measures every surface without blocking the stage. */
+  setTimeout(measureAll, 0);
+
+  var style = document.createElement('style');
+  style.textContent = '.k-mx { font: 600 12px/1.2 var(--font); min-width: 64px; min-height: 30px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--k-line); background: var(--k-surface); color: var(--k-fg); cursor: pointer; }' +
+    '.k-mx.static { background: color-mix(in srgb, var(--k-ok) 14%, var(--k-surface)); border-color: color-mix(in srgb, var(--k-ok) 50%, var(--k-line)); }' +
+    '.k-mx.scrolls { background: var(--k-accent-soft); border-color: color-mix(in srgb, var(--k-accent) 55%, var(--k-line)); }' +
+    '.k-mx.bounces { background: color-mix(in srgb, var(--k-warn) 14%, var(--k-surface)); border-color: color-mix(in srgb, var(--k-warn) 55%, var(--k-line)); }' +
+    '.k-mx:hover { border-color: var(--k-accent); } .k-mx:focus-visible { outline: 3px solid var(--k-accent); outline-offset: 2px; }' +
+    'table.k-matrix th, table.k-matrix td { padding: 4px 6px; } table.k-matrix thead th { border-bottom: 1px solid var(--k-line); }';
+  document.head.appendChild(style);
+})();
+</script></body></html>

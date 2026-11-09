@@ -1,0 +1,17 @@
+{
+  "id": "dd-empty-state-fade-order",
+  "date": "2026-11-01",
+  "source": "4ac44105",
+  "owner_report": "empty settings state should fade out before Split View content animates in, and once all split views animate out, empty state should come in",
+  "surface": "settings",
+  "poses": [
+    "duo-unfolded-landscape",
+    "ipad-landscape"
+  ],
+  "app": "uikit",
+  "category": "motion",
+  "pre_fix_ref": "4d5daad9",
+  "fix_ref": "f5cdb6a9",
+  "fix_confidence": "high",
+  "expected": "The placeholder fades out before the first pane opens and fades in after the last closes; the two never overlap."
+}

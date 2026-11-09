@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Performance · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_settings-account.js"></script>
+<script src="../_settings-page.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+
+  /* local styles for PerformanceRow */
+  var st = document.createElement('style');
+  st.textContent = '.pf-row{flex-direction:column!important;align-items:stretch!important;gap:4px!important;padding-top:10px!important;padding-bottom:10px!important;min-height:0!important}' +
+    '.pf-row .r1{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px;font-size:var(--fs-body)}' +
+    '.pf-row .r1 .v{font-weight:600;font-variant-numeric:tabular-nums;margin-left:auto}' +
+    '.pf-row .r1 .v.bad{color:var(--ink-danger)}' +
+    '.pf-row .d{font-size:var(--fs-foot);color:rgba(255,255,255,.72);line-height:1.3}' +
+    '.pf-empty{color:rgba(255,255,255,.72);font-size:var(--fs-body)}' +
+    '.pf-refresh{display:flex;justify-content:center;align-items:center;gap:8px;padding:6px 0 0;color:#fff;font-size:var(--fs-sub)}';
+  document.head.appendChild(st);
+
+  /** PerformanceRow: title, headline value (semibold monospaced digits; only a bad value takes red), a footnote detail line. */
+  function prow(title, value, detail, tone) {
+    return h('div.ui-mrow.pf-row', { role: 'group', 'aria-label': title + ', ' + value + '. ' + detail }, h('div.r1', h('span', title), h('span.v' + (tone === 'bad' ? '.bad' : ''), value)), h('div.d', detail));
+  }
+  function empty(t) { return h('div.ui-mrow', h('span.pf-empty', t)); }
+  function btn(title, danger, sym) { return h('div.ui-mrow.sa-btnrow', h('button.bt' + (danger ? '.danger' : ''), { type: 'button', style: sym ? { display: 'inline-flex', gap: '8px', alignItems: 'center' } : null }, sym ? h('span', { html: I(sym) }) : null, title)); }
+  function sec(header, rows, footer, plain) { return SA.section({ header: header, rows: rows, footer: footer, sys: true, solid: true }); }
+
+  var SEED = {
+    scroll: [['Chores', '11.4 ms/s', '38 hitches in 940 frames · worst 71 ms', 'bad'], ['Inventory', '6.2 ms/s', '11 hitches in 702 frames · worst 38 ms'], ['Home', '1.8 ms/s', '4 hitches in 1212 frames · worst 22 ms'], ['Settings', '0.6 ms/s', '1 hitches in 388 frames · worst 17 ms']],
+    pages: [['Recipes', '340 ms', 'median · p95 780 ms · max 910 ms · 12 samples'], ['Home', '180 ms', 'median · p95 410 ms · max 620 ms · 14 samples']],
+    nav: [['Tab switch', '12 ms', 'first frame p50 12 · p95 19 ms · worst turn 6 ms · 31 samples'], ['Push', '352 ms', 'first frame p50 14 · p95 22 ms · settled p50 352 · p95 371 ms · worst turn 9 ms · 18 samples'],
+      ['Pop', '347 ms', 'first frame p50 13 · p95 21 ms · settled p50 347 · p95 366 ms · worst turn 7 ms · 11 samples'], ['Sheet opens', '401 ms', 'first frame p50 16 · p95 30 ms · settled p50 401 · p95 438 ms · worst turn 21 ms · 9 samples']],
+  };
+
+  /** The whole report. o: {empty?, recording?:boolean, noExport?, refreshing?, long?} */
+  function body(ctx, o) {
+    var sections = [];
+    sections.push(SA.section({ rows: [h('div.ui-mrow', h('span.tx', h('span.ti', 'Record Telemetry')), h('span.acc', K.Toggle({ on: o.recording !== false, label: 'Record Telemetry' })))], solid: true, sys: true,
+      footer: 'Measures scrolling, navigation, loading, live updates and images on this device. Nothing leaves the device unless you export it.' }));
+    var e = !!o.empty;
+    sections.push(sec('Scrolling', e ? [empty('Scroll a page to measure it.')] : SEED.scroll.map(function (r) { return prow(r[0] + (o.long && r[0] === 'Home' ? ' · Quick Links, Guests and Cameras (long page name)' : ''), r[1], r[2], r[3]); }).concat([prow('MetricKit (last day)', '3.4 ms/s', 'System scroll hitch ratio')])));
+    sections.push(sec('Page Loading', (e ? [empty('No page has waited for content yet.')] : SEED.pages.map(function (r) { return prow(r[0], r[1], r[2]); })).concat([prow('Shown instantly', e ? '0' : '42', 'Pages whose data was already there')])));
+    sections.push(sec('Navigation', e ? [empty('Switch tabs and open pages to measure them.')] : SEED.nav.map(function (r) { return prow(r[0], r[1], r[2]); })));
+    sections.push(sec('Live Updates', (e ? [] : [prow('Apply time', '2 ms', 'median · p95 6 ms · max 31 ms · 2410 samples')]).concat([prow('Deliveries', e ? '0' : '1204', (e ? '0' : '318') + ' entity changes')])));
+    sections.push(sec('Actions', (e ? [] : [prow('Service call', '148 ms', 'median · p95 390 ms · max 512 ms · 23 samples'), prow('Confirmed by Home Assistant', '420 ms', 'median · p95 910 ms · max 1204 ms · 23 samples')]).concat([prow('Rolled back', '0', 'Optimistic values undone by failed calls')])));
+    var imgs = e ? [prow('Cache hits', '0', '0 memory · 0 disk'), prow('Downloads', '0', '0 unchanged (304) · 0 failed'), prow('On disk', 'Zero KB', '0 images'), btn('Clear Image Cache', true)]
+      : [prow('Cache hits', '512', '380 memory · 132 disk'), prow('Downloads', '21', '9 unchanged (304) · 0 failed'), prow('Decode', '14 ms', 'median · p95 41 ms · max 88 ms · 140 samples'), prow('On disk', '38.4 MB', '64 images'), btn('Clear Image Cache', true)];
+    sections.push(SA.section({ headerNode: h('div.sa-hd.sys', 'Images'), rows: imgs, solid: true, sys: true }));
+    sections.push(SA.section({ rows: (o.noExport ? [] : [btn('Export Telemetry', false, 'square.and.arrow.up')]).concat([btn('Reset Measurements', true)]), solid: true, sys: true, footer: (e ? '0 samples · 0 MetricKit reports' : '1876 samples · 2 MetricKit reports') }));
+    var wrap = SA.wrap(ctx, sections);
+    if (o.refreshing) wrap.insertBefore(h('div.pf-refresh', { role: 'status' }, K.ArcSpinner({ size: 'compact', label: 'Refreshing' }), 'Refreshing'), wrap.firstChild);
+    return [wrap];
+  }
+  function page(ctx, o) {
+    o = o || {};
+    var pg = Mock.page(ctx, { title: 'Performance', back: 'Settings', section: 'settings', badge: 3, choresBadge: 2, connection: o.connection || 'live', body: body(ctx, o) });
+    var bar = pg.querySelector('.ui-bar'), sp = bar && bar.querySelector('.sp');
+    if (bar && sp) bar.insertBefore(h('button.ui-circle.ui-glass', { type: 'button', 'aria-label': 'Refresh', title: 'Refresh', html: I('arrow.clockwise') }), sp.nextSibling);
+    return pg;
+  }
+  var P = function (o) { return function (ctx) { return page(ctx, o); }; };
+
+  Mock.mount({
+    kind: 'page', id: 'performance-screen', title: 'Performance (diagnostics)', area: 'settings', status: 'shipped',
+    summary: 'Settings, Performance: what the telemetry has measured on this device (scrolling, page loading, navigation, live updates, actions, images), the recording switch, an export through the system share sheet and a reset. An owner-facing page, pushed from Settings.',
+    source: ['apple/Sources/HassUI/Diagnostics/PerformanceScreen.swift', 'apple/Sources/HassUI/Diagnostics/PerformanceReport.swift', 'apple/Sources/HassUI/Diagnostics/PerformanceRow.swift', 'apple/Sources/HassTelemetry/NavigationMeasurement.swift'],
+    spec: ['.agents/patterns/telemetry.md', '.agents/testing/apple/performance.md'],
+    patterns: ['telemetry', 'page-backdrop', 'header-edge-fade'],
+    hig: ['Lists and tables', 'Activity views', 'Toggles', 'Color', 'Dynamic Type'],
+    entities: [],
+    kitComponents: ['ModuleList', 'Toggle', 'ArcSpinner', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Recording, a seeded report', note: 'Page Scroll: Middle and End show the lower sections (Images, Export and Reset)', render: P({}) },
+      'empty': { title: 'Nothing measured yet', note: 'each section says what to do; counters read 0', render: P({ empty: true }) },
+      'recording-off': { title: 'Record Telemetry off', note: 'the log keeps what it has; nothing new is added', render: P({ recording: false }) },
+      'refreshing': { title: 'Pull to refresh', note: 'refreshable and the toolbar Refresh rebuild the report; the system indicator is drawn here as the app\'s arc (stand-in)', render: P({ refreshing: true }) },
+      'no-export': { title: 'Export file could not be written', note: 'writeExport failed (try?), so the Export Telemetry row is not drawn; Reset Measurements stays', render: P({ noExport: true }) },
+      'offline': { title: 'No network', note: 'the report is local; only the header changes', render: P({ connection: 'offline' }) },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Refresh and Quick Links', render: P({ connection: 'reconnecting' }) },
+      'long-text': { title: 'A long page name', note: 'titles and details wrap; the value drops under the title when it does not fit (ViewThatFits)', render: P({ long: true }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'every row is one column: title, value, detail', render: P({}) },
+    },
+
+    motion: [],
+    transitions: [
+      { from: 'Settings', to: 'Performance', kind: 'push', note: 'A NavigationLink on the Settings path: the system push (about 0.35 s); Back returns to the list. Measured itself by the Push row on this page (NavigationProbe).',
+        play: function (stage) { return SA.pushDemo(stage, function (ctx) { return Mock.page(ctx, { title: 'Settings', section: 'settings', badge: 3, choresBadge: 2, body: [SA.settingsList(ctx, {})] }); }); } },
+      { from: 'Export Telemetry', to: 'System share sheet', kind: 'sheet', note: 'ShareLink presents the iOS share sheet with FentonHome-telemetry-<time>.json. System UI: not drawn.' },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, Refresh, Quick Links, Profile; the Performance title (heading); Record Telemetry; then each section header (heading trait) and its rows top to bottom; Clear Image Cache; Export Telemetry; Reset Measurements; the samples footer.' },
+      { rule: 'PerformanceRow', note: 'One element with the children ignored: label is the title ("Push"), value is "352 ms. first frame p50 14 · p95 22 ms ..." so VoiceOver reads the headline and the detail together. Identifiers performance.navigation.<surface>, performance.recording, performance.clearImages, performance.export, performance.reset, performance.refresh.' },
+      { rule: 'State is not colour alone', note: 'Only a bad value takes colour (red); every value is a number with a unit, so good and warning read the same in text. Never green or amber.' },
+      { rule: 'Targets', note: 'Rows are cells of at least 44 pt; the destructive and export rows set minHeight through the cell, Refresh is the 44 pt glass circle.' },
+      { rule: 'Dynamic Type', note: 'At AX5 PerformanceRow stacks title above value above detail (ViewThatFits falls to the vertical layout); numerals stay monospaced; nothing truncates.' },
+      { rule: 'Export', note: 'ShareLink hands the system share sheet a temporary JSON file; the label reads "Export Telemetry" with the share glyph.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists and tables: grouped list of labelled values', verdict: 'pass', note: 'Insetgrouped List with Scrolling, Page Loading, Navigation, Live Updates, Actions, Images sections and footers (PerformanceScreen.swift:20-112).', by: 'apple-hig skill' },
+        { rule: 'Color: never colour alone', verdict: 'pass', note: 'PerformanceRow shows a triangle (bad) or circle (fair) glyph beside the value and speaks the tone word (poor, fair, good) in its value (toneSymbol, toneWord, spokenValue).', by: 'apple-hig skill' },
+        { rule: 'Alerts and Action sheets: confirm destructive actions', verdict: 'pass', note: 'Reset Measurements asks first (AlertCopy.resetMeasurements); Clear Image Cache stays instant by decision.', by: 'apple-hig skill' },
+        { rule: 'Activity views: share through the system sheet', verdict: 'pass', note: 'ShareLink(item: exportURL) with a Label "Export Telemetry" (:100-102); the row is omitted when the export cannot be written.', by: 'apple-hig skill' },
+        { rule: 'Materials: rows on the wallpaper use the module', verdict: 'pass', note: 'Fixed: PerformanceScreen sets listRowBackground to Surface.moduleThin on the page surface, like Settings (PerformanceScreen.swift).', by: 'apple-hig skill' },
+        { rule: 'Typography: Dynamic Type', verdict: 'pass', note: 'ViewThatFits drops the value under the title when it does not fit (PerformanceRow.swift:15-25); detail wraps (fixedSize vertical).', by: 'apple-hig skill' },
+        { rule: 'Color: text contrast of 4.5:1 on the wallpaper', verdict: 'pass', note: 'FormHeader and FormFooter take onWallpaper: true on this page (PerformanceScreen.swift), drawing Surface.secondaryOnWallpaper (85%), matching Settings; the Images header is a FormHeader too.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Swift: no C-style number formatting', verdict: 'pass', note: 'Measurements go through PerformanceScreen.number, a FormatStyle (PerformanceScreen.swift)', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: one element per row with label and value', verdict: 'pass', note: 'PerformanceRow ignores children and speaks title, then "value. detail" (PerformanceRow.swift:32-34).', by: 'swiftui-pro skill' },
+        { rule: 'Performance: heavy work off body and the main thread', verdict: 'pass', note: 'refresh() writes the export through PerformanceReport.writeExportAsync, driven by .task(id: refreshTick) (PerformanceScreen.swift)', by: 'swiftui-pro skill' },
+        { rule: 'Views: inconsistent headers and helper views', verdict: 'pass', note: 'The Images section uses FormHeader like its siblings; emptyRow and statsRow became PerformanceEmptyRow and PerformanceStatsRow views.', by: 'swiftui-pro skill' },
+        { rule: 'API: onChange two-parameter form, toolbar semantic placement', verdict: 'pass', note: '.onChange(of: recording) { _, on in … } (:23) and Button("Refresh", systemImage:) in .primaryAction (:117-119).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'loading: the report is built synchronously from the in-memory log (PerformanceReport.current), so there is no loading state; refreshing is the pull-to-refresh. error: no error state exists (a failed export just hides its row, see no-export).',
+      'Hitch tones: under 5 ms/s good, under 10 warning, otherwise bad; only bad changes colour. Navigation rows tone on the 95th percentile turn (8 ms and 16 ms).',
+      'Values are seeded fixtures in the shape the screen builds; no real measurements. Section headers are drawn in the system\'s grouped style (small, uppercase); the exact case on iOS 26 is unverified.',
+      'The Refresh toolbar button shares the trailing bar with Quick Links and Profile; the kit page has no toolbar slot, so it is inserted before Quick Links (order unverified). Folded Duo: the rail holds Quick Links and Profile, Refresh stays in the bar.',
+      'Promote to kit: PerformanceRow, ContentUnavailableView, the pushed-page toolbar slot.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: report, empty, recording off, refreshing, no export, long text and AX5.' }],
+  });
+})();
+</script></body></html>

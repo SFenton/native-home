@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Water a zone now · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/sprinklers/_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, S = Mock.VS.S;
+  var BACK = function (p) { return S.snap('backyard', p); };
+  var DOWN_ZONE = function () { var s = BACK({ active: null }); s.zones[1].available = false; return s; };
+  function st(snap, o) { return function (ctx) { return S.sheet(ctx, Object.assign({ snap: snap, detail: { kind: 'water', zone: 1 } }, o)); }; }
+
+  Mock.mount({
+    kind: 'modal', id: 'sprinkler-water-page', title: 'Water a zone now (pushed)', area: 'sprinklers', status: 'shipped',
+    summary: 'Pushed from a zone row in the controller sheet. One grouped section: a Run Time stepper (1 to 60 minutes, default 15) with its explanation, and a Start Watering button pinned at the bottom in the water colour. Success pops back to the overview.',
+    source: ['apple/Sources/HassUI/Features/Sprinklers/SprinklerControllerSheet.swift', 'apple/Sources/HassCore/Config/SprinklersConfig.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift'],
+    spec: ['.agents/pages/sprinklers/spec.md', '.agents/pages/sprinklers/ios.md'],
+    patterns: ['modal-sheet', 'optimistic-actions', 'header-edge-fade'],
+    hig: ['Sheets', 'Steppers', 'Buttons', 'Color', 'Dynamic Type'],
+    entities: ['valve.demo_backyard_zone_4', 'select.demo_backyard_mode_1'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'PrimaryButton', 'BackButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'House, ready to water for 15 minutes', render: st(BACK({ active: null })) },
+      'running': { title: 'Another zone is watering', note: 'the stepper dims and Start Watering is disabled; the footer says "Another zone is watering. Stop it to water this one."', render: st(BACK()) },
+      'mode-off': { title: 'Device mode Off', note: 'canStartWatering is false in off mode: stepper dimmed, Start disabled; the footer keeps the normal sentence', render: st(BACK({ active: null, mode: 'off' })) },
+      'unavailable': { title: 'Zone unavailable', note: 'stepper and Start disabled', render: st(DOWN_ZONE()) },
+      'loading': { title: 'Start tapped, call in flight', note: 'no spinner: `sending` disables Start Watering until the call returns; the page pops on success', render: st(BACK({ active: null }), { minutes: 20, sending: true }) },
+      'error': { title: 'The call failed', note: 'Home Assistant\'s message shows inline at the top; the page stays so the person can retry', render: st(BACK({ active: null }), { error: 'Unable to communicate with the Orbit B-hyve hub.' }) },
+      'offline': { title: 'Over an offline page', note: 'no offline UI of its own; the call fails and the error state above is what the person sees', render: st(BACK({ active: null }), { connection: 'offline' }) },
+      'longest-run': { title: 'Run time at the 60 minute maximum', render: st(BACK({ active: null }), { minutes: 60 }) },
+      'closed': { title: 'Controller overview underneath', note: 'what the pop returns to; the zone shows Watering after the call echoes', render: function (c) { return S.sheet(c, { snap: BACK() }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the stepper label stacks (icon and title over the value); the footer wraps; the button grows to the wrapped label', render: st(BACK({ active: null })) },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Zone row', to: 'Water Now', kind: 'push', state: 'closed', note: 'System push inside the sheet\'s NavigationStack; the interactive back swipe pops. The sheet does not change height.',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), oldM = panel.querySelector('.ui-modal');
+          var neu = S.sheet(ctx, { snap: BACK({ active: null }), detail: { kind: 'water', zone: 1 }, noPresenter: true }).querySelector('.ui-modal');
+          neu.style.cssText = 'position:absolute;inset:0;background:var(--sheet-ground);z-index:6;display:flex;flex-direction:column'; panel.appendChild(neu);
+          return Mock.anim.push(oldM, neu).then(function () { return Mock.sleep(900); }).then(function () { return Mock.anim.push(neu, oldM, { back: true }); }).then(function () { neu.remove(); oldM.style.transform = ''; oldM.style.filter = ''; });
+        } },
+      { from: 'Water Now', to: 'Controller overview', kind: 'push', state: 'default', note: 'Start Watering calls bhyve.start_watering; on success `done()` pops the page (a pop, not a dismissal). On failure the page stays with the error.',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), cur = panel.querySelector('.ui-modal');
+          var under = S.sheet(ctx, { snap: BACK(), noPresenter: true }).querySelector('.ui-modal');
+          under.style.cssText = 'position:absolute;inset:0;background:var(--sheet-ground);z-index:5;display:flex;flex-direction:column'; panel.insertBefore(under, cur); cur.style.position = 'relative'; cur.style.zIndex = 6;
+          return Mock.sleep(500).then(function () { return Mock.anim.push(cur, under, { back: true }); }).then(function () { return Mock.sleep(500); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, the zone name as the title ("House", heading), Close; then the Run Time stepper, its footer text, and Start Watering last (pinned at the bottom, reachable without scrolling).' },
+      { rule: 'Stepper', note: 'One element "Run Time", value "15 minutes" (accessibilityValue), adjustable with swipe up and down; the visible "15 min" is the same value. The icon is decorative. Disabled together with Start when watering cannot begin.' },
+      { rule: 'Start Watering', note: 'The one primary action, a 50 pt capsule in the water colour with dark ink; disabled at 40% opacity in off mode, while another zone waters, when the zone is unavailable or while sending. The footer explains why.' },
+      { rule: 'Footer', note: 'Plain secondary text under the section, read after the stepper: "Waters House once, for 1 to 60 minutes. The schedule is not changed." or the blocked sentence.' },
+      { rule: 'Dynamic Type', note: 'StepperRow is a ViewThatFits: icon, title and value on one line when they fit, stacked otherwise (the icon once stacked above the title in LabeledContent). The button grows with its label.' },
+      { rule: 'Contrast', note: 'Button text #1C1C1E on #4CC9F0 (about 9:1); footer 4.5:1 or better on the sheet ground.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Steppers: show the value and the range", verdict: "pass", note: "StepperRow shows \"15 min\"; the footer says \"Waters {zone} once, for 1 to 60 minutes\" (SprinklerControllerSheet.swift lines 215-227).", by: "apple-hig skill" },
+        { rule: "Steppers: a long range needs a faster way", verdict: "pass", note: "SprinklerWaterPage adds SegmentedChoice presets from SprinklersConfig.manualRunPresets (5, 10, 15, 30, 60 min) beside the stepper (menu at accessibility sizes). Test: SprinklerFlowTests.waterNowOffersRunTimePresets.", by: "apple-hig skill" },
+        { rule: "Loading: progress where the person pressed", verdict: "pass", note: "SprinklerWaterPage Start Watering is PrimaryButton(isBusy: sending, busyTitle: \"Starting\"): inline ArcSpinner in place of the label, width held, VoiceOver \"Starting, Busy\".", by: "apple-hig skill" },
+        { rule: "Buttons: one prominent action, and say why it is disabled", verdict: "pass", note: "Start Watering is the one PrimaryButton; the footer explains the blocked case, \"Another zone is watering. Stop it to water this one.\" (lines 222-224).", by: "apple-hig skill" },
+        { rule: "Toolbars: pinned primary action above the home indicator", verdict: "pass", note: "safeAreaInset(edge: .bottom) with the capsule and a bar background (lines 230-244), so it needs no scrolling at AX5.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Design: attach custom bars with safeAreaBar on iOS 26", verdict: "pass", note: "Done behind availability: View.pinnedBar (HassDesign/PinnedBar.swift) is a safeAreaBar on iOS 26 with the bar's own hit area, safeAreaInset plus the bar material before; the Start Watering and Apply bars use it. HomePagesJourneyTests sprinkler taps pass on iPhone.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: stepper value in words", verdict: "pass", note: "accessibilityValue(\"\\(minutes) minutes\") and a combined label (lines 215-218).", by: "swiftui-pro skill" },
+        { rule: "Concurrency: Task in a button action", verdict: "pass", note: "Fixed: Start Watering calls SprinklerWaterPage.startWatering() instead of an inline Task; the service call completes on its own, so there is nothing to cancel on disappear.", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading is the sending state (button disabled, no spinner); the review lists the missing in-button arc as a fix candidate.',
+      'medium, large and fitted: not applicable to a pushed page. It lives inside the controller sheet, which is large; this page never changes the sheet height ("the first page to report owns the height").',
+      'motion: the page has none of its own. Push and pop are the system\'s (motion.md section 4.2).',
+      'offline: there is no offline UI; the failed call surfaces Home Assistant\'s or the transport\'s message inline (the error state).',
+      'Zone and run-time fixtures are made up from SprinklersConfig (Garden Faucet: Bushes, House, Backyard, Sidewalk).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: default, blocked, off mode, unavailable, sending, error, AX5, both appearances.' }],
+  });
+})();
+</script></body></html>

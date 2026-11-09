@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Away section and parts · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/vacation/_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, V = Mock.VS.V;
+  var cfg = Mock.componentConfig('AwayParts', { surfaces: ['page', 'sheet'], swatchWidth: '372px' });
+  function wide(w) {
+    return function (ctx) {
+      var inner = h('div.k-swatch.page.g-dark', { style: { width: w + 'px', maxWidth: 'none', flex: 'none' } }, h('div.k-cap', 'page · AwaySectionGrid at ' + w + ' pt'), h('div.in', Mock.components.AwayParts({ kind: 'grid' })));
+      return h('div', { style: { overflowX: 'auto' } }, inner);
+    };
+  }
+  cfg.states['grid-narrow'] = { title: 'AwaySectionGrid, one column (iPhone, folded Duo, portrait)', render: wide(372) };
+  cfg.states['grid-wide'] = { title: 'AwaySectionGrid, two columns (iPad, unfolded Duo landscape)', render: wide(820) };
+  Mock.mount(Object.assign(cfg, {
+    states: cfg.states,
+    id: 'away-section', title: 'Away section, section grid, action button, notice box', area: 'vacation', status: 'shipped',
+    summary: 'The pieces Vacation Mode and Solo Trip are built from: AwaySection (optional title, description, content), AwaySectionGrid (two sections side by side from 340 pt each), AwayActionButton (prominent, bordered, destructive), SoloTripNoticeBox (an InfoBox) and the error InlineAlert. Variants are drawn on the page and the sheet surface.',
+    source: ['apple/Sources/HassUI/Features/Vacation/VacationComponents.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKVacationParts.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassDesign/InfoBox.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift', 'apple/Sources/HassDesign/SettingsSection.swift'],
+    spec: ['.agents/pages/vacation/ios.md', '.agents/patterns/settings-section.md', '.agents/patterns/info-box.md'],
+    patterns: ['settings-section', 'info-box', 'dynamic-grid'],
+    hig: ['Layout', 'Buttons', 'Color', 'Dynamic Type'],
+    kitComponents: ['PageSectionHeader', 'TileGrid', 'InfoBox', 'PrimaryButton', 'InlineAlert', 'GlassTile', 'ModuleList'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    a11y: [
+      { rule: 'AwaySection', note: 'A plain container: the title is a heading (PageSectionHeader on a page, FormHeader 15 pt semibold in a sheet), the description is subheadline secondary text, both wrap (fixedSize vertical). No accessibility element of its own.' },
+      { rule: 'AwayActionButton', note: 'A real button with the title as its label. The bordered one has a 50 pt capsule with plain ink on a tinted fill (the tint as text measured 4.2:1 on its own fill, 2026-10-17); a destructive label stays red (it clears 4.5:1). Identifiers soloTrip.status.<action>.' },
+      { rule: 'SoloTripNoticeBox', note: 'An InfoBox: one element reading the title then the message. Green only for a state Home Assistant has confirmed; neutral otherwise. Identifier soloTrip.notice.' },
+      { rule: 'Inline error', note: 'Red text with a circle glyph, read as an error, placed under the control it concerns.' },
+      { rule: 'Grid', note: 'AwaySectionGrid is a DynamicGridLayout (min 340, max 2): reading order is the source order, mode section first, in one column or two.' },
+      { rule: 'Dynamic Type', note: 'Everything uses system text styles and wraps; the grid minimum is 340 pt, so at AX5 it is one column. Check with the Text size control.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Buttons: one prominent, bordered others, destructive in red", verdict: "pass", note: "AwayActionButton uses PrimaryButtonStyle for the prominent one and .bordered with Ink.danger for destructive (AwayActionButton.swift); label text is plain ink on the tint so Keep Current Schedule keeps 4.5:1.", by: "apple-hig skill" },
+        { rule: "Layout: sections side by side only when there is room", verdict: "pass", note: "Fixed: AwaySectionGrid.minSectionWidth is a @ScaledMetric(relativeTo: .body) 340, so sections stack at AX sizes (VacationComponents.swift).", by: "apple-hig skill" },
+        { rule: "Color: notice states are not colour alone", verdict: "pass", note: "InfoBox pairs a checkmark or info glyph with a title (InfoBox.swift lines 28-35) on a 16% tint with primary ink.", by: "apple-hig skill" },
+        { rule: "Typography: section headers differ by surface", verdict: "departure", note: "direction-g.md Type: 20 Bold PageSectionHeader on the wallpaper, 15 Semibold FormHeader inside a sheet (VacationComponents.swift lines 31-40).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Design: manual opacity for a wash", verdict: "pass", note: "Fixed: InfoBox's tint is Ink.success / Ink.secondary and the wash HassTokens.Wash.notice (InfoBox.swift).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: notice read as one element", verdict: "pass", note: "InfoBox uses accessibilityElement(children: .combine) (line 46).", by: "swiftui-pro skill" },
+        { rule: "Design: magic subtraction in the action button", verdict: "pass", note: "Fixed: AwayActionButton.labelMinHeight is a named constant, not minTarget minus 16 (VacationComponents.swift).", by: "swiftui-pro skill" },
+      ],
+    },
+    notes: [
+      'The sheet surface variants are legacy: AwaySection\'s doc comment says Vacation opens in the Account and Quick Links sheets, but Settings is a tab now, so only the page style ships on these pages.',
+      'AwayParts is a local registration that bundles the five pieces for this one mockup; the real types are separate SwiftUI views. Promote to kit: a builder per piece.',
+      'The bordered button is drawn as a 50 pt capsule at the tint\'s 22% fill; the exact system bordered large style on iOS 26 was not measured.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: section, grid, three buttons, two notices, error.' }],
+  }));
+})();
+</script></body></html>

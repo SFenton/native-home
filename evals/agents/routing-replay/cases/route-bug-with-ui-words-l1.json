@@ -1,0 +1,17 @@
+{
+  "id": "route-bug-with-ui-words-l1",
+  "source": "Rule: a Bug that reads as UI starts at L1 (not L0).",
+  "recorded": "2026-11-02",
+  "kind": "route",
+  "input": {
+    "labels": [
+      "Bug"
+    ],
+    "title": "[Bug] Button overlaps the tile on the camera screen",
+    "body": "The label is clipped."
+  },
+  "expect": {
+    "route": "coder",
+    "level": "L1"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "dd-search-active-row-tap",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "When search is active, can't click a food item to dismiss keyboard and open food item (clicking the row doesn't open modal, but carat does)",
+  "surface": "inventory-row",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "bda3e4ba",
+  "fix_ref": "890e36fc",
+  "fix_confidence": "high",
+  "expected": "A tap anywhere on a row opens it and dismisses the keyboard; the hit area is the whole row, not just the chevron."
+}

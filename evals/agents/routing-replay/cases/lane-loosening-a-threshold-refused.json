@@ -1,0 +1,29 @@
+{
+  "id": "lane-loosening-a-threshold-refused",
+  "source": "Rule: accept.yes_above may only rise; 0.6 to 0.5 is refused.",
+  "recorded": "2026-11-02",
+  "kind": "lane_check",
+  "input": {
+    "check": "thresholds",
+    "blobs": {
+      "oooooooooooooooooooooooooooooooooooooooo": "{\"id\": \"design.user_visible\", \"version\": 2, \"mode\": \"active\", \"accept\": {\"yes_above\": 0.6, \"min_confidence\": 0.5, \"no_below\": 0.3}, \"target\": {\"precision\": 0.95}, \"evidence\": \"e\"}",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn": "{\"id\": \"design.user_visible\", \"version\": 2, \"mode\": \"active\", \"accept\": {\"yes_above\": 0.5, \"min_confidence\": 0.5, \"no_below\": 0.3}, \"target\": {\"precision\": 0.95}, \"evidence\": \"e\"}"
+    },
+    "rows": [
+      [
+        "M",
+        "contracts/jev/questions/design.user_visible.json",
+        "oooooooooooooooooooooooooooooooooooooooo",
+        "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+      ]
+    ]
+  },
+  "expect": {
+    "refused": true,
+    "message": {
+      "has": [
+        "yes_above"
+      ]
+    }
+  }
+}

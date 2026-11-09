@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory row · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  var C = {}; V.cards('all-food').forEach(function (c) { C[c.id] = c; });
+  function list(rows) { return V.list(rows); }
+  function one(id, o) { return list([V.row(C[id], o)]); }
+  function sw(ctx, surface, caption, node, w) { return V.swatch(surface, caption, node, ctx, w); }
+  function groupFor(ctx, surface) {
+    var W = 380, g = [];
+    g.push(sw(ctx, surface, 'fresh: Spaghetti, secondary expiry', one('spaghetti'), W));
+    g.push(sw(ctx, surface, 'expiring soon (under 7 days): Whole Milk, orange clock', one('whole milk'), W));
+    g.push(sw(ctx, surface, 'expired: Jasmine Rice, red triangle', one('jasmine rice'), W));
+    g.push(sw(ctx, surface, 'no date: Honey', one('honey'), W));
+    g.push(sw(ctx, surface, 'stock above one: Eggs (12, trailing)', one('eggs'), W));
+    g.push(sw(ctx, surface, 'several batches: Black Beans (no tone, chevron)', one('black beans'), W));
+    g.push(sw(ctx, surface, 'a list of three: corners round only on the first and last', list([V.row(C['jasmine rice']), V.row(C['whole milk']), V.row(C['chicken soup'])]), W));
+    return V.grid(g);
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'inventory-row', title: 'Inventory row', area: 'inventory', status: 'shipped', frame: false,
+    summary: 'One inventory card (web PantryRow): the name over its expiry line, the stock count above one in secondary ink, the add-to-groceries cart in the action tint (an arc while adding, a check once added) and a chevron when the row opens the editor. On the dense module on a page, on the sheet cell in a sheet (the Summary sheet\'s Expired Food tab).',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md', '.agents/patterns/module-list.md'],
+    patterns: ['module-list', 'floating-actions'],
+    hig: ['Lists and tables', 'Swipe actions', 'Color', 'Dynamic Type', 'Accessibility'],
+    kitComponents: ['ModuleList', 'ArcSpinner', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'page': { title: 'On the page: the dense module', render: function (c) { return groupFor(c, 'page'); } },
+      'sheet': { title: 'In a sheet: the sheet cell (Expired Food tab)', note: 'the same rows on the sheet cell; secondary ink and the tone colours follow the sheet (Ink.warning #995400 and Ink.error #C21717 in light)', render: function (c) { return groupFor(c, 'sheet'); } },
+      'actions': { title: 'Cart states, swipe actions, selection, error, redaction', render: function (c) {
+        var W = 380, g = [];
+        ['idle', 'adding', 'added'].forEach(function (s) { g.push(V.swatch('page', 'cart ' + s + (s === 'added' ? ' (holds 3 s)' : ''), one('whole milk', { shopping: s }), c, W)); });
+        g.push(V.swatch('page', 'leading swipe: Add to Groceries (#0071E3)', one('whole milk', { swipe: 'lead' }), c, W));
+        g.push(V.swatch('page', 'trailing swipe: Delete (single-batch cards only)', one('whole milk', { swipe: 'trail' }), c, W));
+        g.push(V.swatch('page', 'selected in a split window (action tint wash 18%)', list([V.row(C['black beans']), V.row(C['chicken soup'], { selected: true }), V.row(C.eggs)]), c, W));
+        g.push(V.swatch('page', 'row error: Enter a number from 1 to 12.', one('eggs', { error: 'Enter a number from 1 to 12.' }), c, W));
+        g.push(V.swatch('page', 'redacted names (FENTON_REDACT_PRIVATE=1)', list([V.row(C['whole milk'], { redacted: true }), V.row(C['eggs'], { redacted: true })]), c, W));
+        g.push(V.swatch('sheet', 'sheet: cart adding and added', list([V.row(C['jasmine rice'], { shopping: 'adding' }), V.row(C['whole milk'], { shopping: 'added' })]), c, W));
+        return V.grid(g); } },
+      'long-text': { title: 'Long name', note: 'the name wraps; the count, cart and chevron keep their column', render: function (c) {
+        var long = { id: 'long', name: 'Organic Extra Virgin Cold-Pressed Olive Oil With Basil and Roasted Garlic', rows: [], batches: [{ q: 3, exp: 120, loc: 'Pantry' }], qty: 3, soonest: 120, shown: 3 };
+        return V.grid([V.swatch('page', 'wraps to three lines', list([V.row(long)]), c, 380), V.swatch('sheet', 'wraps to three lines', list([V.row(long)]), c, 380)]); } },
+      'in-context': { title: 'In context: the page and the Expired Food tab', render: function (c) {
+        var page = V.embed('iphone', c, function (cx) { return V.page(cx, { space: 'all-food', sort: 'expiry' }); }, .55, 'Inventory page (sorted by expiry)');
+        var sheet = V.embed('iphone', c, function (cx) {
+          var rows = [V.row(C['jasmine rice'])];
+          return Mock.sheet(cx, { title: 'Your Summary', detent: 'large', size: 'form', content: h('div.ui-section', K.PageSectionHeader({ title: 'Expired Food' }), V.list(rows)), presenter: Mock.page(cx, { title: 'Settings', section: 'settings', body: [] }) }); }, .55, 'Your Summary, Expired Food tab (tab bar not drawn: see the Profile mockups)');
+        return h('div', page, sheet); } },
+      'ax5': { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'the count, cart and chevron stack under the text (isAccessibilitySize); the buttons grow with the text (44 pt scaled)', render: function (c) { return V.grid([V.swatch('page', 'AX5: Black Beans', one('black beans'), c, 560), V.swatch('page', 'AX5: Whole Milk, soon', one('whole milk'), c, 560), V.swatch('sheet', 'AX5: Jasmine Rice, expired', one('jasmine rice'), c, 560)]); } },
+    },
+    motion: [
+      { id: 'cart-swap', what: 'Add to Groceries: cart glyph, arc, green check, cart again', token: 'none: a ZStack switch on the shopping state (the check holds 3 s)', state: 'actions',
+        source: 'InventoryRow.swift shoppingButton', reduce: 'unchanged; the arc keeps turning at half speed', note: 'No animation on the glyph swap (it cuts). Flagged in the inventory page mockup.',
+        play: function (stage) { var b = stage.querySelector('.inv-btn.cart'); if (!b) return Promise.resolve(); var idle = b.innerHTML; b.innerHTML = ''; b.appendChild(K.ArcSpinner({ size: 'compact', label: 'Adding to Groceries' }));
+          return Mock.sleep(900).then(function () { b.innerHTML = Mock.icon('checkmark', { weight: 2.4 }); b.classList.add('added'); return Mock.sleep(1500); }).then(function () { b.innerHTML = idle; b.classList.remove('added'); }); } },
+      { id: 'row-wash', what: 'Selecting a row in the split window washes it in the action tint', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'actions',
+        source: 'InventoryRow.swift ModuleRowBackground(selected:) stateColorTransition("ModuleRow"); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var rows = stage.querySelectorAll('.inv-row'), sel = stage.querySelector('.inv-row.sel'); if (!sel) return Promise.resolve(); sel.classList.remove('sel'); return Mock.sleep(300).then(function () { sel.classList.add('sel'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+    a11y: [
+      { rule: 'Row label', note: 'The text is one combined element: "<name>, Quantity <n>, <expiry>, Expiring soon, <error>" (the stock count is hidden from VoiceOver and spoken in the label; the soon tone is spoken because orange is not read). The row is a container (children contained) so the two buttons stay reachable.' },
+      { rule: 'Buttons', note: 'Cart: "Add Whole Milk to shopping list" (adding and added read as "Adding …", "Added …"; disabled while not idle). Chevron: "Edit Whole Milk" with the hint "Opens the item editor" or "Opens each expiration batch". The whole row also opens the editor with a tap.' },
+      { rule: 'Swipe actions', note: 'Add to Groceries (leading, blue) and Delete (trailing, red, single-batch only) are system swipe actions and appear in the VoiceOver actions rotor.' },
+      { rule: 'Tone', note: 'Expired is a red triangle and the word "Expired"; soon is an orange clock and "Expiring soon" in the label; #FF6961 and #FFB340 measure 4.5:1 on the dense module and in a sheet.' },
+      { rule: 'Targets and Dynamic Type', note: 'The cart and chevron are 44 pt squares scaled with the body text; at accessibility sizes they stack under the text; the row is at least 64 pt and grows.' },
+      { rule: 'Privacy', note: 'The name is privacySensitive: under FENTON_REDACT_PRIVATE=1 it is replaced by a placeholder bar in screenshots.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Lists: swipe actions and a trailing chevron', verdict: 'pass', note: 'Add to Groceries leads, Delete trails for single batches, and the chevron marks an editable row (InventoryRow.swift:60-68, 127-145).', by: 'apple-hig skill' },
+        { rule: 'Color: not the only differentiator', verdict: 'pass', note: 'Expired shows a warning triangle and soon a clock beside the text, and VoiceOver adds "Expiring soon" (InventoryRow.swift:84-93, 122).', by: 'apple-hig skill' },
+        { rule: 'Buttons: spacing between adjacent targets', verdict: 'pass', note: 'InventoryRow.actionGap puts 8 pt between the 44 pt cart and chevron targets (hig-decisions VoiceOver bucket).', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: stack at accessibility sizes', verdict: 'pass', note: 'AnyLayout switches to a VStack at accessibility sizes and the button size is @ScaledMetric (InventoryRow.swift:23, 42-52).', by: 'apple-hig skill' },
+        { rule: 'Privacy', verdict: 'pass', note: 'The item name is .privacySensitive() (InventoryRow.swift:82).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Never use onTapGesture for a tappable element', verdict: 'pass', note: 'Not applicable: the accessible control is the chevron Button "Edit <name>"; the row tap is a touch convenience. Making the copy a Button dropped the stock count from the spoken label (owner rule, 2026-10-16) and was reverted after the iPhone journeys (2026-10-25).', by: 'swiftui-pro skill' },
+        { rule: 'Design: no UIKit colours', verdict: 'pass', note: 'Fixed: InventoryTone.success is HassTokens.Ink.success; no UIColor in the file.', by: 'swiftui-pro skill' },
+        { rule: 'Accessibility: one label for the row, names on the buttons', verdict: 'pass', note: 'The text is one element "Milk, Quantity 3, Expires ..., Expiring soon" and the cart reads "Add Milk to shopping list" with an adding and added state (InventoryRow.swift:101-125, 149-172).', by: 'swiftui-pro skill' },
+        { rule: 'Swipe actions in a List', verdict: 'pass', note: 'swipeActions on a real List row (before iOS 27 they need a List); the cart button disables itself while adding or added.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'low stock: the catalog hint lists it, but InventoryRow has no low-stock tone; only expired (red) and soon (orange, under 7 days) exist.',
+      'selected (split): the wash is the action tint at 18% (#409CFF on dark), drawn only while the window can split and the editor shows that card.',
+      'The page draws the dense module (#141416 at 78%, opaque with Reduce Transparency); a sheet draws the sheet cell.',
+      'The row\'s hairlines inset to 16 pt (no leading glyph), via the List\'s separator tint.',
+      'The Summary sheet\'s tab bar is not drawn in the in-context sheet (owned by the settings mockups).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: tones, count, batches, cart states, swipes, selection, error, redaction, sheet surface, AX5.' }],
+  });
+})();
+</script></body></html>

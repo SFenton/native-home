@@ -1,0 +1,1458 @@
+{
+  "version": 1,
+  "comment": "Named UI test suites (tools/test_suites.py). Selectors: Class, Class/method, globs, plan:NAME, map:KEY, suite:NAME; exclude subtracts. 'plan': true marks a suite for an .xctestplan. Run: tools/ios_uitest.sh --suite NAME. Docs: .agents/testing/apple/suites.md",
+  "suites": {
+    "chores": {
+      "description": "Chores*JourneyTests (feature area)",
+      "include": [
+        "Chores*JourneyTests"
+      ]
+    },
+    "climate": {
+      "description": "Climate*JourneyTests (feature area)",
+      "include": [
+        "Climate*JourneyTests"
+      ]
+    },
+    "food": {
+      "description": "Food*JourneyTests (feature area)",
+      "include": [
+        "Food*JourneyTests"
+      ]
+    },
+    "inventory": {
+      "description": "Inventory*JourneyTests (feature area)",
+      "include": [
+        "Inventory*JourneyTests"
+      ]
+    },
+    "bedroom": {
+      "description": "Bedroom*JourneyTests (feature area)",
+      "include": [
+        "Bedroom*JourneyTests"
+      ]
+    },
+    "vacuum": {
+      "description": "Vacuum*JourneyTests (feature area)",
+      "include": [
+        "Vacuum*JourneyTests"
+      ]
+    },
+    "rooms": {
+      "description": "Rooms*JourneyTests (feature area)",
+      "include": [
+        "Rooms*JourneyTests"
+      ]
+    },
+    "room-devices": {
+      "description": "RoomDevices*JourneyTests (feature area)",
+      "include": [
+        "RoomDevices*JourneyTests"
+      ]
+    },
+    "vacation": {
+      "description": "Vacation*JourneyTests (feature area)",
+      "include": [
+        "Vacation*JourneyTests"
+      ]
+    },
+    "weather": {
+      "description": "Weather*JourneyTests (feature area)",
+      "include": [
+        "Weather*JourneyTests"
+      ]
+    },
+    "camera": {
+      "description": "Camera*JourneyTests (feature area)",
+      "include": [
+        "Camera*JourneyTests"
+      ]
+    },
+    "light-appearance": {
+      "description": "LightAppearance*JourneyTests (feature area)",
+      "include": [
+        "LightAppearance*JourneyTests"
+      ]
+    },
+    "settings": {
+      "description": "Settings*JourneyTests (feature area)",
+      "include": [
+        "Settings*JourneyTests"
+      ]
+    },
+    "location": {
+      "description": "Location*JourneyTests (feature area)",
+      "include": [
+        "Location*JourneyTests"
+      ]
+    },
+    "home": {
+      "description": "Home*JourneyTests (feature area)",
+      "include": [
+        "Home*JourneyTests"
+      ]
+    },
+    "audits": {
+      "description": "every accessibility-audit test",
+      "include": [
+        "*/test*Audit*"
+      ],
+      "plan": true
+    },
+    "ax5": {
+      "description": "every AX5 text-scaling test",
+      "include": [
+        "*/test*AX5*"
+      ],
+      "plan": true
+    },
+    "layout": {
+      "description": "the layoutJourneys classes of test-map.json (also run on Duo and iPad)",
+      "include": [
+        "map:layoutJourneys"
+      ],
+      "plan": true
+    },
+    "wide-layout": {
+      "description": "wide-layout (split) journeys",
+      "include": [
+        "*WideLayout*JourneyTests"
+      ]
+    },
+    "smoke": {
+      "description": "the Smoke set",
+      "include": [
+        "plan:Smoke"
+      ]
+    },
+    "gate": {
+      "description": "the Gate plan's members",
+      "include": [
+        "plan:Gate"
+      ]
+    },
+    "capture": {
+      "description": "the Capture plan's members",
+      "include": [
+        "plan:Capture"
+      ]
+    },
+    "perf": {
+      "description": "the Perf plan's members",
+      "include": [
+        "plan:Perf"
+      ]
+    },
+    "live": {
+      "description": "the Live plan's members",
+      "include": [
+        "plan:Live"
+      ]
+    },
+    "gate-audits": {
+      "description": "audits that run in Gate (deterministic)",
+      "include": [
+        "suite:audits"
+      ],
+      "exclude": [
+        "suite:live",
+        "suite:capture",
+        "suite:perf"
+      ]
+    },
+    "bedroom-bed-alarms-passes-audit": {
+      "description": "testBedAlarmsPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomAlarmsJourneyTests/testBedAlarmsPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-bed-alarm-day-passes-audit": {
+      "description": "testBedAlarmDayPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomAlarmsJourneyTests/testBedAlarmDayPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-bed-alarm-editor-passes-audit": {
+      "description": "testBedAlarmEditorPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomAlarmsJourneyTests/testBedAlarmEditorPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-bed-temperature-passes-audit": {
+      "description": "testBedTemperaturePassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomBedJourneyTests/testBedTemperaturePassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-bed-status-passes-audit": {
+      "description": "testBedStatusPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomBedJourneyTests/testBedStatusPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-solo-trip-bed-passes-audit": {
+      "description": "testSoloTripBedPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomBedJourneyTests/testSoloTripBedPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-bed-special-modes-passes-audit": {
+      "description": "testBedSpecialModesPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomSpecialModesJourneyTests/testBedSpecialModesPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-tiles-pass-audit": {
+      "description": "testTilesPassAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomTilesJourneyTests/testTilesPassAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-wake-alarms-passes-audit": {
+      "description": "testWakeAlarmsPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomWakeLightJourneyTests/testWakeAlarmsPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-wake-defaults-passes-audit": {
+      "description": "testWakeDefaultsPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomWakeLightJourneyTests/testWakeDefaultsPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-wake-editor-passes-audit": {
+      "description": "testWakeEditorPassesAudit in upright pose plus InIPadLandscape",
+      "include": [
+        "BedroomWakeLightJourneyTests/testWakeEditorPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "bedroom-capture": {
+      "description": "Every Bedroom screenshot, one test each",
+      "include": [
+        "BedroomCaptureJourneyTests/testCaptureBedroom*"
+      ],
+      "exclude": []
+    },
+    "bedroom-layout-follows-the-pose": {
+      "description": "Bed sheet layout per pose",
+      "include": [
+        "BedroomWideLayoutJourneyTests/testLayoutFollowsThePose*"
+      ],
+      "exclude": []
+    },
+    "rooms-capture": {
+      "description": "Every room, Quick Links, room grid and sheet capture, both poses",
+      "include": [
+        "RoomsCaptureJourneyTests/testCaptureRoom*"
+      ],
+      "exclude": []
+    },
+    "rooms-capture-sheets": {
+      "description": "Room sheet captures only",
+      "include": [
+        "RoomsCaptureJourneyTests/testCaptureRoomSheet*"
+      ],
+      "exclude": []
+    },
+    "rooms-fan-device-sheets": {
+      "description": "Fan power target, fan sheet and purifier sheet",
+      "include": [
+        "RoomsFanJourneyTests/testRoomsFan*"
+      ],
+      "exclude": []
+    },
+    "rooms-fan-rail": {
+      "description": "Fan rail centred, guest and master",
+      "include": [
+        "RoomsFanJourneyTests/testFanRail*IsCentred"
+      ],
+      "exclude": []
+    },
+    "rooms-fan-tile-value": {
+      "description": "Fan tile spoken value",
+      "include": [
+        "RoomsFanJourneyTests/testFanTileValue*"
+      ],
+      "exclude": []
+    },
+    "rooms-fan-sheet-height": {
+      "description": "Fan sheet fits its content",
+      "include": [
+        "RoomsFanJourneyTests/testFanSheetHeightFits*"
+      ],
+      "exclude": []
+    },
+    "rooms-living-room-sheets": {
+      "description": "Living Room chip and card sheets",
+      "include": [
+        "RoomsPageJourneyTests/testLivingRoom*Sheet"
+      ],
+      "exclude": []
+    },
+    "rooms-master-bedroom-sheets": {
+      "description": "Master Bedroom wake light and bed sheets",
+      "include": [
+        "RoomsPageJourneyTests/testMasterBedroomOpens*"
+      ],
+      "exclude": []
+    },
+    "rooms-quick-links-open": {
+      "description": "Quick Links tiles and opening a room",
+      "include": [
+        "RoomsQuickLinksJourneyTests/testQuickLinks[TO]*"
+      ],
+      "exclude": []
+    },
+    "rooms-fan-tile-grid": {
+      "description": "Fan tile joins the iPad grid, both poses",
+      "include": [
+        "RoomsWideLayoutJourneyTests/testFanTileJoinsTheTwoColumnGridOnIPad*"
+      ],
+      "exclude": []
+    },
+    "rooms-audits": {
+      "description": "Rooms page audits, both poses",
+      "include": [
+        "Rooms*JourneyTests/test*PassesAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-capture": {
+      "description": "Room device sheet screenshots, one test per sheet",
+      "include": [
+        "RoomDevicesCaptureJourneyTests/testCaptureDevice*"
+      ],
+      "exclude": []
+    },
+    "room-devices-fan-light-audit": {
+      "description": "Fan sheet audit in light appearance",
+      "include": [
+        "RoomDevicesFanJourneyTests/testFanSheet*PassesAuditInLight"
+      ],
+      "exclude": []
+    },
+    "room-devices-fan-audit": {
+      "description": "Master fan sheet audit, current pose and iPad poses",
+      "include": [
+        "RoomDevicesFanJourneyTests/testFanPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-idle-fan-audit": {
+      "description": "Guest fan sheet audit, current pose and iPad poses",
+      "include": [
+        "RoomDevicesFanJourneyTests/testIdleFanPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-fan-ax5": {
+      "description": "Fan sheet AX5 reachability",
+      "include": [
+        "RoomDevicesFanJourneyTests/testFanAX5*"
+      ],
+      "exclude": []
+    },
+    "room-devices-grill-audit": {
+      "description": "Grill sheet audit, current pose and iPad poses",
+      "include": [
+        "RoomDevicesGrillJourneyTests/testGrillPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-purifier-flow": {
+      "description": "Purifier modes and speeds, one test per step",
+      "include": [
+        "RoomDevicesPurifierJourneyTests/testPurifier[SMQ]*"
+      ],
+      "exclude": []
+    },
+    "room-devices-purifier-audit": {
+      "description": "Purifier sheet audit, current pose and iPad poses",
+      "include": [
+        "RoomDevicesPurifierJourneyTests/testPurifierPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-humidifier-controls": {
+      "description": "Humidifier controls, one test per action",
+      "include": [
+        "RoomDevicesHumidifierJourneyTests/testHumidifier[MWTP]*"
+      ],
+      "exclude": []
+    },
+    "room-devices-humidifier-schedule": {
+      "description": "Humidifier schedule edits",
+      "include": [
+        "RoomDevicesHumidifierJourneyTests/testHumidifierSchedule*"
+      ],
+      "exclude": []
+    },
+    "room-devices-humidifier-controls-audit": {
+      "description": "Humidifier controls audit, per pose",
+      "include": [
+        "RoomDevicesHumidifierJourneyTests/testHumidifierControlsPassAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-humidifier-schedules-audit": {
+      "description": "Humidifier schedules audit, per pose",
+      "include": [
+        "RoomDevicesHumidifierJourneyTests/testHumidifierSchedulesPassAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-humidifier-info-audit": {
+      "description": "Humidifier info audit, per pose",
+      "include": [
+        "RoomDevicesHumidifierJourneyTests/testHumidifierInfoPassesAudit*"
+      ],
+      "exclude": []
+    },
+    "room-devices-humidifier-layout": {
+      "description": "Humidifier layout per pose",
+      "include": [
+        "RoomDevicesHumidifierPoseJourneyTests/testHumidifierLayout*"
+      ],
+      "exclude": []
+    },
+    "vacation-capture": {
+      "description": "Vacation page screenshots, one test per page",
+      "include": [
+        "VacationCaptureJourneyTests/testCaptureVacation*"
+      ],
+      "exclude": []
+    },
+    "vacation-chooser": {
+      "description": "Vacation chooser targets and the two pages it opens",
+      "include": [
+        "VacationChooserJourneyTests/testChooserTargets",
+        "VacationChooserJourneyTests/testChooserOpens*"
+      ],
+      "exclude": []
+    },
+    "vacation-disabling": {
+      "description": "Turning Vacation Mode off: cancel and confirm",
+      "include": [
+        "VacationModeJourneyTests/testDisablingVacation*"
+      ],
+      "exclude": []
+    },
+    "vacation-solo-trip-lifecycle": {
+      "description": "Solo Trip schedule and end",
+      "include": [
+        "VacationSoloTripJourneyTests/testSoloTripLifecycle*"
+      ],
+      "exclude": []
+    },
+    "vacation-engaged-trips": {
+      "description": "Engaged solo trips open directly",
+      "include": [
+        "VacationSoloTripJourneyTests/testEngagedTrip*"
+      ],
+      "exclude": []
+    },
+    "vacuum-capture": {
+      "description": "Vacuum screenshots, one test per screen",
+      "include": [
+        "VacuumCaptureJourneyTests/testCaptureVacuum*"
+      ],
+      "exclude": []
+    },
+    "vacuum-scenarios": {
+      "description": "Vacuum error, resumable and unavailable scenarios",
+      "include": [
+        "VacuumControlsJourneyTests/testVacuumScenario*"
+      ],
+      "exclude": []
+    },
+    "vacuum-water-fan": {
+      "description": "Vacuum Water and Fan rows following the Mode, one test per mode change",
+      "include": [
+        "VacuumControlsJourneyTests/testControlsWaterFan*"
+      ],
+      "exclude": []
+    },
+    "vacuum-controls-tiles": {
+      "description": "Vacuum status, target and run tiles on Controls",
+      "include": [
+        "VacuumControlsJourneyTests/testControlsStatusTiles*",
+        "VacuumControlsJourneyTests/testControlsOfferUseAreaTile",
+        "VacuumControlsJourneyTests/testControlsAreaMode*",
+        "VacuumControlsJourneyTests/testControlsRunTiles*"
+      ],
+      "exclude": []
+    },
+    "vacuum-autoclean-tiles": {
+      "description": "Vacuum Auto-Clean selection tiles: reading, then toggling",
+      "include": [
+        "VacuumAutoCleanJourneyTests/testAutoCleanTiles*"
+      ],
+      "exclude": []
+    },
+    "vacuum-dock": {
+      "description": "Vacuum dock script and cleaning report",
+      "include": [
+        "VacuumDockJourneyTests/testVacuumDock*"
+      ],
+      "exclude": []
+    },
+    "vacuum-page": {
+      "description": "Vacuums page tile, Auto-Clean switch and tile navigation",
+      "include": [
+        "VacuumPageJourneyTests/testVacuumsPage*"
+      ],
+      "exclude": []
+    },
+    "vacuum-rooms-clean": {
+      "description": "Vacuum rooms: select and start, then pause while cleaning",
+      "include": [
+        "VacuumRoomsJourneyTests/testRoomsClean*"
+      ],
+      "exclude": []
+    },
+    "vacuum-ipad-landscape-audits": {
+      "description": "Vacuum audits in iPad landscape (skipped elsewhere)",
+      "include": [
+        "Vacuum*JourneyTests/test*PassesAuditInIPadLandscape",
+        "Vacuum*JourneyTests/test*PassAuditInIPadLandscape"
+      ],
+      "exclude": []
+    },
+    "chores-live-tab": {
+      "description": "Live Chores tab steps",
+      "include": [
+        "ChoresLiveJourneyTests/testLiveChoresTab*"
+      ],
+      "exclude": []
+    },
+    "chores-live-page-opens": {
+      "description": "Live Chores page opens",
+      "include": [
+        "ChoresLiveJourneyTests/testLiveChoresPageOpens*"
+      ],
+      "exclude": []
+    },
+    "chores-subpage-audit": {
+      "description": "Chores sub-page audits",
+      "include": [
+        "ChoresSubPagesJourneyTests/testSubPage*PassesAccessibilityAudit"
+      ],
+      "exclude": []
+    },
+    "climate-automation-eco": {
+      "description": "Climate Automation eco toggle and option page",
+      "include": [
+        "ClimateAutomationJourneyTests/testAutomationEco*"
+      ],
+      "exclude": []
+    },
+    "climate-predictive-comfort": {
+      "description": "Climate Predictive Comfort detail and switch",
+      "include": [
+        "ClimateAutomationJourneyTests/testPredictiveComfort*"
+      ],
+      "exclude": []
+    },
+    "climate-capture": {
+      "description": "Climate screenshots",
+      "include": [
+        "ClimateCaptureJourneyTests/testCaptureClimate*"
+      ],
+      "exclude": []
+    },
+    "climate-live": {
+      "description": "Live Climate page steps",
+      "include": [
+        "ClimateLiveJourneyTests/testLiveClimate*"
+      ],
+      "exclude": []
+    },
+    "climate-page-audit": {
+      "description": "Climate page audit poses",
+      "include": [
+        "ClimatePageJourneyTests/testPagePassesAudit*"
+      ],
+      "exclude": []
+    },
+    "climate-wide-sheet-audit": {
+      "description": "Climate iPad landscape sheet audits",
+      "include": [
+        "ClimateWideLayoutJourneyTests/testSheetPassesAuditInIPadLandscape*"
+      ],
+      "exclude": []
+    },
+    "inventory-expiry-sort": {
+      "description": "Inventory expiry sort steps",
+      "include": [
+        "InventoryListJourneyTests/testInventoryExpirySort*"
+      ],
+      "exclude": []
+    },
+    "inventory-space-audit": {
+      "description": "Inventory per-space audits",
+      "include": [
+        "InventoryListJourneyTests/testInventory*PassesAccessibilityAudit"
+      ],
+      "exclude": []
+    },
+    "food-hub-suggestions-and-spaces": {
+      "description": "Food hub content and suggestion sheet (split)",
+      "include": [
+        "FoodHubJourneyTests/testHubSuggestionsAndSpaces*"
+      ],
+      "exclude": []
+    },
+    "food-hub-tile-opens": {
+      "description": "Food hub tiles open their pages (split)",
+      "include": [
+        "FoodHubJourneyTests/testHubTileOpens*"
+      ],
+      "exclude": []
+    },
+    "food-live-suggestions": {
+      "description": "Live Food suggestions and recipe tabs (split)",
+      "include": [
+        "FoodLiveJourneyTests/testLiveSuggestions*"
+      ],
+      "exclude": []
+    },
+    "food-recipe-detail-tabs": {
+      "description": "Recipe detail tabs and groceries (split)",
+      "include": [
+        "FoodRecipeDetailJourneyTests/testRecipeDetail*Tab*"
+      ],
+      "exclude": []
+    },
+    "food-recipe-at-ax5": {
+      "description": "Recipes grid and recipe detail at AX5 (split)",
+      "include": [
+        "FoodRecipeDetailJourneyTests/testRecipe*AtAX5"
+      ],
+      "exclude": []
+    },
+    "food-recipes-sort-filter-search": {
+      "description": "Recipes sort, filter and search (split)",
+      "include": [
+        "FoodRecipesJourneyTests/testRecipesSortApplies",
+        "FoodRecipesJourneyTests/testRecipesFilterApplies",
+        "FoodRecipesJourneyTests/testRecipesSearchEmpties"
+      ],
+      "exclude": []
+    },
+    "food-sort-sheet-audit": {
+      "description": "Sort sheet audit, one test per scroll position (split)",
+      "include": [
+        "FoodRecipeSheetsJourneyTests/testSortSheetPassesAccessibilityAudit*"
+      ],
+      "exclude": []
+    },
+    "food-filter-sheet-audit": {
+      "description": "Filter sheet audit, one test per scroll position (split)",
+      "include": [
+        "FoodRecipeSheetsJourneyTests/testFilterSheetPassesAccessibilityAudit*"
+      ],
+      "exclude": []
+    },
+    "food-landscape-split": {
+      "description": "Food landscape layout steps (split)",
+      "include": [
+        "FoodWideLayoutJourneyTests/testLandscapeSplit*"
+      ],
+      "exclude": []
+    },
+    "household-unavailable-entities": {
+      "description": "Unavailable entities disable their controls (split)",
+      "include": [
+        "HouseholdSettingsJourneyTests/testUnavailableEntities*"
+      ],
+      "exclude": []
+    },
+    "household-pages-audit": {
+      "description": "Household page and sheet audits (split)",
+      "include": [
+        "HouseholdSettingsJourneyTests/testHousehold*PassesAccessibilityAudit"
+      ],
+      "exclude": []
+    },
+    "household-capture": {
+      "description": "Household screenshots, one per screen with iPad landscape twins (split)",
+      "include": [
+        "HouseholdSettingsJourneyTests/testCaptureHousehold*"
+      ],
+      "exclude": []
+    },
+    "household-live-settings-rows": {
+      "description": "Settings rows open the live household pages (split)",
+      "include": [
+        "HouseholdSettingsJourneyTests/testLiveSettingsRowOpens*"
+      ],
+      "exclude": []
+    },
+    "home-capture": {
+      "description": "Home sign-in, Home, Lights sheet and each chip's overview/detail screenshots, upright and iPad landscape",
+      "include": [
+        "HomeJourneyTests/testCaptureHome*"
+      ],
+      "exclude": []
+    },
+    "home-media-tile": {
+      "description": "Media page tile commands and remote open",
+      "include": [
+        "HomePagesJourneyTests/testMediaTile*"
+      ],
+      "exclude": []
+    },
+    "home-media-audit": {
+      "description": "Media page audit and screenshots",
+      "include": [
+        "HomePagesJourneyTests/testMedia*AuditsAndScreenshots"
+      ],
+      "exclude": []
+    },
+    "home-custom-lights-mode": {
+      "description": "Custom Lights mode menu and manual switch",
+      "include": [
+        "HomePagesJourneyTests/testCustomLightsMode*",
+        "HomePagesJourneyTests/testCustomLightsManual*"
+      ],
+      "exclude": []
+    },
+    "home-custom-light": {
+      "description": "Custom Light sheet and Reset All",
+      "include": [
+        "HomePagesJourneyTests/testCustomLightOther*",
+        "HomePagesJourneyTests/testCustomLightReset*",
+        "HomePagesJourneyTests/testCustomLightBrightness*"
+      ],
+      "exclude": []
+    },
+    "home-custom-light-tile": {
+      "description": "Custom Light tile drags",
+      "include": [
+        "HomePagesJourneyTests/testCustomLightTile*"
+      ],
+      "exclude": []
+    },
+    "home-custom-lights-audit": {
+      "description": "Custom Lights page and sheet audits and screenshots",
+      "include": [
+        "HomePagesJourneyTests/testCustomLights*AuditsAndScreenshots",
+        "HomePagesJourneyTests/testCustomLightSheet*AuditsAndScreenshots"
+      ],
+      "exclude": []
+    },
+    "home-sprinkler-controller": {
+      "description": "Sprinkler controller rain delay and watering",
+      "include": [
+        "HomePagesJourneyTests/testSprinklerController[RS]*"
+      ],
+      "exclude": []
+    },
+    "home-sprinkler-audit": {
+      "description": "Sprinklers pages audits and screenshots",
+      "include": [
+        "HomePagesJourneyTests/testSprinkler*AuditsAndScreenshots"
+      ],
+      "exclude": []
+    },
+    "home-spotlight-section": {
+      "description": "Spotlight section results open their pages",
+      "include": [
+        "SpotlightJourneyTests/testSpotlightSection*Opens"
+      ],
+      "exclude": []
+    },
+    "shell-chrome-capture": {
+      "description": "Chrome captures, one per screen",
+      "include": [
+        "ChromeJourneyTests/testCaptureChrome*"
+      ],
+      "exclude": []
+    },
+    "shell-chrome-audit": {
+      "description": "Chrome Home and Quick Links audits",
+      "include": [
+        "ChromeJourneyTests/testChrome*PassesAccessibilityAudit"
+      ],
+      "exclude": []
+    },
+    "shell-compact-nav": {
+      "description": "Compact-width tab bar, hamburger, Quick Links, Settings push",
+      "include": [
+        "NavigationJourneyTests/testCompactNav*"
+      ],
+      "exclude": []
+    },
+    "shell-compact-settings": {
+      "description": "Compact Settings audits and Back",
+      "include": [
+        "NavigationJourneyTests/testCompactSettings*"
+      ],
+      "exclude": []
+    },
+    "shell-edge": {
+      "description": "Flyout edge swipe and edge taps",
+      "include": [
+        "NavigationJourneyTests/testEdge*"
+      ],
+      "exclude": []
+    },
+    "shell-settings-tab": {
+      "description": "Navigation Settings tab push and audit",
+      "include": [
+        "NavigationJourneyTests/testSettingsTab*"
+      ],
+      "exclude": []
+    },
+    "shell-capture-navigation": {
+      "description": "Navigation captures, one per screen and pose",
+      "include": [
+        "NavigationJourneyTests/testCaptureNavigation*"
+      ],
+      "exclude": []
+    },
+    "shell-settings-topic": {
+      "description": "Shell Settings tab topic push and Account sheet row",
+      "include": [
+        "ShellJourneyTests/testShellSettingsTopicPushes",
+        "ShellJourneyTests/testShellAccountSheetHasNoSettingsRow"
+      ],
+      "exclude": []
+    },
+    "shell-settings-entry-points": {
+      "description": "Settings tab Vacation, Report and Home Assistant rows",
+      "include": [
+        "ShellJourneyTests/testSettingsTab*"
+      ],
+      "exclude": []
+    },
+    "shell-header-roots": {
+      "description": "Header buttons on each tab root",
+      "include": [
+        "ShellJourneyTests/testHeaderButtonsOn*Root"
+      ],
+      "exclude": []
+    },
+    "shell-header-circles": {
+      "description": "44 pt hit area of the header circles",
+      "include": [
+        "ShellJourneyTests/testHeaderCircle*"
+      ],
+      "exclude": []
+    },
+    "shell-summary-sheet": {
+      "description": "Summary sheet opening and Profile tab",
+      "include": [
+        "ShellJourneyTests/testSummarySheet*"
+      ],
+      "exclude": []
+    },
+    "wallpaper-tab-roots": {
+      "description": "Wallpaper covers each tab root",
+      "include": [
+        "WallpaperJourneyTests/testWallpaperTabRootCovers*"
+      ],
+      "exclude": []
+    },
+    "camera-tile-opens": {
+      "description": "Each Home camera tile opens its own camera",
+      "include": [
+        "CameraJourneyTests/testTileOpensItsOwnCamera*"
+      ],
+      "exclude": []
+    },
+    "camera-viewer-controls": {
+      "description": "Camera viewer controls: sound, record, snapshot, 44 pt targets, muted on reopen",
+      "include": [
+        "CameraJourneyTests/testViewerControl*"
+      ],
+      "exclude": []
+    },
+    "camera-aspect": {
+      "description": "Camera card and viewer aspect ratios",
+      "include": [
+        "CameraJourneyTests/testCameraAspect*"
+      ],
+      "exclude": []
+    },
+    "camera-capture-viewer": {
+      "description": "Live camera viewer screenshots, per pose",
+      "include": [
+        "CameraJourneyTests/testCaptureViewer*"
+      ],
+      "exclude": []
+    },
+    "feedback-forms-open": {
+      "description": "Feedback rows open their forms and an empty form closes; the rows pass the audit",
+      "include": [
+        "FeedbackJourneyTests/testFeedback*"
+      ],
+      "exclude": []
+    },
+    "feedback-bug-report": {
+      "description": "Bug report: discard confirmation and filing",
+      "include": [
+        "FeedbackJourneyTests/testBugReport*"
+      ],
+      "exclude": []
+    },
+    "feedback-capture": {
+      "description": "Feedback screenshots, one test per screen and pose",
+      "include": [
+        "FeedbackJourneyTests/testCaptureFeedback*"
+      ],
+      "exclude": []
+    },
+    "location-opens-settings": {
+      "description": "Location: Off and Approximate send the person to Settings",
+      "include": [
+        "LocationJourneyTests/testLocation*OpensSettings"
+      ],
+      "exclude": []
+    },
+    "location-continue": {
+      "description": "Location: Continue walks to Always, one test per stage",
+      "include": [
+        "LocationJourneyTests/testLocationContinue*"
+      ],
+      "exclude": []
+    },
+    "location-stage-audit": {
+      "description": "Every location stage passes the audit, with AX5",
+      "include": [
+        "LocationJourneyTests/testLocation*PassesAccessibilityAudit"
+      ],
+      "exclude": []
+    },
+    "location-account": {
+      "description": "Account sheet Share Location after a declined permission",
+      "include": [
+        "LocationAccountJourneyTests/testLocationAccount*"
+      ],
+      "exclude": []
+    },
+    "settings-ha-modal": {
+      "description": "Home Assistant settings modal: server and account, audit, Done",
+      "include": [
+        "SettingsJourneyTests/testHaSettings*"
+      ],
+      "exclude": []
+    },
+    "settings-sign-out": {
+      "description": "Sign out: cancel, confirmation audit, confirm",
+      "include": [
+        "SettingsJourneyTests/testSignOut*"
+      ],
+      "exclude": []
+    },
+    "settings-capture": {
+      "description": "Settings screenshots, one test per screen and pose",
+      "include": [
+        "SettingsJourneyTests/testCaptureSettings*"
+      ],
+      "exclude": []
+    },
+    "layout-sign-in-audit": {
+      "description": "Sign-in audit, upright and iPad landscape",
+      "include": [
+        "LayoutJourneyTests/testSignInAuditsInSupportedOrientations*"
+      ],
+      "exclude": []
+    },
+    "live-activity-cards-fit": {
+      "description": "Every Live Activity card fits the 160 pt Lock Screen limit, one test per group",
+      "include": [
+        "LiveActivityJourneyTests/testCardsFitLockScreenHeight*"
+      ],
+      "exclude": []
+    },
+    "live-activity-long-title": {
+      "description": "Long Live Activity titles wrap and still fit",
+      "include": [
+        "LiveActivityJourneyTests/testLongTitleWraps*"
+      ],
+      "exclude": []
+    },
+    "live-activity-rows": {
+      "description": "Lock Screen row order and the bar rule",
+      "include": [
+        "LiveActivityJourneyTests/testLockScreen*"
+      ],
+      "exclude": []
+    },
+    "live-activity-vacuum-card": {
+      "description": "Vacuum card: no time, no bar, round buttons, pause tap",
+      "include": [
+        "LiveActivityJourneyTests/testVacuumCard*"
+      ],
+      "exclude": []
+    },
+    "live-activity-card-buttons": {
+      "description": "Card button names, targets and reading order",
+      "include": [
+        "LiveActivityJourneyTests/testCardButtons*"
+      ],
+      "exclude": []
+    },
+    "live-activity-problem-card": {
+      "description": "Problem card sentences",
+      "include": [
+        "LiveActivityJourneyTests/testProblemCard*"
+      ],
+      "exclude": []
+    },
+    "live-activity-job-card": {
+      "description": "Job cards read their title and figure",
+      "include": [
+        "LiveActivityJourneyTests/testJobCard*"
+      ],
+      "exclude": []
+    },
+    "live-activity-ax5-card": {
+      "description": "Live Activity cards stay on screen at AX5",
+      "include": [
+        "LiveActivityJourneyTests/testAX5Card*"
+      ],
+      "exclude": []
+    },
+    "live-activity-island": {
+      "description": "Island presentations and the small family",
+      "include": [
+        "LiveActivityJourneyTests/testIslandPresentations*"
+      ],
+      "exclude": []
+    },
+    "live-activity-audit": {
+      "description": "Live Activity card accessibility audits",
+      "include": [
+        "LiveActivityJourneyTests/testLiveActivity*PassesAccessibilityAudit"
+      ],
+      "exclude": []
+    },
+    "login-intro": {
+      "description": "Login intro ends on the form, with and without motion",
+      "include": [
+        "LoginJourneyTests/testIntroEndsOnTheForm*"
+      ],
+      "exclude": []
+    },
+    "system-settings-launch-options": {
+      "description": "System accessibility launch options take effect",
+      "include": [
+        "SystemSettingsJourneyTests/testLaunchOption*"
+      ],
+      "exclude": []
+    },
+    "adaptive-root-navigation": {
+      "description": "Each root section opens from the tab bar or flyout",
+      "include": [
+        "AdaptiveLayoutJourneyTests/testRootNavigationOpens*"
+      ],
+      "exclude": []
+    },
+    "chip-alignment-home": {
+      "description": "Home chips start at the leading margin (upright, iPad landscape)",
+      "include": [
+        "ChipAlignmentJourneyTests/testHomeChipsStartAtTheLeadingMargin*"
+      ],
+      "exclude": []
+    },
+    "chip-alignment-room": {
+      "description": "Room chips start at the leading margin (upright, iPad landscape)",
+      "include": [
+        "ChipAlignmentJourneyTests/testRoomChipsStartAtTheLeadingMargin*"
+      ],
+      "exclude": []
+    },
+    "chip-alignment-security": {
+      "description": "Security chips start at the leading margin (upright, iPad landscape)",
+      "include": [
+        "ChipAlignmentJourneyTests/testSecurityChipsStartAtTheLeadingMargin*"
+      ],
+      "exclude": []
+    },
+    "direction-g-page-audit": {
+      "description": "Direction G page audit, default and lower-first order",
+      "include": [
+        "DirectionGJourneyTests/testPagePassesAccessibilityAudit*"
+      ],
+      "exclude": []
+    },
+    "direction-g-sheet-section-bar": {
+      "description": "Direction G sheet section bar: layout and audit",
+      "include": [
+        "DirectionGJourneyTests/testSheetSectionBar*"
+      ],
+      "exclude": []
+    },
+    "fast-scroll-page-flicks": {
+      "description": "Every page survives fast flicks, one test per page",
+      "include": [
+        "FastScrollPerformanceTests/testPageFlicks*WithoutLosingContent"
+      ],
+      "exclude": []
+    },
+    "header-badge": {
+      "description": "Header badge value (12, 1) and the pushed page",
+      "include": [
+        "HeaderButtonsJourneyTests/testHeaderBadge*"
+      ],
+      "exclude": []
+    },
+    "header-capture-states": {
+      "description": "Header state captures, one test per scheme and state",
+      "include": [
+        "HeaderButtonsJourneyTests/testCaptureHeaderState*"
+      ],
+      "exclude": []
+    },
+    "light-bed-sheet-audit": {
+      "description": "Bed sheet light audits, one per tab",
+      "include": [
+        "LightAppearanceBedSheetJourneyTests/testBedSheet*PassesAuditInLight"
+      ],
+      "exclude": []
+    },
+    "light-capture-gallery-sheet": {
+      "description": "Gallery sheet captures, one per section",
+      "include": [
+        "LightSheetCaptureTests/testCaptureGallerySheet*"
+      ],
+      "exclude": []
+    },
+    "light-capture-purifier-bed": {
+      "description": "Purifier and bed sheet captures",
+      "include": [
+        "LightSheetCaptureTests/testCapturePurifierSheet",
+        "LightSheetCaptureTests/testCaptureBedSheet"
+      ],
+      "exclude": []
+    },
+    "light-capture-security-sheet": {
+      "description": "Security sheet captures, light and dark",
+      "include": [
+        "LightSheetCaptureTests/testCaptureSecuritySheet*"
+      ],
+      "exclude": []
+    },
+    "light-capture-vacuum-sheet": {
+      "description": "Vacuum sheet captures, controls and zones",
+      "include": [
+        "LightSheetCaptureTests/testCaptureVacuumSheet*"
+      ],
+      "exclude": []
+    },
+    "light-climate-sheet-audit": {
+      "description": "Climate sheet light audits, one per screen",
+      "include": [
+        "LightAppearanceClimateSheetJourneyTests/testClimateSheet*PassesAuditInLight"
+      ],
+      "exclude": []
+    },
+    "light-gallery-sheet-audit": {
+      "description": "Direction G gallery sheet light audits, one per section",
+      "include": [
+        "LightAppearanceLightsJourneyTests/testGallerySheet*PassesAuditInLight"
+      ],
+      "exclude": []
+    },
+    "light-media-remote-audit": {
+      "description": "Media remote light audits, one per tab",
+      "include": [
+        "LightAppearanceMediaRemoteSheetJourneyTests/testMediaRemote*PassesAuditInLight"
+      ],
+      "exclude": []
+    },
+    "light-room-device-audit": {
+      "description": "Room device sheet light audits, one per device",
+      "include": [
+        "LightAppearanceRoomDeviceSheetJourneyTests/testRoomDevice*SheetPassesAuditInLight"
+      ],
+      "exclude": []
+    },
+    "light-system-appearance-drives": {
+      "description": "System appearance alone drives the sheets, dark and light",
+      "include": [
+        "LightAppearanceSystemJourneyTests/testSystemAppearance*DrivesTheSheets"
+      ],
+      "exclude": []
+    },
+    "media-remote-apps": {
+      "description": "Remote app tiles launch apps",
+      "include": [
+        "MediaRemoteJourneyTests/testRemoteApps*"
+      ],
+      "exclude": []
+    },
+    "media-remote-capture": {
+      "description": "Remote screenshots per tab and pose",
+      "include": [
+        "MediaRemoteJourneyTests/testCaptureRemote*"
+      ],
+      "exclude": []
+    },
+    "media-remote-hue-sync": {
+      "description": "Remote Hue Sync controls",
+      "include": [
+        "MediaRemoteJourneyTests/testHueSync*"
+      ],
+      "exclude": []
+    },
+    "media-remote-layout-pose": {
+      "description": "Remote layout per pose",
+      "include": [
+        "MediaRemoteJourneyTests/testLayoutFollowsThePose*"
+      ],
+      "exclude": []
+    },
+    "media-remote-navigation": {
+      "description": "Remote navigation, playback and volume rows",
+      "include": [
+        "MediaRemoteJourneyTests/testRemoteMenu",
+        "MediaRemoteJourneyTests/testRemoteVolumeUp",
+        "MediaRemoteJourneyTests/testRemoteMute",
+        "MediaRemoteJourneyTests/testRemotePlay",
+        "MediaRemoteJourneyTests/testRemoteVolumeSlider"
+      ],
+      "exclude": []
+    },
+    "media-remote-pad": {
+      "description": "Remote power and d-pad steps",
+      "include": [
+        "MediaRemoteJourneyTests/testRemotePadLayoutAndTargets",
+        "MediaRemoteJourneyTests/testRemoteDpadSendsUpAndSelect",
+        "MediaRemoteJourneyTests/testRemotePowerTurnsOff"
+      ],
+      "exclude": []
+    },
+    "modal-filter-header-band": {
+      "description": "Filter header has no translucent band, light and dark",
+      "include": [
+        "ModalSizingJourneyTests/testFilterHeaderHasNoTranslucentBand*"
+      ],
+      "exclude": []
+    },
+    "motion-every-component-toggles": {
+      "description": "Each component toggles Off to On to Off with the frame unmoved and 44 pt targets, one test per component.",
+      "include": [
+        "MotionJourneyTests/testEveryComponent*TogglesItsState"
+      ],
+      "exclude": []
+    },
+    "motion-every-component-toggles-reduce-motion": {
+      "description": "The same toggle journeys with Reduce Motion on.",
+      "include": [
+        "MotionJourneyTests/testEveryComponent*TogglesItsStateWithReduceMotion"
+      ],
+      "exclude": []
+    },
+    "motion-gallery-has-component": {
+      "description": "Each motion gallery component is on the page, one test per component (FENTON_GALLERY_MOTION filter).",
+      "include": [
+        "MotionJourneyTests/testGalleryHas*"
+      ],
+      "exclude": []
+    },
+    "motion-toggle-all": {
+      "description": "Toggle all over the full unfiltered gallery, with motion and with Reduce Motion (each pass whole).",
+      "include": [
+        "MotionJourneyTests/testToggleAll*FlipsEveryComponent"
+      ],
+      "exclude": []
+    },
+    "notification-settings-ask-state-rows": {
+      "description": "Notification Settings rows for never asked and refused",
+      "include": [
+        "NotificationSettingsJourneyTests/testNotificationSettingsNeverAsked",
+        "NotificationSettingsJourneyTests/testNotificationSettingsDenied"
+      ],
+      "exclude": []
+    },
+    "notification-settings-state-audit": {
+      "description": "Each Notification Settings state passes the audit and AX5",
+      "include": [
+        "NotificationSettingsJourneyTests/testNotificationSettings*PassesAccessibilityAudit"
+      ],
+      "exclude": []
+    },
+    "notification-settings-time-sensitive-rows": {
+      "description": "Notification Settings Time Sensitive row states",
+      "include": [
+        "NotificationSettingsJourneyTests/testNotificationSettingsTimeSensitive*"
+      ],
+      "exclude": []
+    },
+    "quick-links-audits": {
+      "description": "Quick Links audit, dark and light",
+      "include": [
+        "TilesRound2JourneyTests/testQuickLinksAuditsClean*"
+      ],
+      "exclude": []
+    },
+    "security-capture-screens": {
+      "description": "Security screen captures (upright and iPad landscape)",
+      "include": [
+        "SecurityJourneyTests/testCaptureSecurity*"
+      ],
+      "exclude": []
+    },
+    "security-tab-live": {
+      "description": "Security signed-in tab: tiles and audit",
+      "include": [
+        "SecurityJourneyTests/testSecurityTabLive*"
+      ],
+      "exclude": []
+    },
+    "security-unavailable": {
+      "description": "Security unavailable page: disabled reads and audit",
+      "include": [
+        "SecurityJourneyTests/testSecurityUnavailable*"
+      ],
+      "exclude": []
+    },
+    "setup-step-audit": {
+      "description": "Each Setup step passes the audit at default and AX5 size",
+      "include": [
+        "SetupJourneyTests/testSetupStep*PassesAudit"
+      ],
+      "exclude": []
+    },
+    "summary-audit-reads-in-order": {
+      "description": "Each Summary tab: audit and reading order",
+      "include": [
+        "SummaryJourneyTests/testSummary*PassesAuditAndReadsInOrder"
+      ],
+      "exclude": []
+    },
+    "summary-rows-light-sheet": {
+      "description": "Summary chore and food rows in a light sheet",
+      "include": [
+        "SummaryJourneyTests/testSummary*RowsReadInALightSheet"
+      ],
+      "exclude": []
+    },
+    "summary-tabs": {
+      "description": "Summary opens on Overdue; each tab shows its content",
+      "include": [
+        "SummaryJourneyTests/testSummaryOpensOnOverdue",
+        "SummaryJourneyTests/testSummaryUpcomingTab",
+        "SummaryJourneyTests/testSummaryExpiredFoodTab",
+        "SummaryJourneyTests/testSummaryProfileTab"
+      ],
+      "exclude": []
+    },
+    "summary-vacation": {
+      "description": "Summary vacation mode",
+      "include": [
+        "SummaryJourneyTests/testSummaryVacation*"
+      ],
+      "exclude": []
+    },
+    "thermostat-dial-gallery": {
+      "description": "Thermostat dial gallery audits and screenshots, upright and iPad landscape",
+      "include": [
+        "ThermostatDialJourneyTests/testGalleryAuditsAndScreenshots*"
+      ],
+      "exclude": []
+    },
+    "tile-finish-page-audit": {
+      "description": "Each tile finish audits clean on the page",
+      "include": [
+        "TilesRound2JourneyTests/testFinishAuditsCleanOnThePage*"
+      ],
+      "exclude": []
+    },
+    "tile-finish-sheet-audit": {
+      "description": "Each tile finish audits clean in a light sheet",
+      "include": [
+        "TilesRound2JourneyTests/testFinishAuditsCleanInALightSheet*"
+      ],
+      "exclude": []
+    },
+    "tile-layout-ax5": {
+      "description": "Tiles stay readable at AX5 per layout, plus the row audit",
+      "include": [
+        "TileLayoutJourneyTests/testTileLayoutAX5*"
+      ],
+      "exclude": []
+    },
+    "tile-layout-chevron": {
+      "description": "The chevron is vertically centred in each layout",
+      "include": [
+        "TileLayoutJourneyTests/testChevronIsVerticallyCentred*"
+      ],
+      "exclude": []
+    },
+    "tile-layout-targets": {
+      "description": "Each tile layout keeps targets and equal row heights, and the row is shorter than the stack",
+      "include": [
+        "TileLayoutJourneyTests/testTileLayout*KeepsTargetsAndEqualRowHeights",
+        "TileLayoutJourneyTests/testTileLayoutRowShorterThanStack"
+      ],
+      "exclude": []
+    },
+    "weather-capture-header": {
+      "description": "Weather header captures",
+      "include": [
+        "WeatherHeaderJourneyTests/testCaptureWeatherHeader*"
+      ],
+      "exclude": []
+    },
+    "weather-card-name": {
+      "description": "Weather card name and 44 pt target",
+      "include": [
+        "WeatherHeaderJourneyTests/testWeatherCardName*"
+      ],
+      "exclude": []
+    },
+    "weather-condition-one-line": {
+      "description": "Weather condition one line below accessibility sizes",
+      "include": [
+        "WeatherHeaderJourneyTests/testWeatherConditionOneLine*"
+      ],
+      "exclude": []
+    },
+    "weather-numeral-whole": {
+      "description": "Weather numeral never truncated, per size and condition",
+      "include": [
+        "WeatherHeaderJourneyTests/testWeatherNumeralWhole*"
+      ],
+      "exclude": []
+    },
+    "weather-sheet-mode": {
+      "description": "Weather sheet modes",
+      "include": [
+        "WeatherJourneyTests/testWeatherSheetMode*"
+      ],
+      "exclude": []
+    },
+    "weather-sheet-sections": {
+      "description": "Weather sheet sections in reading order",
+      "include": [
+        "WeatherJourneyTests/testWeatherSheetHeroAndToday",
+        "WeatherJourneyTests/testWeatherSheetHourlyAndDaily",
+        "WeatherJourneyTests/testWeatherSheetHighlight*",
+        "WeatherJourneyTests/testWeatherSheetCloseReturns"
+      ],
+      "exclude": []
+    },
+    "weather-sheet-state": {
+      "description": "Weather sheet without forecasts",
+      "include": [
+        "WeatherJourneyTests/testWeatherSheet*State"
+      ],
+      "exclude": []
+    }
+  }
+}

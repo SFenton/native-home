@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Assistant settings · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  var C = function (o) { return function (ctx) { return SA.haCover(ctx, o); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'ha-settings', title: 'Home Assistant settings (full-screen cover)', area: 'settings', status: 'shipped', alwaysDark: true,
+    summary: 'Opened by the Home Assistant Settings row. A full-screen cover (not a hassSheet): the server and its connection, the signed-in account, links to Home Assistant’s own Settings and Profile pages, and Sign Out. Single page on every device and pose.',
+    source: ['apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift', 'apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantWebPage.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/pages/settings/ios.md', '.agents/design/apple/split-view.md', '.agents/platforms/apple/auth.md'],
+    patterns: ['modal-sheet', 'settings-section'],
+    hig: ['Modality', 'Settings', 'Lists and tables', 'Action sheets', 'Dark Mode'],
+    entities: ['auth/current_user (HassConnection.currentUser)'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'ModuleList', 'ArcSpinner', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Administrator, connected', render: C({ account: 'loaded', role: 'Administrator' }) },
+      'loading': { title: 'Connecting; the account is loading', note: 'Connection reads "Connecting…", no Version row yet, and a compact arc stands in for the name', render: C({ account: 'loading', status: 'Connecting…' }) },
+      'error': { title: 'The user could not be loaded', note: 'the Account row reads "Unavailable offline" and the Role row is not drawn', render: C({ account: 'unavailable', status: 'Disconnected' }) },
+      'offline': { title: 'Device offline', note: 'Connection "Offline"; the name stays when it was loaded earlier', render: C({ account: 'loaded', status: 'Offline' }) },
+      'reconnecting': { title: 'Waiting to reconnect', note: 'Connection "Reconnecting…"; the last loaded account stays', render: C({ account: 'loaded', status: 'Reconnecting…' }) },
+      'rejected': { title: 'Signed out by the server', note: 'the token was refused; the row says so and Sign Out still works', render: C({ account: 'unavailable', status: 'Signed out by server' }) },
+      'user': { title: 'Role: User', note: 'only the Profile page is offered; Settings needs an administrator or owner', render: C({ account: 'loaded', role: 'User' }) },
+      'owner': { title: 'Role: Owner', render: C({ account: 'loaded', role: 'Owner' }) },
+      'confirm': { title: 'Sign Out asks first', note: 'an alert with Cancel and a red Sign Out, the same alert as the Account sheet', render: C({ account: 'loaded', confirm: 'alert' }) },
+      'failed': { title: 'Couldn’t Sign Out', note: 'alert with Try Again and Cancel; the session stays signed in', render: C({ account: 'loaded', failed: true, scrollEnd: true }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'values wrap under their labels; rows grow; the form scrolls', render: C({ account: 'loaded' }) },
+    },
+
+    motion: [],
+    transitions: [
+      { from: 'Settings', to: 'Home Assistant cover', kind: 'sheet', note: 'fullScreenCover: slides up over the whole window; nothing scales back and there is no grabber or detent. Reduce Motion cross-fades.',
+        play: function (stage) { return SA.coverDemo(stage, function (ctx) { return SA.haCover(ctx, { account: 'loaded' }); }, 900); } },
+      { from: 'Home Assistant cover', to: 'Settings', kind: 'sheet', note: 'The circle x Close (haSettings.done), or a signed-out session (signOut dismisses after the server confirms).', state: 'default',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Sign Out', to: 'Confirmation alert', kind: 'overlay', note: 'The system alert fades in over the form; there is no custom animation.', state: 'default',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = SA.alertScrim(ctx, K.Alert(SA.signOutDialogCopy), true);
+          scrim.style.opacity = 0; host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1100); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+      { from: 'Settings or Profile row', to: 'Web page', kind: 'push', note: 'Pushes inside the cover; see pages/settings/ha-web-page.' },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The inline title "Home Assistant", Close; then the Server header (heading) and its rows, Account, Home Assistant with its footer, Sign Out last.' },
+      { rule: 'Info rows', note: 'Each LabeledContent row is one element: label then value ("Address, homeassistant.local:8123"). Values use the 4.5:1 secondary ink (the system value colour measured below that). Identifiers haSettings.server, .status, .version, .user, .role.' },
+      { rule: 'Account loading', note: 'While loading the row is the label "Signed in as" with a compact arc spoken as "Loading"; offline it reads "Unavailable offline".' },
+      { rule: 'Web page rows', note: 'Settings and Profile are NavigationLinks (haSettings.open.settings and .profile) each with a title and wrapping subtitle; at AX sizes the glyph sits above the text.' },
+      { rule: 'Sign Out', note: 'A destructive button, 44 pt minimum and full width, in the high-contrast red (system red at Increase Contrast, 4.5:1 or better). It asks first through a confirmationDialog.' },
+      { rule: 'Close', note: 'The circle x is labelled "Close" (haSettings.done); there is no Done. Escape and the two-finger scrub do not dismiss a full-screen cover; Close does.' },
+      { rule: 'Dynamic Type', note: 'Label and value stack at AX sizes; nothing truncates; the form scrolls with the header fading out under it.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Modality: full-screen modals suit media and multistep work', verdict: 'departure', note: 'Home Assistant settings is a fullScreenCover (SettingsScreen.swift:164-172) although it is neither media nor editing; AGENTS.md (Native only) allows this one in-app HA settings modal and split-view.md records it.', by: 'apple-hig skill' },
+        { rule: 'Lists and tables: group rows, explain with headers and footers', verdict: 'pass', note: 'Server, Account and Home Assistant sections, with the footer "Opens Home Assistant\'s own pages, signed in as you." (HomeAssistantSettingsView.swift:68-109).', by: 'apple-hig skill' },
+        { rule: 'Action sheets: confirm a destructive action, destructive choice prominent', verdict: 'pass', note: 'Sign Out asks first through a confirmationDialog with a destructive Sign Out, Cancel and a message about signing in again (:113-130).', by: 'apple-hig skill' },
+        { rule: 'Alerts: a title that says what happened', verdict: 'pass', note: '"Sign Out couldn\'t complete. Try again." with a single OK (:117-119); the session stays signed in.', by: 'apple-hig skill' },
+        { rule: 'Color: contrast of red text', verdict: 'pass', note: 'destructiveInk resolves system red at Increase Contrast in both appearances (:151-161), and values use Ink.secondary instead of the 3.3:1 system gray.', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: follow the system appearance', verdict: 'departure', note: 'The cover inherits the shell\'s dark scheme (not a hassSheet, no followsSystemAppearance); pages are always dark by owner decision 2026-10-15, direction-g Layers.', by: 'apple-hig skill' },
+        { rule: 'Privacy: do not expose account details in shared screens', verdict: 'pass', note: 'displayedServer and displayedName return "Hidden for screenshot" when ScreenshotPrivacy.isRedacting (:199-211).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: confirmationDialog attached to its trigger', verdict: 'pass', note: 'Attached to the Sign Out Button so the iOS 26 popover anchors to it (:113-130).', by: 'swiftui-pro skill' },
+        { rule: 'Navigation: one presentation modifier per trigger', verdict: 'pass', note: 'Fixed on claude/hig-alerts: the presenter now sits on the triggering button (or a sibling). The failure alert and the confirmation dialog hang off the same Sign Out button (:117-130); the iOS 27 audit sees a nested duplicate Sign Out button, so hoist one of them to the Form or a sibling.', by: 'swiftui-pro skill' },
+        { rule: 'Design: Form with LabeledContent for title and value', verdict: 'pass', note: 'infoRow uses LabeledContent with explicit inks (:136-144); NavigationLink(value:) with navigationDestination(for: WebPage.self) (:99, :59).', by: 'swiftui-pro skill' },
+        { rule: 'API: toolbar placement for a dismiss-only Close', verdict: 'pass', note: 'SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).', by: 'swiftui-pro skill' },
+        { rule: 'API: avoid UIKit colours in SwiftUI', verdict: 'pass', note: 'Fixed: destructiveInk is HassTokens.Ink.danger (HomeAssistantSettingsView.swift), tuned for 4.5:1 in both appearances.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Appearance: drawn dark. The cover is not a hassSheet and has no followsSystemAppearance, so it inherits the shell’s dark scheme; the ground and cells (#000, #1C1C1E at base elevation) are inferred, and the pass that wrote this did not boot the simulator to confirm. The brief asked to verify.',
+      'medium, large and fitted do not exist: a full-screen cover has no detents (fullScreenCover on iOS). The dismiss is a Close in the header. offline and reconnecting change only the Connection row and the Account row.',
+      'The confirmation: iOS 27 shows a popover anchored to the row with no Cancel and a nested duplicate confirm button (ios.md Tests); iOS 17 to 25 on a compact window shows the classic action sheet. Both are drawn; the presenter chain is one Sign Out button.',
+      'Docs and code: ios.md says the Sign Out confirmation is "HIG: Action sheets"; direction-g.md says an alert. The Account sheet uses an alert (see sign-out-alert) and this cover a confirmationDialog.',
+      'Section headers are drawn in the system’s grouped style (small uppercase); the exact iOS 26 case is unverified. Wallpaper and glyphs are stand-ins; the server host and name are fixtures.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: roles, connection and account states, both confirmation styles and the failure alert.' }],
+  });
+})();
+</script></body></html>

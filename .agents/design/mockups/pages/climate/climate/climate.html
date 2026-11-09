@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Climate · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+
+  function page(ctx, scn, extra) { return SC.climatePage(ctx, Object.assign(SC.climateScenario(ctx, scn), extra)); }
+
+  var LONG_CONTACTS = ['Bedroom 1 Windows', 'Computer Window', 'Living Room Window', 'Guest Room Window', 'Gym Window', 'Office Window', 'Garage Door'];
+  var LONG_NOTICE = 'Unknown Mode. Both phones left the house but the front door lock still reports unlocked, so the thermostat controller is holding home targets until someone confirms who is home.';
+
+  function sheetOpts(ctx) { return SC.climateSheetOpts(ctx, { tab: 'rooms' }); }
+
+  Mock.mount({
+    kind: 'page', id: 'climate', title: 'Climate', area: 'climate', status: 'shipped',
+    summary: 'The Climate tab: the Whole Home thermostat dial straight on the wallpaper, the Thermostat Hub pill tucked into its open bottom, notices, open doors and windows, and three rows that open the Advanced Controls sheet. Sample data is the debug gallery fixture.',
+    source: ['apple/Sources/HassUI/Features/Climate/ClimateScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateParts.swift', 'apple/Sources/HassUI/Controls/Thermostat/ClimateThermostatDial.swift',
+      'apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDialModel.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Config/ClimateConfig.swift'],
+    spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/patterns/thermostat-dial.md'],
+    patterns: ['thermostat-dial', 'module-list', 'dynamic-grid', 'entity-tile', 'modal-sheet', 'motion'],
+    hig: ['Tab bars', 'Pop-up buttons', 'Layout (readable width)', 'Accessibility: VoiceOver adjustable', 'Color', 'Dynamic Type'],
+    entities: ['climate.demo_contact_2', 'climate.demo_contact_1', 'climate.demo_climate_1', 'sensor.demo_away_1',
+      'binary_sensor.demo_contact_1', 'input_boolean.demo_contact_1', 'binary_sensor.demo_contact_2'],
+    kitComponents: ['PageSectionHeader', 'TileGrid', 'GlassTile', 'ModuleList', 'ModuleRow', 'TabBar', 'NavigationGlass', 'ReconnectingArc', 'OfflineChip'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Home, heating, one window open', render: function (c) { return page(c, 'home'); } },
+      'loading': { title: 'First sign-in, nothing saved', note: 'the dial reads Unavailable with "--", the hub pill is disabled, and the away notice reads "Unavailable Mode" (an unknown home/away sensor counts as Unavailable); the page has no pending bars of its own', render: function (c) { return page(c, 'unavailable'); } },
+      'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design: the snapshot paints at once, no spinner, nothing re-fades (owner 2026-10-17)', render: function (c) { return page(c, 'home'); } },
+      'empty': { title: 'Nothing open (no Open Contact Sensors section)', note: 'Climate has no empty state; this is the quiet page: the contact section only exists while the aggregate sensor is on', render: function (c) { return page(c, 'closed'); } },
+      'error': { title: 'Thermostats unavailable', note: 'Home Assistant reports unavailable: the dial drops its handles and marker and dims, the hub menus disable', render: function (c) { return page(c, 'unavailable'); } },
+      'offline': { title: 'No network', note: 'values stay; offline chip under the header and the cloud badge on Profile; a dial commit would be rejected and roll back with no error state', render: function (c) { return page(c, 'home', { page: { connection: 'offline' } }); } },
+      'reconnecting': { title: 'Connection down 2 s+', note: 'the arc left of Quick Links', render: function (c) { return page(c, 'home', { page: { connection: 'reconnecting' } }); } },
+      'long-text': { title: 'Seven open sensors, long notice', note: 'long names wrap to two lines in the equal-height contact tiles; the notice grows with its text', render: function (c) {
+        return page(c, 'home', { contacts: LONG_CONTACTS, notices: [SC.notice({ text: LONG_NOTICE, symbol: 'house' }), SC.notice({ text: SC.copy.warning, symbol: 'exclamationmark.triangle', warning: true })] }); } },
+      'cooling': { title: 'Cooling', note: 'range 68 to 72, marker and action line in the cooling teal', render: function (c) { return page(c, 'cooling'); } },
+      'idle': { title: 'Idle, Heat/Cool mode', render: function (c) { return page(c, 'idle'); } },
+      'off': { title: 'Thermostat off (ring dimmed)', note: 'a range keeps the ring bright; the readout says Off', render: function (c) { return page(c, 'off'); } },
+      'away': { title: 'Away: eco thermostat, notice and warning', note: 'Whole Home swaps to the eco-away thermostat (62 to 78); the action line still reads the global one', render: function (c) { return page(c, 'away'); } },
+      'integration-off': { title: 'Automatic Thermostat off (warning)', note: 'a dense module with an orange glyph', render: function (c) { return page(c, 'integration-off'); } },
+      'hub-menu': { title: 'Hub mode menu open', note: 'a pop-up menu anchored under the control, the current choice checked', render: function (c) { return page(c, 'home', { hub: { menu: 'mode' } }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the hub menus drop under the text and show their value; the dial readout scales to fit; tiles go to one column', render: function (c) { return page(c, 'home'); } },
+      'duo-part-fold': { title: 'Duo partly folded: each section on one side (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'fold columns (section-sides.md): Whole Home (dial, hub pill, notices) leads; Open Contact Sensors and Advanced Controls trail', render: function (c) { return page(c, 'home'); } },
+      'duo-part-fold-closed': { title: 'Duo partly folded, nothing open', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Open Contact Sensors hides; Advanced Controls keeps its trailing side and moves up (no section changes side)', render: function (c) { return page(c, 'closed'); } },
+    },
+
+    motion: [
+      { id: 'dial-follows', what: 'Home Assistant reports new setpoints: the handles glide to them', token: 'quick 0.2 s easeOut, not while a handle is being dragged', state: 'default',
+        source: 'HassDesign/ThermostatDial/ThermostatDial.swift body .animation(MotionTokens.quick, value: displayed)', reduce: 'no animation: the handles jump (the modifier is nil under Reduce Motion)',
+        note: 'RingArc declares no animatableData, so the heat and cool arcs step to the new value while the handles and the marker move; confirm on a device.',
+        play: function (stage) { var d = stage.querySelector('.cdial'); d.setTargets({ low: 69, high: 73 }); return Mock.sleep(Mock.anim.ms.quick() + 500).then(function () { d.setTargets({ low: 71, high: 74 }); return Mock.sleep(Mock.anim.ms.quick() + 400); }); } },
+      { id: 'dial-status-colour', what: 'The HVAC starts cooling: the marker and the single handle change colour, the action line follows', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'ThermostatDial marker and handle .stateColorTransition("ThermostatDial"); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var d = stage.querySelector('.cdial'); d.update({ action: 'cooling' }); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { d.update({ action: 'heating' }); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'hub-glyph', what: 'The hub glyph takes the heating or cooling tint when hvac_action changes', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'ClimateHubPill.swift ThermostatHubPill .stateForeground("ThermostatHubPill")', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var g = stage.querySelector('.sc-hub .gl'); g.classList.remove('heat'); return Mock.sleep(Mock.anim.ms.state() + 400).then(function () { g.classList.add('cool'); return Mock.sleep(Mock.anim.ms.state() + 400); }).then(function () { g.classList.remove('cool'); g.classList.add('heat'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'warning-notice', what: 'Automatic Thermostat is turned off: the notice turns into the dense warning with an orange glyph', token: 'state 0.6 s ease-in-out, colour only', state: 'integration-off',
+        source: 'ClimateNotice.swift ClimateNotice .stateColorTransition("ClimateNotice")', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var n = stage.querySelector('.sc-notice'); n.classList.remove('warn', 'dense'); return Mock.sleep(400).then(function () { n.style.transition = 'background-color var(--t-state)'; n.classList.add('warn', 'dense'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Advanced Controls row', to: 'Advanced Controls sheet', kind: 'sheet', note: 'Any of the three rows presents the sheet at large (it has a section tab bar, so it never measures to a fitted height) on that row\'s tab. The page scales back and dims.',
+        play: function (stage) { return Mock.presentDemo(stage, sheetOpts(Mock.current), { hold: 1100 }); } },
+      { from: 'Climate', to: 'Home tab', kind: 'cut', note: 'A tab switch is a cut: no slide, no fade; each tab keeps its stack and scroll position (motion.md section 4.1).',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = Mock.page(ctx, { title: 'Home', section: 'home', body: [K.ChipRail({ chips: Mock.chips.home() })] });
+          a.hidden = true; a.parentNode.insertBefore(b, a); return Mock.sleep(800).then(function () { b.remove(); a.hidden = false; });
+        } },
+      { from: 'Hub control', to: 'Pop-up menu', kind: 'fade', note: 'A system pop-up menu (Menu with an inline Picker) opens anchored over the control and closes after each choice; the system draws it, never decorated.', state: 'default',
+        play: function (stage) {
+          var pk = stage.querySelector('.sc-hub .pk'), m = h('div.sc-menu', { role: 'menu' }, [['Off', 0], ['Heat', 1], ['Cool', 0], ['Heat/Cool', 0]].map(function (x) { return h('div.it', { role: 'menuitemradio' }, h('span.ck', { html: x[1] ? Mock.icon('checkmark', { weight: 2.4 }) : '' }), h('span.lb', x[0])); }));
+          pk.appendChild(m); return Mock.anim.fade(m, { ms: 200 }).then(function () { return Mock.sleep(1100); }).then(function () { return Mock.anim.fade(m, { from: 1, to: 0, ms: 200 }); }).then(function () { m.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Open Navigation (iPhone, iPad), the reconnecting arc when present, Quick Links, Profile; the page title (heading); "Whole Home" (heading); the dial; the Thermostat Hub pill; the notices; "Open Contact Sensors" and its tiles; "Advanced Controls" and its three rows; the tab bar last.' },
+      { rule: 'Dial', note: 'The container groups its parts. The readout is one element: label "Whole Home thermostat, Heating, currently 72°F", value "set to 71.0 · 74.0". Each handle is its own adjustable element ("Whole Home heat to", value "71 degrees"; swipe up or down moves one step and commits). Ring, trails and marker are hidden. 64 pt handle targets.' },
+      { rule: 'Hub pill', note: 'The glyph, name and state read as one element ("Thermostat Hub, Heat"); the two menus are separate buttons "Thermostat Hub Mode" and "Thermostat Hub Fan" with the current choice as the value and 44 pt minimum targets (a bare Picker keeps a smaller UIKit hit area, so each is a Menu with its own label). Disabled when the entity has no options.' },
+      { rule: 'Notices', note: 'Glyph and text combine into one element; a warning reads the same text, the dense ground and orange glyph are extra to the words.' },
+      { rule: 'Open contact tiles', note: 'Read-only GlassTiles (not buttons): "Office Window, Open". The window or door glyph is decorative.' },
+      { rule: 'Advanced Controls rows', note: 'Buttons named by the entry ("Room Thermostats") with the description as the hint; chevron decorative; 60 pt rows.' },
+      { rule: 'State is not colour alone', note: 'Heating and cooling show as the words on the action line and as the marker colour; the hub glyph tint is extra to the state text.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the readout (a 76 pt Light numeral at the default size) shrinks to fit inside the ring (minimumScaleFactor 0.4), the hub menus stack under the text and show their value, tiles go to one column and rows wrap their subtitles.' },
+      { rule: 'Reduce Motion', note: 'Handle glide stops (the animation modifier is nil); colour cross-fades shorten to 0.2 s.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Designing for iPhone Duo: reserved regions and the fold", verdict: 'pass', note: "Fixed: ClimatePage.wholeHome applies .avoidsHinge() (HingeAvoidance.placement): centred as before, and moved to the leading region's centre only where the hinge crosses the dial column.", by: 'apple-hig skill' },
+        { rule: "Accessibility: adjustable elements for a custom slider-like control", verdict: 'pass', note: "Each handle is its own adjustable element with a spoken value; ring, trails and marker are hidden; the readout is one element (ThermostatDial.swift:199-234).", by: 'apple-hig skill' },
+        { rule: "Pop-up buttons: show the current selection, 44 pt target", verdict: 'pass', note: "HubPicker is a Menu over an inline Picker with a 44 pt minimum frame, label and value for VoiceOver (ClimateHubPill.swift), disabled when there are no options.", by: 'apple-hig skill' },
+        { rule: "Layout: readable width on large screens", verdict: 'pass', note: "Column capped at 720 pt, Whole Home at 640 pt, centred (ClimateScreen.swift:76, 130); contact tiles scale with type (line 30).", by: 'apple-hig skill' },
+        { rule: "Feedback: if a command cannot be carried out, say so", verdict: 'pass', note: "Fixed in ClimateThermostatDial.swift: the rollback now has a 4 s FailureCaption, the error haptic and a VoiceOver announcement (the \"no error state\" rule was reversed 2026-10-24).", by: 'apple-hig skill' },
+        { rule: "Materials: content sits on modules, not bare wallpaper", verdict: 'departure', note: "The Whole Home dial has no card behind it (owner, 2026-10-16: 'takes up too much space now and I don't want the card background'); supporting text is 92% white on the dimmed wallpaper (thermostat-dial.md).", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "ScaledMetric for fixed sizes", verdict: 'pass', note: "The dial numeral is @ScaledMetric(relativeTo: .largeTitle) 76 (ThermostatDial.swift:56) and the contact minimum 160 relative to .subheadline (ClimateScreen.swift:30).", by: 'swiftui-pro skill' },
+        { rule: "Avoid minimumScaleFactor for layout", verdict: 'departure', note: "The readout shrinks to 0.4 inside the fixed ring (ThermostatDial.swift:196) because the ring cannot grow with text; thermostat-dial.md records it as the bounded fallback.", by: 'swiftui-pro skill' },
+        { rule: "Prefer bindings projected from state over Binding(get:set:) in body", verdict: 'pass', note: "Already fixed: HubPicker uses ControllerPicker, no Binding(get:set:) in the body.", by: 'swiftui-pro skill' },
+        { rule: "Do not create objects in a view body", verdict: 'pass', note: "ClimateScreen builds its controller once through a cached holder (ClimateScreen.swift:10)", by: 'swiftui-pro skill' },
+        { rule: "Animate with the app tokens and Reduce Motion", verdict: 'pass', note: "Handles glide on MotionTokens.quick, nil under Reduce Motion or while dragging (ThermostatDial.swift:89); colours cross-fade at 0.2 s reduced.", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Partly folded Duo (claude/section-sides, section-sides.md): fold columns, Whole Home leads, Open Contact Sensors and Advanced Controls trail (was: one 720 pt column with the dial moved to the leading region and the contact tiles and Advanced rows across the band); every other pose unchanged.',
+      'Splits: none. Climate is always one full-width column (split-view.md); on the unfolded Duo landscape and iPad landscape it stays centred at 720 pt. Hinge-aware even columns still apply to the contact tile grid. On the unfolded Duo landscape the fold band (455 to 496 pt) falls across the centred dial: its readout (the unit and the caption) and the cool-to handle sit under the fold, because the content is 868 pt wide and centred 21 pt left of it. Climate is not hinge-aware (split-view.md: always full width); not run on a device, check before relying on it.',
+      'loading and error draw the same page: the dial and hub are driven by entity state, which is missing before the first snapshot and unavailable when Home Assistant reports it. The page never shows pending bars (tiles do, but Climate\'s only tiles are the read-only contacts, which do not exist until a sensor is open).',
+      'Docs versus code: thermostat-dial.md and the catalog say numerals roll; the code has no contentTransition on the dial, so the numeral swaps and only the handles glide.',
+      'Docs versus code: spec.md describes Room Thermostats, Advanced Configuration and Room Tracking as a grid of up to three columns with section headers; the native page draws one module list of three rows under "Advanced Controls".',
+      'The dial is the local SecClimate.dial (single target, off, unavailable, dragging, caption glyph, readout fitting). Promote to kit: ThermostatDial rewrite, ClimateNotice, ThermostatHubPill.',
+      'Fixtures: gallery scenario home (global thermostat 71 to 74, current 72, heating) and away (eco-away thermostat 62 to 78, Vacation Mode on, Automatic Thermostat off). Wallpaper and glyphs are kit stand-ins.',
+    ],
+    changelog: [{ date: '2026-11-04', note: 'A lone open contact sensor and every short row fill their section (rule 1).' }, { date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; states duo-part-fold, duo-part-fold-closed.' }, { date: '2026-10-23', note: 'First pass: 16 states, five devices, dial, hub menus, notices, sheet and tab transitions.' }],
+  });
+})();
+</script></body></html>

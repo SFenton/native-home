@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>House backdrop · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_shell-navigation.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  /* The slider's stops in points: 0, 25, 50 (default, the web's 16 x 1.05), 75, 100% of 33.6 pt (BackdropBlur.maxRadius). */
+  var PCT = [0, 25, 50, 75, 100], PT = { 0: 0, 25: 8.4, 50: 16.8, 75: 25.2, 100: 33.6 };
+  SN.wallpaperBlur([0, 8.4, 16.8, 25.2, 33.6]);
+  function cls(pct) { return 'sn-blur-' + Math.round(PT[pct] * 10); }
+  function home(c, pct, extra) {
+    var p = SN.rootPage(c, 'home', { badge: 0, choresBadge: 0 });
+    p.classList.add(cls(pct)); (extra || []).forEach(function (x) { p.classList.add(x); }); return p;
+  }
+  function wallOnly(c, pct, extra) {
+    var p = Mock.page(c, { title: 'Home', section: 'home', body: [] }); p.classList.add(cls(pct)); (extra || []).forEach(function (x) { p.classList.add(x); }); return p;
+  }
+  function sliderBox(pct) {
+    return h('div.k-swatch.page', { style: { width: '380px', maxWidth: '100%' } }, h('div.k-cap', 'Settings > Appearance'),
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, K.SliderRow({ label: 'Background Blur', valueText: pct + '%', value: pct / 100 }),
+        h('div', { style: { padding: '12px 16px', borderRadius: '16px', background: 'var(--g-module-thin)', color: 'var(--ink-action, #409CFF)', opacity: pct === 50 ? .45 : 1, minHeight: '44px', display: 'flex', alignItems: 'center' } }, 'Reset to Default'),
+        h('p', { style: { margin: '0 4px', font: 'var(--fs-foot) var(--font)', color: 'var(--g-secondary-on-wallpaper)' } }, 'How soft the house photo behind every page is. The default matches the web dashboard; less blur can make text harder to read.')));
+  }
+
+  var states = {
+    'blur-50': { title: 'Default, 50% = 16.8 pt (the web\'s blur)', note: 'one photo, the same crop on every page and device', render: function (ctx) {
+      return h('div', SN.board(ctx, [
+        { key: 'iphone', zoom: .8, caption: 'Magnified 1.06, saturated 1.1, blurred 16.8 pt, under the scrim (0.44 to 0.64).', build: function (c) { return home(c, 50); } },
+        { key: 'duo-folded', zoom: .8, caption: 'Folded Duo: the render covers the whole window; the page and the vertical bar show the part under their frames.', build: function (c) { return home(c, 50); } },
+        { key: 'ipad-portrait', zoom: .46, caption: 'iPad: rendered at the window\'s pixel size, so the picture is not stretched.', build: function (c) { return home(c, 50); } },
+      ]), h('div', { style: { marginTop: '12px' } }, sliderBox(50))); } },
+    'blur-0': { title: 'Background Blur 0%: sharp photo', note: 'small text can dip under 4.5:1 below about 15% (3.9:1 at 0%): the slider\'s footer says so', render: function (ctx) {
+      return h('div.sn-row', SN.board(ctx, [{ key: 'iphone', zoom: .8, caption: 'Sigma 0. The scrim still gives titles about 4:1 over the bright roofline; chip and tile text sit on modules.', build: function (c) { return home(c, 0); } }]), sliderBox(0)); } },
+    'blur-100': { title: 'Background Blur 100% = 33.6 pt', note: 'twice the web\'s radius', render: function (ctx) {
+      return h('div.sn-row', SN.board(ctx, [{ key: 'iphone', zoom: .8, caption: 'Sigma 33.6 pt: the photo reads as colour fields.', build: function (c) { return home(c, 100); } }]), sliderBox(100)); } },
+    'blur-compare': { title: 'The slider\'s range, 0 to 100%', note: 'same page at 0, 25, 50, 75 and 100%', render: function (ctx) {
+      return SN.board(ctx, PCT.map(function (pct) { return { key: 'iphone', zoom: .5, title: pct + '% (' + PT[pct] + ' pt)', caption: pct === 50 ? 'Default' : '', build: function (c) { return wallOnly(c, pct); } }; })); } },
+    'reduce-transparency-plain': { title: 'Reduce Transparency: the plain base colour', note: 'no photo, no scrim; modules and glass turn solid. The slider stays; its footer says why nothing changes', render: function (ctx) {
+      return h('div.sn-row', SN.board(ctx, [{ key: 'iphone', zoom: .8, reduceTransparency: true, caption: '#111723 only (HouseBackdropStyle.base).', build: function (c) { return home(c, 50); } }]),
+        h('div', h('div.k-swatch.page', { style: { width: '380px', maxWidth: '100%' } }, h('div.k-cap', 'Settings > Appearance, Reduce Transparency on'), K.SliderRow({ label: 'Background Blur', valueText: '50%', value: .5 }), h('p', { style: { margin: '8px 4px 0', font: 'var(--fs-foot) var(--font)', color: 'var(--g-secondary-on-wallpaper)' } }, 'Reduce Transparency is on, so pages use a plain background and the blur has nothing to soften.')))); } },
+    'no-photo-base': { title: 'No photo yet: base colour under translucent modules', note: 'the first launch before the picture has loaded; the render fades in when it arrives', render: function (ctx) {
+      return SN.board(ctx, [{ key: 'iphone', zoom: .8, caption: 'store.image is nil: only the base colour, no scrim. Modules keep their translucent finish (unlike Reduce Transparency).', build: function (c) { return home(c, 50, ['sn-nophoto']); } }]); } },
+    'increase-contrast': { title: 'Increase Contrast: scrim 0.12 denser', note: 'every stop +0.12: 0.56, 0.57, 0.58, 0.64, 0.76', render: function (ctx) {
+      return SN.board(ctx, [{ key: 'iphone', zoom: .8, caption: 'HouseBackdropStyle.increasedContrastBoost.', build: function (c) { return home(c, 50, ['sn-ic']); } }, { key: 'iphone', zoom: .8, title: 'Default, for comparison', build: function (c) { return home(c, 50); } }]); } },
+    'scrim': { title: 'The scrim\'s stops', note: 'black over the photo, top to bottom', render: function (ctx) {
+      var rows = [['0%', '0.44', 'status bar, large title'], ['28%', '0.45', 'first section headers'], ['50%', '0.46', 'middle of the page'], ['75%', '0.52', 'lower content'], ['100%', '0.64', 'behind the tab bar and home indicator']];
+      return h('div.sn-row', { style: { alignItems: 'flex-start' } }, h('div.k-table-wrap', { style: { color: 'var(--k-fg)' } }, h('table', h('thead', h('tr', ['Position', 'Black', 'What sits there'].map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); })))),
+        SN.cap('Contrast, measured on the house photo (iPhone 17 Pro)', 'White text over the worst tenth of the screen: 4.96:1 at the default blur, 4.71:1 at 25%, 3.9:1 at 0%. The top half never drops below 0.44 because white titles and section headers sit there (0.18 measured 3.0:1 under a light sky).')); } },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the backdrop is text-size independent; the page text over it grows', render: function (ctx) {
+      return SN.board(ctx, [{ key: 'iphone', ts: 'ax5', zoom: .8, caption: 'Same render, larger text over it.', build: function (c) { return home(c, 50); } }]); } },
+  };
+
+  Mock.mount({
+    kind: 'component', id: 'house-backdrop', title: 'House photo backdrop (wallpaper, blur, scrim)', area: 'shell', status: 'shipped', frame: false,
+    summary: 'The blurred photo of the house behind every page (never in sheets): rendered once at the window\'s pixel size, blurred in points, cached in memory and on disk, drawn under direction G\'s scrim. The Background Blur setting (0 to 100%) re-renders it live.',
+    source: ['apple/Sources/HassUI/Common/HouseBackdrop.swift', 'apple/Sources/HassUI/Common/BackdropRenderer.swift', 'apple/Sources/HassCore/Settings/BackdropBlur.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift'],
+    spec: ['.agents/patterns/page-backdrop.md', '.agents/design/direction-g.md', '.agents/design/motion.md'],
+    patterns: ['page-backdrop', 'image-cache'],
+    hig: ['Materials', 'Color', 'Accessibility (Reduce Transparency, Increase Contrast)', 'Dark Mode'],
+    kitComponents: ['SliderRow'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'arrival-settle', what: 'After a sign-in the photo fades in while it settles from 1.06 to 1', token: 'MotionTokens.Arrival.backdrop: easeOut 0.6 s, scale 1.06 to 1 with opacity 0 to 1; once per session', state: 'blur-50',
+        source: 'HassUI/Common/HouseBackdrop.swift (.scaleEffect, .opacity, .animation); motion.md section 3', reduce: 'cross-fade on crossFade 0.35 s with no scale',
+        play: function (stage) {
+          var wall = stage.querySelector('.ui-wall'); var rm = !!Mock.settings.reduceMotion;
+          return wall.animate(rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'scale(1.06)' }, { opacity: 1, transform: 'scale(1)' }], { duration: rm ? 350 : 600, easing: rm ? 'ease-in-out' : 'cubic-bezier(0,0,.2,1)', fill: 'both' }).finished.then(function () { return Mock.sleep(400); });
+        } },
+      { id: 'photo-arrives', what: 'The first render fades in over the base colour when it is ready (first launch, or a changed photo after a long absence)', token: 'standard 0.3 s smooth (reduced: quick 0.2 s), .transition(.opacity)', state: 'no-photo-base',
+        source: 'HouseBackdrop.swift motionSafeAnimation(standard, reduced: quick, value: store?.image != nil)', reduce: 'quick 0.2 s cross-fade',
+        play: function (stage) {
+          var page = stage.querySelector('.ui-page'), wall = page.querySelector('.ui-wall');
+          page.classList.remove('sn-nophoto'); var cover = h('div', { style: { position: 'absolute', inset: 0, background: '#111723', zIndex: 0 } }); wall.appendChild(cover);
+          return cover.demo_bathroom_1_vent_1([{ opacity: 1 }, { opacity: 0 }], { duration: Mock.settings.reduceMotion ? 200 : 300, easing: 'ease-in-out', fill: 'both' }).finished.then(function () { return Mock.sleep(400); }).then(function () { cover.demo_bedroom_1_vent_1(); });
+        } },
+      { id: 'live-render', what: 'Dragging the Background Blur slider re-renders the wallpaper live; the previous picture stays up until the next is ready', token: 'no animation: each render replaces the last; about seven previews a second (renderGap 140 ms), latest wins', state: 'blur-50',
+        source: 'HouseBackdropStore.requestRender / renderGap; page-backdrop.md R8', reduce: 'unchanged: a content change, not motion',
+        play: function (stage) {
+          var page = stage.querySelector('.ui-page'), seq = [50, 25, 0, 25, 50, 75, 100, 75, 50];
+          return seq.reduce(function (p, pct) { return p.then(function () { page.className = page.className.replace(/sn-blur-\d+/, cls(pct)); return Mock.sleep(220); }); }, Promise.resolve());
+        } },
+    ],
+    transitions: [
+      { from: 'Page', to: 'Pushed page', kind: 'push', state: 'blur-50', note: 'Every page applies the same render offset by its window position, so the picture does not shift or re-fade during a push. The shift never goes negative: a page sliding out has a negative origin, and shifting by it once left a strip of base colour (the black flash).',
+        play: function (stage) {
+          var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = home(ctx, 50); b.querySelector('.ui-title-wrap h1').textContent = 'Kitchen';
+          a.parentNode.insertBefore(b, a.nextSibling); return Mock.anim.push(a, b).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(stage); b.remove(); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Hidden from assistive technology', note: 'The backdrop is decorative: accessibilityHidden(true), allowsHitTesting(false).' },
+      { rule: 'Contrast', note: 'The scrim keeps white titles and section headers at 4.5:1 or better over the brightest sky at the default blur (4.96:1) and 4.71:1 at 25%; below about 15% small text can fall under 4.5:1, so the slider footer warns.' },
+      { rule: 'Reduce Transparency', note: 'Draws the plain base colour #111723 with no photo and no scrim; the slider stays and its footer explains why nothing changes. Modules and glass turn solid (the solid finish).' },
+      { rule: 'Increase Contrast', note: 'Every scrim stop is 0.12 denser.' },
+      { rule: 'Slider', note: 'One adjustable element, label "Background Blur", value "50 percent", step 5; Reset to Default is a 44 pt row with the hint "Sets the background blur to match the web dashboard."' },
+      { rule: 'Reduce Motion', note: 'The arrival settle becomes a 0.35 s cross-fade with no scale; live re-renders are not motion and are unchanged.' },
+    ],
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Materials: do not run a live blur behind scrolling content', verdict: 'pass', note: 'The blur is rendered once, off the main thread, at the window\'s pixel size; the view only draws and offsets a bitmap (HouseBackdrop.swift:11-22, 240-256).', by: 'apple-hig skill' },
+        { rule: 'Accessibility: honour Reduce Transparency and Increase Contrast', verdict: 'pass', note: 'Reduce Transparency draws the plain base colour (line 243); Increase Contrast adds 0.12 to every scrim stop (lines 258, 302-308).', by: 'apple-hig skill' },
+        { rule: 'Color: keep text legible over imagery', verdict: 'pass', note: 'Scrim stops never drop below 0.44 in the top half, set after measuring the house photo (HouseBackdrop.swift:290-296). Not re-measured in this review.', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: support both appearances', verdict: 'departure', note: 'Pages are always dark over the dimmed photo, the way Apple Home\'s wallpaper works (owner 2026-10-15; direction-g.md Layers; MainTabView.swift:73-76). Sheets follow the system.', by: 'apple-hig skill' },
+        { rule: 'Motion: make motion optional', verdict: 'pass', note: 'The 1.06 to 1 arrival scale and the fade are skipped or cross-faded under Reduce Motion (HouseBackdrop.swift:267-270).', by: 'apple-hig skill' },
+        { rule: 'Layout: extend backgrounds under bars, keep content inside safe areas', verdict: 'pass', note: 'ignoresSafeArea() is on the decorative layer only (line 264); the canvas is measured inside the safe area and grown by its insets, so the Duo\'s vertical bar is covered too (BackdropCanvas.size, lines 325-328).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Avoid per-frame work for effects', verdict: 'pass', note: 'visualEffect reads the page\'s frame to offset the bitmap without re-running body (lines 252-256); no .blur and no state written per scroll frame.', by: 'swiftui-pro skill' },
+        { rule: 'Hide decoration from VoiceOver', verdict: 'pass', note: 'Image(decorative:), .accessibilityHidden(true), .allowsHitTesting(false) (lines 245, 265-266).', by: 'swiftui-pro skill' },
+        { rule: 'Use onGeometryChange to measure, from inside the safe area', verdict: 'pass', note: 'BackdropCanvasProvider (lines 343-362).', by: 'swiftui-pro skill' },
+        { rule: 'Heavy work off the main actor, coalesced', verdict: 'pass', note: 'Core Image renders run in Task.detached(priority: .utility) and collapse to the latest request (lines 99-132); the last render stays up until a new one is ready.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Stand-in: the photo is the kit\'s dusk-house drawing (a CSS image), not the real picture, and the blur is an SVG Gaussian at the same sigma in points; the scrim stops are the real ones. The mockups\' blur levels come from SN.wallpaperBlur (local helper): promote to kit if other batches need other blur levels.',
+      'Docs versus code: none; page-backdrop.md R1 to R9 match HouseBackdrop.swift and BackdropRenderer.swift. The catalog hint "arrival settles scale 1.06 to 1" is MotionTokens.Arrival.backdropScale.',
+      'Devices: the render is made for the whole window (canvas), the Duo\'s vertical bar included; each page shows the part under its frame, so a split pane or a pushed page shows one continuous picture.',
+      'Component mockup with several framed devices per state: the Device control only sets the size class of the swatches; the boards always show their own devices.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: blur 0/25/50/75/100, Reduce Transparency, no photo, Increase Contrast, scrim table, arrival and live render motion.' }],
+  });
+})();
+</script></body></html>

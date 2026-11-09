@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Humidifier activity editor · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_devices-vacuums.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, dv = Mock.dv;
+
+  /* HumidifierActivityEditor is pushed onto the humidifier sheet's NavigationStack (navigationDestination(item:)): system Back, an inline title ("Add Activity" or the
+     activity's name), a Save confirmation button, one scrolling column (max 640). The sheet's bottom section bar does not follow onto the pushed page. */
+  var NEW = { label: 'Night', days: [0, 1, 1, 1, 1, 1, 0], start: '10:00 PM', end: '7:00 AM', mode: 'Auto Humidity', mist: 5, target: 50, warm: 1, display: true };
+  var EVENING = { label: 'Evening', days: [1, 1, 1, 1, 1, 1, 1], start: '6:00 PM', end: '9:30 PM', mode: 'Auto Humidity', mist: 6, target: 45, warm: 1, display: true };
+  var NIGHT = { label: 'Night', days: [1, 1, 1, 1, 1, 0, 0], start: '10:00 PM', end: '7:00 AM', mode: 'Sleep', mist: 4, target: 50, warm: 0, display: false };
+  var OVERLAP = { label: 'Late Evening', days: [0, 1, 1, 1, 1, 1, 0], start: '8:00 PM', end: '11:00 PM', mode: 'Manual', mist: 5, target: 50, warm: 0, display: false };
+
+  function sheet(ctx, o) {
+    o = o || {};
+    var R = o.rule || NEW, title = o.isNew === false ? R.label : 'Add Activity';
+    var saveOff = o.saveOff;
+    return dv.sheet(ctx, { kind: 'humidifier', title: title, size: 'page', detent: o.detent || 'large', leading: 'back', trailing: dv.saveButton({ disabled: saveOff, saving: o.saving }),
+      content: dv.activityEditor({ isNew: o.isNew !== false, rule: R, error: o.error, ctx: ctx }), connection: o.connection, alert: o.alert });
+  }
+  var S = function (o) { return function (c) { return sheet(c, o); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'humidifier-activity-editor', title: 'Humidifier activity editor (pushed)', area: 'room-devices', status: 'shipped',
+    summary: 'The page pushed inside the humidifier sheet when an activity row or Add Scheduled Activity is tapped: name, days, start and end, mode, then the profile (mist, target, warm mist, display), and Delete for an existing activity.',
+    source: ['apple/Sources/HassUI/Features/RoomDevices/HumidifierSchedulesTab.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierSheet.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierDials.swift',
+      'apple/Sources/HassCore/RoomDevices/HumidifierSchedule.swift', 'apple/Sources/HassCore/RoomDevices/HumidifierScheduleController.swift'],
+    spec: ['.agents/patterns/schedule-date-fields.md', '.agents/patterns/room-device-sheets.md'],
+    patterns: ['room-device-sheets', 'thermostat-dial', 'modal-sheet'],
+    hig: ['Sheets', 'Navigation bars', 'Date pickers', 'Pop-up buttons', 'Action sheets', 'Toggles'],
+    entities: ['schedule.demo_bedroom_1_1', 'input_boolean.demo_bedroom_1_schedule_1'],
+    kitComponents: ['HassModal', 'BackButton', 'SegmentedChoice', 'Toggle', 'InlineAlert', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'New activity, from the humidifier\'s current settings', note: 'Night, weekdays, 10 PM to 7 AM; mode, mist, target, warm mist and display start from what the humidifier is doing now', render: S({}) },
+      'edit': { title: 'Editing Evening (Auto Humidity)', note: 'two dials (mist and target) side by side at regular width; Delete Activity at the end', render: S({ isNew: false, rule: EVENING }) },
+      'edit-sleep': { title: 'Editing Night (Sleep)', note: 'Sleep runs its own profile: the dials, warm mist and display are hidden', render: S({ isNew: false, rule: NIGHT }) },
+      'invalid-range': { title: 'Overlaps another activity', note: '"This activity overlaps another activity on Monday." Save is disabled until the times or days change', render: S({ rule: OVERLAP, error: 'This activity overlaps another activity on Monday.', saveOff: true }) },
+      'no-days': { title: 'No day selected', note: 'an inline warning; Save disabled', render: S({ rule: Object.assign({}, NEW, { days: [0, 0, 0, 0, 0, 0, 0] }), saveOff: true }) },
+      'saving': { title: 'Saving', note: 'the button reads "Saving…", is disabled, and the Back button is hidden so the page cannot be left mid-save', render: function (c) { return Mock.sheet(c, { title: 'Add Activity', detent: 'large', size: 'page', leading: 'none', trailing: dv.saveButton({ saving: true, disabled: true }), content: dv.activityEditor({ isNew: true, rule: NEW, ctx: c }), presenter: dv.presenter('humidifier', c, 'live') }); } },
+      'error': { title: 'Save failed', note: 'the controller\'s error line: "Could not save scheduled activities."', render: S({ error: 'Could not save scheduled activities.' }) },
+      'delete-confirm': { title: 'Delete asks first', note: 'a confirmation dialog titled "Delete Evening?" with a red Delete Activity and an automatic Cancel (a popover on iPad)', render: function (c) { return sheet(c, { isNew: false, rule: EVENING, alert: dv.actionSheet({ title: 'Delete Evening?', actions: [{ title: 'Delete Activity', role: 'destructive' }] }) }); } },
+      'offline': { title: 'Over an offline room page', note: 'no offline UI of its own: Save will fail with the error line if the websocket is down', render: S({ connection: 'offline' }) },
+      'large': { title: 'Large detent (shipped, full height)', render: S({ detent: 'large' }) },
+      'closed': { title: 'The Schedules tab it was pushed from', note: 'push source', render: function (c) { return dv.sheet(c, { kind: 'humidifier', title: 'Bedroom 1 Humidifier', subtitle: 'Humidifying • 41%', size: 'page', detent: 'large', content: h('div.dv-col', { style: { maxWidth: '640px' } }, dv.humSchedules({})), tabs: dv.humTabs('schedules', c) }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'days wrap to two columns; the mode picker and dials stack; the page scrolls', render: S({ isNew: false, rule: EVENING }) },
+    },
+
+    motion: [],
+
+    transitions: [
+      { from: 'Activity row', to: 'Activity editor', kind: 'push', state: 'closed', note: 'The system push inside the sheet: the editor slides in from the trailing edge, the Schedules tab shifts left and dims; Back or the edge swipe pops. Reduce Motion cross-fades.',
+        play: function (stage) {
+          var body = stage.querySelector('.ui-sheet .ui-modal'); if (!body) return Promise.resolve();
+          var host = body.parentNode, ctx = Mock.current;
+          var pushed = sheet(ctx, { isNew: false, rule: EVENING, noPresenter: true }).querySelector('.ui-modal');
+          pushed.style.position = 'absolute'; pushed.style.inset = '0'; pushed.style.background = 'var(--sheet-ground)'; host.appendChild(pushed);
+          return Mock.anim.push(body, pushed).then(function () { return Mock.sleep(900); }).then(function () { pushed.remove(); body.style.transform = ''; body.style.filter = ''; });
+        } },
+      { from: 'Activity editor', to: 'Schedules tab', kind: 'push', state: 'default', note: 'Save (after the controller writes schedule/update and the list reloads) and Back both pop. A saved first activity also turns scheduling on; deleting the last turns it off.',
+        play: function (stage) {
+          var body = stage.querySelector('.ui-sheet .ui-modal'); if (!body) return Promise.resolve();
+          var ctx = Mock.current, host = body.parentNode;
+          var under = dv.sheet(ctx, { kind: 'humidifier', title: 'Bedroom 1 Humidifier', size: 'page', detent: 'large', content: h('div.dv-col', { style: { maxWidth: '640px' } }, dv.humSchedules({})), tabs: dv.humTabs('schedules', ctx), noPresenter: true }).querySelector('.ui-modal');
+          under.style.position = 'absolute'; under.style.inset = '0'; under.style.background = 'var(--sheet-ground)'; under.style.zIndex = 0; host.insertBefore(under, body); body.style.zIndex = 1; body.style.background = 'var(--sheet-ground)';
+          return Mock.anim.push(body, under, { back: true }).then(function () { return Mock.sleep(600); }).then(function () { under.remove(); body.style.transform = ''; });
+        } },
+      { from: 'Delete Activity', to: 'Delete dialog', kind: 'fade', state: 'default', note: 'The confirmation dialog appears over the editor (system action sheet on iPhone, a popover on iPad); the editor dims.',
+        play: function (stage) {
+          var host = stage.querySelector('.ui-host'), ctx = Mock.current;
+          var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), dv.actionSheet({ title: 'Delete Evening?', actions: [{ title: 'Delete Activity', role: 'destructive' }] }));
+          host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, the title ("Add Activity" or the name), Save; then Name, Days, Time (Start, End), Mode, the dials, Warm Mist, Display, any warnings, Delete Activity.' },
+      { rule: 'Days', note: 'Seven chips (the shared WeekdayPicker) labelled with the full day name ("Monday"), selected trait; a checkmark joins the fill under Differentiate Without Color; 44 pt tall; at larger sizes they wrap to two columns (identifier activity.day.<day>).' },
+      { rule: 'Time', note: 'Start and End are labelled compact time pickers (activity.start, activity.end); a start at or after the end means the activity ends the next day.' },
+      { rule: 'Mode', note: 'A pop-up menu button labelled "Mode" with its value (activity.mode); choosing Sleep also turns Display off and hides the profile.' },
+      { rule: 'Dials', note: 'Mist Level (1 to 9) and Target Humidity (40 to 80% in 5% steps) are adjustable elements ("Scheduled mist level", "Scheduled target humidity 50 percent"); Target appears only for Auto Humidity.' },
+      { rule: 'Validation', note: 'Warnings are inline text under the fields ("Select at least one day.", "Choose valid start and end times.", the overlap sentence); Save is disabled with them, and the disabled state is spoken.' },
+      { rule: 'Delete', note: 'A destructive button, then a confirmation dialog "Delete <name>?" whose Delete Activity is destructive; Cancel is always offered.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Navigation bars: Back leading, confirm trailing', verdict: 'pass', note: 'Back is the glass circle; Save is a .confirmationAction text button disabled until valid, and Back hides while saving (HumidifierSchedulesTab.swift:187).' },
+        { rule: 'Sheets: unsaved changes need a confirmation', verdict: 'pass', note: 'DiscardGuard (HassDesign/DiscardGuard.swift): Cancel/Back/Close ask \'Discard changes?\' (Discard Changes / Keep Editing) and discardGuard blocks the swipe down while edited (owner 2026-10-24, sheet-discard-guard A). HumidifierActivityEditor uses SheetBackItem(hasChanges:) and hides the system Back.' },
+        { rule: 'Color: contrast of a destructive control', verdict: 'pass', note: 'Delete Activity is borderedProminent with BedroomStyle.danger, like the Bedroom editors.' },
+        { rule: 'Text fields: height that follows Dynamic Type', verdict: 'pass', note: 'HumidifierActivityEditor Name uses the plain axis: .vertical style with a drawn border, as WakeLightSheet does, so it grows with text.' },
+        { rule: 'Action sheets: confirm destructive deletes, Cancel present', verdict: 'pass', note: 'confirmationDialog "Delete <name>?" attached to the Delete button; the system supplies Cancel.' },
+        { rule: 'Toggles: day selection', verdict: 'pass', note: 'HumidifierActivityEditor days use the shared WeekdayPicker (title nil), which adds a checkmark under Differentiate Without Color and exposes isSelected.' },
+        { rule: 'Pickers: one date field per moment', verdict: 'departure', note: 'Two hour-and-minute DatePickers rather than ScheduleDateFields; the rule repeats weekly so only a time is stored (schedule-date-fields.md describes dateAndTime fields).' },
+      ],
+      swiftui: [
+        { rule: 'Navigation: confirmationDialog attached to its control', verdict: 'pass', note: 'The dialog hangs off the Delete button, so the iPad popover anchors correctly.' },
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Fixed: HumidifierSchedulesTab binds name (Binding.projected), each day (dayBinding), mode ($draft.mode) and times (timeBinding); the Sleep-forces-Display-off rule is an .onChange(of: draft.mode).' },
+        { rule: 'Localization: time of day through the environment calendar', verdict: 'pass', note: 'Fixed: the editor passes @Environment(\\.calendar) to ActivityTime; stored value stays ASCII HH:mm.' },
+        { rule: 'Layout: DynamicGridLayout for days and dials', verdict: 'pass', note: 'Seven days and two dials wrap by width; DatePicker rows wrap their label.' },
+        { rule: 'Accessibility: identifiers and labels', verdict: 'pass', note: 'Day toggles are labelled with the full name; dials are adjustable elements.' },
+      ],
+    },
+
+    notes: [
+      'loading: the editor has no loading state of its own; the activity list that opens it already loaded (the humidifier sheet\'s Schedules tab shows the arc).',
+      'medium and fitted: a pushed level inside a .full sheet, so only large exists.',
+      'offline: nothing changes on the page; a Save while disconnected sets the error line "Could not save scheduled activities."',
+      'The Save button is drawn as a glass text capsule. On iOS 26 a confirmationAction text button renders as the prominent system button; the exact look was not checked on a device.',
+      'Docs versus code: patterns/schedule-date-fields.md describes dateAndTime fields; this editor uses time-only DatePickers (see the departure in Reviews).',
+      'The catalog lists schedule-delete-dialog as a separate item (presents); its only call site is this editor\'s confirmationDialog, drawn here as delete-confirm.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: new, edit, sleep, overlap, no days, saving, error, delete dialog, AX5; light and dark.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Status chip · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../weather/_home-weather.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = Mock.chips, HW = Mock.HW;
+
+  /** Chips are always on the dark page (their ground is a family fill or the thin module, whatever the scheme). */
+  function S(items) {
+    return function (ctx) {
+      return HW.swatches(ctx, items.map(function (it) {
+        return { cap: it.cap, note: it.note, surface: 'page', width: it.width, node: function () { return h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' } }, it.chips().map(function (c) { return c.nodeType ? c : K.StatusChip(c); })); } };
+      }));
+    };
+  }
+  /** A chip with no sheet: not a button (StatusChipButton with action nil). The room rail draws these for a card that opens nothing. */
+  function inert(p) {
+    var n = K.StatusChip(p), d = h('div', { class: n.className + ' hw-inert', style: n.style.cssText, role: 'img', 'aria-label': p.title + ', ' + p.summary, dataset: { chip: p.title } });
+    while (n.firstChild) d.appendChild(n.firstChild);
+    return d;
+  }
+  function ratio(fill) { return Mock.color.contrast([255, 255, 255], Mock.color.rgb(fill)); }
+  function contrastRow(title, fill, glyph) { var f = Mock.color.rgb(fill), g = Mock.color.rgb(glyph); return [title, h('span', { style: { display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', background: fill, verticalAlign: '-2px', marginRight: '6px', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.4)' } }), fill + ' · white ' + Mock.color.contrast([255, 255, 255], f).toFixed(1) + ':1 · glyph ' + glyph + ' on fill ' + Mock.color.contrast(g, f).toFixed(1) + ':1']; }
+
+  var cfg = Mock.componentConfig('StatusChip', { surfaces: ['page'] });
+  var extra = {
+    'neutral': { title: 'Neutral (nothing active)', note: 'the thin module with the secondary ink: Lights All Off, Occupancy Clear, Security while arming or unknown', render: S([{ cap: 'page · neutral chips', chips: function () { return [C.lights(0), C.occupancy(false), C.security('arming'), C.security('unknown')]; } }]) },
+    'lights-on': { title: 'Lights on', note: 'amber #7A4A00 with an orange glyph (the lit tile has no fill, so the chip takes the amber)', render: S([{ cap: 'page · lights', chips: function () { return [C.lights(1), C.lights(14)]; } }]) },
+    'security-modes': { title: 'Security: every alarm mode', note: 'always the mode\'s fill (white glyph), neutral while arming or unknown', render: S([{ cap: 'page · five modes and arming', chips: function () { return ['armed_home', 'armed_away', 'armed_night', 'disarmed', 'triggered', 'arming'].map(C.security); } }]) },
+    'climate': { title: 'Climate: the temperature colour', note: 'the web gradient at the range\'s mean, scaled to 73% and darkened until white reads 4.5:1; the yellow thermometer stays where it holds 3:1', render: S([{ cap: 'page · 50 to 85 F', chips: function () { return [[50, '48–52°F'], [60, '58–62°F'], [68, '66–70°F'], [74, '72–76°F'], [80, '78–82°F'], [85, '83–87°F']].map(function (x) { return C.climate(x[1], x[0]); }); } }]) },
+    'occupancy': { title: 'Occupancy', note: 'one person symbol: outline when clear, filled with the green only while detected', render: S([{ cap: 'page · clear and detected', chips: function () { return [C.occupancy(false), C.occupancy(true)]; } }]) },
+    'contacts': { title: 'Contact Sensors: four states', note: 'all closed soft green; open at home amber; open while away coral; open while armed red with an alert triangle (armed outranks away)', render: S([{ cap: 'page · ContactChipState', chips: function () { return [C.contacts('closed', 0), C.contacts('home', 2), C.contacts('away', 2), C.contacts('armed', 1)]; } }]) },
+    'air-quality': { title: 'Air Quality: the AQI colour', note: 'fill and glyph take the colour of input_text.demo_color_3; the web teal #006E63 while it is unset (the AQI palette here is a stand-in for the helper)', render: S([{ cap: 'page · default teal and the six bands', chips: function () { return [C.airQuality('AQI 18–42 · PM2.5 4–9'), C.airQuality('AQI 32 · PM2.5 6', [0, 228, 0]), C.airQuality('AQI 72 · PM2.5 18', [255, 255, 0]), C.airQuality('AQI 130 · PM2.5 44', [255, 126, 0]), C.airQuality('AQI 180 · PM2.5 80', [255, 0, 0]), C.airQuality('AQI 250 · PM2.5 160', [143, 63, 151]), C.airQuality('AQI 350 · PM2.5 300', [126, 0, 35])]; } }]) },
+    'inert': { title: 'Inert (no sheet)', note: 'a room chip whose card opens nothing is a plain element, not a button: no hint, no press', render: S([{ cap: 'page · button and inert', chips: function () { return [K.StatusChip(C.occupancy(true)), inert(C.occupancy(true))]; } }]) },
+    'redacted': { title: 'Redacted ("Hidden")', note: 'while screenshots are redacted, Security and Occupancy summaries read Hidden; the fill still follows the entity', render: S([{ cap: 'page · privacy on', chips: function () { return [Object.assign(C.security('armed_home'), { summary: 'Hidden' }), Object.assign(C.occupancy(true), { summary: 'Hidden' })]; } }]) },
+    'long-text': { title: 'Long summaries', note: 'a chip keeps its own width so live values never shift neighbours; the compact rail scrolls, the regular rail wraps. In the app the summary wraps only when the chip is offered less width than its text', render: S([{ cap: 'page · long', chips: function () { return [C.airQuality('AQI 118–142 · PM2.5 38–54', [255, 126, 0]), C.climate('83.4–87.9°F', 85), C.contacts('armed', 14), C.lights(142)]; } }]) },
+    'colours': { title: 'Chip fills and contrast (reference)', note: 'white text on every chip fill is at least 4.5:1, also under the 12% top highlight', render: function (ctx) {
+      var rows = [['Lights', '#7A4A00', '#FF9630'], ['Climate (navy default)', '#195482', '#FFCC00'], ['Air (teal default)', '#006E63', '#2FD3C1'], ['Occupancy', '#2A732E', '#FFFFFF'], ['Security Home', '#1565C0', '#FFFFFF'], ['Security Away', '#C62828', '#FFFFFF'], ['Security Night', '#7B1FA2', '#FFFFFF'], ['Security Disarmed', '#2A732E', '#FFFFFF'], ['Security Triggered', '#D70015', '#FFFFFF'],
+        ['Contact closed', '#3B523E', '#7ED787'], ['Contact open home', '#8A5200', '#FFC25C'], ['Contact open away', '#B23A26', '#FFD2C8'], ['Contact open armed', '#D70015', '#FFFFFF']];
+      return h('div.k-table-wrap', h('table', h('thead', h('tr', ['Chip', 'Fill', 'Contrast (white text, glyph)'].map(function (t) { return h('th', t); }))), h('tbody', rows.map(function (r) { var c = contrastRow(r[0], r[1], r[2]); return h('tr', h('td', c[0]), h('td', c[1], r[1]), h('td', c[2].split(' · ').slice(1).join(' · '))); }))));
+    } },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the chip grows with its text (title 15 pt, state 12 pt scale); the rail scrolls (compact) or wraps (regular) so nothing is cut', render: S([{ cap: 'page · AX5', chips: function () { return [C.lights(3), C.security('armed_home'), C.contacts('armed', 1)]; } }]) },
+  };
+  Object.keys(extra).forEach(function (k) { cfg.states[k] = extra[k]; });
+
+  Mock.mount(Object.assign(cfg, {
+    states: cfg.states,
+    id: 'status-chip', title: 'Status chip (capsule, filled by family)', area: 'home', status: 'shipped',
+    summary: 'One chip of the status rail: glyph, title and a one-line state in a capsule at least 48 pt tall. Idle chips sit on the thin module; active chips fill with their family colour (or a colour computed from Home Assistant) under a 12% top highlight. The same view draws Home, Security and room chips.',
+    source: ['apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Home/StatusChipAppearance.swift', 'apple/Sources/HassDesign/ChipTint.swift', 'apple/Sources/HassDesign/ColorFamily.swift', 'apple/Sources/HassCore/Chips/ContactChipState.swift (the contact states)'],
+    spec: ['.agents/patterns/status-rail.md', '.agents/design/direction-g.md', '.agents/pages/home/spec.md'],
+    patterns: ['status-rail', 'status-pill', 'motion'],
+    hig: ['Buttons', 'Color', 'Dynamic Type', 'Accessibility'],
+    entities: ['light.demo_light_2', 'alarm_control_panel.demo_alarm_control_panel_1', 'input_text.demo_pm25_range_1', 'input_text.demo_color_4', 'binary_sensor.demo_binary_sensor_1', 'binary_sensor.demo_contact_2', 'input_text.demo_pm25_range_1', 'input_text.demo_color_3'],
+    kitComponents: ['StatusChip', 'ChipRail'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    motion: [
+      { id: 'chip-colour', what: 'A chip fills in a new colour when the house changes (a door opens: Contact Sensors goes soft green to amber)', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only; the capsule never slides', state: 'contacts',
+        source: 'StatusRail.swift StatusChipStyle.colorAnimation; motion.md section 6', reduce: 'still cross-fades (colour is not motion), shortened to 0.2 s',
+        play: function (stage) { var c = stage.querySelector('.ui-chip[data-chip="Contact Sensors"]'); if (!c) return Promise.resolve(); c.style.setProperty('--cf', 'var(--chip-contact-home-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-home-glyph)'); c.querySelector('.su').textContent = '2 Open'; return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { c.style.setProperty('--cf', 'var(--chip-contact-closed-fill)'); c.style.setProperty('--cg', 'var(--chip-contact-closed-glyph)'); c.querySelector('.su').textContent = 'All Closed'; return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'chip-neutral', what: 'The Lights chip goes neutral when the last light turns off (3 On to All Off), then back', token: 'state 0.6 s ease-in-out; a chip turning filled or neutral cross-fades inside the fill only', state: 'lights-on',
+        source: 'StatusChipBackground (StatusRail.swift); status-rail.md "Animation"', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var c = stage.querySelector('.ui-chip[data-chip="Lights"]'); if (!c) return Promise.resolve(); var f = c.style.getPropertyValue('--cf'), g = c.style.getPropertyValue('--cg'); c.classList.remove('filled'); c.style.setProperty('--cf', 'rgba(28,28,30,.66)'); c.style.setProperty('--cg', 'var(--g-secondary-on-module)'); c.querySelector('.su').textContent = 'All Off'; return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { c.classList.add('filled'); c.style.setProperty('--cf', f); c.style.setProperty('--cg', g); c.querySelector('.su').textContent = '1 On'; return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'chip-climate', what: 'The Climate chip follows the temperature: 68 to 80 degrees blends its fill', token: 'state 0.6 s ease-in-out on the fill and glyph', state: 'climate',
+        source: 'StatusChipAppearance.climate, ChipTint.fromWeb', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { var c = stage.querySelector('.ui-chip[data-chip="Climate"]'); if (!c) return Promise.resolve(); var t = C.climate('78–82°F', 80).tint, f = c.style.getPropertyValue('--cf'), g = c.style.getPropertyValue('--cg'); c.style.setProperty('--cf', t.fill); c.style.setProperty('--cg', t.glyph); c.querySelector('.su').textContent = '78–82°F'; return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { c.style.setProperty('--cf', f); c.style.setProperty('--cg', g); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+    transitions: [
+      { from: 'Status chip', to: 'Security System sheet or a room overview sheet', kind: 'sheet', note: 'Security opens the fitted Security System sheet; every other chip opens a full-height room overview sheet (patterns/room-overview-sheet.md). See the Home page and Security System sheet mockups for the Play.' },
+    ],
+    a11y: [
+      { rule: 'Name, role and hint', note: 'A chip is one button labelled "<title>, <summary>" ("Security, Armed Home") with the hint "Opens <title>". An inert chip has the same label but no button trait and no hint.' },
+      { rule: 'State is colour, glyph and words', note: 'The contact chip adds an alert triangle when armed and "n Open"; the occupancy person is outline or filled; Security names the mode; the summary text always states the value.' },
+      { rule: 'Target', note: 'At least 48 pt tall (web .headerPill), above the 44 pt minimum, at every text size; the chip never shrinks its text.' },
+      { rule: 'Contrast', note: 'Title is fixed white; the state is full white on a fill and secondary on module at 68% (4.5:1 or better on the thin module). Fills are darkened until white reads 4.5:1 including under the 12% highlight; the glyph keeps 3:1 (WCAG 1.4.11). See the colours state.' },
+      { rule: 'Reduce Transparency and Increase Contrast', note: 'Neutral chips are the solid #1C1C1E; filled chips keep their fills (already opaque enough).' },
+      { rule: 'Dynamic Type', note: 'Title is subheadline semibold and the state is caption; both scale. The rail scrolls on compact width and wraps on regular width so a large chip is never cut off.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Color: state beyond colour; contrast", verdict: 'pass', note: "Chip fills are darkened until white text reaches 4.5:1 including the 12% top highlight, glyphs keep 3:1 (ChipTint.swift:60-75, StatusRail.swift:78-81); the armed-and-open chip adds a triangle (StatusChipAppearance.swift:49).", by: 'apple-hig skill' },
+        { rule: "Accessibility: 44 pt minimum target", verdict: 'pass', note: "The capsule is at least 48 pt tall with a Capsule contentShape (StatusRail.swift:88-90, 101).", by: 'apple-hig skill' },
+        { rule: "Accessibility: do not use thin or very small custom text", verdict: 'pass', note: "StatusChipButton state line is .subheadline (StatusRail.swift), option B.", by: 'apple-hig skill' },
+        { rule: "Buttons: label and hint for a custom control", verdict: 'pass', note: "'<title>, <summary>' with hint 'Opens <title>'; an inert chip drops the button trait (StatusRail.swift:55-64).", by: 'apple-hig skill' },
+        { rule: "Typography: wrap before truncating", verdict: 'pass', note: "Title and summary are plain Texts with no line limit so a narrow rail wraps the caption (StatusRail.swift:77-82); the kit keeps one line (README note).", by: 'apple-hig skill' },
+        { rule: "Materials: standard material for the content layer", verdict: 'departure', note: "A neutral chip is a thin module tint, not a live blur (StatusRail.swift:129, ModuleBackground); direction-g.md Layers.", by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: "Dynamic Type", verdict: 'pass', note: "Text styles throughout; the capsule is minHeight, not a fixed height (StatusRail.swift:88).", by: 'swiftui-pro skill' },
+        { rule: "Fixed inks", verdict: 'departure', note: "Titles are .white because the chip ground is always dark (StatusRail.swift:76-77), the page's always-dark policy (direction-g.md Layers).", by: 'swiftui-pro skill' },
+        { rule: "Animate colour only", verdict: 'pass', note: "stateForeground and stateColorTransition cross-fade ground and ink; width and glyph swap never ride the animation (StatusRail.swift:73-74, 133).", by: 'swiftui-pro skill' },
+        { rule: "Use bold() instead of fontWeight", verdict: 'pass', note: "Fixed: the glyph and title weights are HassTokens.Typography.bodyEmphasis and rowTitle, one token each, same pixels (StatusRail.swift).", by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'loading: the first sign-in draws the chip with its name and a soft pulsing bar where the state goes (kit state "pending"; 0.35 to 1 over 1.4 s, still at 65% under Reduce Motion).',
+      'The kit keeps the state on one line (white-space nowrap); in the app the caption can wrap when a chip is offered less width than its text (a wrapping rail on a narrow window).',
+      'The AQI colours in the air-quality state are the standard AQI palette as a stand-in for what input_text.demo_color_3 holds; the chip colour maths is the real ChipTint.fromWeb.',
+      'Glyphs are the kit\'s SF Symbol stand-ins.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: every family and computed colour, neutral, inert, redacted, long text, contrast table and AX5.' }],
+  }));
+})();
+</script></body></html>

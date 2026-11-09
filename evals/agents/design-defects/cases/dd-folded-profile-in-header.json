@@ -1,0 +1,16 @@
+{
+  "id": "dd-folded-profile-in-header",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "In folded mode, profile is not in right-side rail like SwiftUI, it is still in header",
+  "surface": "shell-header-items",
+  "poses": [
+    "duo-folded"
+  ],
+  "app": "uikit",
+  "category": "navigation",
+  "pre_fix_ref": "fec0e3ca",
+  "fix_ref": "ae5daf89",
+  "fix_confidence": "high",
+  "expected": "On the folded Duo the Profile item must sit in the vertical right rail (as the SwiftUI app and the atlas draw it), not in the horizontal header."
+}

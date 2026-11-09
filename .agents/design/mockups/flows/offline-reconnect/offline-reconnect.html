@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Offline and reconnect · flow mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/login/_login-launch-flows.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, LL = Mock.LL, A = Mock.anim;
+  var REVIEW_DATE = '2026-10-23';
+  var SNAP = ['snapshot', 'snapshot', 'snapshot', 'snapshot'];
+  function home(connection, o) { return function (ctx) { return LL.homePage(ctx, Object.assign({ connection: connection }, o)); }; }
+  function settings(connection) { return function (ctx) { return LL.haSettings(ctx, { connection: connection }); }; }
+
+  Mock.mount({
+    kind: 'flow', id: 'offline-reconnect', title: 'Offline and reconnect', area: 'shell', status: 'shipped',
+    summary: 'What the person sees when the house connection drops. A blip under 2 s shows nothing. A retrying connection shows a small arc in the header, left of Quick Links. No network at all shows the offline chip at once and a cloud on Profile. Values stay on screen and never blank; nothing animates on reconnect itself.',
+    source: ['apple/Sources/HassUI/App/Shell/ReconnectingArc.swift', 'apple/Sources/HassUI/App/Shell/ReconnectingIndicatorHost.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKOfflineChip.swift', 'apple/Sources/HassUI/App/Shell/OfflineOverlay.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift', 'apple/Sources/HassCore/Connection/ReconnectingPolicy.swift', 'apple/Sources/HassUI/App/AppSession.swift'],
+    spec: ['.agents/platforms/apple/connection-lifecycle.md', '.agents/design/direction-g.md', '.agents/design/reconnecting-spinner.md'],
+    patterns: ['resume-lifecycle', 'motion'],
+    hig: ['Loading', 'Feedback', 'Motion', 'Accessibility'],
+    kitComponents: ['ReconnectingArc', 'OfflineChip', 'ProfileButton', 'ArcSpinner'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'connected': { title: '1 · Connected', note: 'live values, cameras live, nothing extra in the header', render: home('live') },
+      'down-under-2s': { title: '2 · Down, under 2 s: nothing', note: 'ReconnectingPolicy.delay is 2 s so a blip never shows anything; identical to connected', render: home('live') },
+      'reconnecting-arc': { title: '3 · Down 2 s+: the arc', note: 'a 20 pt white arc left of Quick Links, the same gap as Quick Links to Profile; no text, not a control. On the Duo rail it stays in the page header', render: home('reconnecting', { cams: ['snapshot', 'connecting', 'snapshot', 'snapshot'] }) },
+      'offline-chip': { title: '4 · No network: the offline chip', note: 'shown at once, no 2 s wait; "Offline. Showing last known values."; the Profile button carries a cloud badge; no arc (nothing is retrying)', render: home('offline', { cams: SNAP }) },
+      'values-stay-stale': { title: '5 · Values stay on screen', note: 'chips, weather and the last camera snapshots are kept ("Last live ..."); nothing blanks, re-fades or reorders while down', render: home('reconnecting', { cams: SNAP }) },
+      'live-again': { title: '6 · Live again', note: 'the arc leaves; values update in place; nothing animates on reconnect itself', render: home('live') },
+      'settings-reconnecting': { title: 'HA settings: Connection row, retrying', note: 'Home Assistant settings reads the same connection: "Reconnecting…" (no Version row while it is down)', render: settings('Reconnecting…') },
+      'settings-offline': { title: 'HA settings: Connection row, offline', note: '"Offline"; the account rows keep the last user, or read "Unavailable offline" when none was loaded', render: settings('Offline') },
+      'settings-rejected': { title: 'HA settings: server refused the token', note: '"Signed out by server" is momentary: a rejected token ends the session and shows the welcome back sign-in (flows/session-expired-welcome-back)', render: settings('Signed out by server') },
+      'ax5': { title: 'Accessibility 5 text size (offline)', override: { ts: 'ax5' }, render: home('offline', { cams: SNAP }) },
+    },
+
+    motion: [
+      { id: 'arc-in-out', what: 'The header arc fades in once down 2 s, out when live again', token: 'crossFade 0.35 s each way (MotionTokens.crossFade); present then lit: a blip never shows it, coming back mid-fade re-lights it where it is', state: 'reconnecting-arc',
+        source: 'HassUI/App/Shell/ReconnectingArc.swift, ReconnectingIndicatorHost.swift', reduce: 'unchanged: opacity is not motion, so Reduce Motion keeps it; the arc itself turns at half speed, never still',
+        play: function (stage) { var slot = stage.querySelector('.ui-slot'); slot.classList.remove('on'); return Mock.sleep(300).then(function () { return A.arc(slot, true); }).then(function () { return Mock.sleep(1100); }).then(function () { return A.arc(slot, false); }); } },
+      { id: 'offline-chip-in-out', what: 'No network: the offline chip appears under the header', token: 'standard 0.3 s smooth: opacity plus a move in from the top edge (`.move(edge: .top)`, the chip with its header padding); Reduce Motion: crossFade 0.35 s', state: 'offline-chip',
+        source: 'HassUI/App/Shell/OfflineOverlay.swift (animation on isOffline, transition)', reduce: 'cross-fade only, no move',
+        note: 'The code\'s transition is .move(edge: .top) on the padded chip, which slides it down from above the header by its whole height, not a 10 pt nudge. Drawn per the code.',
+        play: function (stage) {
+          var row = stage.querySelector('.ui-conn-row').parentNode, dy = -(Mock.current.device.barTop + 44 + 36);
+          if (Mock.settings.reduceMotion) return A.fade(row, { ms: 350 });
+          var go = function (from, to) { return row.animate([{ opacity: from.o, transform: 'translateY(' + from.y + 'px)' }, { opacity: to.o, transform: 'translateY(' + to.y + 'px)' }], { duration: A.ms.standard(), easing: A.easing.standard, fill: 'both' }).finished.catch(function () {}); };
+          return go({ o: 0, y: dy }, { o: 1, y: 0 }).then(function () { return Mock.sleep(900); }).then(function () { return go({ o: 1, y: 0 }, { o: 0, y: dy }); });
+        } },
+      { id: 'values-in-place', what: 'Live values return in place; nothing animates because the connection came back', token: 'none (colour changes use state 0.6 s as ever, numbers roll 0.2 s)', state: 'values-stay-stale', source: 'motion.md section 3 row "Resume, reconnect, snapshot load"; section 6', reduce: 'unchanged',
+        play: function (stage) { var pills = [].slice.call(stage.querySelectorAll('.ui-cam .state')); return Mock.sleep(300).then(function () { return Promise.all(pills.map(function (p) { return A.fade(p, { from: 1, to: 0, ms: A.ms.quick() }); })); }).then(function () { return Mock.sleep(300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Connected', to: 'Reconnecting (arc)', kind: 'fade', state: 'connected', note: 'After 2 s down the arc is placed and fades up over 0.35 s; Quick Links and Profile never move (the group grows to the left).',
+        play: function (stage) {
+          var bar = stage.querySelector('.ui-bar'), qb = bar.querySelector('[aria-label="Quick Links"]');
+          var slot = K.ReconnectingArc({ on: false }); bar.insertBefore(slot, qb); return Mock.sleep(300).then(function () { return A.arc(slot, true); }).then(function () { return Mock.sleep(900); }).then(function () { return A.arc(slot, false); });
+        } },
+      { from: 'Reconnecting', to: 'Rejected token', kind: 'cut', state: 'reconnecting-arc', note: 'If Home Assistant refuses the token the connection status becomes rejected: that is not a "down" state (no arc, no chip) but ends the session and swaps to the welcome back sign-in. See flows/session-expired-welcome-back.',
+        play: function () { return Mock.sleep(600); } },
+    ],
+
+    a11y: [
+      { rule: 'The arc', note: 'One element, "Reconnecting to Home Assistant", updatesFrequently, no action and no 44 pt target (a status, not a control). Reduce Motion turns the arc at half speed, never still, because a still arc reads as frozen.' },
+      { rule: 'The offline chip', note: 'One combined element, "Offline. Showing last known values." (offline.chip). The cloud glyph is hidden.' },
+      { rule: 'Not colour alone', note: 'The offline chip has words; the arc has a spoken label and a turning shape; the Profile cloud badge is a glyph.' },
+      { rule: 'Profile badge offline', note: 'The Profile button gains a cloud-slash badge; its label is unchanged ("Profile, Alex Morgan").' },
+      { rule: 'Values never clear', note: 'Stale values stay (with "Last live" on cameras) so a person reading with VoiceOver or Switch Control keeps their place; nothing reorders while down.' },
+      { rule: 'AX5', note: 'The offline chip wraps to several lines. It is an overlay, not part of the layout, so at AX5 it covers part of the large title and the first chips (the arc does not, it is a header item); the header buttons keep their 44 pt.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
+      hig: [
+        { rule: 'Feedback: show a problem without blocking', verdict: 'pass', note: 'A small arc, chip or badge only; values stay (AGENTS.md No reload on reopen).', by: 'apple-hig skill' },
+        { rule: 'Loading: no indicator for a wait too short to matter', verdict: 'pass', note: 'ReconnectingPolicy.delay is 2 s; offline shows at once (ReconnectingPolicy.swift).', by: 'apple-hig skill' },
+        { rule: 'Motion: Reduce Motion', verdict: 'pass', note: 'The offline chip fades without moving (OfflineOverlay.swift).', by: 'apple-hig skill' },
+        { rule: 'Motion: make motion optional (arc)', verdict: 'departure', note: 'The arc keeps turning at half speed under Reduce Motion, owner 2026-10-14 (direction-g.md).', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'A task per state, cancelled on change', verdict: 'pass', note: '.task(id:) in ReconnectingIndicatorHost; a blip never shows.', by: 'swiftui-pro skill' },
+        { rule: 'Offline is also spoken on Profile and in settings', verdict: 'pass', note: 'ProfileButton\'s accessibilityValue ends with "Offline" (ShellHeader.swift); the settings Connection row reads "Offline" (HomeAssistantSettingsView.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Show state in more than colour', verdict: 'pass', note: 'A cloud-slash glyph on Profile and words in the offline chip (ShellHeader.swift; OfflineChip.swift).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Shipped: the header arc replaced the old Reconnecting chip; only the offline chip remains as a chip. See .agents/design/reconnecting-spinner.md for the decision.',
+      'refreshing, loading, empty, error, long-text: not states of this flow. It is a layer over any signed-in page; the Home page mockup carries those. The page drawn is the trimmed Home of the kit.',
+      'Offline is not reconnecting: ReconnectingPolicy.showsArc returns false when offline, so a connection with no network path shows the offline chip and never the arc. The first connect (no state heard yet) shows the arc at once with no delay.',
+      'The Duo rail: the arc stays in the page header, trailing, opposite the title, and never joins the rail group (ShellHeaderItems passes besideQuickLinks: false).',
+      'HA settings is a full-screen cover whose appearance is inherited from the shell; drawn here as a dark sheet (confirm in the simulator).',
+    ],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: connected, blip, arc, offline, stale values, live again, settings rows, AX5.' }, { date: '2026-10-28', note: 'Arc shipped: chip states and motions removed, sources point at the arc files, status shipped.' }],
+  });
+})();
+</script></body></html>

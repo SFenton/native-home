@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Room group detail · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_room-overview-data.js"></script>
+<script src="../_room-overview.js"></script>
+</head><body>
+<script>
+(function () {
+  var A = Mock.anim, mixed = RO.world('mixed');
+  function S(kind, room, w, x) { return function (ctx) { return RO.sheet(ctx, Object.assign({ kind: kind, room: room, W: RO.world(w || 'mixed') }, x)); }; }
+  function tileBy(stage, sel) { return stage.querySelector(sel); }
+
+  var states = {
+    'default': { title: 'Living Room Lights: the group slab, then each light', note: 'a room with several lights on a light.* group shows the group as one full-width brightness tile above its lights', render: S('lights', 'Living Room') },
+    'lights-single': { title: 'Gym Light: one light, no group slab', note: 'heading "Light"; a lone light has no group tile; the one switch (Entryway) draws a power tile instead of a brightness tile', render: S('lights', 'Gym') },
+    'nightstands': { title: 'Bedroom 1 Lights: nightstands personalise', note: 'signed in as Alex: "Your Nightstand" and "Sam Nightstand"; Alex\'s own is on at 20%', render: S('lights', 'Bedroom 1') },
+    'dragging': { title: 'Dragging a brightness tile', note: 'the tile lifts 3%, a dark "55%" bubble floats above the band\'s edge; a haptic tick every 10% (not drawn)', render: S('lights', 'Kitchen', 'mixed', { dragGroup: 55 }) },
+    'quiet': { title: 'Kitchen Lights, all off', note: 'the subtitle reads "Off" (the group light\'s state); every tile is the off face with the outline bulb', render: S('lights', 'Kitchen', 'quiet') },
+    'climate': { title: 'Guest Room Climate: sensors, then a closed vent', note: 'temperature tiles are dark with the climate glyph (direction G dropped the temperature colours); a closed vent is dark with the fan glyph; the lone vent heading is "Vent"', render: S('climate', 'Guest Room') },
+    'climate-open': { title: 'Office Climate: an open vent fills blue', note: 'an open vent fills the Vents family and reads "Open · 100%" (the same rule as Climate Advanced Controls)', render: S('climate', 'Office') },
+    'occupancy': { title: 'Living Room Occupancy: 2 sensors occupied', note: 'the live subtitle first; heading "Occupancy Sensors"; a detecting sensor fills green with the walking figure', render: S('occupancy', 'Living Room') },
+    'contacts': { title: 'Office Contact Sensors: a window open', note: 'subtitle "1 Window Open"; heading "Contact Sensors"; an open sensor fills soft green with the open-window glyph', render: S('contacts', 'Office') },
+    'loading': { title: 'Store empty (first sign-in)', note: 'there is no spinner or pending bar: every light reads as unavailable (dimmed, no state line) and the first line reads "Off"', render: S('lights', 'Living Room', 'empty') },
+    'error': { title: 'Unavailable light: Back Deck Lights', note: 'the tile dims, reads Unavailable and takes no touch (hit testing off); the other light still works', render: S('lights', 'Back Deck', 'unavailable') },
+    'error-climate': { title: 'Unavailable sensor: Entryway Climate', note: 'the subtitle falls to "1 sensors" (as shipped); the tile reads Unavailable', render: S('climate', 'Entryway', 'unavailable') },
+    'error-occupancy': { title: 'Unavailable sensor: Gym Occupancy', note: 'subtitle "0 sensors occupied"; the tile reads Unavailable', render: S('occupancy', 'Gym', 'unavailable') },
+    'error-contacts': { title: 'Unavailable sensor: Dining Room Contact Sensors', note: 'subtitle "Door Closed" (an unavailable sensor is not open); the tile reads Unavailable and dims', render: S('contacts', 'Dining Room', 'unavailable') },
+    'offline': { title: 'Over an offline Home', note: 'the page has no offline UI of its own and keeps the last known state; a tap on a light still sends and shows at once, then rolls back if the call is rejected (OptimisticActions)', render: S('lights', 'Living Room', 'mixed', { connection: 'offline' }) },
+    'reconnecting': { title: 'Over a reconnecting Home', note: 'the header arc sits on the page behind; the detail is unchanged', render: S('lights', 'Living Room', 'mixed', { connection: 'reconnecting' }) },
+    'long-text': { title: 'xxxLarge text: one column', override: { ts: 'xxxl' }, render: S('lights', 'Living Room') },
+    'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of stacked tiles; the group slab keeps its band; the page scrolls', render: S('lights', 'Living Room') },
+    'redacted': { title: 'Redacted build: Living Room Occupancy', note: 'FENTON_REDACT_PRIVATE: the first line and every tile read "Hidden" and stay dark (screenshots only)', render: S('occupancy', 'Living Room', 'mixed', { redact: true }) },
+    'from-security': { title: 'Contact Sensors opened from Security', note: 'the same pushed page when the sheet was opened from the Security page', render: S('contacts', 'Office', 'mixed', { from: 'security' }) },
+    'overview': { title: 'The overview this page is pushed from', note: 'the Lights overview, for the push transitions', render: function (ctx) { return RO.sheet(ctx, { kind: 'lights', W: mixed }); } },
+  };
+
+  Mock.mount({
+    kind: 'modal', id: 'room-group-detail', title: 'Room group detail (pushed in an overview sheet)', area: 'home', status: 'shipped',
+    summary: 'The page a room card pushes inside Lights, Climate, Occupancy and Contact Sensors: the group\'s name, its live subtitle, then its tiles in one equal-height grid. Lights are live (power and brightness); temperatures, vents, presence and doors are read-only. A plain push with Back and Close in the bar; follows the system appearance.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassDesign/BrightnessTile.swift',
+      'apple/Sources/HassCore/Rooms/RoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomFormat.swift', 'apple/Sources/HassCore/Lights/LightControl.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    spec: ['.agents/pages/home/spec.md', '.agents/pages/home/ios.md', '.agents/patterns/room-overview-sheet.md'],
+    patterns: ['room-overview-sheet', 'dynamic-grid', 'entity-tile', 'optimistic-actions', 'modal-sheet'],
+    hig: ['Sheets', 'Navigation and search', 'Gestures', 'Haptic feedback', 'Accessibility'],
+    entities: ['light.demo_living_room_item_1', 'light.demo_living_room_light_4', 'light.demo_bedroom_1_1', 'cover.demo_office_vent_1', 'binary_sensor.demo_office_contact_2'],
+    kitComponents: ['HassModal', 'BackButton', 'SheetCloseItem', 'BrightnessTile', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'ChipRail', 'WeatherCard', 'AlarmPanel'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: states,
+
+    motion: [
+      { id: 'light-drag', what: 'Dragging a brightness tile: it lifts, a bubble floats over the band\'s edge, the band follows the finger', token: 'quick 0.2 s easeOut for band, lift and bubble; selection haptic every 10%', state: 'default',
+        source: 'HassDesign/BrightnessTile.swift (BrightnessDrag, BrightnessBubble, hapticStep); motion.md section 6; motion-components.md',
+        reduce: 'no lift (a shadow only), the band and bubble still follow; the bubble fades',
+        note: 'Horizontal drags set brightness and commit on release; a vertical drag is left to the scroll view. VoiceOver swipes up and down step 10%.',
+        play: function (stage) { var t = tileBy(stage, '[data-id^="room.lightGroup"]'); return RO.dragDemo(t, 60, 90); } },
+      { id: 'optimistic-power', what: 'Tapping an off light lights it at once; Presence Based Lighting then reverts it and the live state wins', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'default',
+        source: 'RoomGroupDetailPage.swift OptimisticActions(.liveChange); GlassTileFace .stateColorTransition; optimistic-actions.md',
+        reduce: 'still cross-fades, at 0.2 s',
+        play: function (stage) { var t = tileBy(stage, '[data-light="light.demo_living_room_light_3"]'); return RO.flipTile(t, true, { pct: 50, subtitle: '50%' }).then(function () { return Mock.sleep(1400); }).then(function () { return RO.flipTile(t, false, { subtitle: 'Off' }); }); } },
+      { id: 'vent-opens', what: 'A vent opens: its tile fills the Vents blue and reads "Open · 40%"', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced)', state: 'climate',
+        source: 'RoomGroupDetail.swift sensorTile (ClimateLogic.isVentOpen); motion.md section 6',
+        reduce: 'still cross-fades, at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('[data-id="room.entity.cover.demo_guest_room_vent_1"]'); return RO.flipTile(t, true, { symbol: 'fan', subtitle: 'Open · 40%' }).then(function () { return Mock.sleep(600); }).then(function () { return RO.flipTile(t, false, { symbol: 'fan', subtitle: 'Closed' }); }); } },
+      { id: 'sensor-fills', what: 'A presence sensor detects someone: its tile fills green and reads Detected', token: 'state 0.6 s ease-in-out, colour only (0.2 s reduced); glyph .symbolEffect(.replace), identity under Reduce Motion', state: 'occupancy',
+        source: 'RoomGroupDetail.swift sensorTile; motion.md section 6',
+        reduce: 'colour still cross-fades at 0.2 s; the glyph swaps without the effect',
+        play: function (stage) { var t = stage.querySelector('[data-id="room.entity.binary_sensor.demo_living_room_presence_1"]'); return RO.flipTile(t, true, { symbol: 'figure.walk.motion', subtitle: 'Detected' }).then(function () { return Mock.sleep(600); }).then(function () { return RO.flipTile(t, false, { symbol: 'figure.stand', subtitle: 'Clear' }); }); } },
+    ],
+
+    transitions: [
+      { from: 'Lights overview', to: 'Living Room Lights', kind: 'push', state: 'overview', note: 'A plain system push inside the sheet\'s NavigationStack (never a zoom inside a sheet: owner 2026-10-22, motion.md 4.3). The destination renders its first frame with live data; it measures as the "Room overview" push.',
+        play: function (stage) { return RO.pushDemo(stage, 'lights', 'Living Room', mixed); } },
+      { from: 'Living Room Lights', to: 'Lights overview', kind: 'push', state: 'default', note: 'Back (glass circle) or the interactive edge swipe pops the page; the overview returns as it was.',
+        play: function (stage) { return RO.popDemo(stage, 'lights', mixed); } },
+      { from: 'Living Room Lights', to: 'Home', kind: 'sheet', state: 'default', note: 'Close dismisses the whole sheet from the pushed page (onDone calls dismiss), so Close stays in the bar at every depth.', play: RO.dismissDemo },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, the title ("Living Room Lights"), Close; then the live subtitle (identifier overview.detail.subtitle: "2 On", "2 sensors occupied"), the heading, the group slab, and each tile in grid order. The page identifier is overview.detail.<room>.' },
+      { rule: 'Brightness tile', note: 'Label the light, value "60%" or "Off" or "Unavailable", button trait; double-tap toggles, swipe up or down adjusts by 10% (accessibilityAdjustableAction); hint "Double-tap to turn off. Swipe up or down to adjust brightness." Identifiers room.light.<id>, room.lightGroup.<id>.' },
+      { rule: 'Power tile', note: 'The one switch (Entryway) and any on/off-only light: label the light, value On, Off or Unavailable, button trait; double-tap flips. 72 pt minimum height.' },
+      { rule: 'Sensor tiles', note: 'Read-only (kind .state): one grouped element each, label the sensor, value "Detected", "Open · 50%", "71.2°F"; no button trait, no hint (room.entity.<id>). Unavailable ones dim and read Unavailable.' },
+      { rule: 'State is not colour alone', note: 'Lit versus dark carries a count or percentage in words; an occupied, open or lit sensor changes glyph (walking figure, open door or window, filled bulb) as well as fill; temperatures are text.' },
+      { rule: 'Gestures', note: 'A drag on a brightness tile is horizontal only; a vertical drag scrolls the page. Releasing commits; a tap flips power. The bubble is hidden from VoiceOver (it hears the value), and capped at xxLarge since it is transient.' },
+      { rule: 'Haptics', note: 'A selection tick every 10% while dragging (sensoryFeedback), only between two drag values.' },
+      { rule: 'Dynamic Type', note: 'Minimum tile width 140 pt scaled, up to four columns; one column of stacked tiles at AX5 with the group slab still full width. The title and Close follow the bar rules.' },
+      { rule: 'Optimistic power', note: 'A tap shows the new power at once; a rejected call rolls back, and any live change wins (Presence Based Lighting may revert a light). Nothing is announced beyond the new value.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Sheets: a sheet can contain a navigation hierarchy; Back replaces Cancel on later steps", verdict: 'pass', note: "The room page is a plain push inside the overview's NavigationStack with the system Back and the circle-X Close at every level (RoomGroupDetailPage.swift:35-39, RoomOverviewSheet.swift:32-41).", by: 'apple-hig skill' },
+        { rule: "Gestures: give more than one way to interact; do not assume a specific gesture", verdict: 'pass', note: "A brightness tile sets level by horizontal drag and flips power on tap, while VoiceOver and Switch Control step 10% with the adjustable action (BrightnessTile.swift:143-149).", by: 'apple-hig skill' },
+        { rule: "Playing haptics: use selection feedback for changing values", verdict: 'pass', note: "A selection haptic ticks every 10% during a drag through sensoryFeedback (BrightnessTile.swift:123-125) and stays silent at rest; the lift effect is dropped under Reduce Motion (line 119).", by: 'apple-hig skill' },
+        { rule: "Accessibility: do not rely on colour alone", verdict: 'pass', note: "A lit tile prints its percentage or Off; occupancy swaps the motion-sensor glyph between variants and reads Occupied or Not Occupied (RoomGroupDetail.swift:55-59); an unavailable tile dims only the glyph and says Unavailable at 4.5:1.", by: 'apple-hig skill' },
+        { rule: "Layout and Dynamic Type: rows grow and reflow rather than clip", verdict: 'pass', note: "The detail grid minimum is @ScaledMetric 140 with equal-height tiles (RoomGroupDetail.swift:19, 33-39), so xxxLarge and AX5 go to one column (states long-text, ax5).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "navigationDestination(for:) with a value, not NavigationLink(destination:)", verdict: 'pass', note: "RoomOverviewSheet registers navigationDestination(for: RoomGroup.self) once for the stack (line 32) and tiles append to a path array.", by: 'swiftui-pro skill' },
+        { rule: "Never use onTapGesture for a tappable element", verdict: 'pass', note: "The brightness tile needs onTapGesture beside a horizontal drag (a Button cannot share the gesture) and adds .isButton plus an accessibilityAction for the tap (BrightnessTile.swift:88, 136-137), as the rule asks when the gesture is unavoidable.", by: 'swiftui-pro skill' },
+        { rule: "Fixed size must not defeat Dynamic Type", verdict: 'departure', note: "The drag bubble is capped at xxLarge (BrightnessTile.swift:244): a transient 60 x 32 pt capsule over the tile edge would cover the tile if it grew; VoiceOver hears the value on the tile instead.", by: 'swiftui-pro skill' },
+        { rule: "Optimistic state with rollback, one state path", verdict: 'pass', note: "OptimisticActions with .liveChange rules per light shows a tap at once and yields to any live report (RoomGroupDetailPage.swift:40-45); a 4 s timeout clears a value Home Assistant never echoed (BrightnessTile.swift:37).", by: 'swiftui-pro skill' },
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'loading: there is no loading state. The page reads EntityStore (and the optimistic overlay), so the "loading" state here is an empty store: lights read as unavailable and dim, the first line reads "Off". No spinner or pending bar exists.',
+      'medium and fitted: not offered. The page lives in a hassSheet(.page, height: .full) sheet, so large is the only detent (a pushed page must not change the sheet\'s height).',
+      'This mockup draws Home\'s pushed pages (RoomGroupDetailPage, headings on). The room pages\' lights, climate, occupancy and contact sheets use the same RoomGroupDetail with showsHeadings false (no "Occupancy Sensors" or "Contact Sensors" heading, the sheet title names the group); see the rooms batch.',
+      'Air Quality has no detail page: AirQualityRoomTile is read-only and RoomGroupDetail\'s .airQuality branch is an empty view (see room-overview-air-quality).',
+      'Lights: the group slab appears only when the room has several lights and its group entity is a light.* (Entryway\'s switch.* and single-light rooms have none). A multi-room shared light (Bedroom 1 Closet\'s light also sits in Bedroom 1) is one entity and shows the same state in both.',
+      'Fixture: whether a light dims is invented (every light dims except the Entryway switch and the Driveway floodlight); colours on the Studio downlights are fixtures too.',
+      'Kit gaps (promote to kit): BrightnessTile prints "On at 70%" where the app prints "70%" (rewritten here), and its bubble sits 8 pt above the tile where the app puts the bubble\'s centre 24 pt above (the drag demo uses the app\'s offset); TileGrid with section headers and equal rows; window, figure.stand, stove, stairs and bathtub symbols (added at runtime in modals/home/_room-overview.js).',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: lights, climate, occupancy and contacts details, drag, unavailable, nightstands and every shared state.' }],
+  });
+})();
+</script></body></html>

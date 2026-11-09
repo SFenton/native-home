@@ -1,0 +1,17 @@
+{
+  "id": "dd-title-not-aligned-with-content",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Content on pages, left-aligned, doesn't line up with \"big page title\" (e.g. on Climate, \"Whole Home\" is further left than Climate)",
+  "surface": "climate",
+  "poses": [
+    "iphone",
+    "duo-unfolded-portrait"
+  ],
+  "app": "uikit",
+  "category": "alignment",
+  "pre_fix_ref": null,
+  "fix_ref": null,
+  "fix_confidence": null,
+  "expected": "The large title's leading edge and the first section's content share one leading margin; measure both frames and flag a mismatch."
+}

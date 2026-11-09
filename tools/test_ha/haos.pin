@@ -1,0 +1,7 @@
+# The HAOS image the test instance is built from (matches the house's HAOS line; update the test VM first, as a canary).
+# Source: github.com/home-assistant/operating-system release 18.4, asset digest from the GitHub API on 2026-11-06.
+# HAOS_ASSET is the name the file has on the host (the live host keeps haos.qcow2.xz); HAOS_SHA256 is of the downloaded asset.
+HAOS_VERSION=18.4
+HAOS_ASSET=haos.qcow2.xz
+HAOS_SHA256=756ec485b1b153099ca53e88a5eebd63a801d56b791afe5c6d63ef94a35dc02d
+HAOS_URL=https://github.com/home-assistant/operating-system/releases/download/18.4/haos_ova-18.4.qcow2.xz

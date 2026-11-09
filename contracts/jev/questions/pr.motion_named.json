@@ -1,0 +1,30 @@
+{
+  "id": "pr.motion_named",
+  "version": 1,
+  "type": "noul-set",
+  "mode": "shadow",
+  "description": "Which transitions does the owner's request or bug report talk about? Asked once per device class (state field device_class).",
+  "instructions": "Read the owner's request. For the device class in `device_class`, does it describe, directly or by what goes wrong during it, this movement: {option}?",
+  "criteria": {
+    "duo_open_close": "folding or unfolding the Duo",
+    "duo_half": "going into or out of the half-open book pose",
+    "duo_rotate": "turning the open Duo",
+    "ipad_rotate": "turning the iPad",
+    "sheet_refit": "a sheet or popup while turning or folding"
+  },
+  "state": {
+    "fields": [
+      "request",
+      "title",
+      "body",
+      "device_class"
+    ],
+    "max_chars": 4000
+  },
+  "accept": {
+    "yes_above": 0.6,
+    "no_below": 0.25
+  },
+  "output": "pr_visual select: recorded under jev_shadow (priority (a) in K.6 rule 5 once measured). Shadow: the request-text rule decides today.",
+  "evidence": "unmeasured"
+}

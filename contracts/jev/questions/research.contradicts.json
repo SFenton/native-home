@@ -1,0 +1,20 @@
+{
+  "id": "research.contradicts",
+  "version": 1,
+  "type": "noul",
+  "mode": "shadow",
+  "description": "Screen: does a section say the opposite of, or an exception to, the claim in the question?",
+  "instructions": "Does {item} say the opposite of, or give an exception to, the claim or expectation stated in this text: \"{question}\"",
+  "per_item": true,
+  "item_state": true,
+  "state": {
+    "max_chars": 24000
+  },
+  "accept": {
+    "min_confidence": 0.5,
+    "yes_above": 0.7,
+    "no_below": 0.3
+  },
+  "output": "tools/jev_sections.py --screen: labels a returned section `contradicts` (above 0.70) so the Researcher reports the conflict instead of picking one side.",
+  "evidence": "unmeasured"
+}

@@ -1,0 +1,44 @@
+{
+  "configurations": [
+    {
+      "id": "0F028DC2-3063-5071-8E84-B6C7C379CE7B",
+      "name": "Configuration 1",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "defaultTestExecutionTimeAllowance": 300,
+    "maximumTestExecutionTimeAllowance": 900,
+    "codeCoverage": false
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:FentonHome.xcodeproj",
+        "name": "FentonHomeUITests"
+      },
+      "parallelizable": false,
+      "selectedTests": [
+        "AdaptiveLayoutJourneyTests",
+        "BedroomWideLayoutJourneyTests",
+        "ChoresWideLayoutJourneyTests",
+        "ClimateWideLayoutJourneyTests",
+        "ColumnRoutesJourneyTests",
+        "FoodWideLayoutJourneyTests",
+        "HomePagesJourneyTests",
+        "LayoutJourneyTests",
+        "ModalSizingJourneyTests",
+        "NavigationJourneyTests",
+        "RoomDevicesHumidifierPoseJourneyTests",
+        "RoomsWideLayoutJourneyTests",
+        "SectionSidesJourneyTests",
+        "SheetBottomGapJourneyTests",
+        "ShellJourneyTests",
+        "TileLayoutJourneyTests",
+        "VacuumSplitPoseJourneyTests"
+      ]
+    }
+  ],
+  "version": 1
+}

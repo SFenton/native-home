@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Activity small family · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function small(name, ctx) { return LA.small(LA.fx(name), { ctx: ctx }); }
+  /** The Smart Stack on the Watch: a stand-in tile (the system draws the tile and its header). */
+  function watch(ctx, names, o) {
+    o = o || {};
+    var tiles = names.map(function (n) {
+      return h('div', { style: { margin: '0 10px 8px', padding: '10px 12px', borderRadius: '22px', background: 'rgba(23,24,30,.92)', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)' } }, small(n, ctx));
+    });
+    return LA.watch(h('div', { style: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg,#0b0d12,#000)' } },
+      h('div', { 'aria-hidden': 'true', style: { position: 'absolute', top: '8px', right: '14px', font: '600 14px var(--font)' } }, '9:41'),
+      h('div', { style: { position: 'absolute', left: 0, right: 0, top: '42px' } }, tiles),
+      h('div', { 'aria-hidden': 'true', style: { position: 'absolute', right: '4px', top: '70px', display: 'flex', flexDirection: 'column', gap: '4px' } }, [0, 1, 2].map(function (i) { return h('i', { style: { width: '4px', height: '4px', borderRadius: '50%', background: i === 0 ? '#fff' : 'rgba(255,255,255,.35)' } }); }))));
+  }
+  function carplay(ctx, name) {
+    return h('div', { role: 'group', 'aria-label': 'CarPlay Dashboard stand-in', style: { width: '560px', height: '280px', borderRadius: '26px', background: '#05070b', boxShadow: '0 0 0 2px #3a3a3e inset, 0 0 0 8px #000', position: 'relative', overflow: 'hidden', color: '#fff', flex: 'none' } },
+      h('div', { 'aria-hidden': 'true', style: { position: 'absolute', left: 0, top: 0, bottom: 0, width: '330px', background: 'linear-gradient(135deg,#16222f,#0c141d)', borderRight: '1px solid rgba(255,255,255,.08)' } },
+        h('div', { style: { position: 'absolute', left: '24px', top: '24px', font: '600 13px var(--font)', color: 'rgba(255,255,255,.55)' } }, 'Map (stand-in)')),
+      h('div', { style: { position: 'absolute', left: '350px', right: '18px', top: '18px', display: 'flex', flexDirection: 'column', gap: '12px' } },
+        h('div', { style: { padding: '12px 14px', borderRadius: '18px', background: 'rgba(23,24,30,.92)', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)' } }, small(name, ctx)),
+        h('div', { 'aria-hidden': 'true', style: { height: '64px', borderRadius: '18px', background: 'rgba(255,255,255,.06)' } }),
+        h('div', { 'aria-hidden': 'true', style: { height: '64px', borderRadius: '18px', background: 'rgba(255,255,255,.06)' } })));
+  }
+  function cat(ctx, names, note) {
+    return LA.stage([note ? h('p.la-note', note) : null].concat(names.map(function (n) {
+      return LA.fig(h('div', { style: { padding: '12px 14px', borderRadius: '18px', background: 'rgba(23,24,30,.92)', boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.14)', width: '198px', boxSizing: 'border-box' } }, small(n, ctx)), n); })));
+  }
+
+  Mock.mount({
+    kind: 'component', id: 'live-activity-small', title: 'Live Activity small family (Smart Stack, CarPlay)', area: 'live-activity', status: 'shipped', frame: false,
+    summary: 'The supplemental .small family (iOS 18) for the Apple Watch Smart Stack and CarPlay: the ring or glyph, the title and one figure. No controls.',
+    source: ['apple/Sources/FentonActivityViews/HomeActivitySmallView.swift', 'apple/Sources/FentonActivityViews/ActivityRing.swift', 'apple/Apps/Widgets/HomeLiveActivity.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: [],
+    hig: ['Live Activities', 'Apple Watch', 'CarPlay'],
+    entities: ['fenton_home job engine content-state v2'],
+    devices: ['iphone'],
+    states: {
+      'default': { title: 'Watch Smart Stack', note: 'Apple Watch 46 mm (208 × 248): a stand-in tile around the real small view', render: function (ctx) {
+        return h('div', { style: { display: 'flex', gap: '24px', flexWrap: 'wrap', padding: '8px 4px' } }, LA.fig(watch(ctx, ['fan']), 'fan', 'ring + title + figure'), LA.fig(watch(ctx, ['vacuum']), 'vacuum', 'glyph + headline'),
+          LA.fig(watch(ctx, ['problem-navigation-stuck']), 'problem-navigation-stuck', 'severity circle')); } },
+      carplay: { title: 'CarPlay Dashboard', note: 'the same view in a CarPlay dashboard tile (stand-in)', render: function (ctx) {
+        return h('div', { style: { display: 'flex', gap: '24px', flexWrap: 'wrap', padding: '8px 4px' } }, LA.fig(carplay(ctx, 'dishwasher'), 'dishwasher'), LA.fig(carplay(ctx, 'problem-mop-clean_water_empty'), 'problem-mop-clean_water_empty')); } },
+      catalog: { title: 'Every shape', render: function (ctx) {
+        return cat(ctx, ['fan', 'dishwasher-percent', 'dishwasher', 'dryer', 'washer', 'hotflash-cooling', 'dishwasher-paused', 'dishwasher-waiting', 'dishwasher-complete', 'vacuum', 'vacuum-paused', 'vacuum-long', 'fan-long'],
+          'A job with time or progress: a 32 pt ring around the glyph, the title (caption semibold) and the figure (17 pt headline, monospaced). A card with neither (the vacuum) draws the 26 pt glyph and its headline in headline type. Complete: a filled ring with a check and the word in the tint. One line each, so long text truncates.'); } },
+      problems: { title: 'Problems', render: function (ctx) {
+        return cat(ctx, ['problem-navigation-stuck', 'problem-power-critical_battery', 'problem-power-low_battery', 'problem-mop-clean_water_empty', 'problem-dock-cover_open', 'problem-vendor-unknown_error_88', 'problem-dishwasher-rinse_aid'],
+          'A problem draws the 30 pt severity circle, the device as the title and the problem line in the severity tint. No instruction and no buttons: "buttons do nothing there until a device check says otherwise".'); } },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'text styles scale, lines are limited to one: long text truncates', render: function (ctx) {
+        return LA.stage([LA.fig(watch(ctx, ['fan']), 'fan'), LA.fig(watch(ctx, ['problem-navigation-stuck']), 'problem')]); } },
+    },
+    motion: [LA.motionTick('apple/Sources/FentonActivityViews/HomeActivitySmallView.swift')],
+    transitions: [{ from: 'Smart Stack tile', to: 'S+H (on the phone)', kind: 'cut', note: 'Tapping the tile opens the Live Activity on the phone; there are no controls on the Watch or in CarPlay.' }],
+    a11y: [
+      { rule: 'One element', note: 'The view is combined into one accessibility element (.accessibilityElement(children: .combine)): glyph hidden, then the title and the figure.' },
+      { rule: 'No controls', note: 'The small family has no buttons, so there are no targets to size; the system makes the whole tile one target.' },
+      { rule: 'Dynamic Type', note: 'Uses text styles (.caption, .headline) and a 17 pt scaled figure, one line each; at AX sizes the Watch truncates. Not verified on a Watch or in CarPlay.' },
+      { rule: 'Colour', note: 'Ring, glyph and Complete take the dark family accent; problem lines take the severity light tint on the dark tile.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Smart Stack and CarPlay: glanceable, no controls', verdict: 'pass', note: 'Glyph or ring, title and one figure, with no buttons (HomeActivitySmallView.swift:13-43).' },
+        { by: 'apple-hig skill', rule: 'Dynamic Type: text must not truncate', verdict: 'pass', note: 'HomeActivitySmallView title, problem and headline take lineLimit(2) at accessibility sizes.' },
+        { by: 'apple-hig skill', rule: 'Typography: the smallest styles', verdict: 'pass', note: 'HomeActivitySmallView title and problem are .subheadline (option B).' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: combine into one element', verdict: 'pass', note: 'accessibilityElement(children: .combine) on the whole view (line 42).' },
+        { by: 'swiftui-pro skill', rule: 'api.md: availability for the .small family', verdict: 'pass', note: 'supplementalActivityFamilies([.small]) and the activityFamily environment are behind #available(iOS 18) (HomeLiveActivity.swift:17, 92-113).' },
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: scaled figure', verdict: 'pass', note: 'ActivityFigure(size: 17, relativeTo: .headline) scales from a text style (line 38).' },
+      ],
+    },
+    notes: [
+      'Devices: the phone hosts the activity; the small family shows on a paired Apple Watch Smart Stack (watchOS 11) and in CarPlay. Neither surface has been run on hardware or the simulator for this view; the tile, header and stack indicator are stand-ins, the view inside is the code.',
+      'The Watch stand-in is 208 × 248 pt (Series 10, 46 mm). No S+H Watch app UI exists (the watch app is a stub); the Smart Stack presentation comes from the phone\'s activity.',
+      'Doc versus code: spec section 8 says "the glyph, title and value; no controls", which matches. The ring size (32 pt) is in code only.',
+      'Promote to kit: LA.small, the Watch device (LA.watch, Mock.devices.watch) and a CarPlay stand-in.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+  });
+})();
+</script></body></html>

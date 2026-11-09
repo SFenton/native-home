@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add grocery item sheet · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/chores/_chores.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, C = window.Chores;
+
+  /* Config assembled by Chores.pageConfig / sheetConfig in pages/chores/_chores.js, which supplies: source: spec: states: motion: a11y: reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Sheets: dismissal of a one-field draft", verdict: "pass", note: "A single short field; Cancel and swipe down drop it without a prompt (TodoItemSheets.swift lines 40, 45), which is proportionate to what could be lost.", by: "apple-hig skill" },
+        { rule: "Text fields: a label that stays visible", verdict: "pass", note: "AddGroceryItemSheet puts the Item field in a Section with FormHeader(\"Item\") and the footer \"Added to the Groceries list.\" (grocery.footer); the mockup drawing is updated (Chores.grocerySheet).", by: "apple-hig skill" },
+        { rule: "Keyboards: return key and focus", verdict: "pass", note: "submitLabel(.done), onSubmit adds, focused set in onAppear (lines 29-30, 46).", by: "apple-hig skill" },
+        { rule: "Sheets: grabber and a size that fits", verdict: "pass", note: "hassSheet(.form) fitted detent with grabber (HassModal.swift lines 149-153, 192-196).", by: "apple-hig skill" },
+        { rule: "Toolbars: confirm named for what it does", verdict: "departure", note: "direction-g.md Sheets: a check labelled \"Add\", disabled until the trimmed field is non-empty.", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Concurrency: submit once, show busy", verdict: "pass", note: "submitting guard and isBusy on SheetConfirmItem; the form and Cancel are disabled while in flight (lines 34, 41, 50-53).", by: "swiftui-pro skill" },
+        { rule: "Accessibility: errors announced", verdict: "pass", note: "TodoSheetErrorSection applies announcesWhenShown(error), so a failed save is spoken.", by: "swiftui-pro skill" },
+      ],
+    }, devices: (static check keys). */
+  Mock.mount(C.sheetConfig({
+    id: 'add-grocery-item-sheet', title: 'Add grocery item sheet', file: 'TodoItemSheets.swift', fromLabel: 'Groceries', from: 'groceries',
+    summary: 'A one-field prompt: Item, with the subtitle "Groceries", Cancel and an Add check. The field takes focus when the sheet opens. A fitted form sheet that follows the system appearance; switch Sheet appearance above.',
+    entities: ['todo.demo_todo_1'], patterns: [],
+    build: function (ctx, o) { return C.grocerySheet(ctx, o); },
+    defaultTitle: 'Empty', defaultNote: 'Add is disabled until the trimmed text is not empty; the field has focus (keyboard not drawn)', defaultO: {},
+    errorTitle: 'Add failed', errorNote: 'todo.add_item failed: "Unable to add grocery item" in red above the field; the text stays', errorO: { value: 'Sourdough bread', error: 'Unable to add grocery item' },
+    offlineO: { value: 'Sourdough bread', error: 'Unable to add grocery item' },
+    ax5O: { value: 'Sourdough bread' },
+    extra: {
+      'typed': { title: 'Typed', note: 'the check enables; Return on the keyboard (submitLabel .done) also adds', o: { value: 'Sourdough bread' } },
+      'saving': { title: 'Adding', note: 'the check becomes an arc, the field disables, the sheet cannot be dismissed', o: { value: 'Sourdough bread', busy: 'saving' } },
+    },
+    a11y: [{ rule: 'Focus', note: 'The Item field takes focus on appear (FocusState), so the keyboard is up and VoiceOver reads the field after the title. Return submits (done), as does the check.' }],
+    notes: [
+      'loading: there is no loading state; nothing is fetched. The nearest state is "Adding" (saving) while todo.add_item runs.',
+      'The sheet is dismissed on success with no confirmation; the Grocery List page refreshes from the entity change, not from this sheet (no onSaved callback).',
+      'Presenter is the Groceries page; the same sheet opens from the Chores tab\'s Groceries page and the Kitchen room\'s Grocery List page.',
+    ],
+  }));
+
+})();
+</script></body></html>

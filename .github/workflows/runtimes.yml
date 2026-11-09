@@ -1,0 +1,70 @@
+name: runtimes
+# Weekly advisory smoke on older iOS runtimes (iOS 26, 18, 17) on a GitHub-hosted runner (hosted CI, .agents/workflow/ci.md). No hosted image
+# has iOS 17 (macos-14 retired 2026-11-02) and the others rotate, so each leg downloads its runtime with `xcodebuild -downloadPlatform`
+# (unverified for iOS 17 under Xcode 27: the first run is the probe) and makes its own simulator. It never gates a PR: schedule and
+# dispatch only, continue-on-error, and off until the repository variable HOSTED_MACOS is `on` (set at the public flip). The research also listed macos-15; its newest Xcode (26.3) cannot build this
+# app's iOS 27 SDK target, so every leg uses the xcode-27 image.
+on:
+  schedule:
+    - cron: "17 5 * * 0"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: runtimes
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+jobs:
+  smoke:
+    # Never keyed on visibility: github.event.repository is empty on `schedule`. Off until the repository variable HOSTED_MACOS is `on`.
+    if: ${{ vars.HOSTED_MACOS == 'on' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 120
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { ios: "26.5", device_type: iPhone 17 }
+          - { ios: "18.6", device_type: iPhone 16 }
+          - { ios: "17.5", device_type: iPhone 15 }
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data path (runner context is not allowed in job env)
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        run: tools/ci_hosted_setup.sh
+      - name: Selected Xcode
+        run: xcodebuild -version
+      - name: Install the iOS ${{ matrix.ios }} runtime and make a simulator
+        env:
+          IOS: ${{ matrix.ios }}
+          DEVICE_TYPE: ${{ matrix.device_type }}
+        run: |
+          set -euo pipefail
+          df -h / | tail -1
+          if ! xcrun simctl list runtimes | grep -q "iOS $IOS"; then
+            time xcodebuild -downloadPlatform iOS -buildVersion "$IOS"
+          fi
+          runtime="$(xcrun simctl list runtimes -j | jq -r --arg v "$IOS" '.runtimes[] | select(.version == $v and .isAvailable) | .identifier' | head -1)"
+          [ -n "$runtime" ] || { echo "no iOS $IOS runtime after the download"; exit 1; }
+          udid="$(xcrun simctl create "Runtime iPhone" "$DEVICE_TYPE" "$runtime")"
+          echo "FENTON_SIM_IPHONE=Runtime iPhone" >> "$GITHUB_ENV"
+          echo "simulator $udid on $runtime" >> "$GITHUB_STEP_SUMMARY"
+      - name: Smoke plan on iOS ${{ matrix.ios }}
+        run: tools/ios_uitest.sh --only iphone --plan Smoke --force
+      - name: Keep the results
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-ios-${{ matrix.ios }}
+          path: apple/.build/uitest-*.xcresult
+          if-no-files-found: ignore

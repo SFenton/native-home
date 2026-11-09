@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory empty and error state · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/inventory/_inventory.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, V = Mock.inv;
+  function empty(space, kind) { var cp = V.emptyCopy(space, kind); return V.empty({ title: cp[0], description: cp[1], error: /^error/.test(kind) }); }
+  function sw(c, caption, kind, space, w) { return V.swatch('page', caption, empty(space || 'pantry', kind), c, w || 420); }
+
+  Mock.mount({
+    kind: 'component', id: 'inventory-empty-state', title: 'Inventory empty and error state', area: 'inventory', status: 'shipped', frame: false,
+    summary: 'What an inventory page shows instead of rows: a basket (or a warning triangle on a load error), the title in 22 Bold, the description in secondary ink, centred on the wallpaper in a scroll view, with Try Again as the filled PrimaryButton on errors. Plain wrapping text, not a ContentUnavailableView in a list row.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift (emptyState)', 'apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift'],
+    spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md'],
+    patterns: ['floating-actions', 'content-gate'],
+    hig: ['Loading', 'Empty states', 'Typography', 'Dynamic Type', 'Buttons'],
+    kitComponents: ['PrimaryButton', 'FloatingActionBar'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'empty': { title: 'No Items Found', note: 'a space with no rows (the scan prompt is the call to action); the floating bar is only a titled Scan Item capsule', render: function (c) { return V.grid([sw(c, 'Pantry', 'empty', 'pantry'), sw(c, 'Spice Rack', 'empty', 'spice-rack'), sw(c, 'All Food', 'empty', 'all-food')]); } },
+      'error': { title: 'Unable to Load', note: 'any load error: the service said no, offline on first load, or Pantryhub is down. The generic text is shown for "Unable to load inventory"; a more specific service message replaces the description with "Pantryhub is unavailable" renamed to the page title', render: function (c) { return V.grid([sw(c, 'Pantry', 'error', 'pantry'), sw(c, 'with a service message', 'error-detail', 'fridge')]); } },
+      'filtered': { title: 'No Matching Items', note: 'rows exist but a search and or filter hides them; the description names what to clear', render: function (c) { return V.grid([sw(c, 'search only', 'search', 'pantry'), sw(c, 'search and filter', 'search-filter', 'pantry'), sw(c, 'filter only', 'filter', 'freezer')]); } },
+      'in-context': { title: 'In context: the page', render: function (c) {
+        return h('div', V.embed('iphone', c, function (cx) { return V.page(cx, { space: 'pantry', empty: 'empty' }); }, .6, 'Empty Pantry: the bar is a titled Scan Item capsule'),
+          V.embed('iphone', c, function (cx) { return V.page(cx, { space: 'pantry', empty: 'error' }); }, .6, 'Load error: warning and Try Again'),
+          V.embed('iphone', c, function (cx) { return V.page(cx, { space: 'pantry', empty: 'search-filter', query: 'xyz', filter: 'week' }); }, .6, 'No match: Search, Sort and Filter stay (Filter filled)'),
+          V.embed('ipad-portrait', c, function (cx) { return V.page(cx, { space: 'fridge', empty: 'empty' }); }, .4, 'iPad portrait, centred in the page')); } },
+      'ax5': { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'the text wraps with fixedSize; the state is taller than the window, so it scrolls (the page wraps it in a ScrollView with minHeight = the window)', render: function (c) { return V.grid([sw(c, 'error at AX5', 'error', 'pantry', 560), sw(c, 'empty at AX5', 'empty', 'pantry', 560)]); } },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'Structure', note: 'One container (children contained, identifier inventory.empty): the glyph is hidden from VoiceOver, the title carries the heading trait, then the description, then Try Again. Nothing is read twice.' },
+      { rule: 'Try Again', note: 'The filled PrimaryButton (#0071E3 with white text, 50 pt tall, at most 320 pt wide); it refreshes the model, then the content gate reloads.' },
+      { rule: 'Not a ContentUnavailableView', note: 'In a list row its title measured as clipped at large text sizes in the accessibility audit; this is wrapping text in a scroll view.' },
+      { rule: 'Dynamic Type', note: 'Title 22 Bold and description 17 scale to AX5; the block scrolls; the glyph scales with the large title style.' },
+      { rule: 'Contrast', note: 'Description and glyph use the secondary ink on the wallpaper (the page scrim keeps it above 4.5:1); title is white.' },
+    ],
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Empty states: icon, short title, one sentence', verdict: 'pass', note: 'A basket or warning glyph, a 22 pt bold title and a secondary description, centred (InventoryEmptyState.swift); Try Again appears only on a load failure.', by: 'apple-hig skill' },
+        { rule: 'Dynamic Type: wrap, never clip', verdict: 'pass', note: 'Plain Text with fixedSize in a scroll view wraps whole at AX sizes; the earlier ContentUnavailableView clipped its title in a list row.', by: 'apple-hig skill' },
+        { rule: 'Standard styling: ContentUnavailableView', verdict: 'departure', note: 'A custom stack replaces the system empty view because it clipped at large text in a List row (InventoryEmptyState.swift header comment, AX audit); swiftui-pro design.md prefers the system view, so this should be revisited once the clipping is fixed upstream.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: title is a heading, glyph hidden', verdict: 'pass', note: 'The title carries .isHeader, the glyph is hidden and the container keeps its identifier (InventoryEmptyState.swift:18-40).', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'filtered empty: the page also keeps the Search, Sort and Filter buttons here (the bar shows while a search or filter is active), unlike an empty space, where only Scan Item shows.',
+      'The component has no motion; the page gates it with the loading sequence only on the first load (see the inventory page mockup).',
+      'The messages come from InventoryCatalog.emptyState: error text when the error is the generic "Unable to load inventory"; a more specific one swaps "Pantryhub is unavailable" for "<Page> is unavailable".',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: empty, error, three filtered variants, in context on iPhone and iPad, AX5.' }],
+  });
+})();
+</script></body></html>

@@ -1,0 +1,28 @@
+{
+  "Simulator Target Bundle": "com.sfenton.home",
+  "aps": {
+    "timestamp": 1792249200,
+    "event": "update",
+    "content-state": {
+      "v": 2,
+      "phase": "running",
+      "controls": [
+        {
+          "id": "stop",
+          "title": "Stop"
+        }
+      ],
+      "value": {
+        "kind": "percent"
+      },
+      "progress": 0.62,
+      "url": "/sfenton-react-dash/home?path=kitchen"
+    },
+    "relevance-score": 55.0,
+    "stale-date": 1792251000
+  },
+  "fenton": {
+    "v": 2,
+    "tag": "job.dishwasher"
+  }
+}

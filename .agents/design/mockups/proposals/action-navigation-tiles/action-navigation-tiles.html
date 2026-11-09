@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Action and navigation tiles · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../modals/room-devices/_devices-vacuums.js"></script>
+<script src="_action-tiles.js"></script>
+<script src="_architecture.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, AT = Mock.at, S = AT.S;
+
+  /* ------------------------------------------------------------------ pages (option opt: 'today' | 'A' | 'B' | 'C') */
+  function P(ctx, title, secs, o) { return AT.page(ctx, Object.assign({ title: title, sections: secs }, o)); }
+  function T(ctx, list, opt, o) { return AT.tiles(ctx, list, opt, o); }
+
+  function security(ctx, opt, v, o) {
+    v = v || {};
+    return P(ctx, 'Security', [
+      AT.sec('Doors', T(ctx, [S.lock(v.front || 'locked', 'Front Door'), S.garage(v.left || 'closed', 'Left Door'), S.garage(v.right || 'closed', 'Right Door')], opt, o)),
+      AT.sec('Guests Staying Over', T(ctx, [S.guest(true, 'Guest Room'), S.guest(false, 'Studio', 'guitars'), S.guest(true, 'Media Room', 'videoprojector')], opt, o)),
+      AT.sec('Car', T(ctx, [S.lock('locked', 'Doors', 'car')], opt, o), 'gallery only'),
+    ].concat(o && o.offline ? [AT.note('Offline: the discs and tile bodies are disabled and values stay as last seen. Today a garage tap fails at once with the red Error face; this proposal asks for disabled controls instead, see the review.')] : []), { section: 'security', split: false, page: o && o.offline ? { connection: 'offline' } : undefined });
+  }
+  function living(ctx, opt) {
+    return P(ctx, 'Living Room', [
+      AT.sec('Climate', T(ctx, [S.vents('Vents'), S.purifier(true)], opt)),
+      AT.sec('Devices', T(ctx, [S.vacuum('cleaning')], opt)),
+      AT.sec('Remote', T(ctx, [S.remote('playing')], opt)),
+    ], { back: 'Rooms', section: 'home' });
+  }
+  function masterBath(ctx, opt) {
+    var tiles = [S.fan({ on: true, locked: true, status: 'Off in 12:34' }), S.vents('Vent'), S.power('on', 'Towel Rack', 'heat.waves')].map(function (s) { return AT.render(s, opt); });
+    if ((opt === 'today' || opt === 'C') && ctx.compact) tiles[0].style.gridColumn = '1 / -1';   // the fan lead row takes the full width on a phone today
+    return P(ctx, 'Bathroom 1', [AT.sec('Climate', AT.grid(tiles, ctx))], { back: 'Rooms', section: 'home' });
+  }
+  function media(ctx, opt) {
+    return P(ctx, 'Media', [
+      AT.sec('Living Room', T(ctx, [S.remote('playing', 'Living Room Remote')], opt)),
+      AT.sec('Studio', T(ctx, [S.remote('off', 'Studio Remote')], opt)),
+      AT.sec('Media Room', T(ctx, [S.projector(true, 'Media Room')], opt)),
+    ], { back: 'Home', section: 'home', cols: 3 });
+  }
+  function taxonomy(ctx) {
+    return P(ctx, 'Tile classes', [
+      AT.sec('Action · 1 action', T(ctx, [S.lock('locked', 'Front Door')], 'B'), 'trailing disc'),
+      AT.sec('Action · 2 actions', T(ctx, [S.sprinkler()], 'B'), 'hypothetical'),
+      AT.sec('Action · 3+ actions', T(ctx, [S.shade()], 'B'), 'text, discs below'),
+      AT.sec('Navigation', T(ctx, [S.vents('Vents')], 'B'), 'chevron'),
+      AT.sec('Navigation + 1 or 2 actions', T(ctx, [S.fan({ on: true, locked: true })], 'B'), 'discs beside chevron'),
+      AT.sec('Navigation + 3+ or custom', T(ctx, [S.remote('playing')], 'B'), 'centred below'),
+      AT.sec('Read-only', T(ctx, [S.washer('running')], 'B'), 'flat, no control'),
+    ], { section: 'home' });
+  }
+  function garageStates(ctx) {
+    var base = ['closed', 'sendingOpen', 'opening', 'open', 'sendingClose', 'closing'];
+    var ours = base.map(function (k) { return S.garage(k, 'Left Door', null, 'reverse'); });
+    var stopV = ['closed', 'sendingOpen', 'opening', 'stopping', 'partly', 'open', 'sendingClose', 'closing'].map(function (k) { return S.garage(k, 'Left Door', null, 'stop'); });
+    return P(ctx, 'Garage doors', [
+      AT.sec('No Stop: tap reverses (ours)', T(ctx, ours, 'B'), 'Aladdin Connect'),
+      AT.sec('If an opener supports Stop', T(ctx, stopV, 'B'), 'not ours today'),
+    ], { back: 'Security', section: 'security', split: false });
+  }
+  function feedbackKinds(ctx) {
+    function blk(title, detail, rule, list) { return AT.sec(title, h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } }, AT.note(rule), T(ctx, list, 'B')), detail); }
+    return P(ctx, 'Feedback kinds', [
+      blk('Momentary', 'next, previous, locate, dock, skip', 'No state, no spinner, no glyph change: a press highlight and one TapFeedback.tap; a failure shows the tile\'s Didn\'t Respond face. Examples: the remote\'s Previous and Next, the vacuum\'s Dock and Locate, a sprinkler zone\'s Skip (hypothetical).', [S.remote('playing', 'Living Room Remote'), S.vacuum('cleaning'), S.sprinkler()]),
+      blk('Optimistic', 'play or pause, power, toggles', 'The glyph swaps at once (symbol replace, quick 0.2 s), Home Assistant confirms quietly, no spinner; a failure animates back and shows the error face. Examples: play or pause, the fan\'s Power, the Towel Rack, the Air Purifier\'s Power, a guest toggle.', [S.fan({ on: true, locked: true }), S.power('on', 'Towel Rack', 'heat.waves'), S.purifier(true), S.guest(true, 'Guest Room')]),
+      blk('Tracked', 'lock, garage, PC power', 'Animates TO the transitional state (a spinner in the disc, or the moving role: the garage\'s Reverse or Stop) and animates OUT to the final glyph and fill when Home Assistant reports it. Examples: Front Door Unlocking…, Left Door Opening… (reverse), Alex\'s PC Turning On….', [S.lock('unlocking', 'Front Door'), S.garage('opening', 'Left Door'), S.power('turningOn', "Alex's PC", 'pc')]),
+      blk('One action unavailable', 'dims in place', 'The disc dims where it is (glyph 50%, disabled), never disappears and nothing moves. Examples: Next at the end of a queue, Dock while the vacuum is docked.', [S.remote('playing', 'Living Room Remote', null, { nextDisabled: true }), S.vacuum('docked')]),
+      blk('The action set changes shape', 'Off to Playing', 'Owner-approved exception to motion.md section 6: the Living Room Remote goes from Power beside the chevron (72 pt) to transport and volume below (about 164 pt). Only tiles that already span their full row do this. Play the remote-expand motion on the Living Room state.', [S.remote('off', 'Living Room Remote'), S.remote('playing', 'Living Room Remote')]),
+    ], { section: 'home' });
+  }
+  function frontDoor(ctx) {
+    var list = ['locked', 'unlocking', 'unlocked', 'locking', 'jammed', 'noresp', 'unavailable'].map(function (k) { return S.lock(k, 'Front Door'); });
+    return P(ctx, 'Front Door', [AT.sec('Front Door states', T(ctx, list, 'B'), '7 states'), AT.sec('Car Doors', T(ctx, [S.lock('locked', 'Doors', 'car'), S.lock('unlocking', 'Doors', 'car')], 'B'), 'same tile, car glyph')], { back: 'Security', section: 'security', split: false });
+  }
+  function readOnly(ctx) {
+    var list = [S.washer('running'), S.dryer(), S.airQuality(), S.ventSensor('Study Vent'), S.ventSensor('Bedroom 1 Vent', '70° · Closed')];
+    return P(ctx, 'Read-only tiles', [AT.sec('Today', T(ctx, list, 'today'), 'looks pressable'), AT.sec('Option B', T(ctx, list, 'B'), 'flat')], { section: 'home' });
+  }
+  function longText(ctx, opt) {
+    var long = S.remote('playing', 'Living Room Remote', 'Playing · The Very Long Episode Title of a Show That Never Ends');
+    var fan = S.fan({ on: true, locked: true, title: 'Bathroom 1 Exhaust Fan With Humidity Sensor', status: 'On' });
+    var list = [S.light(false, 'Bedroom 1 Closet Light'), S.vents('Vent'), S.lock('locked', 'Front Door'), fan, long];
+    return P(ctx, 'Long text', [AT.sec('Widen first, then ticker', T(ctx, list, opt || 'B'), 'wraps under Reduce Motion')], { section: 'home', split: false });
+  }
+  function ax5(ctx) {
+    return P(ctx, 'Large text', [
+      AT.sec('Doors', T(ctx, [S.lock('unlocked', 'Front Door'), S.garage('opening', 'Left Door'), S.shade()], 'B')),
+      AT.sec('Remote', T(ctx, [S.remote('playing'), S.fan({ on: true, locked: true })], 'B')),
+    ], { section: 'security' });
+  }
+
+  /* ------------------------------------------------------------------ motion helpers */
+  function seq(steps) { return steps.reduce(function (p, s) { return p.then(s); }, Promise.resolve()); }
+  function hold(ms) { return function () { return Mock.sleep(ms); }; }
+  function setTo(t, spec, opt) { return function () { return AT.set(t, spec, opt || 'B'); }; }
+
+  /* ------------------------------------------------------------------ sections */
+  function sec(title, kids) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '78ch' } }, h('p', { style: { margin: 0 } }, title), kids || null); }
+  function goal() {
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '78ch' } },
+      h('p', 'Today you cannot tell, from a tile, whether tapping it does something, opens something, or does nothing. The owner asked (2026-10-26) that actions be clear on the tile, that some navigation tiles also act, that icons animate between states, and that the experience stays close to today.'),
+      h('ul', [
+        h('li', 'Action tile (no destination, one or more actions): 1 action is a round button on the trailing edge, vertically centred, and the body also performs it; 2 actions are two buttons trailing in a row and the grid reflows (the web\'s content-aware grid) so text and both buttons fit; 3 or more sit below the text, centred. Custom actions are allowed.'),
+        h('li', 'Navigation tile: chevron on the trailing edge; any actions sit below the title and state, centred. Owner refinement (2026-10-26, applied to option B): up to two actions sit to the left of the chevron, trailing and vertically centred (today\'s fan rail geometry); three or more and custom controls (transport, volume) stay below; the chevron is always vertically centred.'),
+        h('li', 'Front Door: a lock button that becomes unlock, unavailable while in flight, glyph animating locked to unlocked, status text updating.'),
+        h('li', 'Media remotes navigate to the remote; when the remote is on they show previous, play or pause and next, and a volume slider beneath. Vents stay pure navigation. Tiles that neither act nor navigate need a different design.'),
+      ]),
+      h('p', 'Evidence from the code and this mockup (CSS px = pt):'),
+      h('ul', [
+        h('li', 'A tile is one of five kinds (GlassTileKind: toggle, navigate, command, selection, state). Nothing says "this has a button on it": the fan\'s Lock and Power are a hand-built accessory rail beside the chevron, and BrightnessTile has its own power button. Three implementations of one idea.'),
+        h('li', 'The Front Door tile is a plain command tile: no button, the whole face is the control. The Living Room Remote is a plain navigate tile, so the TV can only be turned on from inside the remote sheet.'),
+        h('li', 'The read-only appliance and sensor tiles (Washing Machine, Dryer, vent sensors, Air Quality) draw the same lit rim and sheen as a button and fade when pressed, but do nothing.'),
+        h('li', 'Width: on a 402 pt iPhone the grid has two 179 pt tracks. A 44 pt disc leaves 61 pt for the text (179 - 24 padding - 30 glyph - 12 gap - 8 - 44); two discs leave 5 pt. Taken literally (options A and C) a tile needs about 214 pt for one disc and 270 pt for two, so spans must be content-aware and every action tile takes a full row on a phone. Option B drops the leading glyph on action tiles (the disc carries it): 12 + text + 8 + 44 + 12 leaves about 103 pt of text, one disc needs about 172 pt and fits a track, two discs need about 228 pt and take the full row. Spans must still be content-aware: DynamicGridLayout has fixed spans today (the TODO in patterns/dynamic-grid.md).'),
+      ]));
+  }
+  function options() {
+    var f = function (list) { return function (opt) {
+      return AT.grid(list.map(function (s) { var n = AT.render(s, opt); if (s.id === 'fan' && (opt === 'today' || opt === 'C')) n.style.gridColumn = '1 / -1'; return n; }), null, { compact: true, max: 2 });   /* today's fan is a lead row: the full width on a phone */
+    }; };
+    return [
+      h('p', 'Each cell is a phone-width page swatch (B draws action tiles without a leading glyph) (two 165 pt tracks plus the swatch padding). Today | A | B | C show the same two fixtures per row; the second is a neighbour that shows how the grid reflows.'),
+      AT.cells('Front Door (action, 1 action; car Doors beside it)', f([S.lock('locked', 'Front Door'), S.lock('unlocked', 'Car Doors', 'car')])),
+      AT.cells('Bathroom Fan (navigation + 2 actions; a vent beside it)', f([S.fan({ on: true, locked: true }), S.vents('Vent')])),
+      AT.cells('Living Room Remote (navigation + transport and volume; an off remote beside it)', f([S.remote('playing'), S.remote('off', 'Studio Remote')])),
+      AT.cells('Long text (Bedroom 1 Closet Light and a remote with a long episode title; today wraps, B widens then tickers)', f([S.light(false, 'Bedroom 1 Closet Light'), S.remote('playing', 'Living Room Remote', 'Playing · The Very Long Episode Title of a Show That Never Ends')])),
+      AT.cells('Washing Machine (read-only; Dryer beside it)', f([S.washer('running'), S.dryer()])),
+    ];
+  }
+  function verdict(t, cls) { return h('span.k-verdict.' + cls, t); }
+  function comparison() {
+    var rows = [
+      ['Owner rule 1: actions are clear on the tile', 'Discs mark actions; but state tiles still look like buttons', 'Trailing edge always shows what a tap does (disc or chevron); read-only tiles go flat', 'Only 1-action tiles gain a disc; navigation and state tiles stay ambiguous'],
+      ['Rule 2: action tile, 1 / 2 / 3+ actions', 'As written; 1 action in a 179 pt track forces a full row on phones (Doors is three rows)', 'The disc carries the state glyph and no glyph leads, so 1-action tiles stay two to a row; the garage is now a single action with one morphing disc (owner 2026-10-26), so no real tile has two actions: the 2-action class is drawn with a hypothetical sprinkler zone (Run, Skip), about 228 pt, a full row on a phone; its body tap does the leading action', '1 action only; the garage keeps today\'s plain command tile'],
+      ['Rule 3: navigation tile, chevron, actions', 'Fan rail moves below the text, centred', 'Owner refinement 2026-10-26: up to two actions trail left of the chevron (the fan rail as today: 12 pt apart, one chevron reserve in); three or more and custom controls go below, centred; a below row takes the full row on compact width; the chevron is always vertically centred', 'Not done: fan keeps its trailing rail beside the chevron'],
+      ['Rule 4: icons animate, in-flight unavailable', 'Glyph replaces; the disc dims while in flight', 'Glyph replaces; a spinner takes the glyph\'s place, disc and body disabled', 'Glyph replaces on the 1-action tiles only'],
+      ['Rule 5: remote transport and volume', 'Transport and slider under the text when on', 'As A, plus a Power disc beside the chevron on an off remote so the TV turns on from the tile; an on remote keeps transport and the volume slider below', 'Not done; remotes stay plain'],
+      ['Rule 6: vents navigate; non-acting tiles differ', 'Vents unchanged; state tiles unchanged (look pressable)', 'Vents unchanged; state tiles get a flat, non-pressable face', 'Unchanged'],
+      ['Rule 7: UX close to today', 'Tall tiles and full-width action tiles on phones', 'Closest B can be to today\'s 2-up density: action tiles lose the leading glyph (shape tells the classes apart); nav tiles with one or two actions keep today\'s height and the fan rail stays beside the chevron; only 3+ and custom-control tiles grow', 'Closest to today; the least change'],
+      ['HIG Buttons: 44 x 44 pt hit region', 'Pass: 44 pt discs, 66 pt at AX5', 'Pass', 'Pass'],
+      ['HIG: about 12 pt between bezeled targets', 'Pass: 12 pt gaps', 'Pass', 'Pass'],
+      ['HIG Lists and tables: trailing controls beside a disclosure indicator', 'Not applicable: nothing sits beside the chevron', 'Departure (owner 2026-10-26): up to two 44 pt discs sit left of the chevron. Mitigation: 12 pt between targets, a 20 pt chevron reserve, 44 pt targets, today\'s fan rail', 'Departure only for the fan, as today'],
+      ['HIG Lists and tables: a disclosure indicator for drill-down', 'Pass: chevron on navigation tiles', 'Pass, and an action tile never shows one', 'Pass (unchanged)'],
+      ['HIG Buttons: show an activity indicator in the button', 'Fix: dims, no indicator', 'Pass: spinner in the disc', 'Pass on its tiles'],
+      ['HIG Typography: stack text above secondary items at large sizes', 'Pass: discs drop below at AX', 'Pass: same rule, also for the 2-action pair', 'Pass (today\'s fan rule stays)'],
+      ['HIG SF Symbols: Magic Replace for related shapes', 'Pass: lock to lock.open, play to pause', 'Pass; iOS 18 only, fallback down-up on iOS 17', 'Partly (1-action tiles)'],
+      ['HIG Accessibility: Reduce Motion fades', 'Pass: cross-fade, no scale', 'Pass', 'Pass'],
+      ['Long text', 'Wraps to two lines in one track (as today); tiles grow taller', 'Widen first (owner 2026-10-26): title plus the longest state it can show are measured on one line, the tile takes tracks until it fits, then the line tickers; packing is first-fit (a widened tile may pull a later short tile up into a gap, otherwise page order) and a span never crosses the hinge band', 'As today (wraps)'],
+      ['HIG Typography: keep text truncation to a minimum', 'Wraps, no truncation', 'Departure: a ticker is a truncation alternative and a motion.md section 9 exception, now owner-approved for tiles (2026-10-26); it only runs when the tile already has its whole row, and Reduce Motion and accessibility sizes wrap instead. Cost: tile layouts shift when a name or state changes length; mitigated by spanning from the title plus the LONGEST state the tile can show, so live updates (Off to Playing · ...) never reflow the grid', 'Wraps, no truncation'],
+      ['Feedback per action (momentary, optimistic, tracked)', 'Not specified: every action disc behaves the same', 'Three kinds (owner 2026-10-26): momentary has no state, optimistic swaps the glyph at once, tracked animates to the transitional state and out again; see the feedback-kinds state', 'Only 1-action tiles'],
+      ['Action set changes shape', 'Not specified (the below row appears or vanishes)', 'Animate: the tile height changes with standard 0.3 s, departing discs fade first, arriving discs fade after; Reduce Motion cross-fades. A departure from motion.md section 6 (live updates never move layout), owner decision 2026-10-26, with guard rails: only tiles already spanning their full row, waits while the page scrolls, no animation on reconnect or a cold launch. Alternative considered: reserve the taller height (the remote is always 164 pt, an off remote shows empty space)', 'Not applicable'],
+      ['Left-edge scan', 'Glyphs lead every tile: one common left edge', 'Action tiles start text at 12 pt; navigation and read-only tiles start at the glyph, so a mixed page loses its common left edge. The price of keeping two-up density', 'Glyphs lead every tile'],
+      ['Accidental activation: a body tap that acts', 'Body tap performs the action (owner rule 2)', 'Same; Front Door already unlocks on a body tap today. A stray tap on a lock, garage or power tile acts; the disc being bigger than a glyph slightly raises the chance. HIG Gestures: give people more than one way to interact. Open question 4', 'Same, only on 1-action tiles'],
+      ['Cost', 'Fan rail position changes; state tiles still look pressable; no spinner feedback', 'Largest build: new TileActionButton / Strip, spans, read-only face, new tests on three devices. Nav tiles with 1 or 2 actions stay about 72 pt but need width: one trailing disc needs about 234 pt (41 pt of text in a 179 pt track, so it does not fit) and two need about 290 pt, so both take the full row on a phone (the fan already does today); 3+ and custom-control tiles grow to about 124 pt (164 pt with volume) and also take the full row; a Vent beside a full-row tile leaves a half-empty row; open question 5 lets the owner pick which nav tiles get actions at all', 'Cheapest, but leaves the ambiguity the owner raised: the fan, remotes and state tiles keep three different conventions'],
+    ];
+    var t = h('table.at-cmp', h('thead', h('tr', h('th', 'Rule or HIG row'), h('th', 'A · Owner\'s rules'), h('th.b', 'B · Rules + refinements'), h('th', 'C · Minimal'))),
+      h('tbody', rows.map(function (r) { return h('tr', h('td', r[0]), h('td', r[1]), h('td.b', r[2]), h('td', r[3])); })));
+    return [h('p', 'Option B is the shaded column. Today is the baseline for every row: no actions on tiles, no distinction between acting and read-only tiles.'), h('div.k-table-wrap', t)];
+  }
+  function recommendation() {
+    return h('div', { style: { maxWidth: '78ch' } },
+      h('div.at-rec', [h('p', { style: { margin: '0 0 8px' } }, h('strong', 'Recommendation: option B, the owner\'s rules plus thirteen refinements.')),
+        h('p', { style: { margin: 0 } }, 'A tile\'s trailing edge says what tapping it does, a disc for an action tile and a chevron for a navigation tile; the disc carries the state glyph, so an action tile has no leading glyph (a leading glyph means the tile opens something or only shows state) and a single-action tile stays two to a row on a phone, and the two classes differ by shape at a glance ("glyph, text, chevron" opens; "text, disc" acts). In-flight is shown in the disc, so the tile, not a late haptic, carries the news. Read-only tiles stop pretending to be buttons.')]),
+      h('p', { style: { marginTop: '12px' } }, 'The thirteen refinements: (1) the trailing edge shows what a tap does, a disc on an action tile, a chevron on a navigation tile, and up to two discs left of the chevron on a navigation tile that also acts (owner refinement 2026-10-26, the fan rail as today), the chevron always vertically centred; (2) in-flight shows a spinner in the disc, disc and body disabled; (3) toggle discs show state, momentary discs show the action; (4) content-aware spans, and a navigation tile with a below row takes the full row on compact width; (5) an off remote shows a Power disc beside its chevron; (6) read-only tiles get a flat face; (7) a 2-action tile\'s body tap does the primary action; (8) at accessibility sizes discs drop below the text; (9) an action tile never draws a leading glyph, whatever its action count: the disc carries the state glyph (a 3+ tile is text on top, discs centred below), so a leading glyph means the tile opens something or only shows state; (10) failure states differ by shape (jammed has its own glyph), unavailable is a dimmed, unfilled disc, and in-flight shows a static ellipsis under Reduce Motion; (11) the volume slider ends are body size; the chevron stays vertically centred at every height. (13) every action has a feedback kind (momentary, optimistic or tracked; owner 2026-10-26), one unavailable action dims in place, and a changing action set animates the tile height (standard 0.3 s) with guard rails. (12) long text widens the tile first (title and the longest state it can show are measured on one line; half to full row on iPhone, one track more at a time on iPad, never across the hinge) and only when the tile already has its whole row (or its side of the fold) does the line become a ticker (Reduce Motion and accessibility sizes wrap instead). Owner decisions recorded 2026-10-26: navigation tiles may carry up to two actions beside the chevron (3+ and custom controls below), the chevron is always vertically centred, and long text widens a tile first and tickers second.'),
+      h('p', { style: { marginTop: '12px' } }, 'What it asks of the app (summary of the architecture section below):'),
+      h('ul', [
+        h('li', 'Files: HassDesign GlassTile (behavior + actions), new TileActionButton, TileActionStrip, TileActionPlacement, TileVolumeSlider; DynamicGridLayout (content-aware spans via a LayoutValueKey); HassCore providers (LockActions, CoverActions, PowerToggleActions, MediaTransportActions, FanRailActions, VacuumActions); LockTile, GarageDoorTile, RoomCardTile, MediaCardTile and BathroomFanRoomTile adopt them; FanRailButton and BrightnessTile.powerButton are replaced.'),
+        h('li', 'New motion: glyph replace (quick 0.2 s, Magic Replace behind #available), the in-flight spinner, disc fill cross-fade (state 0.6 s); all with Reduce Motion variants. No new tokens.'),
+        h('li', 'New tests: provider suites in HassCore, TileActionPlacement, TileActionInk and span tests in HassDesign, ActionTileTests in HassUITests, accessibility and 44 pt checks on iPhone, Duo and iPad, and a scroll-cost run for the volume slider.'),
+        h('li', 'Shared components: the fan rail keeps its place beside the chevron (now built from the same TileActionButton); kind: stays as a deprecated convenience so the 29 call sites migrate lane by lane.'),
+      ]));
+  }
+  function architecture() { return h('div.at-arch', { style: { maxWidth: '90ch' }, html: Mock.at.architectureHTML }); }
+  function questions() {
+    var q = [
+      ['Body tap on a 2-action tile', 'Does tapping the body of a two-action tile (none exist in the app today; a hypothetical sprinkler zone with Run and Skip) do the primary (leading) action, or is the body inert so only the discs act? Recommended: primary, so a stray tap is not dead and VoiceOver has a default.'],
+      ['Off remote', 'Show a single Power disc beside the chevron on an off remote so the TV can be turned on from the tile, or nothing (today only the remote sheet\'s Power key can)? Recommended: Power disc.'],
+      ['Volume control', 'A slider (recommended; uses the BrightnessTile horizontal-pan approach so a vertical scroll still works), or minus and plus buttons?'],
+      ['Front Door body tap', 'Keep one-tap unlock on the tile body (today; HIG says no alert for a common, undoable action), or require the disc only so a stray tap on the face cannot unlock the door? The design critique worried about accidental activation from a body tap that acts; the owner\'s rule and today\'s behaviour keep it, so this is yours to confirm.'],
+      ['Which navigation tiles get actions first', 'Remotes, bathroom fan, vacuum, air purifier, security system, beds: which in the first build? Recommended: remotes, fan and vacuum; the rest follow once the strip is proven.'],
+      ['Glyph on action tiles', 'B drops the leading glyph on action tiles so they stay two to a row; keep that, or keep the glyph and accept full rows (A)?'],
+    ];
+    return h('div', { style: { maxWidth: '78ch' } }, q.map(function (x, i) { return h('div.at-q', h('strong', (i + 1) + '. ' + x[0]), h('p', { style: { margin: '4px 0 0' } }, x[1])); }));
+  }
+
+  Mock.mount({
+    kind: 'proposal', id: 'action-navigation-tiles', title: 'Action and navigation tiles', status: 'proposed',
+    summary: 'Proposal · 2026-10-26 · Decided (2026-10-26): option B with every owner refinement; see .agents/design/action-navigation-tiles.md. Make it obvious which tiles act and which navigate: a trailing disc that carries the state glyph for actions (no leading glyph), a chevron for navigation, up to two actions beside the chevron on navigation tiles that also act (three or more and custom controls below), in-flight spinners, remote transport and volume, and a flat face for read-only tiles. Options today, A (owner\'s rules), B (rules plus refinements, recommended) and C (minimal).',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/GlassTileKind.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomCards.swift', 'apple/Sources/HassDesign/TileActions/TileActionButtonStyle.swift', 'apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassUI/Features/Media/MediaScreen.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift'],
+    spec: ['.agents/patterns/entity-tile.md', '.agents/patterns/dynamic-grid.md', '.agents/patterns/tap-feedback.md', '.agents/patterns/optimistic-actions.md'],
+    patterns: ['entity-tile', 'dynamic-grid', 'tap-feedback', 'optimistic-actions', 'motion'],
+    hig: ['Buttons', 'Lists and tables', 'Layout', 'Typography', 'SF Symbols', 'Accessibility', 'Gestures', 'Playing haptics'],
+    entities: ['lock.demo_lock_2', 'cover.demo_garage_door_2', 'cover.demo_garage_door_1', 'switch.demo_bathroom_1_fan_1', 'media_player.demo_living_room_2'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader', 'Slider'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'taxonomy': { title: 'The six tile classes (option B)', note: 'one of each class: action 1, action 2, action 3+, navigation, navigation + 1 or 2 actions (discs beside the chevron), navigation + 3+ or custom controls (centred below), read-only. In B the shape says it: "text, disc" does something (the disc carries the glyph, none leads, whatever the action count); "glyph, text, chevron" opens something; read-only keeps the glyph and goes flat. Rule: a leading glyph means the tile is not an action tile (it opens something, or it only shows state).', render: taxonomy },
+      'today-security': { title: 'Security, today', note: 'Front Door is a plain command tile; the garage doors are plain command tiles with no Stop; the guest toggles look like any tile.', render: function (c) { return security(c, 'today'); } },
+      'security': { title: 'Security, option B', note: 'Doors, Guests Staying Over and the gallery-only car section. Single-action tiles stay two to a row on a phone (the disc carries the glyph, so there is no leading glyph column); the garage doors are single-action tiles with one morphing disc (see the garage state), so Doors is two to a row.', render: function (c) { return security(c, 'B'); } },
+      'today-living': { title: 'Living Room, today', note: 'Vents, Air Purifier, vacuum and the remote are all plain navigate tiles.', render: function (c) { return living(c, 'today'); } },
+      'living': { title: 'Living Room, option B', note: 'Purifier Power trails beside the chevron; the vacuum\'s Start or Pause, Dock and Locate (three) and the remote\'s transport and volume sit below their text; Vents stays pure navigation. The chevron is always vertically centred.', render: function (c) { return living(c, 'B'); } },
+      'today-master-bath': { title: 'Bathroom 1, today', note: 'the fan\'s Lock and Power trail beside the chevron; the Towel Rack is a plain toggle tile.', render: function (c) { return masterBath(c, 'today'); } },
+      'master-bath': { title: 'Bathroom 1, option B', note: 'the fan keeps Lock and Power beside the chevron, as today (rail one chevron reserve in, 12 pt apart); the Towel Rack gets a Power disc.', render: function (c) { return masterBath(c, 'B'); } },
+      'media': { title: 'Media remotes, option B', note: 'Living Room playing: transport and volume. Studio off: a Power disc beside the chevron. Media Room projector: Power.', render: function (c) { return media(c, 'B'); } },
+      'garage': { title: 'Garage door, one morphing disc (option B)', note: 'Live check 2026-10-26: cover.demo_garage_door_2 and cover.demo_garage_door_1 are Aladdin Connect, supported_features 3 (open and close only: no stop, no position), so the default is the first section: while moving the disc shows the reverse action (arrow.uturn.down while opening, arrow.uturn.up while closing) and a tap sends the opposite command (web garageDoorCommandForState), then the existing Sending… hold and the new direction. No position attribute, so never Partly Open. The second section is the variant for an opener that supports Stop (supported_features & 8): stop.fill while moving, Stopping… spinner until Home Assistant reports a settled state, Partly Open when a stopped door reports a position between 0 and 100. The body tap always does what the disc shows.', render: garageStates },
+      'feedback-kinds': { title: 'Feedback kinds and availability (option B)', note: 'every action is momentary, optimistic or tracked; one unavailable action dims in place; a changing action set animates the tile height.', render: feedbackKinds },
+      'front-door': { title: 'Front Door, every state (option B)', note: 'the disc carries the glyph and is toggle-styled, showing state: on the dark locked tile a white 12% disc with lock.fill in the family\'s off-glyph colour, on the filled unlocked tile a solid white disc with lock.open in the family fill; the spinner replaces the glyph while locking or unlocking; jammed swaps to lock.trianglebadge.exclamationmark in red (a different shape, not only a colour); no response (transient, 4 s) keeps the lock glyph in red; both keep the disc enabled to retry; unavailable draws the glyph at 50% with no fill and disables the disc. Locked is lock.fill (filled), unlocked is lock.open (outline).', render: frontDoor },
+      'read-only': { title: 'Read-only tiles: today and option B', note: 'same layout and colours; B draws no rim or sheen, no press response, no chevron or disc.', render: readOnly },
+      'long-text': { title: 'Long text (option B)', note: "title and state are measured on one line: Bedroom 1 Closet Light widens (half to full row on iPhone, more tracks on iPad), the Vent and Front Door pack beside it; where a tile already has its whole row (or its side of the fold) the overflowing line, the fan's title and the remote's state, becomes a ticker. Reduce Motion and accessibility sizes: no ticker, the text wraps.", render: function (c) { return longText(c, 'B'); } },
+      'today-long-text': { title: 'Long text, today', note: 'the same tiles today: titles wrap to two lines in a single track, nothing widens.', render: function (c) { return longText(c, 'today'); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column; trailing discs drop below the text (today\'s fan rule), discs grow to 66 pt and stay circles; tiles grow.', render: ax5 },
+      'offline': { title: 'Offline', note: 'no network: discs and bodies are disabled (dimmed), values stay as last seen.', render: function (c) { return security(c, 'B', {}, { offline: true }); } },
+    },
+
+    motion: [
+      { id: 'lock-morph', what: 'Front Door: Locked, tap, the disc shows a spinner in place of its lock glyph and the text reads "Unlocking…", the tile fills and the disc turns solid white, the disc glyph replaces lock.fill with lock.open, "Unlocked"; then the reverse (the morph happens in the disc: the action tile has no leading glyph)', token: 'state 0.6 s ease-in-out for the tile and disc fill; glyph replace quick 0.2 s; spinner turns (a static ellipsis under Reduce Motion)', state: 'security',
+        source: 'HassDesign/GlassTile.swift (TileActionButton); motion.md section 6 (colour and Symbols) and section 7 (state, quick)', reduce: 'fill still cross-fades at 0.2 s; the glyph cross-fades with no scale; the in-flight disc shows a static ellipsis glyph instead of the turning spinner (turn Reduce Motion on to see it)',
+        play: function (stage) { var t = AT.find(stage, 'Front Door'); return seq([hold(500), setTo(t, S.lock('unlocking')), hold(700), setTo(t, S.lock('unlocked')), hold(900), setTo(t, S.lock('locking')), hold(700), setTo(t, S.lock('locked'))]); } },
+      { id: 'long-title-ticker', what: 'Long title tickers: a title or state that still overflows a tile with its whole row scrolls through its column (hold 1.5 s, 30 pt/s, hold 1.5 s, return 0.3 s, three passes, 12 pt edge fades); a name that fits a wider tile widens it instead', token: 'ticker exception to motion.md section 9 (MotionTokens.Ticker: 30 pt/s, 1.5 s holds, 0.3 s return, 3 passes, 12 pt fades); pauses while the page scrolls', state: 'long-text',
+        source: 'HassDesign/TickerLabel.swift, TickerPlan.swift; patterns/ticker.md; owner refinement 2026-10-26',
+        reduce: 'no ticker: the text wraps and the tile grows taller (turn Reduce Motion on to see it); the same at accessibility text sizes',
+        play: function (stage) { return AT.replayTickers(stage); } },
+      { id: 'remote-expand', what: 'Living Room Remote: Off (Power beside the chevron, 72 pt) to Playing (transport and volume below, about 164 pt) and back. Expanding: the new layout swaps in, the height animates, the arriving discs fade in after; collapsing: the departing discs fade out first, then the height collapses and the Power disc fades in beside the chevron', token: 'standard .smooth 0.3 s, no bounce, for the height; quick 0.2 s for discs fading out or in; state 0.6 s for the fill. Owner-approved exception to motion.md section 6 "live updates never move layout" (2026-10-26)', state: 'living',
+        source: 'HassDesign/GlassTile.swift (TileActionStrip); motion.md sections 6 and 7; guard rails: only a tile already spanning its full row, a change arriving while the page scrolls waits until scrolling stops, reconnect or a cold launch from the snapshot applies with no animation (No reload on reopen)',
+        reduce: 'no height animation: the new layout cross-fades in 0.2 s',
+        play: function (stage) { var t = AT.find(stage, 'Living Room Remote'); function r(k, instant) { return function () { return AT.reshape(t, S.remote(k), 'B', { instant: !!instant }); }; } return seq([r('off', true), hold(700), r('playing'), hold(1300), r('off'), hold(900), r('playing', true)]); } },
+      { id: 'play-pause', what: 'Living Room Remote: the emphasized disc replaces pause with play (and back); the text reads Paused or Playing', token: 'glyph replace quick 0.2 s; tile colour state 0.6 s', state: 'media',
+        source: 'HassDesign/GlassTile.swift (TileActionButton); motion.md section 6 (Symbols)', reduce: 'glyph cross-fades with no scale',
+        play: function (stage) { var t = AT.find(stage, 'Living Room Remote'); return seq([hold(500), setTo(t, S.remote('paused', 'Living Room Remote')), hold(900), setTo(t, S.remote('playing', 'Living Room Remote'))]); } },
+      { id: 'fan-power', what: 'Bathroom Fan: Power comes on, the tile fills teal and the Power disc fills white with a teal glyph', token: 'state 0.6 s ease-in-out, colour only', state: 'master-bath',
+        source: 'HassDesign/GlassTile.swift; HassUI/Features/Rooms/BathroomFanRoomTile.swift; motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { var t = AT.find(stage, 'Bathroom Fan'); return seq([hold(400), setTo(t, S.fan({ on: false, locked: true, status: 'Off' })), hold(500), setTo(t, S.fan({ on: true, locked: true, status: 'On' }))]); } },
+      { id: 'garage-disc', what: 'Left Door, ours (no Stop): tap Open, the disc spins (Sending Open…), becomes the reverse glyph while Opening…, a tap on it sends Close (spinner again) and the door goes Closing… then Closed. Second run, an opener that supports Stop: Opening… shows stop.fill, Stop spins as Stopping…, then the door settles Partly Open', token: 'state 0.6 s for the tile fill; symbol replace quick 0.2 s for each change of the one disc (closed, spinner, reverse or stop, open); spinner turns', state: 'security',
+        source: 'HassCore/Security/GarageDoorController.swift (sendingFeedback, garageDoorCommandForState); HassUI/Features/Security/SecurityDoorTile.swift; motion.md section 6; one TapFeedback.tap per tap, no late success haptic (tap-feedback.md)', reduce: 'fill cross-fades at 0.2 s, the glyph cross-fades with no scale, the in-flight disc shows a static ellipsis',
+        play: function (stage) {
+          var t = AT.find(stage, 'Left Door');
+          function g(k, v) { return setTo(t, S.garage(k, 'Left Door', null, v)); }
+          return seq([hold(500), g('sendingOpen'), hold(900), g('opening'), hold(1100), g('sendingClose'), hold(900), g('closing'), hold(1100), g('closed'), hold(700),
+            g('sendingOpen', 'stop'), hold(900), g('opening', 'stop'), hold(1100), g('stopping', 'stop'), hold(1000), g('partly', 'stop'), hold(900), g('closed')]);
+        } },
+      { id: 'volume-drag', what: 'Living Room Remote: dragging the volume slider moves the fill and knob with the finger; the value commits on release', token: 'direct manipulation: no animation token; one TapFeedback.step per 5% detent', state: 'media',
+        source: 'HassDesign/BrightnessTile.swift (horizontal-pan approach); patterns/tap-feedback.md', reduce: 'unchanged: it follows the finger; the replay jumps to the end value',
+        play: function (stage) {
+          var v = stage.querySelector('.at-vol'); if (!v) return Promise.resolve();
+          if (Mock.settings.reduceMotion) { v.setVolume(.8); return Mock.sleep(600).then(function () { v.setVolume(.35); }); }
+          return new Promise(function (res) { var t0 = performance.now(), dur = 1100; (function f(now) { var k = Math.min(1, (now - t0) / dur); v.setVolume(.35 + .5 * Math.sin(k * Math.PI / 2)); if (k < 1) requestAnimationFrame(f); else Mock.sleep(500).then(function () { v.setVolume(.35); res(); }); })(t0); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Single-action tile', note: 'One VoiceOver element: the tile is the button (label = title, value = state, hint = the verb: "Unlocks", "Turns off"). The trailing disc repeats the body, so it is accessibilityHidden. In B the tile has no leading glyph, so the disc is the only drawn glyph; the tile\'s label and state text carry the same meaning.' },
+      { rule: 'Two or more actions', note: 'The tile is a button, then each disc is its own button after it in reading order ("Open", "Stop"; toggles carry On or Off). The tile also lists them as named accessibility actions so the rotor reaches them without swiping.' },
+      { rule: 'Navigation with trailing actions', note: 'Up to two discs beside the chevron (fan Lock and Power, Air Purifier Power, an off remote\'s Power): the tile opens its destination, each disc is its own button after it; at AX sizes the discs drop below the text.' },
+      { rule: 'Navigation with actions below', note: 'The tile opens its destination (hint: the destination); transport, Power and the volume slider follow as separate elements; the slider is adjustable (increment and decrement by 5%).' },
+      { rule: 'Garage disc', note: 'One disc, one tile element: the label names the role and the door ("Open Left Door", "Stop Left Door", "Reverse Left Door", "Close Left Door"), the value the state; while the disc spins the label stays and the value reads "Stopping" or "Sending Open". The tile hint is the same verb. The disc is hidden from VoiceOver because the tile repeats it.' },
+      { rule: 'Targets and spacing', note: 'Every disc is 44 pt (scaling with text to 66 pt at AX5) and at least 12 pt from the next (the garage pair included); the volume slider row is at least 44 pt tall. On a navigation tile the trailing discs sit left of the chevron with a 20 pt chevron reserve (today\'s fan rail), 12 pt apart; the chevron is always vertically centred.' },
+      { rule: 'One glyph rule', note: 'A leading glyph means the tile is not an action tile (it opens something, or it only shows state). Action tiles, whatever the action count, draw no leading glyph; a single or pair of trailing discs carry the state glyph, a 3+ tile has text on top and centred discs below.' },
+      { rule: 'State in text and shape, not colour alone', note: 'The state is always in the text ("Locked", "Unlocking…") and the glyph shape (lock.fill, lock.open, spinner, pause, play); a solid white disc is never the only signal.' },
+      { rule: 'In flight', note: 'The disc and the body are disabled while the call is pending; VoiceOver hears the state text change ("Unlocking…") and the existing failure announcement (tap-feedback.md) if it fails.' },
+      { rule: 'Feedback kinds', note: 'Momentary actions give a press highlight and one TapFeedback.tap; optimistic ones swap the glyph at once and VoiceOver hears the new label ("Pause" becomes "Play"); tracked ones disable the disc and body, keep the label and read the transitional value ("Unlocking", "Opening"). An unavailable disc dims, stays in reading order and carries the not enabled trait.' },
+      { rule: 'Action set changes shape', note: 'VoiceOver focus stays on the tile; arriving or departing controls appear after it in reading order and the tile\'s state text changes ("Off" to "Playing · Streaming C"); nothing else is announced. Reduce Motion and a reconnect apply the new layout without the height animation.' },
+      { rule: 'Ticker', note: 'A ticker line is aria-hidden: the tile\'s label and value speak the full title and state. It pauses while the page scrolls; under Reduce Motion and at accessibility sizes there is no ticker and the text wraps.' },
+      { rule: 'Read-only tiles', note: 'Not buttons: grouped static text with the state as the value, no hint, no button trait.' },
+      { rule: 'AX5 reflow', note: 'One column; trailing discs (including those beside a chevron) drop below the text; the chevron stays vertically centred; the grid takes its tracks from content so nothing truncates to a sliver.' },
+    ],
+
+    reviews: {
+      date: '2026-10-26', by: 'apple-hig skill / swiftui-pro skill',
+      hig: [
+        { rule: 'Typography: keep text truncation to a minimum', verdict: 'departure', note: 'Owner refinement 2026-10-26: long text widens a tile first, and a line that still overflows a full-row tile becomes a ticker (patterns/ticker.md, motion.md section 9 exception, extended to tiles by the owner). Reduce Motion and accessibility sizes wrap instead; the ticker is hidden from VoiceOver and pauses while scrolling; spans use the longest state so live updates never reflow.' },
+        { rule: 'Motion: live updates never move layout (motion.md section 6)', verdict: 'departure', note: 'Owner decision 2026-10-26: when a tile\'s action SET changes shape (Living Room Remote Off to Playing) the tile height animates (standard 0.3 s, no bounce; discs fade quick 0.2 s). Guard rails: only a tile already spanning its full row, a change arriving while the page scrolls waits, reconnect and cold launch apply with no animation, Reduce Motion cross-fades with no height animation. Alternative considered: reserve the taller height.' },
+        { rule: 'Owner decision 2026-10-26: three feedback kinds and dimming in place', verdict: 'pass', note: 'Every action is momentary (press highlight, one TapFeedback.tap, failure face), optimistic (glyph swaps at once, no spinner, failure animates back) or tracked (animates to the transitional state and out); one unavailable action dims in place (glyph 50%, disabled), never disappears. HIG Buttons: show an activity indicator for tracked actions only.' },
+        { rule: 'Owner decision 2026-10-26: garage door is one morphing disc', verdict: 'pass', note: 'The garage is a single-action tile: one disc that carries the state glyph and morphs (closed, spinner, reverse or stop, open) with symbol replace, the body tap always doing what the disc shows. Live check 2026-10-26: Aladdin Connect, supported_features 3, so the default is the reverse variant (no Stop, no position, never Partly Open); the Stop variant is drawn beside it. HIG Buttons: show an activity indicator in the button (the Sending and Stopping spinners); haptic: one TapFeedback.tap per tap.' },
+        { rule: 'Owner refinement 2026-10-26', verdict: 'pass', note: 'Recorded as the owner\'s decision on two points: up to two actions beside the chevron on navigation tiles (three or more and custom controls below), and the chevron always vertically centred. The one HIG consequence is the departure below (trailing controls beside a disclosure indicator).' },
+        { rule: 'Critique 2026-10-26 (design 6.5/10, HIG): pass with changes; every must-fix is listed in the next findings', verdict: 'pass', note: 'Design and HIG critique of option B on 2026-10-26: pass with changes. The changes are applied to option B only; Today, A and C are unchanged.' },
+        { rule: 'Critique fix: one glyph rule', verdict: 'pass', note: 'Fixed: action tiles never draw a leading glyph (the 3+ tile is text on top, discs centred below); a leading glyph means the tile opens something or only shows state.' },
+        { rule: 'Critique fix: disc contrast', verdict: 'pass', note: 'Fixed: resting disc white 16%; off-glyph colour measured 5.2:1 (contact), 4.9:1 (air), 3.8:1 (media) against it, so no lift needed; locked is lock.fill and unlocked lock.open (shape, not only colour).' },
+        { rule: 'Critique fix: error states differ by shape', verdict: 'pass', note: 'Fixed: jammed is lock.trianglebadge.exclamationmark in red; no response keeps the lock in red (transient, 4 s); unavailable is a 50% glyph with no fill; in-flight shows a static ellipsis under Reduce Motion.' },
+        { rule: 'Critique fix: tall-tile chevron and slider glyphs', verdict: 'pass', note: 'Volume end glyphs are body size (fixed). The chevron aligning to the title row was reverted by the owner on 2026-10-26: the chevron is always vertically centred.' },
+        { rule: 'Critique fix: spacing', verdict: 'pass', note: 'Fixed and asserted: at least 12 pt between discs (garage pair included). A disc beside a chevron is now allowed on navigation tiles (owner 2026-10-26) with the 20 pt chevron reserve.' },
+        { rule: 'Critique fix: honesty rows and mockup defects', verdict: 'pass', note: 'Fixed: left-edge scan, accidental activation and the two-action phone row are in the comparison; front-door header overlap, taxonomy bottom padding, AX5 title and iPad section columns are corrected.' },
+        { rule: 'Critique: a body tap that acts risks accidental activation', verdict: 'departure', note: 'Stays per the owner rule that the tile body also performs the action, today\'s behaviour (Front Door already unlocks on a body tap), and HIG Gestures: give people more than one way to interact. Open question 4 lets the owner revisit it.' },
+        { rule: 'Critique: read-only tiles still look like buttons', verdict: 'pass', note: 'The critique was about the guest toggles; those are action tiles (a disc, no leading glyph). Real read-only tiles (Washing Machine, Dryer, sensors) keep the glyph and take the flat face.' },
+        { rule: 'Buttons: 44 x 44 pt hit region', verdict: 'pass', note: 'Discs are 44 pt, scaling to 66 pt; glyph held to 43% of the disc.' },
+        { rule: 'Buttons: show an activity indicator in the button', verdict: 'pass', note: 'In flight the glyph is replaced by a spinner in the disc, and disc and body are disabled; option A only dims.' },
+        { rule: 'Layout: about 12 pt between bezeled targets', verdict: 'pass', note: 'Discs are 12 pt apart and 12 pt from the trailing edge; the text stops 8 pt short.' },
+        { rule: 'Lists and tables: a disclosure indicator for drill-down', verdict: 'pass', note: 'A chevron appears only on navigation tiles; an action tile never carries one, so the trailing edge says what tapping does.' },
+        { rule: 'Gestures: give people more than one way to interact', verdict: 'pass', note: 'The body tap and the disc do the same single action; redundant by design, so a miss still works.' },
+        { rule: 'Typography: stack text above secondary items at large sizes', verdict: 'pass', note: 'At AX sizes trailing discs drop below the text, as the fan rail does today.' },
+        { rule: 'SF Symbols: Magic Replace for related shapes', verdict: 'pass', note: 'lock to lock.open and play to pause use symbol replace; Magic Replace needs iOS 18, so it sits behind #available with the down-up fallback; the deployment target is iOS 17.' },
+        { rule: 'Accessibility: Reduce Motion fades', verdict: 'pass', note: 'Cross-fade, no scale; the spinner keeps turning because it carries meaning (motion.md section 8).' },
+        { rule: 'Playing haptics: confirm the action once', verdict: 'pass', note: 'One TapFeedback.tap on the tap, no late success haptic: the repo owner rule in tap-feedback.md, which also keeps a lock or garage no heavier than any other tile.' },
+        { rule: 'Alerts: do not confirm a common, undoable action', verdict: 'pass', note: 'Lock and unlock keep their one-tap body (open question 4 asks whether a stray tap should be able to unlock).' },
+        { rule: 'Layout: consistent affordance shape', verdict: 'pass', note: 'Navigation tiles keep glyph, text and chevron; action tiles are text and disc; read-only tiles keep the glyph and go flat. The classes differ by shape, not only by colour, and an action tile\'s colour identity stays in the disc glyph.' },
+        { rule: 'Layout: controls inside a navigating tile', verdict: 'departure', note: 'A navigation tile hosts buttons: owner decision 2026-10-17 (entity-tile.md, Accessory rail), reaffirmed 2026-10-26 for up to two discs beside the chevron; three or more go below the text.' },
+        { rule: 'Lists and tables: trailing controls beside a disclosure indicator', verdict: 'departure', note: 'Owner refinement 2026-10-26: a navigation tile may carry up to two actions to the left of its chevron (the fan rail geometry shipped today). Mitigation: 12 pt between discs, a 20 pt chevron reserve, 44 pt targets, the tile body still the only way to open; the chevron stays vertically centred.' },
+        { rule: 'Disabled controls need a reason', verdict: 'fix', note: 'Offline and unavailable discs dim with no explanation; the offline chip already says why on the page, but an unavailable disc should follow the disabled-control-reasons proposal.' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: one element per control', verdict: 'pass', note: 'Single action: tile only, disc hidden. Multiple: tile plus a button per disc and accessibilityAction(named:), as the architecture section decides.' },
+        { rule: 'Views: no nested Button', verdict: 'fix', note: 'The mockup nests button elements in the tile for brevity; in SwiftUI the discs are siblings of the body button inside a ZStack or overlay, never a Button inside a Button.' },
+        { rule: 'Design: ScaledMetric for sizes tied to text', verdict: 'pass', note: 'Disc 44 pt scaled and capped at 1.5x; glyph at most 45% of the disc.' },
+        { rule: 'Animation: symbol replace behind #available', verdict: 'pass', note: '.contentTransition(.symbolEffect(.replace)) on iOS 17, Magic Replace on iOS 18, .identity under Reduce Motion.' },
+        { rule: 'Performance: no per-frame state', verdict: 'pass', note: 'The strip adds no state per frame; the slider writes only on release and its detent haptics are the only live work (check with tools/ios_scrollcost.sh).' },
+        { rule: 'Gestures: horizontal-pan slider keeps scrolling', verdict: 'pass', note: 'TileVolumeSlider uses the BrightnessTile horizontal-pan approach so a vertical scroll that starts on it still scrolls the page; to verify on device.' },
+        { rule: 'Layout: ViewThatFits or layout value over fixed offsets', verdict: 'pass', note: 'Spans come from a LayoutValueKey and trailing versus below from TileActionPlacement (pure, tested), not from device checks.' },
+      ],
+    },
+
+    sections: [
+      { id: 'goal', title: 'Cause and goal', build: goal },
+      { id: 'options', title: 'Options', build: options },
+      { id: 'comparison', title: 'Comparison', build: comparison },
+      { id: 'recommendation', title: 'Recommendation', build: recommendation },
+      { id: 'architecture', title: 'Architecture', build: architecture },
+      { id: 'open-questions', title: 'Open questions', build: questions },
+    ],
+
+    notes: [
+      'State keys: the page keys loading, refreshing, empty, error and reconnecting are not drawn: this proposal compares the tile convention, not page loading. default is "taxonomy"; offline is shown.',
+      'Option A, B and C are in the Options section at phone width; the device stage shows today and option B. The Options section reuses the same fixtures for all four.',
+      'The Car section is gallery-only in the app (SecurityConfig.showsVehicleSection is false); it is drawn because its tile takes the same lock actions.',
+      'Pages are trimmed to the sections that matter (no chip rail, alarm card or cameras on Security; no chips on the room pages). Real page chrome, section order and copy are the atlas pages\'.',
+      'Grid heights: DynamicGridLayout equalRowHeights makes every row the tallest tile\'s height; a 164 pt remote tile would stretch every row. The mockup sizes rows to their own tallest tile (and, as the app does, keeps tall tiles in their own section); the app needs the same per-row sizing.',
+      'The mockup nests the discs inside the tile button for brevity; the app draws them as siblings (see the SwiftUI review).',
+      'Option B: toggle-styled discs show STATE (lock.fill / lock.open), momentary discs show the ACTION (pause while playing); architecture.md now says so (TileActionSpec.symbol), and gains TileActionPlacement.carriesGlyph. Options A and C keep the leading glyph and are drawn as before.',
+      'Disc contrast, measured (resting disc on an off tile: white 16% over a tile of about rgb(30,32,36) gives a disc of about rgb(66,68,71); glyph is the family off-glyph, the family colour 88% over off-grey, the repo\'s ColorFamily.offGlyphRGB recipe): Front Door locked disc (contact family #7ED787 to rgb(128,206,136)) 5.2:1; Air family (#2FD3C1) 4.9:1; Media family (#FF7AA8) 3.8:1. All pass 3:1 without a further lift toward white (a lift of about 17% would take media to 4.5:1); the CSS keeps the off-glyph colour unlifted. The tile composite is an estimate over the dark wallpaper; the app test should measure it.',
+      'Spacing assertions: discs are 12 pt apart everywhere (the garage pair included). The text stops 8 pt short of a trailing disc. A navigation tile\'s trailing discs sit left of the chevron, one 20 pt chevron reserve in from the tile padding (the fan rail geometry).',
+      'Measured: beside a chevron the rail ends 32 pt from the tile edge (12 padding + 20 chevron reserve, the fan rail today), which leaves about 7 pt between the last disc and the chevron glyph itself; the 12 pt gap rule is between discs.',
+      'Long-text spans (owner 2026-10-26): measured by AT.grid on the rendered page; the long-text state reports each tile\'s need and span in data-need / data-span. Packing implemented: first-fit by row (dense, like fillRows except-last) for option B grids; page order is kept otherwise. A and C keep CSS auto placement and the fixed 96 pt estimate.',
+      'Owner decisions, 2026-10-26: (1) navigation tiles can have up to two actions to the left of the chevron, three or more and custom controls (remote transport and volume) below; (2) the chevron is always vertically centred, at every height and at AX5. Widths measured by the grid helper: a nav tile with one trailing disc needs about 234 pt (12+30+12+96 text+8+44+20+12), which leaves 41 pt in a 179 pt phone track so it spans the row; two discs need about 290 pt. Carried-glyph action tiles need about 172 pt (one disc, two to a row) and 228 pt (two discs).',
+      'Feedback kinds (owner 2026-10-26): the feedback-kinds state shows momentary, optimistic and tracked actions, one disc dimmed in place (remote Next at the end of a queue, vacuum Dock while docked) and the shape-changing remote. A tile whose action set changes shape is marked data-reshape and always takes its full row (or its side of the fold), so the change never reflows sideways. AT.reshape(..., {instant: true}) is the no-animation path for a reconnect or cold launch.',
+      'Garage: option B draws one morphing disc (owner 2026-10-26); the default is the no-Stop reverse variant because our openers are Aladdin Connect with supported_features 3 (live check 2026-10-26); the Stop variant is for an opener whose supported_features & 8. Security tiles are titled Left Door and Right Door as in the app. No two-action action tile exists after this decision: the 2-action class is drawn with a hypothetical sprinkler zone (Run, Skip). A and C keep the literal two-action garage.',
+      'Option B action tiles carry the glyph in the first disc (the garage disc shows door.garage.closed or open, then the reverse or stop glyph; car uses lock glyphs); the lit and power faces keep the dark disc.',
+      'Power on the yellow power face (Alex\'s PC, Towel Rack) and the lit lights face uses the dark lit-ink disc even when toggled on, because a solid white disc with a yellow glyph fails contrast (the measured 1.9:1 in architecture.md).',
+      'Promote to kit: _action-tiles.js (TileActionButton, strip, volume row, AT.grid content-aware spans, .ui-tile.readonly) and the symbols added to lib/symbols.js (backward.fill, forward.fill, speaker.fill, speaker.wave.3.fill, arrow.up.to.line).',
+    ],
+    changelog: [{ date: '2026-10-26', note: 'Revision: option B action tiles drop the leading glyph and the disc carries it (stay two to a row); open question 6 replaced; architecture.md gains carriesGlyph and the state/action symbol rule.' }, { date: '2026-10-26', note: 'First pass: six tile classes, security, living, master bath and media pages, Front Door states, read-only, long text, AX5, offline; options, comparison, recommendation, architecture and open questions.' }],
+  });
+})();
+</script></body></html>

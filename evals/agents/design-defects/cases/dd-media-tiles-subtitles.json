@@ -1,0 +1,16 @@
+{
+  "id": "dd-media-tiles-subtitles",
+  "date": "2026-10-31",
+  "source": "4ac44105",
+  "owner_report": "Media quick tiles (Plex, YouTube, etc.) do not need the little subtitles and tiles can probably be made slightly bigger",
+  "surface": "media-remote-app-tile",
+  "poses": [
+    "iphone"
+  ],
+  "app": "uikit",
+  "category": "parity",
+  "pre_fix_ref": "181fd129",
+  "fix_ref": "4c69e653",
+  "fix_confidence": "high",
+  "expected": "App tiles carry no subtitle and follow the tile rule's size."
+}

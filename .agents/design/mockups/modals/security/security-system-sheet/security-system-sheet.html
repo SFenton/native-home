@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Security System · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  /* The page behind the sheet: Home (the Security chip opens this sheet from Home and from Security). */
+  function presenter(ctx, connection, from) {
+    if (from === 'security') return SecClimate.securityPage(ctx, { page: { connection: connection || 'live' } });   // the Security page opens the same sheet (.hassSheet(.page))
+    var chips = K.ChipRail({ chips: Mock.chips.home({ security: 'armed_home' }) });
+    return Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, connection: connection || 'live', body: [chips, K.WeatherCard({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38 })] });
+  }
+  /* The sheet itself: SecuritySystemSheet = NavigationStack { SecurityControls { AlarmPanel } }, hassSheet(.page, height: .fitted). */
+  function sheet(ctx, o) {
+    o = o || {};
+    var panel = h('div', { style: { maxWidth: '560px', margin: '0 auto' } }, K.AlarmPanel({ state: o.state || 'armed_home', since: o.since }));
+    var alert = null;
+    if (o.confirm) alert = K.Alert({ title: 'Disarm the Security System?', message: 'Doors and motion stop triggering the alarm.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Disarm' }] });
+    return Mock.sheet(ctx, { title: 'Security System', detent: o.detent || 'fitted', size: 'page', trailing: 'close', content: panel, presenter: o.noPresenter ? null : presenter(ctx, o.connection, o.from), alert: alert });
+  }
+  var M = function (id) { return function (ctx) { return sheet(ctx, { state: id }); }; };
+  /** FENTON_REDACT_PRIVATE: the card says Hidden, no mode selected, neutral badge (ScreenshotPrivacy). */
+  function hiddenSheet(ctx) {
+    var host = sheet(ctx, { state: 'arming', since: null });
+    var t = host.querySelector('.ui-alarm .ti'); if (t) t.textContent = 'Hidden';
+    return host;
+  }
+
+  function modeEl(stage, mode) { return stage.querySelector('.ui-mode[data-mode="' + mode + '"]'); }
+  function setState(stage, state, title, sub) {
+    var panel = stage.querySelector('.ui-alarm'), badge = panel.querySelector('.badge'), fam = { armed_home: 'sec-home', armed_away: 'sec-away', armed_night: 'sec-night', disarmed: 'sec-disarmed', triggered: 'sec-triggered' }[state];
+    stage.querySelectorAll('.ui-mode').forEach(function (b) { b.classList.toggle('sel', b.dataset.mode === state); b.classList.toggle('on-alarm', state === 'triggered'); });
+    badge.style.setProperty('--bfill', 'var(--fam-' + fam + '-fill)'); panel.classList.toggle('triggered', state === 'triggered'); panel.querySelector('.ti').textContent = title;
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'security-system-sheet', title: 'Security System sheet', area: 'security', status: 'shipped',
+    summary: 'Opened by the Security chip on Home and Security. A fitted page sheet holding one card: the mode as a fact, and Disarm, Home, Away and Night. Follows the system appearance; switch Sheet appearance above (the States gallery shows both).',
+    source: ['apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift'],
+    spec: ['.agents/pages/security/spec.md', '.agents/pages/security/ios.md'],
+    patterns: ['modal-sheet', 'header-edge-fade', 'status-rail', 'motion'],
+    hig: ['Sheets', 'Alerts', 'Toolbars', 'Color', 'Dark Mode'],
+    entities: ['alarm_control_panel.demo_alarm_control_panel_1'],
+    kitComponents: ['AlarmPanel', 'HassModal', 'SheetCloseItem', 'Alert', 'ChipRail', 'WeatherCard'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Armed Home, fitted', render: M('armed_home') },
+      'loading': { title: 'Arming (the panel reports arming)', note: 'there is no spinner: the card shows the live state and a slate badge until the mode lands', render: M('arming') },
+      'error': { title: 'Unavailable', note: 'glyphs dim, text keeps full strength, all four modes are disabled', render: M('unavailable') },
+      'offline': { title: 'Over an offline Home', note: 'the sheet has no offline UI of its own: the card keeps the last known mode; the page behind carries the offline chip', render: function (c) { return sheet(c, { state: 'armed_home', connection: 'offline' }); } },
+      'disarmed': { title: 'Disarmed', render: M('disarmed') },
+      'optimistic': { title: 'A tapped mode shows at once', note: 'Away was tapped while the panel still reports Armed Home; the card shows Away now and rolls back if the call fails (patterns/optimistic-actions.md)', render: function (c) { return sheet(c, { state: 'armed_away', since: '6:12 PM' }); } },
+      'from-security': { title: 'Opened from the Security page', note: 'the Security chip presents the same fitted page sheet over the Security page (Home shows the same sheet over Home)', render: function (c) { return sheet(c, { state: 'armed_home', from: 'security' }); } },
+      'hidden': { title: 'Hidden (FENTON_REDACT_PRIVATE=1)', note: 'screenshots only: no mode is selected and the title reads Hidden', render: hiddenSheet },
+      'armed-away': { title: 'Armed Away', render: M('armed_away') },
+      'armed-night': { title: 'Armed Night', render: M('armed_night') },
+      'triggered': { title: 'Alarm triggered', note: 'the card takes #D70015 at 42% (dark) or 16% (light); it holds steady and never pulses', render: M('triggered') },
+      'disarm-confirm': { title: 'Disarm asks first', note: 'iOS 26 alert, Cancel always present', render: function (c) { return sheet(c, { state: 'armed_home', confirm: true }); } },
+      'medium': { title: 'Medium detent', note: 'what the sheet opens at until its content is measured', render: function (c) { return sheet(c, { detent: 'medium' }); } },
+      'large': { title: 'Large detent', note: 'only when content is taller than the window (AX sizes)', render: function (c) { return sheet(c, { detent: 'large' }); } },
+      'fitted': { title: 'Fitted detent (shipped)', render: function (c) { return sheet(c, { detent: 'fitted' }); } },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the page the sheet scales back', render: function (c) { return presenter(c); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the fitted height reaches the large cap and the card scrolls', render: M('armed_home') },
+    },
+
+    motion: [
+      { id: 'optimistic', what: 'A mode is tapped: it shows at once; the call fails, so the card rolls back to the live mode', token: 'state 0.6 s ease-in-out, colour only, both ways', state: 'default',
+        source: 'AlarmPanel OptimisticActions (rule .liveChange), stateColorTransition("AlarmModeButton"); patterns/optimistic-actions.md', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { setState(stage, 'armed_away', 'Armed Away'); return Mock.sleep(Mock.anim.ms.state() + 900).then(function () { setState(stage, 'armed_home', 'Armed Home'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'mode-select', what: 'Choosing a mode: the new mode fills in its colour, the old one empties, the badge and title follow', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'HassUI/Features/Security/SecuritySystemSheet.swift AlarmModeButton, stateColorTransition("AlarmModeButton"); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) { setState(stage, 'armed_away', 'Armed Away'); return Mock.sleep(Mock.anim.ms.state() + 300).then(function () { setState(stage, 'armed_night', 'Armed Night'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'triggered-wash', what: 'The alarm triggers: the card washes red and the modes dim', token: 'state 0.6 s ease-in-out; steady, never a pulse', state: 'default',
+        source: 'AlarmPanel.ground, stateColorTransition("AlarmPanel"); direction-g.md Controls', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) { setState(stage, 'triggered', 'Alarm Triggered'); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { setState(stage, 'disarmed', 'Disarmed'); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Home', to: 'Security System sheet', kind: 'sheet', state: 'closed', note: 'The Security chip presents the sheet at its fitted height. The system slides it up; Home scales back and dims. Content is present on arrival, no entrance animation inside the sheet (motion.md section 4.4).',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Security System', detent: 'fitted', size: 'page', content: h('div', { style: { maxWidth: '560px', margin: '0 auto' } }, K.AlarmPanel({ state: 'armed_home' })) }, { hold: 1200 }); } },
+      { from: 'Security System sheet', to: 'Home', kind: 'sheet', state: 'default', note: 'Dismiss: the circle x Close, or a swipe down (interactive, system-owned). The sheet slides away and Home returns to full size.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Disarm tap', to: 'Disarm alert', kind: 'fade', state: 'default', note: 'The alert scales and fades in over the sheet (system alert, never decorated). Disarm is the only action that confirms.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host');
+          var scrim = h('div.ui-alert-scrim.' + (ctx.appearance === 'dark' ? 'g-dark' : 'g-light'), K.Alert({ title: 'Disarm the Security System?', message: 'Doors and motion stop triggering the alarm.', buttons: [{ title: 'Cancel', role: 'cancel' }, { title: 'Disarm' }] }));
+          host.appendChild(scrim);
+          return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1200); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Security System", then the card header, the four modes left to right (Disarm, Home, Away, Night), and Close last in the bar; Escape and the two-finger scrub dismiss.' },
+      { rule: 'Header element', note: 'One element: label "Security System", value "Armed Home, Since 6:12 PM" (identifier security.system.state). The badge glyph is decorative.' },
+      { rule: 'Mode buttons', note: 'Labelled Disarm, Home, Away, Night; the current one carries the selected trait; hints "Sets the security system to Home" and, for Disarm, "Disarms the security system". 64 pt minimum, far over 44.' },
+      { rule: 'State is not colour alone', note: 'Every mode has its own glyph (house, walking figure, moon, shield with a slash) and the mode is spoken as a title; triggered adds the exclamation shield and the words "Alarm Triggered".' },
+      { rule: 'Alert', note: 'Disarm always asks: "Disarm the Security System?" with Cancel and a plain, bold Disarm; the alert keeps Cancel on every device.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the badge, title and mode glyphs scale, the four-column grid stays four wide until the 64 pt (scaled) minimum no longer fits, then the grid wraps; the fitted height is capped at large and the card scrolls.' },
+      { rule: 'Light and dark', note: 'The sheet follows the system appearance: white cell on #F2F2F7 in light, #2C2C2E on #1C1C1E in dark; secondary text 5:1 or better on both grounds.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Sheets: a grabber on a resizable sheet; size to content", verdict: 'pass', note: "Fitted height with a visible grabber (HassModal.swift:191, SheetFit); a page sheet on iPad (SecurityScreen.swift:92).", by: 'apple-hig skill' },
+        { rule: "Materials: a partial-height sheet uses the system material", verdict: 'departure', note: "The sheet draws an opaque grouped ground at every detent so the page's coloured tiles never show through glass (HassModal.swift:192-194, 257).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+        { rule: "Playing haptics and Feedback: confirm a significant command through more than one channel", verdict: 'pass', note: "Fixed in SecuritySystemSheet.swift: AlarmModeButton plays TapFeedback.tap; a failed change shows an InlineAlert line with the error haptic and announcement.", by: 'apple-hig skill' },
+        { rule: "Color: state is words and glyphs as well", verdict: 'pass', note: "Title says Armed Home, Armed Away, Armed Night, Disarmed or Triggered; the selected mode gains a filled glyph (line 218) and the selected trait.", by: 'apple-hig skill' },
+        { rule: "Accessibility: bezelled elements need about 12 pt spacing", verdict: 'pass', note: "AlarmPanel.modeSpacing is 12 pt between the mode buttons.", by: 'apple-hig skill' },
+        { rule: "Dynamic Type: reflow at accessibility sizes", verdict: 'pass', note: "Mode width @ScaledMetric 64 relative to .footnote drops the four across to fewer columns at AX5, labels wrap instead of truncating (lines 55, 223-225).", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+        { rule: "ScaledMetric for fixed sizes", verdict: 'pass', note: "Badge 44 relative to .title2, glyph row height 24 relative to .title3 (SecuritySystemSheet.swift:56, 210).", by: 'swiftui-pro skill' },
+        { rule: "Combined VoiceOver element for the status header", verdict: 'pass', note: "The header ignores children and speaks label 'Security System' with value 'Armed Home, Since 6:12 PM' (lines 129-132).", by: 'swiftui-pro skill' },
+        { rule: "Hard-coded colours", verdict: 'departure', note: "The mode glyph and selected-mode label are fixed white on the mode's own family fill (lines 105, 229); the unselected ground and title adapt to the sheet appearance (direction-g.md Layers).", by: 'swiftui-pro skill' },
+        { rule: "Optimistic action rolls back on failure", verdict: 'pass', note: "OptimisticActions with .liveChange (lines 185-189); tapping the current mode sends nothing (line 176).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Fitted height (owner, 2026-10-28, option B of proposals/sheet-bottom-gap): like every fitted sheet it no longer carries a second 34 pt band under the card (the detent leaves out the bottom safe area the system adds). Not probed separately: the rule is the same one the camera viewer and Quick Links (same body) were measured with.',
+      'loading: there is no loading state. The panel reads EntityStore (always ready from the snapshot); the nearest state is "arming" while the panel reports arming.',
+      'offline: the sheet has no offline UI; it shows the last known mode over the page that carries the offline chip.',
+      'Duo unfolded: the page sheet is centred in the window and crosses the hinge band here (the system decides placement on the Duo; the unfolded simulator pose was only run for pages). Check on a device before relying on it.',
+      'The sheet\'s "medium" is the provisional detent it opens at before the first measurement; "fitted" is what ships.',
+      'Presenter page is a trimmed Home (chips and weather), or the Security page in state from-security. Wallpaper and weather glyphs are stand-ins.',
+      'The same SecurityControls body is reused by Quick Links > Security System (a pushed level in the Quick Links sheet, drawn by the shell batch); its toolbar is that sheet\'s.',
+      'On the Security page the card is also drawn inline (AlarmPanel on a module, see pages/security); Disarm there raises the same alert straight over the page (modals/security/disarm-confirm-alert).',
+      'Reviewed and extended 2026-10-23 by the security-climate batch: added optimistic, from-security and hidden states and the optimistic roll-back motion; the original states are unchanged.',
+    ],
+    changelog: [{ date: '2026-10-28', note: 'Fitted height no longer carries a second bottom band (proposals/sheet-bottom-gap, option B); status in-flight.' }, { date: '2026-10-23', note: 'First pass built with the kit: seven modes of the alarm, three detents, alert, light and dark.' }, { date: '2026-10-23', note: 'Extended: optimistic, from-security and hidden states, roll-back motion, notes on the shared card.' }],
+  });
+})();
+</script></body></html>

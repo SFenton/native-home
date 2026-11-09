@@ -1,0 +1,29 @@
+{
+  "id": "pr.motion_direction",
+  "version": 1,
+  "type": "noul-set",
+  "mode": "shadow",
+  "description": "Does the change behave differently going one way than coming back? Asked per device class.",
+  "instructions": "For this transition on the device class in `device_class`, does anything in the request, the plan or the changed code say: {option}?",
+  "criteria": {
+    "forward": "Only the way there changed",
+    "reverse": "Only the way back changed",
+    "both_same": "Both ways behave alike: one round-trip clip covers it"
+  },
+  "state": {
+    "fields": [
+      "request",
+      "plan",
+      "edge",
+      "transition_files",
+      "device_class"
+    ],
+    "max_chars": 4000
+  },
+  "accept": {
+    "yes_above": 0.6,
+    "no_below": 0.25
+  },
+  "output": "pr_visual select: recorded per candidate edge under jev_shadow (K.2 rule 5). Shadow: round trip by default.",
+  "evidence": "unmeasured"
+}

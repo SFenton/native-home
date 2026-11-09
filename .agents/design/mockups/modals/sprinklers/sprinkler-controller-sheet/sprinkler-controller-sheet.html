@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprinkler controller · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/sprinklers/_vacation-sprinklers.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, S = Mock.VS.S;
+  var FRONT = function (p) { return S.snap('frontYard', p); }, BACK = function (p) { return S.snap('backyard', p); };
+  function st(snap, o) { return function (ctx) { return S.sheet(ctx, Object.assign({ snap: snap }, o)); }; }
+  var DOWN = { available: false, battery: null, hub: false, lastRun: { time: null, run: null } };
+
+  /* Push a detail page inside the open sheet (NavigationStack push), hold, pop it again. */
+  function pushDemo(stage, detail, snap) {
+    var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), oldM = panel.querySelector('.ui-modal');
+    var tmp = S.sheet(ctx, { snap: snap, detail: detail, noPresenter: true }), neu = tmp.querySelector('.ui-modal');
+    neu.style.cssText = 'position:absolute;inset:0;background:var(--sheet-ground);z-index:6;display:flex;flex-direction:column';
+    panel.appendChild(neu);
+    return Mock.anim.push(oldM, neu).then(function () { return Mock.sleep(900); }).then(function () { return Mock.anim.push(neu, oldM, { back: true }); }).then(function () { neu.remove(); oldM.style.transform = ''; oldM.style.filter = ''; });
+  }
+
+  Mock.mount({
+    kind: 'modal', id: 'sprinkler-controller-sheet', title: 'Sprinkler controller sheet', area: 'sprinklers', status: 'shipped',
+    summary: 'Opened by a controller row on Sprinklers. A tall page sheet (hassSheet(.page, height: .full)) holding one List: Status pills, Zones, Stop Watering, Rain Delay and Smart Watering, and each zone\'s program. A zone row pushes Water Now; a program row pushes its schedule editor, inside the same sheet. Follows the system appearance; switch Sheet appearance above (the States gallery shows both).',
+    source: ['apple/Sources/HassUI/Features/Sprinklers/SprinklerControllerSheet.swift', 'apple/Sources/HassUI/Features/Sprinklers/SprinklersScreen.swift', 'apple/Sources/HassDesign/StatusPill.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerController.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerSnapshot.swift', 'apple/Sources/HassCore/Sprinklers/SprinklerFormat.swift'],
+    spec: ['.agents/pages/sprinklers/spec.md', '.agents/pages/sprinklers/ios.md'],
+    patterns: ['modal-sheet', 'status-pill', 'header-edge-fade', 'optimistic-actions', 'motion'],
+    hig: ['Sheets', 'Lists and tables', 'Toggles', 'Alerts', 'Color', 'Dynamic Type', 'Dark Mode'],
+    entities: ['sensor.demo_front_yard_state_item_1', 'select.demo_front_yard_mode_1', 'switch.demo_front_yard_2', 'switch.demo_front_yard_1', 'valve.demo_front_yard_zone_item_1', 'switch.demo_front_yard_program_1', 'valve.demo_backyard_zone_4', 'switch.demo_backyard_program_4'],
+    kitComponents: ['HassModal', 'SheetCloseItem', 'StatusPill', 'TileGrid', 'Toggle', 'PrimaryButton', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Front Yard, idle, one zone and one program', render: st(FRONT()) },
+      'watering': { title: 'Garden Faucet watering House', note: 'status pill Watering (water icon), House row and its status in the water colour, Stop Watering enabled in red', render: st(BACK()) },
+      'battery-low': { title: 'Battery low', note: 'Battery pill icon orange; no separate alert in the sheet (the alert is on the page card)', render: st(BACK({ active: null, battery: 12 })) },
+      'rain-delay': { title: 'Rain Delay and Smart Watering on', render: st(FRONT({ rain: true, smart: true })) },
+      'mode-off': { title: 'Device mode Off', note: 'Controller pill reads Off with an orange icon; Water Now is blocked (canStartWatering needs a mode other than off)', render: st(FRONT({ mode: 'off' })) },
+      'fault': { title: 'Fault', note: 'Controller pill reads Fault with a red icon', render: st(FRONT({ fault: true })) },
+      'error': { title: 'A command failed', note: 'Home Assistant\'s message shows as an inline alert at the top of the list; cleared by the next command, by reopening the sheet and by leaving a pushed page', render: st(FRONT(), { error: 'Unable to communicate with the Orbit B-hyve hub.' }) },
+      'unavailable': { title: 'Controller unavailable', note: 'every pill reads Unavailable, zone and program rows dim, Settings rows are disabled (snapshot.available false)', render: st(BACK(DOWN)) },
+      'loading': { title: 'Nothing saved, entities not yet read', note: 'no loading UI: the sheet reads the same entities as the page, so a controller that has not answered yet is the unavailable state', render: st(FRONT(DOWN)) },
+      'offline': { title: 'Over an offline page', note: 'the sheet has no offline UI of its own; the page behind carries the offline chip. Values stay as last known', render: st(BACK(), { connection: 'offline' }) },
+      'large': { title: 'Large detent (the only one)', note: 'hassSheet(.page, height: .full): opens at large on iPhone and the folded Duo; a 704 pt page sheet on iPad and the unfolded Duo', render: st(BACK(), { detent: 'large' }) },
+      'water-pushed': { title: 'Water Now pushed inside the sheet', note: 'glass Back leading, Close trailing; see the Water Now mockup for its states', render: st(BACK({ active: null }), { detail: { kind: 'water', zone: 1 } }) },
+      'schedule-pushed': { title: 'Zone program editor pushed', note: 'see the schedule editor mockup', render: st(BACK(), { detail: { kind: 'schedule', zone: 0 } }) },
+      'closed': { title: 'Before presenting / after dismissing', note: 'the Sprinklers page the sheet scales back', render: function (c) { return S.page(c, { snaps: [FRONT(), BACK()] }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one pill per row; rows wrap; the toggle moves under its label; the sheet stays large and the list scrolls', render: st(BACK()) },
+    },
+
+    motion: [
+      { id: 'zone-watering', what: 'A zone starts watering: its glyph and status line take the water colour', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'HassUI/Features/Sprinklers/SprinklerControllerSheet.swift SprinklerRow (stateForeground("SprinklerRow")); motion.md section 6', reduce: 'still cross-fades at 0.2 s',
+        play: function (stage) {
+          var row = stage.querySelector('.vs-row'), ico = row.querySelector('.vs-ico'), ln = row.querySelector('.vs-ln'), ms = Mock.anim.ms.state();
+          [ico, ln].forEach(function (e) { e.style.transition = 'color ' + ms + 'ms ease-in-out'; });
+          row.classList.add('on'); ln.textContent = 'Watering · 6:00 AM';
+          return Mock.sleep(ms + 700).then(function () { row.classList.remove('on'); ln.textContent = 'Closed · 6:00 AM'; return Mock.sleep(ms + 300); });
+        } },
+      { id: 'switch', what: 'Rain Delay switches on: the knob slides, the track fills green', token: 'knob standard 0.3 s smooth; track state 0.6 s ease-in-out', state: 'default',
+        source: 'SwiftUI Toggle (system); motion.md section 6 (user actions change at once, optimistic)', reduce: 'knob still slides (a content change); the track cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-toggle')[0]; t.classList.add('on'); return Mock.sleep(Mock.anim.ms.state() + 700).then(function () { t.classList.remove('on'); return Mock.sleep(900); }); } },
+      { id: 'stop-colour', what: 'Stop Watering enables when a zone is watering: its label goes from grey to red', token: 'state 0.6 s ease-in-out', state: 'default',
+        source: 'SprinklerControllerSheet.swift Controls section (HassTokens.Ink.danger); motion.md section 6', reduce: 'cross-fade at 0.2 s',
+        play: function (stage) {
+          var b = [].filter.call(stage.querySelectorAll('.vs-field'), function (e) { return /Stop Watering/.test(e.textContent); })[0], ms = Mock.anim.ms.state();
+          b.style.transition = 'color ' + ms + 'ms ease-in-out, opacity ' + ms + 'ms'; b.disabled = false; b.style.opacity = '1'; b.classList.remove('muted'); b.classList.add('danger');
+          return Mock.sleep(ms + 700).then(function () { b.classList.add('muted'); b.classList.remove('danger'); b.style.opacity = '.6'; return Mock.sleep(ms + 300); });
+        } },
+    ],
+
+    transitions: [
+      { from: 'Sprinklers', to: 'Controller sheet', kind: 'sheet', state: 'closed', note: 'The controller row presents the sheet at large; the page scales back and dims. Content is present on arrival; no entrance animation inside the sheet (motion.md section 4.4). The sheet re-reads the entities on appear and clears any old error.',
+        play: function (stage) { return Mock.presentDemo(stage, { title: 'Front Yard', subtitle: 'Auto · Next 7:00 AM', detent: 'large', size: 'page', trailing: 'close', content: S.overview(FRONT()) }, { hold: 1200 }); } },
+      { from: 'Controller sheet', to: 'Sprinklers', kind: 'sheet', state: 'default', note: 'Close (circle x), or a swipe down (interactive, system-owned). Also reachable from a pushed page: Close is on every level.',
+        play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
+      { from: 'Zone row', to: 'Water Now', kind: 'push', state: 'watering', note: 'NavigationLink(value: .water(zone:)): the system push inside the sheet\'s NavigationStack; the interactive back swipe pops. Sheet height does not change.',
+        play: function (stage) { return pushDemo(stage, { kind: 'water', zone: 1 }, BACK({ active: null })); } },
+      { from: 'Program row', to: 'Schedule editor', kind: 'push', state: 'default', note: 'NavigationLink(value: .schedule(zone:)): same system push. The row\'s switch is a separate control and does not push.',
+        play: function (stage) { return pushDemo(stage, { kind: 'schedule', zone: 0 }, FRONT()); } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title (controller name, heading) with the subtitle "Auto · Next 7:00 AM" as its value, then the Status pills, the Zones, Stop Watering, the two switches, each program row and its switch, and Close last in the bar. The two-finger scrub dismisses.' },
+      { rule: 'Status pills', note: 'Read-only, one element each: "Controller, Watering", "Battery, 15%", "Next Watering, 6:30 AM", "Last Watering, 6:30 AM, 10 min". Tone colours the icon only; the words carry the state.' },
+      { rule: 'Zone rows', note: 'One element: "House, Watering, 6:40 AM"; hint "Water now" (identifier sprinkler.zone.<n>). A zone stays enabled while another waters (departure below) so its name keeps contrast and VoiceOver still reads its status; only a zone Home Assistant reports unavailable is disabled.' },
+      { rule: 'Stop Watering', note: 'Labelled "Stop Watering"; disabled with the dimmed secondary ink when nothing waters; the enabled label uses Ink.danger (4.5:1 or better on the sheet cell in both appearances) rather than system red.' },
+      { rule: 'Switches', note: 'Rain Delay · 24 Hours and Smart Watering are native Toggles with the icon-and-title label; each program has a switch labelled "<zone> schedule", separate from the row that opens its editor. Targets are 44 pt or more.' },
+      { rule: 'Dynamic Type', note: 'minPillWidth 150 is @ScaledMetric: four pills become one column at AX5. List rows grow with the text; nothing truncates. Checked at AX5 below.' },
+      { rule: 'Light and dark', note: 'Follows the system appearance: sheet cell #2C2C2E on #1C1C1E in dark, white on #F2F2F7 in light. The water glyph is #4CC9F0 in dark and #358DA8 in light; secondary text 4.5:1 or better.' },
+      { rule: 'Errors', note: 'A failed call shows Home Assistant\'s message in an inline alert at the top of the list; the optimistic switch or state reverts.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: "Sheets: a sheet that navigates keeps Back and a way out on every level", verdict: "pass", note: "NavigationStack(path:) with SheetCloseItem on the overview and on every pushed page (SprinklerControllerSheet.swift lines 29-46).", by: "apple-hig skill" },
+        { rule: "Sheets: a grabber on a sheet with one detent", verdict: "pass", note: "hassSheet hides the drag indicator for height: .full (DragIndicator.visibility, HassModal.swift): one detent, no grabber (owner 2026-10-24, sheet-close-chrome).", by: "apple-hig skill" },
+        { rule: "Toggles: use a switch in a list row for a setting that applies at once", verdict: "pass", note: "Rain Delay and Smart Watering are Toggles in a list row with an icon and title (lines 105-114); each program has its own switch (line 161).", by: "apple-hig skill" },
+        { rule: "Buttons and Alerts: stopping the water is immediate", verdict: "pass", note: "Stop Watering is a destructive-role row, enabled only while watering, with no confirmation (lines 95-102): reversible and time-critical, so HIG Alerts (\"avoid alerts for common, undoable actions\") agrees.", by: "apple-hig skill" },
+        { rule: "Color: do not rely on colour alone", verdict: "pass", note: "Zone state is words (\"Watering\", \"Closed\", \"Unavailable\") as well as the water colour (lines 80-86).", by: "apple-hig skill" },
+        { rule: "Lists and tables: an active control in a disabled row", verdict: "departure", note: "ios.md 2026-10-11: zone rows stay enabled while another zone waters because a disabled row dims below 4.5:1 and hides its status from VoiceOver; Water Now explains and disables Start (lines 87-90).", by: "apple-hig skill" },
+        { rule: "Feedback: a failed command is explained", verdict: "pass", note: "controller.errorMessage shows Home Assistant's message in an InlineAlert at the top of the list and clears on the next command (lines 61-63, 49).", by: "apple-hig skill" },
+        { rule: "Designing for iPhone Duo and iPad: page-width sheet", verdict: "pass", note: ".page sizing (704 pt on iPad); Status pills use a grid with an @ScaledMetric minimum capped at four (lines 21, 65).", by: "apple-hig skill" },
+      ],
+      swiftui: [
+        { rule: "Navigation: path-driven NavigationStack with a Hashable value", verdict: "pass", note: "navigationDestination(for: SprinklerDetail.self) registered once (line 36); pop() edits the path (lines 52-54).", by: "swiftui-pro skill" },
+        { rule: "Views: Toggle(isOn: Binding(get:set:)) in body", verdict: "pass", note: "Already fixed: Rain Delay, Smart Watering and the program switches use ControllerToggle (SprinklerOverview.swift, SprinklerControllerSheet.swift).", by: "swiftui-pro skill" },
+        { rule: "Views: computed some View properties in a long body", verdict: "pass", note: "Already fixed: the overview moved into SprinklerOverview (SprinklerOverview.swift) with SprinklerControllerSheet reduced to the navigation stack.", by: "swiftui-pro skill" },
+        { rule: "Accessibility: dim only the glyph, keep text contrast", verdict: "pass", note: "The Stop Watering label switches Ink.danger to Ink.secondary when disabled instead of lowering opacity (line 98).", by: "swiftui-pro skill" },
+      ],
+    },
+
+    notes: [
+      'loading: no loading UI. The sheet reads the controller\'s entities; one that has not answered is the unavailable state (shown as loading and unavailable).',
+      'medium and fitted: this sheet has neither. It is hassSheet(.page, height: .full) because it pushes pages (modal-sheet.md lists Sprinklers as a required full-height sheet); only large is drawn. Kit "medium"/"fitted" would be wrong for it.',
+      'Programs: SprinklerSnapshot always supplies a program per zone, so a zone without Home Assistant data shows "Unavailable · Unavailable" with a disabled row and switch (the unavailable state), not a missing row. The source comment "zones without a program are left out" does not match what the code draws.',
+      'Program rows: the NavigationLink sits inside an HStack beside the switch; the mockup draws it without a disclosure chevron (SwiftUI draws one only for a link that is the row\'s root). Not confirmed on a device.',
+      'The pushed pages (Water Now, schedule editor) have their own mockups; each repeats this sheet\'s header (Back leading, Close trailing).',
+      'Presenter page is the Sprinklers page. Wallpaper and glyphs are kit stand-ins; times are fixture values.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: overview in every controller state, pushes, light and dark, AX5.' }],
+  });
+})();
+</script></body></html>

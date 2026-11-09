@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Climate room detail · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../components/climate/_security-climate.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, SC = window.SecClimate;
+
+  /** The pushed room page inside the Advanced Controls sheet (ClimateRoomDetail), opened from the Rooms tab. */
+  function room(ctx, key, o) {
+    o = o || {};
+    var r = SC.room(key);
+    return SC.climateSheet(ctx, { content: SC.roomDetail(ctx, r, o), title: r.title, connection: o.connection, noPresenter: o.noPresenter });
+  }
+  var LIVING = 'living-room';
+
+  Mock.mount({
+    kind: 'modal', id: 'climate-room-detail', title: 'Climate room detail (target dial, vents)', area: 'climate', status: 'shipped',
+    summary: 'One room\'s page, pushed inside the Advanced Controls sheet from a Rooms tile: the room\'s thermostat dial at modal size, the room\'s away notice when it applies, and its vents as read-only Vents-family tiles that fill while open and show their position.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift', 'apple/Sources/HassUI/Controls/Thermostat/ClimateThermostatDial.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift',
+      'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Config/ClimateConfig.swift'],
+    spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/patterns/thermostat-dial.md'],
+    patterns: ['thermostat-dial', 'modal-sheet', 'dynamic-grid', 'entity-tile', 'optimistic-actions'],
+    hig: ['Sheets', 'Navigation', 'Sliders', 'Accessibility: VoiceOver adjustable'],
+    entities: ['climate.demo_example_2', 'cover.demo_living_room_vent_2', 'cover.demo_living_room_vent_1', 'sensor.demo_example_6'],
+    kitComponents: ['HassModal', 'GlassTile', 'TileGrid', 'BackButton', 'SheetCloseItem'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Living Room, range 71 to 74, two vents', note: 'Vent 1 open 100%, Vent 2 half open (the gallery fixture)', render: function (c) { return room(c, LIVING, { dial: { low: 71, high: 74, current: 71, action: 'idle' } }); } },
+      'heating': { title: 'Heating', note: 'the marker takes the heat colour and the action line says Heating', render: function (c) { return room(c, 'master-bedroom', { dial: { low: 71, high: 74, current: 69, action: 'heating' } }); } },
+      'cooling': { title: 'Cooling', render: function (c) { return room(c, 'office', { dial: { low: 68, high: 72, current: 76, action: 'cooling' } }); } },
+      'single': { title: 'A thermostat with one target', note: 'no trails; one handle in the status colour (a room entity without target_temp_low and high)', render: function (c) { return room(c, 'gym', { dial: { low: null, high: null, target: 72, current: 71.5, action: 'idle' } }); } },
+      'closed-vent': { title: 'Office: a single closed vent', note: 'the section is titled "<Room> Vent" (singular, as the drawing shows) and the tile is just "Vent", unfilled', render: function (c) { return room(c, 'office', { dial: { low: 71, high: 74, current: 76, action: 'cooling' } }); } },
+      'away': { title: 'The room\'s away notice', note: 'a plain Label row in a Form cell (the room\'s away_mode_active attribute, else the global away sensor); not the page\'s ClimateNotice', render: function (c) { return room(c, LIVING, { away: true, dial: { low: 62, high: 78, current: 71, action: 'idle' } }); } },
+      'loading': { title: 'First sign-in, nothing saved', note: 'the dial says Unavailable with "--" and no handles; vent tiles read Unavailable (dimmed glyph, text at full strength)', render: function (c) { return room(c, LIVING, { unavailable: true, dial: { unavailable: true, low: null, high: null, current: null, action: 'unavailable' } }); } },
+      'error': { title: 'Entities unavailable', note: 'the same drawing as loading: Home Assistant reports unavailable', render: function (c) { return room(c, 'master-bedroom', { unavailable: true, dial: { unavailable: true, low: null, high: null, current: null, action: 'unavailable' } }); } },
+      'offline': { title: 'Over an offline Climate page', note: 'the page behind carries the offline chip; a dial commit would be rejected and its handles roll back to the entity\'s setpoints with no error', render: function (c) { return room(c, LIVING, { connection: 'offline', dial: { low: 71, high: 74, current: 71 } }); } },
+      'large': { title: 'Large detent (the sheet\'s)', note: 'a pushed level keeps the sheet\'s height', render: function (c) { return room(c, LIVING, { dial: { low: 71, high: 74, current: 71 } }); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the dial readout shrinks to fit the ring, vent tiles go to one column', render: function (c) { return room(c, LIVING, { dial: { low: 71, high: 74, current: 71 } }); } },
+    },
+
+    motion: [
+      { id: 'handle-glide', what: 'Home Assistant reports a new target: the handles glide to it (not while dragging)', token: 'quick 0.2 s easeOut', state: 'default',
+        source: 'ThermostatDial.body .animation(MotionTokens.quick, value: displayed)', reduce: 'handles jump (animation is nil)',
+        note: 'the arcs step: RingArc has no animatableData (read from the code)',
+        play: function (stage) { var d = stage.querySelector('.cdial'); d.setTargets({ low: 69, high: 73 }); return Mock.sleep(Mock.anim.ms.quick() + 600).then(function () { d.setTargets({ low: 71, high: 74 }); return Mock.sleep(Mock.anim.ms.quick() + 400); }); } },
+      { id: 'vent-fill', what: 'A vent opens: its tile fills with the Vents colour and the state reads the position', token: 'state 0.6 s ease-in-out, colour only', state: 'closed-vent',
+        source: 'GlassTile (family .vents), ClimateRoomDetail vent tiles; motion.md section 6', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.ui-tile'); var n = K.GlassTile({ title: 'Vent', subtitle: 'Open · 100%', symbol: 'fan', family: 'vents', isActive: true, kind: 'state' }); t.className = n.className; t.setAttribute('style', n.getAttribute('style') || ''); t.innerHTML = n.innerHTML;
+          return Mock.sleep(Mock.anim.ms.state() + 800).then(function () { var m = K.GlassTile({ title: 'Vent', subtitle: 'Closed', symbol: 'fan', family: 'vents', isActive: false, kind: 'state' }); t.className = m.className; t.setAttribute('style', m.getAttribute('style') || ''); t.innerHTML = m.innerHTML; return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+      { id: 'status-colour', what: 'The room starts cooling: the marker changes colour and the action line follows', token: 'state 0.6 s ease-in-out, colour only', state: 'default',
+        source: 'ThermostatDial marker .stateColorTransition("ThermostatDial")', reduce: 'cross-fades at 0.2 s',
+        play: function (stage) { var d = stage.querySelector('.cdial'); d.update({ action: 'cooling' }); return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { d.update({ action: 'idle' }); return Mock.sleep(Mock.anim.ms.state() + 300); }); } },
+    ],
+
+    transitions: [
+      { from: 'Rooms tab tile', to: 'Room detail', kind: 'push', note: 'The tile pushes the room on the sheet\'s NavigationStack: the new page slides in from the trailing edge, the old one shifts left about 30% and dims; Back or an edge swipe returns to the Rooms tab. The tiles are not zoom sources: owner 2026-10-22 says no zoom inside sheets.', state: 'default',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), cur = panel.querySelector('.ui-modal');
+          var base = SC.climateSheet(ctx, { noPresenter: true }).querySelector('.ui-modal'); cur.parentNode.insertBefore(base, cur); cur.style.cssText += ';position:absolute;left:0;right:0;top:0;bottom:0;background:var(--sheet-ground);z-index:6';
+          return Mock.anim.push(base, cur).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(panel); base.remove(); cur.style.position = ''; cur.style.zIndex = ''; });
+        } },
+      { from: 'Room detail', to: 'Rooms tab', kind: 'push', note: 'Back (the glass circle) pops; the Rooms tab keeps its scroll position.', state: 'default',
+        play: function (stage) {
+          var ctx = Mock.current, panel = stage.querySelector('.ui-sheet'), cur = panel.querySelector('.ui-modal');
+          var back = SC.climateSheet(ctx, { noPresenter: true }).querySelector('.ui-modal'); back.style.cssText += ';position:absolute;left:0;right:0;top:0;bottom:0;background:var(--sheet-ground);z-index:6'; panel.appendChild(back);
+          return Mock.anim.push(cur, back, { back: true }).then(function () { return Mock.sleep(500); }).then(function () { Mock.anim.reset(panel); back.remove(); });
+        } },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Back, the title (the room), Close; then the dial (readout, then each handle), the away notice when shown, the vents heading and its tiles.' },
+      { rule: 'Dial', note: 'The container is "climate.roomDial". The readout: "Living Room thermostat, Idle, currently 71°F", value "set to 71.0 · 74.0". Handles "Living Room heat to" and "Living Room cool to" are adjustable (swipe up or down one step, commit on each). 64 pt targets.' },
+      { rule: 'Vents', note: 'Read-only tiles ("Vent 1, Open · 100%"), grouped under a heading "Living Room Vents"; there is no vent control (the web\'s vents are read-only too).' },
+      { rule: 'State is not colour alone', note: 'Open or closed and the position are words; the fill adds to them. Unavailable tiles say Unavailable.' },
+      { rule: 'Dynamic Type', note: 'The dial readout scales to fit; tiles are one column at AX sizes; the notice and headings wrap.' },
+      { rule: 'Back', note: 'The glass Back button names the previous level; the edge swipe is the system\'s and interactive.' },
+    ],
+
+    reviews: {
+
+      date: '2026-10-23',
+
+      hig: [
+        { rule: "Accessibility: adjustable element for a custom dial handle", verdict: 'pass', note: "Handles are accessibilityAdjustable with spoken values; ring and trails hidden (ThermostatDial.swift:228-234); the room dial reuses the same control at .modal size (ClimateRoomsTab.swift).", by: 'apple-hig skill' },
+        { rule: "Playing haptics: selection feedback while a value changes", verdict: 'pass', note: "sensoryFeedback(.selection) fires while a handle moves, not on the programmatic glide (ThermostatDial.swift:90).", by: 'apple-hig skill' },
+        { rule: "Feedback: say when a command cannot be carried out", verdict: 'pass', note: "Fixed in ClimateThermostatDial.swift: a rejected set_temperature rolls the handles back and shows a FailureCaption under the dial (\"Couldn't set 68°. Check the connection.\") for 4 s with the error haptic and announcement.", by: 'apple-hig skill' },
+        { rule: "Layout: readable width and grouped forms", verdict: 'pass', note: "ClimateForm caps at 720 pt with grouped style (ClimateFormPieces.swift); vents are a scaled 150 pt tile grid (ClimateRoomsTab.swift).", by: 'apple-hig skill' },
+        { rule: "Color: heating and cooling not by colour alone", verdict: 'pass', note: "The action line says Heating, Cooling or Idle; vents say Open · 50% and fill only while open (ClimateRoomsTab.swift).", by: 'apple-hig skill' },
+        { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
+
+      ],
+
+      swiftui: [
+        { rule: "Do not scale text to fit a fixed ring", verdict: 'departure', note: "The readout uses minimumScaleFactor(0.4) inside the ring (ThermostatDial.swift:196), the bounded fallback recorded in patterns/thermostat-dial.md.", by: 'swiftui-pro skill' },
+        { rule: "ScaledMetric for the numeral", verdict: 'pass', note: "76 pt relative to .largeTitle (ThermostatDial.swift:56).", by: 'swiftui-pro skill' },
+        { rule: "Plain list rows hosting a custom grid", verdict: 'pass', note: "Vent grid rows clear the list background and insets so tiles align with the dial (ClimateRoomsTab.swift).", by: 'swiftui-pro skill' },
+        { rule: "Toolbars and presentation: use the semantic placement for a Close button", verdict: 'pass', note: "SheetCloseItem (HassModal.swift) now sits in .primaryAction: Close confirms nothing, and it stays at the trailing edge (owner 2026-10-24, sheet-close-chrome option C); close-only sheets add keepsCloseInSheetBar (toolbarVerticalBehavior(.disabled), iOS 27.1).", by: 'swiftui-pro skill' },
+
+      ],
+
+    },
+
+    notes: [
+      'Duo unfolded: the page sheet is centred in the window and crosses the hinge band here (the system decides placement on the Duo; the unfolded pose was only run for pages). Check on a device before relying on it.',
+      'medium and fitted: not applicable. The page is pushed inside the sheet, which opens at large with a section tab bar (see climate-sheet); the tab bar is hidden on pushed levels.',
+      'Rooms with one vent are titled "<Room> Vent" with a tile named "Vent"; rooms with several are "<Room> Vents" with "Vent 1", "Vent 2". Living Room, Bedroom 1 and Media Room have two. The fixture closes the one vent of the single-vent room drawn here.',
+      'Docs versus code: the catalog lists "heat|cool|range" and "unavailable" states; the room dial reads the entity (range when both low and high are numbers, else one temperature), so heating, cooling and idle are action-line states, not modes.',
+      'Docs versus code: spec.md says the vents are cards titled "{Room} Vent(s)"; ios.md and the code draw Vents-family tiles that show "Open · 50%".',
+      'The sheet\'s Form is approximated with kit rows; the dial is SecClimate.dial (see thermostat-dial). Promote to kit: SecClimate.roomDetail.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: range, single, heating, cooling, closed vent, away, unavailable, offline, AX5; push in and out.' }],
+  });
+})();
+</script></body></html>

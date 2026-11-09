@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Feedback form · modal mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../../../pages/settings/_settings-account.js"></script>
+<script src="../../../pages/settings/_settings-page.js"></script>
+<script src="../_settings-account.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+  var bug = SA.fb.bug, feat = SA.fb.feature;
+  var EMPTY_BUG = { kind: 'bug', reason: 'Add a title after the prefix.' };
+  var TYPED_BUG = Object.assign({ kind: 'bug', canSubmit: true }, bug);
+  var TYPED_FEAT = Object.assign({ kind: 'feature', canSubmit: true }, feat);
+  var PHOTOS = [{ kind: 'photo', name: 'IMG_0412.png' }, { kind: 'video', name: 'garage-door.mov' }, { kind: 'photo', name: 'IMG_0413.png' }];
+  var F = function (o) { return function (ctx) { return SA.feedbackSheet(ctx, o); }; };
+  var withAlert = function (o, title, message, buttons) { return function (ctx) { return SA.feedbackSheet(ctx, Object.assign({ alert: K.Alert({ title: title, message: message, buttons: buttons }) }, o)); }; };
+
+  Mock.mount({
+    kind: 'modal', id: 'feedback-form-sheet', title: 'Feedback form (Report an Issue, Request a Feature)', area: 'settings', status: 'shipped',
+    summary: 'Opened by the Feedback rows on Settings. A form sheet with Cancel and Submit: a prefixed title, a description, for an issue also steps to reproduce and expected behaviour, up to four photos or videos, and the reason Submit is off. Filing goes through Home Assistant. Follows the system appearance; switch Sheet appearance above.',
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift', 'apple/Sources/HassUI/Features/Settings/Feedback/FeedbackFormModel.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKHassModal.swift', 'apple/Sources/HassCore/Feedback/FeedbackKind.swift', 'apple/Sources/HassCore/Feedback/FeedbackDraft.swift', 'apple/Sources/HassCore/Feedback/FeedbackLimits.swift'],
+    spec: ['.agents/pages/settings/feedback.md', '.agents/workflow/triage-agent.md'],
+    patterns: ['modal-sheet', 'info-box'],
+    hig: ['Sheets', 'Modality', 'Text fields', 'Entering data', 'Progress indicators', 'Privacy'],
+    entities: [],
+    kitComponents: ['HassModal', 'ModuleList', 'InfoBox', 'ArcSpinner', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Report an Issue, empty', note: 'the title holds its [Bug] prefix; Submit is off and the reason shows under the form', render: F(EMPTY_BUG) },
+      'feature-empty': { title: 'Request a Feature, empty', note: 'no Steps or Expected boxes; the shorter form fits its content', render: F({ kind: 'feature', reason: 'Add a title after the prefix.' }) },
+      'no-description': { title: 'Titled, no description', note: 'the second reason in order', render: F({ kind: 'bug', title: bug.title, scrollEnd: true, reason: 'Add a description.' }) },
+      'typed': { title: 'Report filled in, ready', note: 'Submit turns on and the reason line goes', render: F(TYPED_BUG) },
+      'feature-typed': { title: 'Request filled in, ready', render: F(TYPED_FEAT) },
+      'loading': { title: 'Checking Home Assistant', note: 'while the availability check runs Submit is off and the reason says so; a failed check counts as available', render: F(Object.assign({}, bug, { kind: 'bug', scrollEnd: true, reason: 'Checking Home Assistant…' })) },
+      'setup-needed': { title: 'Reporting is not set up', note: 'a neutral InfoBox leads the form; the reason repeats it under the form', render: F({ kind: 'bug', setup: true, reason: 'Reporting isn’t set up in Home Assistant yet.' }) },
+      'with-attachments': { title: 'Three attachments', note: 'thumbnails open in Quick Look; each has a 44 pt remove button', render: F(Object.assign({}, TYPED_BUG, { attachments: PHOTOS, scrollEnd: true })) },
+      'max-attachments': { title: 'Four attachments, the limit', note: 'Attach Media is disabled and a red note says why', render: F(Object.assign({}, TYPED_BUG, { scrollEnd: true, attachments: PHOTOS.concat([{ kind: 'photo', name: 'IMG_0414.png' }]), notice: 'You can attach up to 4 photos or videos.' })) },
+      'importing': { title: 'Adding picked media', note: 'a compact arc with "Adding media…"; Submit waits for it', render: F(Object.assign({}, bug, { kind: 'bug', scrollEnd: true, attachments: PHOTOS.slice(0, 1), importing: true, reason: 'Adding media…' })) },
+      'sending-media': { title: 'Uploading media', note: 'step 2 of 2: a linear bar with its label, Stop Sending (only while media uploads); fields are read-only', render: F(Object.assign({}, TYPED_BUG, { canSubmit: false, scrollEnd: true, attachments: PHOTOS.slice(0, 2), phase: 'sending', step: 2 })) },
+      'sending-filing': { title: 'Filing on GitHub', note: 'the last step: no Stop (the request may already be filed)', render: F(Object.assign({}, TYPED_BUG, { canSubmit: false, scrollEnd: true, attachments: PHOTOS.slice(0, 2), phase: 'filing' })) },
+      'error': { title: 'Couldn’t Send: GitHub problem', note: 'the alert, then the form again with everything kept', render: withAlert(Object.assign({}, TYPED_BUG, { canSubmit: false }), 'Couldn’t Send', 'Home Assistant couldn’t file this on GitHub. Try again later, or ask whoever manages Home Assistant to check its GitHub connection.', [{ title: 'OK', role: 'cancel' }]) },
+      'offline': { title: 'Couldn’t Send: no connection', note: 'the form has no offline UI of its own: a send with no network fails with this alert', render: withAlert(Object.assign({}, TYPED_BUG, { canSubmit: false }), 'Couldn’t Send', 'Couldn’t reach Home Assistant. Check your connection and try again.', [{ title: 'OK', role: 'cancel' }]) },
+      'discard': { title: 'Cancel with typed input', note: 'a confirmation anchored to Cancel; see modals/settings/feedback-discard-dialog', render: F(Object.assign({}, TYPED_BUG, { popover: true })) },
+      'filed': { title: 'Filed', note: 'see modals/settings/feedback-result-alerts', render: withAlert(Object.assign({}, TYPED_BUG, { canSubmit: false }), 'Report Sent', 'Your report is filed as issue #14.', [{ title: 'Done', role: 'cancel' }, { title: 'View on GitHub' }]) },
+      'medium': { title: 'Medium detent (before measuring)', note: 'what the sheet opens at until its content is measured', render: function (c) { return SA.feedbackSheet(c, Object.assign({}, EMPTY_BUG, { detent: 'medium' })); } },
+      'large': { title: 'Large detent (tall issue form)', note: 'a filled issue form with attachments is taller than the window, so it caps at large and scrolls', render: function (c) { return SA.feedbackSheet(c, Object.assign({}, TYPED_BUG, { attachments: PHOTOS, detent: 'large' })); } },
+      'fitted': { title: 'Fitted detent (shipped, short form)', note: 'the feature form is as tall as its content', render: function (c) { return SA.feedbackSheet(c, Object.assign({}, TYPED_FEAT, { detent: 'fitted' })); } },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'headers wrap with their explanation; the sheet is the large detent and scrolls; Cancel and Submit keep 44 pt', render: F(TYPED_BUG) },
+    },
+
+    motion: [
+      { id: 'submit-progress', what: 'Submit starts: the fields go read-only, a progress section appears with a linear bar and its step label ("Uploading media 1 of 2…" then "Filing your report on GitHub…"), then the result alert', token: 'system linear ProgressView(value:); no custom motion; the section appears with the standard list change',
+        source: 'FeedbackFormSheet.swift progressSection, FeedbackFormModel.Phase; motion.md section 6 User action', reduce: 'unchanged (the bar is a value, not motion)', state: 'sending-media',
+        play: function (stage) { var bar = stage.querySelector('.sa-prow .bar i'); if (!bar) return Mock.sleep(500); bar.style.transition = 'width .9s linear'; bar.style.width = '70%'; return Mock.sleep(1100); } },
+    ],
+
+    transitions: [
+      { from: 'Feedback row', to: 'Feedback form sheet', kind: 'sheet', note: 'A form sheet (540 pt on iPad), fitted to the form and capped at large; Settings slides back and dims on iPhone. Content is present on arrival. Interactive dismiss is off while sending or with typed input.',
+        play: function (stage) { var ctx = Mock.current, s = SA.feedbackSheet(ctx, EMPTY_BUG); return Mock.presentDemo(stage, { title: 'Report an Issue', detent: 'fitted', size: 'form', leading: SA.capButton('Cancel'), trailing: SA.capButton('Submit', { prom: true, disabled: true }), content: s.querySelector('.ui-mscroll > *') }); } },
+      { from: 'Cancel (or swipe down) with input', to: 'Discard dialog', kind: 'overlay', note: 'Because the sheet cannot be dismissed with unsaved input, the swipe raises the same confirmation as Cancel (SheetDismissAttemptObserver). Without input Cancel closes at once.', state: 'typed',
+        play: function (stage) { var head = stage.querySelector('.ui-mhead'), pop = SA.popover({ title: 'Discard this report?', message: 'Your text and attached media will be lost.', buttons: [{ title: 'Discard Changes', role: 'destructive' }], style: { left: '12px', top: '60px' } }); head.appendChild(pop); return Mock.anim.fade(pop, { ms: 200 }).then(function () { return Mock.sleep(1000); }).then(function () { pop.remove(); }); } },
+      { from: 'Submit', to: 'Result alert', kind: 'fade', note: 'The system alert fades in over the form: Report Sent (View on GitHub, Done) or Couldn’t Send (OK).', state: 'typed',
+        play: function (stage) { var ctx = Mock.current, host = stage.querySelector('.ui-host'), sc = SA.alertScrim(ctx, K.Alert({ title: 'Report Sent', message: 'Your report is filed as issue #14.', buttons: [{ title: 'Done', role: 'cancel' }, { title: 'View on GitHub' }] })); sc.style.opacity = 0; host.appendChild(sc); return Mock.anim.fade(sc, { ms: 200 }).then(function () { return Mock.sleep(1100); }); } },
+      { from: 'Attach Media', to: 'Photo Library or Files', kind: 'sheet', note: 'System UI: a menu with Photo Library and Choose File…, then PhotosPicker (out of process, no library permission) or the Files importer. Not drawn.' },
+    ],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The title ("Report an Issue"), Cancel, Submit (feedback.close, feedback.submit); the setup notice when shown; then each box: header (heading) with its explanation, then the field; Media with the strip and Attach Media; the reason or progress last.' },
+      { rule: 'Fields', note: 'Each field is labelled ("Title", "Description", "Steps to Reproduce", "Expected Behavior") with the visible explanation as its hint, so the placeholder is never the only label (HIG Text fields). Identifiers feedback.field.title|description|repro|expected.' },
+      { rule: 'Submit and the reason', note: 'Submit is disabled with the blocking reason visible and spoken ("Add a title after the prefix.", identifier feedback.validation), never a silent dead button.' },
+      { rule: 'Attachments', note: 'Each thumbnail is a button "Photo 1, IMG_0412.png, 1.2 MB" (hint "Opens in Quick Look"); its remove button is a separate 44 pt target "Remove IMG_0412.png" at the corner. Attach Media is a menu, the whole row is the target.' },
+      { rule: 'Progress', note: 'The bar is spoken with its label and fraction; Stop Sending appears only while media uploads (feedback.stop). Fields are disabled and read-only while sending.' },
+      { rule: 'Dismissal', note: 'Cancel, Escape and a swipe all go through the same confirmation when something would be lost; with no input they close at once. The two-finger scrub cannot lose a draft.' },
+      { rule: 'Dynamic Type', note: 'At AX5 the headers wrap; text boxes keep their 96 pt minimum and grow; the confirmation toolbar buttons keep 44 pt; the sheet scrolls and the keyboard dismisses interactively.' },
+      { rule: 'Privacy', note: 'The Media header says location is removed and large videos are compressed; nothing is sent until Submit. Diagnostics exclude tokens and the server address.' },
+    ],
+
+    reviews: {
+      date: '2026-10-23',
+      hig: [
+        { rule: 'Sheets: Cancel leading, confirming action trailing', verdict: 'pass', note: 'Cancel in .cancellationAction and Submit in .confirmationAction, disabled until canSubmit (FeedbackFormSheet.swift:214-231); closing with input asks first.', by: 'apple-hig skill' },
+        { rule: 'Sheets: circle-X Close instead of text Cancel and Submit', verdict: 'departure', note: 'modal-sheet.md (owner 2026-10-16) wants the circle-X; this scoped task with typed input keeps system text buttons so Submit names its confirm (feedback.md Decisions).', by: 'apple-hig skill' },
+        { rule: 'Text fields: a visible label plus a hint of purpose', verdict: 'pass', note: 'FeedbackFieldHeader gives each box a title and a visible explanation instead of placeholder text (FeedbackFieldHeader.swift:15-27).', by: 'apple-hig skill' },
+        { rule: 'Progress indicators: determinate, described, haltable when harmless', verdict: 'pass', note: 'A bar with "Uploading media 1 of 2…" and Stop Sending only while media uploads, never once the issue request is out (:184-199, :285-299).', by: 'apple-hig skill' },
+        { rule: 'Privacy: tell people what is removed or shared', verdict: 'pass', note: 'The Media header says large videos are compressed and location is removed (:177-180); PhotosPicker needs no library permission.', by: 'apple-hig skill' },
+        { rule: 'Writing: plain words in a success message', verdict: 'pass', note: 'AlertCopy.feedbackFiled: "Your report is filed as issue #N." No filler, no internal tooling, no follow-up promise.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: announce a change that gates the primary action', verdict: 'pass', note: 'FeedbackFormSheet Submit carries accessibilityHint(model.blockingReason), so VoiceOver says why it is dimmed.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Views: TextField(axis: .vertical) over TextEditor', verdict: 'pass', note: 'Not applicable: the journeys and hosted driver find these as text views, and each field\'s header already carries the prompt and hint; switching to TextField(axis:) changes the role.', by: 'swiftui-pro skill' },
+        { rule: 'Data: avoid Binding(get:set:) in the body', verdict: 'pass', note: 'Fixed: finishedBinding and failedBinding are ControllerBinding.make over `filedIssue != nil` and `isFailed`, with the failure acknowledged in the setter (FeedbackFormSheet.swift).', by: 'swiftui-pro skill' },
+        { rule: 'Views: split long bodies into view structs', verdict: 'pass', note: 'Fixed: FeedbackFormBody, FeedbackTextBox, FeedbackMediaSection, FeedbackProgressSection, FeedbackSetupSection and FeedbackFormField are their own types.', by: 'swiftui-pro skill' },
+        { rule: 'State: enum for focus, not String', verdict: 'pass', note: 'FeedbackFormSheet.Field enum drives @FocusState (FeedbackFormSheet.swift:25)' },
+        { rule: 'Navigation: sheet(item:) with the model\'s own cleanup', verdict: 'pass', note: 'feedbackFormSheet(item:) uses sheet(item:onDismiss:) and purges staged media however it closes (FeedbackSettingsSection.swift:29-33).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'Docs and code: modal-sheet.md and the kit say a create or edit sheet has a circle x Cancel and a blue check Submit; the form uses text Cancel and Submit buttons (system toolbar items). Drawn per the code: the kit has no text-button variant (SA.capButton here; promote to kit). The Submit capsule fill (#0071E3) is the app tint, unverified on iOS 26.',
+      'Docs and code: the catalog says "Submit shows inline ArcSpinner" while sending; the code disables Submit and shows a linear ProgressView(value:) section (the compact arc is only "Adding media…"). Drawn per the code.',
+      'Fixtures only: titles, descriptions and file names are invented; thumbnails are the kit’s stand-in scenes. Issue number #14 is a fixture.',
+      'offline: the form checks availability once on open and treats a failed check as available; a send over a dead network is the Couldn’t Send alert above. medium is the provisional detent before the first measurement.',
+      'The keyboard and the system menus and pickers (Attach Media, PhotosPicker, Files, Quick Look) are system UI and are not drawn.',
+    ],
+    changelog: [{ date: '2026-10-23', note: 'First pass: issue and feature forms, every validation reason, attachments, sending phases, result and failure alerts, discard, three detents.' }],
+  });
+})();
+</script></body></html>
