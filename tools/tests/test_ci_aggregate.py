@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -15,101 +16,70 @@ import ci_denylist as deny  # noqa: E402
 
 
 def needs(**results):
-    """A `needs` context: every job named gets a result; scope outputs come from app= / release= keyword pairs."""
-    out = {name.replace("_", "-"): {"result": value, "outputs": {}} for name, value in results.items()}
-    return out
+    """A `needs` context: every job named gets a result; scope outputs are set by the caller."""
+    return {name.replace("_", "-"): {"result": value, "outputs": {}} for name, value in results.items()}
 
 
-def private_run(**overrides):
-    base = needs(scope="success", repo_checks="success", build_release="success", swift_test="success", scope_hosted="skipped",
-                 repo_checks_hosted="skipped", tool_tests_hosted="skipped", denylist_scan="success", swift_test_hosted="skipped",
-                 build_release_hosted="skipped")
+def run_of(macos="success", **overrides):
+    base = needs(scope="success", linux_checks="success", tool_tests_core="success", denylist_scan="success",
+                 macos=macos, build_release=macos)
     base["scope"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
 
 
-def public_run(macos="success", **overrides):
-    base = needs(scope="skipped", repo_checks="skipped", build_release="skipped", swift_test="skipped", scope_hosted="success",
-                 repo_checks_hosted="success", tool_tests_hosted="success", denylist_scan="success", swift_test_hosted=macos,
-                 build_release_hosted=macos, sim_smoke=macos)
-    base["scope-hosted"]["outputs"] = {"app": "true", "release": "true"}
-    base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
-    return base
-
-
 class AggregateTests(unittest.TestCase):
-    def test_the_private_set_passes(self):
-        self.assertEqual(agg.problems(private_run(), True, False), [])
-
-    def test_the_public_set_passes_with_and_without_hosted_macos(self):
-        self.assertEqual(agg.problems(public_run(), False, True), [])
-        self.assertEqual(agg.problems(public_run(macos="skipped"), False, False), [])
+    def test_the_set_passes_with_and_without_hosted_macos(self):
+        self.assertEqual(agg.problems(run_of(), True), [])
+        self.assertEqual(agg.problems(run_of(macos="skipped"), False), [])
 
     def test_a_skipped_core_job_fails(self):
-        self.assertTrue(agg.problems(private_run(repo_checks="skipped"), True, False))
-        self.assertTrue(agg.problems(private_run(scope="skipped"), True, False))
-        self.assertTrue(agg.problems(public_run(tool_tests_hosted="skipped"), False, False))
-        self.assertTrue(agg.problems(public_run(repo_checks_hosted="skipped"), False, True))
-
-    def test_the_wrong_visibility_runs_nothing_and_fails(self):
-        """A visibility evaluated wrongly (the empty value on a schedule) can never be green with nothing run."""
-        self.assertTrue(agg.problems(public_run(), True, False))
-        self.assertTrue(agg.problems(private_run(), False, False))
+        self.assertTrue(agg.problems(run_of(tool_tests_core="skipped"), False))
+        self.assertTrue(agg.problems(run_of(linux_checks="skipped"), True))
+        self.assertTrue(agg.problems(run_of(scope="skipped"), True))
 
     def test_hosted_macos_may_skip_only_while_the_variable_is_off_or_the_scope_says_so(self):
-        self.assertEqual(agg.problems(public_run(macos="skipped"), False, False), [])
-        self.assertTrue(agg.problems(public_run(macos="skipped"), False, True))
-        run = public_run(macos="skipped")
-        run["scope-hosted"]["outputs"] = {"app": "false", "release": "false"}
-        self.assertEqual(agg.problems(run, False, True), [])
-
-    def test_a_scope_gated_mac_job_may_not_skip_when_the_scope_wanted_it(self):
-        self.assertTrue(agg.problems(private_run(swift_test="skipped"), True, False))
-        run = private_run(swift_test="skipped", build_release="skipped")
+        self.assertEqual(agg.problems(run_of(macos="skipped"), False), [])
+        self.assertTrue(agg.problems(run_of(macos="skipped"), True))
+        run = run_of(macos="skipped")
         run["scope"]["outputs"] = {"app": "false", "release": "false"}
-        self.assertEqual(agg.problems(run, True, False), [])
+        self.assertEqual(agg.problems(run, True), [])
 
-    def test_the_denylist_scan_may_skip_for_a_fork_pull_request_only(self):
-        self.assertEqual(agg.problems(private_run(denylist_scan="skipped"), True, False), [])
-        self.assertTrue(agg.problems(private_run(denylist_scan="failure"), True, False))
+    def test_the_release_build_may_skip_off_main_but_not_on_a_push(self):
+        run = run_of(build_release="skipped")
+        self.assertEqual(agg.problems(run, True, "pull_request"), [])
+        self.assertEqual(agg.problems(run, True, "workflow_dispatch"), [])
+        self.assertTrue(agg.problems(run, True, "push"))
 
-    def test_failures_and_cancellations_always_fail(self):
+    def test_the_macos_job_may_not_skip_on_a_pull_request_that_needs_it(self):
+        self.assertTrue(agg.problems(run_of(macos="skipped"), True, "pull_request"))
+
+    def test_a_failed_or_cancelled_macos_job_fails_the_aggregate(self):
+        """The Smoke steps are part of the macos job and required: a failed device step fails the job and so this."""
         for state in ("failure", "cancelled"):
-            self.assertTrue(agg.problems(private_run(swift_test=state), True, False))
-            self.assertTrue(agg.problems(public_run(tool_tests_hosted=state), False, True))
-
-    def test_sim_smoke_gates_the_aggregate(self):
-        """A failed or cancelled device leg fails it; skipped passes only when HOSTED_MACOS is off or the scope has no app change."""
-        for state in ("failure", "cancelled"):
-            self.assertTrue(agg.problems(public_run(sim_smoke=state), False, True))
-        self.assertEqual(agg.problems(public_run(sim_smoke="success"), False, True), [])
-        self.assertEqual(agg.problems(public_run(macos="skipped", sim_smoke="skipped"), False, False), [])
-        self.assertTrue(agg.problems(public_run(sim_smoke="skipped"), False, True))
-        run = public_run(macos="skipped", sim_smoke="skipped")
-        run["scope-hosted"]["outputs"] = {"app": "false", "release": "false"}
-        self.assertEqual(agg.problems(run, False, True), [])
-        self.assertEqual(agg.problems(private_run(sim_smoke="skipped"), True, False), [])
+            self.assertTrue(agg.problems(run_of(macos=state), True))
 
     def test_a_gated_job_missing_from_needs_fails(self):
         """Dropping a job from the workflow's `needs` must not let the aggregate pass blind."""
-        run = public_run()
-        del run["sim-smoke"]
-        self.assertTrue(agg.problems(run, False, True))
-        run = private_run()
-        del run["swift-test"]
-        self.assertTrue(agg.problems(run, True, False))
+        for gone in ("macos", "build-release"):
+            run = run_of()
+            del run[gone]
+            self.assertTrue(agg.problems(run, True), gone)
+
+    def test_the_denylist_scan_may_skip_for_a_fork_pull_request_only(self):
+        self.assertEqual(agg.problems(run_of(denylist_scan="skipped"), False), [])
+        self.assertTrue(agg.problems(run_of(denylist_scan="failure"), False))
+
+    def test_failures_and_cancellations_always_fail(self):
+        for state in ("failure", "cancelled"):
+            self.assertTrue(agg.problems(run_of(macos=state), True))
+            self.assertTrue(agg.problems(run_of(tool_tests_core=state), True))
 
     def test_main_reads_the_context_and_exits_nonzero_on_a_problem(self):
-        for run, private, code in ((private_run(), "true", 0), (private_run(repo_checks="skipped"), "true", 1)):
-            old = dict(os.environ)
-            os.environ.update({"NEEDS": json.dumps(run), "PRIVATE": private, "HOSTED_MACOS": ""})
-            try:
+        for run, code in ((run_of(), 0), (run_of(linux_checks="skipped"), 1)):
+            with mock.patch.dict(os.environ, {"NEEDS": json.dumps(run), "HOSTED_MACOS": "on"}):
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(agg.main(), code)
-            finally:
-                os.environ.clear()
-                os.environ.update(old)
 
 
 class DenylistMaskTests(unittest.TestCase):

@@ -14,6 +14,9 @@
 #   --pr always opens a draft (--draft is accepted and implied): review and landing come afterwards, and
 #   tools/pr_land.sh marks it ready once checks and the review pass. ship.sh never merges (pr-lifecycle.md).
 #   Without --pr only the branch is pushed.
+#   On SFenton/native-home, after the PR opens, ship.sh arms auto-merge (`gh pr merge N --auto --squash`, after marking the PR ready, which
+#   auto-merge needs) only while the live ruleset on main requires an approving review and pr-checks (tools/ruleset_gate.py, fail closed).
+#   GitHub then merges when pr-checks is green and the reviewer account has approved; a push dismisses the approval. Otherwise it prints a notice.
 set -euo pipefail
 
 SUBJECT="${1:-}"
@@ -100,6 +103,20 @@ if [[ $PR == 1 ]]; then
   PR_NUM="$(gh pr view "$BRANCH" --json number --jq .number 2>/dev/null || true)"
   if [[ -n "$PR_NUM" && -f "$(dirname "$0")/land_preflight.py" ]]; then
     python3 "$(dirname "$0")/land_preflight.py" --pr "$PR_NUM" || echo "ship: preflight exit $? (pr-lifecycle.md step 1b)" >&2
+  fi
+  # native-home: GitHub is the merge gate (pr-lifecycle.md). Arm auto-merge only while the ruleset on main really requires an approval
+  # and pr-checks; if the check fails or cannot run, say so and leave the PR for the gated path. Never changes ship's exit code.
+  if [[ -n "$PR_NUM" && -f "$(dirname "$0")/ruleset_gate.py" ]]; then
+    REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+    if [[ "$REPO" == "SFenton/native-home" ]]; then
+      if python3 "$(dirname "$0")/ruleset_gate.py" --repo "$REPO"; then
+        gh pr ready "$PR_NUM" -R "$REPO" && gh pr merge "$PR_NUM" -R "$REPO" --auto --squash \
+          && echo "ship: auto-merge armed on #$PR_NUM; it merges after pr-checks is green and the reviewer account approves" \
+          || echo "ship: could not arm auto-merge on #$PR_NUM; land it through the gated path" >&2
+      else
+        echo "ship: auto-merge not armed on #$PR_NUM (see above)" >&2
+      fi
+    fi
   fi
   [[ -n "${SHIP_TASK:-}" ]] && python3 "$(git rev-parse --show-toplevel)/tools/pr_note.py" init --task "$SHIP_TASK" || true
 fi

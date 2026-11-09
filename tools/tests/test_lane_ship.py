@@ -204,5 +204,72 @@ class ShipTests(unittest.TestCase):
             self.assertIn("base-drift check failed (exit 1)", done.stderr)
 
 
+GH_STUB = r"""#!/bin/sh
+echo "$@" >> "$GH_LOG"
+case "$1 $2" in
+  "pr create") exit 0 ;;
+  "pr view") echo 7 ;;
+  "repo view") echo "$GH_REPO_NAME" ;;
+  "api repos/SFenton/native-home/rules/branches/main") cat "$GH_RULES" ;;
+  "pr ready") exit 0 ;;
+  "pr merge") exit "${GH_MERGE_RC:-0}" ;;
+esac
+exit 0
+"""
+BOTH = ('[{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}, '
+        '{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}]')
+
+
+class ShipArmTests(unittest.TestCase):
+    """After the PR opens on native-home, ship.sh arms auto-merge only while the live ruleset requires an approval and pr-checks."""
+
+    def run_ship(self, rules, repo="SFenton/native-home", merge_rc="0"):
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            shutil.copy(TOOLS / "ruleset_gate.py", clone / "tools" / "ruleset_gate.py")
+            git(clone, "switch", "-q", "-c", "claude/x")
+            (clone / "a.txt").write_text("x")
+            fake = Path(tmp) / "bin"
+            fake.mkdir()
+            (fake / "gh").write_text(GH_STUB)
+            (fake / "gh").chmod(0o755)
+            rules_file = Path(tmp) / "rules.json"
+            rules_file.write_text(rules)
+            log = Path(tmp) / "gh.log"
+            env = {**ENV, "PATH": f"{fake}{os.pathsep}{ENV['PATH']}", "GH_LOG": str(log), "GH_RULES": str(rules_file),
+                   "GH_REPO_NAME": repo, "GH_MERGE_RC": merge_rc}
+            done = subprocess.run(["bash", "tools/ship.sh", "Add a", "--pr"], cwd=clone, env=env, capture_output=True, text=True)
+            return done, log.read_text()
+
+    def test_both_rules_live_marks_ready_and_arms_auto_merge(self):
+        done, log = self.run_ship(BOTH)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("pr ready 7 -R SFenton/native-home", log)
+        self.assertIn("pr merge 7 -R SFenton/native-home --auto --squash", log)
+        self.assertIn("auto-merge armed on #7", done.stdout)
+
+    def test_a_ruleset_without_an_approval_or_without_pr_checks_arms_nothing(self):
+        no_approval = BOTH.replace('"required_approving_review_count": 1', '"required_approving_review_count": 0')
+        no_check = BOTH.replace('"pr-checks"', '"other"')
+        for rules in (no_approval, no_check, "[]", "not json"):
+            with self.subTest(rules=rules[:30]):
+                done, log = self.run_ship(rules)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertNotIn("pr merge", log)
+                self.assertNotIn("pr ready", log)
+                self.assertIn("auto-merge not armed", done.stderr)
+
+    def test_another_repository_arms_nothing_and_does_not_even_read_the_ruleset(self):
+        done, log = self.run_ship(BOTH, repo="SFenton/Fenton-HASS-Native")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("pr merge", log)
+        self.assertNotIn("rules/branches", log)
+
+    def test_a_failed_arm_is_a_notice_not_a_failed_ship(self):
+        done, _ = self.run_ship(BOTH, merge_rc="1")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("could not arm auto-merge", done.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
