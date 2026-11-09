@@ -3,14 +3,14 @@
 # Hosted mode only (FENTON_CI_HOSTED=1 on a GitHub-hosted runner); the journey runner refuses anywhere else.
 #
 #   tools/ci_macos.sh build                  build the test products once (no simulator booted: a first Duo boot beside a compile killed runners)
-#   tools/ci_macos.sh smoke FAMILY           Smoke plan on iphone|duo|ipad (one at a time on stock simulators, each booted and settled first)
+#   tools/ci_macos.sh smoke FAMILY           Smoke plan on iphone|duo|ipad (one at a time, each booted, slimmed (simslim) and settled first)
 #   tools/ci_macos.sh journeys FAMILY         the journeys the diff reaches (pull requests only; skips when Gate runs none of them)
 #   tools/ci_macos.sh swift-test             swift test (the affected suites on a pull request, everything otherwise)
 #   tools/ci_macos.sh summary                the timing table and the runner's swap and memory
 #
 # A phase appends
 # "NAME<TAB>SECONDS<TAB>EXIT" to the timings file (CI_MACOS_TIMINGS, default $RUNNER_TEMP/ci-timings.tsv).
-# Test seams: CI_MACOS_UITEST, CI_MACOS_AFFECTED, CI_MACOS_SETTLE, CI_MACOS_HEARTBEAT, CI_MACOS_RELEASE and CI_MACOS_SWIFT replace the scripts they name.
+# Test seams: CI_MACOS_UITEST, CI_MACOS_AFFECTED, CI_MACOS_SETTLE, CI_MACOS_SLIM, CI_MACOS_HEARTBEAT, CI_MACOS_RELEASE and CI_MACOS_SWIFT replace the scripts they name.
 # One VM runs all three devices in turn, and ios_uitest.sh leaves a simulator booted (warm) when its run ends. Left running, the earlier
 # devices hold the 3 vCPUs and 7 GB: the second and third boots took 19 to 20 minutes with load 600 to 900 and swap in use (run
 # 42520889460), against 6 to 15 on a fresh VM. So each device starts, and swift test runs, with every simulator and any hung
@@ -21,6 +21,7 @@ UITEST="${CI_MACOS_UITEST:-$ROOT/tools/ios_uitest.sh}"
 AFFECTED=(python3 "$ROOT/tools/affected_tests.py")
 [[ -n "${CI_MACOS_AFFECTED:-}" ]] && AFFECTED=("$CI_MACOS_AFFECTED")
 SETTLE="${CI_MACOS_SETTLE:-$ROOT/tools/sim_settle.sh}"
+SLIM="${CI_MACOS_SLIM:-$ROOT/tools/sim_slim.sh}"
 HEARTBEAT="${CI_MACOS_HEARTBEAT:-$ROOT/tools/ci_heartbeat.sh}"
 SWIFT=("${CI_MACOS_SWIFT:-swift}")
 RELEASE="${CI_MACOS_RELEASE:-$ROOT/tools/ci_release_sims.sh}"
@@ -65,6 +66,9 @@ case "$cmd" in
   smoke)
     target="${2:-}"; check_family "$target" 1
     "$RELEASE" || true
+    # Slim the simulator (sim_slim.sh boots it first, then disables the daemons the tests do not need); FENTON_SIM_SLIM=0 skips it.
+    # Timed apart from the settle wait so the table shows what slimming costs and what it saves. Failure leaves the simulator stock.
+    phase "slim-$target" "$HEARTBEAT" run -- "$SLIM" "$target" || true
     # The first boot of a runtime on a fresh VM holds the runner at a high load for minutes (the Duo above all); wait for it to settle.
     phase "boot-$target" "$HEARTBEAT" run -- "$SETTLE" "$target" || true
     phase "smoke-$target" "$UITEST" --only "$target" --plan Smoke --force
