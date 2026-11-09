@@ -40,7 +40,12 @@ if [[ -n "$family_name" ]]; then
 fi
 command -v simslim > /dev/null || { echo "sim_slim: simslim not installed (brew install mobai-app/tap/simslim); leaving $UDID stock" >&2; exit 0; }
 
-xcrun simctl bootstatus "$UDID" -b > /dev/null 2>&1 || { echo "sim_slim: $UDID would not boot" >&2; exit 1; }
+# The first boot runs under an xc_watch wall (FENTON_HEALTH_BOOT_WALL, default 120 s, as sim_settle.sh): a wall hit leaves the
+# simulator stock and the run goes ahead (settle and the health check do their own boot handling); any other failure is an error.
+boot_rc=0
+python3 "$ROOT/tools/xc_watch.py" --wall "${FENTON_HEALTH_BOOT_WALL:-120}" --label "simctl bootstatus" -- xcrun simctl bootstatus "$UDID" -b > /dev/null 2>&1 || boot_rc=$?
+[[ $boot_rc == 124 ]] && { echo "sim_slim: boot of $UDID hit the ${FENTON_HEALTH_BOOT_WALL:-120}s wall; leaving it stock" >&2; exit 0; }
+[[ $boot_rc == 0 ]] || { echo "sim_slim: $UDID would not boot" >&2; exit 1; }
 name="$(basename "$PROFILE")"
 if simslim verify "$UDID" --profile "$PROFILE" > /dev/null 2>&1; then
   echo "sim_slim: $UDID already slim ($name)"

@@ -32,6 +32,15 @@ class SimSlimTests(unittest.TestCase):
         self.assertEqual(out.returncode, 0)
         self.assertIn("simslim not installed", out.stderr)
 
+    def test_a_boot_that_hits_the_wall_leaves_the_simulator_stock_and_carries_on(self):
+        (self.bin / "simslim").write_text("#!/bin/bash\necho simslim \"$@\" >> \"%s/simslim.log\"\nexit 0\n" % self.bin, encoding="utf-8")
+        (self.bin / "simslim").chmod(0o755)
+        (self.bin / "xcrun").write_text("#!/bin/bash\nsleep 30\n", encoding="utf-8")
+        out = self.run_script(FENTON_HEALTH_BOOT_WALL="1")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("wall; leaving it stock", out.stderr)
+        self.assertFalse((self.bin / "simslim.log").exists())
+
     def test_opting_out_leaves_the_simulator_stock(self):
         out = self.run_script(FENTON_SIM_SLIM="0")
         self.assertEqual(out.returncode, 0)
