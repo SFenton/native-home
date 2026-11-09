@@ -250,7 +250,7 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 
 **Issue.** private app repo issue #278
 
-**Why.** `pr_land.py` `review_state` requires the recorded review to be for exactly the PR head (`recorded != head` gives "review again"). Every merge of the base into a reviewed PR moves the head and forces a new review round: #270 needed four and #275 needed three, against a cap of two. The upstream cause was the red base (P1), which forced base merges into each PR, but even with a green base a PR that waits for a runner will meet a moving base.
+**Why.** (Superseded 2026-11-09: `pr_land` no longer reads a review file or the check rollup; it asks `review_verdict.has_pass` for the exact head and GitHub judges the checks.) `pr_land.py` `review_state` requires the recorded review to be for exactly the PR head (`recorded != head` gives "review again"). Every merge of the base into a reviewed PR moves the head and forces a new review round: #270 needed four and #275 needed three, against a cap of two. The upstream cause was the red base (P1), which forced base merges into each PR, but even with a green base a PR that waits for a runner will meet a moving base.
 
 **Proposal.** Accept the earlier pass when the only change since the verdict's head is a merge whose second parent is `origin/<base>` and the merge tree equals what an automatic merge would give. In code:
 

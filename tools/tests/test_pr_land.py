@@ -28,115 +28,7 @@ ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COM
        "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
 
 
-def run_check(name, conclusion="SUCCESS", status="COMPLETED"):
-    return {"name": name, "status": status, "conclusion": conclusion}
-
-
-def timed_check(name, conclusion, started, status="COMPLETED", workflow="pr-checks"):
-    return {**run_check(name, conclusion, status), "startedAt": started, "workflowName": workflow}
-
-
-#: The reviewer identity ``tools/review/record.py`` stamps into a verdict (the landers refuse a verdict without it).
-ID = {"reviewer": {"agent_type": "reviewer", "session_id": "s-1", "agent_id": ""}}
-
-
-class ChecksStateTests(unittest.TestCase):
-    def test_superseded_runs_do_not_count(self):
-        # PR #215: two failed runs on the head SHA, then a green re-run (close and reopen).
-        rollup = [timed_check("pr-checks", "FAILURE", "2026-10-30T00:59:28Z"),
-                  timed_check("swift-test", "FAILURE", "2026-10-30T00:04:14Z"),
-                  timed_check("pr-checks", "SUCCESS", "2026-10-30T03:45:15Z"),
-                  timed_check("swift-test", "SUCCESS", "2026-10-30T01:56:04Z"),
-                  timed_check("pr-checks", "FAILURE", "2026-10-30T01:12:42Z")]
-        self.assertEqual(pr_land.checks_state(rollup, ["pr-checks"]), ("green", "all checks green"))
-
-    def test_newest_failure_still_blocks(self):
-        rollup = [timed_check("pr-checks", "SUCCESS", "2026-10-30T01:00:00Z"),
-                  timed_check("pr-checks", "FAILURE", "2026-10-30T02:00:00Z")]
-        self.assertEqual(pr_land.checks_state(rollup, ["pr-checks"])[0], "failed")
-
-    def test_queued_rerun_is_pending_not_green(self):
-        rollup = [timed_check("pr-checks", "SUCCESS", "2026-10-30T01:00:00Z"),
-                  timed_check("pr-checks", None, None, "QUEUED")]
-        self.assertEqual(pr_land.checks_state(rollup, ["pr-checks"])[0], "pending")
-
-    def test_same_job_name_in_two_workflows_both_count(self):
-        rollup = [timed_check("build", "SUCCESS", "2026-10-30T02:00:00Z", workflow="a"),
-                  timed_check("build", "FAILURE", "2026-10-30T01:00:00Z", workflow="b")]
-        self.assertEqual(pr_land.checks_state(rollup)[0], "failed")
-
-    def test_newer_in_progress_beats_older_success(self):
-        rollup = [timed_check("pr-checks", "SUCCESS", "2026-10-30T01:00:00Z"),
-                  timed_check("pr-checks", None, "2026-10-30T02:00:00Z", "IN_PROGRESS")]
-        self.assertEqual(pr_land.checks_state(rollup, ["pr-checks"])[0], "pending")
-
-    def test_equal_started_at_the_less_green_run_wins_in_either_order(self):
-        stamp = "2026-10-30T01:00:00Z"
-        ok, bad = timed_check("pr-checks", "SUCCESS", stamp), timed_check("pr-checks", "FAILURE", stamp)
-        self.assertEqual(pr_land.checks_state([ok, bad], ["pr-checks"])[0], "failed")
-        self.assertEqual(pr_land.checks_state([bad, ok], ["pr-checks"])[0], "failed")
-
-    def test_completed_without_started_at_is_oldest(self):
-        undated = timed_check("pr-checks", "SUCCESS", None)
-        newer_failure = timed_check("pr-checks", "FAILURE", "2026-10-30T01:00:00Z")
-        self.assertEqual(pr_land.checks_state([newer_failure, undated], ["pr-checks"])[0], "failed")
-        self.assertEqual(pr_land.checks_state([undated, newer_failure], ["pr-checks"])[0], "failed")
-
-    def test_gh_zero_time_counts_as_missing_started_at(self):
-        zero = "0001-01-01T00:00:00Z"
-        newer_failure = timed_check("pr-checks", "FAILURE", "2026-10-30T01:00:00Z")
-        self.assertEqual(pr_land.checks_state([timed_check("pr-checks", "SUCCESS", zero), newer_failure])[0], "failed")
-        queued = timed_check("pr-checks", None, zero, "QUEUED")
-        self.assertEqual(pr_land.checks_state([timed_check("pr-checks", "SUCCESS", "2026-10-30T01:00:00Z"), queued])[0],
-                         "pending")
-
-    def test_two_apps_with_the_same_check_name_stay_separate(self):
-        old_fail = {**run_check("lint", "FAILURE"), "startedAt": "2026-10-30T01:00:00Z",
-                    "detailsUrl": "https://ci.one.example/run/1"}
-        new_ok = {**run_check("lint", "SUCCESS"), "startedAt": "2026-10-30T02:00:00Z",
-                  "detailsUrl": "https://ci.two.example/run/9"}
-        self.assertEqual(len(pr_land.latest_runs([old_fail, new_ok])), 2)
-        self.assertEqual(pr_land.checks_state([old_fail, new_ok])[0], "failed")
-        by_slug = [{**old_fail, "app": {"slug": "one"}, "detailsUrl": ""}, {**new_ok, "app": {"slug": "two"}, "detailsUrl": ""}]
-        self.assertEqual(len(pr_land.latest_runs(by_slug)), 2)
-
-    def test_commit_statuses_pass_through(self):
-        rollup = [{"context": "ci/x", "state": "FAILURE"}, {"context": "ci/x", "state": "SUCCESS"}]
-        self.assertEqual(len(pr_land.latest_runs(rollup)), 2)
-
-    def test_none_configured_passes(self):
-        self.assertEqual(pr_land.checks_state([])[0], "none")
-        self.assertEqual(pr_land.checks_state(None)[0], "none")
-
-    def test_green_pending_failed(self):
-        self.assertEqual(pr_land.checks_state([run_check("a"), run_check("b", "SKIPPED")])[0], "green")
-        self.assertEqual(pr_land.checks_state([run_check("a"), run_check("b", None, "IN_PROGRESS")])[0], "pending")
-        state, detail = pr_land.checks_state([run_check("a"), run_check("lint", "FAILURE")])
-        self.assertEqual(state, "failed")
-        self.assertIn("lint", detail)
-
-    def test_commit_statuses(self):
-        self.assertEqual(pr_land.checks_state([{"context": "ci", "state": "SUCCESS"}])[0], "green")
-        self.assertEqual(pr_land.checks_state([{"context": "ci", "state": "PENDING"}])[0], "pending")
-        self.assertEqual(pr_land.checks_state([{"context": "ci", "state": "FAILURE"}])[0], "failed")
-
-
-class RequiredChecksAndKillSwitchTests(unittest.TestCase):
-    def test_missing_required_check_is_pending(self):
-        self.assertEqual(pr_land.checks_state([], ["pr-checks"])[0], "pending")
-        self.assertEqual(pr_land.checks_state([run_check("other")], ["pr-checks"])[0], "pending")
-        self.assertEqual(pr_land.checks_state([run_check("pr-checks")], ["pr-checks"])[0], "green")
-        self.assertEqual(pr_land.REQUIRED_CHECKS, ["pr-checks"])
-
-    def test_required_check_must_be_a_successful_check_run(self):
-        required = ["pr-checks"]
-        # SKIPPED or NEUTRAL do not vouch for the head; a commit status of the same name is not a check run.
-        self.assertEqual(pr_land.checks_state([run_check("pr-checks", "SKIPPED")], required)[0], "failed")
-        self.assertEqual(pr_land.checks_state([run_check("pr-checks", "NEUTRAL")], required)[0], "failed")
-        self.assertEqual(pr_land.checks_state([{"context": "pr-checks", "state": "SUCCESS"}], required)[0], "pending")
-        # other checks may still be skipped
-        self.assertEqual(pr_land.checks_state([run_check("pr-checks"), run_check("x", "SKIPPED")], required)[0], "green")
-
+class KillSwitchTests(unittest.TestCase):
     def test_kill_switch_files(self):
         with TemporaryDirectory() as tmp:
             paused = Path(tmp) / "PAUSED"
@@ -150,365 +42,198 @@ class RequiredChecksAndKillSwitchTests(unittest.TestCase):
                 self.assertTrue(pr_land.kill_switch({}).endswith("NO_LAND"))
 
 
-class ReviewStateTests(unittest.TestCase):
-    def test_missing_review_blocks(self):
-        self.assertFalse(pr_land.review_state(None, "abc")[0])
+class ArmTests(unittest.TestCase):
+    """``pr_land.land`` against a fake ``gh``, a fake trusted store and a fake ruleset: the gates GitHub cannot run, then the pinned arm."""
 
-    def test_pass_lands(self):
-        self.assertTrue(pr_land.review_state({**ID, "verdict": "pass", "round": 1, "head": "abc"}, "abc")[0])
-
-    def test_review_without_head_blocks(self):
-        self.assertFalse(pr_land.review_state({**ID, "verdict": "pass", "round": 1}, "abc")[0])
-        self.assertFalse(pr_land.review_state({**ID, "verdict": "pass", "round": 1, "head": "abc"}, "")[0])
-
-    def test_stale_head_blocks(self):
-        ok, why = pr_land.review_state({**ID, "verdict": "pass", "head": "aaaa1111"}, "bbbb2222")
-        self.assertFalse(ok)
-        self.assertIn("review again", why)
-
-    def test_changes_round_one_blocks_round_two_lands_unless_blocker(self):
-        major = [{"severity": "major", "rule": "pattern", "detail": "x"}]
-        self.assertFalse(pr_land.review_state({**ID, "verdict": "changes", "round": 1, "head": "h", "findings": major}, "h")[0])
-        self.assertTrue(pr_land.review_state({**ID, "verdict": "changes", "round": 2, "head": "h", "findings": major}, "h")[0])
-        blocker = major + [{"severity": "blocker", "rule": "perf", "detail": "main thread"}]
-        self.assertFalse(pr_land.review_state({**ID, "verdict": "changes", "round": 3, "head": "h", "findings": blocker}, "h")[0])
-        self.assertFalse(pr_land.review_state({**ID, "verdict": "blocker", "round": 1, "head": "h"}, "h")[0])
-
-    def test_pass_with_blocker_finding_blocks(self):
-        blocker = [{"severity": "blocker", "rule": "perf", "detail": "d"}]
-        self.assertFalse(pr_land.review_state({**ID, "verdict": "pass", "head": "h", "findings": blocker}, "h")[0])
-
-    def test_unknown_verdict_blocks(self):
-        self.assertFalse(pr_land.review_state({**ID, "verdict": "maybe", "head": "h"}, "h")[0])
-
-    def test_branch_file_name(self):
-        self.assertEqual(pr_land.review_file_name("claude/pr-lifecycle"), "claude__pr-lifecycle.json")
-
-
-class LandTests(unittest.TestCase):
-    """``land`` with a fake ``gh`` and a throwaway repository."""
-
-    def setUp(self):
-        self.tmp = TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.repo = Path(self.tmp.name) / "repo"
-        self.repo.mkdir()
-        subprocess.run(["git", "init", "-q", "-b", "feat/x"], cwd=self.repo, env=ENV, check=True)
-        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "i"], cwd=self.repo, env=ENV, check=True)
-        self.fake = Path(self.tmp.name) / "bin"
-        self.fake.mkdir()
-        self.log = Path(self.tmp.name) / "gh.log"
-        self.origin = self.seed_origin()
-
-    def publish_pr(self, files):
-        """Make the pull request head: ``files`` (path to text) on top of ``origin/main``, built with plumbing so this checkout's work tree
-        is untouched, published as ``refs/pull/7/head`` of the bare origin (the gate and the local checks fetch it). Sets ``self.head``."""
-        index = self.repo / ".git" / "pr-index"
-        env = {**ENV, "GIT_INDEX_FILE": str(index)}
-        index.unlink(missing_ok=True)
-        subprocess.run(["git", "read-tree", "origin/main"], cwd=self.repo, env=env, check=True)
-        for path, text in files.items():
-            blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=self.repo, env=env, input=text, capture_output=True,
-                                  text=True, check=True).stdout.strip()
-            subprocess.run(["git", "update-index", "--add", "--cacheinfo", f"100644,{blob},{path}"], cwd=self.repo, env=env, check=True)
-        tree = subprocess.run(["git", "write-tree"], cwd=self.repo, env=env, capture_output=True, text=True, check=True).stdout.strip()
-        self.head = subprocess.run(["git", "commit-tree", tree, "-p", "origin/main", "-m", "pr"], cwd=self.repo, env=ENV,
-                                   capture_output=True, text=True, check=True).stdout.strip()
-        subprocess.run(["git", "push", "-q", "-f", str(self.bare), f"{self.head}:refs/pull/7/head"], cwd=self.repo, env=ENV, check=True)
-
-    def seed_origin(self, lane_land_text=None):
-        """A bare origin whose ``main`` holds ``tools/lane_land.py`` (the trusted copy the gate runs), added as ``origin``."""
-        bare = Path(self.tmp.name) / "origin.git"
-        seed = Path(self.tmp.name) / "seed"
-        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
-        subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], cwd=self.tmp.name, env=ENV, check=True)
-        (seed / "tools").mkdir()
-        (seed / "tools" / "lane_land.py").write_text(lane_land_text or (TOOLS / "lane_land.py").read_text())
-        (seed / "tools" / "triage").mkdir()
-        (seed / "tools" / "house_scan.py").write_text((TOOLS / "house_scan.py").read_text())  # the trusted copy the local checks run
-        (seed / "tools" / "triage" / "config.json").write_text((TOOLS / "triage" / "config.json").read_text())
-        (seed / "contracts").mkdir()
-        (seed / "contracts" / "house_scan.json").write_text((TOOLS.parent / "contracts" / "house_scan.json").read_text())
-        subprocess.run(["git", "add", "-A"], cwd=seed, env=ENV, check=True)
-        subprocess.run(["git", "commit", "-qm", "base"], cwd=seed, env=ENV, check=True)
-        subprocess.run(["git", "push", "-q", str(bare), "main"], cwd=seed, env=ENV, check=True)
-        subprocess.run(["git", "fetch", "-q", str(bare), "main:refs/remotes/origin/main"], cwd=self.repo, env=ENV, check=True)
-        self.bare = bare
-        self.publish_pr({})
-        subprocess.run(["git", "remote", "add", "origin", "https://example.invalid/not/the/product.git"], cwd=self.repo, env=ENV, check=True)
-        # The gate clones product_repo's URL from the config (never this checkout's remote); the test maps that URL to the local bare repo.
-        self.gitconfig = Path(self.tmp.name) / "gitconfig"
-        product = json.loads((TOOLS / "triage" / "config.json").read_text())["product_repo"]
-        self.gitconfig.write_text(f'[url "{bare}"]\n\tinsteadOf = https://github.com/{product}.git\n')
-        return bare
-
-    def gh(self, info):
-        script = self.fake / "gh"
-        script.write_text(f"#!/bin/sh\necho \"$@\" >> {self.log}\n"
-                          f"if [ \"$2\" = view ]; then cat <<'EOF'\n{json.dumps(info)}\nEOF\nfi\n")
-        script.chmod(script.stat().st_mode | stat.S_IEXEC)
-
-    def review(self, **data):
-        path = self.repo / "build" / "review"
-        path.mkdir(parents=True, exist_ok=True)
-        data.setdefault("head", self.head)
-        data.setdefault("reviewer", ID["reviewer"])
-        (path / "feat__x.json").write_text(json.dumps(data))
-
-    def land(self, dry=False, extra=(), env_extra=None):
-        env = {**ENV, "PATH": f"{self.fake}:{os.environ['PATH']}", "HOME": self.tmp.name, "GIT_CONFIG_GLOBAL": str(self.gitconfig),
-               **(env_extra or {})}
-        args = ["python3", str(TOOLS / "pr_land.py"), "7"] + (["--dry-run"] if dry else []) + list(extra)
-        proc = subprocess.run(args, cwd=self.repo, env=env, capture_output=True, text=True)
-        return proc.returncode, proc.stdout.strip()
+    HEAD = "b" * 40
 
     def info(self, **extra):
-        return {"state": "OPEN", "isDraft": False, "headRefName": "feat/x", "headRefOid": self.head, "mergeable": "MERGEABLE",
-                "baseRefName": "main", "statusCheckRollup": [run_check("pr-checks")], "files": [{"path": "tools/x.py"}],
-                "body": "", "title": "t", "author": {"login": "SFenton"}, **extra}
+        return {"state": "OPEN", "isDraft": False, "headRefName": "agents/x", "headRefOid": self.HEAD, "mergeable": "MERGEABLE",
+                "baseRefName": "main", "labels": [], "files": [], "body": "", "title": "t", "author": {"login": "SFenton"},
+                "isCrossRepository": False, **extra}
 
-    def test_a_pr_that_edits_the_gate_is_still_judged_by_the_base_copy(self):
-        """The invoking checkout's lane_land.py says everything passes; the base branch's copy is the one that runs."""
-        tools = self.repo / "tools"
-        tools.mkdir()
-        shutil.copy(TOOLS / "pr_land.py", tools / "pr_land.py")
-        (tools / "lane_land.py").write_text("import sys\nprint('PWNED app-UI gate passed')\nsys.exit(0)\n")
-        (tools / "triage").mkdir()
-        shutil.copy(TOOLS / "triage" / "config.json", tools / "triage" / "config.json")
-        self.publish_pr({"apple/Sources/HassUI/Chip.swift": "struct Chip {}\n"})
-        self.gh(self.info(files=[{"path": "apple/Sources/HassUI/Chip.swift"}]))
-        self.review(verdict="pass", round=1, head=self.head)
-        env = {**ENV, "PATH": f"{self.fake}:{os.environ['PATH']}", "HOME": self.tmp.name, "GIT_CONFIG_GLOBAL": str(self.gitconfig)}
-        env.pop("FENTON_HEADLESS", None)
-        proc = subprocess.run(["python3", str(tools / "pr_land.py"), "7"], cwd=self.repo, env=env, capture_output=True, text=True)
-        out = proc.stdout + proc.stderr
-        self.assertEqual(proc.returncode, 1, out)
-        self.assertNotIn("PWNED", out)
-        self.assertIn("blocked #7: app-UI gate", out)  # the base copy of the gate refuses an app view with no design record
-        self.assertNotIn("example.invalid", out)  # this checkout's own (wrong) origin remote was never used
-        self.assertFalse(self.merged())
-        trusted = Path(self.tmp.name) / "hass-agents" / "gate-trusted" / "native-home" / "tools" / "lane_land.py"
-        self.assertNotIn("PWNED", trusted.read_text())  # what ran is the base copy
+    def land(self, info=None, dry=False, kill=None, passed=True, ruleset=None, gate=None, denylist=None, merges=None, after=None):
+        """Run ``land`` and return ``((code, line), gh calls)``. ``merges`` is the list of ``(returncode, text)`` the successive
+        ``gh pr merge`` calls answer; ``after`` is the pull request JSON the post-arm ``pr view`` returns."""
+        calls = []
+        answers = list(merges if merges is not None else [(0, "")])
 
-    def merged(self):
-        return self.log.exists() and "pr merge" in self.log.read_text()
+        def fake_run(args, check=True):
+            calls.append(args)
+            if args[:3] == ["gh", "pr", "view"]:
+                body = after if args[-1] == "state,autoMergeRequest" else (info if info is not None else self.info())
+                return mock.Mock(returncode=0, stdout=json.dumps(body), stderr="")
+            if args[:3] == ["gh", "pr", "merge"]:
+                code, text = answers.pop(0)
+                return mock.Mock(returncode=code, stdout="", stderr=text)
+            return mock.Mock(returncode=0, stdout="", stderr="")
 
-    def land_with_config(self, **overrides):
-        """Run a copy of pr_land.py (and house_scan.py) whose triage config is the repo's plus ``overrides``."""
-        tools = self.repo / "tools"
-        (tools / "triage").mkdir(parents=True, exist_ok=True)
-        shutil.copy(TOOLS / "pr_land.py", tools / "pr_land.py")
-        shutil.copy(TOOLS / "house_scan.py", tools / "house_scan.py")
-        cfg = json.loads((TOOLS / "triage" / "config.json").read_text())
-        cfg.update(overrides)
-        cfg = {k: v for k, v in cfg.items() if v is not None}
-        (tools / "triage" / "config.json").write_text(json.dumps(cfg))
-        env = {**ENV, "PATH": f"{self.fake}:{os.environ['PATH']}", "HOME": self.tmp.name, "GIT_CONFIG_GLOBAL": str(self.gitconfig)}
-        env.pop("FENTON_HEADLESS", None)
-        env.pop("HOUSE_SCAN_DENYLIST", None)
-        proc = subprocess.run(["python3", str(tools / "pr_land.py"), "7"], cwd=self.repo, env=env, capture_output=True, text=True)
-        return proc.returncode, proc.stdout.strip()
+        def ui(number, info):
+            if isinstance(gate, Exception):
+                raise gate
+            return "app-UI gate passed (0 app-UI file(s))"
+        has_pass = passed if callable(passed) else (lambda sha: passed)
+        patches = [mock.patch.object(pr_land, "run", fake_run), mock.patch.object(pr_land, "kill_switch", return_value=kill),
+                   mock.patch.object(pr_land.review_verdict, "has_pass", side_effect=has_pass),
+                   mock.patch.object(pr_land.ruleset_gate, "check", return_value=ruleset or []),
+                   mock.patch.object(pr_land, "ui_gate", ui), mock.patch.object(pr_land, "denylist_gate", return_value=denylist)]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+        return pr_land.land("7", dry), calls
 
-    def test_checks_are_required_when_the_key_is_true_or_missing_and_skipped_when_false(self):
-        self.review(verdict="pass", round=1, head=self.head)
-        for overrides in ({"require_checks": True}, {"require_checks": None}):
-            self.gh(self.info(statusCheckRollup=[]))
-            code, line = self.land_with_config(**overrides)
-            with self.subTest(overrides=overrides):
+    @staticmethod
+    def merge_calls(calls):
+        return [c for c in calls if c[:3] == ["gh", "pr", "merge"]]
+
+    def test_a_pass_in_the_store_arms_with_no_review_file_and_no_check_rollup(self):
+        """Fails if: land asks for a build/review file or the statusCheckRollup, so a pass in the trusted store alone no longer arms."""
+        (code, line), calls = self.land(after={"state": "OPEN", "autoMergeRequest": {"enabledBy": {"login": "SFenton"}}})
+        self.assertEqual((code, line.split(" at ")[0]), (0, "armed #7"), line)
+        self.assertEqual(len(self.merge_calls(calls)), 1)
+        view = next(c for c in calls if c[:3] == ["gh", "pr", "view"])
+        self.assertNotIn("statusCheckRollup", view[-1])
+
+    def test_the_arm_argv_is_exactly_the_pinned_auto_squash(self):
+        """Fails if: the arm drops -R, --auto, --squash or --match-head-commit, or pins any commit but the PR head."""
+        _, calls = self.land(after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        self.assertEqual(self.merge_calls(calls),
+                         [["gh", "pr", "merge", "7", "-R", "SFenton/native-home", "--auto", "--squash", "--match-head-commit", self.HEAD]])
+
+    def test_a_draft_is_marked_ready_before_the_arm(self):
+        """Fails if: a draft PR is armed without gh pr ready first, or ready runs after the merge call."""
+        _, calls = self.land(info=self.info(isDraft=True), after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        names = [" ".join(c[:3]) for c in calls]
+        self.assertLess(names.index("gh pr ready"), names.index("gh pr merge"))
+        self.assertEqual(next(c for c in calls if c[:3] == ["gh", "pr", "ready"]), ["gh", "pr", "ready", "7", "-R", "SFenton/native-home"])
+        _, calls = self.land(after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        self.assertFalse([c for c in calls if c[:3] == ["gh", "pr", "ready"]])
+
+    def test_no_pass_or_a_pass_for_an_older_head_blocks_with_no_merge_call(self):
+        """Fails if: land arms a head the reviewer never passed (no record, or a record for an earlier commit)."""
+        for passed in (False, lambda sha: sha == "c" * 40):
+            with self.subTest(passed=bool(passed) and "older"):
+                (code, line), calls = self.land(passed=passed)
                 self.assertEqual(code, 1, line)
-                self.assertIn("pr-checks", line)
-                self.assertFalse(self.merged())
-        self.gh(self.info(statusCheckRollup=[]))
-        code, line = self.land_with_config(require_checks=False)
-        self.assertEqual((code, line.split(" ")[:2]), (0, ["merged", "#7"]), line)
-        self.assertIn("checks not required", line)
-        self.assertTrue(self.merged())
+                self.assertIn("no independent pass for " + self.HEAD[:12], line)
+                self.assertIn("record.py --lane agents/x", line)
+                self.assertFalse(self.merge_calls(calls))
 
-    def test_review_is_still_required_when_checks_are_not(self):
-        self.gh(self.info(statusCheckRollup=[]))
-        for review in (dict(verdict="changes", round=1, head=self.head), dict(verdict="pass", round=1, head="stale")):
-            self.review(**review)
-            code, line = self.land_with_config(require_checks=False)
-            with self.subTest(review=review):
+    def test_the_pass_is_looked_up_for_the_exact_head(self):
+        """Fails if: the store is asked about the branch or a short sha instead of the full headRefOid."""
+        self.land(after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        pr_land.review_verdict.has_pass.assert_called_once_with(self.HEAD)
+        pr_land.ruleset_gate.check.assert_called_once_with("SFenton/native-home", "main")
+
+    def test_clean_status_retries_once_without_auto_and_reports_merged(self):
+        """Fails if: GitHub's `clean status` refusal (checks already done) is reported as failed, or retried unpinned or with --auto."""
+        (code, line), calls = self.land(merges=[(1, "Pull request is in clean status"), (0, "")], after={"state": "MERGED"})
+        self.assertEqual((code, line), (0, f"merged #7 at {self.HEAD[:8]}"))
+        merges = self.merge_calls(calls)
+        self.assertEqual(len(merges), 2)
+        self.assertIn("--auto", merges[0])
+        self.assertNotIn("--auto", merges[1])
+        self.assertEqual(merges[1][-2:], ["--match-head-commit", self.HEAD])
+
+    def test_other_gh_refusals_are_failed_with_the_message_and_no_retry(self):
+        """Fails if: any gh refusal other than `clean status` is retried or hidden, or exits 0."""
+        (code, line), calls = self.land(merges=[(1, "auto merge is not allowed for this repository")])
+        self.assertEqual(code, 2, line)
+        self.assertTrue(line.startswith("failed #7: GitHub refused: auto merge is not allowed"), line)
+        self.assertEqual(len(self.merge_calls(calls)), 1)
+
+    def test_armed_and_merged_exit_zero_and_a_call_that_did_neither_fails(self):
+        """Fails if: armed or merged exit non-zero (ship.sh would print a refusal), or an arm that left nothing is reported as success."""
+        for after, word, code in (({"state": "OPEN", "autoMergeRequest": {"x": 1}}, "armed #7", 0), ({"state": "MERGED"}, "merged #7", 0),
+                                  ({"state": "OPEN", "autoMergeRequest": None}, "failed #7", 2)):
+            with self.subTest(word=word):
+                (got, line), _ = self.land(after=after)
+                self.assertEqual(got, code, line)
+                self.assertTrue(line.startswith(word), line)
+        with mock.patch.object(pr_land, "land", return_value=(0, "armed #7")), mock.patch("builtins.print"):
+            self.assertEqual(pr_land.main(["7"]), 0)
+
+    def test_every_gate_blocks_and_nothing_is_armed(self):
+        """Fails if: any of these (foreign author, fork, ruleset problem, non-main base, Needs Decision, conflicts, kill switch, closed PR,
+        denylist hit, refused app-UI gate) reaches gh pr merge or gh pr ready."""
+        rows = {
+            "foreign author": ({"info": self.info(author={"login": "mallory"})}, "not a pull request by SFenton"),
+            "no author": ({"info": self.info(author=None)}, "not a pull request by SFenton"),
+            "fork": ({"info": self.info(isCrossRepository=True)}, "not a pull request by SFenton"),
+            "fork unknown": ({"info": {k: v for k, v in self.info().items() if k != "isCrossRepository"}}, "not a pull request by SFenton"),
+            "ruleset": ({"ruleset": ["the ruleset allows a bypass"]}, "the ruleset allows a bypass"),
+            "base": ({"info": self.info(baseRefName="release")}, "the base is release"),
+            "needs decision": ({"info": self.info(labels=[{"name": "Needs Decision"}])}, "Needs Decision"),
+            "conflicts": ({"info": self.info(mergeable="CONFLICTING")}, "merge conflicts"),
+            "kill switch": ({"kill": "/x/NO_LAND"}, "landing paused (/x/NO_LAND)"),
+            "closed": ({"info": self.info(state="CLOSED")}, "pull request is closed"),
+            "denylist": ({"denylist": "denylist: 1 new hit"}, "denylist: 1 new hit"),
+            "ui gate": ({"gate": pr_land.GateRefused("Jev answered design.app_wide=unsure")}, "app-UI gate (gate)"),
+            "owner-kept set": ({"gate": pr_land.GateRefused("touches the owner-kept set", "owner-kept")}, "app-UI gate (owner-kept)"),
+            "gate crash": ({"gate": OSError("disk")}, "app-UI gate failed closed"),
+        }
+        for name, (kwargs, text) in rows.items():
+            with self.subTest(name):
+                (code, line), calls = self.land(**kwargs)
                 self.assertEqual(code, 1, line)
-                self.assertFalse(self.merged())
-        (self.repo / "build" / "review" / "feat__x.json").unlink()
-        code, line = self.land_with_config(require_checks=False)
-        self.assertEqual(code, 1, line)
-        self.assertFalse(self.merged())
+                self.assertTrue(line.startswith("blocked #7: "), line)
+                self.assertIn(text, line)
+                self.assertFalse(self.merge_calls(calls) or [c for c in calls if c[:3] == ["gh", "pr", "ready"]])
 
-    def test_green_checks_plus_passing_review_merge(self):
-        self.gh(self.info())
-        self.review(verdict="pass", round=1, head=self.head)
-        code, line = self.land_with_config(require_checks=True)
-        self.assertEqual((code, line.split(" ")[:2]), (0, ["merged", "#7"]), line)
-        self.assertTrue(self.merged())
-        self.assertIn("--squash", self.log.read_text())
-
-    def test_the_shipped_config_is_review_only_and_keeps_the_denylist_optional(self):
-        cfg = json.loads((TOOLS / "triage" / "config.json").read_text())
-        self.assertIs(cfg["require_checks"], False)
-        self.assertIs(cfg["denylist_required"], False)
-        self.assertEqual(pr_land.required_checks({}), ["pr-checks"])
-        self.assertEqual(pr_land.required_checks({"require_checks": True}), ["pr-checks"])
-        self.assertEqual(pr_land.required_checks({"require_checks": False}), [])
-
-    def test_needs_decision_label_blocks_landing(self):
-        self.gh(self.info(labels=[{"name": "Needs Decision"}]))
-        self.review(verdict="pass", round=1, head=self.head)
-        code, line = self.land()
-        self.assertEqual(code, 1, line)
-        self.assertIn("owner decides first", line)
-        self.assertFalse(self.merged())
-        self.gh(self.info(labels=[{"name": "Ready to Merge"}]))
-        self.assertEqual(self.land()[0], 0)
-
-    def test_dry_run_never_merges(self):
-        self.gh(self.info())
-        self.review(verdict="pass", round=1)
-        code, line = self.land(dry=True)
+    def test_dry_run_says_would_arm_and_touches_nothing(self):
+        """Fails if: --dry-run arms, marks ready, or prints anything but `would arm #N`."""
+        (code, line), calls = self.land(dry=True, info=self.info(isDraft=True))
         self.assertEqual(code, 0, line)
-        self.assertTrue(line.startswith("would merge"))
-        self.assertFalse(self.merged())
+        self.assertTrue(line.startswith(f"would arm #7 at {self.HEAD[:8]}"), line)
+        self.assertEqual([c[:3] for c in calls], [["gh", "pr", "view"]])
 
-    def test_stale_review_head_blocks(self):
-        self.gh(self.info(headRefOid="def"))
-        self.review(verdict="pass", round=1, head=self.head)
-        code, line = self.land()
-        self.assertEqual(code, 1)
-        self.assertIn("review again", line)
-        self.assertFalse(self.merged())
+    def test_the_shipped_config_no_longer_has_require_checks(self):
+        """Fails if: tools/triage/config.json carries `require_checks` again (GitHub is the only judge of checks)."""
+        self.assertNotIn("require_checks", json.loads((TOOLS / "triage" / "config.json").read_text()))
+        self.assertNotIn("require_checks", (TOOLS / "pr_land.py").read_text())
 
-    def test_kill_switch_pauses_landing(self):
-        self.gh(self.info())
-        self.review(verdict="pass", round=1)
-        paused = Path(self.tmp.name) / "PAUSED"
-        paused.write_text("x")
-        code, line = self.land(env_extra={"HASS_TRIAGE_PAUSED_FILE": str(paused)})
-        self.assertEqual(code, 1)
-        self.assertIn("landing paused", line)
-        self.assertFalse(self.merged())
-
-    def test_review_flag_is_dry_run_only(self):
-        self.gh(self.info())
-        self.review(verdict="pass", round=1)
-        other = Path(self.tmp.name) / "r.json"
-        other.write_text(json.dumps({**ID, "verdict": "pass", "head": self.head}))
-        self.assertEqual(self.land(extra=["--review", str(other)])[0], 2)
-        self.assertFalse(self.merged())
-        self.assertEqual(self.land(dry=True, extra=["--review", str(other)])[0], 0)
-
-    def test_failing_or_pending_checks_block(self):
-        self.review(verdict="pass", round=1)
-        for rollup, word in (([run_check("pr-checks", "FAILURE")], "failing"), ([run_check("pr-checks", None, "QUEUED")], "running")):
-            self.gh(self.info(statusCheckRollup=rollup))
-            code, line = self.land_with_config(require_checks=True)
-            self.assertEqual(code, 1)
-            self.assertIn(word, line)
-        self.assertFalse(self.merged())
-
-    def test_missing_review_and_conflicts_block(self):
-        self.gh(self.info())
-        code, line = self.land()
-        self.assertEqual(code, 1)
-        self.assertIn("no review", line)
-        self.review(verdict="pass", round=1)
-        self.gh(self.info(mergeable="CONFLICTING"))
-        self.assertEqual(self.land()[0], 1)
-        self.gh(self.info(state="MERGED"))
-        self.assertEqual(self.land()[0], 1)
-        self.assertFalse(self.merged())
-
-    def test_gh_failure_reports_failed(self):
-        script = self.fake / "gh"
-        script.write_text("#!/bin/sh\necho boom >&2\nexit 1\n")
-        script.chmod(script.stat().st_mode | stat.S_IEXEC)
-        code, line = self.land()
-        self.assertEqual(code, 2)
-        self.assertTrue(line.startswith("failed #7"))
-
-    def test_draft_is_marked_ready_before_merge(self):
-        self.gh(self.info(isDraft=True))
-        self.review(verdict="pass", round=1)
-        self.assertEqual(self.land()[0], 0)
-        text = self.log.read_text()
-        self.assertLess(text.index("pr ready"), text.index("pr merge"))
+    def test_the_dead_gate_pieces_are_gone(self):
+        """Fails if: the deleted local checks, review file lookup or direct merge and cleanup come back in pr_land."""
+        for name in ("checks_state", "latest_runs", "required_checks", "REQUIRED_CHECKS", "review_state", "find_review", "local_gates",
+                     "cleanup", "safe_cleanup", "MAX_ROUNDS", "reviewer_identity_problem"):
+            self.assertFalse(hasattr(pr_land, name), name)
+        self.assertTrue(callable(pr_land.review_file_name))  # jev_miss still imports it
 
 
-    IP = ".".join(["10", "9", "8", "20"])
+class LaneWorktreeReapTests(unittest.TestCase):
+    """The arm no longer cleans up; ``ci_hygiene.py prune-worktrees`` reaps the lane worktree once GitHub squash-merged its branch."""
 
-    def test_review_only_runs_house_scan_and_pattern_guard_locally_on_the_exact_head(self):
-        """Major 4: ``require_checks: false`` drops CI, so the cheap checks run here with the base's tools; with CI required they are CI's."""
-        self.publish_pr({"notes.txt": f"host {self.IP}\n"})
-        self.gh(self.info())
-        self.review(verdict="pass", round=1)
-        code, line = self.land_with_config(require_checks=False)
-        self.assertEqual(code, 1, line)
-        self.assertIn("blocked #7: house_scan:", line)
-        self.assertIn("notes.txt:1", line)
-        self.assertFalse(self.merged())
-        code, line = self.land_with_config(require_checks=True)  # CI is the gate there (its own run of the same check), the fake rollup is green
-        self.assertEqual(code, 0, line)
-        self.assertNotIn("run locally", line)
+    def test_a_squash_merged_lane_worktree_is_reaped_by_prune_worktrees(self):
+        """Fails if: prune-worktrees leaves a lane worktree whose multi-commit branch was squash-merged into main, so nothing reaps it now that pr_land does not."""
+        import ci_hygiene
+        env = {k: v for k, v in ENV.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
 
-    def test_a_pr_cannot_loosen_its_own_local_check_through_its_config(self):
-        self.publish_pr({"notes.txt": f"host {self.IP}\n", "contracts/house_scan.json": json.dumps({"allow": {"skip_prefixes": ["notes"]}})})
-        self.gh(self.info())
-        self.review(verdict="pass", round=1)
-        code, line = self.land_with_config(require_checks=False)
-        self.assertEqual(code, 1, line)
-        self.assertIn("notes.txt:1", line)
-
-    def test_a_clean_head_lands_and_the_line_says_what_ran(self):
-        self.gh(self.info())
-        self.review(verdict="pass", round=1)
-        code, line = self.land_with_config(require_checks=False)
-        self.assertEqual(code, 0, line)
-        self.assertIn("house_scan and pattern_guard run locally", line)
-
-    def test_pattern_guard_is_the_bases_copy_run_over_the_head(self):
-        for exit_code, expected in ((1, 1), (0, 0)):
-            with self.subTest(exit_code=exit_code), TemporaryDirectory() as tmp:
-                bare = Path(tmp) / "b.git"
-                subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
-                seed = Path(tmp) / "seed"
-                subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], env=ENV, check=True)
-                (seed / "tools").mkdir()
-                (seed / "tools" / "house_scan.py").write_text((TOOLS / "house_scan.py").read_text())
-                (seed / "tools" / "pattern_guard.py").write_text(f"import sys\nprint('error: from the base copy')\nsys.exit({exit_code})\n")
-                subprocess.run(["git", "add", "-A"], cwd=seed, env=ENV, check=True)
-                subprocess.run(["git", "commit", "-qm", "base"], cwd=seed, env=ENV, check=True)
-                subprocess.run(["git", "push", "-q", str(bare), "main"], cwd=seed, env=ENV, check=True)
-                repo = Path(tmp) / "repo"
-                subprocess.run(["git", "clone", "-q", str(bare), str(repo)], env=ENV, check=True)
-                (repo / "tools" / "pattern_guard.py").write_text("import sys\nsys.exit(0)\n")  # the PR rewrites the guard to pass
-                subprocess.run(["git", "commit", "-qam", "weaken"], cwd=repo, env=ENV, check=True)
-                head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env=ENV, capture_output=True, text=True).stdout.strip()
-                cwd = os.getcwd()
-                os.chdir(repo)
-                try:
-                    refused = pr_land.local_gates("7", head, "main")
-                finally:
-                    os.chdir(cwd)
-                if expected:
-                    self.assertIn("pattern_guard: error: from the base copy", refused or "")
-                else:
-                    self.assertIsNone(refused)
-
-    def test_the_local_checks_fail_closed_without_a_readable_base_or_head(self):
+        def git(cwd, *args):
+            subprocess.run(["git", *args], cwd=cwd, env=env, check=True, capture_output=True)
         with TemporaryDirectory() as tmp:
-            repo = Path(tmp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], env=ENV, check=True)
-            subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "i"], cwd=repo, env=ENV, check=True)
-            head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env=ENV, capture_output=True, text=True).stdout.strip()
-            cwd = os.getcwd()
-            os.chdir(repo)
-            try:
-                self.assertIn("cannot read origin/main", pr_land.local_gates("7", head, "main") or "")
-                self.assertIn("cannot read the head", pr_land.local_gates("7", "0" * 40, "main") or "")
-            finally:
-                os.chdir(cwd)
+            base = Path(os.path.realpath(tmp))
+            origin, repo, lane, far = base / "origin.git", base / "primary", base / "lane", base / "far"
+            far.mkdir()
+            git(base, "init", "-q", "--bare", "-b", "main", str(origin))
+            git(base, "clone", "-q", str(origin), str(repo))
+            (repo / "f.txt").write_text("1")
+            git(repo, "add", ".")
+            git(repo, "commit", "-qm", "init")
+            git(repo, "push", "-q", "origin", "HEAD:main")
+            git(repo, "fetch", "-q", "origin")
+            git(repo, "worktree", "add", "-q", "-b", "agents/x", str(lane), "origin/main")
+            for n in (1, 2):
+                (lane / f"s{n}.txt").write_text(str(n))
+                git(lane, "add", ".")
+                git(lane, "commit", "-qm", f"c{n}")
+            git(repo, "checkout", "-q", "-b", "squasher", "origin/main")
+            git(repo, "merge", "-q", "--squash", "agents/x")
+            git(repo, "commit", "-qm", "squash")
+            git(repo, "push", "-q", "origin", "squasher:refs/heads/main")
+            git(repo, "fetch", "-q", "origin")
+            with mock.patch.object(ci_hygiene, "devcap_cwds", return_value=[]), mock.patch("builtins.print"):
+                self.assertEqual(ci_hygiene.prune_worktrees(0.0, False, repo=repo, current=far), 0)
+            self.assertFalse(lane.exists())
 
 
 open_real = open
@@ -521,7 +246,7 @@ class UiGateInLandTests(unittest.TestCase):
 
     def info(self, **extra):
         return {"state": "OPEN", "isDraft": False, "headRefName": "feat/ui", "headRefOid": self.HEAD, "mergeable": "MERGEABLE",
-                "baseRefName": "main", "statusCheckRollup": [run_check("pr-checks")], "labels": [],
+                "baseRefName": "main", "isCrossRepository": False, "labels": [],
                 "files": [{"path": "apple/Sources/HassUI/Chip.swift"}], "body": "", "title": "t", "author": {"login": "SFenton"}, **extra}
 
     def land(self, gate=None, ack=False, dry=True, env=None, tty=True, info=None):
@@ -532,9 +257,8 @@ class UiGateInLandTests(unittest.TestCase):
             return mock.Mock(returncode=0, stdout=json.dumps(info or self.info()), stderr="")
         patches = [mock.patch.object(pr_land, "run", fake_run),
                    mock.patch.object(pr_land, "kill_switch", return_value=None),
-                   mock.patch.object(pr_land, "find_review", return_value={**ID, "verdict": "pass", "head": self.HEAD, "findings": []}),
-                   mock.patch.object(pr_land, "cleanup", return_value=""),
-                   mock.patch.object(pr_land, "local_gates", return_value=None),
+                   mock.patch.object(pr_land.review_verdict, "has_pass", return_value=True),
+                   mock.patch.object(pr_land.ruleset_gate, "check", return_value=[]),
                    mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": "/nonexistent/denylist", **(env or {})}),
                    mock.patch.object(sys.stdin, "isatty", return_value=tty)]
         if gate is not None:
@@ -545,7 +269,7 @@ class UiGateInLandTests(unittest.TestCase):
         for key in ("FENTON_HEADLESS", "HASS_TRIAGE_ISSUE"):
             if key not in (env or {}):
                 os.environ.pop(key, None)
-        return pr_land.land("9", dry, None, owner_ack=ack), calls
+        return pr_land.land("9", dry, owner_ack=ack), calls
 
     def test_the_gate_runs_with_the_pr_info_and_a_pass_lets_it_land(self):
         seen = []
@@ -720,103 +444,6 @@ class UiGateInLandTests(unittest.TestCase):
         with mock.patch.object(pr_land, "land", return_value=(0, "ok")) as fake, mock.patch("builtins.print"):
             self.assertEqual(pr_land.main(["9", "--owner-ack"]), 0)
         self.assertTrue(fake.call_args.args[4])
-
-
-class CleanupTests(unittest.TestCase):
-    """Post-merge worktree removal: only when nothing is lost and the caller is not inside it."""
-
-    def setUp(self):
-        self.tmp = TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.main = Path(self.tmp.name).resolve() / "main"
-        self.main.mkdir()
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.main, env=ENV, check=True)
-        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "i"], cwd=self.main, env=ENV, check=True)
-        self.wt = Path(self.tmp.name).resolve() / "lane"
-        subprocess.run(["git", "worktree", "add", "-q", "-b", "feat/x", str(self.wt)], cwd=self.main, env=ENV, check=True)
-        self.head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.wt, capture_output=True, text=True).stdout.strip()
-        old = os.getcwd()
-        os.chdir(self.main)
-        self.addCleanup(os.chdir, old)
-        # cleanup() runs the derived-orphans sweep: point it at a temp folder, never the real DerivedData.
-        self.derived = Path(self.tmp.name).resolve() / "DerivedData"
-        self.derived.mkdir()
-        patcher = mock.patch.dict(os.environ, {**ENV, "HASS_DERIVED_DATA": str(self.derived)})
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        import ci_hygiene  # the reap checks read devcap, which is not under test here
-        holds = mock.patch.object(ci_hygiene, "devcap_cwds", return_value=[])
-        holds.start()
-        self.addCleanup(holds.stop)
-
-    def test_keeps_a_dirty_worktree(self):
-        (self.wt / "wip.txt").write_text("x")
-        note = pr_land.cleanup("feat/x", self.head, keep=False, cwd=self.main)
-        self.assertIn("uncommitted or untracked", note)
-        self.assertTrue(self.wt.exists())
-
-    def test_keeps_a_locked_worktree(self):
-        subprocess.run(["git", "worktree", "lock", str(self.wt)], cwd=self.main, env=ENV, check=True)
-        note = pr_land.cleanup("feat/x", self.head, keep=False, cwd=self.main)
-        self.assertIn("locked", note)
-        self.assertTrue(self.wt.exists())
-
-    def test_keeps_a_worktree_a_live_process_works_in(self):
-        proc = subprocess.Popen(["sleep", "30"], cwd=self.wt)
-        self.addCleanup(proc.wait)
-        self.addCleanup(proc.kill)
-        note = pr_land.cleanup("feat/x", self.head, keep=False, cwd=self.main)
-        self.assertIn("live process", note)
-        self.assertTrue(self.wt.exists())
-
-    def test_safe_cleanup_never_raises(self):
-        with mock.patch.object(pr_land, "cleanup", side_effect=RuntimeError("git gone")):
-            note = pr_land.safe_cleanup("feat/x", self.head, False)
-        self.assertIn("cleanup skipped", note)
-
-    def derived_folder(self, name, workspace):
-        folder = self.derived / name
-        folder.mkdir()
-        (folder / "info.plist").write_bytes(plistlib.dumps({"WorkspacePath": str(workspace)}))
-        return folder
-
-    def test_cleanup_removes_an_orphaned_derived_folder_and_keeps_a_live_one(self):
-        orphan = self.derived_folder("FentonHome-orphan", Path(self.tmp.name) / "deleted" / "FentonHome.xcodeproj")
-        live = self.derived_folder("FentonHome-live", self.main)
-        pr_land.cleanup("feat/x", self.head, keep=False, cwd=self.main)
-        self.assertFalse(orphan.exists())
-        self.assertTrue(live.exists())
-
-    def branches(self):
-        return subprocess.run(["git", "branch", "--list", "feat/x"], cwd=self.main, capture_output=True, text=True).stdout
-
-    def test_removes_when_tip_matches_and_cwd_is_elsewhere(self):
-        note = pr_land.cleanup("feat/x", self.head, keep=False, cwd=self.main)
-        self.assertIn("removed worktree lane", note)
-        self.assertFalse(self.wt.exists())
-        self.assertEqual(self.branches().strip(), "")
-
-    def test_keeps_when_flagged(self):
-        note = pr_land.cleanup("feat/x", self.head, keep=True, cwd=self.main)
-        self.assertIn("kept (--keep-worktree)", note)
-        self.assertIn("worktree remove", note)
-        self.assertTrue(self.wt.exists())
-
-    def test_keeps_when_local_tip_moved_past_the_merged_head(self):
-        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "unpushed"], cwd=self.wt, env=ENV, check=True)
-        note = pr_land.cleanup("feat/x", self.head, keep=False, cwd=self.main)
-        self.assertIn("is not the merged", note)
-        self.assertTrue(self.wt.exists())
-        self.assertIn("feat/x", self.branches())
-
-    def test_keeps_when_caller_is_inside_the_worktree(self):
-        (self.wt / "sub").mkdir()
-        note = pr_land.cleanup("feat/x", self.head, keep=False, cwd=self.wt / "sub")
-        self.assertIn("you are inside it", note)
-        self.assertTrue(self.wt.exists())
-
-    def test_no_worktree_is_silent(self):
-        self.assertEqual(pr_land.cleanup("other", self.head, keep=False, cwd=self.main), "")
 
 
 class RecordTests(unittest.TestCase):
