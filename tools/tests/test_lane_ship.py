@@ -83,6 +83,9 @@ class ShipTests(unittest.TestCase):
     def test_commits_with_trailer_and_pushes(self):
         with TemporaryDirectory() as tmp:
             clone, origin = make_repo(tmp)
+            home = Path(tmp) / "home"
+            home.mkdir()
+            use_home(clone, home)
             git(clone, "switch", "-q", "-c", "claude/x")
             (clone / "a.txt").write_text("x")
             done = self.ship(clone, "Add a")
@@ -222,6 +225,12 @@ BOTH = ('[{"type": "pull_request", "ruleset_id": 7, "parameters": {"required_app
         '{"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [{"context": "pr-checks", "integration_id": 15368}]}}]')
 
 
+def use_home(clone, home):
+    """Point the clone's copy of review_verdict.py at a fake account home (the real one reads the password database, not $HOME)."""
+    path = clone / "tools" / "review_verdict.py"
+    path.write_text(path.read_text().replace("Path(pwd.getpwuid(os.getuid()).pw_dir)", "Path(%r)" % str(home)))
+
+
 def record_pass(home, sha, branch="claude__x"):
     """A verdict the way the reviewer's record.py --lane leaves it, in the fake home's trusted store."""
     folder = Path(home) / "hass-agents" / "reviews"
@@ -237,13 +246,14 @@ class ShipArmTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             clone, _ = make_repo(tmp)
             shutil.copy(TOOLS / "ruleset_gate.py", clone / "tools" / "ruleset_gate.py")
+            home = Path(tmp) / "home"
+            home.mkdir()
+            use_home(clone, home)
             git(clone, "switch", "-q", "-c", "claude/x")
             (clone / "a.txt").write_text("x")
             git(clone, "add", "-A")
             git(clone, "commit", "-q", "-m", "Add a")
             self.head = git(clone, "rev-parse", "HEAD")
-            home = Path(tmp) / "home"
-            home.mkdir()
             if passed:
                 record_pass(home, self.head)
             fake = Path(tmp) / "bin"
@@ -302,17 +312,20 @@ class ShipArmTests(unittest.TestCase):
 class ShipReviewBeforePushTests(unittest.TestCase):
     """A native-home (or unreadable) origin refuses the push without a pass; nothing leaves the machine."""
 
-    def ship_with_origin(self, url, passed):
+    def ship_with_origin(self, url, passed, hooks=True):
         with TemporaryDirectory() as tmp:
             clone, origin = make_repo(tmp)
+            home = Path(tmp) / "home"
+            home.mkdir()
+            use_home(clone, home)
             git(clone, "switch", "-q", "-c", "claude/x")
             (clone / "a.txt").write_text("x")
             git(clone, "add", "-A")
             git(clone, "commit", "-q", "-m", "Add a")
-            home = Path(tmp) / "home"
-            home.mkdir()
             if passed:
                 record_pass(home, git(clone, "rev-parse", "HEAD"))
+            if hooks:
+                git(clone, "config", "core.hooksPath", ".githooks")
             git(clone, "remote", "set-url", "origin", url)
             done = subprocess.run(["bash", "tools/ship.sh", "Add a"], cwd=clone, env={**ENV, "HOME": str(home)}, capture_output=True, text=True)
             return done
@@ -321,6 +334,12 @@ class ShipReviewBeforePushTests(unittest.TestCase):
         done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=False)
         self.assertEqual(done.returncode, 1)
         self.assertIn("needs the reviewer's pass", done.stderr)
+        self.assertNotIn("pushed", done.stdout)
+
+    def test_native_home_without_the_git_hook_installed_is_refused(self):
+        done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=True, hooks=False)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("tools/setup.sh", done.stderr)
         self.assertNotIn("pushed", done.stdout)
 
     def test_an_unreadable_origin_fails_closed(self):
