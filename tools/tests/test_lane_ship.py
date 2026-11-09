@@ -274,6 +274,20 @@ class ShipArmTests(unittest.TestCase):
         self.assertNotIn("pr merge", log)
         self.assertLess(log.index("pr create"), log.index("repo view"))
 
+    def test_ship_prints_the_waiter_command_on_native_home_only(self):
+        """Fails if: ship.sh stops printing the ci_wait.py start line after the arm on native-home, or prints it for another repository."""
+        done, _, _ = self.run_ship()
+        self.assertIn("ship: start the waiter: tools/bg_run.py ci-7 --timeout 7200 -- python3 tools/ci_wait.py 7", done.stdout)
+        other, _, arm = self.run_ship(repo="someone/else")
+        self.assertEqual((other.returncode, arm), (0, ""))
+        self.assertNotIn("ci_wait", other.stdout + other.stderr)
+
+    def test_ship_runs_no_preflight_and_its_exit_is_unchanged(self):
+        """Fails if: ship.sh calls the retired preflight again or a refused arm changes its exit code."""
+        self.assertNotIn("land" + "_preflight", (TOOLS / "ship.sh").read_text())
+        done, _, _ = self.run_ship(arm_rc="1")
+        self.assertEqual(done.returncode, 0, done.stderr)
+
     def test_ship_sh_contains_no_gh_pr_merge_command(self):
         """Fails if: ship.sh arms or merges itself again, bypassing the app-UI gate, the owner-kept set and the denylist check."""
         text = (TOOLS / "ship.sh").read_text()
