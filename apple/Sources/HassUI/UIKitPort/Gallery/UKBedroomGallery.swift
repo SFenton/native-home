@@ -62,12 +62,19 @@ final class UKBedroomGalleryViewController: UKPageViewController {
         }
     }
 
+    /// Opens the launch sheet once the page is in a window and idle, and presents again when a reset dropped it
+    /// (``UKGalleryAutoOpener``).
+    private let opener = UKGalleryAutoOpener(label: "bedroom")
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if let initial, presentedViewController == nil {
-            self.initial = nil
-            open(initial)
-        }
+        guard let initial else { return }
+        opener.start(on: self) { [weak self] in self?.open(initial) }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if presentedViewController == nil { opener.cancel() }
     }
 
     private func open(_ sheet: OpenSheet) {
