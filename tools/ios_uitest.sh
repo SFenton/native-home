@@ -292,7 +292,13 @@ sim_healthy() {  # udid -> 0 when the simulator booted and can draw a frame
 }
 run_family() {
   local family="$1" udid="$2" status=0
-  "$ROOT/tools/sim_slim.sh" "$udid" || status=1  # inside the hold: boots the simulator and disables the daemons the journeys do not need
+  # Inside the hold: boots the simulator and disables the daemons the journeys do not need. Exit 3 is "left stock" (fine). Exit 1 means
+  # the simulator would not boot: that fails the run locally; on a hosted runner it only warns, because sim_healthy below decides
+  # (and fails closed with 126) while a family whose tests can pass should not be failed by the optional slim step.
+  slim_rc=0; "$ROOT/tools/sim_slim.sh" "$udid" || slim_rc=$?
+  if [[ $slim_rc != 0 && $slim_rc != 3 ]]; then
+    if [[ $CI_HOSTED == 1 ]]; then echo "== $family: sim_slim exit $slim_rc (hosted: continuing; the health check decides)"; else status=1; fi
+  fi
   if ! sim_healthy "$udid"; then
     echo "== $family: simulator $udid unhealthy; rebooting once"
     xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true

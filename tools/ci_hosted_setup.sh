@@ -23,7 +23,7 @@ if [[ "${FENTON_INSTALL_SIMSLIM:-}" == 1 ]]; then
   SIMSLIM_SHA256="a3db0de6f428f9f8fd5dff256b122f98791c138521dc1330d99643719d8fe9ff"
   bin="${RUNNER_TEMP:-/tmp}/simslim-bin"
   mkdir -p "$bin"
-  curl -fsSL -o "$bin/simslim.tar.gz" "$SIMSLIM_URL"
+  curl -fsSL --max-time 120 --retry 3 --retry-delay 5 --retry-all-errors -o "$bin/simslim.tar.gz" "$SIMSLIM_URL"
   echo "$SIMSLIM_SHA256  $bin/simslim.tar.gz" | shasum -a 256 -c -
   tar -xzf "$bin/simslim.tar.gz" -C "$bin" simslim
   chmod +x "$bin/simslim"
