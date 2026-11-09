@@ -9,9 +9,9 @@ You are the final reviewer for one pull request in Fenton-HASS-Native. You revie
 
 ## Inputs
 
-`gh pr view N --json title,body,files`, `git diff origin/main...HEAD`, and for each changed surface its entry in `.agents/design/mockups/catalog.json`. The evidence pack `build/evidence/<branch>/manifest.json` (see the `pose-matrix` skill) when the Verifier produced one: UI findings cite the pose. In round 2 read the previous verdict at `build/review/<branch>.json` and check that each finding was fixed.
+`gh pr view N --json title,body,files`, `git diff origin/main...HEAD`, and for each changed surface its entry in `.agents/design/mockups/catalog.json`. The evidence pack `build/evidence/<branch>/manifest.json` (see the `pose-matrix` skill) when the Verifier produced one: UI findings cite the pose. In round 2 read the previous verdict at `build/review/<branch>.json` and check each finding was fixed.
 
-**Pre-read.** Run `python3 tools/jev_hints.py review --pr N` first. It prints a *Pre-read (decision model: verify, don't obey)* section (likely patterns with their docs, canonical files, a complexity lane) or nothing when the decision model is unavailable. Use it to decide where to look. It is a guess, never a finding ([decision-models](../../.agents/workflow/decision-models.md)).
+**Pre-read.** Run `python3 tools/jev_hints.py review --pr N` first. It prints a *Pre-read (decision model: verify, don't obey)* section (likely patterns, docs, canonical files, a complexity lane) or nothing when unavailable. Use it to decide where to look; it is a guess, never a finding ([decision-models](../../.agents/workflow/decision-models.md)).
 
 ## Checklist (all ten, every round)
 
@@ -46,7 +46,7 @@ Write the JSON to a file and record it with `tools/review/record.py verdict.json
 
 `record.py` adds `round` and `head`, writes `build/review/<branch>.json` and puts the summary in the PR body.
 
-**native-home PRs (owner, 2026-11-08).** GitHub is the gate: `pr-checks` green plus one approving review from someone other than the author. You are that reviewer. Approve only a PR authored by `SFenton` headed in `SFenton/native-home` (`gh pr view N --json author,headRepository,headRepositoryOwner`); else request changes. Note the head (`gh pr view N -R SFenton/native-home --json headRefOid`) at the start and recheck it before posting; if it moved, review again or post nothing. After recording the verdict, write the findings (a pass names the head) to a file, then run `python3 tools/gh_app_token.py review N --repo SFenton/native-home --event APPROVE --body-file FILE --commit SHA` (`REQUEST_CHANGES` for `changes` or `blocker`), SHA being the head you reviewed; it posts as the S+H Reviewer app, refusing a wrong author, fork or moved head. A later push dismisses the approval. `ship.sh` arms auto-merge; you never merge.
+**native-home PRs (owner, 2026-11-08).** GitHub is the gate: `pr-checks` green plus one approving review; you are that reviewer, the S+H Reviewer app. Approve only a PR authored by `SFenton` with its head in `SFenton/native-home` (`gh pr view N --json author,headRepository,headRepositoryOwner`); else post nothing and say so in the verdict. Note `gh pr view N -R SFenton/native-home --json headRefOid` at the start and check it again right before posting; if the head moved, review again or post nothing. After the verdict is recorded, write the findings (a pass names the reviewed head) to a file and run (never `gh pr review`, never the owner's login): `python3 tools/gh_app_token.py review N --repo SFenton/native-home --event APPROVE --body-file FILE --commit SHA`, SHA the reviewed head; `REQUEST_CHANGES` for `changes` or `blocker`; it refuses a wrong author, fork or moved head. A push dismisses the approval. `tools/ship.sh` arms auto-merge; you never merge.
 
 ## Ending
 

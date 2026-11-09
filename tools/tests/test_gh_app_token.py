@@ -155,6 +155,8 @@ class ReviewTests(AppsDirCase):
         self.calls = []
         self.pull = {"user": {"login": "SFenton"}, "head": {"sha": self.HEAD, "repo": {"full_name": "SFenton/native-home"}}}
         self.post_error = None
+        self.move_after_post = False
+        self.dismiss_error = None
         self.body = Path(self.tmp.name) / "body.md"
         self.body.write_text("Pass. Reviewed head " + self.HEAD)
 
@@ -167,7 +169,13 @@ class ReviewTests(AppsDirCase):
         if path.endswith("/reviews"):
             if self.post_error:
                 raise self.post_error
+            if self.move_after_post:
+                self.pull = dict(self.pull, head=dict(self.pull["head"], sha="c" * 40))
             return {"id": 77, "state": "APPROVED"}
+        if path.endswith("/dismissals"):
+            if self.dismiss_error:
+                raise self.dismiss_error
+            return {}
         return self.pull
 
     def run_cli(self, *extra, commit=None):
@@ -193,8 +201,36 @@ class ReviewTests(AppsDirCase):
     def test_only_the_reviewer_token_asks_for_pull_requests_write(self):
         self.run_cli()
         asked = [c[2] for c in self.calls if c[1].endswith("/access_tokens")]
-        self.assertEqual(asked, [{"permissions": {"pull_requests": "write", "contents": "read"}}])
+        self.assertEqual(asked, [{"permissions": {"pull_requests": "write", "contents": "read"},
+                                  "repositories": ["native-home"]}])
         self.assertEqual(gh_app_token.permissions("coder"), {"issues": "write", "pull_requests": "read"})
+
+    def test_comment_token_keeps_its_narrowing_and_is_separate_from_the_review_token(self):
+        with mock.patch.object(gh_app_token, "api_request", self.api):
+            gh_app_token.token("reviewer")
+            gh_app_token.token("reviewer", scope="review")
+            with self.assertRaises(gh_app_token.AppError):
+                gh_app_token.token("coder", scope="review")
+        asked = [c[2] for c in self.calls if c[1].endswith("/access_tokens")]
+        self.assertEqual(asked[0], {"permissions": {"issues": "write", "pull_requests": "read"}})
+        self.assertEqual(len(asked), 2)
+
+    def test_head_moving_after_post_dismisses_the_review_and_fails(self):
+        self.move_after_post = True
+        code, out, err = self.run_cli()
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("review 77", err)
+        self.assertIn("dismissed", err)
+        method, path, _ = self.calls[-1]
+        self.assertEqual((method, path), ("PUT", "repos/SFenton/native-home/pulls/5/reviews/77/dismissals"))
+
+    def test_failed_dismissal_reports_the_review_id(self):
+        self.move_after_post = True
+        self.dismiss_error = gh_app_token.AppError("GitHub answered 403 for PUT x")
+        code, out, err = self.run_cli()
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("review 77", err)
+        self.assertIn("dismiss it", err)
 
     def test_head_mismatch_refuses_without_posting(self):
         code, out, err = self.run_cli(commit="b" * 40)

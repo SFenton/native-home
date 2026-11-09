@@ -13,8 +13,8 @@ Each role (see ``ROLES``) can post PR comments as its own GitHub App. Setup live
 
 Flow: RS256 JWT (``iat`` 60 s back, ``exp`` 9 minutes ahead, ``iss`` the app id) signed by ``openssl dgst -sha256
 -sign`` (no key bytes in argv, env or logs), exchanged at ``POST /app/installations/{id}/access_tokens`` for a token
-narrowed to ``issues: write`` and ``pull_requests: read`` (the ``reviewer`` role: ``pull_requests: write`` and
-``contents: read``, see ``REVIEWER_PERMISSIONS``). The token is cached in this process until a minute before
+narrowed to ``issues: write`` and ``pull_requests: read`` (``review`` mints its own token for
+``native-home`` only: ``pull_requests: write`` and ``contents: read``, see ``REVIEWER_PERMISSIONS``). The token is cached in this process until a minute before
 it expires and is never written to disk. Research: ``build/research/github-app-identities.md``.
 
 CLI::
@@ -44,7 +44,8 @@ ROLES = ("orchestrator", "researcher", "designer", "coder", "verifier", "reviewe
 API = "https://api.github.com"
 DEFAULT_REPO = "SFenton/Fenton-HASS-Native"
 PERMISSIONS = {"issues": "write", "pull_requests": "read"}
-#: The ``reviewer`` role alone may post reviews, so its token is narrowed to ``pull_requests: write`` (and reads contents).
+#: The token ``review`` mints (its own cache key, never used for comments): ``pull_requests: write`` and
+#: ``contents: read`` on the one repository ``native-home``.
 REVIEWER_PERMISSIONS = {"pull_requests": "write", "contents": "read"}
 #: The one repository ``review`` posts to, and the only PR author and head repository it approves.
 REVIEW_REPO = "SFenton/native-home"
@@ -251,22 +252,32 @@ def installation_id(role: str, timeout: float = TIMEOUT) -> int:
 
 
 def permissions(role: str) -> Dict[str, str]:
-    """The permissions an installation token for the role is narrowed to."""
-    return dict(REVIEWER_PERMISSIONS if check_role(role) == "reviewer" else PERMISSIONS)
+    """The permissions a comment token for the role is narrowed to (the same for every role)."""
+    check_role(role)
+    return dict(PERMISSIONS)
 
 
-def token(role: str, timeout: float = TIMEOUT) -> str:
-    """An installation token for the role, minted at most once per process until it nears expiry."""
-    cached = _CACHE.get(role)
+def token(role: str, timeout: float = TIMEOUT, scope: str = "") -> str:
+    """An installation token for the role, minted at most once per process until it nears expiry.
+
+    ``scope="review"`` (reviewer role only) mints the separate ``REVIEWER_PERMISSIONS`` token limited to
+    ``native-home``; the plain token keeps today's narrowing."""
+    if scope == "review" and role != "reviewer":
+        raise AppError("only the reviewer role can review")
+    key = f"{role}:{scope}" if scope else role
+    cached = _CACHE.get(key)
     if cached and cached[1] - 60 > time.time():
         return cached[0]
     installation = installation_id(role, timeout=timeout)
+    body: Dict[str, Any] = {"permissions": permissions(role)}
+    if scope == "review":
+        body = {"permissions": dict(REVIEWER_PERMISSIONS), "repositories": [REVIEW_REPO.split("/")[1]]}
     reply = api_request("POST", f"app/installations/{installation}/access_tokens", jwt(role, timeout=timeout),
-                        {"permissions": permissions(role)}, timeout=timeout)
+                        body, timeout=timeout)
     value = reply.get("token") if isinstance(reply, dict) else None
     if not value or not isinstance(value, str):
         raise AppError("GitHub returned no installation token")
-    _CACHE[role] = (value, _expiry(reply.get("expires_at")))
+    _CACHE[key] = (value, _expiry(reply.get("expires_at")))
     return value
 
 
@@ -294,14 +305,16 @@ def review(number: int, event: str, body: str, commit: str, repo_name: str = REV
 
     Refuses (``AppError``) any repo but ``REVIEW_REPO``, an event other than APPROVE or REQUEST_CHANGES, a PR not
     authored by ``REVIEW_AUTHOR``, a head repository other than ``REVIEW_REPO``, and a head that is not ``commit``.
-    The review is posted with ``commit_id=commit``, so GitHub also rejects it if the head moves in between."""
+    GitHub accepts a review on an older ``commit_id`` (it only marks it outdated), so the head is read again after
+    posting; if it moved, the review is dismissed (``AppError`` naming the review id if that fails) and ``AppError``
+    is raised. The ruleset's ``require_last_push_approval`` is the backstop."""
     if repo_name != REVIEW_REPO:
         raise AppError(f"review is only for {REVIEW_REPO}")
     if event not in ("APPROVE", "REQUEST_CHANGES"):
         raise AppError("event must be APPROVE or REQUEST_CHANGES")
     if not commit or not body.strip():
         raise AppError("a commit and a non-empty body are required")
-    bearer = token("reviewer", timeout=timeout)
+    bearer = token("reviewer", timeout=timeout, scope="review")
     pull = api_request("GET", f"repos/{repo_name}/pulls/{int(number)}", bearer, timeout=timeout)
     pull = pull if isinstance(pull, dict) else {}
     author = str((pull.get("user") or {}).get("login") or "")
@@ -316,7 +329,17 @@ def review(number: int, event: str, body: str, commit: str, repo_name: str = REV
     reply = api_request("POST", f"repos/{repo_name}/pulls/{int(number)}/reviews", bearer,
                         {"commit_id": commit, "event": event, "body": body}, timeout=timeout)
     reply = reply if isinstance(reply, dict) else {}
-    return reply.get("id"), str(reply.get("state") or "")
+    rid = reply.get("id")
+    again = api_request("GET", f"repos/{repo_name}/pulls/{int(number)}", bearer, timeout=timeout)
+    now = str(((again or {}).get("head") or {}).get("sha") or "") if isinstance(again, dict) else ""
+    if now != commit:
+        try:
+            api_request("PUT", f"repos/{repo_name}/pulls/{int(number)}/reviews/{int(rid)}/dismissals", bearer,
+                        {"message": "Head moved after review; dismissed."}, timeout=timeout)
+        except (AppError, TypeError, ValueError):
+            raise AppError(f"PR head moved after review {rid} and dismissing it failed; dismiss it") from None
+        raise AppError(f"PR head moved after review {rid}; the review was dismissed")
+    return rid, str(reply.get("state") or "")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
