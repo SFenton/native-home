@@ -98,14 +98,16 @@ Two more environment-dependent UI tests, both in `GalleryLaunchTests` (diagnosed
 
 ## The merge gate
 
-GitHub is the gate for native-home (owner, 2026-11-08, proposal A). Four parts, no local merge code:
+Review before push (owner, 2026-11-09: "only submit code once the reviewer has passed it", and "shouldn't any code that gets pushed be reviewed anyways, so GitHub doesn't need to keep track of things?"). Supersedes the 2026-11-08 design (an approving review from the reviewer app on GitHub). The rule: **nothing an agent pushes to SFenton/native-home reaches it without an independent `pass` verdict for that exact commit.** GitHub keeps only a pull request and a green `pr-checks`, with an approval count of 0. The loop is: the Coder commits, the Reviewer passes the exact head, the push, the PR, arm, CI. A CI failure means fix, re-review, push; any new commit needs a new review.
 
-1. **Ruleset `main-checks`** (id 26774461; this is the **target**, see below: it is not applied yet): a pull request is required; one approving review; stale approvals dismissed on push; squash only; the status check `pr-checks` pinned to GitHub Actions (`integration_id` 15368). Rulesets cannot filter on a PR's author, so parts 2 and 4 do.
-2. **`pr-checks` author check.** The aggregate fails unless the PR is authored by `SFenton` and comes from this repository (pull_request events only). This step is advisory, not the gate: on `pull_request` the workflow file comes from the PR, so a fork PR can delete the step, and `workflow_dispatch` skips it. The gate is the approval (the reviewer refuses to approve a PR not authored by `SFenton` from this repository) plus `merge_guard`, which refuses to arm auto-merge unless `gh pr view` shows that author and head.
-3. **The reviewer app.** `.claude/agents/reviewer.md` ends with `python3 tools/gh_app_token.py review N --repo SFenton/native-home --event APPROVE --body-file FILE --commit SHA` (or `REQUEST_CHANGES`), which posts the review as the **S+H Reviewer** GitHub App (installed on native-home with Pull requests: read and write, Contents: read-only; the key and ids are the owner's, outside the repo). The command mints a separate review-only token (`pull_requests: write`, `contents: read`, `native-home` only) in-process, never prints it, and refuses a wrong author, a fork head, another repository or a head that is not `--commit`, and re-reads the head after posting, dismissing the review if it moved (GitHub accepts a review on an older commit and only marks it outdated; `require_last_push_approval` is the backstop); GitHub refuses an author's approval of their own PR, so the approver is always someone else. **Unverified:** whether GitHub counts an App's approval toward `required_approving_review_count`; the owner checks it before applying the ruleset (open the next PR, have the reviewer approve it, confirm `s-h-reviewer[bot]` APPROVED on the head in `gh api repos/SFenton/native-home/pulls/N/reviews`, apply the ruleset, then `gh pr view N --json reviewDecision,mergeStateStatus` should show APPROVED and not BLOCKED; if it stays BLOCKED for want of review, set the review count back to 0 and fall back to a machine account).
-4. **Arming.** `tools/ship.sh` marks the PR ready and runs `gh pr merge N -R SFenton/native-home --auto --squash` as `SFenton` after the PR opens, only while `tools/ruleset_gate.py` finds, on `main` (`gh api repos/SFenton/native-home/rules/branches/main`, then `rulesets/ID`), at least one required approval, `dismiss_stale_reviews_on_push`, `pr-checks` with `integration_id` 15368 and `current_user_can_bypass` `never`; on any error, malformed answer or missing property it prints a notice and arms nothing. `merge_guard` allows the same form under the same check ([pr-lifecycle](pr-lifecycle.md)). The merge is made by `SFenton`, not `GITHUB_TOKEN`, so the `push` run on `main` and `version-bump` still fire.
+1. **The verdict record.** The Reviewer records with `tools/review/record.py verdict.json --lane BRANCH` from the branch's worktree. Besides `build/review/<branch>.json` it writes the trusted lane store `<branch>-<sha12>.json` under the agent root's `reviews` folder, the file `tools/lane_land.py` already trusts and only the reviewer's identity can write. `tools/review_verdict.py` is the one reader: a record counts only when it carries the reviewer identity, says `pass`, names the full sha as `head` and has no major or blocker finding. A worktree file is never read.
+2. **The push guard** (`tools/hooks/push_guard.py`, a PreToolUse hook in `.claude/settings.json`). It refuses an agent's `git push` whose remote is SFenton/native-home unless a pass exists for the sha being pushed: each refspec's source resolved to a commit, `HEAD` for a bare push. Pushes to other repositories are untouched, deleting a remote branch is allowed, and `main` stays blocked. It fails closed: an unreadable payload, a remote URL form it cannot read, a missing record, `--all`/`--mirror`/`--tags`, a shell substitution or nesting more than three shells deep is a refusal (exit 2, never 1). `tools/ship.sh` makes the same check before its own push (the hook cannot see inside a script), through the same helper.
+3. **GitHub: a PR and `pr-checks`.** Ruleset `main-checks` (id 26774461) requires a pull request, squash only, and the status check `pr-checks` pinned to GitHub Actions (`integration_id` 15368), with no bypass. No approvals, so the S+H Reviewer app no longer posts reviews; it stays for comments only (`issues: write`, `pull_requests: read`). **Who can merge:** SFenton is the only collaborator, so an outsider cannot merge or approve anything; fork workflows need approval before they run (repository Actions setting), and the `pr-checks` author step (the PR must be by `SFenton` from this repository) is advisory because a PR can edit its own workflow.
+4. **Arming.** After the PR opens, `tools/ship.sh` marks it ready and runs `gh pr merge N -R SFenton/native-home --auto --squash --match-head-commit HEAD`, pinned to the reviewed head, only when HEAD still has its pass and `tools/ruleset_gate.py` finds on `main` (`gh api repos/SFenton/native-home/rules/branches/main`, then `rulesets/ID`) a `pull_request` rule (squash allowed), `pr-checks` with `integration_id` 15368 and `current_user_can_bypass` `never`. On any error, malformed answer or missing property it prints a notice and arms nothing. `merge_guard` follows the push guard: it allows exactly that form (full 40-character pin, a pass for that sha, the pin equal to the PR's head, the same ruleset check, the PR by `SFenton` from `SFenton/native-home` and based on `main`) and `--disable-auto`; every other form and repo stays blocked ([pr-lifecycle](pr-lifecycle.md)). The merge is made by `SFenton`, not `GITHUB_TOKEN`, so the `push` run on `main` and `version-bump` still fire.
 
-**The target ruleset (the target, NOT applied yet; the live one differs).** The owner verifies that the S+H Reviewer app's approval counts first; applying this earlier would block every merge, because nothing could approve. Until it is applied the live ruleset requires no approval, `ruleset_gate.py` reports it, and `ship.sh` arms nothing. Then apply it:
+**Which guard covers which step.** Push: `push_guard.py` (raw `git push`) and `ship.sh` (its own push). Open and arm: `ship.sh` (verdict and `ruleset_gate.py`). A raw auto-merge by an agent: `merge_guard.py`. The merge itself: GitHub, on `pr-checks`.
+
+**The target ruleset (the target; marked live once the owner applies it).** Until then the live ruleset still requires one approval, `ruleset_gate.py` accepts it (it no longer asks for approvals), but nothing can approve, so the owner merges by hand. Then apply it:
 
 ```json
 {
@@ -118,10 +120,10 @@ GitHub is the gate for native-home (owner, 2026-11-08, proposal A). Four parts, 
     {"type": "deletion"},
     {"type": "non_fast_forward"},
     {"type": "pull_request", "parameters": {
-      "required_approving_review_count": 1,
-      "dismiss_stale_reviews_on_push": true,
+      "required_approving_review_count": 0,
+      "dismiss_stale_reviews_on_push": false,
       "require_code_owner_review": false,
-      "require_last_push_approval": true,
+      "require_last_push_approval": false,
       "required_review_thread_resolution": false,
       "allowed_merge_methods": ["squash"]
     }},
@@ -138,7 +140,7 @@ GitHub is the gate for native-home (owner, 2026-11-08, proposal A). Four parts, 
 gh api -X PUT repos/SFenton/native-home/rulesets/26774461 --input main-checks.json
 ```
 
-After applying, check the gate: a PR armed at open stays open while `pr-checks` is green and has no approval; it merges after the reviewer app approves; a push after the approval dismisses it and the PR waits again; a fork PR fails the aggregate.
+After applying, check the gate: a PR armed at open with a pinned head merges when `pr-checks` is green; a push of a new commit is refused by the push guard until the reviewer passes it; a fork PR fails the aggregate.
 
 ## House-data lint and the history secret scan
 

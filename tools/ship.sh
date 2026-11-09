@@ -14,11 +14,13 @@
 #   --pr always opens a draft (--draft is accepted and implied): review and landing come afterwards, and
 #   tools/pr_land.sh marks it ready once checks and the review pass. ship.sh never merges (pr-lifecycle.md).
 #   Without --pr only the branch is pushed.
-#   On SFenton/native-home, after the PR opens, ship.sh arms auto-merge (`gh pr merge N --auto --squash`, after marking the PR ready, which
-#   auto-merge needs) only while the live ruleset on main requires an approving review, dismisses stale ones on push, requires pr-checks from
-#   GitHub Actions (integration 15368) and allows no bypass (tools/ruleset_gate.py, fail closed); merge_guard also refuses unless the
-#   PR is by SFenton from SFenton/native-home.
-#   GitHub then merges when pr-checks is green and the reviewer account has approved; a push dismisses the approval. Otherwise it prints a notice.
+#   Review before push (owner, 2026-11-09; ci.md#merge-gate): on SFenton/native-home nothing is pushed, opened or armed without an independent
+#   `pass` for the exact HEAD in the trusted store (tools/review_verdict.py, the reviewer's `record.py --lane`). Commit, get the pass, then ship;
+#   a ship that has to commit new changes stops at the push, because the new HEAD has no pass yet. Which guard covers which step: this check and
+#   tools/hooks/push_guard.py (a raw `git push`) cover the push; tools/ruleset_gate.py (live ruleset: PR required, `pr-checks` from Actions
+#   integration 15368, no bypass) covers the arm; tools/hooks/merge_guard.py covers a raw auto-merge (same verdict, same ruleset, author and fork check).
+#   After the PR opens ship.sh marks it ready (auto-merge needs that) and arms the squash auto-merge pinned to HEAD (--match-head-commit), only when the
+#   verdict and the ruleset both hold. GitHub then merges when pr-checks is green; a CI failure means fix, re-review, push. Otherwise it prints a notice.
 set -euo pipefail
 
 SUBJECT="${1:-}"
@@ -90,6 +92,19 @@ if [[ -f "$HS" ]]; then
   esac
 fi
 
+# Review before push: the exact commit being pushed needs an independent pass. `remote` classifies the origin URL: native-home is gated,
+# an unreadable one (or a missing helper) fails closed, another GitHub repository or a local path is not gated.
+HEAD_SHA="$(git rev-parse HEAD)"
+RV="$(dirname "$0")/review_verdict.py"
+ORIGIN_KIND="unknown"
+if [[ -f "$RV" ]]; then ORIGIN_KIND="$(python3 "$RV" remote "$(git remote get-url --push origin 2>/dev/null || true)" 2>/dev/null || echo unknown)"; fi
+case "$ORIGIN_KIND" in
+  other|local) ;;
+  native-home)
+    python3 "$RV" pass "$HEAD_SHA" || { echo "ship: nothing was pushed; ${HEAD_SHA:0:12} needs the reviewer's pass first (review before push)." >&2; exit 1; } ;;
+  *) echo "ship: origin is not a readable GitHub URL (or review_verdict.py is missing); nothing was pushed." >&2; exit 1 ;;
+esac
+
 "$GUARD" branch
 git push -q -u origin "$BRANCH"
 echo "pushed $BRANCH"
@@ -106,14 +121,15 @@ if [[ $PR == 1 ]]; then
   if [[ -n "$PR_NUM" && -f "$(dirname "$0")/land_preflight.py" ]]; then
     python3 "$(dirname "$0")/land_preflight.py" --pr "$PR_NUM" || echo "ship: preflight exit $? (pr-lifecycle.md step 1b)" >&2
   fi
-  # native-home: GitHub is the merge gate (pr-lifecycle.md). Arm auto-merge only while the ruleset on main really requires an approval
-  # and pr-checks; if the check fails or cannot run, say so and leave the PR for the gated path. Never changes ship's exit code.
+  # native-home: review before push (above) already holds for HEAD. Arm auto-merge pinned to that head only while HEAD still has its pass and the
+  # ruleset on main is the gate (a PR and pr-checks, no bypass: ruleset_gate.py); if either fails or cannot run, say so and leave the PR.
+  # Never changes ship's exit code.
   if [[ -n "$PR_NUM" && -f "$(dirname "$0")/ruleset_gate.py" ]]; then
     REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
     if [[ "$REPO" == "SFenton/native-home" ]]; then
-      if python3 "$(dirname "$0")/ruleset_gate.py" --repo "$REPO"; then
-        gh pr ready "$PR_NUM" -R "$REPO" && gh pr merge "$PR_NUM" -R "$REPO" --auto --squash \
-          && echo "ship: auto-merge armed on #$PR_NUM; it merges after pr-checks is green and the reviewer account approves" \
+      if python3 "$RV" pass "$HEAD_SHA" && python3 "$(dirname "$0")/ruleset_gate.py" --repo "$REPO"; then
+        gh pr ready "$PR_NUM" -R "$REPO" && gh pr merge "$PR_NUM" -R "$REPO" --auto --squash --match-head-commit "$HEAD_SHA" \
+          && echo "ship: auto-merge armed on #$PR_NUM, pinned to ${HEAD_SHA:0:12}; it merges when pr-checks is green" \
           || echo "ship: could not arm auto-merge on #$PR_NUM; land it through the gated path" >&2
       else
         echo "ship: auto-merge not armed on #$PR_NUM (see above)" >&2

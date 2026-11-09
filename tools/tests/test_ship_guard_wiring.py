@@ -150,6 +150,7 @@ def ship_clone(tmp, ship_text=None):
     (clone / "tools" / "ship.sh").write_text(ship_text if ship_text is not None else (ROOT / "tools" / "ship.sh").read_text())
     (clone / "tools" / "ship_guard.sh").write_text(GUARD.read_text())
     (clone / "tools" / "ship_guard.sh").chmod(0o755)
+    (clone / "tools" / "review_verdict.py").write_text((ROOT / "tools" / "review_verdict.py").read_text())
     (clone / "README.md").write_text("hi\n")
     git_env(clone, "add", "-A")
     git_env(clone, "commit", "-q", "-m", "init")
