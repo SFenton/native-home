@@ -116,11 +116,7 @@ pinned_name() {
 }
 device_name() {
   if [[ $CI_HOSTED == 1 ]]; then  # the xcode-27 image's devices (ci_hosted.py DEFAULT_SIMS)
-    case "$1" in
-      iphone) echo "${FENTON_SIM_IPHONE:-iPhone 17}" ;;
-      duo) echo "${FENTON_SIM_DUO:-iPhone Duo}" ;;
-      ipad) echo "${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
-    esac
+    sim_pool_hosted_name "$1"
     return
   fi
   case "$1" in
@@ -128,6 +124,23 @@ device_name() {
     duo) echo "${FENTON_SIM_DUO:-iPhone Duo (HASS)}" ;;
     ipad) echo "${FENTON_SIM_IPAD:-iPad Pro 11-inch (M5)}" ;;
   esac
+}
+
+# The simulator a family is tested on. Hosted: the shared resolver (tools/sim_pool.sh), the lookup sim_settle.sh warms, so the settled
+# simulator is the tested one. Local: a pinned name's UDID, or a devcap pool pick preferring the lane's last (warm) member.
+pick_udid() {
+  local family="$1" name="$2" last_file="$3" udid
+  if [[ $CI_HOSTED == 1 ]]; then
+    udid="$(sim_pool_family_udid "$family")"  # the lookup sim_settle.sh warms: the settled simulator is the tested one
+  elif [[ -n "$(pinned_name "$family")" ]]; then
+    # Resolve the UDID: xcodebuild's name= matcher misses names with parentheses ("iPhone 17 Pro (Rooms)").
+    udid="$(sim_pool_list | sim_pool_udid "$name")"
+  else
+    local prefer=()
+    [[ -s "$last_file" ]] && prefer=(--prefer "$(cat "$last_file")")
+    udid="$(python3 "$ROOT/tools/devcap.py" pick-sim --name "$name" --pool "${FENTON_SIM_POOL:-0}" ${prefer[@]+"${prefer[@]}"})"
+  fi
+  echo "$udid"
 }
 
 if [[ -n "$ENV_FILE" ]]; then
@@ -414,6 +427,10 @@ for family in iphone duo ipad; do
   fi
 done
 if (( GAPS > 0 )); then echo "ios_uitest: $GAPS selected family simulator(s) missing from the pool; exit 78 (override the name with FENTON_SIM_IPHONE / FENTON_SIM_DUO / FENTON_SIM_IPAD)" >&2; exit 78; fi
+if [[ "${FENTON_UITEST_PRINT_UDIDS:-}" == 1 ]]; then  # dry run for the tool tests: the simulator each selected family would be tested on
+  for family in iphone duo ipad; do wanted "$family" && echo "$family: $(pick_udid "$family" "$(device_name "$family")" "$ROOT/apple/.build/uitest-$family.udid")"; done
+  exit 0
+fi
 PENDING=0
 for family in iphone duo ipad; do
   wanted "$family" || continue
@@ -475,14 +492,7 @@ process_family() {
     echo "GAP: no available simulator named '$name' for $family (a gap, not a pass)"; return 1
   fi
   last_file="$ROOT/apple/.build/uitest-$family.udid"
-  if [[ -n "$(pinned_name "$family")" ]]; then
-    # Resolve the UDID: xcodebuild's name= matcher misses names with parentheses ("iPhone 17 Pro (Rooms)").
-    udid="$(sim_pool_list | sim_pool_udid "$name")"
-  else
-    local prefer=()
-    [[ -s "$last_file" ]] && prefer=(--prefer "$(cat "$last_file")")
-    udid="$(python3 "$ROOT/tools/devcap.py" pick-sim --name "$name" --pool "${FENTON_SIM_POOL:-0}" ${prefer[@]+"${prefer[@]}"})"
-  fi
+  udid="$(pick_udid "$family" "$name" "$last_file")"
   mkdir -p "$(dirname "$last_file")"; echo "$udid" > "$last_file"
   echo "== $family: $name pool ($udid)"
   rm -rf "$ROOT/apple/.build/uitest-$family.xcresult"

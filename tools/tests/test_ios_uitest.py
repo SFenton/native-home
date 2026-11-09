@@ -440,6 +440,29 @@ class HostedModeSimulatorTests(unittest.TestCase):
         out = self.gaps("iphone", FENTON_CI_HOSTED="1", RUNNER_ENVIRONMENT="github-hosted", FENTON_SIM_IPHONE="iPhone 18 Pro")
         self.assertIn("GAP: iphone simulator not in pool (iPhone 18 Pro)", out.stdout)
 
+    def test_the_destination_is_the_shared_resolvers_udid_and_the_one_settle_boots(self):
+        """With one "iPhone Duo" per runtime the runner tests, and sim_settle.sh boots, the device sim_pool_family_udid names."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            pool = Path(tmp) / "pool.txt"
+            pool.write_text("-- iOS 26.0 --\n    iPhone Duo (AAAAAAAA-0000-0000-0000-00000000000A) (Shutdown)\n"
+                            "-- iOS 27.0 --\n    iPhone Duo (BBBBBBBB-0000-0000-0000-00000000000B) (Shutdown)\n")
+            bindir = Path(tmp) / "bin"
+            bindir.mkdir()
+            (bindir / "xcrun").write_text("#!/bin/bash\nexit 0\n")  # settle's boot and bootstatus
+            (bindir / "xcrun").chmod(0o755)
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("FENTON_SIM_", "FENTON_CI_", "FENTON_SETTLE_", "RUNNER_ENV"))}
+            env.update({"PATH": f"{bindir}:{env['PATH']}", "FENTON_SIM_LIST_FILE": str(pool), "FENTON_CI_HOSTED": "1",
+                        "RUNNER_ENVIRONMENT": "github-hosted", "FENTON_SETTLE_CAP": "0", "FENTON_SETTLE_DWELL": "0"})
+            helper = subprocess.run(["bash", "-c", f'source "{SCRIPT.parent}/sim_pool.sh"; sim_pool_family_udid duo'],
+                                    env=env, capture_output=True, text=True).stdout.strip()
+            runner = subprocess.run(["bash", str(SCRIPT), "--force", "-only-testing:FentonHomeUITests/NoSuchClass", "--only", "duo"],
+                                    env=dict(env, FENTON_UITEST_PRINT_UDIDS="1"), capture_output=True, text=True, timeout=60).stdout
+            settle = subprocess.run(["bash", str(SCRIPT.parent / "sim_settle.sh"), "duo"], env=env, capture_output=True, text=True).stdout
+        self.assertEqual(helper, "AAAAAAAA-0000-0000-0000-00000000000A")
+        self.assertEqual(runner.strip(), f"duo: {helper}")
+        self.assertIn(f"settle: booting the duo simulator {helper} (wall", settle)
+
     def test_unset_keeps_the_local_names(self):
         self.assertIn("(iPhone 17 Pro)", self.gaps("iphone").stdout)
         self.assertIn("(iPhone Duo (HASS))", self.gaps("duo").stdout)
