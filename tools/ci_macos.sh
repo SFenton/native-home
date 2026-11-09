@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The steps of the one hosted macOS job in pr-checks (build once, Smoke on three devices, full swift test), each timed.
+# The steps of the one hosted macOS job in pr-checks (build once, Smoke on three devices, swift test: the affected suites on a PR, the full suite on main), each timed.
 # Hosted mode only (FENTON_CI_HOSTED=1 on a GitHub-hosted runner); the journey runner refuses anywhere else.
 #
 #   tools/ci_macos.sh build                  build the test products once (no simulator booted: a first Duo boot beside a compile killed runners)

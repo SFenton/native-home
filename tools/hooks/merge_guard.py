@@ -617,6 +617,23 @@ def gh_json(path: str) -> object:
     return data
 
 
+def pr_origin(number: str) -> object:
+    """``gh pr view N --json author,headRepository,headRepositoryOwner`` for the native-home PR, parsed; raises on any failure."""
+    out = subprocess.run(["gh", "pr", "view", number, "-R", "SFenton/native-home", "--json", "author,headRepository,headRepositoryOwner"],
+                         capture_output=True, text=True, timeout=GH_TIMEOUT, check=True).stdout
+    return json.loads(out)
+
+
+def own_pr(number: str) -> bool:
+    """True only when the PR is authored by ``SFenton`` and its head is in ``SFenton/native-home`` (not a fork); fails closed."""
+    try:
+        facts = pr_origin(number)
+        return (facts["author"]["login"] == "SFenton" and facts["headRepositoryOwner"]["login"] == "SFenton"
+                and facts["headRepository"]["name"] == "native-home")
+    except Exception:  # noqa: BLE001 - any failure refuses
+        return False
+
+
 def automerge_form(command: str) -> Optional[Dict[str, str]]:
     """Parse ``command`` when it is exactly the one allowed ``gh pr merge`` form (shape only), else ``None``.
 
@@ -677,7 +694,7 @@ def automerge_repo(value: str) -> str:
 def automerge_reason(command: str) -> Optional[str]:
     """``None`` when ``command`` is the allowed auto-merge and the facts hold at hook time, else why it is refused (fails closed).
 
-    GitHub is the gate: the live ruleset on main must require an approving review and the `pr-checks` check (tools/ruleset_gate.py),
+    GitHub is the gate: the live ruleset on main must pass tools/ruleset_gate.py (approval, stale reviews dismissed, `pr-checks` from Actions, no bypass), the PR must be authored by SFenton from this repository,
     and the PR must target main so that ruleset governs it. The approval itself comes from the reviewer account, on GitHub.
     """
     found = automerge_form(command)
@@ -685,8 +702,10 @@ def automerge_reason(command: str) -> Optional[str]:
         return "gh pr merge"
     if automerge_repo(found["-R"]) != AUTOMERGE_REPO:
         return "gh pr merge outside SFenton/native-home"
+    if not own_pr(found["pr"]):
+        return "gh pr merge of a PR not authored by SFenton from SFenton/native-home (or its author could not be read)"
     if "disable" in found:
-        return None  # disarming auto-merge is always safe
+        return None  # disarming needs no ruleset
     problems = ruleset_gate.check("SFenton/native-home", "main")
     if problems:
         return "gh pr merge while " + problems[0]

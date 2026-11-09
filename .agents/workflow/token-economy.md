@@ -31,7 +31,7 @@ Cost is turns × context, and a turn that only waits costs as much as one that w
 | `tools/pr_land.sh N` | The only merge route: checks green or none, review recorded; squash, delete branch and worktree, one result line ([pr-lifecycle](pr-lifecycle.md)) |
 | `tools/token_report.py [--since D]` | Tokens and relative cost by day and model, long sessions, poll turns, cache rewrites. Run it weekly; healthy is zero of each |
 
-Landing a lane runs a right-sized tool-test set, not the 38-minute full suite twice: the eval gate, a core set, and the tests the diff reaches by import; the full suite only for a shared module or a deleted test, and after every push to the workflow base (`tool-tests.yml`) ([agent-roster](agent-roster.md), "What code enforces today").
+Landing a lane runs a right-sized tool-test set, not the 38-minute full suite twice: the eval gate, a core set, and the tests the diff reaches by import; the full suite only for a shared module or a deleted test, and after every push to the workflow base (the `tool-tests-core` and `linux-checks` jobs of `pr-checks.yml`) ([agent-roster](agent-roster.md), "What code enforces today").
 
 Hooks (`no_poll.py`, `agent_model.py`, `merge_guard.py`, `tier_guard.py`, `mockup_hub_guard.py`) live in `tools/hooks/` and are wired in `.claude/settings.json`; each is a no-op when its script is missing, so older worktrees are not blocked. Tests: `python3 -m unittest tools.tests.test_digest tools.tests.test_affected_tests tools.tests.test_hooks tools.tests.test_tier_guard tools.tests.test_test_plans tools.tests.test_pr_land tools.tests.test_lane_ship tools.tests.test_token_report tools.tests.test_mockup_lifecycle tools.tests.test_agent_roster tools.tests.test_design_defects_run`.
 

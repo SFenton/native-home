@@ -55,7 +55,7 @@ The >=95% coverage bar is **certified by the nightly and release full run**; a P
 
 **Pick the instrument before the device round.** Timing, lifecycle and reconnection bugs are reproduced with signposts/`os_log`/trace timestamps ([performance](performance.md)), visual and layout bugs with a screenshot or recording, state bugs with logs or a unit repro, cheapest first ([agent-roster](../../workflow/agent-roster.md), "Record first").
 
-**Every PR** also runs `pr-checks`: a Release build on the MacBook runner and, on the Mac mini runner, the affected Swift suites (`tools/affected_tests.py`; the full `swift test` for a file it cannot place or a push to main), the mockup and motion checks and the Python tool tests (the scope and aggregate jobs run on either Mac) ([ci](../../workflow/ci.md)). The coverage gate is the nightly tier's: run `tools/apple_coverage.sh` yourself only when you changed the classification in `contracts/coverage-rules.json`.
+**Every PR** also runs `pr-checks`: a Release build on the MacBook runner and, on the Mac mini runner, the affected Swift suites (`tools/affected_tests.py`; the full suite for a file it cannot place; a push to main runs the full suite), the mockup and motion checks and the Python tool tests (the scope and aggregate jobs run on either Mac) ([ci](../../workflow/ci.md)). The coverage gate is the nightly tier's: run `tools/apple_coverage.sh` yourself only when you changed the classification in `contracts/coverage-rules.json`.
 
 ### How to pick
 
