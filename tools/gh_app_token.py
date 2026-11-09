@@ -277,19 +277,26 @@ def permissions(role: str) -> Dict[str, str]:
     return dict(PERMISSIONS)
 
 
-def token(role: str, timeout: float = TIMEOUT, scope: str = "") -> str:
+def token(role: str, timeout: float = TIMEOUT, scope: str = "", extra: Optional[Dict[str, str]] = None) -> str:
     """An installation token for the role, minted at most once per process until it nears expiry.
 
     ``scope="review"`` (reviewer role only) mints the separate ``REVIEWER_PERMISSIONS`` token limited to
-    ``native-home``; the plain token keeps today's narrowing."""
+    ``native-home``; the plain token keeps today's narrowing. ``extra`` (for example ``{"checks": "write"}``) is merged
+    into the default ``PERMISSIONS`` for this one request and gets its own cache entry; ``PERMISSIONS`` itself never
+    changes, because asking for a permission an App lacks is a 422 for the other roles. ``extra`` does not apply to
+    ``scope="review"``."""
     if scope == "review" and role != "reviewer":
         raise AppError("only the reviewer role can review")
+    if extra and scope:
+        raise AppError("extra permissions apply to the plain token, not to a scope")
     key = f"{role}:{scope}" if scope else role
+    if extra:
+        key += ":" + ",".join(f"{k}={v}" for k, v in sorted(extra.items()))
     cached = _CACHE.get(key)
     if cached and cached[1] - 60 > time.time():
         return cached[0]
     installation = installation_id(role, timeout=timeout)
-    body: Dict[str, Any] = {"permissions": permissions(role)}
+    body: Dict[str, Any] = {"permissions": {**permissions(role), **(extra or {})}}
     if scope == "review":
         body = {"permissions": dict(REVIEWER_PERMISSIONS), "repositories": [REVIEW_REPO.split("/")[1]]}
     reply = api_request("POST", f"app/installations/{installation}/access_tokens", jwt(role, timeout=timeout),

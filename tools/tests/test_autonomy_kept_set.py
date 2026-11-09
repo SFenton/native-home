@@ -152,6 +152,7 @@ class ImportClosureOfTheKeptSetTests(unittest.TestCase):
         for name in ("pr_land", "lane_land", "house_scan", "devcap"):
             self.assertNotIn(f"import {name}", text)
             self.assertNotIn(f"from {name} import", text)
+        self.assertIn("import gh_app_token", text)  # the one tool the recorder may load: it posts the ai-review check
         self.assertEqual(record.review_file_name("claude/pr-lifecycle"), pr_land.review_file_name("claude/pr-lifecycle"))
 
     def test_the_review_guard_is_self_contained(self):
