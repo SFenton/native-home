@@ -39,9 +39,15 @@ class FakeGh:
         return self.pop(self.views)
 
 
-def pr(state="OPEN", sha=SHA, armed=True, merge_state="BLOCKED"):
+def check(name, conclusion="SUCCESS", status="COMPLETED"):
+    return {"__typename": "CheckRun", "name": name, "status": status, "conclusion": conclusion}
+
+
+def pr(state="OPEN", sha=SHA, armed=True, merge_state="BLOCKED", rollup=None):
+    """A `gh pr view` answer; the rollup defaults to both required checks green."""
+    rollup = [check("pr-checks"), check("ai-review")] if rollup is None else rollup
     return {"state": state, "headRefOid": sha, "headRefName": "agents/x", "autoMergeRequest": {"enabled": True} if armed else None,
-            "mergeStateStatus": merge_state}
+            "mergeStateStatus": merge_state, "statusCheckRollup": rollup}
 
 
 def run(status="completed", conclusion="success", attempt=1, updated="t1", jobs=None):
@@ -58,23 +64,77 @@ class WaitTests(unittest.TestCase):
     def test_green_run_of_an_armed_pr_that_merged_prints_merged_and_exits_zero(self):
         """Fails if: a green run and a merged PR is not reported as `merged`, or exits non-zero."""
         fake = FakeGh(prs=[pr(), pr(), pr("MERGED")], views=[run()])
-        code, lines = go(fake)
+        code, lines = go(fake, merge_wait=60, poll=30)
         self.assertEqual(code, 0)
         self.assertIn("job pr-checks: success", lines)
         self.assertTrue(lines[-1].startswith("RESULT: pr-checks success on aaaaaaaa"), lines)
         self.assertTrue(lines[-1].endswith("; merged"), lines)
 
-    def test_green_run_of_an_armed_pr_not_merged_in_time_says_so(self):
-        """Fails if: an armed PR still waiting for GitHub is reported as merged or as a failure."""
+    def test_an_armed_pr_still_blocked_after_the_wait_exits_three_never_zero(self):
+        """Fails if: an armed PR that GitHub still holds BLOCKED (both checks green) exits 0."""
         code, lines = go(FakeGh(prs=[pr(merge_state="BLOCKED")], views=[run()]), merge_wait=60, poll=30)
-        self.assertEqual(code, 0)
-        self.assertIn("armed, not merged yet (BLOCKED)", lines[-1])
+        self.assertEqual(code, 3)
+        self.assertIn("blocked: armed but BLOCKED", lines[-1])
 
-    def test_green_run_of_an_unarmed_pr_says_not_armed(self):
-        """Fails if: a green run with no auto-merge request is not flagged, so the orchestrator waits for a merge that never comes."""
-        code, lines = go(FakeGh(prs=[pr(armed=False)], views=[run()]))
+    def test_an_armed_pr_that_merges_a_little_later_exits_zero(self):
+        """Fails if: the waiter judges the PR on its first read, before GitHub has merged an armed PR whose checks just finished."""
+        code, lines = go(FakeGh(prs=[pr(), pr(), pr("MERGED")], views=[run()]), merge_wait=60, poll=30)
+        self.assertEqual((code, lines[-1].endswith("; merged")), (0, True))
+
+    def test_green_and_clean_but_not_armed_exits_zero(self):
+        """Fails if: a green CLEAN PR nobody armed is reported as blocked or waited on forever."""
+        code, lines = go(FakeGh(prs=[pr(armed=False, merge_state="CLEAN")], views=[run()]))
         self.assertEqual(code, 0)
-        self.assertTrue(lines[-1].endswith("; not armed"), lines)
+        self.assertTrue(lines[-1].endswith("; CI green and CLEAN, not armed"), lines)
+
+    def test_not_armed_and_not_clean_exits_three(self):
+        """Fails if: an unarmed PR with a BLOCKED merge state exits 0."""
+        code, lines = go(FakeGh(prs=[pr(armed=False, merge_state="BLOCKED")], views=[run()]), merge_wait=30, poll=30)
+        self.assertEqual(code, 3)
+        self.assertIn("not armed but BLOCKED", lines[-1])
+
+    def test_ai_review_missing_on_an_armed_blocked_pr_exits_three_with_the_post_check_command(self):
+        """Fails if: a PR blocked only because ai-review was never posted exits 0, or the line omits the record.py --post-check command."""
+        fake = FakeGh(prs=[pr(rollup=[check("pr-checks")])], views=[run()])
+        code, lines = go(fake, merge_wait=60, poll=30)
+        self.assertEqual(code, 3)
+        self.assertIn("blocked: ai-review missing on aaaaaaaa", lines[-1])
+        self.assertIn(f"record.py --post-check {SHA} --repo SFenton/native-home", lines[-1])
+
+    def test_ai_review_failure_exits_three_at_once(self):
+        """Fails if: a failing ai-review is waited out or reported as success."""
+        fake = FakeGh(prs=[pr(rollup=[check("pr-checks"), check("ai-review", "FAILURE")])], views=[run()])
+        code, lines = go(fake)
+        self.assertEqual(code, 3)
+        self.assertIn("ai-review failure on aaaaaaaa", lines[-1])
+        self.assertEqual(fake.sleeps, [20])
+
+    def test_ai_review_pending_is_waited_for_then_blocked(self):
+        """Fails if: an ai-review check still running is read as missing or as success."""
+        pending = pr(rollup=[check("pr-checks"), check("ai-review", None, "IN_PROGRESS")])
+        code, lines = go(FakeGh(prs=[pending], views=[run()]), merge_wait=30, poll=30)
+        self.assertEqual(code, 3)
+        self.assertIn("ai-review still pending", lines[-1])
+
+    def test_a_status_context_ai_review_is_read_too(self):
+        """Fails if: only CheckRun entries are understood, so a commit-status ai-review reads as missing."""
+        state = pr(rollup=[{"__typename": "StatusContext", "context": "ai-review", "state": "SUCCESS"}], armed=False, merge_state="CLEAN")
+        code, _ = go(FakeGh(prs=[state], views=[run()]))
+        self.assertEqual(code, 0)
+
+    def test_a_head_that_moved_after_the_green_run_exits_three(self):
+        """Fails if: a green run for an old head is reported as success after someone pushed a new head."""
+        code, lines = go(FakeGh(prs=[pr(), pr(sha="c" * 40)], views=[run()]))
+        self.assertEqual(code, 3)
+        self.assertIn("head moved", lines[-1])
+
+    def test_a_cancelled_run_exits_four_not_a_ci_failure(self):
+        """Fails if: a cancelled run is reported as `ci failed` or shares the failure exit code."""
+        jobs = [{"name": "pr-checks", "conclusion": "cancelled"}]
+        code, lines = go(FakeGh(prs=[pr()], views=[run(conclusion="cancelled", jobs=jobs)]))
+        self.assertEqual(code, 4)
+        self.assertIn("cancelled #7", lines[-1])
+        self.assertNotIn("ci failed", lines[-1])
 
     def test_a_failed_job_names_the_failing_checks_and_exits_one(self):
         """Fails if: a red run exits 0, or the line does not name the failing job."""
@@ -104,7 +164,7 @@ class WaitTests(unittest.TestCase):
 
     def test_a_run_that_appears_late_is_picked_up(self):
         """Fails if: the first empty `run list` ends the wait."""
-        fake = FakeGh(prs=[pr()], runs=[[], [{"databaseId": 9, "headSha": SHA}]], views=[run()])
+        fake = FakeGh(prs=[pr(), pr("MERGED")], runs=[[], [{"databaseId": 9, "headSha": SHA}]], views=[run()])
         code, _ = go(fake)
         self.assertEqual(code, 0)
 
@@ -112,7 +172,7 @@ class WaitTests(unittest.TestCase):
         """Fails if: the waiter keeps waiting for a run of a head that is no longer the PR's."""
         fake = FakeGh(prs=[pr(), pr(sha="c" * 40)], runs=[[]])
         code, lines = go(fake)
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 3)
         self.assertIn("head moved", lines[-1])
 
     def test_a_rerun_after_a_completed_read_is_waited_for(self):
@@ -121,14 +181,14 @@ class WaitTests(unittest.TestCase):
                  run(status="in_progress", conclusion=None, attempt=2, updated="t2"),
                  run(status="in_progress", conclusion=None, attempt=2, updated="t2"),
                  run(conclusion="success", attempt=2, updated="t3"), run(conclusion="success", attempt=2, updated="t3")]
-        code, lines = go(FakeGh(prs=[pr(armed=False)], views=views))
+        code, lines = go(FakeGh(prs=[pr(armed=False, merge_state="CLEAN")], views=views))
         self.assertEqual(code, 0, lines)
         self.assertIn("attempt 2", lines[-1])
 
     def test_a_changed_updated_at_with_the_same_attempt_is_not_settled(self):
         """Fails if: only the attempt is compared, so a rerun not yet bumping it is read as complete."""
         views = [run(updated="t1"), run(updated="t2"), run(updated="t2")]
-        fake = FakeGh(prs=[pr(armed=False)], views=views)
+        fake = FakeGh(prs=[pr(armed=False, merge_state="CLEAN")], views=views)
         go(fake)
         self.assertEqual(sum(1 for c in fake.calls if c[:2] == ["run", "view"]), 4)
 
