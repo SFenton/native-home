@@ -5,6 +5,11 @@ On a private Free repository GitHub enforces no rulesets, so `pr_land.sh` (the c
 gate and this hook closes the bypasses: ``gh pr merge``, ``gh api …/pulls/N/merge`` (and ``…/merges``), the GraphQL
 merge mutations, a PUT or DELETE on ``/contents/`` and a ``git push`` that lands on main or master.
 
+Arming auto-merge is ``tools/pr_land.sh N`` only (owner, 2026-11-09): the raw ``gh pr merge N --auto ...`` form is refused like any other
+``gh pr merge`` (``--admin`` has its own reason); the one allowed ``gh pr merge`` is ``N -R SFenton/native-home --disable-auto`` on the agent's own PR.
+Repo-admin writes are refused in every session: a ``gh api`` write to rulesets, ``branches/*/protection``, the repository settings
+(``repos/OWNER/NAME``) or App installations, a GraphQL ruleset or branch-protection mutation, and ``gh repo edit`` of the merge settings.
+
 A command that is exactly ``tools/pr_land.sh ARGS`` (also ``./tools/…`` or this repository's absolute path) with no
 shell metacharacters is allowed. Any other command is scanned whole: it is split into simple commands on ``; && || | &``,
 parentheses, braces, backticks, ``$(`` and the keywords ``then do else elif if while until``; wrappers (``env``,
@@ -38,12 +43,18 @@ form, from a checkout whose ``go_public.sh``, ``go_public_gate.py``, ``house_sca
 One exemption (owner decision 2026-11-04, merge-guard false positives): the raw scan above stays the decision for everything, and
 a block is dropped only when ``exempt`` holds: every simple command of the whole input is a grep, rg, cat, head, tail, less, ls,
 wc, echo, mkdir, ``git log|show|diff|status|commit``, ``gh pr view|list`` or ``python3`` of a script in ``EXEMPT_SCRIPTS`` (tools/tasks.py
-and a few more that never run their arguments), and the input has no ``$'``/``$"``/``${``/``printf -v``, substitution, subshell, ``/dev/stdin``, shell, other interpreter, ``find``,
-``sed``, ``awk``, ``xargs``, ``env`` or other wrapper, and no heredoc but ``cat > file <<WORD``, ``cat <<WORD > file``, ``git commit -F - <<WORD`` and ``gh pr create|comment --body-file - <<WORD`` (whose body is then data).
+and a few more that never run their arguments), and the input has no ``$'``/``$"``/``${``/``printf -v``, substitution (in the command, or in the body of a heredoc the shell expands; a quoted-delimiter ``cat`` body is literal text), subshell, ``/dev/stdin``, shell, other interpreter, ``find``,
+``sed`` (but ``sed -n N,Mp`` is a read), ``awk``, ``xargs``, ``env`` or other wrapper, and no heredoc but ``cat > file <<WORD``, ``cat <<WORD > file``, ``git commit -F - <<WORD`` and ``gh pr create|comment --body-file - <<WORD`` (whose body is then data).
 Anything else, and any parse failure, keeps the raw verdict.
 
 Out of scope (the model could still reach a merge): ``curl``, interpreters (``python -c``) and script files that call
 GitHub. The deny list in the triage config and the owner's review of the diff cover those. Exit 2 sends the message back.
+
+A tripwire, not a wall (owner, 2026-11-09). Not stopped: shell indirection (``bash -c`` and ``eval`` strings built from variables, a
+command, endpoint or flag held in a variable such as ``$EP`` or ``${X}``, brace expansion, ``xargs``-fed arguments), ``gh`` aliases
+(``gh alias set``) and shell functions, and a GraphQL body that is generated at run time. This stops a model by accident or habit, not a
+determined one. The wall is a GitHub credential for agent sessions without admin rights (planned): until then the agent runs as the
+owner's admin login, and this hook is what makes weakening the ruleset a deliberate act rather than a slip.
 """
 
 from __future__ import annotations
@@ -60,16 +71,14 @@ from typing import Dict, List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import request_repo as request_repo_module  # noqa: E402
-import review_verdict  # noqa: E402
-import ruleset_gate  # noqa: E402
 from shell_parse import FEEDERS, scan_shell, strip_prefixes, tokenize as _tokenize, unwrap_xargs  # noqa: E402
 
 MESSAGE = (
     "Blocked: agents merge only through `tools/pr_land.sh N` (its gate: the configured checks and a recorded independent review), never with "
-    "`gh pr merge`, `gh api …/merge` or a push to main. Run the reviewer (tools/review/record.py) then "
-    "`tools/pr_land.sh N`. The one exception is SFenton/native-home: `gh pr merge N -R SFenton/native-home --auto --squash "
-    "--match-head-commit SHA` when the reviewer has recorded a pass for exactly SHA and the ruleset on main requires a PR and pr-checks "
-    "(GitHub then merges when pr-checks is green), or `--disable-auto` to disarm. See .agents/workflow/pr-lifecycle.md."
+    "`gh pr merge` (including `--auto` and `--admin`), `gh api …/merge` or a push to main, and never change the rulesets, branch protection, "
+    "repository settings or App installations (`gh api` writes to them are refused for every session). Run the reviewer (tools/review/record.py) "
+    "then `tools/pr_land.sh N`, which arms auto-merge for a native-home PR. The one `gh pr merge` allowed is `--disable-auto` on your own PR: "
+    "`gh pr merge N -R SFenton/native-home --disable-auto`. See .agents/workflow/pr-lifecycle.md."
 )
 
 REQUEST_MESSAGE = (
@@ -264,7 +273,7 @@ GO_PUBLIC_MESSAGE = (
     "`gh repo create --public`, `gh repo edit --visibility`, a visibility change through `gh api` and a `git push` to a remote other than this "
     "repository's origin are refused. See .agents/workflow/pr-lifecycle.md (Going public)."
 )
-VISIBILITY_WORDS = re.compile(r"private\W{0,4}false|visibility|updateRepository|setRepositoryVisibility|changeVisibility", re.I)
+VISIBILITY_WORDS = re.compile(r"private\W{0,4}false|visibility|updateRepository\b|setRepositoryVisibility|changeVisibility", re.I)
 REPO_SLUG = re.compile(r"[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 PUSH_REMOTE_OPTS = {"-o", "--push-option", "--receive-pack", "--exec", "--signed", "--force-with-lease", "--recurse-submodules"}
 
@@ -344,6 +353,221 @@ def push_remote_reason(operands: List[str], workdir: Optional[str]) -> Optional[
 # MARK: - Request-repo writes (headless)
 
 _REQUEST_REPO: Dict[str, str] = {}
+
+
+# MARK: - Repo-admin writes (the ruleset is the server-side gate; an agent runs as an admin and must not weaken it)
+
+#: A ``gh api`` path argument that names merge-gate or App configuration: rulesets, branch protection, App and installation settings.
+ADMIN_PATH = re.compile(r"(?:^|/)(?:rulesets(?:/|$)|branches/\S+/protection|app/hook|app/installations|app-manifests|user/installations"
+                        r"|installation/repositories|installations/\d+)")
+#: The repository root itself (``repos/OWNER/NAME``): a write there changes repository settings (auto-merge, merge methods, visibility).
+REPO_ROOT = re.compile(r"^(?:repos/[^/\s]+/[^/\s]+|repositories/\d+)$")
+#: ``gh api`` flags that take a value (short letters and long names). Every other flag is a boolean; one this parser does not know is
+#: "unclassified" and a guarded path anywhere in the command then fails closed.
+API_SHORT_VALUE = set("XFfHqtp")
+API_SHORT_BOOL = set("ih")
+API_LONG_VALUE = {"method", "field", "raw-field", "header", "input", "jq", "template", "hostname", "preview", "cache"}
+API_LONG_BOOL = {"paginate", "slurp", "silent", "verbose", "include", "help", "version"}
+
+
+class ApiCall:
+    """A parsed ``gh api`` argument list: endpoint, methods given, fields, input files and whether every flag was understood."""
+
+    def __init__(self, args: List[str]) -> None:
+        self.methods: List[str] = []
+        self.fields: List[str] = []  # values of -f/-F/--field/--raw-field
+        self.file_fields: List[str] = []  # values of -F/--field (only these read ``@file``; a ``-f`` value is literal)
+        self.inputs: List[str] = []  # values of --input
+        self.overrides: List[str] = []  # X-HTTP-Method-Override / X-HTTP-Method header values
+        self.positional: List[str] = []
+        self.understood = True
+        i = 0
+        while i < len(args):
+            word = args[i]
+            i += 1
+            if word == "--":
+                self.positional.extend(args[i:])
+                break
+            if word.startswith("--"):
+                name, eq, value = word[2:].partition("=")
+                if name in API_LONG_VALUE:
+                    if not eq:
+                        if i >= len(args):
+                            self.understood = False
+                            break
+                        value, i = args[i], i + 1
+                    self.take(name, value)
+                elif name not in API_LONG_BOOL:
+                    self.understood = False
+            elif word.startswith("-") and len(word) > 1:
+                for at, letter in enumerate(word[1:], 1):
+                    if letter in API_SHORT_VALUE:
+                        value = word[at + 1:].lstrip("=") if word[at + 1:] else None
+                        if value is None:
+                            if i >= len(args):
+                                self.understood = False
+                                break
+                            value, i = args[i], i + 1
+                        self.take({"X": "method", "F": "field", "f": "raw-field", "H": "header", "q": "jq", "t": "template",
+                                   "p": "preview"}[letter], value)
+                        break
+                    if letter not in API_SHORT_BOOL:
+                        self.understood = False
+            else:
+                self.positional.append(word)
+
+    def take(self, name: str, value: str) -> None:
+        if name == "method":
+            self.methods.append(value.upper())
+        elif name in ("field", "raw-field"):
+            self.fields.append(value)
+            if name == "field":
+                self.file_fields.append(value)
+        elif name == "input":
+            self.inputs.append(value)
+        elif name == "header":
+            key, _, header = value.partition(":")
+            if key.strip().lower() in METHOD_OVERRIDE:
+                self.overrides.append(header.strip().upper())
+
+    @property
+    def endpoint(self) -> str:
+        """First positional, scheme and host (``https://HOST/``, GHES ``api/v3/``), leading slash, query string and trailing slash removed."""
+        if not self.positional:
+            return ""
+        path = re.sub(r"^https?://[^/]+/", "", self.positional[0])
+        path = re.split(r"[?#]", path, maxsplit=1)[0].lstrip("/")
+        path = re.sub(r"^api/(?:v3/)?", "", path)  # GHES: /api/v3/ for REST, /api/graphql
+        return path.rstrip("/")
+
+    @property
+    def method(self) -> str:
+        """The effective method: a non-GET override header, else the last ``-X``/``--method``, else POST with fields or ``--input``, else GET."""
+        for override in reversed(self.overrides):
+            if override != "GET":
+                return override
+        if self.methods:
+            return self.methods[-1]
+        return "POST" if self.fields or self.inputs else "GET"
+
+    @property
+    def writes(self) -> bool:
+        """The last ``-X``/``--method`` wins; with none, any ``-f``/``-F``/``--input`` makes it a POST."""
+        return self.method not in ("GET", "HEAD")
+
+
+def json_strings(value: object) -> List[str]:
+    """Every string in a decoded JSON value (so ``\\u`` escapes in a name are resolved), keys included."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [t for k, v in value.items() for t in json_strings(k) + json_strings(v)]
+    if isinstance(value, list):
+        return [t for v in value for t in json_strings(v)]
+    return []
+
+
+def resolve_input(name: str, cwd: Optional[str]) -> Optional[Path]:
+    """The file ``name`` names against the effective directory ``cwd``, or ``None`` (fail closed) for stdin, ``/dev/*``, ``/proc/*``,
+    a path held in a variable or glob, or a relative path when the directory is unknown."""
+    if name == "-" or re.search(r"[$`*?\[\]{}]", name):
+        return None
+    path = Path(name).expanduser()
+    if not path.is_absolute():
+        if not cwd:
+            return None
+        path = Path(cwd) / path
+    path = Path(os.path.normpath(path))
+    if path.parts[:2] in (("/", "dev"), ("/", "proc")):
+        return None
+    return path
+
+
+def graphql_text(call: ApiCall, cwd: Optional[str] = None) -> Optional[str]:
+    """Every part of a GraphQL call that can hold the query: ``-f``/``-F`` values and the content of ``--input`` or ``@file`` fields,
+    raw and JSON-decoded. ``None`` when a file cannot be resolved or read (stdin, ``/dev/*``, a variable path): the caller fails closed."""
+    parts = list(call.fields)
+    files = list(call.inputs) + [f.partition("=")[2][1:] for f in call.file_fields if f.partition("=")[2].startswith("@")]
+    for name in files:
+        path = resolve_input(name, cwd)
+        if path is None:
+            return None
+        try:
+            body = path.read_text(errors="replace")[:1_000_000]
+        except OSError:
+            return None
+        parts.append(body)
+        try:
+            parts.extend(json_strings(json.loads(body)))
+        except ValueError:
+            pass
+    return "\n".join(parts)
+
+
+ADMIN_GRAPHQL = re.compile(r"\b(?:(?:create|update|delete)(?:RepositoryRuleset|BranchProtectionRule)|updateRepository"
+                          r"|mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest|dequeuePullRequest|mergeBranch|createCommitOnBranch|updateRefs?)\b")
+#: Headers that make GitHub treat a POST as another method.
+METHOD_OVERRIDE = {"x-http-method-override", "x-http-method"}
+#: ``gh repo edit`` flags that change how the repository merges.
+REPO_EDIT_MERGE = re.compile(r"^--(?:enable-(?:auto-merge|squash-merge|merge-commit|rebase-merge)|delete-branch-on-merge|default-branch)\b")
+
+
+def chdir(cwd: Optional[str], target: str) -> Optional[str]:
+    """The directory after ``cd target`` from ``cwd``, or ``None`` (unknown) for ``-``, a variable, a glob or an unknown start."""
+    if target == "-" or re.search(r"[$`*?\[\]{}]", target):
+        return None
+    path = Path(target).expanduser()
+    if path.is_absolute():
+        return os.path.normpath(path)
+    return os.path.normpath(Path(cwd) / path) if cwd else None
+
+
+def repo_admin_reason(command: str) -> Optional[str]:
+    """Why ``command`` writes repository administration (any session), or ``None``: a ``gh api`` write to rulesets, branch protection,
+    the repository settings or App installations, a GraphQL ruleset or branch-protection mutation, or ``gh repo edit`` of the merge
+    settings. Reads (``gh api repos/O/N/rulesets/1``, ``gh ruleset list``) stay allowed. Checked per simple command, quote-aware, so a
+    path in a comment, a quoted field or another command of the same line is not mistaken for the call."""
+    cwd: Optional[str] = _CWD or os.getcwd()
+    for _op, raw in _tokenize(command):
+        if raw and os.path.basename(raw[0]) == "env":  # env -C DIR / --chdir=DIR
+            for i, word in enumerate(raw[1:], 1):
+                if word in ("-C", "--chdir") and i + 1 < len(raw):
+                    cwd = chdir(cwd, raw[i + 1])
+                elif word.startswith("--chdir="):
+                    cwd = chdir(cwd, word[8:])
+        words = strip_wrappers(raw)
+        if not words:
+            continue
+        if words[0] == "cd":  # a later segment runs where this one went (a subshell is not tracked)
+            cwd = chdir(cwd, words[1]) if len(words) == 2 else None
+            continue
+        at = next((i for i, w in enumerate(words) if os.path.basename(w) == "gh"), None)
+        if at is None:
+            continue
+        args = words[at + 1:]
+        if "repo" in args[:3] and "edit" in args[:4] and any(REPO_EDIT_MERGE.match(a) for a in args):
+            return "repo admin: gh repo edit of the merge settings (merge methods, auto-merge, branch deletion, default branch)"
+        if "api" not in args[:3]:
+            continue
+        args = args[args.index("api") + 1:]
+        call = ApiCall(args)
+        endpoint = call.endpoint
+        joined = " ".join(args)
+        if not call.understood or not endpoint:
+            if ADMIN_PATH.search(joined) or ADMIN_GRAPHQL.search(joined) or "graphql" in joined:
+                return "repo admin: a gh api call this guard cannot classify names a guarded path (rulesets, protection, App installations or a GraphQL mutation); use plain -X/-f/--input flags"
+            continue
+        if endpoint.lower() == "graphql":
+            text = graphql_text(call, cwd)
+            if text is None:
+                return "repo admin: a gh api graphql call whose input file cannot be read (or is stdin), so its mutation cannot be inspected"
+            if ADMIN_GRAPHQL.search(text):
+                return "repo admin: a GraphQL ruleset, branch-protection or repository-settings mutation"
+            continue
+        # Any write method on the bare repository root changes settings (GitHub accepts POST in place of PATCH there); only GET and HEAD pass.
+        if call.writes and (ADMIN_PATH.search(endpoint) or REPO_ROOT.match(endpoint)):
+            return "repo admin: a gh api write to rulesets, branch protection, repository settings or App installations"
+    return None
 
 
 def request_repo() -> str:
@@ -592,19 +816,18 @@ def strip_wrappers(words: List[str]) -> List[str]:
     return words
 
 
-# MARK: - The one allowed merge (native-home auto-merge, owner 2026-11-08)
+# MARK: - The one allowed merge command (disarming your own PR's auto-merge)
 
-AUTOMERGE_REPO = "sfenton/native-home"
-AUTOMERGE_FLAGS = {"--squash", "-s", "--auto"}
-AUTOMERGE_VALUE_FLAGS = {"-R", "--repo", "--match-head-commit"}
-FULL_SHA = re.compile(r"[0-9a-f]{40}")
-#: The only characters the allowed form may contain, quoted or not: no expansion (``$`` backtick glob ``~``), separator, redirect, comment, history or newline.
-AUTOMERGE_SAFE = re.compile(r"[A-Za-z0-9 ._,:/=@+'\"-]+")
+#: Arming is `tools/pr_land.sh N` only (owner, 2026-11-09): it alone runs the gates GitHub cannot (app-UI gate, kill switch, denylist).
+#: The raw `gh pr merge N --auto --squash --match-head-commit SHA` form is refused like every other `gh pr merge`.
+DISARM_REPO = "sfenton/native-home"
+#: The only characters the disarm form may contain, quoted or not: no expansion (``$`` backtick glob ``~``), separator, redirect, comment, history or newline.
+DISARM_SAFE = re.compile(r"[A-Za-z0-9 ._,:/=@+'\"-]+")
 PR_NUMBER = re.compile(r"[0-9]+")
-#: True while a nested command string (``eval``, ``bash -c``) is scanned: the allowed merge is a top-level command only.
+#: True while a nested command string (``eval``, ``bash -c``) is scanned: the disarm is a top-level command only.
 _NESTED = False
-#: The command text the allowed-merge check accepted; its one segment is then not flagged as ``gh pr merge``.
-_AUTOMERGE_OK: Optional[str] = None
+#: The command text the disarm check accepted; its one segment is then not flagged as ``gh pr merge``.
+_DISARM_OK: Optional[str] = None
 GH_TIMEOUT = 20
 
 
@@ -636,15 +859,13 @@ def own_pr(number: str) -> bool:
         return False
 
 
-def automerge_form(command: str) -> Optional[Dict[str, str]]:
-    """Parse ``command`` when it is exactly the one allowed ``gh pr merge`` form (shape only), else ``None``.
+def disarm_form(command: str) -> Optional[Dict[str, str]]:
+    """Parse ``command`` when it is exactly ``gh pr merge N -R SFenton/native-home --disable-auto`` (shape only), else ``None``.
 
-    Shape: ``gh pr merge N -R SFenton/native-home --auto --squash --match-head-commit SHA`` (SHA the full 40-character reviewed head), or
-    ``--disable-auto`` instead of ``--auto --squash --match-head-commit SHA``.
-    No shell metacharacter outside quotes, no prefix (env, wrapper, alias), no other flag (``--admin``, ``--delete-branch``, ``--merge``).
+    No shell metacharacter outside quotes, no prefix (env, wrapper, alias), no other flag (``--admin``, ``--squash``, ``--auto``).
     """
     text = command.strip()
-    if "\n" in text or "\r" in text:
+    if "\n" in text or "\r" in text or not DISARM_SAFE.fullmatch(text):
         return None
     try:
         words = shlex.split(text)
@@ -652,17 +873,14 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
         return None
     if words[:3] != ["gh", "pr", "merge"]:
         return None
-    # An allowlist over the whole raw command, quoted or not; unbalanced quotes fail shlex above.
-    if not AUTOMERGE_SAFE.fullmatch(text):
-        return None
     found: Dict[str, str] = {}
-    flags = set()
+    disable = False
     rest = words[3:]
     i = 0
     while i < len(rest):
         word = rest[i]
         key, eq, inline = word.partition("=") if word.startswith("--") else (word, "", "")
-        if key in AUTOMERGE_VALUE_FLAGS:
+        if key in ("-R", "--repo"):
             if eq:
                 value = inline
             elif i + 1 < len(rest):
@@ -670,63 +888,33 @@ def automerge_form(command: str) -> Optional[Dict[str, str]]:
                 value = rest[i]
             else:
                 return None
-            key = {"--repo": "-R", "--match-head-commit": "match"}.get(key, key)
-            if key in found:
+            if "-R" in found:
                 return None
-            found[key] = value
-        elif word in AUTOMERGE_FLAGS or word == "--disable-auto":
-            flags.add("--squash" if word in ("-s", "--squash") else word)
+            found["-R"] = value
+        elif word == "--disable-auto" and not disable:
+            disable = True
         elif PR_NUMBER.fullmatch(word) and "pr" not in found:
             found["pr"] = word
         else:
             return None
         i += 1
-    if "match" in found and not FULL_SHA.fullmatch(found["match"]):
-        return None
-    if flags == {"--disable-auto"} and set(found) == {"pr", "-R"}:
-        found["disable"] = "1"
-        return found
-    if flags != {"--squash", "--auto"} or set(found) != {"pr", "-R", "match"}:
-        return None
-    return found
+    return found if disable and set(found) == {"pr", "-R"} else None
 
 
-def automerge_repo(value: str) -> str:
+def disarm_repo(value: str) -> str:
     """``value`` of ``-R`` reduced to ``owner/name``, lower-case (the https URL form is accepted)."""
     return value.strip().lower().removeprefix("https://github.com/").rstrip("/").removesuffix(".git")
 
 
-def automerge_reason(command: str) -> Optional[str]:
-    """``None`` when ``command`` is the allowed auto-merge and the facts hold at hook time, else why it is refused (fails closed).
-
-    Review before push (owner, 2026-11-09): the SHA pinned by ``--match-head-commit`` must have an independent pass in the trusted store
-    (tools/review_verdict.py, the same record the push guard reads) and must be the PR's current head; the live ruleset on main must pass
-    tools/ruleset_gate.py (a PR, `pr-checks` from Actions, no bypass); the PR must be authored by SFenton from this repository and target main.
-    """
-    found = automerge_form(command)
+def disarm_reason(command: str) -> Optional[str]:
+    """``None`` when ``command`` is the allowed disarm and the PR is the agent's own (by ``SFenton``, from this repository), else why not."""
+    found = disarm_form(command)
     if found is None:
         return "gh pr merge"
-    if automerge_repo(found["-R"]) != AUTOMERGE_REPO:
+    if disarm_repo(found["-R"]) != DISARM_REPO:
         return "gh pr merge outside SFenton/native-home"
     if not own_pr(found["pr"]):
         return "gh pr merge of a PR not authored by SFenton from SFenton/native-home (or its author could not be read)"
-    if "disable" in found:
-        return None  # disarming needs no ruleset
-    if not review_verdict.has_pass(found["match"]):
-        return "gh pr merge of a commit without an independent pass (the reviewer records one for exactly that sha)"
-    problems = ruleset_gate.check("SFenton/native-home", "main")
-    if problems:
-        return "gh pr merge while " + problems[0]
-    try:
-        pr = gh_json(f"repos/SFenton/native-home/pulls/{found['pr']}")
-        base = pr["base"]["ref"]
-        head_sha = str(pr["head"]["sha"])
-    except Exception:  # noqa: BLE001 - any failure refuses
-        return "gh pr merge (the PR facts could not be fetched)"
-    if base != "main":
-        return "gh pr merge of a PR not based on main"
-    if head_sha != found["match"]:
-        return "gh pr merge pinned to a commit that is not the PR's head"
     return None
 
 
@@ -784,8 +972,13 @@ def segment_reason(segment: str) -> Optional[str]:
             else:
                 args.append(word)
         if args[:2] == ["pr", "merge"]:
-            if _AUTOMERGE_OK is not None and segment.strip() == _AUTOMERGE_OK:
+            if _DISARM_OK is not None and segment.strip() == _DISARM_OK:
                 return None
+            number = next((a for a in args[2:] if PR_NUMBER.fullmatch(a)), "N")
+            if "--admin" in args:
+                return "gh pr merge --admin (a repo-admin override of the ruleset; no session may)"
+            if "--auto" in args:
+                return f"gh pr merge --auto (arm auto-merge only with `tools/pr_land.sh {number}`)"
             return "gh pr merge"
         if args[:1] == ["api"]:
             joined = " ".join(rest)
@@ -839,7 +1032,7 @@ EXEMPT_PLAIN = {"grep", "rg", "cat", "head", "tail", "less", "ls", "wc", "echo",
 EXEMPT_GIT = {"log", "show", "diff", "status", "commit"}
 EXEMPT_GIT_BAD_ARGS = {"-c", "--config-env", "--ext-diff", "--output", "--textconv"}
 #: ``cat > file <<WORD`` or ``cat <<WORD > file``: the body is data written to a file (#370). A bare ``cat <<WORD`` is not covered.
-CAT_HEREDOC = re.compile(r"^\s*cat(?:\s+>>?\s*([\w./~+-]+)\s*<<\s*(['\"]?)(\w+)\2|\s*<<\s*(['\"]?)(\w+)\4\s*>>?\s*([\w./~+-]+))\s*$")
+CAT_HEREDOC = re.compile(r"^\s*cat(?:\s+>>?\s*([\w./~+-]+)\s*<<\s*(['\"]?)(\w+)\2|\s*<<\s*(['\"]?)(\w+)\4\s*>>?\s*([\w./~+-]+))(?:\s*(?:&&|;)\s*(\S.*))?\s*$")
 #: ``git commit ... -F - <<WORD`` and ``gh pr create|comment ... --body-file - <<WORD``: the body is a message, not code (#370).
 BODY_HEREDOC = re.compile(r"^\s*(?:git\s+commit|gh\s+(?:pr|issue)\s+(?:create|comment|edit))\b[^<>|;&$`]*\s(?:-F|--file|--body-file)(?:\s+|=)-\s*<<\s*(['\"]?)(\w+)\1\s*$")
 EXEMPT_OPS = {"", ";", "&&", "||", "|"}
@@ -857,10 +1050,14 @@ def lexes(text: str) -> bool:
     return True
 
 
-def drop_cat_heredocs(command: str) -> Optional[str]:
+def drop_cat_heredocs(command: str, expanded: Optional[List[str]] = None) -> Optional[str]:
     """``command`` without the bodies of its ``cat > file <<WORD`` heredocs, or ``None`` when any other heredoc or here-string is in it,
     a body is never closed, a quote or a backslash carries over a line end (so a marker could be inside a quote), or the file name
-    is not a plain path."""
+    is not a plain path. A command chained on the heredoc line (``cat > f <<'EOF' && next``) is kept as its own line.
+
+    The body of a ``cat`` heredoc whose delimiter is quoted is literal text and is dropped. A body the shell would expand (an
+    unquoted delimiter) and every ``git commit -F -`` / ``gh ... --body-file -`` body are appended to ``expanded`` for the caller's
+    substitution scan."""
     lines = command.split("\n")
     kept: List[str] = []
     i = 0
@@ -874,12 +1071,22 @@ def drop_cat_heredocs(command: str) -> Optional[str]:
             if not (marker or body) or any(".git" in t or ".." in t for t in targets):  # not a hook or config the next command could run
                 return None
             word = (marker.group(3) or marker.group(5)) if marker else body.group(2)
+            literal = bool(marker.group(2) or marker.group(4)) if marker else False
+            start = i
             while i < len(lines) and lines[i] != word:
                 i += 1
             if i >= len(lines):
                 return None
+            if expanded is not None and not literal:
+                expanded.append("\n".join(lines[start:i]))
             i += 1
+            tail = marker.group(7) if marker else None
             line = line[:line.index("<<")]
+            if tail:
+                if tail.rstrip().endswith("\\") or not lexes(tail):
+                    return None
+                kept.append(line)
+                line = tail
         if line.rstrip().endswith("\\") or not lexes(line):
             return None
         kept.append(line)
@@ -926,17 +1133,31 @@ def exempt_words(words: List[str], cwd: Optional[str]) -> bool:
         return args[:2] in (["pr", "view"], ["pr", "list"])
     if program == "python3":
         return bool(args) and repo_script(args[0], cwd)
+    if program == "sed":
+        return sed_prints(args)
     return False
+
+
+#: Shell expansion that could run a command: ANSI-C quotes, ``${``, backticks, ``$(``, process substitution, ``printf -v``.
+EXPANDS = re.compile(r"\$'|\$\"|\$\{|[`]|\$\(|[<>]\(|\b(?:printf|print)\s+-v")
+#: ``sed -n`` script that only prints lines: ``N``, ``N,M`` or ``N,$`` then ``p``.
+SED_PRINT = re.compile(r"^\d+(?:,(?:\d+|\$))?p$")
+
+
+def sed_prints(args: List[str]) -> bool:
+    """Is ``args`` exactly ``-n SCRIPT [FILE...]`` with a print-lines script (no ``-i``, ``-s``, ``-e``, ``-f``, no ``w`` or ``e`` command)?"""
+    return len(args) >= 2 and args[0] == "-n" and bool(SED_PRINT.match(args[1])) and not any(a.startswith("-") for a in args[2:])
 
 
 def exempt(command: str, cwd: Optional[str] = None) -> bool:
     """Is every simple command of ``command`` a non-executing one, so the raw scan's block is a false positive? Narrow on purpose:
     ANSI-C quotes, substitutions, subshells, heredocs other than ``cat > file <<WORD``, ``/dev/stdin``, shells, interpreters,
     ``find``, ``sed``, ``awk``, ``xargs``, ``env`` and every other wrapper keep the raw verdict, as does any parse failure."""
-    if "$'" in command or '$"' in command or "${" in command or re.search(r"[`]|\$\(|[<>]\(|\b(?:printf|print)\s+-v", command):
-        return False
-    text = drop_cat_heredocs(command)
+    scanned: List[str] = []
+    text = drop_cat_heredocs(command, scanned)
     if text is None or "<<" in text:
+        return False
+    if any(EXPANDS.search(part) for part in (text, *scanned)):
         return False
     segments = _tokenize(text)
     return bool(segments) and all(op in EXEMPT_OPS and exempt_words(words, cwd) for op, words in segments)
@@ -954,13 +1175,13 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
             return why
     if is_sanctioned(command):
         return None
-    global _AUTOMERGE_OK
-    _AUTOMERGE_OK = None
-    if not _NESTED and not headless() and automerge_form(command) is not None:
-        why = automerge_reason(command)
+    global _DISARM_OK
+    _DISARM_OK = None
+    if not _NESTED and not headless() and disarm_form(command) is not None:
+        why = disarm_reason(command)
         if why:
             return why
-        _AUTOMERGE_OK = command.strip()  # the full scan below must agree: the one segment is then not a bypass
+        _DISARM_OK = command.strip()  # the full scan below must agree: the one segment is then not a bypass
     # Checked on the whole string, before splitting: braces in a GraphQL query or in gh's `{owner}/{repo}` and
     # `${N}` placeholders would otherwise cut the `gh api` away from its URL.
     if API_WHOLE.search(command):
@@ -981,6 +1202,9 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
         why = request_repo_reason(command)
         if why:
             return why
+    admin = repo_admin_reason(command)  # after going-public and request-repo, which have their own messages
+    if admin:
+        return admin
     if headless() and EXPANSION.search(command) and GIT_WORD.search(command) and PUSH_WORD.search(command):
         return "git push through a shell expansion in a headless session"
     for segment in SPLIT.split(command):
