@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 TOOLS = Path(__file__).resolve().parent
+NETWORK_TIMEOUT = 15.0  # seconds for each ``gh`` or ``git fetch`` call
 CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap")
 
 
@@ -55,12 +56,17 @@ class LaneError(Exception):
     """A usage or environment problem (not a finding): reported on stderr, exit 2."""
 
 
-def run(args: Sequence[str], check: bool = True) -> subprocess.CompletedProcess:
-    """Run a command, capturing text output; with ``check`` a non-zero exit raises :class:`LaneError`."""
+def run(args: Sequence[str], check: bool = True, timeout: Optional[float] = None) -> subprocess.CompletedProcess:
+    """Run a command, capturing text output; with ``check`` a non-zero exit raises :class:`LaneError`.
+
+    A ``timeout`` (seconds) that expires raises :class:`LaneError` too, so a hung network call cannot hang ``check``.
+    """
     try:
-        done = subprocess.run(list(args), capture_output=True, text=True)
+        done = subprocess.run(list(args), capture_output=True, text=True, timeout=timeout)
     except FileNotFoundError as exc:
         raise LaneError(f"{args[0]} not found") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise LaneError(f"{' '.join(args[:3])} timed out after {timeout:g}s") from exc
     if check and done.returncode != 0:
         tail = (done.stderr or done.stdout).strip().splitlines()
         raise LaneError(f"{' '.join(args[:3])} failed: {tail[-1] if tail else done.returncode}")
@@ -102,7 +108,8 @@ def matches(path: str, patterns: Sequence[str]) -> bool:
 
 def open_pr_overlaps(paths: Sequence[str], branch: str) -> List[str]:
     """Open PRs (other than ``branch``) with a file matching ``paths``, one line each."""
-    done = run(["gh", "pr", "list", "--state", "open", "--limit", "100", "--json", "number,headRefName,files"], check=False)
+    done = run(["gh", "pr", "list", "--state", "open", "--limit", "100", "--json", "number,headRefName,files"], check=False,
+               timeout=NETWORK_TIMEOUT)
     if done.returncode != 0:
         raise LaneError("gh pr list failed; cannot check open PRs: " + (done.stderr.strip().splitlines() or ["?"])[-1])
     try:
@@ -280,53 +287,69 @@ def check_jev(root: Optional[Path] = None) -> Optional[str]:
     problems = []
     if (TOOLS / "jev_ask.py").is_file():
         out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            stale = load_tool("jev_ask").sync(check=True, root=root)
-        if stale:
-            problems.append("; ".join(line for line in out.getvalue().splitlines() if "stale" in line)
-                            or "a generated Jev question is stale (`python3 tools/jev_ask.py sync --check`)")
+        try:
+            with contextlib.redirect_stdout(out):
+                stale = load_tool("jev_ask").sync(check=True, root=root)
+        except Exception as exc:  # a broken question file or doc must name itself, not print a traceback
+            problems.append(f"jev: error {type(exc).__name__}: {exc}")
+        else:
+            if stale:
+                problems.append("; ".join(line for line in out.getvalue().splitlines() if "stale" in line)
+                                or "a generated Jev question is stale (`python3 tools/jev_ask.py sync --check`)")
     labels = root / "tools" / "tests" / "fixtures" / "jev_section_labels.json"
     if labels.is_file() and (TOOLS / "jev_sections.py").is_file():
-        sections = load_tool("jev_sections")
-        for pair in json.loads(labels.read_text(encoding="utf-8")).get("pairs", []):
-            file = pair.get("file", "")
-            try:
-                text = (root / file).read_text(encoding="utf-8")
-            except OSError:
-                problems.append(f"jev label file {file} is missing (question: {pair.get('question')!r})")
-                continue
-            parts = sections.split_sections(text, sections.detect_kind(file, text))
-            if not any(anchor in sec.text for sec in parts for anchor in pair.get("any_of", [])):
-                problems.append(f"jev label anchor {pair.get('any_of')} not found in {file} (question: {pair.get('question')!r}); "
-                                "restore the text, or move the label in a change that owns the fixture")
+        try:
+            pairs = json.loads(labels.read_text(encoding="utf-8")).get("pairs", [])
+            failures = load_tool("jev_sections").label_anchor_failures(root, pairs)
+        except Exception as exc:
+            problems.append(f"jev: error {type(exc).__name__}: {exc}")
+            failures = []
+        for fail in failures:
+            problems.append(f"jev label {fail['reason']}: {fail.get('any_of')} in {fail.get('file')} (question: {fail.get('question')!r}); "
+                            "restore the text, or move the label in a change that owns the fixture")
     return "; ".join(problems) if problems else None
 
 
-def branch_files(rec: dict, target: str = "main") -> List[str]:
-    """Files this branch changes versus its lane base, committed or not (the same base ``check_revert`` uses)."""
-    return sorted(set(git("diff", "--name-only", effective_base(rec, target)).splitlines()))
+def branch_range(rec: Optional[dict], target: str = "main") -> Optional[str]:
+    """The commit the branch's own changes are measured from: the fork point with ``origin/<target>``.
+
+    Anything that arrived from ``origin/<target>`` by a merge or rebase is before this point, so it never counts as the branch's own.
+    The recorded lane base is only the fallback when ``origin/<target>`` is unknown (None when neither exists).
+    """
+    if run(["git", "rev-parse", "-q", "--verify", f"origin/{target}"], check=False).returncode == 0:
+        done = run(["git", "merge-base", f"origin/{target}", "HEAD"], check=False)
+        if done.returncode == 0 and done.stdout.strip():
+            return done.stdout.strip()
+    return effective_base(rec, target) if rec else None
 
 
 def check_overlap(target: str = "main") -> Optional[str]:
-    """None when no other open PR or later ``origin/<target>`` commit touches a file this branch changes, else the reason.
+    """None when no other open PR or later ``origin/<target>`` commit touches a file this branch itself changes, else the reason.
 
-    The paths are the files the branch changes versus its recorded lane base, not those declared at ``start``. Without a recorded base
-    for this branch there is nothing to compare with and the check is skipped with a note.
+    The files are ``git diff --name-only $(git merge-base origin/<target> HEAD) HEAD``, the branch's own changes (``origin/<target>..HEAD``),
+    not the paths declared at ``start``. Offline (``gh`` or the fetch failing or timing out) the open-PR half prints one ``warn`` line and
+    does not fail: the check is advisory then.
     """
     rec = read_lane_base()
     branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    if not rec or rec.get("branch") != branch:
-        print("lane_check: no lane base recorded for this branch (run `lane_check.py start`); overlap check skipped", file=sys.stderr)
+    if rec and rec.get("branch") != branch:
+        rec = None
+    try:
+        run(["git", "fetch", "-q", "origin", target], check=False, timeout=NETWORK_TIMEOUT)
+    except LaneError as exc:
+        print(f"lane_check: warn: overlap used the local origin/{target}: {exc}", file=sys.stderr)
+    base = branch_range(rec, target)
+    if not base:
+        print("lane_check: no origin/main and no lane base recorded (run `lane_check.py start`); overlap check skipped", file=sys.stderr)
         return None
-    files = branch_files(rec, target)
+    files = sorted(set(git("diff", "--name-only", base, "HEAD").splitlines()))
     if not files:
         return None
-    run(["git", "fetch", "-q", "origin", target], check=False)
-    base = effective_base(rec, target)
+    hits = commit_overlaps(files, base)
     try:
-        hits = open_pr_overlaps(files, branch) + commit_overlaps(files, base)
+        hits = open_pr_overlaps(files, branch) + hits
     except LaneError as exc:
-        return f"overlap could not be checked: {exc}"
+        print(f"lane_check: warn: open PRs not checked for overlap: {exc}", file=sys.stderr)
     if not hits:
         return None
     return ("the branch changes files others are changing: " + "; ".join(hits)

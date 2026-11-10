@@ -372,6 +372,16 @@ class JevCheckTests(unittest.TestCase):
             self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
             self.assertIn("learning.home is stale", done.stderr)
 
+    def test_an_exception_in_the_sync_check_is_a_named_failure_not_a_traceback(self):
+        """Fails if: a corrupt question file makes `check` print a traceback instead of `jev: error <type>: <message>`."""
+        with TemporaryDirectory() as tmp:
+            clone = self.lane_with_jev(tmp)
+            (clone / "contracts/jev/questions/learning.home.json").write_text("{not json")
+            done = lane(clone, "check", "--only", "jev")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("jev: error JSONDecodeError:", done.stderr)
+            self.assertNotIn("Traceback", done.stderr)
+
     def test_a_removed_doc_anchor_fails_and_names_the_file_and_anchor(self):
         """Fails if: a doc edit that removes a labeled phrase passes `check`, or the failure omits the file or the anchor."""
         with TemporaryDirectory() as tmp:
@@ -412,6 +422,65 @@ class OverlapCheckTests(unittest.TestCase):
             clone = self.lane_changing(tmp, env, "tools/triage/config.json")
             done = lane(clone, "check", "--only", "overlap", env=env)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_main_files_arriving_by_merge_are_not_the_branchs_own(self):
+        """Fails if: after merging origin/main (a commit touching tools/triage/config.json) into the lane, overlap flags that file or
+        main's commit, or stops firing for a file the lane itself changes that an open PR also touches."""
+        with TemporaryDirectory() as tmp:
+            prs = [{"number": 7, "headRefName": "agents/other",
+                    "files": [{"path": "tools/triage/config.json"}, {"path": "lane.txt"}]}]
+            env = fake_gh(tmp, prs)
+            clone = self.lane_changing(tmp, env, "lane.txt")
+            other = Path(tmp) / "other"
+            git(other, "pull", "-q")
+            commit(other, "tools/triage/config.json", "{}\n", "main touches the config")
+            git(other, "push", "-q", "origin", "main")
+            git(clone, "fetch", "-q", "origin")
+            git(clone, "merge", "-q", "--no-edit", "origin/main")
+            done = lane(clone, "check", "--only", "overlap", env=env)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("lane.txt", done.stderr)
+            self.assertNotIn("tools/triage/config.json", done.stderr)
+            self.assertNotIn("main touches the config", done.stderr)
+
+    def test_a_merged_main_file_alone_leaves_overlap_clean(self):
+        """Fails if: a file that only arrived from origin/main by merge, and that an open PR touches, fails the lane."""
+        with TemporaryDirectory() as tmp:
+            prs = [{"number": 7, "headRefName": "agents/other", "files": [{"path": "tools/triage/config.json"}]}]
+            env = fake_gh(tmp, prs)
+            clone = self.lane_changing(tmp, env, "lane.txt")
+            other = Path(tmp) / "other"
+            git(other, "pull", "-q")
+            commit(other, "tools/triage/config.json", "{}\n", "main touches the config")
+            git(other, "push", "-q", "origin", "main")
+            git(clone, "fetch", "-q", "origin")
+            git(clone, "merge", "-q", "--no-edit", "origin/main")
+            done = lane(clone, "check", "--only", "overlap", env=env)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_gh_unavailable_warns_once_and_does_not_fail(self):
+        """Fails if: a failing `gh` makes `check` fail, or prints no warn line naming why."""
+        with TemporaryDirectory() as tmp:
+            env = fake_gh(tmp, [])
+            clone = self.lane_changing(tmp, env, "lane.txt")
+            gh = Path(tmp) / "bin" / "gh"
+            gh.write_text("#!/bin/sh\necho 'network unreachable' >&2\nexit 1\n")
+            done = lane(clone, "check", "--only", "overlap", env=env)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            warns = [line for line in done.stderr.splitlines() if "warn" in line]
+            self.assertEqual(len(warns), 1, done.stderr)
+            self.assertIn("network unreachable", warns[0])
+
+    def test_a_network_call_that_hangs_times_out_with_a_lane_error(self):
+        """Fails if: `run` waits past its timeout instead of raising LaneError."""
+        spec = importlib.util.spec_from_file_location("lane_check_t", LANE_CHECK)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["lane_check_t"] = module
+        spec.loader.exec_module(module)
+        with self.assertRaises(module.LaneError) as caught:
+            module.run(["sleep", "5"], timeout=0.2)
+        self.assertIn("timed out", str(caught.exception))
+        self.assertEqual(module.NETWORK_TIMEOUT, 15.0)
 
     def test_a_commit_merged_on_origin_main_since_the_base_fails(self):
         """Fails if: a commit that landed on origin/main after the lane base and touches a changed file passes `check`."""
