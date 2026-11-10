@@ -42,6 +42,16 @@ in a hidden folder under home, ``PRIVATE KEY`` as a search pattern; allowed on p
 ``touch|rm ~/.config/fenton-hass/NO_NIGHTLY``. A stronger guarantee needs an OS boundary, for example a separate macOS user that
 owns the keys plus a token broker; that is a future option, not built.
 
+**The owner's GitHub login (2026-11-09).** The agent's ``gh`` login is the default config; the owner's admin login lives in
+``~/.config/gh-owner``. Agent sessions are refused: that folder (path-only: any ``/gh-owner`` segment that ends a word or is followed by ``/``, so ``.config/./gh-owner``, ``../gh-owner`` and
+``//`` count; ``gh-owner`` in a branch, ref, record name or grep pattern, followed by ``-`` or with no slash, does not), the ``gh-admin`` command, a ``hosts.yml`` word, a
+file tool on one (resolved path, case folded), ``GH_CONFIG_DIR``/``XDG_CONFIG_HOME`` anywhere in code, assigning, ``export``,
+``unset`` or ``env -u`` of ``GH_TOKEN``/``GITHUB_TOKEN``/``GH_ENTERPRISE_TOKEN``, ``gh auth login|logout|switch|refresh|token|
+setup-git|git-credential``, ``gh config set``, ``git config`` writes and ``git -c`` of ``credential.*``, and Edit/Write of
+``~/.gitconfig``, ``~/.config/git/config`` or ``~/.git-credentials``. Plain ``gh auth status`` and ``ls ~/.config/gh`` pass. Names
+inside prose (``--body``, ``echo``, data heredocs) pass. Same limits: a relative walk (``cd ~/.config/gh; cat *``), a path built at
+run time, a Bash redirect into ``~/.gitconfig``, a ``.config/gh-owner`` path inside a ``git commit -m "$(cat <<EOF ...)"`` body (use ``-F -``) and a script that opens the file are not seen.
+
 Not blocked: prose in a ``git commit -m``/``gh --body`` value or in a grep pattern, an ``echo`` that only mentions a name, and
 the release scripts run with ``--dry-run`` (they print the commands and read no key). Out of scope: a path built from a variable
 or encoded text and script files that open a key (see above). The deny list in ``tools/triage/config.json`` backs this hook
@@ -58,7 +68,7 @@ import sys
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shell_parse import FEEDERS, KEYWORDS, SHELLS, WRAPPERS, strip_prefixes, tokenize, unwrap_xargs  # noqa: E402
+from shell_parse import FEEDERS, KEYWORDS, SHELLS, WRAPPERS, XARGS_VALUE, strip_prefixes, tokenize, unwrap_xargs  # noqa: E402
 
 MESSAGE = (
     "Blocked: certificates, provisioning profiles, signing keys and App Store Connect keys are owner-only (fixed set, "
@@ -85,7 +95,7 @@ APPLE_TOOLS = {"altool", "notarytool"}
 #: The release scripts run with ``--dry-run`` print their commands and read no key.
 RELEASE_SCRIPTS = {"testflight_upload.sh", "ios_ipa_build.sh", "testflight_queue.py"}
 #: Option values that are prose or a search pattern, not a path.
-PROSE_OPTIONS = {"-m", "--message", "--body", "-b", "--title", "-t", "--notes", "--subject"}
+PROSE_OPTIONS = {"-m", "--message", "--body", "-b", "--title", "-t", "--notes", "--note", "--subject"}
 SEARCHERS = {"grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk"}
 SEARCH_PATTERN_OPTIONS = {"-e", "--regexp", "-g", "--glob", "--iglob", "-t", "--type", "-T", "--type-not", "-f", "--file"}
 SHELL_C = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
@@ -103,6 +113,21 @@ TOKEN_LITERAL = re.compile(r"(?<![A-Za-z0-9_])gh[sup]_[A-Za-z0-9_]{16,}|github_p
 #: A file whose name says it caches a token. Source and docs about the helper (``gh_app_token.py``) are not token files.
 TOKEN_FILE = re.compile(r"^\.?(?:(?:gh|github)[-_]?(?:app[-_]?)?(?:installation[-_]?)?token(?:[-_.][A-Za-z0-9._-]*)?|ghs_[A-Za-z0-9_]*)$", re.I)
 TOKEN_FILE_SOURCE = re.compile(r"\.(?:py|sh|md|swift|txt|json|yml|yaml)$", re.I)
+#: The owner's admin login folder and the ``gh-admin`` helper name (``~/.config/gh-owner``); prose-tolerant like the key folder.
+#: Only a path counts: a ``/gh-owner`` segment that ends the word or is followed by ``/`` (so ``.config/./gh-owner``, ``../gh-owner`` and ``//`` need no resolving), never a branch, ref, review-record name or grep pattern containing the text.
+OWNER_GH = re.compile(r"/gh-owner(?:/|(?=[\s;&|)<>'\"`]|$))|(?:^|[\s'\"=:(])gh-owner/", re.I)
+OWNER_GH_PATH = re.compile(r"(?:^|/)gh-owner(?:/|$)", re.I)
+OWNER_GH_WHY = "the owner's gh login folder (~/.config/gh-owner)"
+#: Environment names that choose or hold the gh login.
+GH_ENV_NAMES = "GH_CONFIG_DIR|XDG_CONFIG_HOME|GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN"
+GH_ENV_WORD = re.compile(r"^(?:-u)?(?:" + GH_ENV_NAMES + r")(?:=|$)")
+GH_CONFIG_ENV = re.compile(r"(?<![A-Za-z0-9_])(?:GH_CONFIG_DIR|XDG_CONFIG_HOME)(?![A-Za-z0-9_])")
+GH_CONFIG_ENV_WHY = "GH_CONFIG_DIR / XDG_CONFIG_HOME (they choose which gh login runs)"
+GH_AUTH_DENIED = {"login", "logout", "switch", "refresh", "token", "setup-git", "git-credential"}
+GIT_CRED_KEY = re.compile(r"^(?:-c)?credential\.", re.I)
+GIT_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--list", "-l", "--get-urlmatch"}
+#: Files an agent never edits: they route git to a credential helper or hold plain-text tokens.
+GIT_CRED_FILES = (".gitconfig", ".git-credentials", os.path.join(".config", "git", "config"), os.path.join(".config", "git", "credentials"))
 #: Commands that print or copy their operands.
 EMITTERS = {"echo", "printf", "print", "cat", "tee", "base64", "xxd", "od", "hexdump", "less", "more", "head", "tail", "pbcopy", "strings"}
 
@@ -194,7 +219,7 @@ def drop_prose(program: str, words: List[str]) -> List[str]:
                 skip = False
             elif word in PROSE_OPTIONS:
                 skip = True
-            elif not word.startswith(("--message=", "--body=", "--title=", "--notes=", "--subject=")):
+            elif not word.startswith(("--message=", "--body=", "--title=", "--notes=", "--note=", "--subject=")):
                 kept.append(word)
         return kept
     if program in SEARCHERS:
@@ -222,9 +247,60 @@ def release_dry_run(words: List[str]) -> bool:
     return "--dry-run" in words and any(os.path.basename(w) in RELEASE_SCRIPTS for w in words[:3])
 
 
+def hosts_yml_glob(word: str) -> bool:
+    """Does a wildcard word name ``hosts.yml`` (``hosts.*``, ``ho*.yml``)? ``*.yml`` alone does not: it needs a literal ``ho`` start or ``host``."""
+    last = word.rstrip("/").rsplit("/", 1)[-1].lower()
+    return bool(GLOB_CHARS.search(last)) and fnmatch.fnmatchcase("hosts.yml", last) and (last.startswith("ho") or "host" in last)
+
+
+def gh_credential_reason(words: List[str]) -> Optional[str]:
+    """Why one simple command reaches or changes the gh/git GitHub login (owner decision 2026-11-09), or ``None``: login-choosing
+    environment names (also as ``VAR=`` prefixes, ``export``, ``unset``, ``env -u``), ``hosts.yml`` words, ``gh auth``/``gh config set``
+    and ``git`` credential-helper writes. Prose values and search patterns are not words (:func:`drop_prose`)."""
+    stripped = strip_prefixes(list(words))
+    prefix = words[:len(words) - len(stripped)]
+    program = os.path.basename(stripped[0]) if stripped else ""
+    kept = drop_prose(program, stripped) if stripped else []
+    if program in FEEDERS:  # `xargs -I{} gh auth login`
+        args = stripped[1:]
+        skip = 0
+        while skip < len(args) and args[skip].startswith("-"):
+            skip += 2 if args[skip] in XARGS_VALUE else 1
+        inner = strip_prefixes(args[skip:])
+        if any(GH_ENV_WORD.match(w) for w in args[skip:len(args) - len(inner)]) or (inner and gh_credential_reason(inner)):
+            return "a gh login change run through xargs"
+    if program == "gh-admin":
+        return "the owner's admin gh alias (gh-admin)"
+    if any(GH_ENV_WORD.match(w) for w in [*prefix, *kept]):
+        return "setting, exporting or unsetting a gh login variable (GH_CONFIG_DIR, XDG_CONFIG_HOME, GH_TOKEN, GITHUB_TOKEN, GH_ENTERPRISE_TOKEN)"
+    for word in kept:
+        if os.path.basename(word.rstrip("/")).lower() == "hosts.yml" or hosts_yml_glob(word):
+            return "a gh hosts.yml (it holds a login token)"
+    positional = [w for w in kept[1:] if not w.startswith("-")]
+    if program == "gh":
+        if "auth" in positional[:2]:
+            sub = positional[positional.index("auth") + 1:][:1]
+            if sub and sub[0] in GH_AUTH_DENIED:
+                return f"gh auth {sub[0]} (it changes or prints the gh login)"
+        if positional[:2] == ["config", "set"] or positional[1:3] == ["config", "set"]:
+            return "gh config set"
+    if program == "git":
+        why = "a git credential.* setting (the credential helper chooses the GitHub login)"
+        args = kept[1:]
+        for i, word in enumerate(args):  # `git -c credential.x=y <any subcommand>` and `--config-env=credential.x=ENV` always set it
+            if (word == "-c" and i + 1 < len(args) and GIT_CRED_KEY.match(args[i + 1])) or word.lower().startswith(("-ccredential.", "--config-env=credential.")):
+                return why
+        if positional[:1] == ["config"] and any(GIT_CRED_KEY.match(w) for w in args) and not (set(args) & GIT_READ_FLAGS):
+            return why
+    return None
+
+
 def simple_reason(words: List[str], depth: int) -> Optional[str]:
     """Why one simple command touches signing material or runs a credential command, or ``None``."""
     why = dump_reason(words)
+    if why:
+        return why
+    why = gh_credential_reason(words)
     if why:
         return why
     words = strip_prefixes(list(words))
@@ -300,6 +376,10 @@ RAW_KEY_PATTERNS = (
     (re.compile(r"(?:^|[\s;&|(`])" + RECURSIVE_TOOLS + r"\b[^\n;&|]*\s" + HOME_WORD, re.I),
      "a recursive reader or copier aimed at the home folder (it reaches the keys)"),
     (re.compile(r"\b(?:grep|egrep|fgrep|rg|ag|ack|sed|awk)\b[^\n;&|]*private\s+key", re.I), "a search for PRIVATE KEY"),
+)
+RAW_KEY_PATTERNS += (
+    (OWNER_GH, OWNER_GH_WHY),
+    (GH_CONFIG_ENV, GH_CONFIG_ENV_WHY),
 )
 #: ``$'..'`` and ``$".."`` are checked per word, see ``raw_key_reason``.
 ANSI_QUOTE = re.compile(r"\$['\"]")
@@ -422,7 +502,7 @@ def helper_command(command: str) -> bool:
 #: a data command (a quoted ``--body``/``-m`` value, an ``echo`` argument, the body of ``cat > file <<EOF``, ``git commit -F - <<EOF``) is no read (#370).
 PROSE_TOLERANT = frozenset({"the fenton-hass config folder", "a read of the whole process environment",
                             "a wildcard, brace, escape or quote inside a .config path",
-                            "the .config folder itself (it holds the key folder)"})
+                            "the .config folder itself (it holds the key folder)", OWNER_GH_WHY, GH_CONFIG_ENV_WHY})
 
 
 def _scan(command: str, quotes_stripped: bool, skip: frozenset = frozenset()) -> Optional[str]:
@@ -503,6 +583,10 @@ def key_folder_reason(value: str) -> Optional[str]:
         if re.search(r"fenton-has|github-app|\.pem", folded) or re.search(r"\.config/?[^/]*[*?\[{]", folded):
             return "a wildcard that reaches the key folder"
     real = os.path.realpath(expanded).casefold()
+    if OWNER_GH_PATH.search(real) or OWNER_GH_PATH.search(expanded.casefold()) or OWNER_GH.search(expanded):
+        return "the owner's gh login folder (~/.config/gh-owner)"
+    if os.path.basename(real) == "hosts.yml" or hosts_yml_glob(expanded):
+        return "a gh hosts.yml (it holds a login token)"
     config = os.path.realpath(os.path.join(os.path.expanduser("~"), ".config")).casefold()
     keys = os.path.join(config, "fenton-hass")
     if real == keys or real.startswith(keys + os.sep) or "/.config/fenton-hass" in real:
@@ -514,12 +598,23 @@ def key_folder_reason(value: str) -> Optional[str]:
     return None
 
 
+def git_credential_file_reason(value: str) -> Optional[str]:
+    """Is a path ``~/.gitconfig``, ``~/.config/git/config|credentials`` or ``~/.git-credentials`` (resolved, case folded)?"""
+    real = os.path.realpath(os.path.expanduser(value)).casefold()
+    home = os.path.realpath(os.path.expanduser("~")).casefold()
+    if any(real == os.path.join(home, name) for name in GIT_CRED_FILES):
+        return "a global git config or credentials file (the credential helper chooses the GitHub login)"
+    return None
+
+
 def path_reason(tool: str, tool_input: dict) -> Optional[str]:
-    """Why a file tool's target is signing material or a GitHub App key, or ``None``."""
+    """Why a file tool's target is signing material, a GitHub App key or the gh/git login, or ``None``."""
     keys = {"Grep": ("path", "glob"), "Glob": ("path", "pattern")}.get(tool, ("file_path", "notebook_path"))
     for key in keys:
         value = str(tool_input.get(key) or "")
         why = (names_signing(value) or key_folder_reason(value)) if value else None
+        if not why and value and tool in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
+            why = git_credential_file_reason(value)
         if why:
             return why
     return None
