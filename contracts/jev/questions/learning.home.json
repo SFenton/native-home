@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 9,
+  "version": 10,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -21,6 +21,7 @@
     ".agents/design/direction-g-plan.md": "Direction G build plan: the phases, components and verification for moving the app to [direction G](direction-g.md). (read when: picking up any direction G work, or touching a file a G phase owns.)",
     ".agents/design/direction-g.md": "Design direction G: native on the house: the visual language for every page and sheet (owner choice, 2026-10-13: Apple system components on the blurred house photo, after rejecting custom looks as \"very Android and too far removed from Apple\"). (read when: building or restyling any screen, tile, chi...",
     ".agents/design/duo-widths.md": "Duo widths: one section column in portrait, buttons fill their section: how many section columns a page shows by pose, and how a short row of tiles fills its section (lone tiles, a row of 3 in 4 tracks, the final unpaired section). (read when: you touch `UKGridSolver`, `DynamicGridMetrics`, `UKDynam...",
+    ".agents/design/feedback-media-compression.md": "Feedback media compression: Where and how Feedback (Report an Issue, Request a Feature) shrinks an oversized video so it can be attached. (read when: touching `FeedbackMediaFitter`, `FeedbackMovieEncoder` or the Feedback media limit. Policy details: [Media compression in feedback.md](../pages/settin...",
     ".agents/design/house-config-states.md": "Server field and missing house layout: the Server row on sign-in (the owner's 2026-11-06 request, reversing the 2026-10-17 \"no address field\"), and what every page shows when the house layout (the `fenton_home/house_config` document) is missing, loading, broken or newer than the build, once the comp...",
     ".agents/design/motion-components.md": "Motion: every component: the per-component motion checklist. It covers every shared and screen-level component, what changes its look, what animates today, what the rule in [motion.md](motion.md) says it must do, and the test that holds it there. (read when: you add a component, give one a new state...",
     ".agents/design/motion.md": "Motion: the app-wide rules for movement in S+H. They cover the launch and sign-in moments, switching tabs, opening pages and modals, loading, live updates and user actions. They also cover when *not* to animate, how motion is measured, and the components that enforce all of it. (read when: you add o...",

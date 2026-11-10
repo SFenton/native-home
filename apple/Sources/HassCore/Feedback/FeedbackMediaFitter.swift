@@ -1,4 +1,4 @@
-#if !os(watchOS) // AVAssetExportSession is unavailable on watchOS; the Watch never attaches media.
+#if !os(watchOS) // movie encoding is unavailable on watchOS; the Watch never attaches media.
 import AVFoundation
 import Foundation
 import ImageIO
@@ -7,8 +7,8 @@ import UniformTypeIdentifiers
 /// Shrinks an app-owned media copy until it fits GitHub's user-attachment limit.
 ///
 /// FestivalNativeApps' service transcodes oversized media on the server; here the app files the issue
-/// itself, so it re-encodes on the device: photos step down in size as JPEG, videos step down through
-/// export presets. Files already under the limit are left byte-for-byte.
+/// itself, so it re-encodes on the device: photos step down in size as JPEG, videos are re-encoded at a bitrate
+/// computed from their duration (``FeedbackMovieEncoder``). Files already under the limit are left byte-for-byte.
 public enum FeedbackMediaFitter {
     /// The fitted file.
     public struct Fitted: Sendable, Equatable {
@@ -29,11 +29,6 @@ public enum FeedbackMediaFitter {
 
     /// Longest image edges tried, largest first.
     static let imageEdges: [Int] = [4096, 3072, 2048, 1536, 1024]
-    /// Video export presets tried, largest first.
-    static let videoPresets: [String] = [
-        AVAssetExportPresetHEVC1920x1080, AVAssetExportPreset1280x720,
-        AVAssetExportPreset960x540, AVAssetExportPreset640x480,
-    ]
 
     /// Returns `url` when it fits, else a smaller copy beside it (the original copy is deleted).
     ///
@@ -50,9 +45,13 @@ public enum FeedbackMediaFitter {
         return fitted
     }
 
+    /// The file's size on disk. Read from the file system each time: `URL.resourceValues` caches per URL
+    /// value, so it would report a stale size for a file rewritten at the same URL.
     static func byteCount(_ url: URL) throws -> Int64 {
-        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else { throw Failure.unreadable }
-        return Int64(size)
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber else {
+            throw Failure.unreadable
+        }
+        return size.int64Value
     }
 
     // MARK: - Images
@@ -84,32 +83,10 @@ public enum FeedbackMediaFitter {
     // MARK: - Movies
 
     private static func fitMovie(_ url: URL, limit: Int64) async throws -> Fitted {
-        let asset = AVURLAsset(url: url)
-        guard (try? await asset.load(.isReadable)) == true else { throw Failure.unreadable }
         let target = url.deletingLastPathComponent()
             .appendingPathComponent(url.deletingPathExtension().lastPathComponent + "-small.mp4")
-        for preset in videoPresets {
-            try? FileManager.default.removeItem(at: target)
-            guard let export = AVAssetExportSession(asset: asset, presetName: preset) else { continue }
-            export.metadataItemFilter = .forSharing()
-            do {
-                if #available(iOS 18, macOS 15, *) {
-                    try await export.export(to: target, as: .mp4)
-                } else {
-                    export.outputURL = target
-                    export.outputFileType = .mp4
-                    await export.export()
-                    guard export.status == .completed else { continue }
-                }
-            } catch {
-                continue
-            }
-            if let size = try? byteCount(target), size <= limit {
-                return Fitted(url: target, byteCount: size, compressed: true)
-            }
-        }
-        try? FileManager.default.removeItem(at: target)
-        throw Failure.tooLarge
+        let size = try await FeedbackMovieEncoder.encode(url, to: target, limit: limit)
+        return Fitted(url: target, byteCount: size, compressed: true)
     }
 }
 #endif

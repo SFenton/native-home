@@ -39,15 +39,21 @@ final class FeedbackFormModel {
     /// Picked items still being copied, so Submit waits for them.
     private(set) var importing = 0
     @ObservationIgnored let services: FeedbackServices
+    /// Largest attachment in bytes; a movie or photo over it is compressed to fit (GitHub's limit unless a test lowers it).
+    @ObservationIgnored let attachmentLimit: Int64
     @ObservationIgnored private var submitTask: Task<Void, Never>?
+    /// Import tasks still running, so closing the sheet can stop them (a long movie encodes for a while).
+    @ObservationIgnored private var importTasks: [UUID: Task<Void, Never>] = [:]
 
     /// Starts an empty form.
     /// - Parameters:
     ///   - kind: Bug report or feature request.
     ///   - services: Where reports are filed.
-    init(kind: FeedbackKind, services: FeedbackServices) {
+    ///   - attachmentLimit: Largest attachment in bytes.
+    init(kind: FeedbackKind, services: FeedbackServices, attachmentLimit: Int64 = FeedbackLimits.attachmentBytes) {
         draft = FeedbackDraft(kind: kind)
         self.services = services
+        self.attachmentLimit = attachmentLimit
     }
 
     // MARK: - Draft
@@ -108,6 +114,35 @@ final class FeedbackFormModel {
 
     // MARK: - Attachments
 
+    /// Starts ``importFiles(_:)`` in a task the model keeps, so ``discardMedia()`` can cancel it.
+    /// - Returns: The task, to await in tests.
+    @discardableResult
+    func startImportFiles(_ result: Result<[URL], any Error>) -> Task<Void, Never> {
+        trackImport { await $0.importFiles(result) }
+    }
+
+    /// Starts ``importPicked(_:)`` in a task the model keeps, so ``discardMedia()`` can cancel it.
+    /// - Returns: The task, to await in tests.
+    @discardableResult
+    func startImportPicked(_ loaders: [@MainActor () async throws -> FeedbackPickedMedia?]) -> Task<Void, Never> {
+        trackImport { await $0.importPicked(loaders) }
+    }
+
+    /// Runs `work` in a task kept in ``importTasks`` until it ends, so ``discardMedia()`` can cancel it.
+    private func trackImport(_ work: @escaping @MainActor (FeedbackFormModel) async -> Void) -> Task<Void, Never> {
+        let id = UUID()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await work(self)
+            importTasks[id] = nil
+        }
+        importTasks[id] = task
+        return task
+    }
+
+    /// Whether any import task is still running.
+    var hasRunningImports: Bool { !importTasks.isEmpty }
+
     /// Copies files chosen in the system file importer.
     /// - Parameter result: The importer's result; a failure is shown as a message.
     func importFiles(_ result: Result<[URL], any Error>) async {
@@ -133,8 +168,10 @@ final class FeedbackFormModel {
                 }
                 await admit(picked.url, displayName: picked.url.lastPathComponent)
             } catch {
+                if Task.isCancelled { return }
                 attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
             }
+            if Task.isCancelled { return }
         }
     }
 
@@ -145,9 +182,11 @@ final class FeedbackFormModel {
         attachmentMessage = nil
     }
 
-    /// Stops any upload and deletes every private media copy (on dismiss).
+    /// Stops any upload and any import still encoding, then deletes every private media copy (on dismiss).
     func discardMedia() {
         submitTask?.cancel()
+        for task in importTasks.values { task.cancel() }
+        importTasks = [:]
         for attachment in attachments { Self.deleteCopy(attachment.fileURL) }
         attachments = []
     }
@@ -181,18 +220,23 @@ final class FeedbackFormModel {
         do {
             try await FeedbackLocationScrubber.scrub(url, isVideo: media.isVideo)
         } catch {
+            if Task.isCancelled { Self.deleteCopy(url); return }
             let unreadable = error as? FeedbackLocationScrubber.Failure == .unreadable
             refuse(url, unreadable ? .unreadable : .locationNotRemoved(displayName))
             return
         }
+        guard !Task.isCancelled else { return Self.deleteCopy(url) }
         let fitted: FeedbackMediaFitter.Fitted
         do {
-            fitted = try await FeedbackMediaFitter.fit(url, isVideo: media.isVideo)
+            fitted = try await FeedbackMediaFitter.fit(url, isVideo: media.isVideo, limit: attachmentLimit)
         } catch {
+            // A closed sheet cancels the import: refuse quietly, with no message.
+            if Task.isCancelled { Self.deleteCopy(url); return }
             let tooLarge = error as? FeedbackMediaFitter.Failure == .tooLarge
             refuse(url, tooLarge ? .fileTooLarge(displayName) : .unreadable)
             return
         }
+        guard !Task.isCancelled else { return Self.deleteCopy(fitted.url) }
         if let rejection = FeedbackAttachmentPolicy.rejection(byteCount: fitted.byteCount, filename: displayName, existing: attachments) {
             refuse(fitted.url, rejection)
             return
