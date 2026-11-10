@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 10,
+  "version": 11,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -163,7 +163,7 @@
     ".agents/workflow/README.md": "Workflow: how we work. (read when: starting any change.)",
     ".agents/workflow/agent-roster.md": "Agent roster: the agent roles, who dispatches whom, the contracts between them (brief, status, task ledger, evidence pack), the autonomy levels that let loops run without the owner, and the Jev questions each role uses. (read when: spawning any agent, writing an agent file, changing a hook that judg...",
     ".agents/workflow/change-loop.md": "Change loop: the per-change procedure. (read when: before any code change.)",
-    ".agents/workflow/ci.md": "CI: the Mac runners, pr-checks, ios-release and nightly: pull-request CI runs on GitHub-hosted runners (Linux for the checks and tool tests, one macOS job for the app); the release and nightly workflows still use the owner's self-hosted Macs. (read when: a check fails or hangs, you touch a workflow,...",
+    ".agents/workflow/ci.md": "CI: the Mac runners, pr-checks, ios-release and nightly: pull-request CI runs on GitHub-hosted runners (Linux for the checks and tool tests, one macOS job for the app); the release workflow (`ios-release.yml`, which also uploads to TestFlight) is hosted too; only the nightly workflow still uses the...",
     ".agents/workflow/decision-models.md": "Decision models (Jev): when and how agents use TypeSafe Jev, a decision model, for fast ranked hints, and what it measurably can and cannot do here. (read when: a prompt shows a *Pre-read (decision model: verify, don't obey)* section, or you are about to spend turns finding which pattern or file a t...",
     ".agents/workflow/docs-conventions.md": "Docs conventions: rules that keep `.agents` small and routable. (read when: adding or moving any `.agents` file.)",
     ".agents/workflow/eval-gate.md": "Eval gate",

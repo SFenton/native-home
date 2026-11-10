@@ -298,7 +298,7 @@ class UploadModeTests(unittest.TestCase):
 
     def test_without_an_archive_the_upload_fails_with_a_clear_message(self):
         """Fails if: --upload without an archive from the build step runs xcodebuild anyway, exits 0, or gives no hint to build first."""
-        with tempfile.TemporaryDirectory(dir=Path(SCRIPT).parents[2] / "build") as out:
+        with tempfile.TemporaryDirectory() as out:
             env = dict(os.environ, FENTON_IPA_OUT=out)
             proc = subprocess.run(["bash", str(SCRIPT), "ios/v2611.10.01", "1", "--upload"], env=env, capture_output=True,
                                   text=True, timeout=60)
