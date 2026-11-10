@@ -126,6 +126,7 @@
         "PushJourneyTests",
         "ResumeCyclesJourneyTests",
         "RoomDevicesCaptureJourneyTests",
+        "RoomOverviewRevealJourneyTests",
         "RoomsCaptureJourneyTests",
         "ScrollSurfacesPerformanceTests",
         "SecurityJourneyTests/testCaptureSecurityDisarmAlert()",

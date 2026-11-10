@@ -41,7 +41,7 @@
     a11y: [
       {
             "rule": "Reading order",
-            "note": "The sheet is modal: focus lands on the title \"Climate\" (no subtitle: the cards carry the figures), the \"Rooms\" heading, the 14 room cards in grid order, then Close (identifier overview.climate). Escape and the two-finger scrub dismiss."
+            "note": "The sheet is modal: focus lands on the title \"Climate\" (no subtitle: the cards carry the figures). The grid is hidden from VoiceOver only while the sheet slides up (the sheet reveal), and is in the tree 0.2 s after; then the \"Rooms\" heading, the 14 room cards in grid order, then Close (identifier overview.climate). Escape and the two-finger scrub dismiss."
       },
       {
             "rule": "Room cards",
@@ -64,6 +64,10 @@
             "note": "The circle x is labelled Close for VoiceOver (never \"Done\"); it stays in the bar when a room is pushed, and dismisses the whole sheet from any depth."
       },
       {
+            "rule": "Sheet reveal",
+            "note": "On presentation the grid is laid out but hidden (alpha 0, no hit testing, accessibilityElementsHidden) and fades in together when the slide ends. If the arc ever shows, it is one element, \"Loading Climate\", identifier contentGate.spinner, updatesFrequently, not a control, 44 pt at every text size; a layoutChanged is posted after an arc only, so a ready open keeps focus on the title. Close and swipe-down work throughout."
+      },
+      {
             "rule": "Light and dark",
             "note": "The sheet follows the system appearance (white cells on #F2F2F7, or #2C2C2E on #1C1C1E); family fills and the lit tile are fixed in both. Reduce Transparency draws the solid tile finish."
       }
@@ -77,6 +81,8 @@
         { rule: "Sheets: consider medium for progressive disclosure; full height where content is more useful there", verdict: 'departure', note: "Opens at large only (HomeScreen.swift:38, .hassSheet(.page, height: .full)) because the sheet pushes pages and its height must not change on a push (hassSheet doc, HassModal.swift:132-136, owner 2026-10-16).", by: 'apple-hig skill' },
         { rule: "Color: climate cards never fill, so state is words", verdict: 'pass', note: "Climate is 'active' whenever it reports, so cards stay dark with the family glyph and print the range as text (RoomOverviewStyle.swift:21-27); nothing depends on colour.", by: 'apple-hig skill' },
         { rule: "Writing: grammatical copy", verdict: 'pass', note: "RoomOverview.climateSubtitle and ClimateLogic.criticalSubtitle use PluralCopy.count: \"1 sensor\", \"1 room forced\".", by: 'apple-hig skill' },
+        { rule: "Loading: show content instantly when possible", verdict: 'departure', note: "The sheet reveal holds the grid back for the slide plus a 0.2 s fade (owner 2026-11-05: 'tiles should fade in together'; design/sheet-reveal.md). HIG wins where it can: no arc for ready content, a 150 ms grace, the arc only for a real wait.", by: 'apple-hig skill' },
+        { rule: "Motion: keep feedback animations brief and precise", verdict: 'pass', note: "One 200 ms fade of the whole grid (quick); no stagger, no rise, no per-glyph replace on first appearance (tiles are built with their real symbol).", by: 'apple-hig skill' },
         { rule: "Layout: scaled minimum and equal heights", verdict: 'pass', note: "Same RoomOverviewGrid, @ScaledMetric 140, equal heights (RoomOverviewGrid.swift:11-31).", by: 'apple-hig skill' },
         { rule: "Lists and tables: a chevron for drill-down", verdict: 'pass', note: "kind .navigate with hint 'Opens <room> Climate' (RoomOverviewTile.swift:23-26).", by: 'apple-hig skill' },
         { rule: "Sheets: Cancel or Close on the leading edge of a single-view sheet, Done trailing", verdict: 'departure', note: "Every modal carries the circle-X Close at the trailing edge (owner, 2026-10-13: 'Done button in top right can just be circle X close button', HassModal.swift:5-9, patterns/modal-sheet.md); a saving sheet keeps its own confirm.", by: 'apple-hig skill' },
@@ -94,6 +100,7 @@
     },
 
     notes: [
+      "Sheet reveal (owner 2026-11-05, design/sheet-reveal.md): the sheet slides up with the grid hidden and every tile fades in together (0.2 s) when the slide ends; the arc path (reveal-arc state, motion items reveal-arc and reveal-late) is drawn for completeness and is what a sheet that really loads shows. Before this, tiles were built with a placeholder circle and each glyph popped in about 1 s late with its own .replace animation (the owner's recording); tiles now take their real symbol from the first model.",
       "loading: there is no loading state. The sheet reads EntityStore, so the \"loading\" state here is an empty store: every range falls to \"N sensors\" (a missing sensor has no reading). No spinner, skeleton or pending bar exists on these cards. Climate has no quiet state (it always reports) and no motion of its own: a card never fills, so no colour change plays; the range text simply changes.",
       "Grammar bug as shipped: a one-sensor room whose helper and sensor are unavailable reads \"1 sensors\" (climateSubtitle uses \"\\(count) sensors\"). Shown in the error state (Entryway, Downstairs Hallway).",
       "Unavailable rooms: the overview cards carry no unavailable face. A room whose range helper is unavailable (Hallway in the error state) falls back to its sensors' min and max.",
@@ -104,7 +111,7 @@
       "Kit gaps (promote to kit): symbols window.vertical.open|closed, figure.stand, desktopcomputer, stove, stairs, bathtub (added at runtime in modals/home/_room-overview.js); TileGrid with equal rows stretches a section header to the tile height and its track overflows a narrow container at AX5 (the helper equalises in JS and caps the track); BrightnessTile prints \"On at 70%\" where the app prints \"70%\".",
       "Fixture: values are invented; room names, entity ids and the group lists are the app's (HassCore/Rooms/RoomGroups.swift)."
 ],
-    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: overview in every state, the pushed room, present and push transitions, light and dark.' }],
+    changelog: [{ date: '2026-11-05', note: 'Sheet reveal (chip-sheet-loading): reveal-hidden and reveal-arc states; reveal-ready, reveal-arc and reveal-late motion; the present transition plays the reveal; a11y and HIG rows.' }, { date: '2026-10-23', note: 'First pass built with the kit: overview in every state, the pushed room, present and push transitions, light and dark.' }],
   });
 })();
 </script></body></html>

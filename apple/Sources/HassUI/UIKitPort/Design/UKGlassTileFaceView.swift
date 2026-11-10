@@ -163,7 +163,9 @@ final class UKGlassTileFaceView: UIView {
 
     // MARK: Configure
 
-    /// Shows `content`. A change of state colour cross-fades (0.6 s) once the face is on screen; the first call never animates.
+    /// Shows `content`. A change of state colour cross-fades (0.6 s) once the face is on screen; the first call never animates. A new
+    /// symbol runs the `.replace` transition only on screen too (`window != nil`): a tile configured before its sheet shows must not
+    /// play it (`.agents/design/sheet-reveal.md` rule 7).
     func apply(_ content: UKTileFaceContent, environment: UKTileEnvironment, animated: Bool = true) {
         let colorChanged = content.colorKey != self.content.colorKey || environment != self.environment
         let levelChanged = content.level != self.content.level
@@ -172,7 +174,7 @@ final class UKGlassTileFaceView: UIView {
         self.content = content
         self.environment = environment
         refresh(animated: animated && hasConfigured && colorChanged, levelOnly: levelChanged && !colorChanged && hasConfigured && animated,
-                symbolTransition: symbolChanged && hasConfigured && animated && old.symbol != content.symbol)
+                symbolTransition: symbolChanged && hasConfigured && animated && window != nil && old.symbol != content.symbol)
         hasConfigured = true
     }
 

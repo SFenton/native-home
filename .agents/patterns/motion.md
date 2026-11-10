@@ -22,7 +22,7 @@ Status: built 2026-10-18 on `claude/motion-system` (see PROGRESS.md). The sign-i
 | `SessionModels` | `HassUI/App/SessionModels.swift` | The Food hub's and the inventory's models for the signed-in session, so a revisit finds results loaded and its content gate opens at once |
 | `UKStackMotion` (`UKStackTransition`, `UKStackInteraction`) | `HassUI/UIKitPort/App/Shell/UKStackMotion.swift` | UIKit port: push and pop on the single-page layouts, the column motion with one column ([design/single-page-motion.md](../design/single-page-motion.md)). Returned from the section stack's navigation delegate; owns the edge swipe back. Reduce Motion: a 0.2 s cross-fade |
 | `NavigationTelemetry` | `HassUI/Diagnostics/NavigationTelemetry.swift` | Signposts for `TabSwitch`, `Push`, `Pop`, `SheetPresent`, `SheetDismiss`, `ZoomOpen`, `ZoomClose`, plus per-transition run-loop cost, feeding Settings → Performance |
-| `ContentGate` | `HassDesign/Loading/ContentGate.swift` (exists) | The only content entrance for network-backed pages |
+| `ContentGate` | `HassDesign/Loading/ContentGate.swift` (exists); UIKit `UKContentGateView` and `UKContentGateDriver` | The only content entrance for network-backed pages, and (owner, 2026-11-05) the sheet reveal a modal opts into with `UKHassModalOptions.reveal` ([sheet-reveal](../design/sheet-reveal.md)) |
 | `ArcSpinner` | `HassDesign/ArcSpinner.swift` (exists) | The only spinner |
 
 ## Rules for call sites

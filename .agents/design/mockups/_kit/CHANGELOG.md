@@ -2,6 +2,11 @@
 
 > **What:** what changed in `_kit/`, newest first, so a mockup author knows which local workaround can go. Existing mockups keep rendering; the entries below list what looks different.
 
+## Unreleased (2026-11-05, chip-sheet-loading)
+
+**`Mock.anim.sheetReveal` (`lib/anim.js`)**
+- The sheet reveal ([sheet-reveal](../../sheet-reveal.md), owner 2026-11-05 "Arc only if not ready"): `sheetReveal(host, {readyAt, label, say})` slides a `Mock.sheet` host up with its content hidden, then fades the content in together (200 ms, no rise) or, when `readyAt` is past the 150 ms grace, plays the centred 44 pt arc (200 ms in, 500 ms minimum hold, 200 ms out) first. `sheetReveal.layer(host, {arc, label})` draws the hidden-content and arc states statically. New; no existing mockup changes.
+
 ## Unreleased (2026-11-06, house-config-states)
 
 **Symbols (`lib/symbols.js`)**

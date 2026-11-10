@@ -200,6 +200,7 @@
         "RoomDevicesHumidifierJourneyTests/testHumidifierSchedulesPassAuditInIPadLandscape()",
         "RoomDevicesPurifierJourneyTests/testPurifierPassesAudit()",
         "RoomDevicesPurifierJourneyTests/testPurifierPassesAuditInIPadLandscape()",
+        "RoomOverviewRevealJourneyTests/testChipSheetPassesAccessibilityAudit()",
         "RoomsFanJourneyTests/testGuestBathroomPassesAudit()",
         "RoomsFanJourneyTests/testGuestBathroomPassesAuditInIPadLandscape()",
         "RoomsFanJourneyTests/testSecondBathroomPassesAudit()",

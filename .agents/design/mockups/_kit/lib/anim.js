@@ -199,6 +199,53 @@
       return A.rise(content, { ms: 170 }).then(function () { content.style.opacity = ''; content.style.transitionDuration = ''; });
     });
   };
+  /** The sheet reveal (ContentGateModel.Profile.sheet; patterns/content-gate.md "Sheet reveal", design/sheet-reveal.md, owner 2026-11-05
+   *  "Arc only if not ready"). Mock.anim.sheetReveal.layer(host, {label, arc}) prepares a Mock.sheet host for it (statically too): the root page's
+   *  content is hidden and a 44 pt arc layer sits centred in the content area, below the header and above the bottom inset (absolute in the
+   *  .ui-mscroll scroller, inset 0, so it centres on the visible viewport, never under the bar). Mock.anim.sheetReveal(host, o) plays it: the
+   *  sheet slides up with the chrome showing and the content hidden. When the slide ends, ready content (o.readyAt 0) fades in all at once,
+   *  200 ms ease-out (`quick`), with no rise and no stagger. Not ready: after a 150 ms grace the arc fades in (200 ms ease-in), holds at least
+   *  500 ms from the start of its fade-in, fades out (200 ms ease-out) once ready, then the content fades in (200 ms). A load that ends inside
+   *  the grace shows no arc. Reduce Motion: the same fades (the sheet itself cross-fades in A.sheet). o: {readyAt: ms after the slide ends,
+   *  label, say(text) for a readout}. Resolves with the content shown. */
+  A.sheetReveal = function (host, o) {
+    o = o || {}; var say = o.say || function () {}, t0 = 0;
+    var L = A.sheetReveal.layer(host, { label: o.label });
+    if (!L) return Promise.resolve();
+    function at() { return Math.round(performance.now() - t0) + ' ms · '; }
+    function showContent() { say(at() + 'content fades in together (200 ms, no rise)'); return Promise.all(L.content.map(function (c) { return go(c, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' }); })); }
+    say('sheet slides up; title and Close show, content hidden');
+    return A.sheet(host, 'in').then(function () {
+      t0 = performance.now(); var ready = o.readyAt || 0;
+      if (ready <= 0) { say('0 ms · presented, content ready'); return showContent(); }
+      if (ready <= 150) { say('0 ms · presented, not ready: 150 ms grace'); return Mock.sleep(ready).then(showContent); }
+      say('0 ms · presented, not ready: 150 ms grace');
+      return Mock.sleep(150).then(function () {
+        say(at() + 'arc fades in (200 ms), held at least 500 ms');
+        var shown = performance.now();
+        return go(L.arc, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-in' }).then(function () {
+          var wait = Math.max(ready - (performance.now() - t0), 500 - (performance.now() - shown));
+          if (ready < 650) say(at() + 'ready at ' + ready + ' ms, during the arc: it finishes its 500 ms hold (no pop)');
+          return Mock.sleep(Math.max(0, wait));
+        });
+      }).then(function () { say(at() + 'ready; arc fades out (200 ms)'); return go(L.arc, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out' }); })
+        .then(showContent);
+    }).then(function () { say(at() + 'open: nothing animates; the reveal lets go'); });
+  };
+  /** Hides the content of a Mock.sheet host and adds the centred arc layer. o.arc true shows the arc at once (a static state). Returns {arc, content} or null. */
+  A.sheetReveal.layer = function (host, o) {
+    o = o || {}; var body = host.querySelector('.ui-sheet .ui-mscroll'); if (!body) return null;
+    var content = Array.prototype.slice.call(body.children).filter(function (c) { return !c.hasAttribute('data-reveal-arc'); });
+    content.forEach(function (c) { c.style.opacity = 0; c.setAttribute('aria-hidden', 'true'); });
+    var arc = body.querySelector('[data-reveal-arc]');
+    if (!arc) {
+      body.style.position = 'relative';
+      arc = Mock.h('div', { 'data-reveal-arc': 'true', role: 'status', 'aria-label': o.label || 'Loading', style: { position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', color: 'var(--ink)', opacity: o.arc ? 1 : 0 } },
+        Mock.components.ArcSpinner({ size: 'page', label: o.label || 'Loading' }));
+      body.appendChild(arc);
+    }
+    return { arc: arc, content: content };
+  };
   /** Pending placeholders on the first sign-in: a soft bar pulses 0.35 to 1 over 1.4 s where the value goes; static under Reduce Motion
    *  (motion.md sections 5 and 8). The pulse is a CSS animation on .ui-pending; this just reports whether it should run. */
   A.pulsing = function () { return !rm(); };

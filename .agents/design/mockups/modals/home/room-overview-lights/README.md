@@ -3,7 +3,7 @@
 - Mockup: [room-overview-lights.html](room-overview-lights.html) · status shipped · reviewed 2026-10-23
 - Source: `HassUI/Common/RoomOverview/RoomOverviewSheet.swift`, `RoomOverviewGrid.swift`, `RoomOverviewTile.swift`, `RoomOverviewStyle.swift`, `HassCore/Rooms/RoomOverview.swift`, `RoomGroups.swift` · Spec: `.agents/pages/home/spec.md`, `.agents/pages/home/ios.md`, `.agents/patterns/room-overview-sheet.md` · Patterns: room-overview-sheet, modal-sheet, dynamic-grid, entity-tile, status-rail
 - States covered: default (large, the one detent), loading (empty store), error (unavailable entities), offline, reconnecting, long-text (xxxLarge), ax5, pushed room, closed (the presenter); dark and light side by side in the States gallery; quiet (all off) and pre-ios26 (title keeps the count)
-- Motion: room card lights on and off (0.6 s colour). Transitions: present, push a room (plain push, no zoom), pop, dismiss
+- Motion: the sheet reveal on presentation (grid fades in together 0.2 s after the slide; arc only when not ready; [sheet-reveal](../../../../sheet-reveal.md)); room card lights on and off (0.6 s colour). Transitions: present, push a room (plain push, no zoom), pop, dismiss
 - Devices: iPhone, Duo folded, Duo unfolded landscape, iPad portrait and landscape (704 pt page sheet on iPad and the unfolded Duo)
 - Open notes: medium and fitted detents do not exist (hassSheet .full); no true loading state; cards have no unavailable face; direction-g.md and patterns/motion.md disagree with the code (chevron and plain push, not zoom)
 - Rollout L (2026-10-28): each room card has a room power disc (see `components/rooms/room-overview-tile`); a phone shows one card per row.

@@ -236,17 +236,19 @@ final class UKRoomGroupDetailView: UIView, UKGridMeasuring {
     /// the family glyph. Temperatures never fill; an open vent does.
     private func sensorTile(_ item: RoomGroupItem, family: ColorFamily, redacts: Bool = false,
                             state: @escaping (EntityState?) -> (subtitle: String, symbol: String, active: Bool)) -> UKGlassTileView {
-        let tile = UKGlassTileView(model: UKGlassTileModel(title: item.title, symbol: "circle", family: family, isActive: false, kind: .state), environment: environment)
         let redact = redacts && ScreenshotPrivacy.isRedacting
-        bag.observe { [weak tile, read, environment] in
+        // The tile is built from its real model, glyph included: a placeholder symbol replaced after the sheet is up would animate in.
+        let model: @MainActor () -> UKGlassTileModel = { [read] in
             let entity = read(item.entityId)
             let shown = state(entity)
-            tile?.configure(UKGlassTileModel(
+            return UKGlassTileModel(
                 title: item.title, subtitle: redact ? "Hidden" : shown.subtitle, symbol: shown.symbol, family: family,
                 isActive: shown.active && !redact, isUnavailable: RoomFormat.isUnavailable(entity), kind: .state,
                 identifier: "room.entity.\(item.entityId)",
-                spokenValue: family == .contact ? RoomFormat.contact(entity) : nil), environment: environment)
+                spokenValue: family == .contact ? RoomFormat.contact(entity) : nil)
         }
+        let tile = UKGlassTileView(model: model(), environment: environment)
+        bag.observe { [weak tile, environment] in tile?.configure(model(), environment: environment) }
         return tile
     }
 
@@ -339,6 +341,7 @@ enum UKRoomOverviewSheet {
         var options = UKHassModalOptions(title: UKRoomOverviewViewController.title(kind, read: read))
         options.height = .full
         options.width = .page
+        options.reveal = .gate(.sheet)
         let sheetContext = context.with { $0.surface = .sheet }
         return UKHassModalController(root: UKRoomOverviewViewController(context: sheetContext, kind: kind), options: options)
     }
@@ -446,31 +449,13 @@ final class UKRoomOverviewViewController: UKPageViewController {
 
     /// One room card (`RoomOverviewTile`): the room's state, opening its detail page.
     private func roomTile(_ group: RoomGroup) -> UKGlassTileView {
-        let tile = UKGlassTileView(model: UKGlassTileModel(title: group.room, symbol: "circle", isActive: false, kind: .navigate), environment: environment)
         let kind = kind
+        // The tile is built from its real model, glyph included (`roomModel`), then follows live changes.
+        let first = roomModel(group, read: read, kind: kind)
+        let tile = UKGlassTileView(model: first.model, environment: environment)
         tileBag.observe { [weak tile, weak self] in
             guard let self, let tile else { return }
-            let read = self.read
-            let active = RoomOverview.isActive(kind, group, read: read)
-            let redact = ScreenshotPrivacy.isRedacting && kind == .occupancy
-            let symbol: String = switch kind {
-            case .lights: group.items.count > 1 ? "lightbulb.2" : "lightbulb"
-            case .climate: SymbolMap.symbol(for: RoomOverview.roomIcon(group.room) ?? "mdi:thermometer")
-            case .occupancy: SymbolMap.symbol(for: active && !redact ? "mdi:motion-sensor" : "mdi:motion-sensor-off")
-            case .contacts: RoomOverviewStyle.contactSymbol(window: RoomOverview.isWindowGroup(group), open: active)
-            case .airQuality: SymbolMap.symbol(for: "mdi:blur")
-            }
-            // A **Lights** card is a navigation tile with a room power disc left of its chevron (`RoomLightsPowerActions`, audit item 12).
-            let provider = kind == .lights ? RoomLightsPowerActions(group) : nil
-            let specs = provider?.actions(read: read) ?? []
-            var model = UKGlassTileModel(
-                title: group.room, subtitle: redact ? "Hidden" : RoomOverview.tileSubtitle(kind, group, read: read), symbol: symbol,
-                family: RoomOverviewStyle.family(kind), isActive: RoomOverviewStyle.isFilled(kind, active: active && !redact), behavior: .navigate,
-                actions: specs.items, identifier: "overview.\(kind.rawValue).room.\(group.room)",
-                spokenValue: redact ? "Hidden" : RoomOverview.spokenSubtitle(kind, group, read: read))
-            model.stateCandidates = provider?.stateTextCandidates ?? []
-            // On the body only: a hint set from outside would also be read on the lights disc.
-            model.bodyHint = "Opens \(RoomOverview.detailTitle(kind, group))"
+            let (model, specs, provider) = self.roomModel(group, read: self.read, kind: kind)
             tile.configure(model, environment: environment, action: { [weak self] in self?.open(group) }, perform: { [weak self] id in
                 if let spec = specs.first(where: { $0.id == id }), let provider { self?.run(spec, provider) }
             })
@@ -478,20 +463,50 @@ final class UKRoomOverviewViewController: UKPageViewController {
         return tile
     }
 
+    /// One room card's model from the live state: the glyph, subtitle, fill and (Lights) the room power disc.
+    private func roomModel(_ group: RoomGroup, read: RoomOverview.Read, kind: RoomOverviewKind)
+        -> (model: UKGlassTileModel, specs: [TileActionSpec], provider: RoomLightsPowerActions?) {
+        let active = RoomOverview.isActive(kind, group, read: read)
+        let redact = ScreenshotPrivacy.isRedacting && kind == .occupancy
+        let symbol: String = switch kind {
+        case .lights: group.items.count > 1 ? "lightbulb.2" : "lightbulb"
+        case .climate: SymbolMap.symbol(for: RoomOverview.roomIcon(group.room) ?? "mdi:thermometer")
+        case .occupancy: SymbolMap.symbol(for: active && !redact ? "mdi:motion-sensor" : "mdi:motion-sensor-off")
+        case .contacts: RoomOverviewStyle.contactSymbol(window: RoomOverview.isWindowGroup(group), open: active)
+        case .airQuality: SymbolMap.symbol(for: "mdi:blur")
+        }
+        // A **Lights** card is a navigation tile with a room power disc left of its chevron (`RoomLightsPowerActions`, audit item 12).
+        let provider = kind == .lights ? RoomLightsPowerActions(group) : nil
+        let specs = provider?.actions(read: read) ?? []
+        var model = UKGlassTileModel(
+            title: group.room, subtitle: redact ? "Hidden" : RoomOverview.tileSubtitle(kind, group, read: read), symbol: symbol,
+            family: RoomOverviewStyle.family(kind), isActive: RoomOverviewStyle.isFilled(kind, active: active && !redact), behavior: .navigate,
+            actions: specs.items, identifier: "overview.\(kind.rawValue).room.\(group.room)",
+            spokenValue: redact ? "Hidden" : RoomOverview.spokenSubtitle(kind, group, read: read))
+        model.stateCandidates = provider?.stateTextCandidates ?? []
+        // On the body only: a hint set from outside would also be read on the lights disc.
+        model.bodyHint = "Opens \(RoomOverview.detailTitle(kind, group))"
+        return (model, specs, provider)
+    }
+
     /// One room in the Air Quality sheet (`AirQualityRoomTile`): AQI and PM2.5, its glyph and rim in the room's AQI colour; read-only.
     private func airQualityTile(_ room: AirQualityRoom) -> UKGlassTileView {
-        let tile = UKGlassTileView(model: UKGlassTileModel(title: room.title, symbol: "circle", isActive: false, kind: .state), environment: environment)
+        let tile = UKGlassTileView(model: airQualityModel(room, read: read), environment: environment)
         tileBag.observe { [weak tile, weak self] in
             guard let self, let tile else { return }
-            let read = self.read
-            // Both sensors dead: the neutral dark face and "Unavailable", not the teal fallback with a reading.
-            let offline = (read(room.aqiEntityId)?.isUnavailable ?? true) && (read(room.pm25EntityId)?.isUnavailable ?? true)
-            tile.configure(UKGlassTileModel(
-                title: room.title, subtitle: RoomFormat.airSummary(aqi: read(room.aqiEntityId), pm25: read(room.pm25EntityId)),
-                symbol: SymbolMap.symbol(for: "mdi:blur"), tint: UIColor(RoomOverview.airQualityColor(room, read: read).token), isActive: !offline, kind: .state,
-                identifier: "overview.airQuality.room.\(room.title)"), environment: environment)
+            tile.configure(self.airQualityModel(room, read: self.read), environment: environment)
         }
         return tile
+    }
+
+    /// One Air Quality room's model from the live state.
+    private func airQualityModel(_ room: AirQualityRoom, read: RoomOverview.Read) -> UKGlassTileModel {
+        // Both sensors dead: the neutral dark face and "Unavailable", not the teal fallback with a reading.
+        let offline = (read(room.aqiEntityId)?.isUnavailable ?? true) && (read(room.pm25EntityId)?.isUnavailable ?? true)
+        return UKGlassTileModel(
+            title: room.title, subtitle: RoomFormat.airSummary(aqi: read(room.aqiEntityId), pm25: read(room.pm25EntityId)),
+            symbol: SymbolMap.symbol(for: "mdi:blur"), tint: UIColor(RoomOverview.airQualityColor(room, read: read).token), isActive: !offline, kind: .state,
+            identifier: "overview.airQuality.room.\(room.title)")
     }
 
     private func open(_ group: RoomGroup) {

@@ -404,6 +404,20 @@
     sheet.insertBefore(back, cur);
     return Mock.sleep(500).then(function () { return A.push(cur, back, { back: true }); }).then(function () { return Mock.sleep(600); });
   };
+  /** The sheet reveal on presentation (UKHassModalOptions.reveal = .gate(.sheet); design/sheet-reveal.md, owner 2026-11-05 "Arc only if not ready"):
+   *  the chip presents the sheet with its grid hidden, then the grid fades in together; o.readyAt > 150 plays the arc path (a sheet that really loads,
+   *  or FENTON_SHEET_REVEAL_HOLD_MS in DEBUG). A millisecond readout runs at the top of the screen. Dismisses at the end, as presentDemo does. */
+  RO.revealDemo = function (stage, kind, W, o) {
+    o = o || {}; var ctx = Mock.current, page = stage.querySelector('.ui-page');
+    if (!page || !ctx) return Promise.resolve();
+    var parent = page.parentNode, next = page.nextSibling, name = sheetName(kind);
+    var host = Mock.sheet(ctx, { title: name, subtitle: sheetSubtitle(kind, W) || undefined, detent: 'large', size: 'page', trailing: 'close', content: overviewContent(kind, W), presenter: page });
+    var ro = h('div', { 'aria-hidden': 'true', style: { position: 'absolute', left: '8px', right: '8px', top: '6px', zIndex: 60, font: '600 11px/1.4 var(--mono)', color: '#fff', background: 'rgba(0,0,0,.66)', padding: '3px 8px', borderRadius: '8px', pointerEvents: 'none' } }, 'at rest');
+    parent.insertBefore(host, next); host.appendChild(ro);
+    return A.sheetReveal(host, { readyAt: o.readyAt || 0, label: 'Loading ' + name, say: function (t) { ro.textContent = t; } })
+      .then(function () { return Mock.sleep(o.hold || 1200); }).then(function () { return A.sheet(host, 'out'); })
+      .then(function () { page.style.transform = ''; parent.insertBefore(page, host); host.remove(); });
+  };
   RO.dismissDemo = function (stage) { var host = stage.querySelector('.ui-host'); return A.sheet(host, 'out').then(function () { return Mock.sleep(500); }); };
   /** Drag a brightness tile: it lifts 3%, a "30%" bubble follows the band's edge, the band follows the finger on `quick`, a haptic ticks every 10%. Reduce Motion: shadow only. */
   RO.dragDemo = function (tile, from, to) {
@@ -446,14 +460,21 @@
           t.style.setProperty('--glyph', from); t.style.setProperty('--glyph-light', from); t.querySelector('.st').textContent = '12 • 3.1 µg/m³';
           return t.animate([{ boxShadow: rim(to) }, { boxShadow: rim(from) }], { duration: ms, easing: A.easing.state, fill: 'both' }).finished; });
       } });
+    var revealSrc = 'ContentGateModel.Profile.sheet via UKHassModalOptions.reveal (UKRoomOverviewSheet.controller); patterns/content-gate.md "Sheet reveal"; design/sheet-reveal.md';
+    out.push({ id: 'reveal-ready', what: 'The chip opens the sheet: it slides up with the title and Close showing and the grid hidden; when the slide ends every tile fades in together (the store is read synchronously, so the content is ready and no arc shows)', token: 'sheet reveal: one fade, 200 ms ease-out (quick), no rise, no stagger, no glyph animation', state: 'closed', source: revealSrc,
+      reduce: 'the same 200 ms fade (opacity only); the sheet itself cross-fades', play: function (stage) { return RO.revealDemo(stage, kind, W, { readyAt: 0 }); } });
+    out.push({ id: 'reveal-arc', what: 'The arc path (a sheet that really loads; forced in DEBUG with FENTON_SHEET_REVEAL_HOLD_MS=1200): after the slide a 150 ms grace, the centred 44 pt arc fades in, holds, fades out once ready, then the tiles fade in together', token: 'grace 150 ms, arc in 200 ms ease-in, hold at least 500 ms, out 200 ms ease-out, content 200 ms ease-out; load timeout 10 s', state: 'closed', source: revealSrc,
+      reduce: 'the same fades; the arc turns at half speed', play: function (stage) { return RO.revealDemo(stage, kind, W, { readyAt: 1200 }); } });
+    out.push({ id: 'reveal-late', what: 'Ready at 300 ms, while the arc is still fading in: the arc finishes its fade and its 500 ms hold, fades out from full, then the tiles fade in (no pop)', token: 'as reveal-arc; the hold runs from the start of the arc\'s fade-in', state: 'closed', source: revealSrc,
+      reduce: 'the same fades', play: function (stage) { return RO.revealDemo(stage, kind, W, { readyAt: 300 }); } });
     return out;
   };
 
   /** Transitions shared by the overview sheets. */
   RO.transitions = function (kind, room) {
     var W = RO.world('mixed'), T = [], name = sheetName(kind);
-    T.push({ from: 'Home', to: name + ' sheet', kind: 'sheet', state: 'closed', note: 'The ' + RO.kinds[kind].chip + ' chip presents the sheet at its full height (hassSheet .full: it pushes pages, so its height must not change). The system slides it up; Home scales back and dims. Content is present on arrival: no tiles rising inside the sheet (motion.md 4.4).',
-      play: function (stage) { var ctx = Mock.current; return Mock.presentDemo(stage, { title: sheetName(kind), subtitle: sheetSubtitle(kind, W) || undefined, detent: 'large', size: 'page', trailing: 'close', content: overviewContent(kind, W) }, { hold: 1200 }); } });
+    T.push({ from: 'Home', to: name + ' sheet', kind: 'sheet', state: 'closed', note: 'The ' + RO.kinds[kind].chip + ' chip presents the sheet at its full height (hassSheet .full: it pushes pages, so its height must not change). The system slides it up with the title and Close showing and the grid hidden; Home scales back and dims. When the slide ends every tile fades in together, 0.2 s, with no rise, no stagger and no per-glyph animation (the sheet reveal, owner 2026-11-05; motion.md 4.4 exception). The centred arc shows only if the content is not ready 150 ms later, which a store-backed sheet never is.',
+      play: function (stage) { return RO.revealDemo(stage, kind, W, { readyAt: 0 }); } });
     if (room) {
       T.push({ from: name + ' overview', to: room + ' room', kind: 'push', state: 'default', note: 'A plain system push inside the sheet\'s own NavigationStack: the page slides in from the trailing edge, the grid shifts left and dims, Back appears. No zoom: a zoom inside a sheet hides the sheet\'s content while the backdrop stays blurred (owner 2026-10-22, motion.md 4.3). The destination renders its first frame with live data.',
         play: function (stage) { return RO.pushDemo(stage, kind, room, W); } });
@@ -471,7 +492,7 @@
     var st = {};
     st['default'] = { title: name + ' overview, large (the one detent)', note: 'hassSheet(.page, height: .full): opens at large and never changes height; a page sheet (704 pt) on iPad and the unfolded Duo', render: S('mixed') };
     if (kind === 'lights' || kind === 'occupancy' || kind === 'contacts') st.quiet = { title: kind === 'lights' ? 'All lights off' : (kind === 'occupancy' ? 'All clear' : 'All closed'), note: kind === 'contacts' ? 'no filled card; every room reads closed' : 'the active section is dropped; the one section left keeps its heading', render: S('quiet') };
-    st.loading = { title: 'Store empty (first sign-in, before any state)', note: 'there is no spinner, pulse or skeleton: the sheet reads EntityStore, so a missing entity reads as off, clear, closed or unavailable', render: S('empty') };
+    st.loading = { title: 'Store empty (first sign-in, before any state)', note: 'there is no spinner, pulse or skeleton: the sheet reads EntityStore, so a missing entity reads as off, clear, closed or unavailable. The sheet reveal\'s readiness is layout, not data, so an empty store fades in like a full one (no arc)', render: S('empty') };
     st.error = { title: 'Entities unavailable', note: kind === 'airQuality' ? 'a room whose sensors are unavailable reads "Unavailable • Unavailable" on the teal fallback; there is no dimmed face' : 'the overview cards carry no unavailable face (only the pushed tiles dim); unavailable members read as off, clear, closed or fall back to their sensors', render: S('unavailable') };
     st.offline = { title: 'Over an offline Home', note: 'the sheet has no offline UI of its own: it keeps the last known state; the page behind carries the offline chip', render: S('mixed', { connection: 'offline' }) };
     st.reconnecting = { title: 'Over a reconnecting Home', note: 'the header arc sits on the page behind; the sheet is unchanged', render: S('mixed', { connection: 'reconnecting' }) };
@@ -479,6 +500,9 @@
     st.ax5 = { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of stacked tiles (glyph above, name and state below); the grid scrolls', render: S('mixed') };
     if (kind === 'lights') st['pre-ios26'] = { title: 'Before iOS 26: the title keeps the count', note: 'no navigation subtitle exists: "Lights (' + activeLightCount(RO.world('mixed')) + ' On)", centred, no second line (SheetSubtitle.isShown is false)', render: S('mixed', { ios26: false }) };
     if (room) st.room = { title: room + ' pushed inside the sheet', note: 'a plain push with Back; Close stays in the bar at every depth', render: S('mixed', { room: room }) };
+    function R(arc) { return function (ctx) { var host = RO.sheet(ctx, { kind: kind, W: RO.world('mixed') }); A.sheetReveal.layer(host, { arc: arc, label: 'Loading ' + name }); return host; }; }
+    st['reveal-hidden'] = { title: 'Sheet reveal: sliding up (content hidden)', note: 'the frame of the slide: the grabber, the title and Close show; the grid is laid out but hidden (alpha 0, no hit testing, hidden from VoiceOver), so the sheet fits it as usual. It fades in together, 0.2 s, when the slide ends (design/sheet-reveal.md)', render: R(false) };
+    st['reveal-arc'] = { title: 'Sheet reveal: arc (content not ready)', note: 'only when the content is not ready 150 ms after the slide (a sheet that really loads; DEBUG FENTON_SHEET_REVEAL_HOLD_MS). A 44 pt arc at every text size, centred in the content area below the bar and above the home indicator, labelled "Loading ' + name + '". A store-backed overview never shows it in practice', render: R(true) };
     st.closed = { title: 'Before presenting / after dismissing', note: 'the Home page the sheet scales back', render: function (ctx) { return RO.presenter(ctx, kind, RO.world('mixed')); } };
     return st;
   };

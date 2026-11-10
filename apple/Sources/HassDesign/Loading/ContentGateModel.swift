@@ -39,6 +39,14 @@ public final class ContentGateModel {
         public static let contentExit: Duration = .milliseconds(170)
         /// The longest the gate waits for reported content (images) after the data is ready.
         public static let childTimeout: Duration = .milliseconds(1500)
+        /// One fade for a whole modal reveal (the arc out, the content in): ``MotionTokens/quickDuration``, so a component
+        /// that reuses ``Profile/sheet`` also reuses the app's small-fade speed.
+        public static let sheetFade: Duration = .milliseconds(Int((MotionTokens.quickDuration * 1000).rounded()))
+        /// The least an arc that has started stays up, from the start of its fade-in (``Profile/sheet``).
+        public static let spinnerMinimumShown: Duration = .milliseconds(500)
+        /// The longest a first load waits for its data before showing the content anyway (web
+        /// `DASHBOARD_PAGE_LOAD_TIMEOUT_MS`); ``Profile/page`` and ``Profile/sheet`` read it.
+        public static let loadTimeout: Duration = .milliseconds(10_000)
     }
 
     /// A full set of timings for one kind of load.
@@ -59,12 +67,28 @@ public final class ContentGateModel {
         public var minimumLoading: Duration
         /// The longest a cold load waits for the data before showing the content anyway; nil waits for ever.
         public var loadTimeout: Duration?
+        /// How far the content starts below its place and rises as it fades in, in points (dropped under Reduce Motion).
+        public var contentRise: CGFloat
+        /// Whether nothing happens (no arc timer, no load timeout) until ``ContentGateModel/presentationCompleted()``, and
+        /// content that is ready at init stays hidden until then: a modal's slide-up.
+        public var waitsForPresentation: Bool
+        /// The least an arc that has shown stays up, from the start of its fade-in. Unlike ``minimumLoading`` it never
+        /// forces an arc: it applies only once the arc has started.
+        public var spinnerMinimumShown: Duration
+        /// Whether the reveal runs once: after the content has shown, a later `advance(isReady: false)` is ignored.
+        public var revealsOnce: Bool
 
         /// Creates a profile.
         public init(
             spinnerDelay: Duration, spinnerEnter: Duration, spinnerExit: Duration, contentEnter: Duration,
-            contentExit: Duration, childTimeout: Duration, minimumLoading: Duration = .zero, loadTimeout: Duration? = nil
+            contentExit: Duration, childTimeout: Duration, minimumLoading: Duration = .zero, loadTimeout: Duration? = nil,
+            contentRise: CGFloat = 4, waitsForPresentation: Bool = false, spinnerMinimumShown: Duration = .zero,
+            revealsOnce: Bool = false
         ) {
+            self.contentRise = contentRise
+            self.waitsForPresentation = waitsForPresentation
+            self.spinnerMinimumShown = spinnerMinimumShown
+            self.revealsOnce = revealsOnce
             self.spinnerDelay = spinnerDelay
             self.spinnerEnter = spinnerEnter
             self.spinnerExit = spinnerExit
@@ -90,7 +114,17 @@ public final class ContentGateModel {
         public static let page = Profile(
             spinnerDelay: .zero, spinnerEnter: .milliseconds(200), spinnerExit: .milliseconds(500),
             contentEnter: .milliseconds(170), contentExit: .milliseconds(170), childTimeout: Timing.childTimeout,
-            minimumLoading: .milliseconds(1000), loadTimeout: .milliseconds(10_000)
+            minimumLoading: .milliseconds(1000), loadTimeout: Timing.loadTimeout
+        )
+
+        /// A modal's reveal (`.agents/design/sheet-reveal.md`): nothing until the sheet has finished sliding up; then ready
+        /// content fades in at once (200 ms, no rise); content that is not ready gets an arc after a 150 ms grace, held at
+        /// least 500 ms from the start of its fade-in, faded out over 200 ms, and then the content fades in. Runs once.
+        public static let sheet = Profile(
+            spinnerDelay: Timing.spinnerDelay, spinnerEnter: Timing.spinnerEnter, spinnerExit: Timing.sheetFade,
+            contentEnter: Timing.sheetFade, contentExit: Timing.contentExit, childTimeout: Timing.childTimeout,
+            minimumLoading: .zero, loadTimeout: Timing.loadTimeout, contentRise: 0, waitsForPresentation: true,
+            spinnerMinimumShown: Timing.spinnerMinimumShown, revealsOnce: true
         )
     }
 
@@ -98,6 +132,9 @@ public final class ContentGateModel {
     public private(set) var phase: Phase
     /// Whether the spinner is visible (it fades in after ``Profile/spinnerDelay``).
     public private(set) var spinnerShown = false
+    /// Whether the host has finished presenting the content (always true unless ``Profile/waitsForPresentation``). Until it
+    /// is, the gate does nothing; observe it to advance again once it flips.
+    public private(set) var isPresented: Bool
     /// Content inside the gate reports here.
     public let tracker = ReadinessTracker()
 
@@ -111,6 +148,7 @@ public final class ContentGateModel {
     @ObservationIgnored private var interval: Telemetry.Interval?
     @ObservationIgnored private var loadingStartedAt: ContinuousClock.Instant?
     @ObservationIgnored private var hasShownContent: Bool
+    @ObservationIgnored private var spinnerShownAt: ContinuousClock.Instant?
 
     private var profile: Profile { hasShownContent ? reload : firstLoad }
 
@@ -133,11 +171,25 @@ public final class ContentGateModel {
         self.reload = reload ?? firstLoad
         self.sleep = sleep
         self.now = now
-        hasShownContent = isReady
-        loadingStartedAt = isReady ? nil : now()
-        phase = isReady ? .idle : .loading
-        if !isReady { interval = Telemetry.begin(Telemetry.Name.contentReady, page: page, page) }
-        if isReady { Telemetry.count("gate.instant") }
+        let waits = firstLoad.waitsForPresentation
+        isPresented = !waits
+        // A gate that waits for its presentation starts loading even when the data is there: the content stays hidden through
+        // the slide and fades in once.
+        let instant = isReady && !waits
+        hasShownContent = instant
+        loadingStartedAt = isReady || waits ? nil : now()
+        phase = instant ? .idle : .loading
+        if !isReady && !waits { interval = Telemetry.begin(Telemetry.Name.contentReady, page: page, page) }
+        if instant { Telemetry.count("gate.instant") }
+    }
+
+    /// The host finished presenting the content (a sheet's first `viewDidAppear`). The arc grace and the load timeout count
+    /// from here; the caller advances again (it observes ``isPresented``). Does nothing twice.
+    public func presentationCompleted() {
+        guard !isPresented else { return }
+        isPresented = true
+        loadingStartedAt = now()
+        if interval == nil, phase != .idle { interval = Telemetry.begin(Telemetry.Name.contentReady, page: page, page) }
     }
 
     /// The production sleeper.
@@ -153,6 +205,9 @@ public final class ContentGateModel {
     /// Moves the gate toward `isReady`. The view calls it whenever the data or the reported content changes;
     /// a newer call cancels an older one mid-transition and picks up from the current phase.
     public func advance(isReady: Bool, reduceMotion: Bool = false) async {
+        guard isPresented else { return }
+        // A reveal that runs once lets go of the content for good.
+        if !isReady, phase == .idle, firstLoad.revealsOnce { return }
         if isReady {
             await reveal()
         } else {
@@ -174,10 +229,19 @@ public final class ContentGateModel {
             }
             if profile.minimumLoading > .zero, phase == .loading, let started = loadingStartedAt {
                 // The data beat the least loading time: make sure the spinner is up, then hold it.
-                if !spinnerShown { withAnimation(.easeIn(duration: profile.spinnerEnter.seconds)) { spinnerShown = true } }
+                if !spinnerShown {
+                    withAnimation(.easeIn(duration: profile.spinnerEnter.seconds)) { spinnerShown = true }
+                    spinnerShownAt = now()
+                }
                 let remaining = profile.minimumLoading - (now() - started)
                 if remaining > .zero { guard await sleep(remaining) else { return } }
             }
+            if profile.spinnerMinimumShown > .zero, spinnerShown, let shownAt = spinnerShownAt {
+                // An arc that has started always finishes its hold, whenever the data arrived: no pop.
+                let remaining = profile.spinnerMinimumShown - (now() - shownAt)
+                if remaining > .zero { guard await sleep(remaining) else { return } }
+            }
+            if profile.waitsForPresentation { Telemetry.count(spinnerShown ? "sheetReveal.arc" : "sheetReveal.ready") }
             if spinnerShown {
                 withAnimation(.easeOut(duration: profile.spinnerExit.seconds)) { phase = .spinnerExiting }
                 guard await sleep(profile.spinnerExit) else { return }
@@ -198,12 +262,14 @@ public final class ContentGateModel {
         if phase != .loading {
             phase = .loading
             spinnerShown = false
+            spinnerShownAt = nil
             loadingStartedAt = now()
             interval = Telemetry.begin(Telemetry.Name.contentReady, page: page, page)
         }
         if !spinnerShown {
             guard await sleep(profile.spinnerDelay) else { return }
             withAnimation(.easeIn(duration: profile.spinnerEnter.seconds)) { spinnerShown = true }
+            spinnerShownAt = now()
         }
         // Data that never arrives must not hold the page for ever (web `DASHBOARD_PAGE_LOAD_TIMEOUT_MS`).
         if let timeout = profile.loadTimeout, let started = loadingStartedAt {
