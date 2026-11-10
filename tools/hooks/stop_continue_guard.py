@@ -21,8 +21,11 @@ whose payload carries no background-job information, so this hook is not registe
 Assumed transcript format (unverified against future Claude Code versions; the hook fails open if it changes): JSON
 lines, each an object with ``message.role`` (or ``type``) and ``message.content`` as a string or a list of blocks
 (``text``, ``tool_use`` with ``id``/``name``/``input``, ``tool_result`` with ``tool_use_id``/``content``). A background
-``Agent`` call is "finished" when a non-assistant entry (user, queue-operation or attachment) containing ``task-notification`` mentions its ``agentId``; if the
-``agentId`` cannot be read from the tool result the hook never blocks on it. A line that is not that shape is
+``Agent`` call is "finished" when a notice payload names it: a user entry's ``message.content``, a ``queue-operation``
+entry's string ``content`` or an ``attachment`` (``queued_command``) ``prompt`` containing ``task-notification`` and
+``<task-id>agentId</task-id>`` (user content also keeps the older "agentId anywhere" match). Entry metadata
+(``toolUseResult``, ``gitBranch``, ``cwd``, ``turnOrigin``, ``origin``) never counts, and compact-summary user entries
+are ignored. If the ``agentId`` cannot be read from the tool result the hook never blocks on it. A line that is not that shape is
 skipped, so the worst case is one missed block or one unneeded block (the second stop is always allowed).
 """
 
@@ -33,7 +36,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 TAIL_BYTES = 4 * 1024 * 1024
 WAITING = re.compile(
@@ -53,9 +56,10 @@ BACKGROUND_REASON = (
     "finish blocked with blocked_reason \"waiting_bg: <label>\"."
 )
 WAITING_REASON = (
-    "Your last message says you are waiting. A turn that ends waiting finishes nothing. If background work is "
-    "running, its notification will wake you: continue the task now with what you can do, then finish. If you are "
-    "truly blocked, say why plainly and finish with a blocked status."
+    "Your last message says you are waiting. A turn that ends waiting finishes nothing. Ending the turn in a "
+    "headless session kills background work and no notification will wake you. Keep working on the rest of the "
+    "task; if nothing is left, commit a WIP and finish blocked with blocked_reason \"waiting_bg: <label>\". If you "
+    "are truly blocked, say why plainly and finish with a blocked status."
 )
 
 
@@ -108,6 +112,36 @@ def last_assistant_text(items: List[Dict[str, Any]]) -> str:
     return ""
 
 
+def notice_texts(items: List[Dict[str, Any]]) -> List[Tuple[str, bool]]:
+    """Notice payload texts as ``(text, loose)``; ``loose`` marks user content, which also allows the old match.
+
+    Reads only payloads: a user entry's ``message.content`` (compact summaries skipped), a ``queue-operation``
+    entry's string ``content`` and an ``attachment`` ``queued_command`` ``prompt``. Entry metadata is ignored.
+    """
+    texts: List[Tuple[str, bool]] = []
+    for e in items:
+        kind = e.get("type")
+        if role(e) == "assistant":
+            continue
+        if kind == "queue-operation":
+            if isinstance(e.get("content"), str):
+                texts.append((e["content"], False))
+        elif kind == "attachment":
+            att = e.get("attachment")
+            if isinstance(att, dict) and att.get("type") == "queued_command" and isinstance(att.get("prompt"), str):
+                texts.append((att["prompt"], False))
+        elif role(e) == "user" and not e.get("isCompactSummary"):
+            texts.append((json.dumps(blocks(e)), True))
+    return texts
+
+
+def finished(agent: str, text: str, loose: bool) -> bool:
+    """Whether notice ``text`` reports ``agent`` done: a ``task-notification`` naming ``<task-id>agent</task-id>``."""
+    if "task-notification" not in text and "task_notification" not in text:
+        return False
+    return f"<task-id>{agent}</task-id>" in text or (loose and agent in text)
+
+
 def pending_agents(items: List[Dict[str, Any]]) -> List[str]:
     """Descriptions of ``run_in_background`` Agent calls with no completion notification after them."""
     launched: Dict[str, Dict[str, str]] = {}
@@ -124,16 +158,13 @@ def pending_agents(items: List[Dict[str, Any]]) -> List[str]:
                     launched[str(b["tool_use_id"])]["agent"] = found.group(1)
     if not launched:
         return []
-    # Claude Code stores a completion notice as a user entry, a ``queue-operation`` entry (string ``content`` with
-    # ``<task-id>ID</task-id>``) or an ``attachment`` entry: read every non-assistant entry, whole.
-    notices = [json.dumps(e) for e in items if role(e) != "assistant"]
-    notices = [n for n in notices if "task-notification" in n or "task_notification" in n]
+    notices = notice_texts(items)
     pending = []
     for info in launched.values():
         agent = info["agent"]
         if not agent:
             continue  # cannot tell whether it finished: never block on a guess
-        if not any(agent in n for n in notices):
+        if not any(finished(agent, text, loose) for text, loose in notices):
             pending.append(info["desc"])
     return pending
 

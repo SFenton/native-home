@@ -117,6 +117,46 @@ class StopContinueGuardTests(unittest.TestCase):
         self.assertIn("waiting_bg", reason)
         self.assertNotIn("Wait for its notification", reason)
 
+    NOTICE = "<task-notification><task-id>%s</task-id><status>completed</status></task-notification>"
+
+    def test_user_content_task_id_notice_clears_agent(self):
+        """Fails if: a user-content notice naming the agent by <task-id> leaves it reported as running."""
+        done = self.LAUNCH + [user_text(self.NOTICE % "abc123def456"), assistant_text("Merged.")]
+        self.assertIsNone(guard.decide(self.event(done)))
+
+    def test_launch_entry_with_notification_prompt_still_blocks(self):
+        """Fails if: toolUseResult metadata on the launch entry (a prompt mentioning task-notification) clears the agent."""
+        launch = dict(self.LAUNCH[1], toolUseResult={"prompt": self.NOTICE % "abc123def456", "agentId": "abc123def456"})
+        items = [self.LAUNCH[0], launch, assistant_text("Launched.")]
+        self.assertIn("Coder A", guard.decide(self.event(items)))
+
+    def test_other_agents_notice_with_metadata_id_still_blocks(self):
+        """Fails if: gitBranch/cwd metadata holding the running id lets another agent's notice clear it."""
+        notice = {"type": "queue-operation", "operation": "enqueue", "content": self.NOTICE % "zzz999yyy888",
+                  "gitBranch": "worktree-agent-abc123def456", "cwd": "/w/worktree-agent-abc123def456",
+                  "origin": {"kind": "task-notification"}}
+        user = dict(user_text(self.NOTICE % "zzz999yyy888"), gitBranch="worktree-agent-abc123def456",
+                    cwd="/w/worktree-agent-abc123def456", origin={"kind": "task-notification"})
+        self.assertIn("Coder A", guard.decide(self.event(self.LAUNCH + [notice, user])))
+
+    def test_compact_summary_still_blocks(self):
+        """Fails if: a compact-summary entry (turnOrigin task_notification) naming the running id clears the agent."""
+        summary = dict(user_text("Summary: task-notification pending, lane abc123def456 still running"),
+                       isCompactSummary=True, turnOrigin="task_notification")
+        self.assertIn("Coder A", guard.decide(self.event(self.LAUNCH + [summary])))
+
+    def test_notices_for_other_task_ids_still_block(self):
+        """Fails if: a queue-operation or attachment notice for a different task-id clears the agent."""
+        queue = {"type": "queue-operation", "operation": "enqueue", "content": self.NOTICE % "zzz999yyy888"}
+        attach = {"type": "attachment", "attachment": {"type": "queued_command", "prompt": self.NOTICE % "zzz999yyy888"}}
+        self.assertIn("Coder A", guard.decide(self.event(self.LAUNCH + [queue, attach])))
+
+    def test_waiting_reason_headless(self):
+        """Fails if: WAITING_REASON again promises a notification will wake the agent or drops waiting_bg."""
+        self.assertIn("waiting_bg", guard.WAITING_REASON)
+        self.assertNotIn("will wake you", guard.WAITING_REASON.replace("no notification will wake you", ""))
+        self.assertIn("no notification will wake you", guard.WAITING_REASON)
+
     def test_foreground_agent_does_not_block(self):
         items = [tool_use("Agent", {"description": "x", "prompt": "p"}, "a1"),
                  tool_result("a1", "agentId: abc123def456"), assistant_text("Done.")]
