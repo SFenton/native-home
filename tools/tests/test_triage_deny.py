@@ -208,6 +208,12 @@ class RuleSyntaxTests(unittest.TestCase):
             with self.subTest(command):
                 self.assertIsNotNone(decide("Bash", {"command": command}, rules))
 
+    def test_shell_flag_groups_and_double_dash(self):
+        """Fails if: bash -lc, -xc and -c -- hide a denied command."""
+        for command in ("bash -lc 'gh pr merge 5'", "bash -xc \"gh pr merge 5\"", "bash -c -- 'gh pr merge 5'", "zsh -ic 'gh pr merge 5'"):
+            with self.subTest(command):
+                self.assertIsNotNone(decide("Bash", {"command": command}, ["Bash(gh pr merge*)"]))
+
     def test_home_relative_and_project_relative_patterns(self):
         """Fails if: `~/`, `/x` and `x` patterns anchor in the wrong place."""
         self.assertIsNotNone(decide("Read", {"file_path": f"{HOME}/.ssh/id"}, ["Read(~/.ssh/**)"]))
@@ -272,15 +278,54 @@ class HookTests(unittest.TestCase):
         for name in ("device_list", "device_open", "device_screenshot", "device_close"):
             self.assertEqual(self.call(f"mcp__t3-code__{name}", {}), (0, ""))
 
+    def home_session(self):
+        """A fake HOME whose ``hass-agents/t3`` is the registry and whose ``hass-agents/worktrees/42`` is the registered worktree."""
+        home = self.tmp / "home"
+        work = home / "hass-agents" / "worktrees" / "42"
+        work.mkdir(parents=True)
+        root = home / "hass-agents" / "t3"
+        rec = ts.build_record("request", 42, "orchestrator", work, "report/42", {"FENTON_HEADLESS": "1"}, [])
+        ts.write_record(rec, root)
+        return home, work, root
+
+    def call_home(self, tool, tool_input, home, work, root):
+        env = {"CLAUDE_PROJECT_DIR": str(work), "HOME": str(home), "PATH": os.environ.get("PATH", "")}
+        return run_hook({"tool_name": tool, "tool_input": tool_input, "cwd": str(work)}, env, root)
+
     def test_the_registry_protects_itself(self):
-        """Fails if: a session can read, edit or script the records that guard it."""
-        self.register(deny=())
-        for tool, tool_input in (("Bash", {"command": "cat ~/hass-agents/t3/worktrees/x.json"}),
-                                 ("Bash", {"command": "rm -f $HOME/hass-agents/t3/threads/*"}),
-                                 ("Read", {"file_path": f"{HOME}/hass-agents/t3/worktrees/x.json"}),
-                                 ("Write", {"file_path": f"{HOME}/hass-agents/t3/threads/x.json"}),
-                                 ("Edit", {"file_path": f"{HOME}/hass-agents/t3/threads/x.json"})):
-            self.assertEqual(self.call(tool, tool_input)[0], 2, (tool, tool_input))
+        """Fails if: a session can read, edit, move, glob or script the records that guard it, in any spelling."""
+        home, work, root = self.home_session()
+        commands = [
+            "cat ~/hass-agents/t3/worktrees/x.json", "rm -f $HOME/hass-agents/t3/threads/*", "rm -rf ~/Hass-Agents/T3",
+            "rm -rf ~/hass-agents/t?", "rm -rf ~/hass-agents//t3", "rm -rf ~/hass-agents/./t3", "cd ~/hass-agents && rm -rf t3",
+            "rm -rf ${HOME}/hass-agents/t3", "rm -rf ../../t3", "rm -rf ~/hass-agents/worktrees/../t3", "rm -rf ~/hass-*/t3",
+            "find ~/hass-agents -name '*.json' -delete", "mv ~/hass-agents/t3 /tmp/x", "python3 -c 'import shutil; shutil.rmtree(\"hass-agents/t3\")' ~/hass-agents",
+            "echo x > ~/hass-agents/t3/threads/a.json", "sh -c 'rm -r ~/hass-agents/t3'", f"rm -rf {root}", f"rm -rf {os.path.realpath(root)}",
+            "cd ~/hass-agents; find . -delete", "cd ~/hass-agents && : > t3/worktrees/a.json"]
+        for command in commands:
+            with self.subTest(command):
+                code, err = self.call_home("Bash", {"command": command}, home, work, root)
+                self.assertEqual(code, 2, command)
+        for tool, tool_input in (("Read", {"file_path": str(root / "worktrees" / "x.json")}),
+                                 ("Read", {"file_path": str(home) + "/Hass-Agents/T3/worktrees/x.json"}),
+                                 ("Read", {"file_path": str(home) + "/hass-agents/worktrees/../t3/x"}),
+                                 ("Write", {"file_path": str(root / "threads" / "x.json")}),
+                                 ("Edit", {"file_path": str(root / "threads" / "x.json")}),
+                                 ("MultiEdit", {"file_path": "../../t3/x.json"}),
+                                 ("Grep", {"path": str(home / "hass-agents")}), ("Glob", {"pattern": "*", "path": str(root)})):
+            with self.subTest(tool=tool, input=tool_input):
+                self.assertEqual(self.call_home(tool, tool_input, home, work, root)[0], 2)
+
+    def test_ordinary_work_under_hass_agents_is_not_blocked(self):
+        """Fails if: protecting the registry breaks the commands a session needs in its own worktree and the runner's folders."""
+        home, work, root = self.home_session()
+        for command in (f"rm -rf {work}/build/x", f"echo ok > {home}/hass-agents/status/42.json", "ls ~/hass-agents/worktrees",
+                        f"cp a.txt {work}/b.txt", "git -C ~/hass-agents/repos/native-home status", "tools/clean.sh build/x",
+                        "python3 tools/tasks.py list", "cat ~/hass-agents/logs/42-1.log", "ls ~/hass-agents"):
+            with self.subTest(command):
+                self.assertEqual(self.call_home("Bash", {"command": command}, home, work, root)[0], 0, command)
+        self.assertEqual(self.call_home("Read", {"file_path": str(work / "AGENTS.md")}, home, work, root)[0], 0)
+        self.assertEqual(self.call_home("Grep", {"path": str(work)}, home, work, root)[0], 0)
 
     def test_extras_a_launcher_may_add_are_enforced(self):
         """Fails if: the T3-only extra rules of the note (`agent.t3.extra_denied`) do not work as record entries."""
@@ -360,6 +405,16 @@ class HookTests(unittest.TestCase):
         by_thread = subprocess.run(["bash", "-c", command], capture_output=True, text=True,
                                    env={**env, "CLAUDE_PROJECT_DIR": str(self.tmp), "T3CODE_THREAD_ID": "x"})
         self.assertEqual(by_thread.returncode, 2)
+        # a hook that crashes (exit 1 is not a block to Claude Code) is a block while a record resolves, and a pass otherwise
+        broken = self.tmp / "broken"
+        (broken / "tools" / "hooks").mkdir(parents=True)
+        (broken / "tools" / "hooks" / "triage_deny.py").write_text("import sys\nsys.exit(1)\n")
+        crashed = subprocess.run(["bash", "-c", command], capture_output=True, text=True, env={**env, "CLAUDE_PROJECT_DIR": str(broken)})
+        self.assertEqual(crashed.returncode, 0)
+        ts.write_record(ts.build_record("request", 9, "orchestrator", broken, "report/9", {"FENTON_HEADLESS": "1"}, []),
+                        fake_home / "hass-agents" / "t3")
+        crashed = subprocess.run(["bash", "-c", command], capture_output=True, text=True, env={**env, "CLAUDE_PROJECT_DIR": str(broken)})
+        self.assertEqual(crashed.returncode, 2)
         # the real hook file is present in this checkout, so the wrapper runs it
         present = subprocess.run(["bash", "-c", command], capture_output=True, text=True, input=json.dumps(
             {"tool_name": "Bash", "tool_input": {"command": "ls"}}), env={**env, "CLAUDE_PROJECT_DIR": str(REPO)})

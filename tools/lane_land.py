@@ -1599,7 +1599,11 @@ def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: C
     given = env
     env = dict(os.environ if env is None else env)
     if given is None:  # the real process: a T3-launched triage session carries the runner's markers in its registry record
-        env.update(triage_session_env() or {})
+        record_env = triage_session_env()
+        for name, value in (record_env or {}).items():  # a record only adds: markers the process carries stay as they are
+            env.setdefault(name, value)
+        if record_env is not None:
+            env["FENTON_HEADLESS"] = "1"
     base, sha = str(info.get("baseRefName") or ""), str(info.get("headRefOid") or "")
     files = info.get("files")
     if not isinstance(files, list):

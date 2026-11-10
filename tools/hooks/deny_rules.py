@@ -12,7 +12,7 @@ Rule syntax (the same the runner's ``agent.disallowed_tools`` uses):
 * ``Read(pattern)``, ``Write(pattern)``, ``Edit(pattern)``: a path pattern. ``//abs/path`` is absolute, ``~/x`` is under the home folder,
   ``/x`` and ``x`` are relative to the project directory; ``*`` stays inside one path segment, ``**`` crosses them. The real path of the
   tool's ``file_path``, ``notebook_path`` or ``path`` is matched, case-insensitively. ``Read`` rules cover Read, Grep and Glob; ``Write`` and
-  ``Edit`` rules cover Write, Edit, MultiEdit and NotebookEdit. A Grep or Glob rooted above the fixed part of a rule's pattern (the home
+  ``Edit`` rules cover Write, Edit, MultiEdit and NotebookEdit. (Known gap: a suffix-only Read rule such as ``*.pem`` has no fixed folder, so a Grep in content mode over a folder outside the home and config roots is not refused; Bash reads those types without a rule anyway.) A Grep or Glob rooted above the fixed part of a rule's pattern (the home
   folder, for a rule under ``~/.config``) is refused too.
 * ``!rule`` (a leading ``!``): an exception. A use that a ``!`` rule matches is allowed even when another rule matches.
 
@@ -74,8 +74,9 @@ def command_forms(command: str, depth: int = 0) -> List[str]:
         if depth >= MAX_DEPTH or not stripped:
             continue
         program = os.path.basename(stripped[0])
-        if program in shell_parse.SHELLS and "-c" in stripped[1:]:
-            inner = stripped[stripped.index("-c") + 1:]
+        flags = [i for i, w in enumerate(stripped[1:], 1) if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", w)]
+        if program in shell_parse.SHELLS and flags:
+            inner = [w for w in stripped[flags[0] + 1:] if w != "--"]
             if inner:
                 forms.extend(command_forms(inner[0], depth + 1))
         elif program == "eval":

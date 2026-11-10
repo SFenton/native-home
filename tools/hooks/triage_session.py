@@ -24,7 +24,13 @@ session and nothing changes; a record that exists but is unreadable, has another
 under a key its ``worktree`` does not hash to, is a *strict* triage session: every tool call is denied (``triage_deny``) and every other hook
 treats it as headless.
 
-API for the launcher: :func:`build_record`, :func:`write_record`, :func:`set_state`, :func:`forget`, :func:`hash_hooks`.
+API for the launcher: :func:`build_record`, :func:`write_record` (returns the file with its ``.digest``), :func:`verify` (at session end, before
+:func:`set_state`), :func:`set_state`, :func:`forget`, :func:`hash_hooks`.
+
+**Prevention is best effort, detection is the guarantee.** ``triage_deny`` refuses commands and tools that touch the registry, but a determined
+session may find a spelling it misses; deleting or editing a record would silently disarm it. So the runner keeps the record's digest
+and calls :func:`verify` at the end (and the hook hashes), and blocks landing with ``guard_tampered`` unless it is ``ok``. A record can also
+only add restrictions: :func:`apply` never overwrites a marker the process has, and forces ``FENTON_HEADLESS=1``.
 API for hooks and tools: :func:`resolve`, :func:`apply`, :func:`session_env`, :func:`registered`.
 Standard library only; importing it has no side effects.
 """
@@ -104,6 +110,8 @@ def validate(record: Any, strict_fields: bool = True) -> Optional[str]:
         return "env is not a string map"
     if not isinstance(deny, list) or not all(isinstance(r, str) for r in deny):
         return "deny is not a list of strings"
+    if env.get("FENTON_HEADLESS", "1") != "1":
+        return "env turns FENTON_HEADLESS off (a record may only add restrictions)"
     if not isinstance(record.get("worktree"), str) or not record["worktree"]:
         return "worktree is missing"
     if strict_fields:
@@ -130,8 +138,25 @@ def _atomic_write(path: Path, data: str) -> None:
     os.replace(tmp, path)
 
 
-def write_record(record: Dict[str, Any], root: Optional[Path] = None) -> Path:
-    """Write ``record`` under its path key, and under its thread key too when ``record["thread_id"]`` is set. Returns the path key's file.
+class Written(type(Path())):  # type: ignore[misc]
+    """The path key's file, as a ``Path`` (so existing callers keep working), plus ``digest``: the sha256 of what was written.
+
+    The runner keeps ``digest`` in its own state and hands it to :func:`verify` when the session ends."""
+
+    digest: str = ""
+
+
+def file_digest(path: "str | Path") -> Optional[str]:
+    """sha256 hex of a file's bytes, or ``None`` when it cannot be read."""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def write_record(record: Dict[str, Any], root: Optional[Path] = None) -> Written:
+    """Write ``record`` under its path key, and under its thread key too when ``record["thread_id"]`` is set. Returns the path key's file
+    (a ``Path`` that also carries ``.digest``, the sha256 of the bytes written; keep it in runner-held state for :func:`verify`).
 
     Call it once before the handover (``thread_id`` unset) and again with the thread id once the handover returns. Raises ``ValueError`` for
     a record that does not validate and ``OSError`` when it cannot be written: the launcher must abort the launch on either.
@@ -148,7 +173,26 @@ def write_record(record: Dict[str, Any], root: Optional[Path] = None) -> Path:
         _atomic_write(thread_record(thread_id, root), data)
     target = path_record(record["worktree"], root)
     _atomic_write(target, data)
-    return target
+    written = Written(target)
+    written.digest = hashlib.sha256(data.encode("utf-8")).hexdigest()
+    return written
+
+
+def verify(worktree: "str | Path", thread_id: Optional[str], expected_digest: str, root: Optional[Path] = None) -> str:
+    """``"ok"``, ``"missing"`` or ``"changed"``: is the session's record still exactly what :func:`write_record` returned?
+
+    Prevention (``triage_deny``) is best effort; this is the guarantee, the same model as the hook-hash check. The runner calls it when
+    the session ends, **before** :func:`set_state` (which rewrites the file), and blocks landing with ``guard_tampered`` unless it says ``ok``.
+    ``missing``: the path record (or, with ``thread_id``, the thread record) is gone. ``changed``: either file's sha256 differs from
+    ``expected_digest`` (the last write's digest)."""
+    root = root or registry_root()
+    files = [path_record(worktree, root)]
+    if thread_id:
+        files.append(thread_record(thread_id, root))
+    digests = [file_digest(f) for f in files]
+    if any(d is None for d in digests):
+        return "missing"
+    return "ok" if all(d == expected_digest for d in digests) else "changed"
 
 
 def set_state(worktree: "str | Path", state: str, root: Optional[Path] = None) -> bool:
@@ -276,7 +320,7 @@ def resolve(env: Mapping[str, str], payload: Optional[Mapping[str, Any]] = None,
         if not good:
             return None
         via, record = good[0]
-        return Resolution(record, via, env=dict(record["env"]), deny=tuple(record["deny"]))
+        return Resolution(record, via, env={**record["env"], "FENTON_HEADLESS": "1"}, deny=tuple(record["deny"]))
     env_map = dict(good[0][1]["env"]) if good else {}
     env_map["FENTON_HEADLESS"] = "1"
     return Resolution(good[0][1] if good else {}, good[0][0] if good else "path", strict=True, reason="; ".join(bad), env=env_map,
@@ -285,7 +329,9 @@ def resolve(env: Mapping[str, str], payload: Optional[Mapping[str, Any]] = None,
 
 def apply(payload: Optional[Mapping[str, Any]] = None, env: Optional[MutableMapping[str, str]] = None,
           root: Optional[Path] = None) -> Optional[Resolution]:
-    """Resolve the session and, when registered, overlay the record's ``env`` on ``env`` (default ``os.environ``). Never raises.
+    """Resolve the session and, when registered, add the record's ``env`` to ``env`` (default ``os.environ``). Never raises.
+
+    A record can only add restrictions: a key ``env`` already holds keeps its value, and ``FENTON_HEADLESS`` is always forced to ``1``.
 
     The hooks call this first so their ``FENTON_HEADLESS`` and ``HASS_TRIAGE_*`` reads see what a headless runner session would have had."""
     target = os.environ if env is None else env
@@ -294,7 +340,9 @@ def apply(payload: Optional[Mapping[str, Any]] = None, env: Optional[MutableMapp
     except Exception:  # noqa: BLE001 - an unexpected failure must not turn a guard hook into a crash; bad records already resolve as strict
         return None
     if found:
-        target.update(found.env)
+        for name, value in found.env.items():  # a record only adds: a marker the process already carries is never overwritten
+            target.setdefault(name, value)
+        target["FENTON_HEADLESS"] = "1"
     return found
 
 
@@ -315,7 +363,8 @@ def session_env(env: Optional[Mapping[str, str]] = None, cwd: Optional[str] = No
     Fails closed: if the lookup itself raises, the answer is the bare headless marker."""
     env = os.environ if env is None else env
     try:
-        found = resolve(env, {}, root, project_dir=_toplevel(cwd))
+        top = _toplevel(cwd)
+        found = resolve(env, {"cwd": top} if top else {}, root, project_dir=top)  # the checkout root and every parent of it
     except Exception:  # noqa: BLE001
         return {"FENTON_HEADLESS": "1"}
     return dict(found.env) if found else None

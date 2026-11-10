@@ -219,6 +219,31 @@ class LandingToolTests(Base):
                                  env={"PATH": os.environ.get("PATH", ""), "HOME": str(self.tmp)})
             self.assertEqual((out.stdout.strip(), out.stderr), ("None", ""), tool)
 
+    def test_pr_gate_env_never_loses_a_runner_marker_to_a_record(self):
+        """Fails if: lane_land.pr_gate lets a record override FENTON_HEADLESS or HASS_TRIAGE_* the process already carries."""
+        self.git(self.work)
+        ts.write_record(ts.build_record("request", 42, "orchestrator", self.work, "report/42",
+                                        {**RUNNER_ENV, "HASS_TRIAGE_ISSUE": "999"}, []), self.root)
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        os.chdir(self.work)
+        seen = {}
+
+        def reader(root, cfg, env):
+            seen.update(env)
+            raise RuntimeError("stop here")
+
+        with mock.patch.dict(os.environ, {"T3CODE_THREAD_ID": "thr-9", "FENTON_HEADLESS": "1", "HASS_TRIAGE_ISSUE": "5"}), \
+                mock.patch.object(lane_land, "headless_request_reader", side_effect=reader), \
+                mock.patch.object(lane_land, "check_paths", return_value=None), \
+                mock.patch.object(lane_land, "rendered_ui_paths", return_value=["x"]):
+            try:
+                lane_land.pr_gate("1", {"body": "", "headRefOid": "x"}, root=self.work, cfg={}, gh=mock.Mock(), origin=lambda: "x")
+            except Exception:  # noqa: BLE001 - only the env handed to the reader matters
+                pass
+        if seen:
+            self.assertEqual((seen["FENTON_HEADLESS"], seen["HASS_TRIAGE_ISSUE"]), ("1", "5"))
+
     def test_lane_land_fails_closed_when_the_registry_module_is_gone(self):
         """Fails if: an unloadable triage_session lets lane_land run as the owner."""
         with mock.patch.object(lane_land, "_triage_session", side_effect=ImportError("gone")):

@@ -239,6 +239,83 @@ class ResolveTests(Base):
             self.assertEqual(ts.registry_root(), Path("/h2/hass-agents/t3"))
 
 
+class RecordOnlyAddsTests(Base):
+    """A record can only add restrictions (review round 1, major 1)."""
+
+    def test_a_record_never_overwrites_a_marker_the_process_has(self):
+        """Fails if: a record turns a guard off by carrying FENTON_HEADLESS or HASS_TRIAGE_* values that differ from the runner's."""
+        ts.write_record(self.record(env={**ENV, "HASS_TRIAGE_ISSUE": "999", "HASS_TRIAGE_BIN": "/evil"}), self.root)
+        env = {"CLAUDE_PROJECT_DIR": str(self.work), "FENTON_HEADLESS": "1", "HASS_TRIAGE_ISSUE": "5", "HASS_TRIAGE_BIN": ""}
+        ts.apply({}, env, root=self.root)
+        self.assertEqual((env["FENTON_HEADLESS"], env["HASS_TRIAGE_ISSUE"], env["HASS_TRIAGE_BIN"]), ("1", "5", ""))
+        self.assertEqual(env["HASS_TRIAGE_STATUS_FILE"], "/s")  # what it does not hold is added
+
+    def test_the_headless_marker_is_forced_on(self):
+        """Fails if: a process that carries FENTON_HEADLESS=0 or empty stays interactive inside a registered session."""
+        ts.write_record(self.record(), self.root)
+        for value in ("0", ""):
+            env = {"CLAUDE_PROJECT_DIR": str(self.work), "FENTON_HEADLESS": value}
+            ts.apply({}, env, root=self.root)
+            self.assertEqual(env["FENTON_HEADLESS"], "1", value)
+
+    def test_a_record_that_turns_the_marker_off_is_refused_and_untrusted(self):
+        """Fails if: a record with FENTON_HEADLESS=0 (or empty) can be written, or is read as an ordinary one."""
+        for value in ("0", ""):
+            with self.assertRaises(ValueError):
+                ts.write_record(self.record(env={**ENV, "FENTON_HEADLESS": value}), self.root)
+            path = self.root / "worktrees" / f"{ts.worktree_key(self.work)}.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(self.record(env={**ENV, "FENTON_HEADLESS": value})))
+            found = self.resolve({"CLAUDE_PROJECT_DIR": str(self.work)})
+            self.assertTrue(found.strict)
+            self.assertEqual(found.env["FENTON_HEADLESS"], "1")
+
+    def test_tool_shell_env_keeps_the_forced_marker(self):
+        """Fails if: session_env hands the landing tools a marker other than 1."""
+        subprocess.run(["git", "init", "-q", str(self.work)], check=True)
+        ts.write_record(self.record(), self.root)
+        self.assertEqual(ts.session_env({}, cwd=str(self.work), root=self.root)["FENTON_HEADLESS"], "1")
+
+    def test_session_env_finds_a_record_above_a_nested_checkout(self):
+        """Fails if: a subagent worktree inside the triage worktree misses the path key."""
+        subprocess.run(["git", "init", "-q", str(self.work)], check=True)
+        nested = self.work / ".claude" / "worktrees" / "agent-x"
+        nested.mkdir(parents=True)
+        (nested / ".git").write_text("gitdir: elsewhere\n")
+        ts.write_record(self.record(), self.root)
+        self.assertEqual(ts.session_env({}, cwd=str(nested), root=self.root), ENV)
+
+
+class VerifyTests(Base):
+    def test_write_record_returns_the_file_with_its_digest(self):
+        """Fails if: the runner cannot get the digest from write_record, or the return value stops being a path."""
+        written = ts.write_record(self.record(), self.root)
+        self.assertIsInstance(written, Path)
+        self.assertEqual(written.digest, hashlib.sha256(written.read_bytes()).hexdigest())
+        self.assertEqual(written, ts.path_record(self.work, self.root))
+
+    def test_verify_ok_missing_changed(self):
+        """Fails if: a deleted or edited record is not reported at the end of the session."""
+        first = ts.write_record(self.record(), self.root)
+        self.assertEqual(ts.verify(self.work, None, first.digest, self.root), "ok")
+        second = ts.write_record(self.record(thread_id="thr-1", state="running"), self.root)
+        self.assertEqual(ts.verify(self.work, "thr-1", second.digest, self.root), "ok")
+        self.assertEqual(ts.verify(self.work, "thr-1", first.digest, self.root), "changed")
+        thread = self.root / "threads" / "thr-1.json"
+        thread.write_text(thread.read_text().replace('"issue": 42', '"issue": 43'))
+        self.assertEqual(ts.verify(self.work, "thr-1", second.digest, self.root), "changed")
+        thread.unlink()
+        self.assertEqual(ts.verify(self.work, "thr-1", second.digest, self.root), "missing")
+        ts.path_record(self.work, self.root).unlink()
+        self.assertEqual(ts.verify(self.work, None, second.digest, self.root), "missing")
+
+    def test_set_state_changes_the_digest_so_verify_runs_first(self):
+        """Fails if: the documented order (verify, then set_state) stops mattering without anyone noticing."""
+        written = ts.write_record(self.record(), self.root)
+        ts.set_state(self.work, "ended", self.root)
+        self.assertEqual(ts.verify(self.work, None, written.digest, self.root), "changed")
+
+
 class ToolShellTests(Base):
     """``session_env`` / ``registered``: what pr_land and lane_land ask from inside a tool shell."""
 
