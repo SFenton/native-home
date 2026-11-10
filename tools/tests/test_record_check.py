@@ -158,8 +158,9 @@ class ShipWiringTests(unittest.TestCase):
     def test_ship_posts_the_check_after_the_push_and_never_fails_on_it(self):
         """Fails if ship.sh posts before the push, skips the native-home guard, or lets a failed post fail the push."""
         lines = (TOOLS / "ship.sh").read_text().splitlines()
-        push = next(i for i, line in enumerate(lines) if line.startswith("git push -q -u origin"))
-        call = next(i for i, line in enumerate(lines) if "--post-check" in line)
+        # The push is one command for plain and --update ships ("${PUSH_ARGS[@]}" holds -q -u and, for --update, the lease), so match it by shape.
+        push = next(i for i, line in enumerate(lines) if line.startswith('git push "${PUSH_ARGS[@]}" origin'))
+        call = next(i for i, line in enumerate(lines) if "--post-check" in line and not line.lstrip().startswith("#"))
         self.assertGreater(call, push)
         self.assertTrue(lines[call].rstrip().endswith("|| true"))
         self.assertIn("native-home", lines[call - 1])

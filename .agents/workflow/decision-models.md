@@ -60,7 +60,7 @@ All new, all `version: 1`, `mode: shadow`, `evidence: "unmeasured"`: asked and l
 | `pr.needs_motion` (shadow) | noul | 0.60 / 0.30 | Recorded; no consumer until measured |
 | `pr.plain_language` (shadow) | noul over the "What changed for you" text | 0.60 / 0.35 | Recorded; the compose step's rewrite gate comes after measurement |
 
-`research.release_impact` (from the Swift sources) and `learning.home` (from the docs) are generated like `context.patterns`: `python3 tools/jev_ask.py sync` after the code or docs change (`sync --check` lists the stale ones; a stale `learning.home` only misses new docs, so it is not a merge gate). The unit tests assert that every `learning.home` key is an existing file.
+`research.release_impact` (from the Swift sources) and `learning.home` (from the docs) are generated like `context.patterns`: `python3 tools/jev_ask.py sync` after the code or docs change (`sync --check` lists the stale ones; any stale one fails CI and blocks the merge, and `ship.sh` blocks the push on it). The unit tests assert that every `learning.home` key is an existing file.
 
 ## Where the pre-read appears
 
