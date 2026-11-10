@@ -1607,7 +1607,10 @@ class Runner:
             clone = self.land_clone()
             lane_land.git(clone, "fetch", "-q", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}")
             if lane_land.git(clone, "merge-base", "--is-ancestor", expected, current).returncode != 0:
-                print(f"base integrity: {expected} is not an ancestor of {current} (a force push?)")
+                if lane_land.git(clone, "cat-file", "-e", f"{expected}^{{commit}}").returncode != 0:
+                    print(f"base integrity: recorded base {expected[:10]} is not in {repo} (repo changed?)")
+                else:
+                    print(f"base integrity: {expected} is not an ancestor of {current} (a force push?)")
                 return False
             walk = lane_land.git(clone, "rev-list", "--first-parent", f"--max-count={BASE_WALK_CAP + 1}", f"{expected}..{current}")
             if walk.returncode != 0:
@@ -1675,10 +1678,18 @@ class Runner:
                 json.dumps({"base": base, "sha": current, "expected": expected, "when": when, "at": iso(), "latest": current,
                             "moves": []}, indent=2, sort_keys=True))
         print(f"base integrity: {reason}")
-        title = f"Workflow: {base} moved without the runner ({current[:10]})"
+        title = f"Workflow: {base} moved without the runner"
         try:
-            if not any(i.get("title") == title for i in self.gh.open_issues(self.cfg["request_repo"])):
-                self.gh.create_issue(self.cfg["request_repo"], title, redact(reason) + details, ["Workflow", "On Hold"])
+            repo = self.cfg["request_repo"]
+            # One issue per pause: a later move comments on the oldest open one (this also matches the old per-SHA titles).
+            same = [i for i in self.gh.open_issues(repo) if str(i.get("title") or "").startswith(title)]
+            if same:
+                oldest = min(same, key=lambda i: int(i.get("number") or 0))
+                self.gh.create_comment(repo, int(oldest["number"]), redact(
+                    f"origin/{base} moved again: now {current[:10]} (was {expected[:10]}), noticed at {when}, {iso()}."
+                    f"{details}"))
+            else:
+                self.gh.create_issue(repo, title, redact(reason) + details, ["Workflow", "On Hold"])
         except Exception as exc:  # noqa: BLE001
             print(f"base integrity: could not file the issue: {redact(str(exc))[:200]}")
 
