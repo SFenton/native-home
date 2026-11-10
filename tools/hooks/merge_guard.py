@@ -74,6 +74,11 @@ import agent_login as agent_login_module  # noqa: E402
 import request_repo as request_repo_module  # noqa: E402
 from shell_parse import FEEDERS, scan_shell, strip_prefixes, tokenize as _tokenize, unwrap_xargs  # noqa: E402
 
+try:  # the registry of T3-launched triage sessions: a registered session gets the runner's markers (tools/hooks/triage_session.py)
+    import triage_session
+except Exception:  # noqa: BLE001 - triage_deny fails closed when the module is gone
+    triage_session = None
+
 MESSAGE = (
     "Blocked: agents merge only through `tools/pr_land.sh N` (its gate: the configured checks and a recorded independent review), never with "
     "`gh pr merge` (including `--auto` and `--admin`), `gh api …/merge` or a push to main, and never change the rulesets, branch protection, "
@@ -151,12 +156,13 @@ def headless() -> bool:
 OWNER_OPTION = re.compile(r"--owner", re.I)
 #: Taking the headless markers away from a command: unset/env -u/env -i, or an assignment of anything but `FENTON_HEADLESS=1`.
 ENV_TAMPER = (
-    re.compile(r"\bunset\b[^;&|\n]*\b(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)\b"),
-    re.compile(r"\benv\s+(?:(?:-[A-Za-z]+|--\S+|\w+=\S*)\s+)*(?:-[A-Za-z]*i|--ignore-environment|-u\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)|"
-               r"--unset[= ]\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)|-)(?=\s|$)"),
+    re.compile(r"\bunset\b[^;&|\n]*\b(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)\b"),
+    re.compile(r"\benv\s+(?:(?:-[A-Za-z]+|--\S+|\w+=\S*)\s+)*(?:-[A-Za-z]*i|--ignore-environment|-u\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)|"
+               r"--unset[= ]\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)|-)(?=\s|$)"),
     re.compile(r"\bFENTON_HEADLESS\s*=\s*(?!1\b)"),
     re.compile(r"\bHASS_TRIAGE_(?:ISSUE|INTAKE|PAUSED_FILE|BIN|STATUS_FILE)\s*="),
-    re.compile(r"\b(?:export|declare|typeset)\s+-[a-zA-Z]*n?\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)\s*$"),
+    re.compile(r"\b(?:T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)\s*="),  # what finds a T3 session's registry record
+    re.compile(r"\b(?:export|declare|typeset)\s+-[a-zA-Z]*n?\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)\s*$"),
 )
 PTY_WRAPPER = re.compile(r"(?:^|[\s;&|(`])(?:\S*/)?(?:script|expect|unbuffer|faketty|socat|screen|tmux)(?=\s|$)")
 LAND_WORDS = re.compile(r"pr_land|lane_land|ack[-_]?base")
@@ -244,7 +250,7 @@ def headless_land_reason(command: str) -> Optional[str]:
     if re.search(r"owner[-_]ack", command) or (OWNER_OPTION.search(command) and re.search(r"pr_land|lane_land", command)):
         return "owner-ack: --owner-ack is the owner's, never an agent session's"
     if any(pattern.search(command) for pattern in ENV_TAMPER):
-        return "landing: the session markers FENTON_HEADLESS and HASS_TRIAGE_* are not for a command to unset or change"
+        return "landing: the session markers FENTON_HEADLESS, HASS_TRIAGE_*, T3CODE_*, CLAUDE_PROJECT_DIR and CLAUDE_ENV_FILE are not for a command to unset or change"
     if PTY_WRAPPER.search(command) and LAND_WORDS.search(command):
         return "landing: script/expect/unbuffer around pr_land, lane_land or ack-base (a pty would fake a terminal)"
     lane = runs_script(command, "lane_land")
@@ -1232,6 +1238,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         payload = json.load(sys.stdin)
     except ValueError:
         return 0
+    if triage_session:
+        triage_session.apply(payload)
     if payload.get("tool_name") != "Bash":
         return 0
     why = reason(str((payload.get("tool_input") or {}).get("command", "")), payload.get("cwd"),

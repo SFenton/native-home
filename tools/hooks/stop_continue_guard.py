@@ -35,6 +35,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+try:  # the registry of T3-launched triage sessions: a registered session gets the runner's markers (tools/hooks/triage_session.py)
+    import triage_session
+except Exception:  # noqa: BLE001 - triage_deny fails closed when the module is gone
+    triage_session = None
+
 TAIL_BYTES = 4 * 1024 * 1024
 WAITING = re.compile(
     r"\bI(?:'ll| will) (?:wait|hold off|stand by|check back)\b"
@@ -201,10 +206,15 @@ def decide(event: Dict[str, Any]) -> Optional[str]:
 
 
 def main() -> int:
+    try:
+        event = json.loads(sys.stdin.read() or "{}")
+    except Exception:  # never trap a session on a hook bug
+        event = None
+    if triage_session:  # a T3-launched triage session carries the runner's markers through its registry record
+        triage_session.apply(event if isinstance(event, dict) else {})
     if os.environ.get("FENTON_HEADLESS") != "1":  # interactive: the completion notification wakes the agent
         return 0
     try:
-        event = json.loads(sys.stdin.read() or "{}")
         reason = decide(event) if isinstance(event, dict) else None
     except Exception:  # never trap a session on a hook bug
         return 0

@@ -78,6 +78,10 @@ DEFAULT_PROTECTED: Tuple[str, ...] = (
     "tools/review/**",
     "tools/review_verdict.py",
     "tools/hooks/review_guard.py",
+    # The T3 triage guards: the registry, the deny-rule matcher and the PreToolUse hook that enforces a registered session's deny list.
+    "tools/hooks/triage_session.py",
+    "tools/hooks/deny_rules.py",
+    "tools/hooks/triage_deny.py",
     "tools/release/**",
     "tools/hass_creds.sh",
     "tools/gh_app_token.py",
@@ -1557,6 +1561,27 @@ def own_checkout() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _triage_session() -> Any:
+    """``tools/hooks/triage_session.py``, loaded by path (the registry of T3-launched triage sessions)."""
+    import importlib.util
+    if "triage_session" in sys.modules:
+        return sys.modules["triage_session"]
+    spec = importlib.util.spec_from_file_location("triage_session", Path(__file__).resolve().parent / "hooks" / "triage_session.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules["triage_session"] = module
+    return module
+
+
+def triage_session_env() -> Optional[Dict[str, str]]:
+    """The record's env when this process is inside a T3-launched triage session, else None. Fails closed: an unloadable module is a
+    headless session."""
+    try:
+        return _triage_session().session_env()
+    except Exception:  # noqa: BLE001
+        return {"FENTON_HEADLESS": "1"}
+
+
 def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: Callable[[], str], env: Optional[Dict[str, str]] = None,
             ask: JevAsk = ask_jev, locked: bool = False) -> str:
     """The app-UI gate for product pull request ``number`` (``info`` is ``gh pr view --json files,body,title,author,baseRefName,
@@ -1567,7 +1592,10 @@ def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: C
     (runner) sessions are vouched by the pickup snapshot only; interactive sessions by a linked request-repo issue the owner
     filed (never the PR's own text: agents open PRs under the owner's login). Fails closed: missing data, a fetch error or an unreadable Jev raise :class:`Refused`. Returns a short
     note on success."""
+    given = env
     env = dict(os.environ if env is None else env)
+    if given is None:  # the real process: a T3-launched triage session carries the runner's markers in its registry record
+        env.update(triage_session_env() or {})
     base, sha = str(info.get("baseRefName") or ""), str(info.get("headRefOid") or "")
     files = info.get("files")
     if not isinstance(files, list):
@@ -1687,7 +1715,7 @@ def land(lane: str, base: str, *, clone: Path, home: Path, reviews_dir: Path, te
 
     ``reaper(lane, sha, clone)``, when given, runs after a successful push and returns log lines (``result["reaper"]``); anything it
     raises is logged there and never changes the result."""
-    if os.environ.get("FENTON_HEADLESS") == "1":
+    if os.environ.get("FENTON_HEADLESS") == "1" or triage_session_env() is not None:
         raise Refused("a headless agent session does not land: push the agents/* branch and list it in the status file; "
                       "the runner reviews, tests and merges it", "headless")
     if not LANE_RE.match(lane) or ".." in lane or lane.endswith(("/", ".lock")):

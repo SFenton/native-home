@@ -28,6 +28,22 @@ ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COM
        "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
 
 
+# The suite may run inside a T3-launched triage worktree: keep the registry lookup (tools/hooks/triage_session.py) pointed at an empty folder.
+_REGISTRY = []
+
+
+def setUpModule():
+    import tempfile
+    import triage_session
+    folder = tempfile.mkdtemp(prefix="empty-t3-registry-")
+    _REGISTRY.append(mock.patch.object(triage_session, "registry_root", return_value=Path(folder)))
+    _REGISTRY[0].start()
+
+
+def tearDownModule():
+    _REGISTRY.pop().stop()
+
+
 class KillSwitchTests(unittest.TestCase):
     def test_kill_switch_files(self):
         with TemporaryDirectory() as tmp:
