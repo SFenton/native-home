@@ -8,7 +8,7 @@
 #           resets the index first, like ship.sh always did, unless SHIP_GUARD_NO_RESET=1;
 #           SHIP_GUARD_INCLUDE_WORKTREE=1 also checks modified tracked files (for `git commit -a`)
 # Exit 0 when clean; exit 1 with the message on stderr.
-# Edits to this file are owner-only (tools/lane_land.py DEFAULT_PROTECTED; tools/tests/test_ship_guard_wiring.py pins the patterns).
+# Edits to this file need the owner's CODEOWNERS approval (.github/CODEOWNERS; it is not in tools/lane_land.py DEFAULT_PROTECTED; tools/tests/test_ship_guard_wiring.py pins the patterns).
 set -euo pipefail
 
 check_branch() {

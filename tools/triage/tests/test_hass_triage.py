@@ -188,11 +188,11 @@ class SelectionTests(Base):
                   issue(6, labels=["On Hold"]), issue(7, labels=["Merging"]), issue(8, created="2026-10-12T00:00:00Z")]
         self.assertEqual([i["number"] for i in ht.eligible(issues, ["SFenton"])], [2, 8, 1])
 
-    def test_empty_agent_login_leaves_the_authors_exactly_as_configured(self):
-        """Fails if: an unset agent_login changes cfg authors or nightly authors (behaviour must equal the pre-agent runner)."""
+    def test_the_shipped_agent_login_leaves_the_authors_exactly_as_configured(self):
+        """Fails if: the shipped agent_login (the machine user) changes cfg authors or nightly authors, or a process setting overrides it."""
         with mock.patch.dict(os.environ, {"FENTON_AGENT_LOGIN": "mallory"}):  # a process setting changes nothing
             cfg = ht.load_config(self.home)
-        self.assertEqual(cfg["agent_login"], "")
+        self.assertEqual(cfg["agent_login"], "sfenton-agent")
         self.assertEqual(cfg["authors"], ["SFenton"])
         self.assertEqual(cfg["nightly"]["authors"], ["SFenton", "github-actions", "app/github-actions"])
 

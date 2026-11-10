@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The GitHub login agents act as, when it is not the owner's (owner decision 2026-11-09: a machine-user collaborator).
 
-The login is a name, not a secret. ``tools/triage/config.json`` leaves ``agent_login`` empty until the owner fills it. It is read from
+The login is a name, not a secret. ``tools/triage/config.json`` names the machine user in ``agent_login`` (``sfenton-agent``, owner, 2026-11-10); empty would mean only SFenton. It is read from
 that file **only**: there is no override from the process settings, because anything an agent session can set in front of a command
 (an ``X=y tools/ship.sh`` prefix, a shell profile) would widen the author gates without touching a pinned file. The config file is
 hashed against ``origin/<base>`` by the landing-tool pin (``merge_guard.PINNED_WITH``), so changing who counts as the agents' own is a
