@@ -68,13 +68,15 @@ brief states the objective, the output (files plus the status block), the source
    next nightly run is the check.
 7. **Ship:** small commits on `nightly/{{ISSUE}}` whose messages end with `Refs {{REQUEST_REPO}}#{{ISSUE}}` (never
    `Fixes`: the nightly run closes the issue when the area passes) and a `Release-Note:` trailer (`none` for a test or
-   tooling fix). If `{{BASE}}` moved, merge `origin/{{BASE}}` in and test again. Push, then open a pull request with
-   `gh pr create --base {{BASE}}`: "Before:" and "After:" paragraphs, the tests you ran, a link to {{ISSUE_URL}}. Then
-   land it (`.agents/workflow/pr-lifecycle.md`): fix any failing check, run the reviewer subagent
-   (`.claude/agents/reviewer.md`, prompt starting `opus-ok: final review`) and record its verdict with
-   `tools/review/record.py --pr N`, fix its findings (at most two rounds), then `tools/pr_land.sh N --keep-worktree`
-   (you still need the worktree for the status file; the runner cleans it up). Never merge any other way. If
-   `pr_land.sh` prints `blocked`, leave the PR open and say why in your status; the runner then labels it
+   tooling fix). If `{{BASE}}` moved, merge `origin/{{BASE}}` in and test again. Review comes before the push
+   (`.agents/workflow/pr-lifecycle.md`; a raw `git push` is refused): commit, then run the reviewer subagent
+   (`.claude/agents/reviewer.md`, prompt starting `opus-ok: final review`) on the committed head; it records its verdict
+   with `tools/review/record.py --lane nightly/{{ISSUE}}`. Fix its findings (at most two rounds, re-review the new head).
+   Then `tools/ship.sh "Subject" --pr --draft --base {{BASE}} --note ... --body-file FILE`: it pushes, opens the draft
+   pull request (body: "Before:" and "After:" paragraphs, the tests you ran, a link to {{ISSUE_URL}}) and arms
+   auto-merge. If it printed `not armed`, run `tools/pr_land.sh N --keep-worktree` (you still need the worktree for the
+   status file; the runner cleans it up). Fix any failing check, then re-review and ship again. Never merge any other
+   way. If `pr_land.sh` prints `blocked`, leave the PR open and say why in your status; the runner then labels it
    `{{MERGE_LABEL}}` for the owner.
 8. Post `{{HASS_TRIAGE}} comment {{ISSUE}} --kind resolution --body-file <file>` with what changed.
 9. **L2 (rare for a nightly fix).** If the only fix is a new pattern, layout, copy or motion with no owner decision on

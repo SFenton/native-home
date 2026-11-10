@@ -17,9 +17,10 @@ issue and nobody is watching: decide and keep going. You do not build or test (a
    the date read, a confidence) plus the status block. It uses only read-only helpers and writes nothing outside
    `build/research/**` and its memory directory.
 3. **Memory updates are L0.** The Researcher's durable lessons (sources that were right, dead ends, versions seen) land
-   in `.claude/agent-memory/researcher/`. Have a `coder` commit them on `{{BRANCH}}` (`Release-Note: none`), push,
-   `gh pr create --base {{BASE}}`, run the `reviewer` subagent (prompt starting `opus-ok: final review`), record the
-   verdict with `tools/review/record.py --pr N`, then `tools/pr_land.sh N`. `build/research` stays uncommitted.
+   in `.claude/agent-memory/researcher/`. Have a `coder` commit them on `{{BRANCH}}` (`Release-Note: none`), run the `reviewer` subagent (prompt starting `opus-ok: final review`) on the committed head (it
+   records its verdict with `tools/review/record.py --lane {{BRANCH}}`; a raw `git push` is refused), then
+   `tools/ship.sh "Subject" --pr --draft --base {{BASE}} --note none --body-file FILE` (pushes, opens the draft PR, arms
+   auto-merge; if it printed `not armed`, `tools/pr_land.sh N`). `build/research` stays uncommitted.
 4. **Anything that implies product work** (an upgrade to make, an API we should adopt, a behavior that changed) becomes
    an issue on `{{PRODUCT_REPO}}` with `gh issue create --label Workflow`, after checking
    `gh issue list --label Workflow --state open` for a duplicate. **Never write product code or change agents, hooks or

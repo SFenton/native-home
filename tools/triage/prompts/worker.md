@@ -143,13 +143,14 @@ checks pass` on the result comment (shadow: it does not gate, but fill it in hon
    your `--kind resolution` comment. Never commit screenshots.
 9. **Ship:** small cohesive commits on `report/{{ISSUE}}` whose messages end with
    `Refs {{REQUEST_REPO}}#{{ISSUE}}` (never `Fixes`: the runner closes the request). Update the
-   `.agents` docs as `AGENTS.md` requires. If `{{BASE}}` moved, merge `origin/{{BASE}}` in and test again. Push, then
-   open a pull request on `{{PRODUCT_REPO}}` with `gh pr create --base {{BASE}}`: a "Before:" and an "After:"
-   paragraph, a short "How", the tests you ran, and a link to {{ISSUE_URL}}. For L0, L1 and L2, land it
-   (`.agents/workflow/pr-lifecycle.md`): fix any failing check, run the `reviewer` subagent (prompt starting
-   `opus-ok: final review`) and record its verdict with `tools/review/record.py --pr N`, fix its findings (at most two
-   rounds), then `tools/pr_land.sh N --keep-worktree` (you still need the worktree for the status file; the runner
-   cleans it up). Never merge any other way: `gh pr merge`, `gh api` merges and pushes to `{{BASE}}` are blocked, and
+   `.agents` docs as `AGENTS.md` requires. If `{{BASE}}` moved, merge `origin/{{BASE}}` in and test again. Review comes before the push (`.agents/workflow/pr-lifecycle.md`; a raw `git push` is refused). For L0, L1 and L2: commit,
+   run the `reviewer` subagent (prompt starting `opus-ok: final review`) on the committed head; it records its verdict with
+   `tools/review/record.py --lane report/{{ISSUE}}`. Fix its findings (at most two rounds, re-review the new head). Then
+   `tools/ship.sh "Subject" --pr --draft --base {{BASE}} --note ... --body-file FILE`: it pushes, opens the draft pull
+   request on `{{PRODUCT_REPO}}` (body: a "Before:" and an "After:" paragraph, a short "How", the tests you ran, a link to
+   {{ISSUE_URL}}) and arms auto-merge. If it printed `not armed`, run `tools/pr_land.sh N --keep-worktree` (you still need
+   the worktree for the status file; the runner cleans it up). Fix any failing check, then re-review and ship again.
+   Never merge any other way: `gh pr merge`, `gh api` merges and pushes to `{{BASE}}` are blocked, and
    `pr_land.sh` refuses a pull request labelled `Needs Decision` (owner-only items). If `pr_land.sh` prints `blocked`, leave the PR open
    and say why in your status; the runner then labels it `{{MERGE_LABEL}}` for the owner.
 10. Post `{{HASS_TRIAGE}} comment {{ISSUE}} --kind resolution --body-file <file> --media <png>::<caption> ...` with
