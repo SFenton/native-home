@@ -18,6 +18,7 @@ pull request on the product repository. The worker lands its own pull request th
     hass_triage.py pause | resume
     hass_triage.py init-labels
     hass_triage.py install [--interval S] [--uninstall]
+    hass_triage.py install-t3code                     # the pinned T3 CLI for agent.launcher "t3code" (t3launch.py)
     hass_triage.py upload FILE...                     # workers: media → GitHub URLs
     hass_triage.py comment N --kind K --body-file F [--media FILE[::caption]...]
 
@@ -55,6 +56,7 @@ import request_repo  # noqa: E402  (the request repository comes from local conf
 import ruleset_gate  # noqa: E402  (the live ruleset's requirements, tools/ruleset_gate.py)
 import lane_land  # noqa: E402  (the runner lands the lanes agents push: tools/lane_land.py)
 import retro_weekly  # noqa: E402  (the metrics the automatic revert compares: tools/retro_weekly.py)
+import t3launch  # noqa: E402  (the T3 launcher behind agent.launcher: tools/triage/t3launch.py)
 LAUNCHD_LABEL = "com.sfenton.hass-triage"
 API = "https://api.github.com"
 UPLOADS = "https://uploads.github.com/user-attachments/assets"
@@ -941,6 +943,8 @@ class Runner:
         self.extra_dirs: List[Path] = []
         #: Set when a launched session left processes behind that could not be killed: nothing lands until it is looked at.
         self.stray = False
+        #: Set when a T3 session changed the guard hooks in its worktree: outcome ``guard_tampered``, nothing lands.
+        self.guard_tampered = False
         #: ``agents/*`` refs on origin recorded before each session (by label), so only lanes it pushed are landed.
         self.lane_snapshots: Dict[str, Optional[Dict[str, str]]] = {}
         #: Issues whose worktree must stay because a lane they pushed is not landed or filed.
@@ -1141,7 +1145,21 @@ class Runner:
             self._tick_auth = claude_logged_in(self.cfg["agent"]["command"], self._path(), self.run) is not False
             if not self._tick_auth:
                 print_once("auth", AUTH_MESSAGE)
+            elif self.t3_ready() is False:
+                self._tick_auth = False
         return self._tick_auth
+
+    def t3_ready(self) -> Optional[bool]:
+        """With ``agent.launcher: "t3code"``: can T3 take a launch (pinned CLI, protocol 2, guard files)? Prints the one-line reason when
+        not. ``None`` when it cannot be said, and always ``True`` for the claude launcher. The reviewer still needs ``claude`` itself."""
+        if (self.cfg["agent"].get("launcher") or "claude") != "t3code":
+            return True
+        trusted = self.paths.root / "trusted" / self.cfg["product_repo"].split("/")[1]  # only if the reviewer already made it: no network here
+        ok, why = t3launch.ready(self.cfg["agent"], self.paths.root, trusted if (trusted / ".git").exists() else None,
+                                 {"PATH": self._path(), "HOME": str(self.paths.home)}, self.run)
+        if ok is False:
+            print_once("t3", f"t3code launcher is not ready: {why}")
+        return ok
 
     def refresh_clone(self) -> None:
         clone = self.paths.clone
@@ -1355,6 +1373,9 @@ class Runner:
             self.snapshot_lanes(n)
         code = self.launch(n, worktree, prompt, log)
         self.state.data["current"] = None
+        if self.guard_tampered:  # the session changed the hooks that guarded it: nothing it reports is trusted
+            return self.block(n, "The session changed the guard hooks in its worktree, so its result was not used.",
+                              "guard_tampered", self.log_tail(log))
         status = self.read_status(n)
         if status and "Workflow" in label_names(issue) and status.get("lanes") and not status.get("pr"):
             return self.finish_workflow(n, status, worktree)  # Steward entry B: the runner lands the lanes the worker pushed
@@ -1427,7 +1448,7 @@ class Runner:
         lanes_resolved = True
         try:
             if worktree.exists():
-                self._run(["git", "-C", str(self.paths.clone), "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, str(self.paths.clone))
             self._run(["git", "-C", str(self.paths.clone), "worktree", "prune"], check=False)
             worktree.parent.mkdir(parents=True, exist_ok=True)
             self._run(["git", "-C", str(self.paths.clone), "worktree", "add", "-B", branch, str(worktree),
@@ -1456,7 +1477,7 @@ class Runner:
                                   outcome=self.job_outcome_code(outcome),
                                   enqueue=name != "steward")  # no post-mortem of the Steward's own run
             if lanes_resolved:  # a lane the runner could not land or file keeps its worktree
-                self._run(["git", "-C", str(self.paths.clone), "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, str(self.paths.clone))
             self.state.save()
         return outcome
 
@@ -2387,11 +2408,66 @@ class Runner:
             self._run(["git", "-C", clone, "worktree", "add", "-b", branch, str(path), base])
         return path
 
+    def _session_env(self, n: Any) -> Dict[str, str]:
+        """The environment of a worker session: a scrubbed base plus the headless markers (a T3 launch records these instead)."""
+        env = {key: os.environ[key] for key in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL") if key in os.environ}
+        env.update({"PATH": self._path(), "HASS_TRIAGE_ISSUE": str(n), "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
+                    "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(n)),
+                    "HASS_TRIAGE_BIN": str(HERE / "hass_triage.py"),
+                    "FENTON_DEVCAP_MAX_WAIT": str(AGENT_DEVCAP_MAX_WAIT),  # a coder yields a slot queue after 20 minutes
+                    "FENTON_HEADLESS": "1"})  # arms the Stop hook that refuses to end a headless turn on running work
+        if self.intake:
+            env["HASS_TRIAGE_INTAKE"] = "nightly"  # `comment` and `upload` then post to the product repository
+        return env
+
+    def _t3_launch(self, n: Any, worktree: Path, prompt: str, log: Path) -> int:
+        """Run the session as a T3 thread (``agent.launcher: "t3code"``, see ``t3launch``). Same contract as ``_launch``: the exit
+        code, or -9 at the timeout. A launch that could not start safely is logged and returns 1 (the caller's retry path)."""
+        agent = self.cfg["agent"]
+        self.stray = self.guard_tampered = False
+        env = self._session_env(n)
+        record_env = {k: v for k, v in env.items() if k not in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
+        kind = "nightly" if self.intake else "request" if isinstance(n, int) else "retro" if str(n).startswith("retro-") else "job"
+        branch = (self._run(["git", "-C", str(worktree), "symbolic-ref", "--short", "-q", "HEAD"], check=False).stdout or "").strip()
+
+        def started(thread: str) -> None:
+            if isinstance(self.state.data.get("current"), dict):
+                self.state.data["current"].update(thread=thread, launcher="t3code", pid=os.getpid())
+                self.state.save()
+
+        try:
+            launcher = t3launch.Launcher(agent, self.paths.home, self.paths.root, env, self.run)
+            out = launcher.launch(kind=kind, issue=n if isinstance(n, int) else None, role="worker" if isinstance(n, int) else str(n),
+                                  worktree=worktree, branch=branch, session_env=record_env,
+                                  deny=list(agent.get("disallowed_tools") or []), prompt=prompt, log=log,
+                                  timeout=float(self.job_timeout or agent["timeout_minutes"]) * 60,
+                                  trusted=self.trusted_clone(self.cfg["product_base"]), on_thread=started)
+        except Exception as exc:  # noqa: BLE001 (any failure to start safely, the trusted checkout's included, is a failed launch)
+            print(f"{n}: t3 launch failed: {redact(str(exc))[:300]}")
+            with open(log, "ab") as handle:
+                handle.write((json.dumps({"type": "t3_launch_failed", "reason": redact(str(exc))[:300]}) + "\n").encode())
+            return 1
+        self.stray, self.guard_tampered = out.stray or out.tampered, out.tampered  # a tampered session lands nothing either
+        if out.stray:
+            print(f"{n}: processes of the T3 session are still running after the cleanup")
+        if out.tampered:
+            print(f"{n}: the guard hooks changed during the session")
+        return out.code
+
+    def _drop_worktree(self, path: Path, clone: str) -> None:
+        """``git worktree remove`` and forget its T3 triage records (``t3launch.forget``)."""
+        self._run(["git", "-C", clone, "worktree", "remove", "--force", str(path)], check=False)
+        if not self.dry_run:
+            t3launch.forget(path, self.paths.home)
+
     def _launch(self, n: int, worktree: Path, prompt: str, log: Path) -> int:
         """Run the Claude Code session; returns its exit code, or -9 when it was stopped at the timeout."""
         agent = self.cfg["agent"]
-        self.stray = False
         log.parent.mkdir(parents=True, exist_ok=True)
+        if (agent.get("launcher") or "claude") == "t3code" and self.agent_override != "reviewer" \
+                and t3launch.settings_agree(worktree, agent.get("agent")):
+            return self._t3_launch(n, worktree, prompt, log)
+        self.stray = self.guard_tampered = False
         command = shutil.which(agent["command"], path=self._path()) or agent["command"]
         role = ({"model": "claude-opus-5-5", "effort": "high", **(agent.get("reviewer") or {})}
                 if self.agent_override == "reviewer" else agent)
@@ -2408,14 +2484,7 @@ class Runner:
             argv += ["--disallowedTools", ",".join(denied)]
         for extra in self.extra_dirs:
             argv += ["--add-dir", str(extra)]
-        env = {key: os.environ[key] for key in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL") if key in os.environ}
-        env.update({"PATH": self._path(), "HASS_TRIAGE_ISSUE": str(n), "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
-                    "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(n)),
-                    "HASS_TRIAGE_BIN": str(HERE / "hass_triage.py"),
-                    "FENTON_DEVCAP_MAX_WAIT": str(AGENT_DEVCAP_MAX_WAIT),  # a coder yields a slot queue after 20 minutes
-                    "FENTON_HEADLESS": "1"})  # arms the Stop hook that refuses to end a headless turn on running work
-        if self.intake:
-            env["HASS_TRIAGE_INTAKE"] = "nightly"  # `comment` and `upload` then post to the product repository
+        env = self._session_env(n)
         # The reviewer's stdout goes to an unlinked temp file only the runner holds (copied to the log afterwards): a process
         # that outlived an earlier session cannot append a later ``result`` event to a file it can open by name.
         capture = tempfile.TemporaryFile() if self.agent_override == "reviewer" else None
@@ -2478,6 +2547,9 @@ class Runner:
             text = log.read_text(errors="replace")
         except OSError:
             return ""
+        tail = t3launch.thread_tail(text)
+        if tail is not None:  # a T3 log: the last assistant messages, not the raw thread JSON
+            return redact_lines(tail)[-6000:]
         return redact_lines("\n".join(text.splitlines()[-lines:]))[-6000:]
 
     # -- outcomes
@@ -2845,7 +2917,7 @@ class Runner:
         had_lanes = False
         try:
             if worktree.exists():
-                self._run(["git", "-C", clone, "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, clone)
             self._run(["git", "-C", clone, "worktree", "prune"], check=False)
             self._run(["git", "-C", clone, "fetch", "-q", "origin", base])
             worktree.parent.mkdir(parents=True, exist_ok=True)
@@ -2885,7 +2957,7 @@ class Runner:
             elif not had_lanes and self.retro_unlanded(clone, worktree, base):
                 print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
             else:
-                self._run(["git", "-C", clone, "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, clone)
             self.state.save()
         return outcome
 
@@ -2950,7 +3022,7 @@ class Runner:
         path = self.paths.worktree(n)
         self.archive_evidence(n, digest=False)
         if path.exists() and n not in self._keep:
-            self._run(["git", "-C", str(self.paths.clone), "worktree", "remove", "--force", str(path)], check=False)
+            self._drop_worktree(path, str(self.paths.clone))
         shutil.rmtree(self.paths.work / str(n), ignore_errors=True)
         self.paths.request_snapshot(n).unlink(missing_ok=True)
 
@@ -3034,7 +3106,8 @@ def self_change_status(paths: Paths) -> Dict[str, Any]:
             "moves": listed if "SELF_CHANGE_PAUSED" in on else []}
 
 
-def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None) -> Dict[str, Any]:
+def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None,
+                  t3_ready: Optional[bool] = None) -> Dict[str, Any]:
     state = State(paths.state)
     holder = ""
     try:
@@ -3061,6 +3134,9 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
     return {
         "claude_logged_in": logged_in,
+        "launcher": cfg["agent"].get("launcher") or "claude",
+        "t3_ready": t3_ready,
+        "t3_thread": (state.data.get("current") or {}).get("thread"),
         "jobs": jobs,
         "parked": {k: v.get("pr") for k, v in state.data["parked"].items()},
         "nightly_queue": nightly_queue,
@@ -3103,6 +3179,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
     ack.add_argument("sha", help="the exact current SHA of origin/<workflow_base>")
     sub.add_parser("ack-verified", help="interactive sessions (not the runner's workers): accept origin/<workflow_base> when every move "
                                         "since the last accepted SHA is a squash-merged PR that passed the live ruleset's checks")
+    sub.add_parser("install-t3code", help=f"install {t3launch.PACKAGE}@{t3launch.PINNED_VERSION} under ~/hass-agents/tools/t3code (pinned, no scripts)")
     sub.add_parser("pause")
     sub.add_parser("resume")
     sub.add_parser("init-labels")
@@ -3160,7 +3237,10 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
             print(runner.run_job(args.name))
             return 0
         if args.cmd == "status":
-            report = status_report(cfg, paths, gh, claude_logged_in(cfg["agent"]["command"], agent_path(home)))
+            t3 = None
+            if (cfg["agent"].get("launcher") or "claude") == "t3code":
+                t3 = t3launch.ready(cfg["agent"], paths.root, env={"PATH": agent_path(home), "HOME": str(home)})[0]
+            report = status_report(cfg, paths, gh, claude_logged_in(cfg["agent"]["command"], agent_path(home)), t3)
             if args.json:
                 print(json.dumps(report, indent=2))
             else:
@@ -3181,6 +3261,9 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(f"auth: {AUTH_MESSAGE}")
                 elif report["claude_logged_in"]:
                     print("auth: claude logged in")
+                if report["launcher"] == "t3code":
+                    print(f"launcher: t3code ({'ready' if report['t3_ready'] else 'not ready' if report['t3_ready'] is False else 'unknown'})"
+                          + (f", thread {report['t3_thread']}" if report["t3_thread"] else ""))
                 if report["current"]:
                     what = (f"job {report['current']['job']}" if report["current"].get("job")
                             else f"#{report['current'].get('issue')}")
@@ -3224,6 +3307,8 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
             print(f"Accepted {len(result['prs'])} PR merges: {' '.join('#%d' % n for n in result['prs'])}; head {result['head'][:10]}; "
                   "SELF_CHANGE_PAUSED cleared.")
             return 0
+        if args.cmd == "install-t3code":
+            return t3launch.install(paths.root, {"PATH": agent_path(home), "HOME": str(home)})
         if args.cmd == "pause":
             paths.config_dir.mkdir(parents=True, exist_ok=True)
             paths.paused.write_text(iso() + "\n")
