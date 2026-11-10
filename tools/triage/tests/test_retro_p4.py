@@ -230,6 +230,25 @@ class RevertTests(RevertBase):
         self.assertNotIn("b.txt", g(self.origin, "ls-tree", "-r", "--name-only", BASE).split())
         self.assertEqual([x["evaluated"] for x in runner.load_landings() if x["lane"] == LANE], ["reverted"])
 
+    def test_a_revert_refused_base_is_filed_not_retried(self):
+        runner = self.landed_runner()
+        self.flows(10, triggers=("owner_correction",), tokens=300)
+        import lane_land
+        self.session(runner, [LANE], verdict="pass")
+
+        def refuse(*a, **kw):
+            raise lane_land.Refused("main moved twice", "base")
+        self.cfg["product_base"] = BASE
+        runner.cfg["product_base"] = BASE
+        with mock.patch.object(lane_land, "land", refuse), mock.patch.object(runner, "base_absent", return_value=False):
+            self.assertTrue(self.check(runner))
+        self.assertEqual(runner.state.data.get("lane_retries", {}), {})
+        self.assertEqual([x["evaluated"] for x in runner.load_landings() if x["lane"] == LANE], ["revert_not_landed"])
+        titles = [c[2] for c in self.gh.calls if c[0] == "issue"]
+        self.assertTrue(any("not landed (base)" in x for x in titles), titles)
+        with mock.patch.object(lane_land, "land", side_effect=AssertionError("no retry")):
+            runner.retry_lanes()
+
     def test_the_recorded_revert_sha_is_passed_to_the_lander_and_a_push_in_the_window_is_not_landed(self):
         runner = self.landed_runner()
         self.flows(10, triggers=("owner_correction",), tokens=300)

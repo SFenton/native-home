@@ -1356,10 +1356,6 @@ class LaneBaseRetryTests(Base):
         filed.assert_called_once()
         self.assertEqual(runner.state.data.get("lane_retries", {}), {})
 
-    def test_the_revert_lands_without_a_retry(self):
-        import inspect
-        self.assertIn("retry=False", inspect.getsource(ht.Runner.revert_landing))
-
     def test_a_retry_is_explained_on_the_workflow_issue(self):
         runner, land, filed = self.setup_runner()
         gh = runner.gh
