@@ -1321,6 +1321,8 @@ class Runner:
         if status_file.exists():
             status_file.unlink()
         task, level, route = self.start_ledger(n, issue, worktree)
+        if task and (worktree / "tools" / "tasks.py").exists():  # the retro digest reads this lane's review records (idempotent)
+            self._run(["/usr/bin/python3", "tools/tasks.py", "add-branch", task, f"{self.branch}/{n}"], cwd=worktree, check=False)
         judge_pr = self.state.data.get("judge", {}).pop(str(n), "")
         prompt = render_prompt(self.cfg, self.paths, issue, media, attempt, reply, HERE / "hass_triage.py", self.template,
                                self.repo, self.branch, task=task, route=route, level=level,

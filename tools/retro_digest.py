@@ -18,6 +18,12 @@ and ``*.running`` markers from ``bg_run``, with their durations and executed/ski
 (the round), and the branch's commit count and timestamps since ``--base`` (default ``origin/main``). It writes ``build/retro/lane-NAME.json`` with the same triggers (``review_rounds_over_cap``, ``over_budget``,
 ``stopped_with_live_children``) and two lane ones: ``repeated_long_device_rounds`` and ``empty_runs``.
 
+For each branch in the ledger's ``branches`` (``tools/tasks.py add-branch``), the digest also reads that branch's records from the
+trusted verdict store (``review_verdict.reviews_dir()``, files ``<branch with / as __>-<sha12>.json``) and merges their highest
+``round`` and their count into ``review_rounds`` and ``review_verdicts``; stray records for another branch or sha are not counted.
+A verdict that is also in the task's ``build/review`` (``record.py --lane`` writes both copies) counts once. ``--archive`` still reads
+the live store, not an archived copy.
+
 ``--archive DIR`` reads the layout ``hass_triage.py archive_evidence`` writes: ``tasks/``, ``review/``,
 ``gate.jsonl``, ``shadow.jsonl``, ``runs/``, ``status.json``, ``worker.log.tail``, ``owner_replies.json``.
 """
@@ -37,6 +43,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from redact import redact  # noqa: E402
+import review_verdict  # noqa: E402  (stdlib only; read-only use of the trusted store's location)
 
 #: Over-budget defaults (fresh tokens: input + output + cache creation; wall-clock minutes).
 MAX_TOKENS = 2_000_000
@@ -75,6 +82,31 @@ HINT_LEVELS = {(False, None, False): "L0", (False, None, True): "L2", (True, Tru
 def review_file_name(branch: str) -> str:
     """``build/review/`` file name for a branch (as ``tools/pr_land.py``; not imported, so the runner's import closure stays small)."""
     return branch.replace("/", "__") + ".json"
+
+
+#: A branch name as ``tools/tasks.py add-branch`` accepts it.
+BRANCH_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+
+
+def store_records(branch: str, directory: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """The trusted verdict store's records for ``branch``: files named ``<branch with / as __>-<sha12>.json`` whose own ``branch``
+    equals ``branch`` and whose ``head`` starts with the sha in the name. A stray record (another branch or sha, a name that only
+    shares a prefix, unreadable JSON) is skipped. The store is the one the push gate trusts (``review_verdict.reviews_dir``)."""
+    if not BRANCH_NAME.match(branch):  # the pattern ``tasks.py add-branch`` validates
+        return []
+    folder = directory if directory is not None else review_verdict.reviews_dir()
+    pattern = re.compile("^" + re.escape(branch.replace("/", "__")) + r"-([0-9a-f]{12})\.json$")
+    found: List[Dict[str, Any]] = []
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return found
+    for name in names:
+        match = pattern.match(name)
+        data = read_json(folder / name) if match else None
+        if isinstance(data, dict) and data.get("branch") == branch and str(data.get("head") or "").startswith(match.group(1)):
+            found.append(data)
+    return found
 
 
 def clip(text: Any, limit: int = 220) -> str:
@@ -344,6 +376,14 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         data = read_json(path)
         if isinstance(data, dict):
             reviews.append(data)
+    branches = ledger.get("branches") if isinstance(ledger.get("branches"), list) else []
+    seen = {(r.get("branch"), r.get("head"), r.get("round")) for r in reviews if r.get("branch") and r.get("head")}
+    for branch in dict.fromkeys(b.strip() for b in branches if isinstance(b, str) and b.strip()):  # each ledger branch once
+        for record in store_records(branch):  # ``record.py --lane`` also writes the local copy: count a verdict once
+            key = (record.get("branch"), record.get("head"), record.get("round"))
+            if key not in seen:
+                seen.add(key)
+                reviews.append(record)
     comments = read_json(src.get("comments"))
     comments = [c for c in comments if isinstance(c, dict)] if isinstance(comments, list) else []
     sources = [name for name, found in (("ledger", ledger), ("status", status), ("gate", gate), ("shadow", shadow),

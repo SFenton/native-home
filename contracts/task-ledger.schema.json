@@ -43,6 +43,11 @@
       "additionalProperties": false,
       "properties": {"rule": {"type": "string"}, "jev": {"type": ["string", "null"]}}
     },
+    "branches": {
+      "type": "array",
+      "description": "Optional. Lane branches of this task (tools/tasks.py add-branch); tools/retro_digest.py reads each branch's records from the trusted review store.",
+      "items": {"type": "string"}
+    },
     "level_history": {
       "type": "array",
       "description": "Optional. Each raise of `level` (tools/tasks.py set-level); a level is never lowered.",
