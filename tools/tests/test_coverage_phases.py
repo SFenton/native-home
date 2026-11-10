@@ -208,5 +208,55 @@ class ScriptWiringTests(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "[][]")
 
 
+class ChangedSelectionTests(unittest.TestCase):
+    """The --changed preamble of the coverage script, run against a stub affected_tests.py (nothing builds or boots)."""
+
+    SCRIPT = (ROOT / "tools" / ("apple_cov" + "erage.sh")).read_text(encoding="utf-8")
+    PREAMBLE = SCRIPT[SCRIPT.index("FILTER=()"):SCRIPT.index("# Every file under apple/Sources")]
+
+    def run_preamble(self, filter_words: str, status: int, changed: list[str]) -> subprocess.CompletedProcess:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tools").mkdir()
+            (root / "tools" / "affected_tests.py").write_text(
+                "import sys\n"
+                "def changed_files():\n"
+                f"    return {changed!r}\n"
+                "if __name__ == '__main__':\n"
+                f"    print({filter_words!r}); sys.exit({status})\n", encoding="utf-8")
+            script = f'ROOT={root}; CHANGED=1\n{self.PREAMBLE}\necho "SKIP_HOST=$SKIP_HOST SOURCES=${{CHANGED_SOURCES[*]-}}"\n'
+            return subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=False)
+
+    def test_uikitport_only_diff_skips_host_and_gates_those_files(self) -> None:
+        port = "apple/Sources/HassUI/UIKitPort/Foo.swift"
+        result = self.run_preamble("", 0, [port, "README.md"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"SKIP_HOST=1 SOURCES={port}", result.stdout)
+        self.assertNotIn("nothing to run", result.stdout)
+
+    def test_diff_mapping_to_nothing_keeps_the_early_exit(self) -> None:
+        result = self.run_preamble("", 0, ["README.md", "apple/Sources/HassCore/Foo.swift"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("nothing to run", result.stdout)
+        self.assertNotIn("SKIP_HOST", result.stdout)
+
+    def test_targeted_pick_request_still_exits_with_its_status(self) -> None:
+        result = self.run_preamble("", 3, ["apple/Sources/HassUI/UIKitPort/Foo.swift"])
+        self.assertEqual(result.returncode, 3)
+        self.assertNotIn("SKIP_HOST", result.stdout)
+
+    def test_covered_diff_keeps_the_host_phase(self) -> None:
+        result = self.run_preamble("HassCoreTests", 0, ["apple/Sources/HassCore/Foo.swift", "apple/Sources/HassUI/UIKitPort/Foo.swift"])
+        self.assertIn("SKIP_HOST=0 SOURCES=apple/Sources/HassCore/Foo.swift apple/Sources/HassUI/UIKitPort/Foo.swift", result.stdout)
+
+    def test_skip_host_branch_runs_before_the_build_hold(self) -> None:
+        self.assertLess(self.SCRIPT.index("if [[ $SKIP_HOST == 1 ]]"), self.SCRIPT.index("exec python3 \"${DEVCAP_CMD[@]}\""))
+
+    def test_demo_house_is_classified(self) -> None:
+        gate = subprocess.run([sys.executable, str(ROOT / "tools" / "coverage_gate.py"), "--language", "swift", "--classify-only"],
+                              capture_output=True, text=True, check=False)
+        self.assertEqual(gate.returncode, 0, gate.stdout + gate.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
