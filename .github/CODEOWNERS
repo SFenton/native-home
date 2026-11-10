@@ -10,6 +10,9 @@
 
 # Hooks and the review gate
 /tools/hooks/ @SFenton
+/tools/hooks/triage_session.py @SFenton
+/tools/hooks/deny_rules.py @SFenton
+/tools/hooks/triage_deny.py @SFenton
 /.githooks/ @SFenton
 /tools/review/ @SFenton
 /tools/review_verdict.py @SFenton
