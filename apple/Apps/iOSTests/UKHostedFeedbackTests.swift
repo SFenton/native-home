@@ -1,3 +1,4 @@
+import AVFoundation
 import HassCore
 import HassDesign
 import PhotosUI
@@ -321,5 +322,189 @@ final class UKHostedFeedbackTests: DemoHouseTestCase {
         _ = cancel.primaryAction?.performWithSender(nil, target: nil)
         FeatureHost.settle(0.4)
         XCTAssertNotNil(FeatureHost.alert(on: form.page), "Cancel with typed text asks")
+    }
+
+    // MARK: - Presenting, menu and tiles
+
+    func testPresentedFormStartsPrefilledInADebugRunAndAsksBeforeDiscardingTheDraft() throws {
+        setenv("FENTON_FEEDBACK_PREFILL_TITLE", "Lights", 1)
+        setenv("FENTON_FEEDBACK_PREFILL_DESCRIPTION", "They flicker.", 1)
+        defer {
+            unsetenv("FENTON_FEEDBACK_PREFILL_TITLE")
+            unsetenv("FENTON_FEEDBACK_PREFILL_DESCRIPTION")
+        }
+        let host = UIViewController()
+        let window = HostedPage.show(host)
+        defer { window.isHidden = true }
+        let signedIn = try FeatureHost.signedIn()
+        UKFeedbackFormViewController.present(kind: .bug, context: signedIn.context, from: host)
+        FeatureHost.settle(0.8)
+        let modal = try XCTUnwrap(host.presentedViewController as? UKHassModalController)
+        let page = try XCTUnwrap(modal.viewControllers.first as? UKFeedbackFormViewController)
+        XCTAssertEqual((FeatureHost.view("feedback.field.title", in: page.view) as? UITextField)?.text, "[Bug] Lights", "the title prefill follows the prefix")
+        XCTAssertEqual((FeatureHost.view("feedback.field.description", in: page.view) as? UITextView)?.text, "They flicker.")
+        let attempt = try XCTUnwrap(modal.onAttemptToDismiss, "a swipe-down on a filled form asks first")
+        attempt()
+        FeatureHost.settle(0.4)
+        XCTAssertNotNil(FeatureHost.alert(on: page), "the draft is not dropped silently")
+        modal.dismiss(animated: false)
+        FeatureHost.settle(0.4)
+    }
+
+    func testDismissingThePresentedFormDeletesTheStagedMediaFromTheModelAndTheDisk() async throws {
+        FeedbackFormModel.purgeStagedMedia()
+        let host = UIViewController()
+        let window = HostedPage.show(host)
+        defer { window.isHidden = true }
+        let signedIn = try FeatureHost.signedIn()
+        let model = FeedbackFormModel(kind: .bug, services: FeedbackServices(filer: FeedbackFixtureFiler()))
+        UKFeedbackFormViewController.present(kind: .bug, context: signedIn.context, from: host, model: model)
+        FeatureHost.settle(0.8)
+        let modal = try XCTUnwrap(host.presentedViewController as? UKHassModalController)
+        await model.importFiles(.success([try jpeg()]))
+        let staged = try XCTUnwrap(model.attachments.first).fileURL
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staged.path), "the photo is staged on disk while the form is open")
+        modal.dismiss(animated: false)
+        modal.presentationController.map { modal.presentationControllerDidDismiss($0) }
+        XCTAssertTrue(model.attachments.isEmpty, "dismissing drops the attachments from the model")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path), "and deletes the staged file")
+        let left = (try? FileManager.default.contentsOfDirectory(atPath: FeedbackPickedMedia.stagingFolder.path)) ?? []
+        XCTAssertTrue(left.isEmpty, "nothing is left in the staging folder: \(left)")
+    }
+
+    func testThePhotoLibraryMenuItemOpensThePhotoPicker() throws {
+        let form = try form()
+        defer { form.window.isHidden = true }
+        let attach = try XCTUnwrap(FeatureHost.view("feedback.attach", in: form.page.view) as? UIButton)
+        let actions = attach.menu?.children.compactMap { $0 as? UIAction } ?? []
+        let library = try XCTUnwrap(actions.first { $0.title == "Photo Library" })
+        library.performWithSender(nil, target: nil)
+        FeatureHost.settle(0.8)
+        FeatureHost.expectSystemPresentation(form.page.shownSheet, "Photo Library opens the system picker")
+        if let shown = form.page.shownSheet { XCTAssertTrue(shown is PHPickerViewController, "and it is the photo picker") }
+    }
+
+    func testTheTitleFieldWritesThroughToTheModelAndSubmitReportsTheDarkTheme() throws {
+        let form = try form()
+        defer { form.window.isHidden = true }
+        form.page.overrideUserInterfaceStyle = .dark
+        let field = try XCTUnwrap(FeatureHost.view("feedback.field.title", in: form.page.view) as? UITextField)
+        field.text = "[Bug] Dark flicker"
+        field.enumerateEventHandlers { action, _, event, _ in
+            if event.contains(.editingChanged) { action?.performWithSender(field, target: nil) }
+        }
+        XCTAssertEqual(form.model.title, "[Bug] Dark flicker", "typing in the title reaches the model")
+        try type("It flickers.", into: "feedback.field.description", in: form.page)
+        _ = try submitItem(form.page).primaryAction?.performWithSender(nil, target: nil)
+        FeatureHost.settle(0.8)
+        let report = try XCTUnwrap(form.filer.submittedReports.first)
+        XCTAssertEqual(form.filer.submittedReports.count, 1)
+        XCTAssertEqual(report.title, "[Bug] Dark flicker")
+        XCTAssertTrue(report.diagnostics.contains { $0.last?.hasSuffix("Dark") == true }, "the diagnostics say the appearance was Dark: \(report.diagnostics)")
+        FeatureHost.answer(try XCTUnwrap(FeatureHost.alert(on: form.page)), "Done")
+    }
+
+    func testAVideoAttachmentShowsAFilmPlaceholderAndPlayBadge() async throws {
+        let form = try form()
+        defer { form.window.isHidden = true }
+        await form.model.importFiles(.success([try await blockMovie(seconds: 2)]))
+        let shown = await FeatureHost.settleAsync(until: { FeatureHost.view("feedback.attachment.1", in: form.page.view) != nil })
+        XCTAssertTrue(shown, "the tile appears")
+        let attachment = try XCTUnwrap(form.model.attachments.first)
+        XCTAssertTrue(attachment.isVideo)
+        let tile = try XCTUnwrap(FeatureHost.view("feedback.attachment.1", in: form.page.view))
+        XCTAssertTrue(tile.accessibilityLabel?.hasPrefix("Video") ?? false)
+        let symbols = Self.imageViews(in: tile).compactMap(\.image)
+        let film = try XCTUnwrap(UIImage(systemName: "film", withConfiguration: UIImage.SymbolConfiguration(font: UKFont.preferred(.title2))))
+        let play = try XCTUnwrap(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(font: UKFont.preferred(.footnote, bold: true))))
+        XCTAssertTrue(symbols.contains { $0.pngData() == film.pngData() }, "the film placeholder is drawn")
+        XCTAssertTrue(symbols.contains { $0.pngData() == play.pngData() }, "and the play badge")
+        let strip = try XCTUnwrap(FeatureHost.view("feedback.attachments", in: form.page.view) as? UKFeedbackAttachmentStrip)
+        XCTAssertFalse(strip.isAccessibilityElement, "the strip is a container; its tiles are the elements")
+        strip.isAccessibilityElement = true
+        XCTAssertFalse(strip.isAccessibilityElement, "and stays one")
+        form.model.discardMedia()
+    }
+
+    private static func imageViews(in view: UIView) -> [UIImageView] {
+        ((view as? UIImageView).map { [$0] } ?? []) + view.subviews.flatMap { imageViews(in: $0) }
+    }
+
+    // MARK: - Movie compression
+
+    /// A short H.264 movie of panning colour blocks: large at the source bitrate, compressible by the encoder.
+    private func blockMovie(seconds: Int = 8) async throws -> URL {
+        let width = 640, height = 480, fps = 12
+        let folder = FileManager.default.temporaryDirectory.appending(path: "feedback-movie-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appending(path: "clip.mov")
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 8_000_000],
+        ])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
+        ])
+        writer.add(input)
+        XCTAssertTrue(writer.startWriting())
+        writer.startSession(atSourceTime: .zero)
+        for frame in 0..<(seconds * fps) {
+            while !input.isReadyForMoreMediaData { try await Task.sleep(for: .milliseconds(2)) }
+            var buffer: CVPixelBuffer?
+            CVPixelBufferCreate(nil, width, height, kCVPixelFormatType_32BGRA, nil, &buffer)
+            let pixels = try XCTUnwrap(buffer)
+            CVPixelBufferLockBaseAddress(pixels, [])
+            let base = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixels)).assumingMemoryBound(to: UInt32.self)
+            let stride = CVPixelBufferGetBytesPerRow(pixels) / 4
+            for y in 0..<height {
+                for x in 0..<width {
+                    let block = UInt64((x + frame * 3) / 8) &* 73_856_093 ^ UInt64((y + frame * 2) / 8) &* 19_349_663
+                    base[y * stride + x] = UInt32(truncatingIfNeeded: (block &* 0x9E37_79B9_7F4A_7C15) >> 24)
+                }
+            }
+            CVPixelBufferUnlockBaseAddress(pixels, [])
+            adaptor.append(pixels, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: CMTimeScale(fps)))
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        XCTAssertEqual(writer.status, .completed)
+        return url
+    }
+
+    func testAnOverLimitMovieIsCompressedThroughAdmit() async throws {
+        FeedbackFormModel.purgeStagedMedia()
+        let model = FeedbackFormModel(
+            kind: .bug, services: FeedbackServices(filer: FeedbackFixtureFiler(available: true, delay: .zero)), attachmentLimit: 300_000)
+        let movie = try await blockMovie()
+        let original = try XCTUnwrap(try movie.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        XCTAssertGreaterThan(original, 300_000, "the fixture must start over the injected limit")
+        await model.importFiles(.success([movie]))
+        XCTAssertNil(model.attachmentMessage, "a compressible movie is not refused")
+        let attachment = try XCTUnwrap(model.attachments.first)
+        XCTAssertTrue(attachment.wasCompressed)
+        XCTAssertLessThanOrEqual(attachment.byteCount, 300_000)
+        XCTAssertEqual(attachment.mimeType, "video/mp4")
+        model.discardMedia()
+        FeedbackFormModel.purgeStagedMedia()
+    }
+
+    func testDiscardingWhileAMovieImportsCancelsTheImport() async throws {
+        FeedbackFormModel.purgeStagedMedia()
+        let model = FeedbackFormModel(
+            kind: .bug, services: FeedbackServices(filer: FeedbackFixtureFiler(available: true, delay: .zero)), attachmentLimit: 300_000)
+        let movie = try await blockMovie()
+        let task = model.startImportFiles(.success([movie]))
+        XCTAssertTrue(model.hasRunningImports)
+        await Task.yield()
+        model.discardMedia()
+        await task.value
+        XCTAssertTrue(model.attachments.isEmpty, "a cancelled import attaches nothing")
+        XCTAssertNil(model.attachmentMessage, "and says nothing")
+        XCTAssertFalse(model.hasRunningImports)
+        XCTAssertEqual(model.importing, 0)
+        let left = (try? FileManager.default.contentsOfDirectory(atPath: FeedbackPickedMedia.stagingFolder.path)) ?? []
+        XCTAssertTrue(left.isEmpty, "the staging folder is empty: \(left)")
     }
 }

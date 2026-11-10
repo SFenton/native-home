@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import HassCore
 @testable import HassUI
 import Testing
@@ -175,6 +177,91 @@ struct FeedbackFormModelTests {
         await m.admit(url, displayName: "huge.png")
         #expect(m.attachments.isEmpty)
         #expect(m.attachmentMessage != nil)
+    }
+
+    // MARK: Import tasks
+
+    private func stagedFolderIsEmpty() -> Bool {
+        !FileManager.default.fileExists(atPath: FeedbackPickedMedia.stagingFolder.path)
+            || ((try? FileManager.default.contentsOfDirectory(atPath: FeedbackPickedMedia.stagingFolder.path))?.isEmpty ?? true)
+    }
+
+    @Test(arguments: [0, 1, 4, 15])
+    func discardingCancelsAFileImportQuietly(delay: Int) async throws {
+        FeedbackFormModel.purgeStagedMedia()
+        let folder = try FeedbackUITestMedia.folder()
+        let url = try FeedbackUITestMedia.image(in: folder, name: "p.jpg", type: .jpeg, gps: true)
+        let m = model()
+        let task = m.startImportFiles(.success([url]))
+        #expect(m.hasRunningImports)
+        if delay > 0 { try await Task.sleep(for: .milliseconds(delay)) }
+        m.discardMedia()
+        await task.value
+        #expect(m.attachments.isEmpty && m.attachmentMessage == nil && m.importing == 0 && !m.hasRunningImports)
+        #expect(stagedFolderIsEmpty())
+    }
+
+    @Test func discardingCancelsPickedImportsWhereverTheyAre() async throws {
+        FeedbackFormModel.purgeStagedMedia()
+        let folder = try FeedbackUITestMedia.folder()
+        let url = try FeedbackUITestMedia.image(in: folder, name: "picked.jpg", type: .jpeg, gps: false)
+        let m = model()
+        // One loader is still loading when the sheet closes, the other had already finished.
+        let slow = try FeedbackPickedMedia.stage(url)
+        let ready = try FeedbackPickedMedia.stage(url)
+        let task = m.startImportPicked([
+            { try await Task.sleep(for: .seconds(5)); return slow },
+            { ready },
+        ])
+        await waitUntil { m.importing > 0 }
+        m.discardMedia()
+        await task.value
+        #expect(m.attachments.isEmpty && m.attachmentMessage == nil && !m.hasRunningImports)
+        FeedbackFormModel.purgeStagedMedia()
+        let again = model()
+        let finished = try FeedbackPickedMedia.stage(url)
+        let second = again.startImportPicked([{ finished }])
+        again.discardMedia()
+        await second.value
+        #expect(again.attachments.isEmpty && again.attachmentMessage == nil)
+        #expect(stagedFolderIsEmpty())
+    }
+
+    @Test func submitWaitsWhileAnImportRuns() async throws {
+        let m = model()
+        fill(m)
+        await m.checkAvailability()
+        let task = m.startImportPicked([{ try await Task.sleep(for: .milliseconds(200)); return nil }])
+        await waitUntil { m.importing > 0 }
+        #expect(m.blockingReason == "Adding media…" && !m.canSubmit)
+        await task.value
+        #expect(m.blockingReason == nil)
+    }
+
+    @Test func aPhotoOverTheLimitIsCompressedAndRenamed() async throws {
+        let folder = try FeedbackUITestMedia.folder()
+        let url = folder.appendingPathComponent("noise.png")
+        let side = 1200
+        var pixels = [UInt8](repeating: 255, count: side * side * 4)
+        var seed: UInt64 = 0x9E37_79B9_7F4A_7C15
+        for index in pixels.indices where index % 4 != 3 {
+            seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            pixels[index] = UInt8(truncatingIfNeeded: seed >> 33)
+        }
+        let context = try #require(pixels.withUnsafeMutableBytes {
+            CGContext(data: $0.baseAddress, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        })
+        let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, context, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        let m = FeedbackFormModel(kind: .bug, services: FeedbackServices(filer: StubFiler()), attachmentLimit: 1_000_000)
+        await m.importFiles(.success([url]))
+        let attachment = try #require(m.attachments.first)
+        #expect(attachment.wasCompressed && attachment.byteCount <= 1_000_000)
+        #expect(attachment.filename.hasSuffix(".jpg"))
+        m.discardMedia()
+        FeedbackFormModel.purgeStagedMedia()
     }
 
     // MARK: Submit

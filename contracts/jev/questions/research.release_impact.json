@@ -1,6 +1,6 @@
 {
   "id": "research.release_impact",
-  "version": 2,
+  "version": 3,
   "type": "noul-set",
   "mode": "shadow",
   "description": "Which parts of our surface (HA domains and services, HAKit APIs, imported frameworks) does a release note or changelog entry affect? One noul per generated entry.",
@@ -101,6 +101,7 @@
     "framework:BackgroundTasks": "Apple's `BackgroundTasks` framework (its API, behavior or availability on iOS)",
     "framework:CoreImage": "Apple's `CoreImage` framework (its API, behavior or availability on iOS)",
     "framework:CoreLocation": "Apple's `CoreLocation` framework (its API, behavior or availability on iOS)",
+    "framework:CoreMedia": "Apple's `CoreMedia` framework (its API, behavior or availability on iOS)",
     "framework:CoreSpotlight": "Apple's `CoreSpotlight` framework (its API, behavior or availability on iOS)",
     "framework:CryptoKit": "Apple's `CryptoKit` framework (its API, behavior or availability on iOS)",
     "framework:HassDemoHouse": "Apple's `HassDemoHouse` framework (its API, behavior or availability on iOS)",

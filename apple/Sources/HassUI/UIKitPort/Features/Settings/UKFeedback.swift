@@ -54,7 +54,10 @@ final class UKFeedbackFormViewController: UKPageViewController, UKSheetFitting, 
         let form = UKFeedbackFormViewController(kind: kind, model: model, connection: connection)
         var options = UKHassModalOptions(title: kind.formTitle)
         options.showsClose = false
-        options.onDismissed = { FeedbackFormModel.purgeStagedMedia() }
+        options.onDismissed = { [weak model] in
+            model?.discardMedia()
+            FeedbackFormModel.purgeStagedMedia()
+        }
         let modal = UKHassModalController(root: form, options: options)
         form.modal = modal
         modal.onAttemptToDismiss = { [weak form] in form?.requestClose() }
@@ -376,7 +379,7 @@ final class UKFeedbackFormViewController: UKPageViewController, UKSheetFitting, 
         guard !results.isEmpty else { return }
         let providers = results.map { ProviderBox(provider: $0.itemProvider) }
         let loaders: [@MainActor () async throws -> FeedbackPickedMedia?] = providers.map { box in { try await FeedbackPickedMedia.load(box.provider) } }
-        Task { await model.importPicked(loaders) }
+        model.startImportPicked(loaders)
     }
 
     private func pickFiles() {
@@ -387,7 +390,7 @@ final class UKFeedbackFormViewController: UKPageViewController, UKSheetFitting, 
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        Task { await model.importFiles(.success(urls)) }
+        model.startImportFiles(.success(urls))
     }
 
     // MARK: Quick Look
