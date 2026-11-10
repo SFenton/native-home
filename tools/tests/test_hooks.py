@@ -68,11 +68,30 @@ def run_agent_hook(tool_input, tool_name="Agent"):
 
 class AgentModelTests(unittest.TestCase):
     def test_lane_agents_and_cheap_models_pass(self):
-        for spec in ({"subagent_type": "coder"}, {"subagent_type": "menial"}, {"subagent_type": "Explore"},
-                     {"subagent_type": "Plan"}, {"subagent_type": "general-purpose", "model": "sonnet"},
+        for spec in ({"subagent_type": "coder"}, {"subagent_type": "menial"}, {"subagent_type": "Explore", "model": "haiku"},
+                     {"subagent_type": "Plan", "model": "sonnet"}, {"subagent_type": "general-purpose", "model": "sonnet"},
                      {"model": "haiku"}, {"subagent_type": "general-purpose", "model": "gh/claude-sonnet-5.5"}):
             with self.subTest(spec=spec):
                 self.assertEqual(run_agent_hook({**spec, "prompt": "do it"})[0], 0)
+
+    def test_inheriting_builtins_need_a_cheap_model(self):
+        """Fails if Explore, Plan or general-purpose can run with no model (so not on a cheap one) or the refusal omits the fix."""
+        for kind in ("Explore", "Plan", "general-purpose"):
+            for extra in ({}, {"model": ""}):
+                with self.subTest(kind=kind, extra=extra):
+                    status, message = run_agent_hook({"subagent_type": kind, "prompt": "look", **extra})
+                    self.assertEqual(status, 2)
+                    self.assertIn(f"matched: built-in {kind}", message)
+                    self.assertIn('model "sonnet" or "haiku"', message)
+            for model in ("sonnet", "haiku"):
+                with self.subTest(kind=kind, model=model):
+                    self.assertEqual(run_agent_hook({"subagent_type": kind, "model": model, "prompt": "look"})[0], 0)
+
+    def test_fixed_model_builtins_pass_without_a_model(self):
+        """Fails if built-ins that carry their own model (Haiku, Sonnet) or the web helper are refused for having no model."""
+        for kind in ("claude-code-guide", "statusline-setup", "web-fetch"):
+            with self.subTest(kind=kind):
+                self.assertEqual(run_agent_hook({"subagent_type": kind, "prompt": "go"})[0], 0)
 
     def test_inherited_or_explicit_opus_is_refused(self):
         for spec in ({"subagent_type": "general-purpose"}, {}, {"model": "opus"}, {"subagent_type": "coder", "model": "opus"},
