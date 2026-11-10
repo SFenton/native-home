@@ -202,6 +202,8 @@ final class UKPageSectionHeaderView: UIView, UKGridMeasuring {
     private let titleLabel = UILabel()
     private let detailLabel = UILabel()
     private let inSheet: Bool
+    /// The size the containers above were last told about (``UIView/ukRemeasureContainers(ifSizeChangedFrom:atWidth:)``).
+    private var measured = CGSize.zero
 
     init(_ title: String, detail: String? = nil, inSheet: Bool = false) {
         self.inSheet = inSheet
@@ -225,6 +227,7 @@ final class UKPageSectionHeaderView: UIView, UKGridMeasuring {
             detailLabel.font = UKFont.preferred(.body, monospacedDigit: true, traits: traitCollection)
             setNeedsLayout()
             invalidateIntrinsicContentSize()
+            ukRemeasureContainers(ifSizeChangedFrom: &measured, atWidth: bounds.width > 0 ? bounds.width : 10_000)
         }
     }
 
@@ -238,6 +241,12 @@ final class UKPageSectionHeaderView: UIView, UKGridMeasuring {
         detailLabel.isHidden = detail == nil
         setNeedsLayout()
         invalidateIntrinsicContentSize()
+        ukRemeasureContainers(ifSizeChangedFrom: &measured, atWidth: bounds.width > 0 ? bounds.width : 10_000)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { ukRemeasureContainers(ifSizeChangedFrom: &measured, atWidth: bounds.width > 0 ? bounds.width : 10_000) }
     }
 
     private func frames(width: CGFloat) -> (title: CGRect, detail: CGRect, height: CGFloat) {

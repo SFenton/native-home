@@ -219,7 +219,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKGlassTileView, _) in
             view.setNeedsLayout()
             view.apply(animated: false)
-            view.ukHeightMayHaveChanged()
+            view.ukRemeasureContainers()
         }
         motion.seenGeneration = model.reapplyGeneration
         apply(animated: false)
@@ -257,7 +257,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         }
         apply(animated: hasConfigured && animated)
         // A change of shape that did not animate moved the tile's height at once: the grids around it measure again.
-        if oldShape != newShape, hasConfigured, motion.held == nil, motion.outgoing == nil, !motionIsPlaying { ukHeightMayHaveChanged() }
+        if oldShape != newShape, hasConfigured, motion.held == nil, motion.outgoing == nil, !motionIsPlaying { ukRemeasureContainers() }
         if hasConfigured, animated, model.isError, !old.isError {
             UKTapFeedback.failure()
             if model.announcesFailure { announceFailure([model.title, model.subtitle].compactMap { $0 }.joined(separator: ", ")) }
@@ -654,7 +654,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// Relays out for the new controls, taking the grids around the tile with it.
     private func relayout() {
         apply(animated: false)
-        ukHeightMayHaveChanged()
+        ukRemeasureContainers()
         window?.layoutIfNeeded()
     }
 

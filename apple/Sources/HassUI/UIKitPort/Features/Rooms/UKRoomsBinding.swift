@@ -85,7 +85,7 @@ enum UKRoomsBind {
             let next = model()
             let old = tile.model
             tile.configure(next, environment: environment, animated: !first, action: action, perform: perform)
-            if !first, old.subtitle != next.subtitle || old.title != next.title { tile.ukHeightMayHaveChanged() }
+            if !first, old.subtitle != next.subtitle || old.title != next.title { tile.ukRemeasureContainers() }
             first = false
         }
     }
