@@ -1803,9 +1803,10 @@ class Runner:
                 self.file_lane_issue(lane, str(label), "not pushed by this session", "lane", True)
         return mine
 
-    def land_lane(self, lane: str, base: str, label: str, expected_sha: str = "") -> str:
+    def land_lane(self, lane: str, base: str, label: str, expected_sha: str = "", retry: bool = True) -> str:
         """Review, check, test and merge one lane (exactly ``expected_sha`` when given). Returns ``merged``, ``filed`` (an issue explains
-        the refusal), ``retry`` (a first ``base`` refusal: the lane is retried once on a later tick, see ``retry_lanes``) or ``paused``."""
+        the refusal), ``retry`` (a first ``base`` refusal: the lane is retried once on a later tick, see ``retry_lanes``; never with
+        ``retry=False``, which the revert uses so its bookkeeping sees only ``merged`` or ``filed``) or ``paused``."""
         if not self.check_base("before landing"):
             return "paused"
         try:
@@ -1832,7 +1833,7 @@ class Runner:
                     # that lets the Steward re-lane it on the new base
                     retries = self.state.data.setdefault("lane_retries", {})
                     pending = retries.get(lane)
-                    if expected_sha and not (pending and pending.get("sha") == expected_sha):
+                    if retry and expected_sha and not (pending and pending.get("sha") == expected_sha):
                         retries[lane] = {"lane": lane, "base": base, "label": str(label), "sha": expected_sha, "attempts": 1,
                                          "at": datetime.now(timezone.utc).isoformat()}
                         self.state.save()
@@ -2178,7 +2179,7 @@ class Runner:
         issue(f"Workflow: {lane} reverted, metrics regressed ({short})", evidence + f"\n\nThe runner prepared `{branch}` and lands "
               "it like any lane (independent review, tests, protected paths).", False)
         landing["revert_lane"] = branch
-        outcome = self.land_lane(branch, base, "revert", landing.get("revert_sha") or "")
+        outcome = self.land_lane(branch, base, "revert", landing.get("revert_sha") or "", retry=False)
         if outcome == "merged":
             landing["evaluated"] = "reverted"
             with self.landings_guard():
@@ -2557,8 +2558,9 @@ class Runner:
         results = (self.state.data.get("lanes") or {}).get(str(n)) or {}
         listed = [x for x in status.get("lanes") or [] if isinstance(x, str)]
         outcomes = {lane: results.get(lane, "not landed") for lane in listed}
-        listing = "\n".join(f"- `{lane}`: {outcome}" + (" (see the `Workflow: lane ... not landed` issue)" if outcome == "filed" else "")
-                            for lane, outcome in outcomes.items())
+        notes = {"filed": " (see the `Workflow: lane ... not landed` issue)",
+                 "retry": " (retrying once on a later tick: main moved during landing)"}
+        listing = "\n".join(f"- `{lane}`: {outcome}" + notes.get(outcome, "") for lane, outcome in outcomes.items())
         summary = str(status.get("summary", "")).strip()
         state = status.get("state")
         if not resolved:

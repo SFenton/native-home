@@ -1327,6 +1327,49 @@ class LaneBaseRetryTests(Base):
         self.assertEqual(runner.land_lane(self.LANE, "main", "R-1"), "filed")
         filed.assert_called_once()
 
+    def test_a_retry_that_is_paused_keeps_the_entry(self):
+        runner, land, filed = self.setup_runner()
+        runner.land_lane(self.LANE, "main", "R-1", self.SHA)
+        with mock.patch.object(runner, "land_lane", return_value="paused"):
+            runner.retry_lanes()
+        filed.assert_not_called()
+        self.assertIn(self.LANE, runner.state.data["lane_retries"])
+
+    def test_a_retry_that_raises_is_filed_and_dropped(self):
+        runner, land, filed = self.setup_runner()
+        runner.land_lane(self.LANE, "main", "R-1", self.SHA)
+        with mock.patch.object(runner, "land_lane", side_effect=RuntimeError("boom")):
+            runner.retry_lanes()
+        filed.assert_called_once()
+        self.assertIn("retry failed", filed.call_args.args[2])
+        self.assertEqual(runner.state.data["lane_retries"], {})
+
+    def test_land_lanes_counts_a_retry_as_resolved(self):
+        runner, land, filed = self.setup_runner()
+        with mock.patch.object(runner, "session_lanes", return_value=[self.LANE]):
+            self.assertTrue(runner.land_lanes({"lanes": [self.LANE]}, "R-1"))
+        self.assertEqual(runner.state.data["lanes"]["R-1"], {self.LANE: "retry"})
+
+    def test_a_revert_refused_base_files_as_before_and_records_no_retry(self):
+        runner, land, filed = self.setup_runner()
+        self.assertEqual(runner.land_lane("agents/revert-abc", "main", "revert", self.SHA, retry=False), "filed")
+        filed.assert_called_once()
+        self.assertEqual(runner.state.data.get("lane_retries", {}), {})
+
+    def test_the_revert_lands_without_a_retry(self):
+        import inspect
+        self.assertIn("retry=False", inspect.getsource(ht.Runner.revert_landing))
+
+    def test_a_retry_is_explained_on_the_workflow_issue(self):
+        runner, land, filed = self.setup_runner()
+        gh = runner.gh
+        runner.state.data["lanes"] = {"12": {self.LANE: "retry"}}
+        with mock.patch.object(runner, "land_lanes", return_value=True), mock.patch.object(ht, "post_update") as post, \
+                mock.patch.object(runner, "block", return_value="blocked"), mock.patch.object(runner, "cleanup"):
+            runner.finish_workflow(12, {"state": "done", "summary": "s", "lanes": [self.LANE]}, Path("/w"))
+        self.assertIn("retrying once on a later tick", post.call_args.args[4])
+
+
 
 class LevelRaiseTests(Base):
     """Jev ``design.user_visible`` raises L0 to L1 at intake; it never lowers a level."""
