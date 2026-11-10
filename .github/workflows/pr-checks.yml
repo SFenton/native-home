@@ -450,6 +450,7 @@ jobs:
           THIS_REPO: ${{ github.repository }}
           AGENT_LOGINS: ${{ vars.AGENT_LOGINS }}
         run: |
+          [ -n "$AUTHOR" ] || { echo "pr-checks failed: the pull request has no author login" | tee -a "$GITHUB_STEP_SUMMARY"; exit 1; }
           case ",${AGENT_LOGINS// /},SFenton," in
             *",$AUTHOR,"*) ;;
             *)
