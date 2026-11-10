@@ -1,8 +1,9 @@
 name: ios-release-build
 # Archives, signs and uploads every `ios/v<YYMM.DD.NN>` version that is not yet on TestFlight, oldest first, to App
 # Store Connect (internal TestFlight; the "Internal" group distributes automatically, so an upload is a deploy).
-# Nothing here runs on a push, a pull request or a branch: the only starts are version-bump.yml, after a successful
-# pr-checks on main and a new tag, and a manual "Run workflow" (a catch-up or a dry run).
+# Nothing here runs on a push, a pull request or a branch: the only starts are the `bump` job of ios-release.yml, which
+# dispatches it for each new tag on a push to main (when HASS_TESTFLIGHT_ENABLED is `true`), and a manual "Run workflow"
+# (a catch-up or a dry run). The signed IPA artifact comes from ios-release.yml, not from here.
 # Ordering: the run does not build "the tag it was woken for". tools/release/testflight_queue.py lists every ios/v* tag
 # without an `ios/tf/<version>` ledger tag, uploads them oldest first, writes the ledger tag after each upload and stops
 # at the first failure. GitHub keeps one pending run per concurrency group and may drop the others, so the queue is in
