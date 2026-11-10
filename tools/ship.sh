@@ -77,20 +77,14 @@ fi
 
 [[ $PUSH == 1 ]] || exit 0
 
-# Denylist layer 1 (pr-lifecycle.md, "Denylist"): scan the tree (only hits this change adds against origin/$BASE count; every hit counts in the go-public gate) for the owner's local house terms before anything leaves this
-# machine. house_scan reads the list; this prints counts and path:line, never a term. Exit 1 = hit, 3 = list missing while
-# `denylist_required` is true in tools/triage/config.json; a missing optional list only warns. Any other failure also stops the push.
-HS="$(dirname "$0")/house_scan.py"
-if [[ -f "$HS" ]]; then
-  HS_RC=0
-  python3 "$HS" denylist --root "$(git rev-parse --show-toplevel)" --required-from "$(dirname "$0")/triage/config.json" \
-    --base-ref "origin/$BASE" || HS_RC=$?
-  case "$HS_RC" in
-    0) ;;
-    1) echo "ship: denylist hit(s) above; nothing was pushed. Remove the house data and ship again." >&2; exit 1 ;;
-    3) echo "ship: the denylist is required but not loaded; nothing was pushed (HOUSE_SCAN_DENYLIST, the config folder's house_denylist.txt or ~/hass-agents/house_denylist.txt)." >&2; exit 1 ;;
-    *) echo "ship: the denylist scan failed (exit $HS_RC); nothing was pushed." >&2; exit 1 ;;
-  esac
+# Pre-push checks that need no network (tools/lane_check.py check): the house denylist scan (pr-lifecycle.md, "Denylist"; only hits this change adds
+# against origin/$BASE count; it prints counts and path:line, never a term; exit 1 = hit, 3 = list missing while `denylist_required` is true in
+# tools/triage/config.json), the revert guard (a squash over a moved base that puts a merged change back) and the advisory one-commit shape.
+# Any non-zero exit stops the push; a missing optional denylist only warns.
+LC="$(dirname "$0")/lane_check.py"
+if [[ -f "$LC" ]]; then
+  python3 "$LC" check --base "$BASE" --only scan --only revert --only shape \
+    || { echo "ship: lane_check failed (above); nothing was pushed. Fix it and ship again." >&2; exit 1; }
 fi
 
 # Review before push. Git's own pre-push hook (.githooks/pre-push -> tools/prepush_review.py) is the enforcement: it sees the url and every
@@ -103,7 +97,7 @@ if [[ -f "$RV" ]]; then ORIGIN_KIND="$(python3 "$RV" remote "$(git remote get-ur
 case "$ORIGIN_KIND" in
   other|local) ;;
   native-home)
-    [[ "$(git config core.hooksPath || true)" == ".githooks" ]] || { echo "ship: nothing was pushed; core.hooksPath is not .githooks, so git's pre-push hook would not run. Run tools/setup.sh." >&2; exit 1; }
+    python3 "$LC" check --only hooks || { echo "ship: nothing was pushed; core.hooksPath does not lead to this repo's .githooks (relative or absolute), so git's pre-push hook would not run. Run tools/setup.sh." >&2; exit 1; }
     python3 "$RV" pass "$HEAD_SHA" || { echo "ship: nothing was pushed; ${HEAD_SHA:0:12} needs the reviewer's pass first (review before push)." >&2; exit 1; } ;;
   *) echo "ship: origin is not a readable GitHub URL (or review_verdict.py is missing); nothing was pushed." >&2; exit 1 ;;
 esac

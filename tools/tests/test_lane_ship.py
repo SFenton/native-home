@@ -25,7 +25,7 @@ def make_repo(tmp):
     clone = Path(tmp) / "clone"
     git(tmp, "clone", "-q", str(origin), str(clone))
     (clone / "tools").mkdir()
-    for name in ("lane_new.sh", "ship.sh", "ship_guard.sh", "review_verdict.py"):
+    for name in ("lane_new.sh", "ship.sh", "ship_guard.sh", "review_verdict.py", "lane_check.py"):
         shutil.copy(TOOLS / name, clone / "tools" / name)
     (clone / ".gitignore").write_text("*.env\n.claude/worktrees/\n")
     (clone / "README.md").write_text("hi\n")
@@ -328,7 +328,7 @@ class ShipReviewBeforePushTests(unittest.TestCase):
             if passed:
                 record_pass(home, git(clone, "rev-parse", "HEAD"))
             if hooks:
-                git(clone, "config", "core.hooksPath", ".githooks")
+                git(clone, "config", "core.hooksPath", ".githooks" if hooks is True else str(clone / ".githooks"))
             git(clone, "remote", "set-url", "origin", url)
             done = subprocess.run(["bash", "tools/ship.sh", "Add a"], cwd=clone, env={**ENV, "HOME": str(home)}, capture_output=True, text=True)
             return done
@@ -344,6 +344,12 @@ class ShipReviewBeforePushTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1)
         self.assertIn("tools/setup.sh", done.stderr)
         self.assertNotIn("pushed", done.stdout)
+
+    def test_an_absolute_hooks_path_to_the_repos_githooks_is_accepted(self):
+        """Fails if: ship.sh refuses core.hooksPath given as the absolute path of the repo's own .githooks (the flip that stopped lane D)."""
+        done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=False, hooks="absolute")
+        self.assertIn("needs the reviewer's pass", done.stderr)
+        self.assertNotIn("core.hooksPath", done.stderr)
 
     def test_an_unreadable_origin_fails_closed(self):
         done = self.ship_with_origin("nonsense", passed=True)
