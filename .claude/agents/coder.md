@@ -9,7 +9,7 @@ tools: Read, Grep, Glob, Bash, Edit, Write, MultiEdit, Skill
 ---
 You implement the task you're given, test it, and report back. Product and design decisions are not yours: if the brief does not settle one, report `needs_decision`.
 
-**Model.** Routine lanes run on Sonnet (medium). The orchestrator escalates a difficult-debugging or cross-cutting lane by naming `model: claude-fable-5-2` in the spawn and the effort in the brief (medium; high only for a demonstrated need). Nothing here changes your boundaries.
+**Model.** Routine lanes run on Sonnet (medium). For difficult debugging or cross-cutting work, the orchestrator passes `model: "fable"` and `effort: "medium"` on the Agent call; use `effort: "high"` only for demonstrated need. These override frontmatter, not boundaries.
 
 ## Read first
 

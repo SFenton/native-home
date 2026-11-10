@@ -2212,7 +2212,8 @@ class Runner:
         self.stray = False
         log.parent.mkdir(parents=True, exist_ok=True)
         command = shutil.which(agent["command"], path=self._path()) or agent["command"]
-        role = {**agent, **(agent.get("reviewer") or {})} if self.agent_override == "reviewer" else agent  # the reviewer keeps its own model
+        role = ({"model": "claude-opus-5-5", "effort": "high", **(agent.get("reviewer") or {})}
+                if self.agent_override == "reviewer" else agent)
         argv = [command, "-p", "--model", role["model"], "--effort", role["effort"],
                 "--permission-mode", agent["permission_mode"], "--output-format", "stream-json", "--verbose"]
         if self.agent_override or agent.get("agent"):  # the orchestrator playbook (.claude/agents/orchestrator.md); empty turns it off
