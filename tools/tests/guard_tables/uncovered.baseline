@@ -1,0 +1,16 @@
+# Hooks without a bypass table yet, frozen 2026-11-10. A name leaves this file when its <name>.tsv lands; it never joins.
+# test_guard_tables also compares this file with the copy at `git merge-base HEAD origin/main`, so editing it here cannot add a name.
+agent_model
+commit_guard
+kill_guard
+mockup_hub_guard
+no_poll
+orchestrator_guard
+owner_prompt_guard
+push_guard
+research_write_guard
+review_guard
+signing_guard
+stop_continue_guard
+tier_guard
+worktree_guard

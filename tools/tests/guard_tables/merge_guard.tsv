@@ -1,0 +1,52 @@
+# command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).  A literal \n in a command is a newline; {FLAG} is the owner sign-off flag.
+# merge_guard is a TRIPWIRE, not a wall (owner, 2026-11-09; ci.md). Documented non-goals, so no row asserts them: shell indirection (bash -c and eval strings built
+# from variables, an endpoint or flag in a variable, brace expansion, xargs-fed arguments), gh aliases and shell functions, a GraphQL body generated at run time.
+gh api -X PUT repos/SFenton/native-home/rulesets/1 --input r.json	block	ruleset write
+gh api -X DELETE repos/SFenton/native-home/rulesets/26774461	block	ruleset delete
+gh api -X PATCH repos/SFenton/native-home -f allow_auto_merge=false	block	repo settings write on the bare root
+gh api -X PUT repos/SFenton/native-home/branches/main/protection --input p.json	block	branch protection write
+gh api -X PUT user/installations/5/repositories/9	block	App installation write
+gh api -iX PUT repos/SFenton/native-home/rulesets/1 --input r.json	block	clustered short flags
+gh api -iXDELETE repos/SFenton/native-home/rulesets/1	block	clustered flag with attached method
+gh api -XPUT repos/SFenton/native-home/rulesets/1 --input r.json	block	attached short method
+gh api --method=PUT repos/SFenton/native-home/rulesets/1 --input r.json	block	--method=VALUE form
+gh api -X GET repos/SFenton/native-home/rulesets/1 -X PUT --input r.json	block	the last method wins
+gh api repos/SFenton/native-home/rulesets -f name=x	block	implicit POST from -f
+gh api --hostname github.com -X PUT repos/SFenton/native-home/rulesets/1 --input r.json	block	value flag before the endpoint
+gh api -X PUT /repos/SFenton/native-home/rulesets/1 --input r.json	block	leading slash
+gh api -X PUT https://api.github.com/repos/SFenton/native-home/rulesets/1 --input r.json	block	full URL endpoint
+gh api -X PUT 'repos/SFenton/native-home/rulesets?x=1' --input r.json	block	query string on the endpoint
+gh api -X PUT repositories/123/rulesets/1 --input r.json	block	repositories/ID form
+gh api -X PUT repos/{owner}/{repo}/rulesets/1 --input r.json	block	gh placeholders
+gh api --frobnicate x -X PUT repos/SFenton/native-home/rulesets/1 --input r.json	block	unknown flag: fail closed
+gh api -X PUT repos/SFenton/native-home/rulesets/1 --input	block	missing flag value: fail closed
+gh api -X OPTIONS repos/SFenton/native-home	block	unknown method on the bare repo root: fail closed
+gh api -X OPTIONS repos/SFenton/native-home/rulesets/1	block	unknown method on a ruleset: fail closed
+gh api graphql -f query='mutation { updateRepositoryRuleset(input: {}) { clientMutationId } }'	block	graphql mutation, bare endpoint
+gh api /graphql -f query='mutation { updateRepositoryRuleset(input: {}) { clientMutationId } }'	block	graphql, leading slash
+gh api https://api.github.com/graphql -f query='mutation { updateRepositoryRuleset(input: {}) { clientMutationId } }'	block	graphql, full URL
+gh api -iF query='mutation { updateRepositoryRuleset(input: {}) { clientMutationId } }' graphql	block	graphql, clustered flag
+gh api graphql --input -	block	graphql body from stdin cannot be read: fail closed
+gh repo edit SFenton/native-home --enable-auto-merge=false	block	gh repo edit merge setting
+gh pr merge 12 --admin	block	admin merge
+gh pr merge 12 -R SFenton/native-home --auto --squash	block	raw auto-merge (pr_land.sh arms)
+gh pr merge 12 --squash	block	raw merge
+git push origin main	block	push to main
+cat <<'EOF'\ngh pr merge 12\nEOF	block	heredoc text to a bare cat stays blocked: the exemption is for redirects and --body-file
+bash <<'EOF'\ngh pr merge 12\nEOF	block	heredoc fed to a shell runs
+cat <<'EOF' | bash\ngh pr merge 12\nEOF	block	heredoc piped to a shell runs
+cat > f <<EOF\n$(gh pr merge 1)\nEOF	block	unquoted heredoc body is expanded
+gh api repos/SFenton/native-home/rulesets/26774461	allow	read of a ruleset
+gh api repos/SFenton/native-home/rulesets	allow	read of the ruleset list
+gh api -X GET repos/SFenton/native-home/rulesets -f per_page=5	allow	explicit GET with fields
+gh api -X PUT -X GET repos/SFenton/native-home/rulesets/1	allow	last method GET
+gh api repos/SFenton/native-home	allow	read of the repo root
+gh api repos/SFenton/native-home/branches/main/protection	allow	read of branch protection
+gh api -X POST repos/SFenton/native-home/issues/5/comments -f body='see repos/SFenton/native-home/rulesets/1'	allow	a field value naming a ruleset path is text
+gh api -X PATCH repos/SFenton/native-home/issues/5 -f state=closed	allow	issue write is not repo admin
+gh api graphql -f query='query { viewer { login } }'	allow	graphql query
+grep -n rulesets f	allow	read-only grep naming rulesets
+grep -n '{FLAG}' notes.md	allow	read-only grep naming the sign-off flag
+gh pr create --title t --body-file - <<'EOF'\nCloses the gap. gh pr merge 12 stays blocked.\nEOF	allow	heredoc text naming the merge command is prose
+cat > f <<'EOF'\n`git push origin main` and `gh pr merge 1`\nEOF	allow	quoted heredoc body is not expanded
+gh pr merge 12 -R SFenton/native-home --disable-auto	allow	disarming auto-merge is the one allowed pr merge
