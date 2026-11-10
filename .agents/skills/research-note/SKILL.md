@@ -21,7 +21,7 @@ Write `build/research/<slug>.md` (kebab-case slug naming the question). Sections
    - Our code: `path:line` at the current sha.
    - Mark what you measured yourself versus what a source claims. Quote at most 15 words from any source; otherwise paraphrase.
 4. **Fit with our patterns.** Which [pattern](../../patterns/README.md), [atlas surface](../../design/mockups/README.md), invariant in `AGENTS.md` or deployment-target rule (iOS 17) it meets or breaks. Say what adopting it would change in `HassCore`, `HassDesign`, `HassUI` or the UIKit port.
-5. **Recommendation:** exactly one of **follow** (adopt the system API or precedent as is), **deviate** (adopt with named changes, and why), **rearchitect** (the premise is wrong or the current structure cannot take it; say what moves; needs the orchestrator's `opus-ok`).
+5. **Recommendation:** exactly one of **follow** (adopt the system API or precedent as is), **deviate** (adopt with named changes, and why), **rearchitect** (the premise is wrong or the current structure cannot take it; say what moves; needs the orchestrator's sign-off: the orchestrator re-runs or confirms the note on Fable, Agent `model: "fable"`, `effort: "high"`).
 6. **Confidence:** high, medium or low, and what would change it.
 7. **Open questions:** what you could not settle, who or what could (a measurement, the owner, a device).
 
