@@ -9,8 +9,9 @@ and the reviewer never runs on Fable, even with `opus-ok`.
 A spawn passes when it names a pinned lane type (`designer`, `coder`, `menial`, `researcher`, `verifier`, `steward`)
 or a built-in with a fixed model of its own (`claude-code-guide`, Haiku; `statusline-setup`, Sonnet; `web-fetch`,
 which the docs do not list as inheriting), or sets `model` to Sonnet or Haiku. The built-ins `Explore`, `Plan` and
-`general-purpose` carry no model of their own and run on the parent's model (Fable from the orchestrator), so they
-must set `model` to Sonnet or Haiku; with no model they are refused with the fix, as is any untyped spawn with no
+`general-purpose` do not run on a cheap model by default: `Plan` and `general-purpose` inherit the parent's model
+(Fable from the orchestrator) and `Explore` runs on Opus on a Claude subscription (the parent's model on some other
+providers), so they must set `model` to Sonnet or Haiku; with no model they are refused with the fix, as is any untyped spawn with no
 model and any spawn asking for Opus. A spawn that needs Opus says `opus-ok: reason` and, unless it is the pinned
 `reviewer`, explicitly names Opus. Source for the built-ins: https://code.claude.com/docs/en/sub-agents (read 2026-11-10).
 Exit 2 sends the message back.
@@ -33,8 +34,8 @@ FABLE_TYPES = {"designer", "coder", "researcher"}
 CHEAP = ("sonnet", "haiku")
 
 MESSAGE = (
-    "Blocked: this subagent's premium model is not approved. Explore, Plan and general-purpose inherit the parent's "
-    "model (Fable), so they need model \"sonnet\" or \"haiku\" in the spawn. Delegate with subagent_type \"coder\" (Sonnet, implementation, "
+    "Blocked: this subagent's premium model is not approved. Explore, Plan and general-purpose do not run on a cheap model by default "
+    "(Plan and general-purpose inherit the parent's model, Fable; Explore runs on Opus on a subscription), so they need model \"sonnet\" or \"haiku\" in the spawn. Delegate with subagent_type \"coder\" (Sonnet, implementation, "
     "tests, builds) or \"menial\" (Haiku: re-runs, logs, git chores), or pass model \"sonnet\"/\"haiku\". Opus is "
     "for the final review (`reviewer`); put `opus-ok: reason` in its prompt and name model \"opus\" outside that pinned type. "
     "Fable is for `designer` and, by explicit `model`, `coder`/`researcher`. "
@@ -61,7 +62,7 @@ def reason(tool_input: Dict) -> Optional[str]:
     if kind in LANE_TYPES:
         return None
     if kind in INHERITING_BUILTINS:
-        return f"built-in {kind} with no Sonnet or Haiku model inherits the parent's model; pass model \"sonnet\" or \"haiku\""
+        return f"built-in {kind} with no Sonnet or Haiku model does not run on a cheap model (Plan and general-purpose inherit the parent's model, Explore runs on Opus on a subscription); pass model \"sonnet\" or \"haiku\""
     return f"subagent_type {kind or 'general-purpose'} with no model inherits Fable"
 
 

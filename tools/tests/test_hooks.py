@@ -75,7 +75,7 @@ class AgentModelTests(unittest.TestCase):
                 self.assertEqual(run_agent_hook({**spec, "prompt": "do it"})[0], 0)
 
     def test_inheriting_builtins_need_a_cheap_model(self):
-        """Fails if Explore, Plan or general-purpose can run with no model (inheriting Fable) or the refusal omits the fix."""
+        """Fails if Explore, Plan or general-purpose can run with no model (so not on a cheap one) or the refusal omits the fix."""
         for kind in ("Explore", "Plan", "general-purpose"):
             for extra in ({}, {"model": ""}):
                 with self.subTest(kind=kind, extra=extra):
