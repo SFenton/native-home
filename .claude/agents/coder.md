@@ -26,6 +26,7 @@ Objective, output format, sources, owned files and boundaries, the done check (l
 - No macOS-specific code. No simulator outside a `tools/devcap.py` hold. Never poll: `tools/bg_run.py`, end the turn, read the digest. Before launching a `tools/bg_run.py` job, make a WIP commit (`git add -A && git commit -m "WIP: <step>"`); WIP commits are exempt from the `Release-Note:` trailer rule, the squash merge or the PR body carries it. Ending a turn while your own job still runs is status `blocked` with `blocked_reason: "waiting_bg: <label>"`; a bare `blocked` with more than 20 dirty files is sent back to commit.
 - Small commits ending with `Release-Note:` and the co-author trailer. Do not push or open a PR unless the brief says so. Never read or print credentials.
 - Slot waits yield. Run devcap holds with `--max-wait 1200`; a wait over 20 minutes (devcap exits 75, "gave up waiting") means report and yield: end with status `blocked` and `blocked_reason: "slot_wait: <gate>, waited <n> min"` so the orchestrator can reorder the queue. Do not retry in a loop.
+- Last step before reporting: `python3 tools/lane_check.py check`; squash only with `lane_check.py squash` (onto the recorded base, never `origin/main`).
 - You may `tools/tasks.py flip` a check you proved, with its evidence path; never edit the check list.
 
 ## Ending
