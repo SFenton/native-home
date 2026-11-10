@@ -131,6 +131,15 @@ def run(label: str, command: List[str], directory: Path, timeout: Optional[float
         elapsed = time.monotonic() - started
         text = redact_lines(log.read_text(encoding="utf-8", errors="replace"))
         log.write_text(text, encoding="utf-8")  # the kept log never holds a token
+        if status != 0 and "devcap: HOLD TIMEOUT" in text:  # cheap pre-check: a clean run never imports the hook or runs git
+            try:  # a hold timeout arms the retry guard (the foreground hook never sees a background job's output)
+                sys.path.insert(0, str(Path(__file__).resolve().parent / "hooks"))
+                import devcap_retry_guard
+                root = devcap_retry_guard.repo_root(os.getcwd())
+                if root:
+                    devcap_retry_guard.arm_from_log(root, " ".join(command), status, text)
+            except Exception:  # noqa: BLE001 - fail open
+                pass
         sha, lane = log_digest.git_context(str(ROOT))
         digest = redact(log_digest.digest_text(text, exit_code=status, elapsed=elapsed, label=label, log=str(log),
                                                sha=sha, lane=lane, allow_empty=allow_empty))

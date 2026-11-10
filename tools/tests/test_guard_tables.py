@@ -110,6 +110,9 @@ def replay(module, command, agent, home):
         if hasattr(module, "pr_origin"):
             with mock.patch.object(module, "pr_origin", lambda number: OWN_PR):
                 return module.main([])
+        if hasattr(module, "table_fixture"):  # a guard that reads state (a marker file, the load) supplies its own hermetic world
+            with module.table_fixture(home):
+                return module.main([])
         return module.main([])
 
 

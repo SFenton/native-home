@@ -24,6 +24,10 @@
           },
           {
             "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/devcap_retry_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/kill_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
           },
           {
@@ -148,6 +152,28 @@
           {
             "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/subagent_report.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/devcap_retry_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/devcap_retry_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
           }
         ]
       }

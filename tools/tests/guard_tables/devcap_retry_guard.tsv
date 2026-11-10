@@ -1,0 +1,30 @@
+# command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).  A literal \n in a command is a newline.
+# Replayed with a fresh hold-timeout marker (10 min old, load 10) and a current load of 10 (devcap_retry_guard.table_fixture).
+tools/ios_uitest.sh --changed	block	journey script under load
+tools/ios_uitest.sh --only iphone --changed	block	a filtered journey run is still heavy
+tools/apple_coverage.sh --changed	block	coverage script
+tools/bg_run.py uitest -- tools/ios_uitest.sh --changed	block	behind bg_run
+python3 tools/bg_run.py cov -- tools/apple_coverage.sh --changed	block	behind python3 bg_run
+python3 tools/devcap.py run --sim ABC -- xcodebuild test	block	devcap hold
+tools/devcap.py run --sim ABC -- echo hi	block	devcap run of any command
+bash -c 'tools/ios_uitest.sh --changed'	block	bash -c string
+bash tools/ios_uitest.sh --changed	block	bash script
+bash -x tools/ios_uitest.sh --changed	block	shell flags before the script
+python3 -u tools/devcap.py run --sim ABC -- echo hi	block	interpreter flags before devcap
+FENTON_DEVCAP_HOLD=7200 tools/ios_uitest.sh --changed	block	env prefix
+cd apple && ../tools/ios_uitest.sh --changed	block	after cd
+nohup tools/ios_uitest.sh --changed > out.log 2>&1 &	block	nohup
+git status && tools/apple_coverage.sh --changed	block	second segment
+tools/ios_uitest.sh --changed # devcap-retry-ok: load cleared	allow	real override comment
+tools/ios_uitest.sh --changed\n# devcap-retry-ok: load cleared	allow	override on its own line
+tools/ios_uitest.sh --changed # devcap-retry-ok:	block	an override needs a reason
+echo '# devcap-retry-ok: x'; tools/ios_uitest.sh --changed	block	override text in a quote is not a comment
+git status --short	allow	not heavy
+grep ios_uitest.sh PROGRESS.md	allow	grep names the script
+cat tools/apple_coverage.sh	allow	cat names the script
+gh issue create --body 'run tools/ios_uitest.sh now'	allow	quoted mention
+cat <<EOF\ntools/ios_uitest.sh --changed\nEOF	allow	heredoc body only mentions the script
+bash -n tools/ios_uitest.sh	allow	syntax check runs nothing
+python3 tools/devcap.py status	allow	devcap subcommand other than run
+python3 tools/tasks.py flip R-27 a6	allow	unrelated tool
+swift test --filter HassCoreTests	allow	other heavy builds are out of scope
