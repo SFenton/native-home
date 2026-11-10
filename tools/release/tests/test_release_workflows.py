@@ -4,6 +4,7 @@ No YAML library is available on the runner's system Python, so the workflow file
 the lines under a key until the next key at the same indent.
 """
 
+import os
 import re
 import subprocess
 import unittest
@@ -244,6 +245,14 @@ class UploadScriptTests(unittest.TestCase):
             self.assertIn("-authenticationKeyID KEYID", line)
             self.assertIn("-authenticationKeyIssuerID ISSUER", line)
         self.assertIn("exportArchive", commands[1])
+
+    def test_the_default_server_value_never_reaches_the_output(self):
+        env = dict(os.environ, HASS_DEFAULT_SERVER="https://house.example.invalid")
+        out = subprocess.run([str(SCRIPT), "--dry-run", "--tag", "ios/v2610.29.01"], capture_output=True, text=True, env=env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("house.example.invalid", out.stdout + out.stderr)
+        self.assertIn("HASS_DEFAULT_SERVER=", out.stdout)
+        self.assertIn("***", out.stdout)
 
     def test_a_partial_api_key_is_refused(self):
         out = self.dry("--asc-key-id", "KEYID")
