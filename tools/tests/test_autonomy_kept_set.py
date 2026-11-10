@@ -108,7 +108,7 @@ class ReleaseClosureTests(unittest.TestCase):
 
     def test_every_file_a_release_step_runs_or_imports_is_protected(self):
         files = release_closure.release_files(ROOT)
-        for expected in ("tools/ci_hygiene.py", "tools/devcap.py", "tools/release/testflight_upload.sh",
+        for expected in ("tools/devcap.py", "tools/release/ExportOptions-testflight.plist",
                          "tools/release/ios_ipa_build.sh", "tools/release/versioning.py"):
             self.assertIn(expected, files)
         unprotected = [f for f in files if not lane_land.matches(f, STATIC_KEPT)]
