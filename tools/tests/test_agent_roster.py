@@ -254,13 +254,12 @@ class AgentModelRosterTests(unittest.TestCase):
     def spawn(self, kind, prompt="go"):
         return run(agent_model, {"tool_name": "Agent", "tool_input": {"subagent_type": kind, "prompt": prompt}})[0]
 
-    def test_opus_roles_need_opus_ok(self):
-        for kind in ("designer", "reviewer"):
-            self.assertEqual(self.spawn(kind), 2)
-            self.assertEqual(self.spawn(kind, "opus-ok: designer"), 0)
+    def test_reviewer_needs_opus_ok(self):
+        self.assertEqual(self.spawn("reviewer"), 2)
+        self.assertEqual(self.spawn("reviewer", "opus-ok: final review"), 0)
 
-    def test_cheap_roles_pass(self):
-        for kind in ("researcher", "verifier", "steward", "coder", "menial"):
+    def test_cheap_and_fable_roles_pass(self):
+        for kind in ("researcher", "verifier", "steward", "coder", "menial", "designer"):
             self.assertEqual(self.spawn(kind), 0)
 
 
@@ -395,7 +394,7 @@ class TasksTests(unittest.TestCase):
 class AgentFilesTests(unittest.TestCase):
     def test_frontmatter_and_status_block(self):
         agents = TOOLS.parent / ".claude" / "agents"
-        expected = {"orchestrator": "opus", "researcher": "sonnet", "designer": "opus", "verifier": "sonnet",
+        expected = {"orchestrator": "claude-fable-5-2", "researcher": "sonnet", "designer": "claude-fable-5-2", "verifier": "sonnet",
                     "steward": "sonnet", "coder": "sonnet", "menial": "haiku", "reviewer": "opus"}
         for name, model in expected.items():
             text = (agents / f"{name}.md").read_text()
@@ -403,6 +402,10 @@ class AgentFilesTests(unittest.TestCase):
             with self.subTest(agent=name):
                 self.assertIn(f"name: {name}\n", head)
                 self.assertIn(f"model: {model}\n", head)
+                effort = {"orchestrator": "medium", "designer": "medium", "coder": "medium", "researcher": "high",
+                          "verifier": "medium", "steward": "medium", "menial": "low"}.get(name)
+                if effort:
+                    self.assertIn(f"effort: {effort}\n", head)
                 if name != "reviewer":
                     self.assertIn("status block", text)
                 self.assertLess(len(text.splitlines()), 90)

@@ -82,9 +82,33 @@ class AgentModelTests(unittest.TestCase):
                 self.assertEqual(status, 2)
                 self.assertIn("coder", message)
 
+    def test_fable_only_for_designer_and_explicit_coder_researcher(self):
+        """Fails if supported Fable aliases are blocked or leak into unchanged roles."""
+        for model in ("fable", "claude-fable-5-2"):
+            for kind in ("designer", "coder", "researcher"):
+                for effort in ("medium", "high"):
+                    with self.subTest(model=model, kind=kind, effort=effort):
+                        self.assertEqual(run_agent_hook({"subagent_type": kind, "model": model,
+                                                         "effort": effort, "prompt": "go"})[0], 0)
+        for kind in ("reviewer", "verifier", "steward", "menial", "general-purpose", None):
+            with self.subTest(kind=kind):
+                self.assertEqual(run_agent_hook({"subagent_type": kind, "model": "claude-fable-5-2", "prompt": "opus-ok: x"})[0], 2)
+
+    def test_designer_still_refuses_explicit_opus(self):
+        self.assertEqual(run_agent_hook({"subagent_type": "designer", "model": "opus", "prompt": "go"})[0], 2)
+
     def test_opus_ok_in_the_prompt_allows_the_final_reviewer(self):
         self.assertEqual(run_agent_hook({"subagent_type": "general-purpose", "model": "opus",
                                          "prompt": "Review the diff. opus-ok: final review"})[0], 0)
+
+    def test_opus_ok_cannot_approve_inherited_fable(self):
+        """Fails if approval without an Opus model permits inherited Fable."""
+        for kind in ("general-purpose", "coder", None):
+            with self.subTest(kind=kind):
+                self.assertEqual(run_agent_hook({"subagent_type": kind,
+                                                 "prompt": "opus-ok: final review"})[0], 2)
+        self.assertEqual(run_agent_hook({"subagent_type": "reviewer",
+                                         "prompt": "opus-ok: final review"})[0], 0)
 
     def test_other_tools_and_bad_input_pass(self):
         self.assertEqual(run_agent_hook({"command": "ls"}, tool_name="Bash")[0], 0)

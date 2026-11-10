@@ -634,7 +634,7 @@ class InstallTests(Base):
         (self.paths.config_dir / "config.json").write_text(json.dumps({"agent": {"effort": "max"}}))
         cfg = ht.load_config(self.home)
         self.assertEqual(cfg["agent"]["effort"], "max")
-        self.assertEqual(cfg["agent"]["model"], "claude-opus-5-5")
+        self.assertEqual(cfg["agent"]["model"], "claude-fable-5-2")
 
 
 class NightlyIntakeTests(Base):
@@ -1386,9 +1386,10 @@ class LevelRaiseTests(Base):
 
 
 class AgentFlagTests(Base):
-    def argv(self, agent_cfg):
+    def argv(self, agent_cfg, agent_override=None):
         self.cfg["agent"].update(agent_cfg)
         runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: None)
+        runner.agent_override = agent_override
         runner.state.data["current"] = {"issue": 1}
         captured: list = []
 
@@ -1412,6 +1413,24 @@ class AgentFlagTests(Base):
         self.argv({})
         self.assertEqual(self.launch_env["FENTON_HEADLESS"], "1")
         self.assertEqual(self.launch_env["FENTON_DEVCAP_MAX_WAIT"], "1200")
+
+    def test_worker_runs_fable_medium_and_the_reviewer_keeps_opus_high(self):
+        """Fails if the reviewer inherits the worker's Fable model or medium effort."""
+        argv = self.argv({})
+        self.assertEqual((argv[argv.index("--model") + 1], argv[argv.index("--effort") + 1]), ("claude-fable-5-2", "medium"))
+        argv = self.argv({}, agent_override="reviewer")
+        self.assertEqual((argv[argv.index("--model") + 1], argv[argv.index("--effort") + 1]), ("claude-opus-5-5", "high"))
+        self.assertEqual(argv[argv.index("--agent") + 1], "reviewer")
+
+    def test_reviewer_without_model_config_does_not_inherit_worker(self):
+        """Fails if an absent or partial reviewer config falls back to Fable medium."""
+        for reviewer in (None, {}, {"model": "claude-opus-5-5"}, {"effort": "high"}):
+            with self.subTest(reviewer=reviewer):
+                self.cfg["agent"].pop("reviewer", None)
+                config = {} if reviewer is None else {"reviewer": reviewer}
+                argv = self.argv(config, agent_override="reviewer")
+                self.assertEqual(argv[argv.index("--model") + 1], "claude-opus-5-5")
+                self.assertEqual(argv[argv.index("--effort") + 1], "high")
 
     def test_orchestrator_agent_is_on_by_default_and_can_be_turned_off(self):
         self.assertEqual(ht.load_config(self.home)["agent"]["agent"], "orchestrator")

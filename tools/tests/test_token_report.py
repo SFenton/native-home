@@ -34,6 +34,16 @@ class TokenReportTests(unittest.TestCase):
         self.assertEqual(token_report.weighted(usage, "claude-sonnet-5-5"), 100 + 125 + 50)
         self.assertEqual(token_report.weighted(usage, "claude-opus-5-5"), 5 * 275)
         self.assertEqual(token_report.weighted(usage, "<synthetic>"), 0)
+        self.assertEqual(token_report.weighted(usage, "claude-haiku-5-5"), 0.33 * 275)
+
+    def test_fable_is_counted_at_twice_opus_except_cache_reads(self):
+        usage = {"input_tokens": 0, "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 100,
+                 "cache_creation": {"ephemeral_5m_input_tokens": 100, "ephemeral_1h_input_tokens": 0}, "output_tokens": 10}
+        self.assertEqual(token_report.family("claude-fable-5-2"), "fable")
+        self.assertEqual(token_report.weighted(usage, "claude-fable-5-2"), 2 * 5 * 175 + 5 * 100)
+        with TemporaryDirectory() as tmp:
+            write(Path(tmp) / "-Users-x-app" / "f.jsonl", [turn("f", "2026-11-10T10:00:00Z", "claude-fable-5-2", 10)])
+            self.assertIn("fable", token_report.report(token_report.find_sessions(Path(tmp), "*app*", None)))
 
     def test_report_flags_polls_rewrites_and_long_sessions(self):
         with TemporaryDirectory() as tmp:

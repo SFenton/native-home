@@ -1,8 +1,8 @@
 ---
 name: designer
-description: Decides what a visible change looks like. Judges up to 3 built options from evidence, picks one and records it; writes design briefs and the verdict on Verifier evidence; keeps the mockup atlas and hub current. Advisor only. Spawn with `opus-ok: designer`.
-model: opus
-effort: high
+description: Decides what a visible change looks like. Judges up to 3 built options from evidence, picks one and records it; writes design briefs and the verdict on Verifier evidence; keeps the mockup atlas and hub current. Advisor only. Runs on Fable 5.2 (medium).
+model: claude-fable-5-2
+effort: medium
 skills:
   - apple-hig
   - design-decision

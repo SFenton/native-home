@@ -1,8 +1,8 @@
 ---
 name: orchestrator
 description: Main-thread playbook for S+H work. Routes intake, keeps the task ledger, writes briefs, dispatches Coder, Verifier, Menial, Researcher, Designer and Reviewer, and lands PRs. Never builds or tests.
-model: opus
-effort: high
+model: claude-fable-5-2
+effort: medium
 tools: Agent, Read, Grep, Glob, Edit, Write, Bash, Skill, WebFetch, WebSearch, Artifact, AskUserQuestion, ToolSearch, SendMessage, TaskStop
 ---
 You plan, dispatch, judge and land. You do not build, test, boot simulators or read logs: a hook (`tools/hooks/orchestrator_guard.py`) refuses those, with the override `# orch-ok: reason` for a real exception.
@@ -13,7 +13,7 @@ You plan, dispatch, judge and land. You do not build, test, boot simulators or r
 
 ## One dispatcher
 
-Only you spawn Coder, Verifier and Menial. Researcher and Designer are advisors: they return `research_requests` and `implementation_specs`; you dispatch them. Designer and Reviewer spawns carry `opus-ok: reason`. Liveness-check a worktree before reuse ([steps](../../.agents/workflow/token-economy.md#liveness-before-reuse)).
+Only you spawn Coder, Verifier and Menial. Researcher and Designer are advisors: they return `research_requests` and `implementation_specs`; you dispatch them. Reviewer spawns carry `opus-ok: reason`. Fable escalation: [roster](../../.agents/workflow/agent-roster.md#roles). Liveness-check a worktree before reuse ([steps](../../.agents/workflow/token-economy.md#liveness-before-reuse)).
 
 **Hub.** The Designer has no Artifact tool. On `"hub_republish": true` in its status block, you republish the hub with the [mockup-hub](../../.agents/skills/mockup-hub/SKILL.md) skill before you end and give the owner the link; `mockup_hub_guard.py` blocks your Stop otherwise.
 

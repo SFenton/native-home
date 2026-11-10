@@ -18,7 +18,7 @@ You route, keep the ledger and dispatch; you never build or test yourself (a hoo
 build|test`, `tools/ios_uitest.sh`, `tools/apple_coverage.sh`, `tools/devcap.py run` and simulator boots from your own
 shell). Use the `Agent` tool: `coder` (fix and tests **in this same worktree**: one issue, one worktree, never
 `tools/lane_new.sh`), `verifier` (journeys on iPhone, Duo and iPad, the evidence), `designer` (only when the fix changes
-what the owner sees; `opus-ok: designer`), `reviewer` (`opus-ok: final review`) and `menial` (re-runs and logs). Every
+what the owner sees; Fable 5.2, no `opus-ok`), `reviewer` (`opus-ok: final review`) and `menial` (re-runs and logs). Every
 brief states the objective, the output (files plus the status block), the sources, the files it owns, the done check
 (ledger check ids) and the device families. Coder and Verifier flip ledger checks with
 `tools/tasks.py flip {{TASK}} aN --evidence PATH`; the runner reports `ledger: k/m checks pass` (shadow, not a gate).
