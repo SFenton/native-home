@@ -4,13 +4,17 @@ The samples are trimmed copies of real xcodebuild, Swift Testing and devcap outp
 """
 
 import io
+import os
 import re
+import signal
 import subprocess
 import sys
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bg_run  # noqa: E402
@@ -382,6 +386,110 @@ class BackgroundRunTests(unittest.TestCase):
                                   capture_output=True, text=True)
             self.assertEqual(done.returncode, 0)
             self.assertIn("RESULT: PASS", done.stdout)
+
+def running(pid):
+    """True while ``pid`` exists and is not a zombie (``ps`` state ``Z``)."""
+    state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    return bool(state) and not state.startswith("Z")
+
+
+class WrapperSignalTests(unittest.TestCase):
+    """SIGTERM or SIGHUP to the wrapper takes the command's whole process group with it (a coverage run orphaned by a killed
+    wrapper held the build-database lock)."""
+
+    def launch(self, tmp, label):
+        """Start the wrapper on a shell that backgrounds a long sleep; return (wrapper, grandchild pid)."""
+        pidfile = Path(tmp) / "child.pid"
+        wrapper = subprocess.Popen([sys.executable, str(Path(bg_run.__file__)), label, "--dir", tmp, "--", "sh", "-c",
+                                    f"sleep 60 & echo $! > {pidfile}; wait"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline and not (pidfile.exists() and pidfile.read_text().strip()):
+            time.sleep(0.05)
+        return wrapper, int(pidfile.read_text().strip())
+
+    def alive(self, pid):
+        """True while ``pid`` runs. A zombie waiting for a reaper (a CI container with no init) is dead."""
+        return running(pid)
+
+    def check(self, sig):
+        with TemporaryDirectory() as tmp:
+            wrapper, child = self.launch(tmp, "sig")
+            try:
+                self.assertTrue(self.alive(child))
+                self.assertTrue((Path(tmp) / "sig.running").exists())
+                wrapper.send_signal(sig)
+                out, _ = wrapper.communicate(timeout=30)
+                self.assertEqual(wrapper.returncode, 128 + sig)
+                deadline = time.monotonic() + 5
+                while self.alive(child) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertFalse(self.alive(child), "the grandchild outlived the wrapper")
+                self.assertFalse((Path(tmp) / "sig.running").exists())
+                self.assertIn("received, killed the command's process group", (Path(tmp) / "sig.log").read_text())
+                self.assertTrue((Path(tmp) / "sig.digest").exists())
+                self.assertIn("RESULT:", out)
+            finally:
+                if wrapper.poll() is None:
+                    wrapper.kill()
+                try:
+                    os.kill(child, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_sigterm_leaves_no_child(self):
+        self.check(signal.SIGTERM)
+
+    def test_sighup_leaves_no_child(self):
+        self.check(signal.SIGHUP)
+
+    def test_a_child_that_ignores_sigterm_is_killed_after_the_grace(self):
+        with TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "p"
+            process = subprocess.Popen(["sh", "-c", f"trap '' TERM; sleep 60 & echo $! > {marker}; wait"],
+                                       start_new_session=True)
+            try:
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline and not marker.exists():
+                    time.sleep(0.05)
+                started = time.monotonic()
+                bg_run.kill_group(process, grace=0.5)
+                self.assertLess(time.monotonic() - started, 10)
+                grandchild = int(marker.read_text().strip())
+                deadline = time.monotonic() + 5
+                while running(grandchild) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertFalse(running(grandchild), "SIGKILL after the grace did not reach the grandchild")
+            finally:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_handlers_are_restored_after_a_run(self):
+        before = signal.getsignal(signal.SIGTERM)
+        with TemporaryDirectory() as tmp, redirect_stdout(io.StringIO()):
+            bg_run.main(["rest", "--dir", tmp, "--", "true"])
+        self.assertEqual(signal.getsignal(signal.SIGTERM), before)
+
+
+class ExpectMinutesTests(unittest.TestCase):
+    def test_warns_past_25_minutes_with_the_timeout_to_pass(self):
+        self.assertEqual(bg_run.harness_note(70), "bg_run: harness limit is 30 min unless the Bash call passes timeout>=4200000")
+        self.assertIn("timeout>=1560000", bg_run.harness_note(26))
+
+    def test_silent_at_or_below_25_minutes_or_unset(self):
+        for value in (None, 0, 10, 25):
+            self.assertIsNone(bg_run.harness_note(value))
+
+    def test_main_prints_the_note_to_stderr_and_still_runs(self):
+        with TemporaryDirectory() as tmp:
+            err, out = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), mock.patch.object(sys, "stderr", err):
+                status = bg_run.main(["exp", "--expect-minutes", "50", "--dir", tmp, "--", "true"])
+            self.assertEqual(status, 0)
+            self.assertIn("timeout>=3000000", err.getvalue())
+            self.assertNotIn("harness limit", out.getvalue())
 
 
 if __name__ == "__main__":

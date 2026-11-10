@@ -12,6 +12,10 @@
           },
           {
             "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/bg_timeout_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/merge_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
           },
           {
