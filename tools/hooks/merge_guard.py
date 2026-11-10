@@ -207,7 +207,7 @@ def git_out(top: str, *args: str) -> str:
 #: Files each landing tool is hashed with (beside its own folder): the tool, what it loads, and ``tools/triage/config.json`` (it names the
 #: product repo, the protected paths and the bases the tools clone and trust).
 PINNED_WITH = {
-    "pr_land.sh": ("pr_land.sh", "pr_land.py", "house_scan.py", "agent_login.py"),
+    "pr_land.sh": ("pr_land.sh", "pr_land.py", "house_scan.py", "agent_login.py", "pr_blockers.py", "review_verdict.py", "ruleset_gate.py", "request_repo.py"),
     "lane_land.py": ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "agent_login.py"),
     "go_public.sh": ("go_public.sh", "go_public_gate.py", "house_scan.py"),
 }

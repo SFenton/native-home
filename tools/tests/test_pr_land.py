@@ -235,6 +235,69 @@ class ArmTests(unittest.TestCase):
         self.assertTrue(line.startswith(f"would arm #7 at {self.HEAD[:8]}"), line)
         self.assertEqual([c[:3] for c in calls], [["gh", "pr", "view"]])
 
+    OWNED_FILES = [{"path": "tools/ci_wait.py"}, {"path": ".github/workflows/pr-checks.yml"}]
+
+    def printed(self, **kw):
+        """Run ``land`` and return ``(result, text printed, gh calls)``."""
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            result, calls = self.land(**kw)
+        return result, out.getvalue(), calls
+
+    def test_the_owner_recipe_prints_only_for_codeowners_paths(self):
+        """Fails if: the three owner commands print for a PR with no CODEOWNERS path, are missing or unpinned for one that has, or an agent run executes them."""
+        owned = self.info(files=self.OWNED_FILES, isDraft=True, reviewDecision="REVIEW_REQUIRED")
+        recipe = pr_land.owner_recipe("7", owned)
+        self.assertEqual(recipe[1:], ["  gh pr ready 7 -R SFenton/native-home", "  gh pr review 7 -R SFenton/native-home --approve",
+                                      f"  gh pr merge 7 -R SFenton/native-home --squash --match-head-commit {self.HEAD}"])
+        self.assertIn("draft", recipe[0])
+        plain = self.info(files=[{"path": "apple/HassCore/EntityStore.swift"}, {"path": "tools/affected_tests.py"}], reviewDecision="REVIEW_REQUIRED")
+        self.assertEqual(pr_land.owner_recipe("7", plain), [])
+        self.assertEqual(pr_land.owner_recipe("7", self.info()), [])
+        _result, text, calls = self.printed(info=owned, dry=True)
+        self.assertIn("gh pr review 7", text)
+        self.assertEqual(self.merge_calls(calls), [])
+        self.assertEqual(self.printed(info=plain, dry=True)[1], "")
+
+    def test_the_recipe_waits_for_our_gates_and_prints_only_for_an_owner_only_block(self):
+        """Fails if: the recipe prints before a refusal of another kind (no pass, ruleset, conflict, denylist, a non-owner app-UI refusal), or is
+        missing when the block is the owner's alone (code-owner review, draft, the owner-kept set)."""
+        owned = self.info(files=self.OWNED_FILES, reviewDecision="REVIEW_REQUIRED")
+        for name, kw in (("no pass", {"passed": False}), ("ruleset", {"ruleset": ["no ruleset"]}), ("denylist", {"denylist": "hit"}),
+                         ("app-UI", {"gate": pr_land.GateRefused("no design record")})):
+            with self.subTest(name):
+                result, text, _calls = self.printed(info=owned, **kw)
+                self.assertEqual(result[0], 1)
+                self.assertEqual(text, "")
+        conflicting = self.info(files=self.OWNED_FILES, mergeable="CONFLICTING", reviewDecision="REVIEW_REQUIRED")
+        self.assertEqual(self.printed(info=conflicting)[1], "")
+        kept = pr_land.GateRefused("the pull request changes the owner-only set: tools/ci_wait.py (protected)")
+        result, text, _calls = self.printed(info=owned, gate=kept)
+        self.assertEqual(result[0], 1)
+        self.assertIn("gh pr review 7", text)
+        self.assertIn("gh pr review 7", self.printed(info=owned, dry=True)[1])  # gates passed, code-owner review is what is left
+        approved = self.info(files=self.OWNED_FILES, reviewDecision="APPROVED")
+        self.assertEqual(self.printed(info=approved, dry=True)[1], "")
+
+    def test_pr_land_loads_only_modules_that_merge_guard_pins(self):
+        """Fails if: pr_land.py (or a repo module it imports, transitively, including imports inside functions) loads a tools/ module that
+        merge_guard.PINNED_WITH does not hash against the base copy, so an unreviewed edit could change what the landing process runs."""
+        import ast
+        pinned = {Path(n).stem for n in merge_guard.PINNED_WITH["pr_land.sh"]}
+        seen, todo = set(), ["pr_land"]
+        while todo:
+            name = todo.pop()
+            if name in seen:
+                continue
+            seen.add(name)
+            tree = ast.parse((TOOLS / f"{name}.py").read_text())
+            for node in ast.walk(tree):
+                mods = [a.name for a in node.names] if isinstance(node, ast.Import) else (
+                    [node.module] if isinstance(node, ast.ImportFrom) and node.module and not node.level else [])
+                todo += [m.split(".")[0] for m in mods if (TOOLS / f"{m.split('.')[0]}.py").is_file()]
+        self.assertEqual(sorted(seen - pinned), [], "repo modules pr_land loads that are not pinned")
+        self.assertIn("pr_blockers", seen)
+
     def test_the_shipped_config_no_longer_has_require_checks(self):
         """Fails if: tools/triage/config.json carries `require_checks` again (GitHub is the only judge of checks)."""
         self.assertNotIn("require_checks", json.loads((TOOLS / "triage" / "config.json").read_text()))
@@ -576,7 +639,7 @@ class BaseMatchHashTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.top = Path(self._tmp.name)
         (self.top / "tools" / "triage").mkdir(parents=True)
-        for name, text in (("tools/pr_land.sh", "sh\n"), ("tools/pr_land.py", "py\n"), ("tools/house_scan.py", "hs\n"), ("tools/agent_login.py", "al\n"), ("tools/triage/config.json", "{}\n")):
+        for name, text in (("tools/pr_land.sh", "sh\n"), ("tools/pr_land.py", "py\n"), ("tools/house_scan.py", "hs\n"), ("tools/agent_login.py", "al\n"), ("tools/pr_blockers.py", "pb\n"), ("tools/review_verdict.py", "rv\n"), ("tools/ruleset_gate.py", "rg\n"), ("tools/request_repo.py", "rr\n"), ("tools/triage/config.json", "{}\n")):
             (self.top / name).write_text(text)
         self.git("init", "-q")
         self.git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")

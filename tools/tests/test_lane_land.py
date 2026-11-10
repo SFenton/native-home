@@ -1288,6 +1288,8 @@ class PrLandMatchesBaseTests(unittest.TestCase):
         (self.repo / "tools" / "pr_land.py").write_text("print('base')\n")
         (self.repo / "tools" / "house_scan.py").write_text("print('scan')\n")
         (self.repo / "tools" / "agent_login.py").write_text("print('login')\n")
+        for name in ("pr_blockers", "review_verdict", "ruleset_gate", "request_repo"):
+            (self.repo / "tools" / f"{name}.py").write_text(f"print('{name}')\n")
         (self.repo / "tools" / "triage").mkdir()
         (self.repo / "tools" / "triage" / "config.json").write_text("{}\n")
         g(self.repo, "add", "-A")
@@ -1310,7 +1312,7 @@ class PrLandMatchesBaseTests(unittest.TestCase):
             self.assertIsNone(self.why(agent=True))
 
     def test_an_edited_copy_is_refused_whichever_file_changed(self):
-        for name in ("pr_land.py", "pr_land.sh", "house_scan.py", "agent_login.py", "triage/config.json"):
+        for name in ("pr_land.py", "pr_land.sh", "house_scan.py", "agent_login.py", "pr_blockers.py", "review_verdict.py", "ruleset_gate.py", "request_repo.py", "triage/config.json"):
             with self.subTest(name=name):
                 path = self.repo / "tools" / name
                 original = path.read_text()

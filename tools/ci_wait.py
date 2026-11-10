@@ -13,6 +13,10 @@ attempt or ``updatedAt`` changed. Stdlib and ``gh`` only; nothing is written or 
 The ruleset also requires ``ai-review`` on the head, so after a green ``pr-checks`` the PR's check rollup and ``mergeStateStatus`` are read
 too. Exit 3 is ``blocked``: the head moved, ``ai-review`` is missing or not successful, or the PR stays BLOCKED (armed or not) after
 ``--merge-wait``. Exit 4 is a cancelled run. Exit 0 is only ``merged``, or green and CLEAN on a PR that is not armed.
+
+:func:`pr_blockers.blockers` (shared with ``tools/pr_land.py``) reads ``mergeable``, ``isDraft``, ``reviewDecision`` and whether the changed files match
+``.github/CODEOWNERS``. A ``CONFLICTING`` PR exits 3 on the first poll (GitHub runs no ``pull_request`` checks on it), and a PR that ends
+BLOCKED names its reason (draft, code-owner review).
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ import subprocess
 import sys
 import time
 from typing import Callable, List, Optional, Sequence
+
+import pr_blockers
 
 REPO = "SFenton/native-home"
 WORKFLOW = "pr-checks"
@@ -50,7 +56,7 @@ def short(sha: str) -> str:
 
 def pr_state(number: str, repo: str, gh: Callable) -> dict:
     """State, head, branch, auto-merge request, ``mergeStateStatus`` and check rollup of the pull request."""
-    fields = "state,headRefOid,headRefName,autoMergeRequest,mergeStateStatus,statusCheckRollup"
+    fields = "state,headRefOid,headRefName,autoMergeRequest,mergeStateStatus,statusCheckRollup,mergeable,isDraft,reviewDecision,files"
     return gh(["pr", "view", number, "-R", repo, "--json", fields]) or {}
 
 
@@ -122,11 +128,12 @@ def merge_outcome(number: str, repo: str, head: str, gh: Callable, sleep: Callab
         if review == "success" and merge_state == "CLEAN" and not armed:
             return 0, "CI green and CLEAN, not armed"
         if waited >= merge_wait:
+            why = "".join(f"; also {reason}" for reason in pr_blockers.blockers(state))
             if review == "missing":
-                return 3, f"blocked: ai-review missing on {short(head)}; run python3 tools/review/record.py --post-check {head} --repo {REPO}"
+                return 3, f"blocked: ai-review missing on {short(head)}; run python3 tools/review/record.py --post-check {head} --repo {REPO}{why}"
             if review == "pending":
-                return 3, f"blocked: ai-review still pending on {short(head)} ({merge_state})"
-            return 3, f"blocked: {'armed' if armed else 'not armed'} but {merge_state} on {short(head)}"
+                return 3, f"blocked: ai-review still pending on {short(head)} ({merge_state}){why}"
+            return 3, f"blocked: {'armed' if armed else 'not armed'} but {merge_state} on {short(head)}{why}"
         sleep(poll)
         waited += poll
 
@@ -145,6 +152,8 @@ def wait(number: str, repo: str = REPO, *, gh: Callable = gh_json, sleep: Callab
                 return 0, lines + [f"RESULT: merged #{number}"]
             if pr.get("state") == "CLOSED":
                 return 1, lines + [f"RESULT: closed #{number} without merging"]
+            if pr.get("mergeable") == "CONFLICTING":
+                return 3, lines + [f"RESULT: blocked #{number}: {pr_blockers.blockers(pr)[0]}"]
             run_id = find_run(branch, head, repo, gh)
             if run_id is not None:
                 break
