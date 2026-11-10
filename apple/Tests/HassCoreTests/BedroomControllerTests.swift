@@ -52,6 +52,9 @@ func soloTrip(home: String = "alex") -> EntityState {
     ])
 }
 
+/// A command timeout no stalled full-suite run reaches: the 10 s production timeout raced a starved main actor on CI.
+let patientTimeout: Duration = .seconds(600)
+
 // MARK: - Wake light
 
 @Suite("Wake light controller", .demoHouse)
@@ -62,7 +65,7 @@ struct WakeLightControllerTests {
 
     func make(_ status: EntityState = wakeStatus()) -> (WakeLightController, EntityStore) {
         let store = bedroomStore([status])
-        return (WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: scheduler, requestId: { "req" }), store)
+        return (WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: scheduler, timeout: patientTimeout, requestId: { "req" }), store)
     }
 
     @Test func savesWithOptimisticEditAndSendsTheCommand() async {
@@ -410,7 +413,7 @@ struct BedSideControllerTests {
         let entities = bedEntities()
         let store = bedroomStore(entities)
         let bed = BedSideController(config: MasterBedroom.bed(.left), store: store, caller: caller, scheduler: scheduler, requestId: { "req" })
-        let wake = WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: scheduler, requestId: { "req" })
+        let wake = WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: scheduler, timeout: patientTimeout, requestId: { "req" })
         var draft = bed.newAlarmDraft()
         #expect(draft.days == Weekday.workdays)
         #expect(draft.title == "Add Alex's Bed Alarm")
@@ -430,7 +433,7 @@ struct BedSideControllerTests {
     @Test func editAndDeleteDrafts() async {
         let store = bedroomStore(bedEntities())
         let bed = BedSideController(config: MasterBedroom.bed(.left), store: store, caller: caller, scheduler: scheduler, requestId: { "req" })
-        let wake = WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: scheduler, requestId: { "req" })
+        let wake = WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: scheduler, timeout: patientTimeout, requestId: { "req" })
         let alarm = bed.alarms[0]
         var draft = bed.editDraft(alarm, wakeLight: wake.snapshot)
         #expect(draft.title == "Alex's Bed Monday Alarm")
@@ -638,7 +641,7 @@ struct WakeLightPendingLinkTests {
     @Test func aPendingUnlinkShowsAtOnceAndAPendingLinkClearsIt() async {
         let caller = ResponseCaller()
         let store = bedroomStore([wakeStatus(["alarm_links": .object(["k1": false])])])
-        let controller = WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: ManualScheduler(), requestId: { "req" })
+        let controller = WakeLightController(config: MasterBedroom.wakeLight, store: store, caller: caller, scheduler: ManualScheduler(), timeout: patientTimeout, requestId: { "req" })
         #expect(!controller.snapshot.isLinked("k1"))
         caller.hold = true
         let on = Task { await controller.setLinks(["k1"], enabled: true) }
