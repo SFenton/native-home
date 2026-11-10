@@ -13,19 +13,27 @@ attempt or ``updatedAt`` changed. Stdlib and ``gh`` only; nothing is written or 
 The ruleset also requires ``ai-review`` on the head, so after a green ``pr-checks`` the PR's check rollup and ``mergeStateStatus`` are read
 too. Exit 3 is ``blocked``: the head moved, ``ai-review`` is missing or not successful, or the PR stays BLOCKED (armed or not) after
 ``--merge-wait``. Exit 4 is a cancelled run. Exit 0 is only ``merged``, or green and CLEAN on a PR that is not armed.
+
+:func:`blockers` (shared with ``tools/pr_land.py``) reads ``mergeable``, ``isDraft``, ``reviewDecision`` and whether the changed files match
+``.github/CODEOWNERS``. A ``CONFLICTING`` PR exits 3 on the first poll (GitHub runs no ``pull_request`` checks on it), and a PR that ends
+BLOCKED names its reason (draft, code-owner review).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Callable, List, Optional, Sequence
 
 REPO = "SFenton/native-home"
 WORKFLOW = "pr-checks"
+#: The ruleset requires code-owner review (``require_code_owner_review``), so a PR touching a CODEOWNERS path waits for the owner.
+CODEOWNERS = Path(__file__).resolve().parents[1] / ".github" / "CODEOWNERS"
 
 
 class GhError(RuntimeError):
@@ -50,8 +58,61 @@ def short(sha: str) -> str:
 
 def pr_state(number: str, repo: str, gh: Callable) -> dict:
     """State, head, branch, auto-merge request, ``mergeStateStatus`` and check rollup of the pull request."""
-    fields = "state,headRefOid,headRefName,autoMergeRequest,mergeStateStatus,statusCheckRollup"
+    fields = "state,headRefOid,headRefName,autoMergeRequest,mergeStateStatus,statusCheckRollup,mergeable,isDraft,reviewDecision,files"
     return gh(["pr", "view", number, "-R", repo, "--json", fields]) or {}
+
+
+def codeowners_patterns(path: Optional[Path] = None) -> List[str]:
+    """The path patterns of ``.github/CODEOWNERS`` (comments and blanks dropped); ``[]`` when the file cannot be read."""
+    try:
+        text = (path or CODEOWNERS).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return [line.split()[0] for line in (raw.split(" #", 1)[0].strip() for raw in text.splitlines()) if line and not line.startswith("#")]
+
+
+def pattern_regex(pattern: str) -> "re.Pattern[str]":
+    """The regex for one gitignore-style CODEOWNERS pattern: a leading ``/`` anchors to the root, a trailing ``/`` is a directory and
+    everything under it, ``*`` and ``?`` do not cross ``/``, ``**`` does. No negation, classes or escapes (the file uses none)."""
+    anchored = pattern.startswith("/") or "/" in pattern.rstrip("/")
+    body = pattern.strip("/")
+    out, i = "", 0
+    while i < len(body):
+        if body.startswith("**/", i):
+            out, i = out + "(?:.*/)?", i + 3
+        elif body.startswith("**", i):
+            out, i = out + ".*", i + 2
+        elif body[i] == "*":
+            out, i = out + "[^/]*", i + 1
+        elif body[i] == "?":
+            out, i = out + "[^/]", i + 1
+        else:
+            out, i = out + re.escape(body[i]), i + 1
+    return re.compile(("" if anchored else "(?:.*/)?") + out + ("/.*" if pattern.endswith("/") else "(?:/.*)?") + r"\Z")
+
+
+def owned_files(state: dict, patterns: Optional[Sequence[str]] = None) -> List[str]:
+    """The changed files of the PR (``files`` of ``gh pr view``) that a CODEOWNERS pattern matches."""
+    patterns = codeowners_patterns() if patterns is None else patterns
+    regexes = [pattern_regex(p) for p in patterns]
+    paths = [str(f.get("path") if isinstance(f, dict) else f) for f in state.get("files") or []]
+    return [p for p in paths if any(r.match(p) for r in regexes)]
+
+
+def blockers(state: dict, patterns: Optional[Sequence[str]] = None) -> List[str]:
+    """Why GitHub will not merge the PR on its own, from ``mergeable``, ``isDraft``, ``reviewDecision`` and the CODEOWNERS match.
+
+    Shared with ``tools/pr_land.py``. A state without those fields has no blockers."""
+    found = []
+    if state.get("mergeable") == "CONFLICTING":
+        found.append("conflicts with main; GitHub runs no pull_request checks; merge main and push")
+    if state.get("isDraft"):
+        found.append("draft; mark it ready (gh pr ready)")
+    owned = owned_files(state, patterns)
+    if owned and state.get("reviewDecision") != "APPROVED":
+        found.append(f"code-owner review required ({state.get('reviewDecision') or 'REVIEW_REQUIRED'}) for {owned[0]}"
+                     f"{f' and {len(owned) - 1} more' if len(owned) > 1 else ''}; the owner approves and merges")
+    return found
 
 
 GOOD = {"SUCCESS", "NEUTRAL", "SKIPPED"}
@@ -122,11 +183,12 @@ def merge_outcome(number: str, repo: str, head: str, gh: Callable, sleep: Callab
         if review == "success" and merge_state == "CLEAN" and not armed:
             return 0, "CI green and CLEAN, not armed"
         if waited >= merge_wait:
+            why = "".join(f"; also {reason}" for reason in blockers(state))
             if review == "missing":
-                return 3, f"blocked: ai-review missing on {short(head)}; run python3 tools/review/record.py --post-check {head} --repo {REPO}"
+                return 3, f"blocked: ai-review missing on {short(head)}; run python3 tools/review/record.py --post-check {head} --repo {REPO}{why}"
             if review == "pending":
-                return 3, f"blocked: ai-review still pending on {short(head)} ({merge_state})"
-            return 3, f"blocked: {'armed' if armed else 'not armed'} but {merge_state} on {short(head)}"
+                return 3, f"blocked: ai-review still pending on {short(head)} ({merge_state}){why}"
+            return 3, f"blocked: {'armed' if armed else 'not armed'} but {merge_state} on {short(head)}{why}"
         sleep(poll)
         waited += poll
 
@@ -145,6 +207,8 @@ def wait(number: str, repo: str = REPO, *, gh: Callable = gh_json, sleep: Callab
                 return 0, lines + [f"RESULT: merged #{number}"]
             if pr.get("state") == "CLOSED":
                 return 1, lines + [f"RESULT: closed #{number} without merging"]
+            if pr.get("mergeable") == "CONFLICTING":
+                return 3, lines + [f"RESULT: blocked #{number}: {blockers(pr)[0]}"]
             run_id = find_run(branch, head, repo, gh)
             if run_id is not None:
                 break

@@ -235,6 +235,27 @@ class ArmTests(unittest.TestCase):
         self.assertTrue(line.startswith(f"would arm #7 at {self.HEAD[:8]}"), line)
         self.assertEqual([c[:3] for c in calls], [["gh", "pr", "view"]])
 
+    def test_the_owner_recipe_prints_only_for_codeowners_paths(self):
+        """Fails if: the three owner commands print for a PR with no CODEOWNERS path, are missing or unpinned for one that has, or an agent run executes them."""
+        owned = self.info(files=[{"path": "tools/ci_wait.py"}, {"path": ".github/workflows/pr-checks.yml"}], isDraft=True,
+                          reviewDecision="REVIEW_REQUIRED")
+        recipe = pr_land.owner_recipe("7", owned)
+        self.assertEqual(recipe[1:], ["  gh pr ready 7 -R SFenton/native-home", "  gh pr review 7 -R SFenton/native-home --approve",
+                                      f"  gh pr merge 7 -R SFenton/native-home --squash --match-head-commit {self.HEAD}"])
+        self.assertIn("draft", recipe[0])
+        plain = self.info(files=[{"path": "apple/HassCore/EntityStore.swift"}, {"path": "tools/affected_tests.py"}])
+        self.assertEqual(pr_land.owner_recipe("7", plain), [])
+        self.assertEqual(pr_land.owner_recipe("7", self.info()), [])
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            (_code, _line), calls = self.land(info=owned, dry=True)
+        self.assertIn("gh pr review 7", out.getvalue())
+        self.assertEqual(self.merge_calls(calls), [])
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            self.land(info=plain, dry=True)
+        self.assertEqual(out.getvalue(), "")
+
     def test_the_shipped_config_no_longer_has_require_checks(self):
         """Fails if: tools/triage/config.json carries `require_checks` again (GitHub is the only judge of checks)."""
         self.assertNotIn("require_checks", json.loads((TOOLS / "triage" / "config.json").read_text()))

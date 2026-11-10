@@ -6,6 +6,9 @@ On SFenton/native-home GitHub is the merge gate: ruleset ``main-checks`` require
 ``gh pr merge N --auto --squash --match-head-commit <head>``: the kill switch, ``Needs Decision``, conflicts, the app-UI gate (which holds the
 owner-kept set), the house denylist, the author and fork check, an independent reviewer pass for that head
 (:func:`review_verdict.has_pass`), the live ruleset (:mod:`ruleset_gate`) and the ``main`` base. ``tools/ship.sh`` calls it after the PR opens.
+
+A PR that touches a CODEOWNERS path needs the owner's approval (the ruleset sets ``require_code_owner_review``); :func:`owner_recipe`
+prints the three ``gh`` commands that land it, for the owner only.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import agent_login
+import ci_wait
 import review_verdict
 import ruleset_gate
 
@@ -285,6 +289,22 @@ def arm(number: str, head: str) -> Tuple[int, str]:
     return 2, f"failed #{number}: gh pr merge returned but the pull request is neither merged nor armed"
 
 
+def owner_recipe(number: str, info: Dict[str, Any]) -> List[str]:
+    """The owner-only landing recipe for a PR that touches a CODEOWNERS path, else ``[]``.
+
+    The ruleset requires code-owner review, so GitHub will not merge such a PR on an agent's say-so: the owner marks it ready, approves
+    it as code owner and squash-merges it pinned to the head. The three exact ``gh`` commands are printed for the owner; no agent runs them.
+    ``info`` is the ``gh pr view`` JSON (``files``, ``headRefOid``); :func:`ci_wait.blockers` is the shared reading of the PR."""
+    if not ci_wait.owned_files(info):
+        return []
+    head = str(info.get("headRefOid") or "")
+    why = "; ".join(ci_wait.blockers(info))
+    return [f"owner-only: #{number} touches CODEOWNERS paths ({why}); the owner lands it from their own terminal (agents never run these):",
+            f"  gh pr ready {number} -R {PRODUCT_REPO}",
+            f"  gh pr review {number} -R {PRODUCT_REPO} --approve",
+            f"  gh pr merge {number} -R {PRODUCT_REPO} --squash --match-head-commit {head}"]
+
+
 def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_worktree: bool = False,
          owner_ack: bool = False) -> Tuple[int, str]:
     """Run the gates GitHub cannot, then arm auto-merge on the exact head. Returns ``(exit code, one line)``: 0 for ``armed``, ``merged``
@@ -295,9 +315,11 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
     if paused:
         return 1, f"blocked #{number}: landing paused ({paused})"
     info = json.loads(run(["gh", "pr", "view", number, "-R", PRODUCT_REPO, "--json",
-                           "state,isDraft,headRefName,headRefOid,mergeable,baseRefName,labels,files,body,title,author,isCrossRepository"]).stdout)
+                           "state,isDraft,headRefName,headRefOid,mergeable,reviewDecision,baseRefName,labels,files,body,title,author,isCrossRepository"]).stdout)
     if info["state"] != "OPEN":
         return 1, f"blocked #{number}: pull request is {info['state'].lower()}"
+    for recipe_line in owner_recipe(number, info):
+        print(recipe_line)
     if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
            for label in info.get("labels") or []):
         return 1, f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park), so the owner decides first (reply on the issue, or merge the PR to accept)"
