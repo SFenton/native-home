@@ -56,7 +56,7 @@ final class RoomsFanJourneyTests: RoomsJourneyTestCase {
     }
 
     /// The Power button no longer sits under the chevron: the rail is vertically centred, its circles are 44 pt, and
-    /// the chevron has its own slot to the right of them. Off/unlocked (Guest) and on/locked/timed (Master).
+    /// the chevron has its own slot to the right of them. Off/unlocked (Guest) and on/locked/timed (second fan room).
     private func assertFanRail(room: String, lit: Bool) throws {
         let app = launch(room: room, clean: true)
         let (_, lock, power) = fanButtons(in: app)
@@ -89,12 +89,12 @@ final class RoomsFanJourneyTests: RoomsJourneyTestCase {
         try assertFanRail(room: expectations[.roomsFirstFanRoom], lit: false)
     }
 
-    func testFanRailMasterBathroomIsCentred() throws {
+    func testFanRailSecondBathroomIsCentred() throws {
         try assertFanRail(room: expectations[.roomsSecondFanRoom], lit: true)
     }
 
     /// One short status line, with the lock spoken rather than written: VoiceOver reads "on, off in 12 minutes, locked".
-    func testFanTileValueMaster() {
+    func testFanTileValueSecondFan() {
         let master = launch(room: expectations[.roomsSecondFanRoom])
         let tile = element("room.card.Fan", in: master)
         reveal(tile, in: master)
@@ -147,7 +147,7 @@ final class RoomsFanJourneyTests: RoomsJourneyTestCase {
     }
 
     /// Opened from its room tile (the real route), the fan sheet is as tall as its content: no band of empty ground under
-    /// the last control. Idle (Guest) and timed (Master).
+    /// the last control. Idle (Guest) and timed (second fan room).
     private func assertFanSheetFits(room: String, last: String) {
         let app = launch(room: room, clean: true)
         let tile = element("room.card.Fan", in: app)
@@ -176,13 +176,13 @@ final class RoomsFanJourneyTests: RoomsJourneyTestCase {
 
     func testFanSheetHeightFitsGuest() { assertFanSheetFits(room: "guest-bathroom", last: "fan.setTimer") }
 
-    func testFanSheetHeightFitsMaster() { assertFanSheetFits(room: "master-bathroom", last: "fan.clearTimer") }
+    func testFanSheetHeightFitsTimedFan() { assertFanSheetFits(room: "bathroom-1", last: "fan.clearTimer") }
 
     // MARK: - Accessibility audits
 
     func testGuestBathroomPassesAudit() throws { try audit(room: "guest-bathroom", pose: .upright) }
     func testGuestBathroomPassesAuditInIPadLandscape() throws { try audit(room: "guest-bathroom", pose: .iPadLandscape) }
     /// The fan on, locked and timed, with its countdown and lit buttons.
-    func testMasterBathroomPassesAudit() throws { try audit(room: "master-bathroom", pose: .upright) }
-    func testMasterBathroomPassesAuditInIPadLandscape() throws { try audit(room: "master-bathroom", pose: .iPadLandscape) }
+    func testSecondBathroomPassesAudit() throws { try audit(room: "bathroom-1", pose: .upright) }
+    func testSecondBathroomPassesAuditInIPadLandscape() throws { try audit(room: "bathroom-1", pose: .iPadLandscape) }
 }

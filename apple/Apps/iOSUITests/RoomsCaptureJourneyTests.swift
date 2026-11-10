@@ -68,8 +68,8 @@ final class RoomsCaptureJourneyTests: RoomsJourneyTestCase {
     func testCaptureRoomGarageInIPadLandscape() throws { try captureRoom("garage", .iPadLandscape) }
     func testCaptureRoomGuestBathroom() throws { try captureRoom("guest-bathroom", .upright) }
     func testCaptureRoomGuestBathroomInIPadLandscape() throws { try captureRoom("guest-bathroom", .iPadLandscape) }
-    func testCaptureRoomMasterBathroom() throws { try captureRoom("master-bathroom", .upright) }
-    func testCaptureRoomMasterBathroomInIPadLandscape() throws { try captureRoom("master-bathroom", .iPadLandscape) }
+    func testCaptureRoomSecondBathroom() throws { try captureRoom("bathroom-1", .upright) }
+    func testCaptureRoomSecondBathroomInIPadLandscape() throws { try captureRoom("bathroom-1", .iPadLandscape) }
     func testCaptureRoomEntryway() throws { try captureRoom("entryway", .upright) }
     func testCaptureRoomEntrywayInIPadLandscape() throws { try captureRoom("entryway", .iPadLandscape) }
 
