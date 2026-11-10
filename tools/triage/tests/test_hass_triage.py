@@ -45,6 +45,7 @@ class FakeGitHub(ht.GitHub):
         self.pull_files: Dict[str, Dict[str, Any]] = {}
         self.variables: Dict[str, str] = {}
         self.next_id = 100
+        self.branch_pull_list: List[Dict[str, Any]] = []
 
     def token(self) -> str:
         return "ghp_" + "x" * 30
@@ -76,6 +77,13 @@ class FakeGitHub(ht.GitHub):
             for c in items:
                 if c["id"] == comment_id:
                     c["body"] = body
+
+    def branch_pulls(self, repo, branch):
+        self.calls.append(("branch_pulls", branch))
+        return self.branch_pull_list
+
+    def disarm_pull(self, url):
+        self.calls.append(("disarm", url))
 
     def close(self, repo, n, not_planned=False):
         self.calls.append(("close", n, not_planned))
@@ -2180,6 +2188,262 @@ class HaRollbackAlertTests(Base):
         runner = self.tick(gh)
         self.assertNotIn("unreachable_since", runner.state.data["ha_changes"])
         self.assertIsNone(ht.status_report(self.cfg, self.paths, gh)["ha_changes_unreachable_since"])
+
+
+class T3LauncherTests(Base):
+    """``agent.launcher``: ``claude`` (the default) keeps today's argv; ``t3code`` hands the session to ``t3launch``."""
+
+    argv = AgentFlagTests.argv  # captures the argv `_launch` gives Popen
+
+    GOLDEN_HEAD = ["claude", "-p", "--model", "claude-fable-5-2", "--effort", "medium", "--permission-mode", "auto", "--output-format",
+                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools", "Bash(tools/pr_land.sh*),Bash(tools/ship.sh*)",
+                   "--disallowedTools"]
+
+    def worktree(self, settings=True):
+        tree = self.home / "tree"
+        (tree / ".claude").mkdir(parents=True, exist_ok=True)
+        (tree / ".claude" / "settings.json").write_text(json.dumps(
+            {"agent": "orchestrator", "hooks": {"PreToolUse": [{"hooks": [{"command": "tools/hooks/triage_deny.py"}]}]}} if settings else {}))
+        return tree
+
+    def runner_for(self, **agent):
+        self.cfg["agent"].update(agent)
+        return ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""))
+
+    def test_the_default_launcher_is_claude_and_its_argv_is_the_golden_one(self):
+        self.assertEqual(ht.load_config(self.home)["agent"]["launcher"], "claude")
+        argv = self.argv({})
+        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+        self.assertEqual(argv[-1], ",".join(self.cfg["agent"]["disallowed_tools"]))
+        self.assertEqual(argv, self.argv({"launcher": "claude"}))
+        base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
+        expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
+                    "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(1)), "HASS_TRIAGE_BIN": str(ht.HERE / "hass_triage.py"),
+                    "FENTON_DEVCAP_MAX_WAIT": "1200", "FENTON_HEADLESS": "1", **base}
+        self.assertEqual(self.launch_env, expected)  # exactly today's environment: no key added or dropped
+
+    def test_the_t3_block_does_not_touch_the_deny_list(self):
+        agent = self.cfg["agent"]
+        self.assertEqual(agent["t3"]["version"], "0.3.0")
+        self.assertEqual(agent["t3"]["checkout"], "current")
+        self.assertNotIn("Bash(*t3code*)", agent["disallowed_tools"])  # extras ride in the record, not in the claude flags
+
+    def claude_popen(self, runner, tree):
+        """Run ``runner._launch`` with Popen faked; the argv it gave Popen (None when it never reached Popen)."""
+        runner.state.data["current"] = {"issue": 7}
+        got = []
+
+        class FakeProc:
+            pid = 99
+            stdin = mock.Mock()
+
+            def wait(self, timeout=None):
+                return 0
+
+        with mock.patch.object(subprocess, "Popen", lambda argv, **kw: got.append(argv) or FakeProc()), \
+                mock.patch.object(ht.shutil, "which", return_value=None):
+            runner._launch(7, tree, "p", self.home / "log")
+        return got[0] if got else None
+
+    def test_t3code_is_used_for_a_worker_whose_settings_agree(self):
+        runner = self.runner_for(launcher="t3code")
+        with mock.patch.object(runner, "_t3_launch", return_value=5) as t3:
+            self.assertEqual(runner._launch(7, self.worktree(), "p", self.home / "log"), 5)
+        t3.assert_called_once()
+
+    def test_the_reviewer_is_always_claude_whatever_the_launcher(self):
+        runner = self.runner_for(launcher="t3code")
+        runner.agent_override = "reviewer"
+        with mock.patch.object(runner, "_t3_launch") as t3:
+            argv = self.claude_popen(runner, self.worktree())
+        t3.assert_not_called()
+        self.assertEqual(argv[argv.index("--agent") + 1], "reviewer")
+        self.assertIn("Bash(git push*)", argv[argv.index("--disallowedTools") + 1])
+
+    def test_a_worktree_without_the_hook_falls_back_to_the_claude_path(self):
+        runner = self.runner_for(launcher="t3code")
+        with mock.patch.object(runner, "_t3_launch") as t3:
+            argv = self.claude_popen(runner, self.worktree(settings=False))
+        t3.assert_not_called()
+        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+
+    def test_a_t3_launch_passes_the_record_inputs_and_keeps_the_thread_in_the_state(self):
+        runner = self.runner_for(launcher="t3code")
+        runner.state.data["current"] = {"issue": 7}
+        tree = self.worktree()
+        seen = {}
+
+        class FakeLauncher:
+            def __init__(self, agent, home, root, env, run):
+                seen["env"] = env
+
+            def launch(self, **kw):
+                seen.update(kw)
+                kw["on_thread"]("thread-1")
+                return ht.t3launch.Outcome(0, "thread-1", True, False)
+
+        awake = mock.Mock()
+        popen = mock.Mock(return_value=awake)
+        with mock.patch.object(ht.t3launch, "Launcher", FakeLauncher), mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch.object(ht.shutil, "which", return_value="/usr/bin/caffeinate"), mock.patch.object(subprocess, "Popen", popen), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner._launch(7, tree, "the prompt", self.home / "logs" / "7-1.log"), 0)
+        self.assertEqual(popen.call_args[0][0], ["caffeinate", "-is", "-w", str(os.getpid())])  # awake for the whole session
+        awake.terminate.assert_called_once()
+        self.assertEqual((seen["kind"], seen["issue"], seen["role"], seen["prompt"]), ("request", 7, "worker", "the prompt"))
+        self.assertEqual(seen["timeout"], 300 * 60)
+        self.assertEqual(seen["deny"], self.cfg["agent"]["disallowed_tools"])
+        self.assertEqual(seen["session_env"]["FENTON_HEADLESS"], "1")
+        self.assertEqual(seen["session_env"]["HASS_TRIAGE_ISSUE"], "7")
+        self.assertNotIn("HOME", seen["session_env"])
+        self.assertTrue(runner.stray)
+        self.assertEqual(runner.state.data["current"]["thread"], "thread-1")
+        self.assertEqual(runner.state.data["current"]["launcher"], "t3code")
+
+    def test_a_job_and_a_retro_and_the_nightly_intake_get_their_own_kind(self):
+        tree = self.worktree()
+        for key, intake, kind in (("job-steward", None, "job"), ("retro-R-1", None, "retro"), (5, {"repo": "r", "authors": [], "label": "Nightly Fix"}, "nightly")):
+            self.cfg["agent"]["launcher"] = "t3code"
+            runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""),
+                               intake=intake)
+            kinds = []
+            with mock.patch.object(ht.t3launch, "Launcher") as launcher, mock.patch.object(runner, "trusted_clone", return_value=self.home):
+                launcher.return_value.launch.side_effect = lambda **kw: kinds.append(kw["kind"]) or ht.t3launch.Outcome(0, "t")
+                runner._launch(key, tree, "p", self.home / "log")
+            self.assertEqual(kinds, [kind])
+
+    def test_a_launch_that_cannot_start_safely_is_logged_and_returns_one(self):
+        runner = self.runner_for(launcher="t3code")
+        tree, log = self.worktree(), self.home / "logs" / "7-1.log"
+        with mock.patch.object(ht.t3launch, "Launcher") as launcher, mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            launcher.return_value.launch.side_effect = ht.t3launch.LaunchError("guard files differ")
+            self.assertEqual(runner._launch(7, tree, "p", log), 1)
+        self.assertIn("guard files differ", out.getvalue())
+        self.assertEqual(json.loads(log.read_text())["type"], "t3_launch_failed")
+        self.assertIn("guard files differ", runner.log_tail(log))
+
+    def test_tampered_guard_hooks_block_the_issue_and_undo_an_armed_pull_request(self):
+        """Fails if: after guard_tampered an auto-merge the worker armed inside the session stays armed, or the merge label stays."""
+        gh = FakeGitHub([issue(31)])
+        pr = "https://github.com/SFenton/native-home/pull/77"
+        gh.branch_pull_list = [{"url": pr, "state": "OPEN", "labels": [{"name": "Ready to Merge"}]},
+                               {"url": pr.replace("77", "70"), "state": "MERGED", "labels": []}]
+        runner = self.runner(gh, {"state": "done", "summary": "x", "pr": PRODUCT_PR, "tests_passed": True})
+        plain = runner.launch
+
+        def tampered(*args):
+            code = plain(*args)
+            runner.guard_tampered = True
+            return code
+
+        runner.launch = tampered
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.work(31), "blocked")
+        self.assertIn("Blocked", ht.label_names(gh.issues[31]))
+        self.assertIn(("branch_pulls", "report/31"), gh.calls)
+        self.assertIn(("disarm", pr), gh.calls)
+        self.assertNotIn(("disarm", pr.replace("77", "70")), gh.calls)
+        body = [c for c in gh.calls if c[0] == "comment"][-1][2]
+        self.assertIn("auto-merge on " + pr + " was turned off", body)
+        self.assertIn("pull/70 had already merged", body)
+        self.assertNotIn("Merging", ht.label_names(gh.issues[31]))
+
+    def test_stray_processes_alone_also_block_and_disarm_the_pull_request(self):
+        """Fails if: a T3 session that left a process behind keeps an auto-merge it armed, because only guard_tampered undid it."""
+        gh = FakeGitHub([issue(33)])
+        pr = "https://github.com/SFenton/native-home/pull/78"
+        gh.branch_pull_list = [{"url": pr, "state": "OPEN", "labels": []}]
+        runner = self.runner(gh, {"state": "done", "summary": "x", "pr": PRODUCT_PR, "tests_passed": True})
+        plain = runner.launch
+
+        def straying(*args):
+            code = plain(*args)
+            runner.t3_stray = True
+            return code
+
+        runner.launch = straying
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.work(33), "blocked")
+        self.assertIn(("disarm", pr), gh.calls)
+        self.assertIn("blocked:stray", [h["outcome"] for h in runner.state.data["history"]])
+
+    def test_a_launch_error_that_found_a_stray_is_a_stray(self):
+        runner = self.runner_for(launcher="t3code")
+        tree = self.worktree()
+        with mock.patch.object(ht.t3launch, "Launcher") as launcher, mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            launcher.return_value.launch.side_effect = ht.t3launch.LaunchError("handover failed", True)
+            self.assertEqual(runner._launch(7, tree, "p", self.home / "logs" / "7-1.log"), 1)
+        self.assertTrue(runner.t3_stray)
+
+    def test_the_t3_install_folder_is_denied_to_the_session(self):
+        extra = self.cfg["agent"]["t3"]["extra_denied"]
+        self.assertIn("Write(~/hass-agents/tools/t3code/**)", extra)
+        self.assertIn("Edit(~/hass-agents/tools/t3code/**)", extra)
+
+    def test_a_pull_request_list_that_fails_is_said_in_the_block_comment(self):
+        gh = FakeGitHub([issue(32)])
+        gh.branch_pulls = lambda repo, branch: (_ for _ in ()).throw(ht.TriageError("offline"))
+        self.assertIn("could not be listed", self.runner(gh).undo_landing(32))
+
+    def test_preflight_refuses_the_tick_when_t3_is_not_ready_and_launches_when_it_cannot_say(self):
+        for ready, launches in (((False, "T3 does not speak protocol 2"), 0), ((None, "no report"), 1), ((True, ""), 1)):
+            self.cfg["agent"]["launcher"] = "t3code"
+            ht._PRINTED.clear()
+            gh = FakeGitHub([issue(32)])
+            runner = self.runner(gh, {"state": "no_changes", "summary": "x"})
+            with mock.patch.object(ht.t3launch, "ready", return_value=ready), mock.patch("sys.stdout", new=io.StringIO()) as out:
+                runner.tick()
+            self.assertEqual(len([p for p in self.prompts if "request #" in p]), launches, ready)
+            if not launches:
+                self.assertIn("t3code launcher is not ready: T3 does not speak protocol 2", out.getvalue())
+                self.assertEqual(gh.calls, [])
+
+    def test_preflight_ignores_t3_for_the_claude_launcher(self):
+        with mock.patch.object(ht.t3launch, "ready") as ready:
+            self.assertTrue(self.runner(FakeGitHub([])).preflight())
+        ready.assert_not_called()
+
+    def test_status_report_names_the_launcher_and_the_thread(self):
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
+        self.assertEqual((report["launcher"], report["t3_ready"], report["t3_thread"]), ("claude", None, None))
+        state = ht.State(self.paths.state)
+        state.data["current"] = {"issue": 7, "thread": "thread-1", "launcher": "t3code"}
+        state.save()
+        self.cfg["agent"]["launcher"] = "t3code"
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True, True)
+        self.assertEqual((report["launcher"], report["t3_ready"], report["t3_thread"]), ("t3code", True, "thread-1"))
+
+    def test_cleanup_and_the_worktree_removals_forget_the_triage_records(self):
+        session = ht.t3launch.session_module()
+        root = ht.t3launch.registry_root(self.home)
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(33)
+        tree.mkdir(parents=True)
+        session.write_record(session.build_record("request", 33, "worker", tree, "report/33", {"FENTON_HEADLESS": "1"}, []), root)
+        self.assertTrue(session.path_record(tree, root).exists())
+        runner._keep = set()
+        runner.cleanup(33)
+        self.assertFalse(session.path_record(tree, root).exists())
+        dry = self.runner(FakeGitHub([], dry_run=True), dry_run=True)
+        session.write_record(session.build_record("request", 33, "worker", tree, "report/33", {"FENTON_HEADLESS": "1"}, []), root)
+        dry._drop_worktree(tree, str(self.paths.clone))
+        self.assertTrue(session.path_record(tree, root).exists())  # a dry run removes nothing
+
+    def test_status_command_prints_the_launcher_line(self):
+        self.cfg["agent"]["launcher"] = "t3code"
+        fake = FakeGitHub([])
+        with mock.patch.object(ht, "GitHub", return_value=fake), mock.patch.object(ht, "claude_logged_in", return_value=True), \
+                mock.patch.object(ht, "load_config", return_value=self.cfg), \
+                mock.patch.object(ht.t3launch, "ready", return_value=(True, "")), mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertEqual(ht.main(["status"], home=self.home), 0)
+        self.assertIn("launcher: t3code (ready)", out.getvalue())
+
+    def test_install_t3code_runs_the_pinned_install(self):
+        with mock.patch.object(ht.t3launch, "install", return_value=0) as install:
+            self.assertEqual(ht.main(["install-t3code"], home=self.home), 0)
+        self.assertEqual(install.call_args[0][0], self.paths.root)
 
 
 if __name__ == "__main__":

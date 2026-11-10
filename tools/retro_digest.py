@@ -153,8 +153,12 @@ def parse_time(text: Any) -> Optional[datetime]:
 # MARK: - The claude -p log
 
 def parse_log(path: Optional[Path]) -> Dict[str, Any]:
-    """From a stream-json log: the final ``result`` object, the last assistant text, background launches and raw text."""
-    info: Dict[str, Any] = {"result": None, "last_text": "", "background": 0, "raw": ""}
+    """From a stream-json log: the final ``result`` object, the last assistant text, background launches and raw text.
+
+    A T3 launch (``agent.launcher: "t3code"``) logs ``t3_launch`` then ``t3_thread`` lines instead: the last assistant message becomes
+    ``last_text``, tool outputs are appended to ``raw`` one per line (the ``devcap: still waiting`` scan reads them), there is no
+    ``result`` (T3 reports no cost) and ``launcher`` is ``"t3code"`` so the digest says cost ``unknown`` rather than zero."""
+    info: Dict[str, Any] = {"result": None, "last_text": "", "background": 0, "raw": "", "launcher": "claude"}
     if not path:
         return info
     try:
@@ -174,6 +178,15 @@ def parse_log(path: Optional[Path]) -> Dict[str, Any]:
             continue
         if event.get("type") == "result":
             info["result"] = event
+        elif event.get("type") == "t3_thread":
+            info["launcher"] = "t3code"
+            thread = (event.get("data") or {}).get("thread")
+            thread = thread if isinstance(thread, dict) else (event.get("data") or {})
+            texts = [str(m.get("text") or "") for m in thread.get("messages") or [] if isinstance(m, dict) and m.get("role") == "assistant"]
+            info["last_text"] = next((t for t in reversed(texts) if t.strip()), info["last_text"])
+            info["raw"] += "\n" + "\n".join(str(c.get("output")) for c in thread.get("toolCalls") or [] if isinstance(c, dict) and c.get("output"))
+        elif t3_launch_seen(event):
+            info["launcher"] = "t3code"
         elif event.get("type") == "assistant":
             content = (event.get("message") or {}).get("content")
             if isinstance(content, str):
@@ -189,6 +202,11 @@ def parse_log(path: Optional[Path]) -> Dict[str, Any]:
     if not info["last_text"] and isinstance(info["result"], dict):
         info["last_text"] = str(info["result"].get("result") or "")
     return info
+
+
+def t3_launch_seen(event: Dict[str, Any]) -> bool:
+    """Is ``event`` the first line a T3 launch writes to the log (``t3_launch``, or ``t3_launch_failed`` when it never started)?"""
+    return event.get("type") in ("t3_launch", "t3_launch_failed")
 
 
 # MARK: - Collection
@@ -525,7 +543,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         },
         "durations": {"minutes": minutes, "api_minutes": round(float(result.get("duration_api_ms") or 0) / 60000, 1),
                       "slot_wait_minutes": waited},
-        "cost": {"total_cost_usd": result.get("total_cost_usd"), "tokens": tokens, "usage": usage,
+        "cost": {"total_cost_usd": result.get("total_cost_usd"), "tokens": None if log["launcher"] == "t3code" else tokens, "usage": usage,
                  "modelUsage": result.get("modelUsage") if isinstance(result.get("modelUsage"), dict) else {}},
         "outcome": outcome or state or None,
         "level": {"initial": initial, "final": final_level, "gate_hint": hint},

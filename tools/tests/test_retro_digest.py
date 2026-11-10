@@ -126,6 +126,34 @@ class TriggerTests(Base):
         log = self.write("s.log", "devcap: still waiting (19m) for 'sim'\n")
         self.assertNotIn("slot_wait", self.fired(self.run_digest("--log", str(log))))
 
+    def t3_log(self, tool_output="", text="finished the lane"):
+        """A T3 launch's log: ``t3_launch``, then one ``t3_thread`` line (no ``result`` event: T3 reports no cost)."""
+        thread = {"messages": [{"role": "user", "text": "go"}, {"role": "assistant", "text": "working"},
+                               {"role": "assistant", "text": text}],
+                  "toolCalls": [{"name": "Bash", "output": tool_output}]}
+        return self.write("t3.log", json.dumps({"type": "t3_launch", "thread": "t"}) + "\n"
+                          + json.dumps({"type": "t3_thread", "thread": "t", "data": {"thread": thread}}) + "\n")
+
+    def test_a_t3_log_gives_the_last_assistant_text_and_tool_outputs_and_no_cost(self):
+        info = rd.parse_log(self.t3_log("line one\ndevcap: still waiting (40m) for 'sim'"))
+        self.assertEqual((info["last_text"], info["launcher"], info["result"]), ("finished the lane", "t3code", None))
+        self.assertIn("\ndevcap: still waiting (40m)", info["raw"])
+        self.assertEqual(rd.parse_log(self.write("c.log", assistant("hi") + "\n" + result()))["launcher"], "claude")
+        doc = self.run_digest("--log", str(self.t3_log("devcap: still waiting (40m) for 'sim'")))
+        self.assertEqual(self.fired(doc)["slot_wait"][1], "40 minutes")
+        self.assertIsNone(doc["cost"]["total_cost_usd"])  # unknown, never zero
+        self.assertIsNone(doc["cost"]["tokens"])
+        self.assertEqual(doc["counts"]["turns"], 0)
+
+    def test_a_launch_that_never_started_is_a_t3_log_too(self):
+        log = self.write("f.log", json.dumps({"type": "t3_launch_failed", "reason": "guard files differ"}) + "\n")
+        self.assertEqual(rd.parse_log(log)["launcher"], "t3code")
+
+    def test_a_claude_log_still_reports_its_cost(self):
+        doc = self.run_digest("--log", str(self.write("c.log", assistant("hi") + "\n" + result())))
+        self.assertEqual(doc["cost"]["total_cost_usd"], 1.5)
+        self.assertEqual(doc["cost"]["tokens"], 600)
+
     def test_stopped_with_live_children(self):
         self.write("build/runs/job.running", {"pid": os.getpid(), "label": "job"})
         self.write("build/runs/dead.running", {"pid": 2 ** 22 + 12345, "label": "dead"})
