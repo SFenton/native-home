@@ -42,8 +42,6 @@ class FakeGitHub(ht.GitHub):
         self.comment_store: Dict[int, List[Dict[str, Any]]] = {}
         self.calls: List[tuple] = []
         self.pulls: Dict[str, Dict[str, Any]] = {}
-        self.pull_files: Dict[str, Dict[str, Any]] = {}
-        self.variables: Dict[str, str] = {}
         self.next_id = 100
 
     def token(self) -> str:
@@ -83,15 +81,6 @@ class FakeGitHub(ht.GitHub):
 
     def pull(self, url):
         return self.pulls[url]
-
-    def pull_paths(self, url):
-        return self.pull_files.get(url, {"base": "main", "paths": []})
-
-    def variable(self, repo, name):
-        return self.variables.get(name, "")
-
-    def dispatch_workflow(self, repo, workflow, ref):
-        self.calls.append(("dispatch", repo, workflow, ref))
 
     def label_pull(self, url, add="", remove=""):
         self.calls.append(("label_pull", url, add, remove))

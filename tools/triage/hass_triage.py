@@ -74,7 +74,6 @@ DEFAULT_WORKFLOW_BASE = "main"
 REVERT_FLOWS, REVERT_DAYS, REVERT_MIN_FLOWS, REVERT_MARGIN, REVERT_NEEDS = 10, 14, 3, 0.2, 2
 #: Most lanes the runner lands from one session's status file.
 LANE_LIMIT = 5
-TESTFLIGHT_MIN_SECONDS = 3600  # at most one TestFlight dispatch an hour
 #: Finished retro queue entries kept in ``state-retro.json``.
 RETRO_HISTORY = 100
 #: The acceptance checks every ledger entry starts with (shadow: reported, not gated).
@@ -420,22 +419,6 @@ class GitHub:
 
     def pull(self, url: str) -> Dict[str, Any]:
         return json.loads(self._gh(["pr", "view", url, "--json", "number,state,mergedAt,url,labels,headRefName,isDraft"]))
-
-    def pull_paths(self, url: str) -> Dict[str, Any]:
-        """``{"base": <baseRefName>, "paths": [changed files]}`` of a pull request."""
-        data = json.loads(self._gh(["pr", "view", url, "--json", "baseRefName,files"]))
-        return {"base": data.get("baseRefName", ""), "paths": [f.get("path", "") for f in data.get("files") or []]}
-
-    def variable(self, repo: str, name: str) -> str:
-        """A repository Actions variable's value ('' when unset)."""
-        try:
-            return self._gh(["variable", "get", name, "-R", repo]).strip()
-        except TriageError:
-            return ""
-
-    def dispatch_workflow(self, repo: str, workflow: str, ref: str) -> None:
-        """``gh workflow run`` (the runner's own call: the agents' deny list keeps ``gh workflow*``)."""
-        self._write(["workflow", "run", workflow, "-R", repo, "--ref", ref])
 
     def ready_pull(self, url: str) -> None:
         """Mark a draft pull request ready for review (the runner's own call: the worker's deny list keeps ``gh pr ready``)."""
@@ -957,7 +940,6 @@ class Runner:
             except Exception as exc:  # noqa: BLE001
                 print(f"ha-changes check failed: {redact(str(exc))[:200]}")
             self.check_merging()
-            self.testflight_pending()
             self.check_parked()
             self.requeue()
             self.recover()
@@ -1161,7 +1143,6 @@ class Runner:
             if pr.get("state") == "MERGED":
                 self.finish_done(n, entry["status"], pr.get("url", entry["pr"]))
                 self.state.data["merging"].pop(key)
-                self.testflight_after_pr(pr.get("url", entry["pr"]))
             elif pr.get("state") == "CLOSED":
                 self.block(n, "The pull request was closed without merging.", "pr_closed")
                 self.state.data["merging"].pop(key)
@@ -1848,12 +1829,6 @@ class Runner:
             self.check_base("after landing", landed=result["merge"])
         print(f"{label}: landed {lane} into {base} ({result['merge'][:10]})")
         self.record_landing(lane, str(result.get("merge") or ""), base)
-        try:
-            changed = lane_land.git(self.land_clone(), "diff", "--name-only", str(result.get("parent")), str(result["merge"])).stdout.split()
-        except Exception as exc:  # noqa: BLE001
-            changed = []
-            print(f"could not list the files of {lane}: {redact(str(exc))[:200]}")
-        self.testflight_after(changed, base, f"lane {lane}")
         return "merged"
 
     def file_lane_issue(self, lane: str, label: str, reason: str, kind: str, hold: bool) -> None:
@@ -1918,55 +1893,6 @@ class Runner:
 
     def flow_records(self) -> Dict[str, Any]:
         return retro_weekly.collect(self.paths.root / "archive", None, None)
-
-    def testflight_after(self, paths: List[str], base: str, what: str) -> bool:
-        """TestFlight upload of a reviewed build is the runner's job (owner, 2026-11-03). After a lane or product pull request that
-        changed app code (``apple/**``) landed on the product base, dispatch ``ios-release-build.yml`` on it, at most once an hour,
-        only when ``testflight_autoupload`` is true (default) and the repository variable ``HASS_TESTFLIGHT_ENABLED`` is ``true``
-        (the workflow's own gate, ``ci.md``; the workflow itself runs on ``main`` only). Release tags live on ``main``. Recorded in ``state["testflight"]`` and the
-        status report. Best effort: a failure is printed and never fails the landing. Returns True when it dispatched."""
-        if self.dry_run or self.intake or not self.cfg.get("testflight_autoupload", True):
-            return False
-        product_base = str(self.cfg["product_base"])
-        if base != product_base or not any(x.startswith("apple/") for x in paths):
-            return False
-        record = self.state.data.setdefault("testflight", {"dispatches": []})
-        if time.time() - float(record.get("last_epoch") or 0) < TESTFLIGHT_MIN_SECONDS:
-            # Inside the hourly window: not dropped. The newest change is kept pending and dispatched on the first tick after it.
-            record["pending"] = {"after": what[:120], "queued_at": iso()}
-            self.state.save()
-            return False
-        repo = str(self.cfg.get("testflight_repo") or self.cfg["product_repo"])
-        try:
-            if self.gh.variable(repo, "HASS_TESTFLIGHT_ENABLED").lower() != "true":
-                record.pop("pending", None)
-                return False
-            self.gh.dispatch_workflow(repo, "ios-release-build.yml", product_base)
-        except Exception as exc:  # noqa: BLE001
-            print(f"TestFlight dispatch failed: {redact(str(exc))[:200]}")
-            return False
-        record["last_epoch"] = time.time()
-        record.pop("pending", None)
-        record["dispatches"] = (record.get("dispatches") or [])[-19:] + [{"at": iso(), "after": what[:120], "ref": product_base}]
-        self.state.save()
-        print(f"dispatched ios-release-build.yml on {product_base} after {what}")
-        return True
-
-    def testflight_pending(self) -> bool:
-        """Dispatch the upload a merge inside the hourly window left pending, once the window has passed (called each tick)."""
-        pending = (self.state.data.get("testflight") or {}).get("pending")
-        if not pending or self.dry_run or self.intake:
-            return False
-        return self.testflight_after(["apple/pending"], str(self.cfg["product_base"]), f"pending: {str(pending.get('after', '')).removeprefix('pending: ')}")
-
-    def testflight_after_pr(self, pr_url: str) -> None:
-        """``testflight_after`` for a merged product pull request."""
-        try:
-            info = self.gh.pull_paths(pr_url)
-        except Exception as exc:  # noqa: BLE001
-            print(f"could not list the files of {pr_url}: {redact(str(exc))[:200]}")
-            return
-        self.testflight_after(info["paths"], info["base"], pr_url)
 
     def record_landing(self, lane: str, merge_sha: str, base: str) -> None:
         """Remember a merge the runner made: ``{lane, merge_sha, landed_at, metrics_before}``, the metrics from the flows just
@@ -2961,7 +2887,6 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         "lock_holder": holder if holder and Runner._alive(holder) else None,
         "current": state.data.get("current"),
         "merging": {k: v.get("pr") for k, v in state.data["merging"].items()},
-        "testflight": (state.data.get("testflight") or {}).get("dispatches", [])[-5:],
         "queue": queue,
         "ha_changes_unreachable_since": (state.data.get("ha_changes") or {}).get("unreachable_since"),
         "ha_changes_unfiled": len((state.data.get("ha_changes") or {}).get("unfiled") or {}),

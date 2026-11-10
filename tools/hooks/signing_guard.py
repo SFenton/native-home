@@ -3,7 +3,7 @@
 
 Owner decision 2026-11-03 ("Approve"): certificates, provisioning profiles and Apple ID / App Store Connect keys stay with the
 owner (the fixed set in ``.agents/workflow/agent-roster.md``). The TestFlight upload of a reviewed build stays autonomous
-because it runs on GitHub Actions (``.github/workflows/ios-release-build.yml``) with repository secrets that the job writes to
+because it runs on GitHub Actions (``.github/workflows/ios-release.yml``) with repository secrets that the job writes to
 ``$RUNNER_TEMP`` itself; no agent session touches a local key.
 
 Acts on **agent sessions**, headless ones included: ``FENTON_HEADLESS=1``, or a payload with an ``agent_type`` or ``agent_id``
@@ -72,7 +72,7 @@ from shell_parse import FEEDERS, KEYWORDS, SHELLS, WRAPPERS, XARGS_VALUE, strip_
 
 MESSAGE = (
     "Blocked: certificates, provisioning profiles, signing keys and App Store Connect keys are owner-only (fixed set, "
-    "agent-roster.md). TestFlight upload stays autonomous on GitHub Actions (ios-release-build uses repository secrets), so "
+    "agent-roster.md). TestFlight upload stays autonomous on GitHub Actions (ios-release uses repository secrets), so "
     "no agent needs a local key, certificate, profile or keychain command. If the build fails on signing, report it as "
     "`needs_decision` with `owner_only` and let the owner fix it in their own terminal."
 )
@@ -93,7 +93,7 @@ SECURITY_DENIED = {"import", "export", "find-identity", "delete-identity", "add-
 FASTLANE_DENIED = {"match", "cert", "sigh"}
 APPLE_TOOLS = {"altool", "notarytool"}
 #: The release scripts run with ``--dry-run`` print their commands and read no key.
-RELEASE_SCRIPTS = {"testflight_upload.sh", "ios_ipa_build.sh", "testflight_queue.py"}
+RELEASE_SCRIPTS = {"testflight_upload.sh", "ios_ipa_build.sh"}
 #: Option values that are prose or a search pattern, not a path.
 PROSE_OPTIONS = {"-m", "--message", "--body", "-b", "--title", "-t", "--notes", "--note", "--subject"}
 SEARCHERS = {"grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk"}

@@ -350,7 +350,7 @@ class ProtectedPathTests(Repo):
 
     PROTECTED = (".claude/agents/reviewer.md", ".gitmodules", ".githooks/pre-commit", ".gitconfig",
                  "tools/review/record.py", "tools/release/versioning.py", "tools/release/tests/x.py", "tools/hass_creds.sh",
-                 "tools/gh_app_token.py", ".github/workflows/ios-release.yml", ".github/workflows/ios-release-build.yml")
+                 "tools/gh_app_token.py", ".github/workflows/ios-release.yml", ".github/workflows/ios-release-extra.yml")
     #: Unlocked by the owner on 2026-11-07 (end-to-end autonomy): the merge path, guard hooks, eval graders and thresholds, kill-switch code.
     UNLOCKED = (".claude/settings.json", "tools/hooks/merge_guard.py", "tools/hooks/worktree_guard.py", "tools/hooks/kill_guard.py",
                 "tools/hooks/orchestrator_guard.py", "tools/hooks/signing_guard.py", "tools/hooks/shell_parse.py",
@@ -773,7 +773,7 @@ class GlobTests(unittest.TestCase):
         self.assertFalse(m(".claude/settings.local.json", lane_land.DEFAULT_PROTECTED))  # hook wiring is unlocked (2026-11-07)
         self.assertFalse(m(".claude/agents/coder.md", lane_land.DEFAULT_PROTECTED))
         for path in ("tools/hass_creds.sh", "tools/gh_app_token.py", "tools/release/versioning.py", ".claude/agents/reviewer.md",
-                     "tools/review/record.py", ".github/workflows/ios-release-build.yml"):
+                     "tools/review/record.py", ".github/workflows/ios-release-extra.yml"):
             self.assertTrue(m(path, lane_land.DEFAULT_PROTECTED), path)
 
 

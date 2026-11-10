@@ -254,5 +254,47 @@ class HostedModeTests(unittest.TestCase):
         self.assertNotIn("login Keychain", proc.stderr)
 
 
+
+class UploadModeTests(unittest.TestCase):
+    """``ios_ipa_build.sh TAG BUILD --upload --dry-run``: the TestFlight step of the release pipeline, printed and not run."""
+
+    def dry(self, *extra, env=None):
+        full = dict(os.environ, DEVELOPER_DIR="/x", ASC_KEY_PATH="/k/AuthKey_ID.p8", ASC_KEY_ID="KEYID", ASC_ISSUER_ID="ISSUER")
+        full.update(env or {})
+        return subprocess.run(["bash", str(SCRIPT), "ios/v2611.10.01", "202611101200", "--upload", "--dry-run", *extra],
+                              env=full, capture_output=True, text=True, timeout=60)
+
+    def test_it_exports_the_existing_archive_to_testflight_with_the_key_and_the_watchdog(self):
+        """Fails if: --upload archives or runs xcodegen again, uses the app-store plist, drops -allowProvisioningUpdates or the API
+        key triplet, or leaves the idle watchdog (`guarded`) off the xcodebuild call."""
+        proc = self.dry()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        lines = [line for line in proc.stderr.splitlines() if line.startswith("+")]
+        self.assertEqual(len(lines), 1, proc.stderr)
+        line = lines[0]
+        self.assertIn("guarded xcodebuild -exportArchive -archivePath", line)
+        self.assertIn("FentonHome.xcarchive", line)
+        self.assertIn("ExportOptions-testflight.plist", line)
+        self.assertNotIn("ExportOptions-appstore.plist", line)
+        for token in ("-allowProvisioningUpdates", "-authenticationKeyPath /k/AuthKey_ID.p8", "-authenticationKeyID KEYID",
+                      "-authenticationKeyIssuerID ISSUER"):
+            self.assertIn(token, line)
+        self.assertNotIn("xcodebuild archive", proc.stderr)
+        self.assertNotIn("xcodegen", proc.stderr)
+        self.assertNotIn("devcap", proc.stderr, "a hosted run takes no devcap hold; neither does the upload dry run on a hold-free path")
+
+    def test_an_unknown_flag_is_refused(self):
+        """Fails if: a typo such as --uplaod is silently ignored and the script archives and exports instead of uploading."""
+        proc = subprocess.run(["bash", str(SCRIPT), "ios/v2611.10.01", "1", "--uplaod"], capture_output=True, text=True, timeout=60)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("unknown argument", proc.stderr)
+
+    def test_the_default_server_never_reaches_the_upload_output(self):
+        """Fails if: a HASS_DEFAULT_SERVER value is printed by the upload mode."""
+        proc = self.dry(env={"HASS_DEFAULT_SERVER": "https://house.example.invalid"})
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("house.example.invalid", proc.stdout + proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

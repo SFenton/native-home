@@ -154,7 +154,7 @@ class RuleTests(unittest.TestCase):
         self.assertNotIn("matrix", text["linux-checks"] + text["tool-tests-core"])
 
     def test_self_hosted_jobs_never_trigger_on_pull_requests_without_the_private_gate(self):
-        for name in ("nightly.yml", "ios-release.yml", "ios-release-build.yml"):
+        for name in ("nightly.yml", "ios-release.yml"):
             text = (WORKFLOWS / name).read_text(encoding="utf-8")
             self.assertNotIn("pull_request", text.split("\njobs:\n", 1)[0].replace("pull_request_target", ""), name)
 

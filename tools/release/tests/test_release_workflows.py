@@ -1,4 +1,4 @@
-"""Lints the release workflows and script flags: the owner's flow (merge to main, bump, signed IPA artifact, TestFlight) as assertions.
+"""Lints the release workflows and script flags: the owner's flow (merge to main, bump, signed IPA artifact, TestFlight upload) as assertions.
 
 No YAML library is available on the runner's system Python, so the workflow files are read by indentation: a block is
 the lines under a key until the next key at the same indent.
@@ -51,8 +51,15 @@ class FlowTests(unittest.TestCase):
     def jobs() -> Dict[str, List[str]]:
         return blocks("\n".join(blocks(read("ios-release.yml"))["jobs"]), 2)
 
-    def test_no_push_pull_request_or_tag_trigger_builds_or_uploads(self):
-        self.assertEqual(set(triggers("ios-release-build.yml")), {"workflow_dispatch"})
+    def test_the_retired_testflight_path_is_gone_and_nothing_names_it(self):
+        """Fails if: ios-release-build.yml, the upload queue, the HASS_TESTFLIGHT_ENABLED gate or an ios/tf ledger tag comes back,
+        or any workflow still dispatches or mentions them."""
+        self.assertFalse((WORKFLOWS / "ios-release-build.yml").exists())
+        self.assertFalse((ROOT / "tools" / "release" / "testflight_queue.py").exists())
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+            for retired in ("ios-release-build", "testflight_queue", "HASS_TESTFLIGHT_ENABLED", "ios/tf/"):
+                self.assertNotIn(retired, text, "%s still names %s" % (path.name, retired))
 
     def test_the_pipeline_runs_on_a_push_to_main_with_no_pr_checks_dependency(self):
         on = triggers("ios-release.yml")
@@ -85,20 +92,49 @@ class FlowTests(unittest.TestCase):
         self.assertIn("group: ios-release-bump", bump)
         self.assertIn("cancel-in-progress: false", bump)
         self.assertIn("contents: write", bump)
-        self.assertIn("actions: write", bump)
+        self.assertNotIn("actions: write", bump, "the bump dispatches nothing any more")
         self.assertIn("runs-on: ubuntu-24.04", bump)
         self.assertNotIn("secrets.", bump, "the bump needs no secrets, so it always runs")
         self.assertIn('--head "$GITHUB_SHA"', bump)
         self.assertIn("--push", bump)
         self.assertIn("tag: ${{ steps.bump.outputs.tag }}", bump)
 
-    def test_bump_dispatches_testflight_only_when_enabled_and_never_by_tag_push(self):
+    def test_the_bump_dispatches_no_workflow_and_a_tag_push_starts_nothing(self):
+        """Fails if: the bump job runs `gh workflow run` again, or the workflow gains a tag trigger."""
         text = read("ios-release.yml")
-        self.assertIn('[ "$TESTFLIGHT" = "true" ]', text)
-        self.assertIn("vars.HASS_TESTFLIGHT_ENABLED", text)
-        self.assertIn("gh workflow run ios-release-build.yml --ref main", text)
-        self.assertNotIn("gh workflow run ios-release.yml", text)
+        code = self.code(text)
+        self.assertNotIn("gh workflow run", code)
+        self.assertNotIn("GH_TOKEN", code)
         self.assertNotIn("tags:", "\n".join(triggers("ios-release.yml")["push"]), "a tag push (GITHUB_TOKEN) starts nothing; the ipa job is a job")
+
+    def test_the_testflight_upload_follows_the_artifact_precedes_the_cleanup_and_has_no_gate(self):
+        """Fails if: the upload step is missing, runs before the artifact is saved or after the cleanup, is gated by a vars.* switch or
+        an `if:` of its own, drops the --upload mode, or its summary stops saying "uploaded to TestFlight"."""
+        text = read("ios-release.yml")
+        ipa = "\n".join(self.jobs()["ipa"])
+        artifact = ipa.index("Upload the IPA and dSYMs")
+        upload = ipa.index("- name: Upload to TestFlight")
+        summary = ipa.index("- name: Summary")
+        cleanup = ipa.index("- name: Remove the keychain")
+        self.assertLess(artifact, upload)
+        self.assertLess(upload, summary)
+        self.assertLess(summary, cleanup)
+        step = ipa[upload:summary]
+        self.assertIn('tools/release/ios_ipa_build.sh "$TAG" "$BUILD" --upload', step)
+        self.assertNotIn("vars.", step)
+        self.assertNotRegex(step, r"(?m)^\s+if:")
+        self.assertNotIn("continue-on-error", step)
+        self.assertIn("uploaded to TestFlight: $UPLOADED", ipa[summary:cleanup])
+        self.assertNotIn("TESTFLIGHT", self.code(text), "no TESTFLIGHT switch variable")
+        self.assertIn("ExportOptions-testflight.plist", ipa, "the rebuilt tag uses the workflow commit's plist")
+
+    def test_the_header_describes_the_upload_retry_and_pause(self):
+        """Fails if: the workflow header stops saying how to retry an upload (Run workflow with tag) or how to pause the pipeline."""
+        header = read("ios-release.yml").split("\non:\n", 1)[0]
+        self.assertIn("gh workflow disable ios-release.yml", header)
+        self.assertIn('"Run workflow" with `tag`', header)
+        self.assertIn("TestFlight", header)
+        self.assertNotIn("Nothing is uploaded to App Store Connect", header)
 
     def test_a_dispatched_tag_is_validated_and_rebuilt_without_a_bump(self):
         bump = "\n".join(self.jobs()["bump"])
@@ -154,8 +190,8 @@ class FlowTests(unittest.TestCase):
         for path in sorted(WORKFLOWS.glob("*.yml")):
             self.assertNotIn("vars.HASS_DEFAULT_SERVER", path.read_text(encoding="utf-8"),
                              "%s: a repository variable is printed in the log by the env block; use a secret" % path.name)
-        self.assertNotIn("HASS_DEFAULT_SERVER", read("ios-release.yml"))
-        self.assertIn("secrets.HASS_DEFAULT_SERVER", read("ios-release-build.yml"))
+        self.assertNotIn("secrets.HASS_DEFAULT_SERVER", read("ios-release.yml"))
+        self.assertNotIn("HASS_DEFAULT_SERVER:", read("ios-release.yml"))
 
     def test_the_pipeline_runs_on_main_only(self):
         jobs = self.jobs()
@@ -194,50 +230,13 @@ class FlowTests(unittest.TestCase):
         self.assertIn('rm -rf "$RUNNER_TEMP/asc"', cleanup)
         self.assertNotIn('echo "$ASC_PRIVATE_KEY"', text)
 
-    def test_release_build_is_gated_on_main_the_variable_and_the_environment(self):
-        text = read("ios-release-build.yml")
-        job = blocks("\n".join(blocks(text)["jobs"]), 2)["testflight"]
-        header = "\n".join(job)
-        self.assertIn("github.ref == 'refs/heads/main'", header)
-        self.assertIn("vars.HASS_TESTFLIGHT_ENABLED == 'true'", header)
-        self.assertIn("inputs.dry_run == true", header)
-        self.assertIn("environment: testflight", header)
-        self.assertIn("group: ios-release-build", header)
-        self.assertIn("cancel-in-progress: false", header)
-        self.assertIn("self-hosted", header)
-
-    def test_release_build_has_the_inputs_and_only_the_three_secrets(self):
-        text = read("ios-release-build.yml")
-        inputs = blocks("\n".join(triggers("ios-release-build.yml")["workflow_dispatch"]), 4)["inputs"]
-        self.assertEqual(set(blocks("\n".join(inputs), 6)), {"version_tag", "dry_run"})
-        self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))),
-                         ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY", "HASS_DEFAULT_SERVER"])
-        code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
-        self.assertNotRegex(code, r"(?i)p12|IOS_DIST|keychain")
-        self.assertNotIn("FentonHomeWatch", text)
-
-    def test_the_api_key_file_is_temporary_and_removed_even_on_failure(self):
-        text = read("ios-release-build.yml")
-        self.assertIn("$RUNNER_TEMP/asc", text)
-        cleanup = text[text.index("Remove the API key"):]
-        self.assertIn("if: always()", cleanup)
-        self.assertIn('rm -rf "$RUNNER_TEMP/asc"', cleanup)
-        self.assertNotIn("echo \"$ASC_PRIVATE_KEY\"", text)
-
-    def test_the_release_loop_is_the_queue_not_the_tag_that_woke_it(self):
-        text = read("ios-release-build.yml")
-        self.assertIn("tools/release/testflight_queue.py", text)
-        self.assertIn("fetch-tags: true", text)
-        self.assertNotIn("tools/release/testflight_upload.sh", text)  # the queue runs it, once per pending version
-
     def test_ledger_tags_cannot_start_the_ipa_workflow(self):
         push = triggers("ios-release.yml")["push"]
-        self.assertNotIn("tags", "\n".join(push))  # only a push to main starts it, so neither ios/v* nor ios/tf/* tags can
-        self.assertFalse(re.fullmatch(r"ios/v.*", "ios/tf/2610.29.01"))
+        self.assertNotIn("tags", "\n".join(push))  # only a push to main starts it, so no tag can
 
     def test_pr_checks_runs_the_new_tests(self):
         script = (ROOT / "tools" / "run_tool_tests.sh").read_text()
-        for module in ("test_testflight_queue", "test_release_workflows"):
+        for module in ("test_release_workflows",):
             self.assertIn(module, script)
 
 
