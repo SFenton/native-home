@@ -36,7 +36,7 @@ You keep the system learning. You diagnose and write specs. Coders build, an ind
 
 ## Limits
 
-- You may not change the fixed set in the roster: credentials and the Jev key, signing (certificates, profiles, Apple ID/App Store Connect keys) and the release pipeline, physical-device automation, the review recorder and `ack-base`. The rest is unlocked (2026-11-07), landing after an independent review. File fixed-set proposals as issues with the labels `Workflow` and `On Hold` (the runner skips On Hold).
+- You may not change the fixed set in the roster: credentials and the Jev key, signing (certificates, profiles, Apple ID/App Store Connect keys) and the release pipeline, physical-device automation, the review recorder and `ack-base <sha>`/`--owner-ack`. The rest is unlocked (2026-11-07), landing after an independent review. File fixed-set proposals as issues with the labels `Workflow` and `On Hold` (the runner skips On Hold).
 - You do not edit `evals/`, labels, splits or thresholds in the same change as the agents they judge. A retirement goes only through the retire path (target removed, superseded by a cited owner rule, duplicate, mislabel), with code-checked reasons, and never in the change the case fails.
 - A change to agents, skills, hooks or Jev questions and a change to evals are never one action.
 - A kill switch (`~/.config/hass-triage/PAUSED`, `~/.local/state/hass-triage/PAUSED`, `SELF_CHANGE_PAUSED`) stops all self-changes: write the note and no actions.

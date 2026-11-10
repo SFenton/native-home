@@ -24,6 +24,7 @@
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(*ack-base*)",
+      "Bash(*ack-verified*)",
       "Bash(gh repo delete*)",
       "Bash(gh secret*)",
       "Bash(xcrun simctl boot*)",

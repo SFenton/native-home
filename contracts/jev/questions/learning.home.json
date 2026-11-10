@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 11,
+  "version": 12,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -161,6 +161,7 @@
     ".agents/testing/apple/suites.md": "Test suites: composing journeys",
     ".agents/testing/apple/test-speed-roadmap.md": "Test speed roadmap",
     ".agents/workflow/README.md": "Workflow: how we work. (read when: starting any change.)",
+    ".agents/workflow/ack-verified.md": "Spec: `ack-verified`, an agent-runnable acceptance of a PR-only move of main",
     ".agents/workflow/agent-roster.md": "Agent roster: the agent roles, who dispatches whom, the contracts between them (brief, status, task ledger, evidence pack), the autonomy levels that let loops run without the owner, and the Jev questions each role uses. (read when: spawning any agent, writing an agent file, changing a hook that judg...",
     ".agents/workflow/change-loop.md": "Change loop: the per-change procedure. (read when: before any code change.)",
     ".agents/workflow/ci.md": "CI: the Mac runners, pr-checks, ios-release and nightly: pull-request CI runs on GitHub-hosted runners (Linux for the checks and tool tests, one macOS job for the app); the release workflow (`ios-release.yml`, which also uploads to TestFlight) is hosted too; only the nightly workflow still uses the...",

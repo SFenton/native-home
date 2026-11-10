@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -812,12 +813,42 @@ class SnapshotTests(LandBase):
         self.assertIn("(lane)", self.issues(gh)[0][2])
 
 
+GOOD_CONTEXTS = [("pr-checks", 15368), ("ai-review", 5618837)]
+HEAD_SHA = "a" * 40
+
+
+def good_rules(**kw):
+    """What ``live_requirements`` returns for today's ruleset: both checks bound to their apps, no bypass actor, edited before any merge."""
+    base = {"contexts": list(GOOD_CONTEXTS), "bypass_actors": [], "problems": [],
+            "updated_at": datetime(2026, 11, 1, tzinfo=timezone.utc)}
+    base.update(kw)
+    return base
+
+
+def run(name, app, conclusion="success", started="2026-11-05T09:00:00Z", rid=1):
+    """One check run as ``commits/<sha>/check-runs`` lists it."""
+    return {"id": rid, "name": name, "app": {"id": app}, "conclusion": conclusion, "status": "completed", "started_at": started}
+
+
+def green_runs():
+    return [run(name, app, rid=n) for n, (name, app) in enumerate(GOOD_CONTEXTS, 1)]
+
+
 class PullGitHub(FakeGitHub):
-    """``FakeGitHub`` that answers ``commit_pulls`` from a table (sha -> pull requests), counting the lookups; ``fail`` raises."""
+    """``FakeGitHub`` that answers the verifier's lookups from tables, counting ``commit_pulls``; ``fail`` raises.
+
+    Unless a table says otherwise every commit is GitHub-made and verified with the subject ``change (#9)``, every PR head ran both
+    required checks green and the ruleset is today's. ``commit_table`` maps sha -> pulls, ``records`` sha -> commit record,
+    ``pull_table`` number -> PR record, ``runs`` head sha -> check runs, ``statuses`` head sha -> statuses."""
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
         self.commit_table = {}
+        self.records = {}
+        self.pull_table = {}
+        self.runs = {}
+        self.statuses = {}
+        self.requirements = good_rules()
         self.lookups = []
         self.fail = False
 
@@ -827,9 +858,31 @@ class PullGitHub(FakeGitHub):
             raise ht.TriageError("gh api failed")
         return self.commit_table.get(sha, [])
 
+    def commit_record(self, repo, sha):
+        return self.records.get(sha) or web_flow_commit("change (#9)")
 
-def merged_pr(sha, base="main", merged_at="2026-11-05T10:00:00Z", merge_sha=None):
-    return {"number": 9, "merged_at": merged_at, "base": {"ref": base}, "merge_commit_sha": merge_sha or sha}
+    def pull_record(self, repo, number):
+        return self.pull_table.get(number, {})
+
+    def check_runs(self, repo, sha):
+        return self.runs.get(sha, green_runs())
+
+    def commit_status(self, repo, sha):
+        return {"statuses": self.statuses.get(sha, [])}
+
+    def live_requirements(self, repo, branch):
+        return self.requirements
+
+
+def web_flow_commit(subject, verified=True, committer="GitHub", login="web-flow"):
+    """``commits/<sha>`` as GitHub answers for a squash merge made on github.com."""
+    return {"commit": {"message": subject + "\n\nbody", "committer": {"name": committer},
+                       "verification": {"verified": verified}}, "committer": {"login": login}}
+
+
+def merged_pr(sha, base="main", merged_at="2026-11-05T10:00:00Z", merge_sha=None, number=9, head=HEAD_SHA):
+    return {"number": number, "merged_at": merged_at, "base": {"ref": base}, "merge_commit_sha": merge_sha or sha,
+            "head": {"sha": head}}
 
 
 class SharedBaseTests(LandBase):
@@ -994,3 +1047,376 @@ class SharedBaseTests(LandBase):
         [issue] = self.issues(self.gh)
         self.assertIn("agents/x not landed (base)", str(issue))
         self.assertEqual(issue[4], ("Workflow",))
+
+
+class VerifiedRangeBase(LandBase):
+    """The verifier and ``ack_verified`` against a shared base (``workflow_base`` = ``product_base`` = ``main``) with the pause on.
+    Real git for the history; every GitHub answer comes from ``PullGitHub``'s tables."""
+
+    def setUp(self):
+        super().setUp()
+        g(self.dev, "push", "-q", "origin", f"{BASE}:main")
+        self.cfg["workflow_base"] = self.cfg["product_base"] = "main"
+        self.gh = PullGitHub([])
+        self.runner_ = self.runner(self.gh, None)
+        self.assertTrue(self.runner_.check_base("tick"))  # first sight records main
+        self.recorded = g(self.dev, "rev-parse", "origin/main")
+
+    def push_main(self, name, number=None, subject=None):
+        """A squash-merge look-alike on origin/main; with ``number`` GitHub 'knows' it as that merged PR (``commits/<sha>/pulls``)."""
+        g(self.dev, "fetch", "-q", "origin")
+        g(self.dev, "checkout", "-q", "-B", "tmp_main", "origin/main")
+        (self.dev / name).write_text(name)
+        g(self.dev, "add", "-A")
+        g(self.dev, "commit", "-qm", f"change {name}")
+        g(self.dev, "push", "-q", "origin", "HEAD:main")
+        sha = g(self.dev, "rev-parse", "HEAD")
+        if number is not None:
+            self.gh.commit_table[sha] = [merged_pr(sha, number=number, head=f"{number:040x}")]
+            self.gh.records[sha] = web_flow_commit(subject or f"change {name} (#{number})")
+        return sha
+
+    def pause(self):
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        (self.paths.state_dir / "SELF_CHANGE_PAUSED").write_text("paused\n")
+        (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").write_text(json.dumps({"base": "main", "sha": "x", "moves": []}))
+
+    def paused(self):
+        return (self.paths.state_dir / "SELF_CHANGE_PAUSED").exists()
+
+    def log(self):
+        path = self.paths.state_dir / "ack-log.jsonl"
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def record(self):
+        return json.loads(self.runner_.base_record().read_text())
+
+    def ack(self):
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            return self.runner_.ack_verified()
+
+    def refused(self, part):
+        """``ack_verified`` fails with ``part`` in its reason and changes nothing: the pause, the record and the log stay as they were."""
+        before = self.record()
+        result = self.ack()
+        self.assertFalse(result["ok"], result)
+        self.assertIn(part, result["reason"])
+        self.assertIn("ack-base", result["reason"])
+        self.assertTrue(self.paused())
+        self.assertTrue((self.paths.state_dir / "SELF_CHANGE_PAUSED.json").exists())
+        self.assertEqual(self.record(), before)
+        self.assertEqual(self.log(), [])
+        return result
+
+
+class AckVerifiedRefusalTests(VerifiedRangeBase):
+    """Every way a range can fail the verifier leaves the pause, ``workflow-base.json`` and ``ack-log.jsonl`` untouched."""
+
+    def test_a_direct_push_is_refused(self):
+        """Fails if: a commit not made and signed by GitHub (a push by an agent or the owner) is accepted as a PR merge."""
+        for label, record in (("not web-flow", web_flow_commit("x (#9)", committer="t", login="t")),
+                              ("unsigned", web_flow_commit("x (#9)", verified=False))):
+            with self.subTest(label):
+                sha = self.push_main(label.replace(" ", "-"), number=9)
+                self.gh.records[sha] = record
+                self.pause()
+                self.refused("not made and signed by GitHub")
+
+    def test_a_commit_with_two_parents_is_refused(self):
+        """Fails if: a merge commit (two parents, so not a squash) in the first-parent walk is accepted."""
+        g(self.dev, "fetch", "-q", "origin")
+        g(self.dev, "checkout", "-q", "-B", "side", "origin/main")
+        (self.dev / "side").write_text("s")
+        g(self.dev, "add", "-A")
+        g(self.dev, "commit", "-qm", "side")
+        self.push_main("mainline", number=1)
+        g(self.dev, "merge", "-q", "--no-ff", "-m", "merge side (#2)", "side")
+        g(self.dev, "push", "-q", "origin", "HEAD:main")
+        merge = g(self.dev, "rev-parse", "HEAD")
+        self.gh.commit_table[merge] = [merged_pr(merge, number=2)]
+        self.pause()
+        self.refused("2 parents")
+
+    def test_a_force_push_is_refused(self):
+        """Fails if: a head that does not descend from the last accepted SHA is accepted because its commits look like PRs."""
+        one = self.push_main("one", number=1)
+        self.runner_.base_record().write_text(json.dumps({"main": one}))  # the runner accepted it; now history is rewritten
+        g(self.dev, "checkout", "-q", "-B", "forked", f"{one}~1")
+        (self.dev / "forked").write_text("x")
+        g(self.dev, "add", "-A")
+        g(self.dev, "commit", "-qm", "forked")
+        g(self.dev, "push", "-q", "--force", "origin", "HEAD:main")
+        forced = g(self.dev, "rev-parse", "HEAD")
+        self.gh.commit_table[forced] = [merged_pr(forced, number=3)]
+        self.pause()
+        self.refused("force push")
+
+    def test_a_pull_request_that_is_not_merged_or_not_this_commit_is_refused(self):
+        """Fails if: an unmerged PR, one into another base, or one whose merge_commit_sha is another commit counts as this commit's PR."""
+        sha = self.push_main("one", number=9)
+        self.pause()
+        for label, pulls in (("unmerged", [merged_pr(sha, merged_at=None)]), ("other base", [merged_pr(sha, base="release")]),
+                             ("other merge commit", [merged_pr(sha, merge_sha="0" * 40)])):
+            with self.subTest(label):
+                self.gh.commit_table[sha] = pulls
+                self.refused("not the merge commit of a merged pull request")
+
+    def test_a_commit_with_no_pull_request_and_no_subject_number_is_refused(self):
+        """Fails if: an empty commit-to-PR answer and a subject without (#N) is read as anything but 'not a PR'."""
+        sha = self.push_main("one")
+        self.gh.records[sha] = web_flow_commit("plain subject")
+        self.pause()
+        self.refused("not the merge commit")
+
+    def test_a_subject_number_whose_pull_request_names_another_commit_is_refused(self):
+        """Fails if: the (#N) hint is trusted without GitHub's own pulls/N record naming this exact commit as its merge commit."""
+        sha = self.push_main("one")
+        self.gh.records[sha] = web_flow_commit("forged (#36)")
+        self.pause()
+        for label, pull in (("other merge commit", merged_pr(sha, merge_sha="1" * 40, number=36)),
+                            ("unmerged", merged_pr(sha, merged_at=None, number=36)), ("other base", merged_pr(sha, base="x", number=36)),
+                            ("no such pull", {})):
+            with self.subTest(label):
+                self.gh.pull_table = {36: pull}
+                self.refused("not the merge commit")
+
+    def test_a_required_check_that_is_not_a_success_from_the_named_app_is_refused(self):
+        """Fails if: a failing, missing, skipped, neutral or wrong-app run of pr-checks, or a missing ai-review, passes the range."""
+        self.push_main("one", number=9)
+        head = f"{9:040x}"
+        self.pause()
+        cases = {
+            "failing": ([run("pr-checks", 15368, "failure"), run("ai-review", 5618837, rid=2)], "concluded failure"),
+            "skipped": ([run("pr-checks", 15368, "skipped"), run("ai-review", 5618837, rid=2)], "concluded skipped"),
+            "neutral": ([run("pr-checks", 15368, "neutral"), run("ai-review", 5618837, rid=2)], "concluded neutral"),
+            "missing": ([run("ai-review", 5618837)], "pr-checks did not run"),
+            "wrong app": ([run("pr-checks", 999), run("ai-review", 5618837, rid=2)], "required integration 15368"),
+            "ai-review missing": ([run("pr-checks", 15368)], "ai-review did not run"),
+            "ai-review wrong app": ([run("pr-checks", 15368), run("ai-review", 15368, rid=2)], "required integration 5618837"),
+            "newest run failed": ([run("pr-checks", 15368, started="2026-11-05T09:00:00Z"),
+                                   run("pr-checks", 15368, "failure", started="2026-11-05T09:30:00Z", rid=3),
+                                   run("ai-review", 5618837, rid=2)], "concluded failure"),
+        }
+        for label, (runs, part) in cases.items():
+            with self.subTest(label):
+                self.gh.runs[head] = runs
+                self.refused(part)
+
+    def test_a_context_the_live_ruleset_requires_but_the_pull_request_never_ran_is_refused(self):
+        """Fails if: the required contexts are hardcoded instead of read from the live ruleset."""
+        self.push_main("one", number=9)
+        self.gh.requirements = good_rules(contexts=[*GOOD_CONTEXTS, ("lint", 15368)])
+        self.pause()
+        self.refused("lint did not run")
+
+    def test_a_status_never_replaces_a_run_the_ruleset_binds_to_an_integration(self):
+        """Fails if: a commit status stands in for a required check whose rule names an integration, or a status that is not success counts."""
+        self.push_main("one", number=9)
+        head = f"{9:040x}"
+        self.pause()
+        self.gh.runs[head] = [run("ai-review", 5618837)]
+        self.gh.statuses[head] = [{"context": "pr-checks", "state": "success"}]
+        self.refused("a status cannot replace the run from integration 15368")
+        self.gh.runs[head] = [run("pr-checks", 15368, "failure"), run("ai-review", 5618837, rid=2)]
+        self.refused("concluded failure")
+
+    def test_a_status_stands_in_only_for_a_check_whose_rule_names_no_integration(self):
+        """Fails if: the status fallback is gone for unbound checks, or a non-success status passes."""
+        self.push_main("one", number=9)
+        head = f"{9:040x}"
+        self.pause()
+        self.gh.requirements = good_rules(contexts=[("pr-checks", 15368), ("legacy", None)])
+        self.gh.runs[head] = [run("pr-checks", 15368)]
+        self.gh.statuses[head] = [{"context": "legacy", "state": "failure"}]
+        self.refused("legacy did not run")
+        self.gh.statuses[head] = [{"context": "legacy", "state": "success"}]
+        self.assertTrue(self.ack()["ok"])
+
+    def test_a_ruleset_that_is_not_live_or_can_be_bypassed_is_refused(self):
+        """Fails if: a range is accepted while the live ruleset is not a gate (not live, unreadable, or any bypass actor)."""
+        self.push_main("one", number=9)
+        self.pause()
+        for label, requirements in (("not live", good_rules(problems=["the ruleset does not require a pull request"])),
+                                    ("unreadable", good_rules(problems=["the rules could not be read (CalledProcessError)"])),
+                                    ("bypass", good_rules(bypass_actors=[{"actor_id": 5, "actor_type": "RepositoryRole"}]))):
+            with self.subTest(label):
+                self.gh.requirements = requirements
+                self.refused("ruleset")
+
+    def test_a_ruleset_edited_inside_the_range_is_refused(self):
+        """Fails if: rules edited after the oldest merge in the range are trusted to have governed it."""
+        self.push_main("one", number=9)
+        self.pause()
+        self.gh.requirements = good_rules(updated_at=datetime(2026, 11, 5, 12, 0, tzinfo=timezone.utc))  # merged_at is 10:00 that day
+        self.refused("ruleset changed inside the range: owner reviews")
+        self.gh.requirements = good_rules(updated_at=datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc))  # equal: not later
+        self.assertTrue(self.ack()["ok"])
+
+    def test_a_range_over_the_cap_a_failed_lookup_and_an_empty_range_are_refused(self):
+        """Fails if: more commits than the cap, a lookup that fails twice, or no commits at all is accepted."""
+        self.push_main("one", number=1)
+        self.push_main("two", number=2)
+        self.pause()
+        with mock.patch.object(ht, "BASE_WALK_CAP", 1):
+            self.refused("not vetted")
+        self.gh.fail = True
+        self.refused("lookup failed")
+        self.gh.fail = False
+        self.runner_.base_record().write_text(json.dumps({"main": g(self.dev, "rev-parse", "origin/main")}))
+        self.refused("0 first-parent commits")
+
+    def test_without_a_pause_a_shared_base_check_or_a_record_nothing_is_accepted(self):
+        """Fails if: ack_verified runs with no pending pause, on a workflow base that is not the product base, or with no recorded SHA."""
+        self.push_main("one", number=9)
+        with self.assertRaises(ht.TriageError):
+            self.runner_.ack_verified()
+        self.pause()
+        self.cfg["workflow_base"] = BASE
+        self.assertFalse(self.ack()["ok"])
+        self.cfg["workflow_base"] = "main"
+        self.runner_.base_record().unlink()
+        self.assertFalse(self.ack()["ok"])
+        self.assertTrue(self.paused())
+        self.assertEqual(self.log(), [])
+
+
+class AckVerifiedAcceptTests(VerifiedRangeBase):
+    """Ranges the verifier accepts: today's real shape, a moving target, and ``check_base`` using the same rule."""
+
+    NUMBERS = [36, 37, 45, 48, 50, 47, 46]
+
+    def real_shape(self):
+        """Seven squash merges in a row; #36's commit has an empty commit-to-PR answer, as 4b86f73 had on 2026-11-10."""
+        shas = []
+        for number in self.NUMBERS:
+            shas.append(self.push_main(f"pr{number}", number=number))
+        self.gh.commit_table[shas[0]] = []  # GitHub's index gap: only the subject (#36) and pulls/36 can vouch for it
+        self.gh.pull_table[36] = merged_pr(shas[0], number=36, head=f"{36:040x}")
+        return shas
+
+    def test_todays_seven_commit_range_with_the_index_gap_is_accepted(self):
+        """Fails if: the (#N) fallback to pulls/N is missing (the pause of 2026-11-10 returns), or the record/log/pause are not updated."""
+        shas = self.real_shape()
+        self.pause()
+        out = io.StringIO()
+        with mock.patch("sys.stdout", new=out):
+            result = self.runner_.ack_verified()
+        self.assertEqual((result["ok"], result["head"], result["prs"]), (True, shas[-1], self.NUMBERS))
+        self.assertFalse(self.paused())
+        self.assertFalse((self.paths.state_dir / "SELF_CHANGE_PAUSED.json").exists())
+        self.assertEqual(self.record(), {"main": shas[-1]})
+        [line] = self.log()
+        self.assertEqual((line["mode"], line["from"], line["to"], line["prs"], line["session"]),
+                         ("verified", self.recorded, shas[-1], self.NUMBERS, "agent"))
+        self.assertEqual(line["contexts"], ["ai-review", "pr-checks"])
+        self.assertTrue(line["at"])
+
+    def test_the_session_is_logged_as_given(self):
+        """Fails if: the log line cannot tell an owner's terminal from an agent session."""
+        self.push_main("one", number=1)
+        self.pause()
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.runner_.ack_verified("owner")
+        self.assertEqual(self.log()[0]["session"], "owner")
+
+    def test_the_head_moving_during_verification_records_the_last_verified_head(self):
+        """Fails if: the increment is not verified, the recorded SHA is the newer unverified head, or only the first range is checked."""
+        first = self.push_main("one", number=1)
+        self.pause()
+        moved = []
+        inner = self.runner_.verify_pr_range
+
+        def verify(base, expected, head):
+            calls.append((expected, head))
+            result = inner(base, expected, head)
+            if len(calls) == 1:
+                moved.append(self.push_main("two", number=2))  # the base advances while the first range was being checked
+            return result
+
+        calls = []
+        with mock.patch.object(self.runner_, "verify_pr_range", verify):
+            result = self.ack()
+        self.assertEqual(calls, [(self.recorded, first), (first, moved[0])])  # only the increment the second time
+        self.assertEqual((result["ok"], result["head"], result["prs"]), (True, moved[0], [1, 2]))
+        self.assertEqual(self.record(), {"main": moved[0]})
+
+    def test_a_base_that_keeps_moving_is_recorded_at_the_last_verified_head_and_a_later_direct_push_pauses(self):
+        """Fails if: more than three rounds run, the unverified newest head is recorded, or check_base does not vet the rest."""
+        self.push_main("one", number=1)
+        self.pause()
+        inner = self.runner_.verify_pr_range
+        heads = []
+
+        def verify(base, expected, head):
+            result = inner(base, expected, head)
+            heads.append(head)
+            self.push_main(f"more{len(heads)}", number=10 + len(heads))
+            return result
+
+        with mock.patch.object(self.runner_, "verify_pr_range", verify):
+            result = self.ack()
+        self.assertEqual(len(heads), ht.ACK_ROUNDS)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["head"], heads[-1])
+        self.assertEqual(self.record(), {"main": heads[-1]})
+        newest = g(self.dev, "rev-parse", "origin/main")
+        self.assertNotEqual(newest, heads[-1])  # one PR merge is left for the next tick
+        direct = self.push_main("direct")  # and then a push that is not a PR
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertFalse(self.runner_.check_base("tick"))
+        self.assertTrue(self.paused())
+        self.assertIn(direct[:10], self.issues(self.gh)[0][2])
+
+    def test_a_failure_in_a_later_round_accepts_nothing(self):
+        """Fails if: the first, good range is recorded when the increment that followed it fails (no partial acceptance)."""
+        self.push_main("one", number=1)
+        self.pause()
+        inner = self.runner_.verify_pr_range
+        seen = []
+
+        def verify(base, expected, head):
+            result = inner(base, expected, head)
+            if not seen:
+                seen.append(self.push_main("direct"))
+            return result
+
+        before = self.record()
+        with mock.patch.object(self.runner_, "verify_pr_range", verify):
+            result = self.ack()
+        self.assertFalse(result["ok"])
+        self.assertEqual(self.record(), before)
+        self.assertTrue(self.paused())
+        self.assertEqual(self.log(), [])
+
+    def test_check_base_accepts_the_same_range_silently_and_updates_the_record(self):
+        """Fails if: the runner's own tick still pauses on the commit-to-PR index gap, or prints/files anything for a checked range."""
+        shas = self.real_shape()
+        out = io.StringIO()
+        with mock.patch("sys.stdout", new=out):
+            self.assertTrue(self.runner_.check_base("tick"))
+        self.assertEqual(out.getvalue(), "")
+        self.assertFalse(self.paused())
+        self.assertEqual(self.issues(self.gh), [])
+        self.assertEqual(self.record(), {"main": shas[-1]})
+
+    def test_check_base_pauses_and_files_the_issue_when_a_required_check_failed(self):
+        """Fails if: a merged PR whose required check failed is accepted by the runner just because it was merged."""
+        self.push_main("one", number=9)
+        self.gh.runs[f"{9:040x}"] = [run("pr-checks", 15368, "failure"), run("ai-review", 5618837, rid=2)]
+        out = io.StringIO()
+        with mock.patch("sys.stdout", new=out):
+            self.assertFalse(self.runner_.check_base("tick"))
+        self.assertTrue(self.paused())
+        self.assertIn("concluded failure", out.getvalue())
+        [issue] = self.issues(self.gh)
+        self.assertEqual(issue[4], ("Workflow", "On Hold"))
+
+    def test_the_pause_text_names_both_ways_out(self):
+        """Fails if: a pause stops telling agents about ack-verified, or stops reserving ack-base <sha> for the owner."""
+        self.push_main("direct")
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.runner_.check_base("tick")
+        text = (self.paths.state_dir / "SELF_CHANGE_PAUSED").read_text()
+        self.assertIn("python3 tools/triage/hass_triage.py ack-verified", text)
+        self.assertIn("ack-base", text)
+        self.assertIn("Owner only", text)

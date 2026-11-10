@@ -1179,6 +1179,22 @@ class HookTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"FENTON_HEADLESS": "0"}):
             self.assertIsNone(self.why("python3 tools/triage/hass_triage.py ack-base abc"))
 
+    def test_ack_verified_is_blocked_headless_and_allowed_interactive_in_its_exact_form(self):
+        """Fails if: a headless session can run ack-verified, or an interactive one is blocked from its exact form or allowed a wrapped one."""
+        exact = ("python3 tools/triage/hass_triage.py ack-verified", "python3 /Users/x/repo/tools/triage/hass_triage.py ack-verified")
+        for cmd in (*exact, "$HASS_TRIAGE_BIN ack-verified", "cd x && hass_triage.py ack-verified"):
+            self.assertIn("ack-verified", self.why(cmd) or "", cmd)  # headless: every form is blocked
+        self.assertIn("headless", self.why(exact[0]))
+        with mock.patch.dict(os.environ, {"FENTON_HEADLESS": "0"}):
+            for cmd in exact:
+                self.assertIsNone(self.why(cmd), cmd)
+            for cmd in ("python3 tools/triage/hass_triage.py ack-verified && echo ok", "python3 tools/triage/hass_triage.py ack-verified | tee out",
+                        "cd x && python3 tools/triage/hass_triage.py ack-verified", "$HASS_TRIAGE_BIN ack-verified",
+                        "python3 tools/triage/hass_triage.py ack-verified; true", "env python3 tools/triage/hass_triage.py ack-verified",
+                        "script -q /dev/null python3 tools/triage/hass_triage.py ack-verified"):
+                self.assertIn("ack-verified", self.why(cmd) or "", cmd)
+            self.assertIsNone(self.why("grep -n ack-verified tools/triage/hass_triage.py"))  # a search is not a run
+
     def test_allowed_lane_pushes(self):
         for cmd in ("git push origin agents/x", "git push origin HEAD:agents/x", "git push origin HEAD:refs/heads/agents/x",
                     "git push -u origin agents/retro-r-1-261102", "git push --set-upstream origin agents/a/b",
@@ -1552,6 +1568,7 @@ class RequestRepoGuardTests(unittest.TestCase):
         for cmd in ("script -q /dev/null tools/pr_land.sh 5", "script -q /dev/null -c 'tools/pr_land.sh 5'", "/usr/bin/script -q /dev/null python3 tools/pr_land.py 5",
                     "expect -c 'spawn tools/pr_land.sh 5; interact'", "unbuffer python3 tools/pr_land.py 5", "unbuffer tools/pr_land.sh 5",
                     "script -q /dev/null python3 tools/lane_land.py x --into y", "script -q /dev/null python3 tools/triage/hass_triage.py ack-base abc",
+                    "script -q /dev/null python3 tools/triage/hass_triage.py ack-verified", "unbuffer python3 tools/triage/hass_triage.py ack-verified",
                     "env -u FENTON_HEADLESS -u HASS_TRIAGE_ISSUE script -q /dev/null tools/pr_land.sh 5 --owner", "tmux new 'tools/pr_land.sh 5'"):
             with self.subTest(cmd=cmd):
                 self.assertTrue((self.why(cmd) or "") != "", cmd)

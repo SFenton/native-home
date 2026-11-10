@@ -144,6 +144,8 @@ def contradictions(docs: Dict[str, str]) -> List[str]:
                 extra = fixed_set_items(line) - allowed
                 if extra:
                     found.append(f"fixed set at {path}:{number} lists {sorted(extra)} that the roster does not")
+                if re.search(r"ack[-_]verified", line):  # agent sessions may run it (owner, 2026-11-10): it is not in the fixed set
+                    found.append(f"fixed set at {path}:{number} lists ack-verified, which agent sessions may run")
     return found
 
 
@@ -180,6 +182,13 @@ class ContradictionTests(unittest.TestCase):
         self.assertEqual(contradictions({"a.md": "Agents can not merge; the runner does."}), [])
         self.assertTrue(contradictions({"a.md": "Each self-change is landed through tools/pr_land.sh."}))
         self.assertEqual(contradictions({"a.md": "Product work lands only through tools/pr_land.sh; self-change lanes use the runner."}), [])
+
+    def test_listing_ack_verified_under_the_fixed_set_is_flagged(self):
+        """Fails if: a doc can call ack-verified (agent-runnable) part of the owner's fixed set without the check noticing."""
+        roster = ("**The fixed set (owner).** L3 is only this:\n\n- credentials;\n- `ack-base <sha>` (`ack-verified` is agents').\n\nEverything else is autonomous.")
+        [found] = contradictions({".agents/workflow/agent-roster.md": roster, "o.md": "L3 is the fixed set (credentials, ack-verified)"})
+        self.assertIn("ack-verified", found)
+        self.assertEqual(contradictions({".agents/workflow/agent-roster.md": roster, "o.md": "L3 is the fixed set (credentials, ack-base)"}), [])
 
     def test_an_l3_item_the_roster_lacks_is_flagged(self):
         roster = ("**The fixed set (owner).** L3 is only this:\n\n- credentials;\n- signing and release;\n\nEverything else is autonomous.")

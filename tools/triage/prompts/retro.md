@@ -33,7 +33,7 @@ If a kill switch exists (`~/.config/hass-triage/PAUSED`, or `~/.local/state/hass
       a `Workflow` + `On Hold` issue. Never point a self-change at `main` and never open a PR to it.
    5. If the tests fail twice, or the action is larger than a small addition, drop the lane and file it (step 5).
 4. **The fixed set is never autonomous.** If an action touches any of these, do not build it:
-   credentials, tokens, the Jev key or secrets handling; signing certificates, profiles and keys; physical-device automation; the review recorder and `ack-base`.
+   credentials, tokens, the Jev key or secrets handling; signing certificates, profiles and keys; physical-device automation; the review recorder and `ack-base <sha>` / `--owner-ack`.
    The merge path, guard hooks, eval graders and thresholds and the kill switch are unlocked (2026-11-07): build them, one change at a time,
    never with the evals they judge, and only with an independent review.
    File it as a proposal for the owner (step 5).
