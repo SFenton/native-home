@@ -1697,11 +1697,12 @@ class Runner:
                 self.gh.create_issue(repo, title, redact(reason) + details, ["Workflow", "On Hold"])
             # Mark only after the post succeeded, so a failed post is retried on the next call.
             fresh = pause_info(self.paths)
-            notified = [str(n) for n in fresh.get("notified") or []]
-            if current not in notified:
-                notified.append(current)
-            (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").write_text(
-                json.dumps({**fresh, "notified": notified}, indent=2, sort_keys=True))
+            if fresh.get("sha"):  # an accept between the post and the mark clears the pause: leave no stray file
+                notified = [str(n) for n in fresh.get("notified") or []]
+                if current not in notified:
+                    notified.append(current)
+                (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").write_text(
+                    json.dumps({**fresh, "notified": notified}, indent=2, sort_keys=True))
         except Exception as exc:  # noqa: BLE001
             print(f"base integrity: could not file the issue: {redact(str(exc))[:200]}")
 

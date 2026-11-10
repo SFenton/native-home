@@ -2258,6 +2258,35 @@ class BaseMovedDedupeTests(Base):
         self.assertEqual(len(self.comments_on(gh)), 1)
         self.assertEqual(self.notified(), ["b" * 40])
 
+    def test_a_new_pause_after_an_accept_starts_with_its_own_notified(self):
+        """Fails if: the accept leaves the old notified list behind, or the next pause's SHA is not posted once and recorded."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        self.moved(runner, "b" * 40)
+        state = self.paths.state_dir
+        (state / "SELF_CHANGE_PAUSED").unlink()
+        (state / "SELF_CHANGE_PAUSED.json").unlink()
+        gh.calls.clear()
+        self.moved(runner, "c" * 40)
+        self.moved(runner, "c" * 40)
+        self.assertEqual(len(self.comments_on(gh)) + len(self.issues(gh)), 1)
+        self.assertEqual(self.notified(), ["c" * 40])
+
+    def test_an_accept_between_the_post_and_the_mark_leaves_no_stray_file(self):
+        """Fails if: the mark rewrites SELF_CHANGE_PAUSED.json after the pause was cleared mid-call."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        real = gh.create_issue
+
+        def accept_then_post(*args, **kw):
+            real(*args, **kw)
+            (self.paths.state_dir / "SELF_CHANGE_PAUSED").unlink()
+            (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").unlink()
+
+        gh.create_issue = accept_then_post
+        self.moved(runner, "b" * 40)
+        self.assertFalse((self.paths.state_dir / "SELF_CHANGE_PAUSED.json").exists())
+
     def test_three_moves_file_one_issue_and_comment_twice(self):
         """Fails if: each new SHA files its own issue, or a later move clears or skips the pause or drops a move.
 
