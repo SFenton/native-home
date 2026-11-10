@@ -440,16 +440,26 @@ jobs:
         with:
           persist-credentials: false
       - name: Author check
-        # GitHub is the merge gate: only SFenton's own branches in this repository merge. A fork pull request, or one from another
-        # account, fails the aggregate (and so the required check) however green the rest is.
+        # GitHub is the merge gate: only SFenton's own branches, or those of a login in the repository variable AGENT_LOGINS (comma
+        # separated; the owner sets it to the agent account, and changing a variable needs admin, which is the point), in this repository
+        # merge. A fork pull request, or one from any other account, fails the aggregate (and so the required check) however green the rest is.
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           AUTHOR: ${{ github.event.pull_request.user.login }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           THIS_REPO: ${{ github.repository }}
+          AGENT_LOGINS: ${{ vars.AGENT_LOGINS }}
         run: |
-          if [ "$AUTHOR" != "SFenton" ] || [ "$HEAD_REPO" != "$THIS_REPO" ]; then
-            echo "pr-checks failed: pull request by $AUTHOR from $HEAD_REPO; only SFenton's branches in $THIS_REPO merge" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ -n "$AUTHOR" ] || { echo "pr-checks failed: the pull request has no author login" | tee -a "$GITHUB_STEP_SUMMARY"; exit 1; }
+          case ",${AGENT_LOGINS// /},SFenton," in
+            *",$AUTHOR,"*) ;;
+            *)
+              echo "pr-checks failed: pull request by $AUTHOR; only SFenton or a login in AGENT_LOGINS merge" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac
+          if [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "pr-checks failed: pull request from $HEAD_REPO; only branches in $THIS_REPO merge" | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
       - name: Aggregate

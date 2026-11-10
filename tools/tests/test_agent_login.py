@@ -56,10 +56,12 @@ class AgentLoginTests(unittest.TestCase):
                 path.write_text(text)
                 self.assertEqual(agent_login.configured(path), want, text)
 
-    def test_the_shipped_config_names_the_agent_account(self):
-        """Fails if: tools/triage/config.json stops naming the owner-approved agent account (owner, 2026-11-10) or names another one."""
+    def test_the_shipped_config_names_the_machine_user(self):
+        """Fails if: tools/triage/config.json stops naming the machine user (owner, 2026-11-10: sfenton-agent) or the denylist stops being required."""
         config = Path(__file__).resolve().parents[1] / "triage" / "config.json"
-        self.assertEqual(json.loads(config.read_text())["agent_login"], "sfenton-agent")
+        shipped = json.loads(config.read_text())
+        self.assertEqual(shipped["agent_login"], "sfenton-agent")
+        self.assertIs(shipped["denylist_required"], True)
 
 
 if __name__ == "__main__":

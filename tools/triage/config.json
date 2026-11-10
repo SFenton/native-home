@@ -147,7 +147,7 @@
   },
   "workflow_base": "main",
   "land_tests": "tools/run_tool_tests.sh",
-  "denylist_required": false,
+  "denylist_required": true,
   "land_core_tests": [],
   "land_full_suite_triggers": [],
   "protected_paths": [

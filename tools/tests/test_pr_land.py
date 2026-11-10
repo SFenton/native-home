@@ -307,6 +307,8 @@ class UiGateInLandTests(unittest.TestCase):
                    mock.patch.object(pr_land, "kill_switch", return_value=None),
                    mock.patch.object(pr_land.review_verdict, "has_pass", return_value=True),
                    mock.patch.object(pr_land.ruleset_gate, "check", return_value=[]),
+                   # These tests are about the app-UI gate; the shipped config requires the denylist, which a test host has not loaded.
+                   mock.patch.object(pr_land, "denylist_gate", return_value=None),
                    mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": "/nonexistent/denylist", **(env or {})}),
                    mock.patch.object(sys.stdin, "isatty", return_value=tty)]
         if gate is not None:

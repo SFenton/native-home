@@ -42,6 +42,8 @@ class FakeGitHub(ht.GitHub):
         self.comment_store: Dict[int, List[Dict[str, Any]]] = {}
         self.calls: List[tuple] = []
         self.pulls: Dict[str, Dict[str, Any]] = {}
+        self.pull_files: Dict[str, Dict[str, Any]] = {}
+        self.variables: Dict[str, str] = {}
         self.next_id = 100
 
     def token(self) -> str:
@@ -81,6 +83,15 @@ class FakeGitHub(ht.GitHub):
 
     def pull(self, url):
         return self.pulls[url]
+
+    def pull_paths(self, url):
+        return self.pull_files.get(url, {"base": "main", "paths": []})
+
+    def variable(self, repo, name):
+        return self.variables.get(name, "")
+
+    def dispatch_workflow(self, repo, workflow, ref):
+        self.calls.append(("dispatch", repo, workflow, ref))
 
     def label_pull(self, url, add="", remove=""):
         self.calls.append(("label_pull", url, add, remove))
@@ -177,8 +188,8 @@ class SelectionTests(Base):
                   issue(6, labels=["On Hold"]), issue(7, labels=["Merging"]), issue(8, created="2026-10-12T00:00:00Z")]
         self.assertEqual([i["number"] for i in ht.eligible(issues, ["SFenton"])], [2, 8, 1])
 
-    def test_the_shipped_agent_login_never_joins_the_authors(self):
-        """Fails if: the shipped config stops naming sfenton-agent as agent_login, or that login (or a process setting) leaks into cfg authors or nightly authors."""
+    def test_the_shipped_agent_login_leaves_the_authors_exactly_as_configured(self):
+        """Fails if: the shipped agent_login (the machine user) changes cfg authors or nightly authors, or a process setting overrides it."""
         with mock.patch.dict(os.environ, {"FENTON_AGENT_LOGIN": "mallory"}):  # a process setting changes nothing
             cfg = ht.load_config(self.home)
         self.assertEqual(cfg["agent_login"], "sfenton-agent")
