@@ -46,6 +46,18 @@ struct UKHassModalOptions {
     /// (`HassModal(closeStaysInBar:)`, `keepsCloseInSheetBar()`; iOS 27.1). The SwiftUI default is true for a plain `HassModal`; a sheet
     /// with Save, Add or other bar actions says false, and this port's default is false, so a call site says true where `HassModal` does.
     var closeStaysInBar = false
+    /// How the root page's content appears when the sheet opens: ``UKModalReveal/none`` (there on the first frame, the default) or
+    /// ``UKModalReveal/gate(_:)`` (hidden through the slide, then faded in together, with a centred arc only while it is not ready;
+    /// `.agents/design/sheet-reveal.md`). Root page only: pushed pages are plain pushes.
+    var reveal: UKModalReveal = .none
+    /// What VoiceOver says for the reveal's arc; nil is "Loading" and the sheet's title ("Loading Climate"), never a bare "Loading".
+    var revealLabel: String?
+    /// ``revealLabel`` with its default applied.
+    var spokenRevealLabel: String {
+        if let revealLabel { return revealLabel }
+        if let title, !title.isEmpty { return "Loading \(title)" }
+        return "Loading"
+    }
     /// Runs instead of dismissing when the presenter owns closing.
     var onClose: (() -> Void)?
     /// Runs once the sheet has gone (closed, swiped down), for the presenter to clear its state.
@@ -101,10 +113,16 @@ final class UKHassModalController: UINavigationController, UISheetPresentationCo
     /// The window the modal was presented from, for ``fillsHeight`` before the modal has a window of its own.
     private weak var presentingWindow: UIWindow?
     private var appliedIdentifiers: [String] = []
+    /// The reveal while it runs (``UKModalReveal``); nil when the modal has none, before it attaches and after the content has shown.
+    private var reveal: UKSheetRevealController?
+    private var revealAttached = false
+    private var revealPresented = false
+    private let rootReadiness: UKRevealReadiness?
     private let fitDetent = UISheetPresentationController.Detent.Identifier("uk.fit")
 
     init(root: UIViewController, options: UKHassModalOptions) {
         self.options = options
+        rootReadiness = root as? UKRevealReadiness
         let key = options.fitKey
         var onChange: (CGFloat) -> Void = { _ in }
         let predicted = options.predictedContentHeight
@@ -331,9 +349,42 @@ final class UKHassModalController: UINavigationController, UISheetPresentationCo
         }
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        attachRevealIfNeeded()
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         UKScrollRate.attachAll(in: view)
+        if !revealPresented {
+            revealPresented = true
+            reveal?.presentationCompleted()
+        }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if isBeingDismissed || presentingViewController == nil { reveal?.cancel() }
+    }
+
+    // MARK: Reveal
+
+    /// The reveal's tracker, so children of the root (images) can hold the fade-in through ``UKReadinessRequirement``; nil without a
+    /// reveal or once the content has shown.
+    var revealTracker: ReadinessTracker? { reveal?.model.tracker }
+
+    /// Hides the root page's content before the slide starts (``UKModalReveal``). Once, for the root page only.
+    private func attachRevealIfNeeded() {
+        guard !revealAttached, case .gate(let profile) = options.reveal, let page = viewControllers.first as? UKPageViewController else { return }
+        revealAttached = true
+        let controller = UKSheetRevealController(
+            page: page, profile: profile, label: options.spokenRevealLabel, readiness: rootReadiness, name: options.title ?? "Sheet")
+        controller.onFinished = { [weak self] in
+            self?.reveal = nil
+            self?.reportFit()
+        }
+        reveal = controller
     }
 
     /// A rotation or a fold changes the window, the sheet's width and so its content's height: the detent and the iPad form width are
@@ -415,7 +466,8 @@ final class UKHassModalController: UINavigationController, UISheetPresentationCo
             }
         }
         fit.report(SheetFit.Reading(
-            content: scroller.contentSize.height.rounded(), viewport: scroller.bounds.height.rounded(),
+            content: max(scroller.contentSize.height, reveal?.isLoading == true ? UKSheetRevealController.minimumContentHeight : 0).rounded(),
+            viewport: scroller.bounds.height.rounded(),
             topInset: scroller.adjustedContentInset.top.rounded(), bottomInset: scroller.adjustedContentInset.bottom.rounded(),
             width: scroller.bounds.width.rounded()), from: id(for: page))
         syncFitIfMoved()

@@ -44,6 +44,7 @@ Sources:
 | **Pushed page's content** | Already there | Already there | Presence |
 | **Tile → its own page or viewer** (room, camera, recipe) | Zoom (iOS 18+) | Zoom, every time | It is navigation feedback, like the push |
 | **Modal sheet** | System sheet; the content is there on arrival | Same | Standard |
+| **Modal sheet with the sheet reveal** (opt-in, `UKHassModalOptions.reveal`; owner 2026-11-05) | The sheet slides up with its content hidden; when the slide ends the content fades in together (0.2 s). Only content that is not ready gets the centred arc first ([sheet-reveal](sheet-reveal.md)) | Same, on every presentation; never on a reconnect, reapply, fold or push | The owner's requested reveal; an arc only for a real wait |
 | **Network-backed page or sheet with nothing saved** | Loading gate: spinner after 150 ms (`.page` profile per the owner: ≥1 s, then 500 ms out), content fades in and rises 4 pt | Saved results show at once; fresh data swaps in quietly | Animate only what had nothing to show |
 | **Live value change** | Numbers roll (0.2 s); background and tint colours cross-fade (`state`, 0.6 s) | Same | Change |
 | **User action** (toggle, complete, delete, reorder) | Optimistic change at once; rows insert or remove with the standard list animation | Same | Change the user caused |
@@ -58,7 +59,7 @@ The rule for a screen's first visit versus a revisit is not "first visit animate
 - **Content entrances** (fade-ins, rises, staggers) run only when there was a wait. A page whose content is in memory or the saved snapshot shows it at once, on any visit.
 - **Moments** play once per session. `MotionPolicy` remembers what has played. "Session" means from signing in (or a cold launch while signed in) until the process ends or you sign out.
 
-Exceptions must be written into this file with the owner's say-so. None exist today.
+Exceptions must be written into this file with the owner's say-so. **Exception (owner, 2026-11-05, [sheet-reveal](sheet-reveal.md)):** a modal that opts into the sheet reveal fades its root page's content in together when its presentation completes, on every presentation, even when the content is in memory. It is one fade (0.2 s, no rise, no stagger), it runs once per presentation, and never on a reconnect, a snapshot reapply, a pose change or a push.
 
 ## 4. Navigation details
 
@@ -96,8 +97,8 @@ Exceptions must be written into this file with the owner's say-so. None exist to
 
 ### 4.4 Modals
 - **Presentation:** always through `hassSheet` and its detents. A full-screen viewer that a tile opens may use the zoom with `fullScreenCover`. Everything else is a sheet.
-- **Content:** sheet content is present on arrival. A sheet that loads from the network uses the loading gate inside the sheet, never a spinner sheet.
-- **Inner motion:** no entrance animations inside sheets (no tiles rising, no tabs sliding). Switching a sheet's own tabs (`modalTabBar`) is a cut, like the app's tab bar.
+- **Content:** sheet content is present on arrival. A sheet that loads from the network uses the loading gate inside the sheet, never a spinner sheet. **Exception (owner, 2026-11-05):** a modal that sets `reveal: .gate(.sheet)` holds its root page's content hidden during the slide and fades it in together when the slide ends. The centred arc appears only if the content is still not ready 150 ms later ([sheet-reveal](sheet-reveal.md), [content-gate](../patterns/content-gate.md) "Sheet reveal").
+- **Inner motion:** no entrance animations inside sheets (no tiles rising, no tabs sliding, no per-tile or per-glyph entrance; the sheet reveal is one fade of the whole content). Switching a sheet's own tabs (`modalTabBar`) is a cut, like the app's tab bar.
 
 ## 5. Loading and waiting
 - **One spinner design:** the `ArcSpinner`. It only appears where something is genuinely pending:
@@ -131,7 +132,7 @@ Exceptions must be written into this file with the owner's say-so. None exist to
 | `segment` | `.snappy(duration: 0.2)` | The selected capsule gliding between a modal's tabs (`BadgedTabSegment`) |
 | `contentFade` | `.easeInOut(duration: 0.15)` | One panel's content cross-fading when its own tab changes (`SummaryPanel`) |
 | `arrivalStagger` | 0.06 s per item, first screenful only (`Arrival.staggerLimit`, 5 items) | The sign-in arrival |
-| `gate` | per [content-gate](../patterns/content-gate.md) | Loading gate |
+| `gate` | per [content-gate](../patterns/content-gate.md) (`.results`, `.page`, `.sheet`; `.sheet`'s fades are `quick`'s 0.2 s) | Loading gate and the sheet reveal |
 | `Ticker` | 30 pt/s, 1.5 s holds, 0.3 s return, 3 passes, 12 pt edge fades (`MotionTokens.Ticker`) | A label too wide for its column (the Home weather card's condition, the page title in the navigation bar), see the exception below |
 | Navigation | system | Push, sheet, zoom, tab |
 

@@ -637,8 +637,12 @@
    "file": "apple/Sources/HassDesign/Loading/ContentGateModel.swift",
    "pattern": "content-gate",
    "tests": {
-    "swift": [],
-    "journeys": []
+    "swift": [
+     "ContentGate"
+    ],
+    "journeys": [
+     "RoomOverviewRevealJourneyTests"
+    ]
    }
   },
   {

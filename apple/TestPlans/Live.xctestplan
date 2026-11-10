@@ -133,6 +133,7 @@
         "NavigationJourneyTests/testTapsOutsideOpenFlyoutOnlyCloseIt()",
         "PushJourneyTests",
         "ResumeCyclesJourneyTests",
+        "RoomOverviewRevealJourneyTests",
         "SecurityJourneyTests/testSecurityTabLivePassesAccessibilityAudit()",
         "SecurityJourneyTests/testSecurityTabLiveReadsTiles()",
         "SettingsJourneyTests/testHaSettingsDoneClosesModal()",

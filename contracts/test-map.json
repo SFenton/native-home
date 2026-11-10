@@ -40,7 +40,8 @@
   "RoomsWideLayoutJourneyTests",
   "ClimateWideLayoutJourneyTests",
   "BedroomWideLayoutJourneyTests",
-  "SectionSidesJourneyTests"
+  "SectionSidesJourneyTests",
+  "RoomOverviewRevealJourneyTests"
  ],
  "ignore": [
   ".agents/",
@@ -2883,6 +2884,71 @@
    ],
    "layout_journeys": [
     "SectionSidesJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview",
+   "swift": [],
+   "journeys": [
+    "HomeJourneyTests",
+    "RoomOverviewRevealJourneyTests"
+   ],
+   "layout_journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKSheetReveal",
+   "swift": [],
+   "journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ],
+   "layout_journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKContentGate",
+   "swift": [],
+   "journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ],
+   "layout_journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKHassModal",
+   "swift": [],
+   "journeys": [
+    "RoomOverviewRevealJourneyTests",
+    "ModalSizingJourneyTests"
+   ],
+   "layout_journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView",
+   "swift": [],
+   "journeys": [
+    "RoomOverviewRevealJourneyTests",
+    "TileLayoutJourneyTests"
+   ],
+   "layout_journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/Loading/ContentGateModel",
+   "swift": [
+    "ContentGate"
+   ],
+   "journeys": [
+    "RoomOverviewRevealJourneyTests"
+   ],
+   "layout_journeys": [
+    "RoomOverviewRevealJourneyTests"
    ]
   },
   {

@@ -17,20 +17,18 @@ import UIKit
 /// ```
 @MainActor
 final class UKContentGateView: UIView {
-    let model: ContentGateModel
+    /// The phases and timings (shared with the SwiftUI gate and the modal reveal).
+    var model: ContentGateModel { driver.model }
     /// Content inside the gate reports here (``UKReadinessRequirement``).
-    var tracker: ReadinessTracker { model.tracker }
+    var tracker: ReadinessTracker { driver.model.tracker }
     /// Whether the page's data is loaded; flip it as the data arrives.
-    var isReady: Bool { didSet { if isReady != oldValue { restart() } } }
+    var isReady: Bool {
+        get { driver.isReady }
+        set { driver.isReady = newValue }
+    }
 
-    private let content: UIView
-    private let label: String
-    private let bag = UKObservationBag()
-    private var spinner: UKArcSpinnerView?
-    private var advanceTask: Task<Void, Never>?
-    private var appliedPhase: ContentGateModel.Phase
-    private var appliedSpinner = false
-    private var hasShownContent: Bool
+    private let driver: UKContentGateDriver
+    private let centre = UILayoutGuide()
 
     /// - Parameters:
     ///   - page: Names the page in telemetry (`ContentReady` signposts).
@@ -41,36 +39,107 @@ final class UKContentGateView: UIView {
     ///   - content: The page content.
     init(page: String, isReady: Bool, timing: ContentGateModel.Profile = .results, reloadTiming: ContentGateModel.Profile? = nil,
          label: String = "Loading", content: UIView) {
-        model = ContentGateModel(page: page, isReady: isReady, firstLoad: timing, reload: reloadTiming)
-        self.isReady = isReady
-        self.label = label
-        self.content = content
-        appliedPhase = model.phase
-        hasShownContent = isReady
+        let model = ContentGateModel(page: page, isReady: isReady, firstLoad: timing, reload: reloadTiming)
+        driver = UKContentGateDriver(model: model, content: content, arcHost: nil, arcCenter: centre, label: label, isReady: isReady)
         super.init(frame: .zero)
+        driver.arcHost = self
+        addLayoutGuide(centre)
         content.translatesAutoresizingMaskIntoConstraints = false
         addSubview(content)
         NSLayoutConstraint.activate([
             content.topAnchor.constraint(equalTo: topAnchor), content.bottomAnchor.constraint(equalTo: bottomAnchor),
             content.leadingAnchor.constraint(equalTo: leadingAnchor), content.trailingAnchor.constraint(equalTo: trailingAnchor),
+            centre.topAnchor.constraint(equalTo: topAnchor), centre.bottomAnchor.constraint(equalTo: bottomAnchor),
+            centre.leadingAnchor.constraint(equalTo: leadingAnchor), centre.trailingAnchor.constraint(equalTo: trailingAnchor),
         ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+}
+
+/// Draws a ``ContentGateModel`` onto a view tree: the one drawing code behind ``UKContentGateView`` (a page's or a region's own
+/// gate) and the modal reveal (``UKSheetRevealController``).
+///
+/// It hides `content` (alpha 0, no hits, hidden from VoiceOver) while the model is not showing it, fades it in over the profile's
+/// `contentEnter` (rising `contentRise` pt unless Reduce Motion is on), and builds a ``UKArcSpinnerView`` in `arcHost`, centred on
+/// `arcCenter`, only while the model says the arc shows. The arc is laid out the moment it is added, so its first frame is its
+/// centred frame and it never travels in from the origin. The driver observes the model and the readiness tracker itself and calls
+/// ``ContentGateModel/advance(isReady:reduceMotion:)``; its owner keeps it alive and sets ``isReady``.
+@MainActor
+final class UKContentGateDriver {
+    let model: ContentGateModel
+    /// Whether the data is loaded; flip it as it arrives.
+    var isReady: Bool { didSet { if isReady != oldValue { restart() } } }
+    /// Where the arc is added; the gate view sets itself right after `super.init`.
+    weak var arcHost: UIView?
+    /// Whether the arc has drawn at all so far (it decides whether the end announces a layout change).
+    private(set) var arcWasShown = false
+    /// The arc while it exists; nil before it fades in and after it fades out.
+    var arc: UKArcSpinnerView? { spinner }
+
+    private let content: UIView
+    private let arcCenter: UILayoutGuide
+    private let label: String
+    private let bag = UKObservationBag()
+    private var spinner: UKArcSpinnerView?
+    private var advanceTask: Task<Void, Never>?
+    private var appliedPhase: ContentGateModel.Phase
+    private var appliedSpinner = false
+    private var hasShownContent: Bool
+
+    /// - Parameters:
+    ///   - model: The phases to draw.
+    ///   - content: The view that is hidden, then faded in.
+    ///   - arcHost: The view the arc is added to (nil until the owner has one).
+    ///   - arcCenter: The arc's centre, a layout guide in `arcHost`'s hierarchy.
+    ///   - label: What VoiceOver says for the arc ("Loading Climate").
+    ///   - isReady: Whether the data is already there.
+    init(model: ContentGateModel, content: UIView, arcHost: UIView?, arcCenter: UILayoutGuide, label: String, isReady: Bool = true) {
+        self.model = model
+        self.content = content
+        self.arcHost = arcHost
+        self.arcCenter = arcCenter
+        self.label = label
+        self.isReady = isReady
+        appliedPhase = model.phase
+        hasShownContent = model.phase == .idle
         applyPhase(animated: false)
         bag.observe { [weak self] in
             guard let self else { return }
             _ = self.model.phase
             _ = self.model.spinnerShown
-            self.applyPhase(animated: self.window != nil)
+            self.applyPhase(animated: self.content.window != nil)
         }
-        // `.task(id: Input(isReady:, settled:))`: a new advance whenever either input changes.
+        // `.task(id: Input(isReady:, settled:, presented:))`: a new advance whenever any input changes.
         bag.observe { [weak self] in
             guard let self else { return }
-            _ = self.tracker.isSettled
+            _ = self.model.tracker.isSettled
+            _ = self.model.isPresented
             self.restart()
         }
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+    /// Stops the gate: no more advances, the arc removed. The content keeps whatever it shows (a reveal cancelled on dismiss).
+    func cancel() {
+        advanceTask?.cancel()
+        advanceTask = nil
+        bag.removeAll()
+        spinner?.removeFromSuperview()
+        spinner = nil
+    }
+
+    /// The host finished presenting: tells the model and advances at once, rather than waiting for the observation's next turn.
+    func presentationCompleted() {
+        model.presentationCompleted()
+        restart()
+    }
+
+    /// The gate is over (the content has shown): draws the final phase now, so no pending observation is needed, and stops.
+    func settle() {
+        applyPhase(animated: false)
+        cancel()
+    }
 
     private func restart() {
         advanceTask?.cancel()
@@ -90,7 +159,7 @@ final class UKContentGateView: UIView {
         let spinnerShown = model.spinnerShown
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         let contentAlpha: CGFloat = phase == .entering || phase == .idle ? 1 : 0
-        let rise: CGFloat = phase != .idle && phase != .entering ? UKContentReveal.rise(reduceMotion: reduceMotion) : 0
+        let rise: CGFloat = phase != .idle && phase != .entering ? UKContentReveal.rise(reduceMotion: reduceMotion, profile: profile) : 0
         let spinnerAlpha: CGFloat = phase == .loading && spinnerShown ? 1 : 0
         UKContentReveal.setAvailable(content, phase.showsContent)
 
@@ -128,20 +197,26 @@ final class UKContentGateView: UIView {
                 self.spinner = nil
             }
         }
-        // The content was hidden from VoiceOver while it loaded: tell it the layout changed so focus lands on the page.
-        if phase == .idle, previous != .idle { UIAccessibility.post(notification: .layoutChanged, argument: nil) }
+        // The content was hidden from VoiceOver while the arc was up: tell it the layout changed so focus lands on the page. A
+        // reveal that never showed its arc fades in under the sheet's own announcement and says nothing.
+        if phase == .idle, previous != .idle, arcWasShown { UIAccessibility.post(notification: .layoutChanged, argument: nil) }
     }
 
-    /// Built only while it shows, so a fast load never runs the arc at all.
+    /// Built only while it shows, so a fast load never runs the arc at all. Laid out at once, without animation, so the first
+    /// frame it draws is already centred.
     private func ensureSpinner() {
-        guard spinner == nil else { return }
+        guard spinner == nil, let host = arcHost else { return }
         let spinner = UKArcSpinnerView(.page, label: label)
         spinner.accessibilityIdentifier = "contentGate.spinner"
         spinner.alpha = 0
         spinner.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(spinner)
-        NSLayoutConstraint.activate([spinner.centerXAnchor.constraint(equalTo: centerXAnchor), spinner.centerYAnchor.constraint(equalTo: centerYAnchor)])
+        host.addSubview(spinner)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: arcCenter.centerXAnchor), spinner.centerYAnchor.constraint(equalTo: arcCenter.centerYAnchor),
+        ])
+        UIView.performWithoutAnimation { host.layoutIfNeeded() }
         self.spinner = spinner
+        arcWasShown = true
     }
 }
 
@@ -150,8 +225,8 @@ final class UKContentGateView: UIView {
 /// and ``UKHouseLayoutGate`` both use it, so the timings (``ContentGateModel/Profile``), the rise and the availability rules live here.
 @MainActor
 enum UKContentReveal {
-    /// How far held-back content sits below its place before it rises (zero under Reduce Motion, which keeps the fade).
-    static func rise(reduceMotion: Bool) -> CGFloat { reduceMotion ? 0 : 4 }
+    /// How far held-back content sits below its place before it rises (the profile's `contentRise`; zero under Reduce Motion, which keeps the fade).
+    static func rise(reduceMotion: Bool, profile: ContentGateModel.Profile = .page) -> CGFloat { reduceMotion ? 0 : profile.contentRise }
 
     /// Makes `content` reachable (hit testing, VoiceOver) or not.
     static func setAvailable(_ content: UIView, _ available: Bool) {
@@ -183,7 +258,7 @@ enum UKContentReveal {
             completion?()
             return
         }
-        content.transform = CGAffineTransform(translationX: 0, y: rise(reduceMotion: UKDesign.reduceMotion))
+        content.transform = CGAffineTransform(translationX: 0, y: rise(reduceMotion: UKDesign.reduceMotion, profile: profile))
         UIView.animate(withDuration: profile.contentEnter.ukSeconds, delay: delay, options: [.curveEaseOut, .allowUserInteraction], animations: {
             content.alpha = 1
             content.transform = .identity
