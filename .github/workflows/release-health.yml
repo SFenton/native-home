@@ -1,0 +1,98 @@
+name: release-health
+# Silent release failures file one issue each (owner, 2026-11-10; audit E1/E2). Daily and on demand, three classes, one open `Workflow`
+# issue per failing class, a comment only when the cause changes, closed with a comment when the class is healthy again:
+#   no-tag          main has app changes since the newest ios/v* tag and that tag is older than 7 days
+#   release-failed  the newest completed ios-release run on main concluded failure
+#   cert-expiry     the Apple Distribution or Apple Development p12 in the `release-signing` environment expires in under 45 days
+# The decisions live in tools/release_health.py (pure functions, tested without a network); the "app changed since the previous tag"
+# test is versioning.plan_bump, imported from tools/release/versioning.py. Contract: .agents/workflow/ci.md (Release health).
+# The `certs` job is the only one that sees the signing secrets. It decodes each p12 under RUNNER_TEMP, reads `notAfter` with openssl
+# (plain first, then -legacy for p12 files made with RC2/3DES), deletes the files in an always() step and outputs only the two dates.
+# Pause: `gh workflow disable release-health.yml`.
+on:
+  schedule:
+    - cron: '23 5 * * *'   # daily, off the hour (05:23 UTC)
+  workflow_dispatch:
+defaults:
+  run:
+    shell: bash
+jobs:
+  certs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: release-signing   # limited to main; holds the p12 secrets
+    permissions: {}
+    outputs:
+      dist_not_after: ${{ steps.read.outputs.dist_not_after }}
+      dev_not_after: ${{ steps.read.outputs.dev_not_after }}
+    steps:
+      - name: Read the certificate expiry dates
+        id: read
+        env:
+          DIST_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          DIST_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          DEV_P12_BASE64: ${{ secrets.APPLE_DEVELOPMENT_P12_BASE64 }}
+          DEV_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPMENT_P12_PASSWORD }}
+        run: |
+          set -uo pipefail
+          umask 077
+          # not_after OUTPUT_KEY LABEL BASE64 PASSWORD: writes `OUTPUT_KEY=<openssl notAfter date>` to GITHUB_OUTPUT, or nothing when the
+          # p12 is missing or unreadable (a warning names the label, never a value). Nothing here echoes a secret.
+          not_after() {
+            local key="$1" label="$2" b64="$3" end=""
+            local file="$RUNNER_TEMP/$key.p12"
+            if [ -z "$b64" ] || [ -z "$4" ]; then
+              echo "::warning title=release-health::the $label p12 secrets are not set in the release-signing environment"
+              return 0
+            fi
+            if ! printf '%s' "$b64" | base64 -d > "$file" 2> /dev/null; then
+              echo "::warning title=release-health::the $label p12 is not valid base64"
+              return 0
+            fi
+            P12_PASSWORD="$4"
+            export P12_PASSWORD
+            for legacy in "" "-legacy"; do
+              # shellcheck disable=SC2086
+              end="$(openssl pkcs12 $legacy -in "$file" -passin env:P12_PASSWORD -nokeys -clcerts 2> /dev/null | openssl x509 -noout -enddate 2> /dev/null)" || end=""
+              [ -n "$end" ] && break
+            done
+            unset P12_PASSWORD
+            if [ -z "$end" ]; then
+              echo "::warning title=release-health::could not read the $label p12 (wrong password or unsupported format)"
+              return 0
+            fi
+            echo "$key=${end#notAfter=}" >> "$GITHUB_OUTPUT"
+          }
+          not_after dist_not_after "Apple Distribution" "$DIST_P12_BASE64" "$DIST_P12_PASSWORD"
+          not_after dev_not_after "Apple Development" "$DEV_P12_BASE64" "$DEV_P12_PASSWORD"
+          exit 0
+      - name: Delete the decoded p12 files
+        if: always()
+        run: rm -f "$RUNNER_TEMP/dist_not_after.p12" "$RUNNER_TEMP/dev_not_after.p12"
+  health:
+    needs: [certs]
+    if: ${{ always() }}   # a failed or skipped certs job leaves its class unknown; the other two classes still run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      actions: read
+      contents: read
+    concurrency:
+      group: release-health
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Check the three classes and sync the issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DIST_NOT_AFTER: ${{ needs.certs.outputs.dist_not_after }}
+          DEV_NOT_AFTER: ${{ needs.certs.outputs.dev_not_after }}
+        run: |
+          set -euo pipefail
+          python3 tools/release_health.py check --repo "$GITHUB_REPOSITORY" --head origin/main \
+            --dist-not-after "$DIST_NOT_AFTER" --dev-not-after "$DEV_NOT_AFTER" | tee -a "$GITHUB_STEP_SUMMARY"
