@@ -10,7 +10,7 @@ One launch, in order: guard check (worktree hooks equal the trusted checkout's) 
 record -> one blocking ``threads wait`` -> (timeout: ``interrupt``; needs a person: decline / answer, at most N times) -> transcript into the
 log -> ``settle``, ``archive``, kill what still carries the thread id or sits in the worktree -> end-of-session hash check.
 
-Third-party CLI, verified against ``@bvdm/t3code-cli`` **0.3.0** (npm gitHead ``a92548e798225439ab4934110302b9958f69ad7b``, tag ``v0.3.0``;
+Third-party CLI, verified against ``@bvdm/t3code-cli`` **0.3.0** (npm gitHead ``a92548e``, tag ``v0.3.0``;
 README and ``src/cli.ts``, ``src/service.ts``, ``src/doctor.ts``, ``src/cliShared.ts`` at that commit, read 2026-11-10):
 
 * ``handover`` (alias ``threads create``) flags (``cli.ts`` ``addThreadOptions``): ``--stdin``, ``--cwd``, ``--workspace-mode repo|folder``,
