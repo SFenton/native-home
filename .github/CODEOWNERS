@@ -1,0 +1,41 @@
+# Agent files: an edit to any of these needs the owner's review (owner decision D2, 2026-11-10; build/decisions/autonomy-phase0.md).
+# Gitignore-style globs; the last matching line wins, and every line here has the same owner. The ruleset edit that enforces it
+# (require_code_owner_review) is the owner's. tools/tests/test_codeowners_cover.py pins this list against lane_land.DEFAULT_PROTECTED.
+
+# Agent configuration, rules and skills
+/.claude/ @SFenton
+/.agents/workflow/ @SFenton
+/.agents/skills/ @SFenton
+/AGENTS.md @SFenton
+
+# Hooks and the review gate
+/tools/hooks/ @SFenton
+/.githooks/ @SFenton
+/tools/review/ @SFenton
+/tools/review_verdict.py @SFenton
+/tools/ship.sh @SFenton
+/tools/ship_guard.sh @SFenton
+/tools/pr_land.py @SFenton
+/tools/pr_land.sh @SFenton
+/tools/lane_*.py @SFenton
+/tools/ruleset_gate.py @SFenton
+/tools/jev_gate.py @SFenton
+/tools/triage/ @SFenton
+/tools/agent_login.py @SFenton
+
+# Jev contracts and evals
+/contracts/jev/ @SFenton
+/evals/ @SFenton
+
+# CI and the whole .github tree
+/.github/ @SFenton
+
+# Credentials, signing and the release pipeline
+/tools/release/ @SFenton
+/tools/hass_creds.sh @SFenton
+/tools/gh_app_token.py @SFenton
+/tools/devcap.py @SFenton
+/tools/ci_hygiene.py @SFenton
+/tools/release_closure.py @SFenton
+/.gitmodules @SFenton
+/.gitconfig @SFenton

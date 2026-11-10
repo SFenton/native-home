@@ -29,7 +29,7 @@
 #   Git's pre-push hook (.githooks/pre-push) still runs the house denylist on every push; this file only checks that the hook is installed.
 #   After the PR opens ship.sh runs tools/pr_land.py N on native-home: it runs the gates GitHub cannot (kill switch, app-UI gate, denylist, author and fork,
 #   the pass for HEAD, the live ruleset) and arms the squash auto-merge pinned to HEAD. With no pass yet it prints `not armed`, which is expected; the
-#   the reviewer posts `ai-review` after its pass and the orchestrator then arms with tools/pr_land.sh N. GitHub then merges when the required checks pr-checks and ai-review pass; a CI
+#   reviewer posts `ai-review` after its pass and the orchestrator then arms with tools/pr_land.sh N. GitHub then merges when the required checks pr-checks and ai-review pass; a CI
 #   failure means fix, push again, and the new head needs its own review. It then prints the ci_wait.py command for the orchestrator to start in the background. A refusal prints a notice and never changes ship's exit code.
 set -euo pipefail
 
