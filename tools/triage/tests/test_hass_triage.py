@@ -2195,7 +2195,7 @@ class T3LauncherTests(Base):
 
     argv = AgentFlagTests.argv  # captures the argv `_launch` gives Popen
 
-    GOLDEN_HEAD = ["claude", "-p", "--model", "claude-opus-5-5", "--effort", "high", "--permission-mode", "auto", "--output-format",
+    GOLDEN_HEAD = ["claude", "-p", "--model", "claude-fable-5-2", "--effort", "medium", "--permission-mode", "auto", "--output-format",
                    "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools", "Bash(tools/pr_land.sh*),Bash(tools/ship.sh*)",
                    "--disallowedTools"]
 
