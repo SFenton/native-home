@@ -952,6 +952,7 @@ class Runner:
             self._tick_auth = None  # nothing is remembered across ticks
             self.refresh_clone()
             self.check_base("tick")
+            self.retry_lanes()
             try:  # an alert that cannot be filed never stops the rest of the tick
                 self.check_ha_changes()
             except Exception as exc:  # noqa: BLE001
@@ -1784,7 +1785,7 @@ class Runner:
             except Exception as exc:  # noqa: BLE001 (an unexpected failure leaves the lane for the next look)
                 results[lane] = "error"
                 print(f"{label}: landing {lane} failed: {redact(str(exc))[:300]}")
-            resolved = resolved and results[lane] in ("merged", "filed")
+            resolved = resolved and results[lane] in ("merged", "filed", "retry")
         self.state.data.setdefault("lanes", {}).setdefault(label, {}).update(results)
         return resolved
 
@@ -1803,7 +1804,8 @@ class Runner:
         return mine
 
     def land_lane(self, lane: str, base: str, label: str, expected_sha: str = "") -> str:
-        """Review, check, test and merge one lane (exactly ``expected_sha`` when given). Returns ``merged``, ``filed`` (an issue explains the refusal) or ``paused``."""
+        """Review, check, test and merge one lane (exactly ``expected_sha`` when given). Returns ``merged``, ``filed`` (an issue explains
+        the refusal), ``retry`` (a first ``base`` refusal: the lane is retried once on a later tick, see ``retry_lanes``) or ``paused``."""
         if not self.check_base("before landing"):
             return "paused"
         try:
@@ -1825,8 +1827,19 @@ class Runner:
                 paused = not self.check_base("during landing")
                 print_once(f"lane:base:{lane}", f"{label}: {lane} not landed: {exc}")
                 if not paused and base == str(self.cfg.get("product_base") or "") and not self.base_absent(base):
-                    # a shared base moved only by merged pull requests: nothing paused, so the lane must not vanish; an issue
-                    # (no ``On Hold``) lets the Steward re-lane it on the new base
+                    # a shared base moved only by merged pull requests: nothing paused, so the lane must not vanish. The first
+                    # refusal of a lane at this SHA is retried once on a later tick; the second files an issue (no ``On Hold``)
+                    # that lets the Steward re-lane it on the new base
+                    retries = self.state.data.setdefault("lane_retries", {})
+                    pending = retries.get(lane)
+                    if expected_sha and not (pending and pending.get("sha") == expected_sha):
+                        retries[lane] = {"lane": lane, "base": base, "label": str(label), "sha": expected_sha, "attempts": 1,
+                                         "at": datetime.now(timezone.utc).isoformat()}
+                        self.state.save()
+                        print(f"{label}: {lane} not landed (base moved); retrying once on a later tick")
+                        return "retry"
+                    retries.pop(lane, None)
+                    self.state.save()
                     self.file_lane_issue(lane, label, str(exc), "base", False)
                     return "filed"
                 return "paused"
@@ -1855,6 +1868,35 @@ class Runner:
             print(f"could not list the files of {lane}: {redact(str(exc))[:200]}")
         self.testflight_after(changed, base, f"lane {lane}")
         return "merged"
+
+    def retry_lanes(self) -> None:
+        """Retry, once, each lane a ``base`` refusal parked in ``state["lane_retries"]``. Runs on a tick, not paused, through the
+        normal ``land_lane`` (review, protected paths, tests, base record). The entry is dropped when the lane merges, is refused or
+        filed (a second ``base`` refusal files the issue) or moved on origin since (filed); it stays while a kill switch is on."""
+        retries = self.state.data.get("lane_retries") or {}
+        if not retries or self.dry_run:
+            return
+        if self.retro_paused():
+            print_once("lane-retry:paused", "lane retries wait: a kill switch is on")
+            return
+        tips = self.lane_refs()
+        if tips is None:
+            return
+        for lane, entry in list(retries.items()):
+            sha, base, label = str(entry.get("sha") or ""), str(entry.get("base") or ""), str(entry.get("label") or "")
+            if tips.get(lane) != sha:
+                retries.pop(lane, None)
+                self.file_lane_issue(lane, label, "lane moved before retry", "base", False)
+                continue
+            try:
+                outcome = self.land_lane(lane, base, label, sha)
+            except Exception as exc:  # noqa: BLE001 (a retry that errors is filed, never looped)
+                retries.pop(lane, None)
+                self.file_lane_issue(lane, label, f"retry failed: {redact(str(exc))[:300]}", "base", False)
+                continue
+            if outcome != "paused":
+                retries.pop(lane, None)
+        self.state.save()
 
     def file_lane_issue(self, lane: str, label: str, reason: str, kind: str, hold: bool) -> None:
         """A lane the runner refused or failed to merge becomes a request-repo issue: ``Workflow`` (+ ``On Hold`` for a fixed-set

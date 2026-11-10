@@ -1249,6 +1249,85 @@ class RequestSnapshotTests(Base):
         self.assertEqual(seen, {"text": "[Bug] Thing 12\nIt broke", "other": None})
 
 
+class LaneBaseRetryTests(Base):
+    """A lane refused ``base`` (main moved twice in one landing) is retried once on a later tick; a second refusal files."""
+
+    LANE, SHA = "agents/x", "a" * 40
+
+    def setup_runner(self):
+        runner = self.runner(FakeGitHub([]))
+        runner.cfg["product_base"] = "main"
+        patches = [mock.patch.object(ht.lane_land, "land", side_effect=self.refuse),
+                   mock.patch.object(runner, "check_base", return_value=True),
+                   mock.patch.object(runner, "base_absent", return_value=False),
+                   mock.patch.object(runner, "land_clone", return_value=Path("/x")),
+                   mock.patch.object(runner, "lane_refs", return_value={self.LANE: self.SHA}),
+                   mock.patch.object(runner, "retro_paused", return_value=False),
+                   mock.patch.object(runner, "record_landing"), mock.patch.object(runner, "testflight_after"),
+                   mock.patch.object(runner, "file_lane_issue")]
+        mocks = [p.start() for p in patches]
+        for p in patches:
+            self.addCleanup(p.stop)
+        return runner, mocks[0], mocks[-1]
+
+    def refuse(self, *a, **kw):
+        raise ht.lane_land.Refused("main moved twice", "base")
+
+    def merge(self, *a, **kw):
+        return {"merge": "b" * 40, "parent": "c" * 40}
+
+    def test_first_base_refusal_records_a_retry_and_files_nothing(self):
+        runner, land, filed = self.setup_runner()
+        self.assertEqual(runner.land_lane(self.LANE, "main", "R-1", self.SHA), "retry")
+        filed.assert_not_called()
+        entry = runner.state.data["lane_retries"][self.LANE]
+        self.assertEqual((entry["sha"], entry["base"], entry["label"], entry["attempts"]), (self.SHA, "main", "R-1", 1))
+
+    def test_retry_then_merge_files_nothing_and_drops_the_entry(self):
+        runner, land, filed = self.setup_runner()
+        runner.land_lane(self.LANE, "main", "R-1", self.SHA)
+        land.side_effect = self.merge
+        runner.retry_lanes()
+        self.assertEqual(land.call_count, 2)
+        self.assertEqual(land.call_args.kwargs["expected_sha"], self.SHA)
+        filed.assert_not_called()
+        self.assertEqual(runner.state.data["lane_retries"], {})
+
+    def test_retry_refused_base_again_files_once_and_drops_the_entry(self):
+        runner, land, filed = self.setup_runner()
+        runner.land_lane(self.LANE, "main", "R-1", self.SHA)
+        runner.retry_lanes()
+        filed.assert_called_once()
+        self.assertEqual(filed.call_args.args[3], "base")
+        self.assertEqual(runner.state.data["lane_retries"], {})
+        runner.retry_lanes()  # nothing left to retry
+        filed.assert_called_once()
+
+    def test_kill_switch_on_the_retry_tick_attempts_no_landing_and_keeps_the_entry(self):
+        runner, land, filed = self.setup_runner()
+        runner.land_lane(self.LANE, "main", "R-1", self.SHA)
+        with mock.patch.object(runner, "retro_paused", return_value=True):
+            runner.retry_lanes()
+        self.assertEqual(land.call_count, 1)
+        filed.assert_not_called()
+        self.assertIn(self.LANE, runner.state.data["lane_retries"])
+
+    def test_lane_moved_before_the_retry_is_filed_and_dropped(self):
+        runner, land, filed = self.setup_runner()
+        runner.land_lane(self.LANE, "main", "R-1", self.SHA)
+        with mock.patch.object(runner, "lane_refs", return_value={self.LANE: "d" * 40}):
+            runner.retry_lanes()
+        self.assertEqual(land.call_count, 1)
+        filed.assert_called_once()
+        self.assertIn("lane moved before retry", filed.call_args.args[2])
+        self.assertEqual(runner.state.data["lane_retries"], {})
+
+    def test_a_refusal_without_a_pinned_sha_files_as_before(self):
+        runner, land, filed = self.setup_runner()
+        self.assertEqual(runner.land_lane(self.LANE, "main", "R-1"), "filed")
+        filed.assert_called_once()
+
+
 class LevelRaiseTests(Base):
     """Jev ``design.user_visible`` raises L0 to L1 at intake; it never lowers a level."""
 
