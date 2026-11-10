@@ -42,7 +42,57 @@ extension UITraitCollection {
     var ukIsAccessibilitySize: Bool { preferredContentSizeCategory.isAccessibilityCategory }
 }
 
+extension UILabel {
+    /// Sets the label's text with a paragraph style that wraps between words and never hyphenates (section-sides V1: a chip wraps at word
+    /// boundaries). Hyphenation is a paragraph-style setting, not a label property, so the text goes in as an attributed string whose
+    /// only attribute is that style: the label's own font, colour and (natural) alignment still apply, and a later `font` or `textColor`
+    /// change restyles it.
+    /// - Parameter text: The text; nil clears it.
+    func ukSetWrappedText(_ text: String?) {
+        guard let text else { attributedText = nil; return }
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byWordWrapping
+        style.hyphenationFactor = 0
+        style.usesDefaultHyphenation = false
+        attributedText = NSAttributedString(string: text, attributes: [.paragraphStyle: style])
+    }
+}
+
 extension UIView {
+    /// Tells every container above this view that the view's measured size may have changed (new text, symbol or font): each ancestor
+    /// is flagged for layout and a new intrinsic size, and the grids above measure their tiles again. A rail, flow or column measures
+    /// its children only in its own layout pass and writes their frames, so a child that invalidates just itself keeps a stale frame
+    /// (a chip that wraps "Occupan-/cy" inside a one-line capsule; `.agents/patterns/status-rail.md`).
+    ///
+    /// The one helper for this: grids, tiles, chips and pills all use it (there is no second ancestor walk).
+    /// - Parameter includingSelf: Also flags this view itself, for a grid asking to be measured again.
+    func ukRemeasureContainers(includingSelf: Bool = false) {
+        var view: UIView? = includingSelf ? self : superview
+        while let current = view {
+            (current as? UKDynamicGridView)?.invalidateMeasure()
+            current.setNeedsLayout()
+            current.invalidateIntrinsicContentSize()
+            view = current.superview
+        }
+    }
+
+    /// ``ukRemeasureContainers(includingSelf:)`` when this view's size at an unbounded width differs from `last` (a text tick that keeps
+    /// the size, "72°" to "73°", does nothing). The size is recorded even with no window, and the walk happens even then: the flags stay
+    /// until the page is next laid out, so a change made off-window is never dropped.
+    /// - Parameters:
+    ///   - last: The size the containers were last told about; updated.
+    ///   - width: The width to measure at: unbounded for a view that sizes to its content (a chip), the current width for one that fills its
+    ///     container and wraps (a pill).
+    /// - Returns: Whether the size changed.
+    @discardableResult
+    func ukRemeasureContainers(ifSizeChangedFrom last: inout CGSize, atWidth width: CGFloat = 10_000) -> Bool {
+        let now = sizeThatFits(CGSize(width: width, height: 10_000))
+        guard now != last else { return false }
+        last = now
+        ukRemeasureContainers()
+        return true
+    }
+
     /// Runs `change` now and again whenever the content size category changes.
     func ukOnContentSizeChange(_ change: @escaping @MainActor () -> Void) {
         change()
@@ -177,8 +227,8 @@ enum UKDesign {
     /// Holds every continuous animation still (`EnvironmentValues.animationsPaused`): galleries and UI tests only.
     static var animationsPaused = false
 
-    /// Reduce Motion is on.
-    static var reduceMotion: Bool { UIAccessibility.isReduceMotionEnabled }
+    /// Reduce Motion is on: ``UKMotion/reduceMotion``, the one place it is read (debug builds let tests force it).
+    static var reduceMotion: Bool { UKMotion.reduceMotion }
 
     /// Tiles draw the solid finish: Reduce Transparency or Increase Contrast (`TileFinish.effective`).
     static func effectiveFinish(_ preferred: TileFinish, traits: UITraitCollection) -> TileFinish {

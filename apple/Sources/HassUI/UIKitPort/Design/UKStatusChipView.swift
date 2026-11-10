@@ -27,6 +27,8 @@ final class UKStatusChipView: UIControl {
     private var summary = ""
     private var hasAction = false
     private var onTap: (() -> Void)?
+    /// The size the containers above were last told about (``UIView/ukRemeasureContainers(ifSizeChangedFrom:)``).
+    private var measured = CGSize.zero
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -56,6 +58,7 @@ final class UKStatusChipView: UIControl {
             iconView.image = UKFont.symbol(symbol, style: .body, weight: .semibold, filled: fill != nil, traits: traitCollection)
             setNeedsLayout()
             invalidateIntrinsicContentSize()
+            ukRemeasureContainers(ifSizeChangedFrom: &measured)
         }
         NotificationCenter.default.addObserver(self, selector: #selector(transparencyChanged),
                                                name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
@@ -88,19 +91,17 @@ final class UKStatusChipView: UIControl {
         onTap = action
         hasAction = action != nil
         isUserInteractionEnabled = hasAction
-        titleLabel.text = title
-        summaryLabel.text = summary
+        titleLabel.ukSetWrappedText(title)
+        summaryLabel.ukSetWrappedText(summary)
         iconView.image = UKFont.symbol(symbol, style: .body, weight: .semibold, filled: newFill != nil, traits: traitCollection)
         applyColors(animated: animated && colorsChanged && window != nil)
         updateAccessibility()
         if textChanged {
             setNeedsLayout()
             invalidateIntrinsicContentSize()
-            // The rail around the chip measures it again.
-            superview?.setNeedsLayout()
-            superview?.superview?.setNeedsLayout()
-            superview?.superview?.superview?.setNeedsLayout()
         }
+        // The rail around the chip measures it again when the chip's size changed.
+        ukRemeasureContainers(ifSizeChangedFrom: &measured)
     }
 
     private func applyColors(animated: Bool) {
@@ -168,6 +169,12 @@ final class UKStatusChipView: UIControl {
         let alignment: NSTextAlignment = mirror ? .right : .left
         titleLabel.textAlignment = alignment
         summaryLabel.textAlignment = alignment
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // Traits (and so fonts) can reach a chip only once it is in a window.
+        if window != nil { ukRemeasureContainers(ifSizeChangedFrom: &measured) }
     }
 
     override var isHighlighted: Bool {

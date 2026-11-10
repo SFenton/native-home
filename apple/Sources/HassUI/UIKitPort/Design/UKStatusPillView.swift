@@ -66,6 +66,9 @@ final class UKStatusPillView: UIView, UKGridMeasuring {
         refresh(animated: toneChanged)
     }
 
+    /// The size the containers above were last told about (``UIView/ukRemeasureContainers(ifSizeChangedFrom:)``).
+    private var measured = CGSize.zero
+
     private func refresh(animated: Bool) {
         iconView.image = UKFont.symbol(symbol, style: .body, traits: traitCollection)
         labelView.font = UKFont.preferred(.footnote, traits: traitCollection)
@@ -88,6 +91,8 @@ final class UKStatusPillView: UIView, UKGridMeasuring {
         accessibilityValue = valuesPending ? StatusPill.pendingValue : StatusPill.accessibilityValue(value: value, detail: detail)
         setNeedsLayout()
         invalidateIntrinsicContentSize()
+        // Text, symbol or size category changed the pill's size: the containers above measure it again (a live tick that keeps it does nothing).
+        ukRemeasureContainers(ifSizeChangedFrom: &measured, atWidth: bounds.width > 0 ? bounds.width : 10_000)
     }
 
     private struct Frames {
@@ -131,6 +136,11 @@ final class UKStatusPillView: UIView, UKGridMeasuring {
     }
 
     func gridHeight(forWidth width: CGFloat) -> CGFloat { frames(width: width).size.height }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { ukRemeasureContainers(ifSizeChangedFrom: &measured, atWidth: bounds.width > 0 ? bounds.width : 10_000) }
+    }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize { frames(width: size.width).size }
 

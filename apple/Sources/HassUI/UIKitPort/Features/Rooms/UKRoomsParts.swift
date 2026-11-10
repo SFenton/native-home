@@ -42,26 +42,8 @@ final class UKRoomsViewer {
 
 extension UKDynamicGridView {
     /// Measures every tile again, up through the grids and columns around this one: a tile whose text now wraps differently changed its
-    /// height, and a grid keeps its measured tracks until told.
-    func remeasure() {
-        var view: UIView? = self
-        while let current = view {
-            if let grid = current as? UKDynamicGridView { grid.invalidateMeasure() }
-            current.setNeedsLayout()
-            view = current.superview
-        }
-    }
-}
-
-extension UIView {
-    /// Tells the grids above that this view's height may have changed.
-    func ukHeightMayHaveChanged() {
-        var view = superview
-        while let current = view {
-            if let grid = current as? UKDynamicGridView { grid.remeasure(); return }
-            view = current.superview
-        }
-    }
+    /// height, and a grid keeps its measured tracks until told. (``UIView/ukRemeasureContainers(includingSelf:)`` is the one walk.)
+    func remeasure() { ukRemeasureContainers(includingSelf: true) }
 }
 
 // MARK: - Status chip
@@ -79,6 +61,8 @@ final class UKRoomChipView: UIControl {
     private var symbol = ""
     private var tint: ChipTint?
     private var handler: (() -> Void)?
+    /// The size the containers above were last told about (``UIView/ukRemeasureContainers(ifSizeChangedFrom:)``).
+    private var measured = CGSize.zero
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -95,10 +79,13 @@ final class UKRoomChipView: UIControl {
         titleLabel.textColor = .white
         titleLabel.numberOfLines = 0
         summaryLabel.numberOfLines = 0
-        for label in [titleLabel, summaryLabel] { label.isUserInteractionEnabled = false }
+        for label in [titleLabel, summaryLabel] {
+            label.isUserInteractionEnabled = false
+            label.lineBreakMode = .byWordWrapping
+        }
         [ground, tintGround, icon, titleLabel, summaryLabel].forEach(addSubview)
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
-        ukOnContentSizeChange { [weak self] in self?.restyleFonts() }
+        ukOnContentSizeChange { [weak self] in self?.restyleFonts(remeasuring: true) }
     }
 
     @available(*, unavailable)
@@ -109,10 +96,9 @@ final class UKRoomChipView: UIControl {
     func configure(title: String, summary: String, symbol: String, family: ColorFamily?, isActive: Bool, tint: ChipTint?,
                    action: (() -> Void)?, animated: Bool = true) {
         let fill = StatusChipStyle.fillTint(family, isActive: isActive, tint: tint)
-        let sizeChanged = titleLabel.text != title || summaryLabel.text != summary || self.symbol != symbol
         UKMotion.stateFade("StatusChip", view: self, animated: animated) { [self] in
-            titleLabel.text = title
-            summaryLabel.text = summary
+            titleLabel.ukSetWrappedText(title)
+            summaryLabel.ukSetWrappedText(summary)
             self.symbol = symbol
             self.tint = fill
             ground.alpha = fill == nil ? 1 : 0
@@ -120,7 +106,7 @@ final class UKRoomChipView: UIControl {
             if let fill { tintGround.backgroundColor = UIColor(rgb: fill.fill) }
             summaryLabel.textColor = fill != nil ? .white : UIColor(HassTokens.RGB.Surface.secondaryOnModule)
             icon.tintColor = fill.map { UIColor(rgb: $0.glyph) } ?? UIColor(HassTokens.RGB.Surface.secondaryOnModule)
-            restyleFonts()
+            restyleFonts(remeasuring: false)
         }
         handler = action
         accessibilityLabel = "\(title), \(summary)"
@@ -134,18 +120,29 @@ final class UKRoomChipView: UIControl {
             accessibilityHint = nil
         }
         isEnabled = true
-        if sizeChanged { invalidateIntrinsicContentSize(); setNeedsLayout() }
+        // Text, symbol and fill (the filled glyph is a different image) can all change the size: compare, then tell the rail.
+        invalidateIntrinsicContentSize()
+        setNeedsLayout()
+        ukRemeasureContainers(ifSizeChangedFrom: &measured)
     }
 
-    private func restyleFonts() {
+    /// - Parameter remeasuring: Whether the containers above measure the chip again (a font change; `configure` does it itself, and only
+    ///   when the text or symbol changed).
+    private func restyleFonts(remeasuring: Bool) {
         titleLabel.font = UKFont.rowTitle(traitCollection)
         summaryLabel.font = UKFont.preferred(.subheadline, monospacedDigit: true, traits: traitCollection)
         icon.image = UKFont.symbol(symbol, style: .body, weight: .semibold, filled: tint != nil, traits: traitCollection)
         setNeedsLayout()
         invalidateIntrinsicContentSize()
+        if remeasuring { ukRemeasureContainers(ifSizeChangedFrom: &measured) }
     }
 
     @objc private func tapped() { handler?() }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { ukRemeasureContainers(ifSizeChangedFrom: &measured) }
+    }
 
     override var isHighlighted: Bool {
         didSet { alpha = isHighlighted && handler != nil ? 0.7 : 1 }

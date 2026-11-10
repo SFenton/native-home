@@ -8,3 +8,4 @@
 - First used by Sprinklers.
 - In a grouped `List` (for example a sheet), pass `surface: .groupedList`, which draws a solid row fill. A material over a sheet's glass smeared the content behind it (seen 2026-10-11 in the sprinkler sheet).
 - Lay-out sizes: pill titles are `.footnote` or larger, never `.caption` (owner, 2026-10-24: value text stays off the smallest styles).
+- **A pill that changes size tells its container (2026-11-05).** `UKStatusPillView.refresh` and `didMoveToWindow` call `ukRemeasureContainers(ifSizeChangedFrom:atWidth:)` (the pill's current width, since it wraps): a value that now wraps grows the pill and the `UKDynamicGridView` above it drops its cached tracks, also when the change happened while the page was off-window. A live tick that keeps the size does nothing. Tests: `UKHostedChipUndersizedTests` (pills in a grid, changed hosted and off-window).
