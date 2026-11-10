@@ -51,7 +51,13 @@ The whole pipeline runs on a GitHub-hosted macOS runner (the `xcode-27` image, a
 
 ### Dry run
 
-Locally: `tools/release/ios_ipa_build.sh ios/v<version> <build> --upload --dry-run` prints the upload `xcodebuild -exportArchive` command (no key is read); without `--upload` it prints the archive and export. A `--dry-run` of the manual script: `tools/release/testflight_upload.sh --dry-run --tag ios/v…`.
+How to test the pipeline without shipping. `ios-release.yml` has no **dry_run** ticked option (the retired TestFlight workflow had one), so a dry run is local, and a real run always ships:
+
+- `tools/release/ios_ipa_build.sh ios/v<version> <build> --dry-run` prints the archive and export commands without running them.
+- `tools/release/ios_ipa_build.sh ios/v<version> <build> --upload --dry-run` prints the TestFlight upload `xcodebuild -exportArchive` command (no key is read, nothing is sent).
+- `tools/release/testflight_upload.sh --dry-run --tag ios/v…` does the same for the manual script.
+- The workflow's own checks run in `pr-checks` as lint tests (`tools/release/tests/test_release_workflows.py`): the upload step's order and absence of a gate, the secrets, the retired path.
+- To rehearse on the runner, "Run workflow" with `tag` rebuilds an existing version and uploads it again (a new build number, so it is a real upload to the Internal group); to stop anything shipping, `gh workflow disable ios-release.yml` first.
 
 ### Release pipeline: owner checklist
 
