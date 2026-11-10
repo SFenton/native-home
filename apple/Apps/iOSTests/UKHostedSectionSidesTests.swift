@@ -88,7 +88,7 @@ final class UKHostedSectionSidesTests: DemoHouseTestCase {
         assertNoSectionCrossesTheBand("Custom Lights", customLights)
         assertNoSectionCrossesTheBand("Sprinklers", sprinklers)
         assertNoSectionCrossesTheBand("Media", media)
-        for id in ["living-room", "kitchen", "back-deck", "master-bedroom", "garage"] {
+        for id in ["living-room", "kitchen", "back-deck", "bedroom-1", "garage"] {
             assertNoSectionCrossesTheBand("Room \(id)", room(id))
         }
     }
