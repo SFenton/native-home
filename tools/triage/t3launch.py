@@ -66,7 +66,12 @@ WAIT_SLACK = 180
 
 
 class LaunchError(Exception):
-    """The launch cannot start or cannot be made safe; nothing is running (or the thread was interrupted)."""
+    """The launch cannot start or cannot be made safe; nothing is running (or the thread was interrupted). ``stray`` is true when
+    reaping a thread the failed handover may have left found a process it could not kill."""
+
+    def __init__(self, message: str, stray: bool = False):
+        super().__init__(message)
+        self.stray = stray
 
 
 class Outcome(NamedTuple):
@@ -230,10 +235,9 @@ def tree_digests(repo: Path) -> Dict[str, str]:
             out[rel] = "unreadable"
 
     for folder, dirs, files in os.walk(base / "tools" / "hooks"):
-        dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+        dirs[:] = sorted(d for d in dirs if d != "__pycache__")  # only a __pycache__ folder is skipped: a bare json.pyc shadows json too
         for name in sorted(files) + [d for d in dirs if (Path(folder) / d).is_symlink()]:
-            if not name.endswith(".pyc"):
-                add(Path(folder) / name)
+            add(Path(folder) / name)
     if (base / ".claude" / "settings.json").exists():
         add(base / ".claude" / "settings.json")
     return out
@@ -258,11 +262,11 @@ def ready(agent: Mapping[str, Any], root: Path, trusted: Optional[Path] = None, 
     if not (os.path.isfile(exe) and os.access(exe, os.X_OK)):
         return False, f"t3code is not installed at {exe}; run: python3 tools/triage/hass_triage.py install-t3code"
     prefix = root.joinpath(*INSTALL_DIR)
-    try:  # the install recorded its lockfile's hash; a changed lockfile means dependencies moved
+    try:  # the install recorded its lockfile's hash; a missing record or a changed lockfile means the install is not the audited one
         if (prefix / "LOCK.sha256").read_text().strip() != hashlib.sha256((prefix / "package-lock.json").read_bytes()).hexdigest():
             return False, "the t3code lockfile changed since install-t3code; run it again"
     except OSError:
-        pass
+        return False, "the t3code install has no recorded lockfile hash; run: python3 tools/triage/hass_triage.py install-t3code"
     try:
         version = (run([exe, "--version"], capture_output=True, text=True, env=dict(env) if env else None).stdout or "").strip()
         report = data_of(run([exe, "--json", "doctor"], capture_output=True, text=True, env=dict(env) if env else None))
@@ -332,12 +336,12 @@ class Launcher:
         if not isinstance(thread, str) or not thread:
             # T3 may still start the thread (a timed-out CLI, THREAD_START_FAILED "server-managed"): the record stays, and any thread
             # at this worktree is interrupted and reaped. Only the runner's worktree cleanup removes the record.
-            found = self.failed_thread(proc, worktree)
+            found, stray = self.failed_thread(proc, worktree), False
             if found:
                 self.stop(found)
-                self.reap(found, worktree)
+                stray = self.reap(found, worktree)
             session.set_state(worktree, "ended", root)
-            raise LaunchError(f"t3code handover failed (exit {proc.returncode}): {(proc.stderr or '')[:200].strip()}")
+            raise LaunchError(f"t3code handover failed (exit {proc.returncode}): {(proc.stderr or '')[:200].strip()}", stray)
         digest, with_thread, code, problem = written.digest, False, 1, ""
         try:
             log.parent.mkdir(parents=True, exist_ok=True)

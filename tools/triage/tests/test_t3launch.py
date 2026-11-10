@@ -4,6 +4,7 @@ Run from the repository root: python3 -m unittest discover -s tools/triage/tests
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -169,6 +170,17 @@ class RegistrationTests(Base):
                 self.assertEqual(interrupted[0][-1], THREAD)
                 self.assertIn("threads archive", fake.keys())
 
+    def test_a_failed_handover_keeps_its_stray_result(self):
+        """Fails if: a process the reap of a failed handover's thread could not kill is dropped, so the runner thinks nothing is left."""
+        fake = Fake(self, handover=done("", 1, json.dumps({"error": {"details": {"threadId": THREAD}}})), ps=done("", 127))
+        with self.assertRaises(t3launch.LaunchError) as raised:
+            self.go(fake)
+        self.assertTrue(raised.exception.stray)
+        fake = Fake(self, handover=done("", 1, "boom"), ps=done(""), lsof=done(""))
+        with self.assertRaises(t3launch.LaunchError) as raised:
+            self.go(fake)
+        self.assertFalse(raised.exception.stray)
+
     def test_a_failed_handover_with_no_thread_anywhere_keeps_the_record_and_interrupts_nothing(self):
         fake = Fake(self, handover=done("", 1, "boom"), **{"threads list": ok(threads=[{"id": "x", "worktreePath": "/elsewhere"}])})
         with self.assertRaises(t3launch.LaunchError):
@@ -272,22 +284,32 @@ class SessionTests(Base):
     def test_settings_and_a_changed_or_deleted_hook_are_tampering_too(self):
         edits = {"settings": lambda: (self.work / ".claude" / "settings.json").write_text("{}"),
                  "other hook": lambda: (self.work / "tools" / "hooks" / "extra_guard.py").unlink(),
-                 "pyc ignored": lambda: None}
+                 "bare pyc": lambda: (self.work / "tools" / "hooks" / "json.pyc").write_bytes(b"\0"),
+                 "pyc in a subfolder": lambda: (self.work / "tools" / "hooks" / "sub").mkdir() or
+                 (self.work / "tools" / "hooks" / "sub" / "x.pyc").write_bytes(b"\0")}
         (self.work / "tools" / "hooks" / "extra_guard.py").write_text("x = 1\n")
         checkout_extra = self.trusted / "tools" / "hooks" / "extra_guard.py"
         checkout_extra.write_text("x = 1\n")
         for name, edit in edits.items():
             with self.subTest(name):
                 out = self.go(self.happy(**{"threads wait!": edit}))
-                self.assertEqual(out.tampered, name != "pyc ignored")
+                self.assertTrue(out.tampered)
+                shutil.rmtree(self.work / "tools" / "hooks" / "sub", ignore_errors=True)
+                (self.work / "tools" / "hooks" / "json.pyc").unlink(missing_ok=True)
                 (self.work / "tools" / "hooks" / "extra_guard.py").write_text("x = 1\n")
                 checkout(self.work)
 
-    def test_caches_are_not_tampering(self):
+    def test_a_bare_pyc_shadowing_the_stdlib_is_refused_at_launch(self):
+        """Fails if: every .pyc is skipped, so tools/hooks/json.pyc (which Python imports ahead of the stdlib) goes unseen."""
+        (self.work / "tools" / "hooks" / "json.pyc").write_bytes(b"\0")
+        with self.assertRaises(t3launch.LaunchError) as raised:
+            self.go(self.happy())
+        self.assertIn("tools/hooks/json.pyc", str(raised.exception))
+
+    def test_only_a_pycache_folder_is_skipped(self):
         cache = self.work / "tools" / "hooks" / "__pycache__"
         cache.mkdir()
         (cache / "x.cpython-39.pyc").write_bytes(b"\0")
-        (self.work / "tools" / "hooks" / "y.pyc").write_bytes(b"\0")
         self.assertFalse(self.go(self.happy()).tampered)
 
     def test_a_record_changed_or_removed_during_the_session_is_tampering(self):
@@ -338,6 +360,9 @@ class ReadyTests(Base):
         self.exe.parent.mkdir(parents=True)
         self.exe.write_text("#!/bin/sh\n")
         self.exe.chmod(0o755)
+        prefix = self.exe.parents[2]
+        (prefix / "package-lock.json").write_text("{}")
+        (prefix / "LOCK.sha256").write_text(hashlib.sha256(b"{}").hexdigest() + "\n")
 
     def check(self, version="0.3.0", doctor=None, trusted=True, agent=None):
         report = doctor if doctor is not None else ok(checks={"orchestrationProtocol": {"ok": True}, "t3Cli": {"ok": True}})
@@ -382,10 +407,13 @@ class ReadyTests(Base):
         """Fails if: the recorded LOCK.sha256 is never compared, so floating dependencies move unseen."""
         prefix = self.exe.parents[2]
         (prefix / "package-lock.json").write_text("{}")
-        (prefix / "LOCK.sha256").write_text(__import__("hashlib").sha256(b"{}").hexdigest() + "\n")
+        (prefix / "LOCK.sha256").write_text(hashlib.sha256(b"{}").hexdigest() + "\n")
         self.assertEqual(self.check(), (True, ""))
         (prefix / "package-lock.json").write_text('{"changed": 1}')
         self.assertIn("lockfile changed", self.check()[1])
+        (prefix / "LOCK.sha256").unlink()  # no record of the audited install: not ready either
+        self.assertEqual(self.check()[0], False)
+        self.assertIn("no recorded lockfile hash", self.check()[1])
 
     def test_a_bad_config_is_not_ready(self):
         self.assertIs(self.check(agent={"t3": {"checkout": "worktree"}})[0], False)

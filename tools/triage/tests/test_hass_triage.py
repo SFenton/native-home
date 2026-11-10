@@ -2349,6 +2349,39 @@ class T3LauncherTests(Base):
         self.assertIn("pull/70 had already merged", body)
         self.assertNotIn("Merging", ht.label_names(gh.issues[31]))
 
+    def test_stray_processes_alone_also_block_and_disarm_the_pull_request(self):
+        """Fails if: a T3 session that left a process behind keeps an auto-merge it armed, because only guard_tampered undid it."""
+        gh = FakeGitHub([issue(33)])
+        pr = "https://github.com/SFenton/native-home/pull/78"
+        gh.branch_pull_list = [{"url": pr, "state": "OPEN", "labels": []}]
+        runner = self.runner(gh, {"state": "done", "summary": "x", "pr": PRODUCT_PR, "tests_passed": True})
+        plain = runner.launch
+
+        def straying(*args):
+            code = plain(*args)
+            runner.t3_stray = True
+            return code
+
+        runner.launch = straying
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.work(33), "blocked")
+        self.assertIn(("disarm", pr), gh.calls)
+        self.assertIn("blocked:stray", [h["outcome"] for h in runner.state.data["history"]])
+
+    def test_a_launch_error_that_found_a_stray_is_a_stray(self):
+        runner = self.runner_for(launcher="t3code")
+        tree = self.worktree()
+        with mock.patch.object(ht.t3launch, "Launcher") as launcher, mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            launcher.return_value.launch.side_effect = ht.t3launch.LaunchError("handover failed", True)
+            self.assertEqual(runner._launch(7, tree, "p", self.home / "logs" / "7-1.log"), 1)
+        self.assertTrue(runner.t3_stray)
+
+    def test_the_t3_install_folder_is_denied_to_the_session(self):
+        extra = self.cfg["agent"]["t3"]["extra_denied"]
+        self.assertIn("Write(~/hass-agents/tools/t3code/**)", extra)
+        self.assertIn("Edit(~/hass-agents/tools/t3code/**)", extra)
+
     def test_a_pull_request_list_that_fails_is_said_in_the_block_comment(self):
         gh = FakeGitHub([issue(32)])
         gh.branch_pulls = lambda repo, branch: (_ for _ in ()).throw(ht.TriageError("offline"))

@@ -156,6 +156,8 @@
         "Bash(*.claude/settings*)",
         "Write(~/.claude/**)",
         "Edit(~/.claude/**)",
+        "Write(~/hass-agents/tools/t3code/**)",
+        "Edit(~/hass-agents/tools/t3code/**)",
         "AskUserQuestion"
       ]
     },

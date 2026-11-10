@@ -953,6 +953,8 @@ class Runner:
         self.stray = False
         #: Set when a T3 session changed the guard hooks in its worktree: outcome ``guard_tampered``, nothing lands.
         self.guard_tampered = False
+        #: Set when a T3 session left processes that could not be killed (the claude path keeps using ``stray`` alone).
+        self.t3_stray = False
         #: ``agents/*`` refs on origin recorded before each session (by label), so only lanes it pushed are landed.
         self.lane_snapshots: Dict[str, Optional[Dict[str, str]]] = {}
         #: Issues whose worktree must stay because a lane they pushed is not landed or filed.
@@ -1384,6 +1386,9 @@ class Runner:
         if self.guard_tampered:  # the session changed the hooks that guarded it: nothing it reports is trusted
             return self.block(n, "The session changed the guard hooks, settings or triage record, so its result was not used."
                               + self.undo_landing(n), "guard_tampered", self.log_tail(log))
+        if self.t3_stray:  # a process of the T3 session survived the cleanup: the worker may already have armed its pull request
+            return self.block(n, "A process of the session was still running after the cleanup, so its result was not used."
+                              + self.undo_landing(n), "stray", self.log_tail(log))
         status = self.read_status(n)
         if status and "Workflow" in label_names(issue) and status.get("lanes") and not status.get("pr"):
             return self.finish_workflow(n, status, worktree)  # Steward entry B: the runner lands the lanes the worker pushed
@@ -2432,7 +2437,7 @@ class Runner:
         """Run the session as a T3 thread (``agent.launcher: "t3code"``, see ``t3launch``). Same contract as ``_launch``: the exit
         code, or -9 at the timeout. A launch that could not start safely is logged and returns 1 (the caller's retry path)."""
         agent = self.cfg["agent"]
-        self.stray = self.guard_tampered = False
+        self.stray = self.guard_tampered = self.t3_stray = False
         env = self._session_env(n)
         record_env = {k: v for k, v in env.items() if k not in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         kind = "nightly" if self.intake else "request" if isinstance(n, int) else "retro" if str(n).startswith("retro-") else "job"
@@ -2453,6 +2458,7 @@ class Runner:
                                   timeout=float(self.job_timeout or agent["timeout_minutes"]) * 60,
                                   trusted=self.trusted_clone(self.cfg["product_base"]), on_thread=started)
         except Exception as exc:  # noqa: BLE001 (any failure to start safely, the trusted checkout's included, is a failed launch)
+            self.stray = self.t3_stray = bool(getattr(exc, "stray", False))
             print(f"{n}: t3 launch failed: {redact(str(exc))[:300]}")
             with open(log, "ab") as handle:
                 handle.write((json.dumps({"type": "t3_launch_failed", "reason": redact(str(exc))[:300]}) + "\n").encode())
@@ -2460,7 +2466,7 @@ class Runner:
         finally:
             if awake:
                 awake.terminate()
-        self.stray, self.guard_tampered = out.stray or out.tampered, out.tampered  # a tampered session lands nothing either
+        self.stray, self.guard_tampered, self.t3_stray = out.stray or out.tampered, out.tampered, out.stray  # a tampered session lands nothing either
         if out.stray:
             print(f"{n}: processes of the T3 session are still running after the cleanup")
         if out.tampered:
@@ -2501,7 +2507,7 @@ class Runner:
         if (agent.get("launcher") or "claude") == "t3code" and self.agent_override != "reviewer" \
                 and t3launch.settings_agree(worktree, agent.get("agent")):
             return self._t3_launch(n, worktree, prompt, log)
-        self.stray = self.guard_tampered = False
+        self.stray = self.guard_tampered = self.t3_stray = False
         command = shutil.which(agent["command"], path=self._path()) or agent["command"]
         role = ({"model": "claude-opus-5-5", "effort": "high", **(agent.get("reviewer") or {})}
                 if self.agent_override == "reviewer" else agent)
