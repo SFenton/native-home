@@ -7,6 +7,12 @@
 # device gate plus a `simulator` slot (tools/devcap.py, shared with FestivalNativeApps). When the Mac is
 # full the script waits its turn; `python3 tools/devcap.py status` shows who holds what.
 #
+# Bad simulators: one that fails sim_healthy twice is recorded in apple/.build/sim-bad/<udid> for 6 h (tools/sim_bad.py) and never
+# becomes the lane's warm pick (apple/.build/uitest-FAMILY.udid is written only after the health check passes). Picking skips bad
+# members; when all are bad the run prints "INFRA: pool exhausted (<n> bad, disk <pct>% used)" and exits 126. `python3 tools/sim_bad.py clear [UDID]`
+# forgets a mark (a simulator that later passes sim_healthy is cleared automatically; the list is per worktree). The skip lives in
+# tools/sim_bad.py because tools/devcap.py is vendored (upstream: pick-sim should take --skip UDID and print the exhausted line).
+#
 # Usage: tools/ios_uitest.sh [--env shell|FILE] [--only iphone|duo|ipad] [--appearance light|dark] [--quick] [--changed] [--force]
 #                            [--plan Gate|Smoke|Capture|Perf|Live] [--suite NAME[,NAME]] [--tests 'SELECTOR[,SELECTOR]'] [--full] [--parallel-families] [--allow-empty] [extra xcodebuild args]
 #   A family that executes no test fails EMPTY (xc_watch --require-tests). Every-test-skipped (journeys that skip for lack of credentials)
@@ -136,9 +142,11 @@ pick_udid() {
     # Resolve the UDID: xcodebuild's name= matcher misses names with parentheses ("iPhone 17 Pro (Rooms)").
     udid="$(sim_pool_list | sim_pool_udid "$name")"
   else
+    # tools/sim_bad.py wraps devcap pick-sim: it skips members recorded bad (two failed health checks, 6 h TTL) and reports
+    # "INFRA: pool exhausted (<n> bad, disk <pct>% used)" when none is left (exit 1).
     local prefer=()
     [[ -s "$last_file" ]] && prefer=(--prefer "$(cat "$last_file")")
-    udid="$(python3 "$ROOT/tools/devcap.py" pick-sim --name "$name" --pool "${FENTON_SIM_POOL:-0}" ${prefer[@]+"${prefer[@]}"})"
+    udid="$(python3 "$ROOT/tools/sim_bad.py" pick --name "$name" --pool "${FENTON_SIM_POOL:-0}" ${prefer[@]+"${prefer[@]}"})" || return $?
   fi
   echo "$udid"
 }
@@ -304,7 +312,7 @@ sim_healthy() {  # udid -> 0 when the simulator booted and can draw a frame
   return $ok
 }
 run_family() {
-  local family="$1" udid="$2" status=0
+  local family="$1" udid="$2" status=0 last_file="$ROOT/apple/.build/uitest-$1.udid"
   # Inside the hold: boots the simulator and disables the daemons the journeys do not need. Exit 3 is "left stock" and 4 "slimmed, unconfirmed" (both fine). Exit 1 means
   # the simulator would not boot: that fails the run locally; on a hosted runner it only warns, because sim_healthy below decides
   # (and fails closed with 126) while a family whose tests can pass should not be failed by the optional slim step.
@@ -319,9 +327,15 @@ run_family() {
     if ! sim_healthy "$udid"; then
       xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
       echo "INFRA: simulator unhealthy ($family $udid: bootstatus or screenshot failed twice)"
+      # Record it bad (6 h) and drop it as the lane's warm pick, so the next run draws another member instead of re-pinning this one.
+      python3 "$ROOT/tools/sim_bad.py" mark "$udid" || true
+      [[ "$(cat "$last_file" 2>/dev/null)" == "$udid" ]] && rm -f "$last_file"
       return 126
     fi
   fi
+  # Healthy: now it is the lane's warm member (written only after the health check passes, never for a dead device).
+  mkdir -p "$(dirname "$last_file")"; echo "$udid" > "$last_file"
+  python3 "$ROOT/tools/sim_bad.py" clear "$udid" || true  # a simulator that passes again is no longer bad
   # The system text size is the default for every run: journeys and hosted tests reach AX5 through launch arguments or the
   # in-app switch, never the device setting, and a simulator left at AX5 by hand or by another tool failed 36 hosted tests on the
   # Duo (chips, sheets, forms laid out at AX5; 2026-11-04).
@@ -498,8 +512,7 @@ process_family() {
     echo "GAP: no available simulator named '$name' for $family (a gap, not a pass)"; return 1
   fi
   last_file="$ROOT/apple/.build/uitest-$family.udid"
-  udid="$(pick_udid "$family" "$name" "$last_file")"
-  mkdir -p "$(dirname "$last_file")"; echo "$udid" > "$last_file"
+  udid="$(pick_udid "$family" "$name" "$last_file")" || return 126  # pool exhausted: sim_bad.py printed the INFRA line
   echo "== $family: $name pool ($udid)"
   rm -rf "$ROOT/apple/.build/uitest-$family.xcresult"
   family_args "$family"
