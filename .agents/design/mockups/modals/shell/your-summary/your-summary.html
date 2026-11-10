@@ -36,7 +36,7 @@
 
   Mock.mount({
     kind: 'modal', id: 'your-summary', title: 'Your Summary (Account sheet, four tabs)', area: 'shell', status: 'shipped',
-    summary: 'The sheet behind the header Profile button: the web’s Daily Report modal as a full-height sheet with four bottom tabs, Profile, Overdue Chores, Upcoming Chores and Expired Food. Opens on Overdue Chores for a resident (Expired Food for a guest). Follows the system appearance; switch Sheet appearance above.',
+    summary: 'The sheet behind the header Profile button: the web’s Daily Report modal as a full-height sheet with four bottom tabs, Profile, Overdue Chores, Upcoming Chores and Expired Food. Opens on Profile for everyone (owner, 2026-11-01), with the selected-tab capsule behind the Profile segment from the first frame. Follows the system appearance; switch Sheet appearance above.',
     source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift',
       'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift', 'apple/Sources/HassUI/Features/Settings/Profile/PersonRow.swift',
       'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Location/LocationAccountSection.swift', 'apple/Sources/HassCore/Profile/SummaryTab.swift', 'apple/Sources/HassCore/Profile/ProfileSummary.swift'],
@@ -48,7 +48,8 @@
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
 
     states: {
-      'default': { title: 'Overdue Chores (opens here for a resident)', note: 'tab badges: 3 overdue chores, 3 expired items', render: Y({ tab: 'overdue' }) },
+      'default': { title: 'Profile (opens here for everyone)', note: 'the capsule sits behind the Profile segment from first display; tab badges: 3 overdue chores, 3 expired items', render: Y({ tab: 'profile' }) },
+      'overdue': { title: 'Overdue Chores', note: 'tab badges: 3 overdue chores, 3 expired items', render: Y({ tab: 'overdue' }) },
       'profile': { title: 'Profile tab', note: 'account header, People at Home, Location (phones only), Sign Out', render: Y({ tab: 'profile' }) },
       'profile-location-off': { title: 'Profile: location access off', note: 'a warning above the footer says nothing is sent; the row reads Off', render: Y({ tab: 'profile', locationStatus: 'Off', warning: 'Location access is off, so nothing is sent. Open Share Location to turn it on in Settings.' }) },
       'profile-photos': { title: 'Profile tab with Home Assistant photos', note: 'the Account header (84 pt) and the People rows (36 pt) draw each person\'s photo over their initials; a guest without a photo keeps the grey initials', render: Y({ tab: 'profile', photos: true }) },
@@ -62,7 +63,7 @@
       'empty-food': { title: 'No Expired Food', render: Y({ tab: 'expired-food', empty: true }) },
       'vacation': { title: 'Vacation Mode: chores', note: 'an empty chore tab reads "Enjoy vacation!" under its usual title', render: Y({ tab: 'overdue', vacation: true }) },
       'vacation-food': { title: 'Vacation Mode: Expired Food hidden', note: '"Expired Food Hidden" with "Enjoy vacation!"; the badge is 0 in Vacation Mode', render: Y({ tab: 'expired-food', vacation: true }) },
-      'guest': { title: 'Guest viewer: Summary', note: 'title "Summary"; only Profile and Expired Food; opens on Expired Food', render: Y({ viewer: 'guest' }) },
+      'guest': { title: 'Guest viewer: Summary', note: 'title "Summary"; only Profile and Expired Food; opens on Profile', render: Y({ viewer: 'guest' }) },
       'sam': { title: 'Sam viewing', note: 'the same four tabs; the Profile tab shows her name', render: Y({ viewer: 'sam', tab: 'profile' }) },
       'sign-out-alert': { title: 'Sign Out asks first', note: 'see modals/shell/sign-out-alert', render: Y({ tab: 'profile', alert: SA.signOutAlert() }) },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the tab bar becomes a menu naming the selected tab; rows wrap; the sheet stays full height', render: Y({ tab: 'overdue' }) },
@@ -75,7 +76,7 @@
       { id: 'tab-crossfade', what: 'Switching tabs: the new tab’s content cross-fades in over the old', token: '0.15 s easeInOut (not a MotionTokens value); none under Reduce Motion',
         source: 'HassUI/Features/Settings/Profile/SummaryPanel.swift (.transition(.opacity), .animation(.easeInOut(duration: 0.15)))', reduce: 'no animation: the content cuts',
         play: function (stage) { swapTab(stage, 'upcoming'); var c = stage.querySelector('.ui-mscroll > *'); return Mock.settings.reduceMotion ? Mock.sleep(500) : Mock.anim.fade(c, { ms: 150 }).then(function () { return Mock.sleep(600); }); } },
-      { id: 'chore-complete', what: 'Checking off a chore: the circle turns to a green check, the title strikes through, and the row leaves with the standard list animation (back in if the call fails)', token: 'SwiftUI .default list animation (about 0.35 s); 0.2 s easeInOut under Reduce Motion', state: 'default',
+      { id: 'chore-complete', what: 'Checking off a chore: the circle turns to a green check, the title strikes through, and the row leaves with the standard list animation (back in if the call fails)', token: 'SwiftUI .default list animation (about 0.35 s); 0.2 s easeInOut under Reduce Motion', state: 'overdue',
         source: 'SummaryChoresTab.swift motionSafeAnimation(.default, reduced: .easeInOut(duration: 0.2)); motion.md section 6 User action', reduce: '0.2 s fade instead of the slide and collapse',
         play: function (stage) {
           var row = stage.querySelector('.ui-mlist .ui-mrow'); var rg = row.querySelector('.rg'), tx = row.querySelector('.ti');
@@ -90,7 +91,7 @@
     transitions: [
       { from: 'Profile button (any page)', to: 'Your Summary sheet', kind: 'sheet',
         note: 'A full-height form sheet (.hassSheet(.form, height: .full)); a tabbed sheet’s height must not change with a tab. The page scales back and dims on iPhone; on iPad a form sheet at full height. Content is present on arrival.',
-        play: function (stage) { var ctx = Mock.current; var s = SA.summarySheet(ctx, { tab: 'overdue' }); return Mock.presentDemo(stage, { title: 'Your Summary', detent: 'large', size: 'form', trailing: 'close', content: s.querySelector('.ui-mscroll > *'), tabs: s.querySelector('.ui-modaltabs') }); } },
+        play: function (stage) { var ctx = Mock.current; var s = SA.summarySheet(ctx, { tab: 'profile' }); return Mock.presentDemo(stage, { title: 'Your Summary', detent: 'large', size: 'form', trailing: 'close', content: s.querySelector('.ui-mscroll > *'), tabs: s.querySelector('.ui-modaltabs') }); } },
       { from: 'Your Summary sheet', to: 'Page', kind: 'sheet', state: 'default', note: 'The circle x Close (account.close) or a swipe down.', play: function (stage) { var host = stage.querySelector('.ui-host'); return Mock.anim.sheet(host, 'out').then(function () { return Mock.sleep(500); }); } },
       { from: 'Sign Out', to: 'Sign Out alert', kind: 'fade', state: 'profile', note: 'The system alert scales and fades in over the sheet; the sheet is not dismissed until sign-out is confirmed by the server.',
         play: function (stage) { var ctx = Mock.current, host = stage.querySelector('.ui-host'), scrim = SA.alertScrim(ctx, SA.signOutAlert()); host.appendChild(scrim); return Mock.anim.fade(scrim, { ms: 200 }).then(function () { return Mock.sleep(1000); }).then(function () { return Mock.anim.fade(scrim, { from: 1, to: 0, ms: 200 }); }).then(function () { scrim.remove(); }); } },
@@ -132,7 +133,7 @@
     notes: [
       'medium and fitted do not exist: the sheet is .hassSheet(.form, height: .full), so on iPhone it opens at the large detent and stays there; on iPad it is a form sheet at full height (profile.md says the same). The state "large" is the default.',
       'Docs and code: motion.md 4.4 says a sheet’s own tabs switch as a cut; SummaryPanel cross-fades the content over 0.15 s unless Reduce Motion is on. Drawn per the code. The Profile tab docs still call Sign Out "behind the existing alert", which matches.',
-      'Docs and code: the catalog says "Opens on Overdue Chores for residents"; confirmed (SummaryTab.initial). The Duo folded and unfolded show the Location section (iPhone idiom); only an iPad hides it.',
+      'Docs and code: the sheet opens on Profile for everyone (owner, 2026-11-01; SummaryTab.initial). The Duo folded and unfolded show the Location section (iPhone idiom); only an iPad hides it.',
       'Chore and expired-food rows are simplified stand-ins for TodoItemRow and InventoryRow (swipe actions and the completion animation are on the chores and inventory mockups). Fixture names only. Promote to kit: TodoItemRow, DueLabel, InventoryRow, AccountHeader, PersonRow.',
       'A guest’s Profile tab shows "Guest" for the name (navigator.profileName); the people list is a fixture of three entities.',
     ],

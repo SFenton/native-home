@@ -234,6 +234,7 @@ final class UKBadgedTabSegments<Item: Hashable & Identifiable>: UIView {
         super.init(frame: .zero)
         lift.backgroundColor = UIColor(HassTokens.RGB.Surface.sheetCell)
         lift.isUserInteractionEnabled = false
+        lift.accessibilityIdentifier = "\(identifier).lift"
         addSubview(lift)
         row.axis = .horizontal
         row.distribution = .fillEqually
