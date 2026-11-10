@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PreToolUse hook for Bash: the layer git cannot enforce for itself in the review-before-push gate.
+"""PreToolUse hook for Bash: the layer git cannot enforce for itself around git's pre-push hook (the house denylist).
 
-What a push may carry is decided by git's own ``pre-push`` hook (``.githooks/pre-push`` runs ``tools/prepush_review.py``): git hands it the url
+What a push may carry is decided by git's own ``pre-push`` hook (``.githooks/pre-push`` runs ``tools/prepush_denylist.py``; no reviewer pass is needed to push, owner 2026-11-10): git hands it the url
 and every ref and sha actually being pushed, after every earlier command of the line has run. This hook only stops a command from going
 around that hook, or around git altogether. It is a token scan over the raw command text (no refspec, remote or sha parsing, no quote-aware
 lexing: a match anywhere, even inside quotes or a heredoc, is a refusal) and fails closed. A command that mentions neither ``git`` nor ``gh``
@@ -12,10 +12,9 @@ passes untouched. Refused:
   ``--config-env``, ``GIT_CONFIG_GLOBAL``, ``GIT_CONFIG_SYSTEM``, ``GIT_CONFIG_COUNT`` and ``GIT_CONFIG_PARAMETERS`` (they can inject it);
 - a config write of ``include.path`` or ``includeIf.*.path`` (``git config``, ``-c``, an assignment: a file they pull in can set ``core.hooksPath``);
   a read-only ``git grep`` or ``git log -S`` for the name passes;
-- setting ``SH_OWNER_PUSH`` (``env``, ``export``, a prefix assignment, ``bash -c``, a file edit): the owner's escape from the review step in
-  ``.githooks/pre-push`` (the denylist still runs). A read-only ``grep`` for the name passes. The hook also ignores the escape when
-  ``CLAUDECODE``, ``CLAUDE_CODE_ENTRYPOINT`` or ``FENTON_HEADLESS`` is set, so a name an agent builds at run time does nothing, and this scan
-  refuses unsetting or blanking those markers (``unset``, ``env -u``, ``env -i``, ``exec -c``, an empty assignment). Both checks run even
+- setting ``SH_OWNER_PUSH`` (``env``, ``export``, a prefix assignment, ``bash -c``, a file edit): a retired escape from the review step the
+  hook no longer has (kept refused so it cannot come back unnoticed). A read-only ``grep`` for the name passes. The pre-push hook ignores the escape entirely now; the scan stays as hardening, and
+  also refuses unsetting or blanking the agent-session markers (``CLAUDECODE``, ``CLAUDE_CODE_ENTRYPOINT``, ``FENTON_HEADLESS``) (``unset``, ``env -u``, ``env -i``, ``exec -c``, an empty assignment). Both checks run even
   when the command mentions neither ``git`` nor ``gh``;
 - ``send-pack`` and ``http-push`` (plumbing that never runs the hook);
 - ``GIT_DIR`` or ``--git-dir`` together with ``push`` (a repository without the hook configured);
@@ -72,15 +71,14 @@ MENTIONS = re.compile(r"(?<![\w-])(?:git|gh)(?![\w-])|send-pack|http-push|core\.
 
 def message(why: str) -> str:
     """The text sent back with a refusal."""
-    return (f"Blocked: {why}. Nothing an agent pushes to SFenton/native-home may skip git's pre-push hook (.githooks/pre-push), which refuses a "
-            "push without an independent `pass` for each pushed commit. Run tools/setup.sh once, have the reviewer record the pass "
-            "(tools/review/record.py --lane BRANCH), then push normally (tools/hooks/push_guard.py).")
+    return (f"Blocked: {why}. Nothing an agent pushes to SFenton/native-home may skip git's pre-push hook (.githooks/pre-push), which runs the "
+            "house denylist on every push. Run tools/setup.sh once, then push normally (tools/hooks/push_guard.py).")
 
 
 def command_reason(command: str) -> str:
     """Why a Bash command is refused, or the empty string."""
     if OWNER_ASSIGN.search(command) or OWNER_SETTER.search(command):
-        return "setting SH_OWNER_PUSH (the owner's escape from the review step; only the owner sets it, in their own terminal)"
+        return "setting SH_OWNER_PUSH (a retired escape from the pre-push hook; no agent sets it)"
     if MARKER_CLEAR.search(command):
         return "unsetting or blanking an agent-session marker (CLAUDECODE, CLAUDE_CODE_ENTRYPOINT, FENTON_HEADLESS) or wiping the environment (env -i)"
     if not MENTIONS.search(command):

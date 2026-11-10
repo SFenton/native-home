@@ -127,7 +127,7 @@ class TokenScanTests(unittest.TestCase):
                 self.assertTrue(self.why(command), command)
 
     def test_every_form_that_sets_the_owner_escape_is_refused(self):
-        """SH_OWNER_PUSH skips the review step in the pre-push hook; no agent command may name it, git or not."""
+        """SH_OWNER_PUSH is a retired escape from the pre-push hook; no agent command may name it, git or not."""
         for command in ("SH_OWNER_PUSH=1 git push origin x", "export SH_OWNER_PUSH=1", "export SH_OWNER_PUSH=1; git push", "env SH_OWNER_PUSH=1 git push",
                         "env -i SH_OWNER_PUSH=1 git push", "bash -c 'SH_OWNER_PUSH=1 git push'", "sh -c \"export SH_OWNER_PUSH=1 && git push\"",
                         "sh_owner_push=1 git push", "SH_OWNER_PUSH=0 git push", "declare -x SH_OWNER_PUSH=1", "echo SH_OWNER_PUSH=1 >> ~/.zshenv",
@@ -179,7 +179,7 @@ class TokenScanTests(unittest.TestCase):
                 self.assertEqual(self.why(command), "", command)
 
     def test_the_push_is_not_parsed_here(self):
-        """No refspec, remote or sha logic: the pre-push hook decides (tools/prepush_review.py)."""
+        """No refspec, remote or sha logic: the pre-push hook decides (tools/prepush_denylist.py)."""
         for name in ("check_push", "operands", "remote_url", "default_remote", "run_git", "review_verdict"):
             self.assertFalse(hasattr(push_guard, name), name)
 

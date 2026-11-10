@@ -1,23 +1,19 @@
 #!/bin/sh
 # Refuse a push whose new commits match the private house denylist (tools/prepush_denylist.py).
 # Git passes "<remote name> <url>" as arguments and "<local ref> <local sha> <remote ref> <remote sha>" lines on stdin.
+# Push, then review (owner, 2026-11-10): no reviewer pass is needed to push; the merge gate (pr-checks and ai-review on the exact head) is on GitHub.
 # Install with tools/setup.sh. See .agents/workflow/house-data-gate.md.
 root="$(cd "$(dirname "$0")/.." && pwd)" || exit 1
 command -v python3 >/dev/null 2>&1 || { echo "pre-push: python3 not found; refusing the push." >&2; exit 1; }
 refs="$(mktemp)" || exit 1
 trap 'rm -f "$refs"' EXIT
 cat > "$refs"
-# Owner escape, honoured only outside an agent session: it skips the review step and never the denylist below. An agent environment
-# (any of the three markers set and non-empty) ignores it. tools/hooks/push_guard.py also refuses agent commands that name it or clear the markers.
-skip_review=0
-if [ "${SH_OWNER_PUSH:-}" = "1" ]; then
-  if [ -n "${CLAUDECODE:-}${CLAUDE_CODE_ENTRYPOINT:-}${FENTON_HEADLESS:-}" ]; then
-    echo "pre-push: the owner escape was ignored because an agent environment was detected; running the review step." >&2
-  else
-    skip_review=1
-  fi
-fi
-if [ "$skip_review" != "1" ]; then
-  python3 -I "$root/tools/prepush_review.py" "$@" < "$refs" || exit 1
-fi
+# A push to main or master of SFenton/native-home is refused locally (the ruleset refuses it too; this is the friendly message). Deleting included.
+case "$2" in
+  *[Ss][Ff]enton/[Nn]ative-home*)
+    if awk '$3 == "refs/heads/main" || $3 == "refs/heads/master" { found = 1 } END { exit !found }' "$refs"; then
+      echo "pre-push: refusing a push to main or master of SFenton/native-home; open a pull request from a branch instead." >&2
+      exit 1
+    fi ;;
+esac
 python3 "$root/tools/prepush_denylist.py" "$@" < "$refs"
