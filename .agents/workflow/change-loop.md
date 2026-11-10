@@ -23,5 +23,6 @@ A missing note is a major finding at review ([pr-lifecycle](pr-lifecycle.md)); c
 7. **Review** your diff with `/swiftui-pro` ([how](swiftui-pro.md)) and fix what it finds in your files.
 8. **Verify** on the simulator against the mockup, update the surface's atlas mockup (states, motion, a11y, status) in the same PR, then commit small and update [PROGRESS.md](../../PROGRESS.md).
 9. **Land.** Ship, review and merge as in [pr-lifecycle](pr-lifecycle.md).
+10. **Guard lane** (any change to a `tools/hooks/*_guard.py`). The brief states the standard, tripwire or wall, linking [ci](ci.md); every claim about an external API carries the probe command and its output; and the rows exist in `tools/tests/guard_tables/<guard>.tsv` (`command`, `block|allow`, `why`; both sides) before the first review. A bypass or a false positive found later is a new row first, then the fix; `test_guard_tables.py` replays the rows through the guard's `main` and keeps `uncovered.baseline` (hooks with no table) from ever growing.
 
 Scope a check against what it guards: a test-harness change proves itself with its touched tests, the coverage-tool tests and the first nightly, not a full coverage run (owner, 2026-11-05).
