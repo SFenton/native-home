@@ -249,6 +249,26 @@ def detect_kind(name: str, text: str) -> str:
     return "text"
 
 
+def label_anchor_failures(root: Path, pairs: list[dict]) -> list[dict]:
+    """The labeled (question, doc) pairs whose `any_of` phrase no longer sits in any section of the doc under `root`.
+
+    One implementation for `test_labels_point_at_real_sections` and `lane_check.py check`. Each failure is the pair plus a
+    `reason` (`missing file` or `anchor not found`); an empty list means every label still points at a real section.
+    """
+    failures = []
+    for pair in pairs:
+        file = pair.get("file", "")
+        try:
+            text = (root / file).read_text(encoding="utf-8")
+        except OSError:
+            failures.append({**pair, "reason": "missing file"})
+            continue
+        parts = split_sections(text, detect_kind(file, text))
+        if not any(anchor in sec.text for sec in parts for anchor in pair.get("any_of", [])):
+            failures.append({**pair, "reason": "anchor not found"})
+    return failures
+
+
 def fetch_url(url: str, timeout: float = FETCH_TIMEOUT) -> tuple[str, str]:
     """(text, content type) of a http(s) URL, capped at 2 MB.
 

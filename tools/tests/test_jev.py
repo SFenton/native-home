@@ -760,10 +760,7 @@ class SectionsMeasureTests(Isolated):
         sec = load_tool("jev_sections")
         labels = json.loads(measure.LABELS.read_text())["pairs"]
         self.assertGreaterEqual(len(labels), 20)
-        for pair in labels:
-            text = (REPO / pair["file"]).read_text(encoding="utf-8")
-            parts = sec.split_sections(text, sec.detect_kind(pair["file"], text))
-            self.assertTrue(any(p in s.text for s in parts for p in pair["any_of"]), pair["question"])
+        self.assertEqual([(f["question"], f["reason"]) for f in sec.label_anchor_failures(REPO, labels)], [])
 
     def test_run_sections_compares_jev_with_bm25_and_stops_at_the_cap(self):
         def send(body, key, timeout):
