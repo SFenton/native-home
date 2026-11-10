@@ -560,8 +560,8 @@ class UnmanagedSimTests(DevcapTestCase):
         self.assertEqual(self.shutdowns, [])
         gate.release()
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux: waits the full 300 s on every hosted run (PR 57 shard log); cause not found; follow-up hosted-ci-linux-portability")
     def test_own_and_held_simulators_are_not_unmanaged(self):
+        os.environ["DEVCAP_SLOTS_SIMULATOR"] = "2"  # pin the slot count: the default comes from host RAM (1 slot on a 15.6 GB runner)
         self.booted = [{"udid": UDID, "name": "Mine"}, {"udid": LEAKED, "name": "Held"}]
         with devcap.hold(sims=[LEAKED], hold_seconds=None, root=self.root):
             os.environ.pop(devcap.HELD_ENV)
