@@ -357,5 +357,197 @@ class ShipReviewBeforePushTests(unittest.TestCase):
         self.assertIn("not a readable GitHub URL", done.stderr)
 
 
+RECORD_STUB = """import os, sys
+open(os.environ["RECORD_LOG"], "a").write(" ".join(sys.argv[1:]) + "\\n")
+"""
+GIT_WRAPPER = """#!/bin/sh
+echo "$@" >> "$GIT_LOG"
+exec "$REAL_GIT" "$@"
+"""
+JEV_STUB = "import sys\nsys.exit(%d)\n"
+
+
+class ShipUpdateTests(unittest.TestCase):
+    """``--update``: an amended lane branch is force-pushed with a lease on the sha it fetched, then the check and the arm run again."""
+
+    def setup_lane(self, tmp, branch="agents/x", jev=None, pushed=True):
+        clone, origin = make_repo(tmp)
+        home = Path(tmp) / "home"
+        home.mkdir()
+        use_home(clone, home)
+        verdict = clone / "tools" / "review_verdict.py"
+        # classify the throwaway origin as native-home so the post-push steps run
+        verdict.write_text(verdict.read_text().replace(
+            "def remote_kind(url: str) -> str:", "def remote_kind(url: str) -> str:\n    return 'native-home'\n\n\ndef _kind(url: str) -> str:", 1))
+        (clone / "tools" / "review").mkdir()
+        (clone / "tools" / "review" / "record.py").write_text(RECORD_STUB)
+        (clone / "tools" / "pr_land.py").write_text(ARM_STUB)
+        if jev is not None:
+            (clone / "tools" / "jev_ask.py").write_text(JEV_STUB % jev)
+        git(clone, "config", "core.hooksPath", ".githooks")
+        git(clone, "switch", "-q", "-c", branch)
+        (clone / "a.txt").write_text("x")
+        git(clone, "add", "-A")
+        git(clone, "commit", "-q", "-m", "Add a")
+        if pushed:
+            git(clone, "push", "-q", "-u", "origin", branch)
+        fake = Path(tmp) / "bin"
+        fake.mkdir()
+        (fake / "gh").write_text(GH_STUB)
+        (fake / "gh").chmod(0o755)
+        (fake / "git").write_text(GIT_WRAPPER)
+        (fake / "git").chmod(0o755)
+        env = {**ENV, "PATH": f"{fake}{os.pathsep}{ENV['PATH']}", "HOME": str(home), "GH_LOG": str(Path(tmp) / "gh.log"),
+               "GH_REPO_NAME": "SFenton/native-home", "PRLAND_LOG": str(Path(tmp) / "arm.log"), "RECORD_LOG": str(Path(tmp) / "record.log"),
+               "GIT_LOG": str(Path(tmp) / "git.log"), "REAL_GIT": shutil.which("git")}
+        return clone, origin, home, env
+
+    def amend(self, clone, home, reviewed=True):
+        (clone / "a.txt").write_text("y")
+        git(clone, "add", "-A")
+        git(clone, "commit", "-q", "--amend", "-m", "Add a again")
+        head = git(clone, "rev-parse", "HEAD")
+        if reviewed:
+            record_pass(home, head)
+        return head
+
+    def ship(self, clone, env, *args):
+        return subprocess.run(["bash", "tools/ship.sh", "Add a", *args], cwd=clone, env=env, capture_output=True, text=True)
+
+    def test_an_amended_branch_is_pushed_with_a_lease_and_the_check_and_arm_rerun(self):
+        """Fails if: --update pushes without a lease pinned to the fetched origin sha, leaves origin on the old head, skips the ai-review post
+        for the new head, or does not re-arm the PR."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp)
+            old = git(clone, "rev-parse", "HEAD")
+            head = self.amend(clone, home)
+            done = self.ship(clone, env, "--update")
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(git(origin, "rev-parse", "agents/x"), head)
+            pushes = [l for l in Path(env["GIT_LOG"]).read_text().splitlines() if l.startswith("push")]
+            self.assertTrue(any(f"--force-with-lease=refs/heads/agents/x:{old}" in l for l in pushes), pushes)
+            self.assertNotIn("--force ", " ".join(pushes))
+            self.assertEqual(Path(env["RECORD_LOG"]).read_text().strip(), f"--post-check {head} --repo SFenton/native-home")
+            self.assertEqual(Path(env["PRLAND_LOG"]).read_text().strip(), "7")
+            self.assertNotIn("pr create", Path(env["GH_LOG"]).read_text())
+
+    def test_a_plain_ship_of_the_amended_branch_cannot_overwrite_it(self):
+        """Fails if: a plain ship of an amended branch force-pushes (--update must be the only route)."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp)
+            old = git(origin, "rev-parse", "agents/x")
+            self.amend(clone, home)
+            done = self.ship(clone, env)
+            self.assertNotEqual(done.returncode, 0)
+            self.assertEqual(git(origin, "rev-parse", "agents/x"), old)
+
+    def test_only_agents_and_port_branches_may_be_force_pushed(self):
+        """Fails if: --update force-pushes a claude/*, feature or lookalike branch, or commits before refusing."""
+        for branch in ("claude/x", "feature/y", "agentsx"):
+            with self.subTest(branch=branch), TemporaryDirectory() as tmp:
+                clone, origin, home, env = self.setup_lane(tmp, branch=branch)
+                head = self.amend(clone, home)
+                (clone / "dirty.txt").write_text("d")
+                done = self.ship(clone, env, "--update")
+                self.assertEqual(done.returncode, 1)
+                self.assertIn("agents/* or port/*", done.stderr)
+                self.assertNotEqual(git(origin, "rev-parse", branch), head)
+                self.assertEqual(git(clone, "rev-parse", "HEAD"), head)
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp, branch="port/z")
+            head = self.amend(clone, home)
+            self.assertEqual(self.ship(clone, env, "--update").returncode, 0)
+            self.assertEqual(git(origin, "rev-parse", "port/z"), head)
+
+    def test_a_commit_someone_else_pushed_first_is_never_overwritten(self):
+        """Fails if: --update leases on whatever origin has (a fresh fetch) and overwrites a commit this checkout never had."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp)
+            other = Path(tmp) / "other"
+            git(tmp, "clone", "-q", str(origin), str(other))
+            git(other, "switch", "-q", "agents/x")
+            (other / "theirs.txt").write_text("t")
+            git(other, "add", "-A")
+            git(other, "commit", "-q", "-m", "Theirs")
+            git(other, "push", "-q", "origin", "agents/x")
+            theirs = git(origin, "rev-parse", "agents/x")
+            self.amend(clone, home)
+            done = self.ship(clone, env, "--update")
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("someone else pushed it", done.stderr)
+            self.assertEqual(git(origin, "rev-parse", "agents/x"), theirs)
+            self.assertFalse(Path(env["RECORD_LOG"]).exists())
+
+    def test_a_remote_commit_already_in_head_is_a_valid_lease(self):
+        """Fails if: --update refuses a lane whose origin sha is an ancestor of HEAD (a fast-forward-able branch)."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp)
+            (clone / "b.txt").write_text("b")
+            git(clone, "add", "-A")
+            git(clone, "commit", "-q", "-m", "More")
+            record_pass(home, git(clone, "rev-parse", "HEAD"))
+            self.assertEqual(self.ship(clone, env, "--update").returncode, 0)
+            self.assertEqual(git(origin, "rev-parse", "agents/x"), git(clone, "rev-parse", "HEAD"))
+
+    def test_an_unreadable_origin_gets_its_own_message(self):
+        """Fails if: a failed ls-remote is reported as 'no branch on origin' (which tells the agent to ship plainly)."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp)
+            self.amend(clone, home)
+            git(clone, "remote", "set-url", "origin", str(Path(tmp) / "gone.git"))
+            done = self.ship(clone, env, "--update")
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("could not read origin", done.stderr)
+            self.assertNotIn("ship it plainly", done.stderr)
+
+    def test_a_branch_not_on_origin_has_nothing_to_update(self):
+        """Fails if: --update creates a branch on origin or force-pushes when the lease has nothing to pin."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp, pushed=False)
+            record_pass(home, git(clone, "rev-parse", "HEAD"))
+            done = self.ship(clone, env, "--update")
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("ship it plainly first", done.stderr)
+            self.assertEqual(subprocess.run(["git", "rev-parse", "--verify", "-q", "agents/x"], cwd=origin, env=ENV).returncode, 1)
+
+    def test_an_amended_head_without_its_own_pass_is_not_pushed_or_checked(self):
+        """Fails if: --update lets an unreviewed head through, or posts an ai-review check for it."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp)
+            old = git(origin, "rev-parse", "agents/x")
+            self.amend(clone, home, reviewed=False)
+            done = self.ship(clone, env, "--update")
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("needs the reviewer's pass", done.stderr)
+            self.assertEqual(git(origin, "rev-parse", "agents/x"), old)
+            self.assertFalse(Path(env["RECORD_LOG"]).exists())
+
+    def test_a_stale_jev_question_list_blocks_every_push_with_the_sync_command(self):
+        """Fails if: ship.sh pushes while `jev_ask.py sync --check` fails (CI would go red), or the message omits the sync command."""
+        with TemporaryDirectory() as tmp:
+            clone, origin, home, env = self.setup_lane(tmp, jev=1)
+            self.amend(clone, home)
+            old = git(origin, "rev-parse", "agents/x")
+            for args in ((), ("--update",)):
+                done = self.ship(clone, env, *args)
+                self.assertEqual(done.returncode, 1)
+                self.assertIn("python3 tools/jev_ask.py sync", done.stderr)
+                self.assertIn("failed or is stale", done.stderr)
+                self.assertEqual(git(origin, "rev-parse", "agents/x"), old)
+            (clone / "tools" / "jev_ask.py").write_text(JEV_STUB % 0)
+            git(clone, "add", "-A")
+            git(clone, "commit", "-q", "--amend", "--no-edit")
+            record_pass(home, git(clone, "rev-parse", "HEAD"))
+            self.assertEqual(self.ship(clone, env, "--update").returncode, 0)
+
+    def test_no_push_runs_no_jev_check(self):
+        """Fails if: a --no-push commit is blocked by the Jev check (it guards the push, not the commit)."""
+        with TemporaryDirectory() as tmp:
+            clone, _, _, env = self.setup_lane(tmp, jev=1)
+            (clone / "b.txt").write_text("b")
+            done = self.ship(clone, env, "--no-push")
+            self.assertEqual(done.returncode, 0, done.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

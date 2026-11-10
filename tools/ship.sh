@@ -2,7 +2,7 @@
 # Commit everything tracked or new (minus .gitignore), push the branch and optionally open the PR.
 # Replaces the hand-built trailer, `git add -A`, push and `gh pr create` / assignee sequence.
 #
-# Usage: tools/ship.sh "Subject line" [--note TEXT] [--body-file FILE | --body TEXT] [--pr] [--draft] [--base main] [--no-push]
+# Usage: tools/ship.sh "Subject line" [--note TEXT] [--body-file FILE | --body TEXT] [--pr] [--draft] [--base main] [--no-push] [--update]
 #   Before the push it prints the advisory preflight review (tools/preflight_review.py); it never fails the ship.
 #   --note TEXT   adds a `Release-Note: TEXT` trailer (what users will notice; `none` = nothing user-facing)
 #                  for versioning (.agents/workflow/versioning.md); may be repeated
@@ -14,6 +14,16 @@
 #   --pr always opens a draft (--draft is accepted and implied): review and landing come afterwards, and
 #   tools/pr_land.py marks it ready and arms auto-merge once the gates pass. ship.sh never merges itself (pr-lifecycle.md).
 #   Without --pr only the branch is pushed.
+#   --update  for a lane branch you amended or rebased after it was pushed (and had reviewed again): pushes with `--force-with-lease=refs/heads/BRANCH:SHA`,
+#             where SHA is what `git ls-remote` reports for origin/BRANCH, and only when this checkout knows it (an ancestor of HEAD, or in the local
+#             branch's reflog because this checkout pushed it): a commit someone else pushed is refused, never overwritten. Then it re-posts the
+#             `ai-review` check for the new head and, when the branch has a PR on native-home, re-arms it (a new head loses the old pin).
+#             Only `agents/*` and `port/*` branches; anything else is refused before it commits. A branch not on origin yet needs a plain ship.
+#             The new head still needs its own reviewer pass: git's pre-push hook and `record.py --post-check` both read the trusted store, so --update
+#             cannot produce a check the reviewer did not earn. ship.sh posts the check as a child process of this script, the same way a plain ship does;
+#             that is not the agent's own `record.py` command which tools/hooks/review_guard.py reserves for the reviewer, and the check is only as green
+#             as the recorded verdict.
+#   The Jev question list must be current before any push: `python3 tools/jev_ask.py sync --check` (CI runs it too) blocks the push when stale.
 #   Review before push (owner, 2026-11-09; ci.md#merge-gate): on SFenton/native-home nothing is pushed, opened or armed without an independent
 #   `pass` for the exact HEAD in the trusted store (tools/review_verdict.py, the reviewer's `record.py --lane`). Commit, get the pass, then ship;
 #   a ship that has to commit new changes stops at the push, because the new HEAD has no pass yet. Which guard covers which step: git's own pre-push
@@ -25,9 +35,9 @@
 set -euo pipefail
 
 SUBJECT="${1:-}"
-[[ -n "$SUBJECT" && "$SUBJECT" != -* ]] || { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+[[ -n "$SUBJECT" && "$SUBJECT" != -* ]] || { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 shift
-NOTES=(); BODY=""; PR=0; DRAFT=0; BASE="main"; PUSH=1
+NOTES=(); BODY=""; PR=0; DRAFT=0; BASE="main"; PUSH=1; UPDATE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --note) NOTES+=("$2"); shift 2 ;;
@@ -37,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --draft) DRAFT=1; shift ;;
     --base) BASE="$2"; shift 2 ;;
     --no-push) PUSH=0; shift ;;
+    --update) UPDATE=1; shift ;;
     *) echo "ship: unknown option $1" >&2; exit 2 ;;
   esac
 done
@@ -44,6 +55,12 @@ done
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 GUARD="$(dirname "$0")/ship_guard.sh"   # owner-only safety checks (branch, secrets)
 "$GUARD" branch
+if [[ $UPDATE == 1 ]]; then
+  case "$BRANCH" in
+    agents/*|port/*) ;;
+    *) echo "ship: --update force-pushes only a lane's own agents/* or port/* branch; '$BRANCH' is neither. Use a plain ship, or ask the owner." >&2; exit 1 ;;
+  esac
+fi
 
 git add -A
 "$GUARD" staged
@@ -81,6 +98,11 @@ fi
 # against origin/$BASE count; it prints counts and path:line, never a term; exit 1 = hit, 3 = list missing while `denylist_required` is true in
 # tools/triage/config.json), the revert guard (a squash over a moved base that puts a merged change back) and the advisory one-commit shape.
 # Any non-zero exit stops the push; a missing optional denylist only warns.
+JA="$(dirname "$0")/jev_ask.py"
+if [[ -f "$JA" ]]; then
+  python3 "$JA" sync --check \
+    || { echo "ship: the Jev question list check failed or is stale (CI would fail it); nothing was pushed. Run 'python3 tools/jev_ask.py sync', bump the question's version, commit, and ship again." >&2; exit 1; }
+fi
 LC="$(dirname "$0")/lane_check.py"
 if [[ -f "$LC" ]]; then
   python3 "$LC" check --base "$BASE" --only scan --only revert --only shape \
@@ -102,9 +124,27 @@ case "$ORIGIN_KIND" in
   *) echo "ship: origin is not a readable GitHub URL (or review_verdict.py is missing); nothing was pushed." >&2; exit 1 ;;
 esac
 
+PUSH_ARGS=(-q -u)
+LEASE=""
+if [[ $UPDATE == 1 ]]; then
+  # The lease is the sha origin has right now (ls-remote), but only if this checkout knows it: an ancestor of HEAD (already integrated) or a sha the
+  # local branch once pointed at (its reflog: this checkout pushed it, then amended). Anything else is someone else's commit; never overwrite it.
+  LS_RC=0
+  LS="$(git ls-remote origin "refs/heads/$BRANCH")" || LS_RC=$?
+  [[ $LS_RC == 0 ]] || { echo "ship: --update could not read origin (git ls-remote failed, exit $LS_RC); check the network and credentials. Nothing was pushed." >&2; exit 1; }
+  LEASE="${LS%%[[:space:]]*}"
+  [[ -n "$LEASE" ]] || { echo "ship: --update found no '$BRANCH' on origin to update; ship it plainly first." >&2; exit 1; }
+  KNOWN="$(git reflog show --format=%H "$BRANCH" 2>/dev/null || true)"   # a variable, not a pipe: grep -q would SIGPIPE git under pipefail
+  if ! git merge-base --is-ancestor "$LEASE" HEAD 2>/dev/null && ! grep -qx "$LEASE" <<<"$KNOWN"; then
+    echo "ship: origin/$BRANCH is at ${LEASE:0:12}, which this checkout never had (not an ancestor of HEAD, not in the branch's reflog): someone else pushed it. Fetch it, rebase onto it, review again, and ship. Nothing was pushed." >&2
+    exit 1
+  fi
+  PUSH_ARGS+=("--force-with-lease=refs/heads/$BRANCH:$LEASE")
+fi
 "$GUARD" branch
-git push -q -u origin "$BRANCH"
-echo "pushed $BRANCH"
+git push "${PUSH_ARGS[@]}" origin "refs/heads/$BRANCH:refs/heads/$BRANCH" \
+  || { echo "ship: the push was refused (with --update: origin/$BRANCH is no longer ${LEASE:-the leased sha}; the pre-push hook may also have said no). Nothing was overwritten." >&2; exit 1; }
+echo "pushed $BRANCH${LEASE:+ (forced over ${LEASE:0:12})}"
 
 # Server-side backstop: post the `ai-review` check run for the pushed (reviewed) sha as the reviewer App, from its recorded verdict. GitHub cannot take a
 # check on a commit it has not received, so this runs after the push. It never fails ship: on error it prints `ai-review check NOT posted: <reason>`.
@@ -112,7 +152,13 @@ if [[ "$ORIGIN_KIND" == "native-home" ]]; then
   python3 "$(dirname "$0")/review/record.py" --post-check "$HEAD_SHA" --repo SFenton/native-home || true
 fi
 
-if [[ $PR == 1 ]]; then
+if [[ $UPDATE == 1 ]]; then
+  # The PR already exists: no create. Re-arm it (the new head dropped the old pin); a refusal is a notice, like a plain ship.
+  PR_NUM="$(gh pr view "$BRANCH" --json number --jq .number 2>/dev/null || true)"
+  if [[ -n "$PR_NUM" && "$ORIGIN_KIND" == "native-home" && -f "$(dirname "$0")/pr_land.py" ]]; then
+    python3 "$(dirname "$0")/pr_land.py" "$PR_NUM" || echo "ship: not armed (see above); land it with tools/pr_land.sh $PR_NUM" >&2
+  fi
+elif [[ $PR == 1 ]]; then
   FOOTER="🤖 Generated with [Claude Code](https://claude.com/claude-code)"
   ARGS=(pr create --base "$BASE" --head "$BRANCH" --title "$SUBJECT" --body "${BODY:+$BODY
 
