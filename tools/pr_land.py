@@ -126,10 +126,37 @@ def run(args: List[str], check: bool = True) -> subprocess.CompletedProcess:
 
 
 
+def _triage_session() -> Any:
+    """``tools/hooks/triage_session.py``, loaded by path (the registry of T3-launched triage sessions)."""
+    import importlib.util
+    if "triage_session" in sys.modules:
+        return sys.modules["triage_session"]
+    spec = importlib.util.spec_from_file_location("triage_session", Path(__file__).resolve().parent / "hooks" / "triage_session.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["triage_session"] = module  # a dataclass in the module looks itself up here while it loads
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop("triage_session", None)
+        raise
+    return module
+
+
+def triage_session_env() -> Optional[Dict[str, str]]:
+    """The record's env when this process is inside a T3-launched triage session, else None. Fails closed: an unloadable module is a
+    headless session."""
+    try:
+        return _triage_session().session_env()
+    except Exception:  # noqa: BLE001
+        return {"FENTON_HEADLESS": "1"}
+
+
 def owner_session(environ: Optional[Dict[str, str]] = None, tty: Optional[bool] = None) -> bool:
     """Is this the owner at an interactive terminal (what ``ack-base`` demands)? Never a runner or agent session."""
     env = os.environ if environ is None else environ
     if env.get("FENTON_HEADLESS") == "1" or env.get("HASS_TRIAGE_ISSUE"):
+        return False
+    if environ is None and triage_session_env() is not None:  # a T3-launched triage session, whatever its environment holds
         return False
     return sys.stdin.isatty() if tty is None else tty
 

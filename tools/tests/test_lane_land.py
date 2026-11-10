@@ -31,6 +31,22 @@ def g(cwd, *args):
                           env={**os.environ, **GENV}).stdout.strip()
 
 
+# The suite may run inside a T3-launched triage worktree: keep the registry lookup (tools/hooks/triage_session.py) pointed at an empty folder.
+_REGISTRY = []
+
+
+def setUpModule():
+    import tempfile
+    import triage_session
+    folder = tempfile.mkdtemp(prefix="empty-t3-registry-")
+    _REGISTRY.append(mock.patch.object(triage_session, "registry_root", return_value=Path(folder)))
+    _REGISTRY[0].start()
+
+
+def tearDownModule():
+    _REGISTRY.pop().stop()
+
+
 class Repo(unittest.TestCase):
     """A bare origin with the base, a dev clone that pushes lanes, and the runner's land clone."""
 

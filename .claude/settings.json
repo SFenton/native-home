@@ -4,6 +4,15 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Bash|Read|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|Artifact|ArtifactComments|ArtifactData|AskUserQuestion|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/triage_deny.py\"; if [ -f \"$f\" ]; then python3 \"$f\"; rc=$?; if [ \"$rc\" -eq 0 ] || [ \"$rc\" -eq 2 ]; then exit \"$rc\"; fi; fi; python3 -c 'import hashlib,os,sys;r=os.path.expanduser(\"~/hass-agents/t3\");k=hashlib.sha256(os.path.realpath(os.environ.get(\"CLAUDE_PROJECT_DIR\",\"\")).encode()).hexdigest()[:16];t=os.environ.get(\"T3CODE_THREAD_ID\",\"\");sys.exit(1 if os.path.exists(r+\"/worktrees/\"+k+\".json\") or (t and os.path.exists(r+\"/threads/\"+t+\".json\")) else 0)' || { echo 'Blocked: tools/hooks/triage_deny.py is missing or crashed in a registered triage session (fails closed)' >&2; exit 2; }"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -128,6 +137,10 @@
           {
             "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/worktree_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\" --session-start"
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/triage_session.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\" --session-start"
           }
         ]
       }

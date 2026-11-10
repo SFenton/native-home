@@ -45,6 +45,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+try:  # the registry of T3-launched triage sessions: a registered session gets the runner's markers (tools/hooks/triage_session.py)
+    import triage_session
+except Exception:  # noqa: BLE001 - triage_deny fails closed when the module is gone
+    triage_session = None
+
 NOTICE_TAGS = ("<task-notification", "<system-reminder", "<channel", "<cross-session-message", "<teammate-message",
                "<fork-boilerplate", "<user-prompt-submit-hook", "<local-command-", "<<autonomous-loop", "[artifact comment")
 INTERACTIVE_ENTRYPOINTS = ("", "cli", "claude-desktop")
@@ -120,10 +125,22 @@ def interactive(env: dict[str, str], ancestors: int | None = None, clean: bool |
     return (session_env_clean() if ancestors is None else True) if clean is None else clean
 
 
+def registered_session(env: dict[str, str], payload: dict) -> bool:
+    """Is this a T3-launched triage session (a registry record resolves for ``env`` and ``payload``)? A failed lookup counts as one."""
+    if triage_session is None:
+        return False
+    try:
+        return triage_session.resolve(env, payload) is not None
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def should_log(payload: object, env: dict[str, str] | None = None, ancestors: int | None = None, clean: bool | None = None) -> bool:
     """True for a prompt a person typed: see the module docstring. ``ancestors`` and ``clean`` override the process probes (tests)."""
     env = dict(os.environ) if env is None else env
     if not isinstance(payload, dict) or payload.get("agent_id"):
+        return False
+    if registered_session(env, payload):  # a runner prompt is never the owner's, however the session was started
         return False
     if payload.get("hook_event_name", "UserPromptSubmit") != "UserPromptSubmit":
         return False

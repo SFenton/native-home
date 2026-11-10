@@ -39,6 +39,11 @@ except Exception:  # noqa: BLE001 - fail closed even if the standard library can
     print("Blocked: push_guard could not import the standard library; refusing (fails closed).", file=sys.stderr)
     sys.exit(2)
 
+try:  # the registry of T3-launched triage sessions: a registered session gets the runner's markers (tools/hooks/triage_session.py)
+    import triage_session
+except Exception:  # noqa: BLE001 - triage_deny fails closed when the module is gone
+    triage_session = None
+
 #: ``--no-verify`` or an abbreviation of it that git accepts (``--no-v`` upward; shorter and ambiguous ones are refused too).
 NO_VERIFY = re.compile(r"--no-v(?:e(?:r(?:i(?:f(?:y)?)?)?)?)?(?![\w-])")
 HOOKS_PATH = re.compile(r"core\.hookspath", re.I)
@@ -49,7 +54,7 @@ INCLUDE_WRITE = re.compile(r"(?<![\w-])config(?![\w-])|[ \t]-c[ \t]|--config-env
 OWNER_ASSIGN = re.compile(r"SH_OWNER_PUSH['\"\]\s]*=", re.I)
 OWNER_SETTER = re.compile(r"(?<![\w-])(?:export|declare|typeset|readonly|local|setenv|putenv|setdefault|environ|env|launchctl)(?![\w-])[^\n;&|]*SH_OWNER_PUSH", re.I)
 #: The agent-session markers `.githooks/pre-push` checks before honouring the escape.
-AGENT_MARKER = r"(?:CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|FENTON_HEADLESS)"
+AGENT_MARKER = r"(?:CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|FENTON_HEADLESS|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)"
 #: Clearing a marker: ``unset``, ``env -u``/``--unset``, ``MARKER=`` (empty, quoted or not), or wiping the whole environment (``env -i``, ``env -``, ``exec -c``).
 MARKER_CLEAR = re.compile(
     r"(?<![\w-])unset(?![\w-])[^\n;&|]*" + AGENT_MARKER
@@ -80,7 +85,7 @@ def command_reason(command: str) -> str:
     if OWNER_ASSIGN.search(command) or OWNER_SETTER.search(command):
         return "setting SH_OWNER_PUSH (a retired escape from the pre-push hook; no agent sets it)"
     if MARKER_CLEAR.search(command):
-        return "unsetting or blanking an agent-session marker (CLAUDECODE, CLAUDE_CODE_ENTRYPOINT, FENTON_HEADLESS) or wiping the environment (env -i)"
+        return "unsetting or blanking an agent-session marker (CLAUDECODE, CLAUDE_CODE_ENTRYPOINT, FENTON_HEADLESS, T3CODE_*, CLAUDE_PROJECT_DIR, CLAUDE_ENV_FILE) or wiping the environment (env -i)"
     if not MENTIONS.search(command):
         return ""
     if NO_VERIFY.search(command):
@@ -108,6 +113,8 @@ def main() -> int:
         payload = json.load(sys.stdin)
         if not isinstance(payload, dict):
             raise ValueError("payload is not an object")
+        if triage_session:
+            triage_session.apply(payload)
         if payload.get("tool_name") != "Bash":
             return 0
         tool_input = payload.get("tool_input")
