@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """The verdict of the `pr-checks` aggregate job (hosted CI, .agents/workflow/ci.md).
 
-A job that was skipped passes only when it was allowed to skip: scope-gated jobs (`macos`, `build-release`) whose
-scope output says there was nothing to run, hosted macOS jobs while the repo variable ``HOSTED_MACOS`` is not ``on``, and the denylist
+A job that was skipped passes only when it was allowed to skip: scope-gated jobs (`tool-tests-core`, `macos-build`, `macos-test`,
+`build-release`) whose scope output says there was nothing to run, hosted macOS jobs while the repo variable ``HOSTED_MACOS`` is not ``on``, and the denylist
 scan on a fork pull request. A core job that should have run and was skipped fails the aggregate,
 so a wrong ``if`` can never turn it green with nothing run. A gated job missing from the workflow's ``needs`` fails it too, so dropping
-one cannot let the aggregate pass blind. The macOS job includes the Smoke steps (a failed device step fails the job). Failed and
-cancelled jobs always fail.
+one cannot let the aggregate pass blind. The macOS test matrix (`macos-test`, one leg per device family) runs the Smoke steps: a failed
+leg fails the job. A matrix job's result is the worst of its legs. Failed and cancelled jobs always fail.
 
     NEEDS='<toJSON(needs)>' HOSTED_MACOS=on|'' EVENT=pull_request|push|... python3 tools/ci_aggregate.py
 
@@ -20,11 +20,13 @@ import sys
 from typing import Dict, List, Mapping
 
 #: Jobs that must succeed.
-CORE = ("scope", "linux-checks", "tool-tests-core")
+CORE = ("scope", "linux-checks")
 #: job -> (scope job that decides it, output key, hosted macOS?). Skipping is allowed when that output is not 'true'.
 GATED = {
     "build-release": ("scope", "release", True),
-    "macos": ("scope", "app", True),
+    "macos-build": ("scope", "app", True),
+    "macos-test": ("scope", "app", True),
+    "tool-tests-core": ("scope", "core_tests", False),
 }
 #: Gated jobs that run on a push to main only: a pull request or manual run may skip them.
 PUSH_ONLY = ("build-release",)

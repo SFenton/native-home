@@ -63,7 +63,7 @@ class RuleTests(unittest.TestCase):
                 self.assertIsNotNone(condition, "%s/%s is a hosted Mac job without an if:" % (path.name, job))
                 self.assertIn(MACOS_GUARD, condition.group(1), "%s/%s lacks the HOSTED_MACOS guard" % (path.name, job))
                 self.assertNotIn("repository.private", condition.group(1), "%s/%s keys a Mac job on visibility" % (path.name, job))
-        self.assertEqual(found, 4)  # macos, build-release, runtimes smoke, ios-release ipa
+        self.assertEqual(found, 5)  # macos-build, macos-test, build-release, runtimes smoke, ios-release ipa
 
     def test_the_runner_label_variable_is_validated(self):
         for path in all_files():
@@ -81,7 +81,7 @@ class RuleTests(unittest.TestCase):
     def test_the_aggregate_keeps_its_name_and_covers_the_jobs(self):
         text = jobs("pr-checks.yml")["pr-checks"]
         self.assertIn("if: always()", text)
-        for needed in ("scope", "linux-checks", "tool-tests-core", "denylist-scan", "macos", "build-release"):
+        for needed in ("scope", "linux-checks", "tool-tests-core", "denylist-scan", "macos-build", "macos-test", "build-release"):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
         self.assertIn("toJSON(needs)", text)
@@ -94,7 +94,7 @@ class RuleTests(unittest.TestCase):
             self.assertIn("tools/ci_new_failures.py --base", jobs("pr-checks.yml")[job])
 
     def test_hosted_macos_jobs_use_the_hosted_mode_and_no_devcap(self):
-        for job in ("macos", "build-release"):
+        for job in ("macos-build", "macos-test", "build-release"):
             text = jobs("pr-checks.yml")[job]
             self.assertIn('FENTON_CI_HOSTED: "1"', text, job)
             self.assertNotIn("devcap", text, job)
@@ -151,7 +151,22 @@ class RuleTests(unittest.TestCase):
         self.assertIn("PART: release", text["linux-checks"])
         self.assertNotIn("PART: core", text["linux-checks"])
         self.assertIn("PART: core", text["tool-tests-core"])
-        self.assertNotIn("matrix", text["linux-checks"] + text["tool-tests-core"])
+        self.assertNotIn("matrix", text["linux-checks"])
+
+    def test_the_core_tool_tests_run_in_four_shards_that_all_report(self):
+        core = jobs("pr-checks.yml")["tool-tests-core"]
+        self.assertIn("fail-fast: false", core)
+        self.assertRegex(core, r"shard: \[0, 1, 2, 3\]")
+        self.assertIn("FENTON_TOOL_SHARD: ${{ matrix.shard }}/4", core)
+        self.assertIn("name: Tool tests (core ${{ matrix.shard }}/4)", core)
+        self.assertIn("name: tool-tests-log-core-${{ matrix.shard }}", core)  # one artifact per shard (report-red-main reads tool-tests-log-*)
+
+    def test_the_core_tool_tests_skip_only_for_an_apple_only_diff(self):
+        core = jobs("pr-checks.yml")["tool-tests-core"]
+        self.assertIn("needs.scope.outputs.core_tests == 'true'", re.search(r"^    if: (.*)$", core, re.M).group(1))
+        scope = jobs("pr-checks.yml")["scope"]
+        self.assertRegex(scope, r"core_tools:\n\s+- '\*\*'\n\s+- '!apple/\*\*'")
+        self.assertIn("core_tests: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.core_tools }}", scope)
 
     def test_self_hosted_jobs_never_trigger_on_pull_requests_without_the_private_gate(self):
         for name in ("nightly.yml", "ios-release.yml"):
@@ -162,45 +177,77 @@ class RuleTests(unittest.TestCase):
         for name in ("pr-checks.yml", "runtimes.yml"):
             self.assertRegex((WORKFLOWS / name).read_text(encoding="utf-8"), r"\npermissions:\n  contents: read\n")
 
-    def test_the_macos_job_builds_before_any_simulator_boots_and_runs_swift_test_last(self):
-        text = jobs("pr-checks.yml")["macos"]
-        build = text.index("tools/ci_macos.sh build")
-        smoke = text.index("tools/ci_macos.sh smoke iphone")
-        swift = text.index("tools/ci_macos.sh swift-test")
-        self.assertLess(build, smoke)
-        self.assertLess(smoke, swift)
-        self.assertNotIn("simctl boot", text)  # no simulator boots outside sim_settle.sh, after the build
+    def test_the_products_are_built_once_and_every_family_tests_from_them(self):
+        build = jobs("pr-checks.yml")["macos-build"]
+        test = jobs("pr-checks.yml")["macos-test"]
+        self.assertIn("tools/ci_macos.sh build", build)
+        self.assertNotIn("tools/ci_macos.sh smoke", build)
+        self.assertNotIn("simctl boot", build + test)  # no simulator boots outside sim_settle.sh, after the build
         script = (Path(__file__).resolve().parents[1] / "ci_macos.sh").read_text(encoding="utf-8")
         self.assertLess(script.index("--build-only"), script.index("$SETTLE"))
-        self.assertIn("timeout-minutes:", text)
+        self.assertIn("timeout-minutes:", build)
+        self.assertIn("timeout-minutes:", test)
+        # build -> pack -> upload (1 day) in one job; download -> unpack -> proven hit -> Smoke in the other
+        self.assertLess(build.index("tools/ci_macos.sh build"), build.index("name: Upload the test products"))
+        self.assertIn("name: macos-test-products", build)
+        self.assertIn("retention-days: 1", build)
+        self.assertIn("if-no-files-found: error", build)
+        self.assertIn("name: macos-test-products", test)
+        order = [test.index(text) for text in ("name: Download the test products", "name: Unpack the test products",
+                                               "name: Reuse the built products", "tools/ci_macos.sh smoke")]
+        self.assertEqual(order, sorted(order))
+        self.assertIn("grep -q '^products: hit '", test)  # a key mismatch fails loudly instead of rebuilding
+        self.assertIn("needs: [scope, macos-build]", test)
+
+    def test_the_test_matrix_covers_the_three_families_and_every_report_survives(self):
+        test = jobs("pr-checks.yml")["macos-test"]
+        self.assertIn("fail-fast: false", test)
+        self.assertRegex(test, r"family: \[iphone, duo, ipad\]")
+        self.assertIn("name: macOS - Smoke ${{ matrix.family }}", test)
+        self.assertIn("tools/ci_macos.sh smoke ${{ matrix.family }}", test)
+        self.assertIn("tools/ci_macos.sh journeys ${{ matrix.family }}", test)
+        self.assertIn("github.event_name == 'pull_request'", test.split("name: Journeys the diff reaches", 1)[1].split("run:", 1)[0])
+        self.assertIn("name: xcresult-${{ matrix.family }}", test)
+        self.assertIn("apple/.build/uitest-${{ matrix.family }}.xcresult/**", test)
+        self.assertIn("include-hidden-files: true", test)
+
+    def test_swift_test_rides_the_ipad_leg_and_the_spm_cache_follows_it(self):
+        test = jobs("pr-checks.yml")["macos-test"]
+        self.assertEqual(test.count("tools/ci_macos.sh swift-test"), 1)
+        self.assertIn("matrix.family == 'ipad'", test.split("name: swift test", 1)[1].split("run:", 1)[0])
+        self.assertLess(test.index("tools/ci_macos.sh smoke"), test.index("tools/ci_macos.sh swift-test"))
+        self.assertNotIn("swift-test", jobs("pr-checks.yml")["macos-build"])
 
     def test_every_macos_step_is_required_except_the_diagnostics(self):
-        text = jobs("pr-checks.yml")["macos"]
-        steps = re.split(r"\n      - ", text)
-        by_name = {s.split("\n", 1)[0]: s for s in steps if s.startswith("name: ")}
-        for name, body in by_name.items():
-            self.assertEqual("continue-on-error: true" in body, name == "name: Simulator diagnostics", name)
-        head = text.split("    steps:\n", 1)[0]
-        self.assertNotRegex(head, r"(?m)^    continue-on-error:")
-        self.assertIn("name: Build the test products", by_name)
-        self.assertIn("name: swift test", by_name)
+        for job in ("macos-build", "macos-test"):
+            text = jobs("pr-checks.yml")[job]
+            steps = re.split(r"\n      - ", text)
+            by_name = {s.split("\n", 1)[0]: s for s in steps if s.startswith("name: ")}
+            for name, body in by_name.items():
+                self.assertEqual("continue-on-error: true" in body, name == "name: Simulator diagnostics", "%s %s" % (job, name))
+            head = text.split("    steps:\n", 1)[0]
+            self.assertNotRegex(head, r"(?m)^    continue-on-error:")
+        self.assertIn("name: Build the test products", jobs("pr-checks.yml")["macos-build"])
+        self.assertIn("name: swift test", jobs("pr-checks.yml")["macos-test"])
         self.assertNotIn("affected_tests.py --swift", (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8"))
 
-    def test_the_macos_job_runs_one_device_at_a_time_on_slimmed_simulators(self):
+    def test_each_device_runs_slimmed_on_its_own_runner(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
         for gone in ("smoke_layout", "parallel-slim", "FENTON_REQUIRE_SIMSLIM", "scope_base", "scope_head"):
             self.assertNotIn(gone, text)
-        macos = jobs("pr-checks.yml")["macos"]
-        self.assertIn('FENTON_INSTALL_SIMSLIM: "1"', macos)
-        for family in ("iphone", "duo", "ipad"):
-            self.assertIn("tools/ci_macos.sh smoke %s" % family, macos)
-            self.assertIn("name: xcresult-%s" % family, macos)
+        test = jobs("pr-checks.yml")["macos-test"]
+        self.assertIn('FENTON_INSTALL_SIMSLIM: "1"', test)
+        self.assertNotIn("FENTON_INSTALL_SIMSLIM", jobs("pr-checks.yml")["macos-build"])  # the build boots nothing
+        self.assertIn("FENTON_HEALTH_BOOT_WALL", test)
         setup = (Path(__file__).resolve().parents[1] / "ci_hosted_setup.sh").read_text(encoding="utf-8")
         self.assertIn("simslim-v0.14.0-macos-arm64.tar.gz", setup)
         self.assertIn("shasum -a 256 -c", setup)
         self.assertIn("install-simslim", setup)
+        smoke = (Path(__file__).resolve().parents[1] / "ci_macos.sh").read_text(encoding="utf-8")
+        self.assertIn('"$HEARTBEAT" run -- "$SETTLE" "$target"', smoke)  # the Duo settle (#25) runs before every family's Smoke
+        self.assertIn('"$HEARTBEAT" run -- "$SLIM" "$target"', smoke)
 
-    def test_only_the_macos_job_installs_simslim(self):
+    def test_only_the_macos_test_job_installs_simslim(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
         self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 1)
 
@@ -220,10 +267,12 @@ class RuleTests(unittest.TestCase):
         text = jobs("pr-checks.yml")["build-release"]
         self.assertIn("github.event_name == 'push'", re.search(r"^    if: (.*)$", text, re.M).group(1))
 
-    def test_the_macos_job_hosted_build_settings_come_from_the_workflow_env_only(self):
-        text = jobs("pr-checks.yml")["macos"]
-        self.assertIn('FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"', text)
-        self.assertIn("sudo mdutil -a -i off || true", text)
+    def test_the_macos_jobs_hosted_build_settings_come_from_the_workflow_env_only_and_match(self):
+        for job in ("macos-build", "macos-test"):  # a mismatch changes the products key: the test job would not find the build's bundle
+            text = jobs("pr-checks.yml")[job]
+            self.assertIn('FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"', text, job)
+            self.assertIn("sudo mdutil -a -i off || true", text, job)
+            self.assertIn("FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products", text, job)
         script = (Path(__file__).resolve().parents[1] / "ios_uitest.sh").read_text(encoding="utf-8")
         self.assertIn("$CI_HOSTED == 1 && -n \"${FENTON_HOSTED_BUILD_SETTINGS:-}\"", script)
         self.assertNotIn("ARCHS=arm64", script)
@@ -293,5 +342,5 @@ class NeedsListTests(unittest.TestCase):
     def test_the_aggregate_lists_the_macos_job_and_the_list_parser_ignores_comments(self):
         self.assertEqual(needs_list("    # needs: [sim-smoke]\n    needs: [a, b]\n"), ["a", "b"])
         listed = needs_list(jobs("pr-checks.yml")["pr-checks"])
-        for needed in ("macos", "build-release", "linux-checks", "tool-tests-core"):
+        for needed in ("macos-build", "macos-test", "build-release", "linux-checks", "tool-tests-core"):
             self.assertIn(needed, listed)
