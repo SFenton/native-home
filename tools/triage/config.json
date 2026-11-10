@@ -145,7 +145,6 @@
     "failed_label": "Merge Failed",
     "wait_hours": 168
   },
-  "testflight_autoupload": true,
   "workflow_base": "main",
   "land_tests": "tools/run_tool_tests.sh",
   "denylist_required": true,

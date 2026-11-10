@@ -3,18 +3,21 @@ name: ios-release
 # workflow artifact. It runs no tests, no coverage and no simulator, and it does not wait for pr-checks: the pull request that
 # landed already passed it (the merge gate), and this pipeline only versions and signs what is on main.
 #   bump  (ubuntu)  tools/release/versioning.py bump --head $GITHUB_SHA --push: tags the next ios/v<YYMM.DD.NN> when the app changed
-#                   since the previous tag (skips: no app change, already tagged, behind). It needs no secrets, so it always runs, and
-#                   it dispatches ios-release-build.yml (TestFlight) for the new tag only when HASS_TESTFLIGHT_ENABLED is `true`.
+#                   since the previous tag (skips: no app change, already tagged, behind). It needs no secrets, so it always runs.
 #   ipa   (macOS)   only when a tag came out: GitHub-hosted runner (same label as the pr-checks macOS job), the `release-signing`
 #                   environment (limited to main) holds the signing secrets. A temporary keychain gets the Apple Distribution and
 #                   Apple Development p12s (so a fresh runner never mints certificates), the Admin App Store Connect key signs the
 #                   profiles, tools/release/ios_ipa_build.sh archives and exports, and the IPA plus dSYMs are uploaded as the
-#                   artifact FentonHome-<version> (30 days). Until the secrets exist the job fails with an error naming them.
-# The repository is public: the IPA is never attached to the GitHub Release (assets are anonymous and permanent), and
-# The sign-in Server default is never passed here (the IPA builds with a blank Server field; the TestFlight workflow supplies it
-# from a secret). Nothing is uploaded to App Store Connect here (export only; TestFlight is the other workflow).
+#                   artifact FentonHome-<version> (30 days). Then the same script (`--upload`) re-exports the SAME archive with
+#                   ExportOptions-testflight.plist, which sends the build to App Store Connect: every bumped version goes to
+#                   TestFlight (owner, 2026-11-10), with no variable and no gate. Until the secrets exist the job fails with an error naming them.
+# The repository is public: the IPA is never attached to the GitHub Release (assets are anonymous and permanent), and the sign-in
+# Server default is never passed here (the build has a blank Server field; only a manual tools/release/testflight_upload.sh reads it
+# from the owner's shell).
 # A tag pushed with GITHUB_TOKEN triggers no workflow, which is why the ipa job is a job of this workflow and not a tag trigger.
-# "Run workflow": `tag` rebuilds an existing ios/v* tag without bumping; `force` bumps even without app changes.
+# Retry: "Run workflow" with `tag` rebuilds an existing ios/v* tag without bumping and uploads it again (a new build number); that
+# is also the way back after a failed upload, whose artifact was already saved. `force` bumps even without app changes.
+# Pause the pipeline (no bump, no build, no upload): `gh workflow disable ios-release.yml`; resume with `gh workflow enable ios-release.yml`.
 # Owner checklist (environment, secrets, yearly renewal): .agents/platforms/apple/testflight.md. Documentation: .agents/workflow/ci.md, versioning.md.
 on:
   push:
@@ -39,7 +42,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write   # push version tags
-      actions: write    # dispatch ios-release-build.yml
     concurrency:
       # One bump at a time, never cancelled. GitHub keeps one pending run per group and may drop the others; that is safe, because
       # bumping is a function of the commit ("the app changed since the previous tag"): the newest head covers every merge before
@@ -57,9 +59,7 @@ jobs:
         id: bump
         env:
           FORCE: ${{ inputs.force }}
-          GH_TOKEN: ${{ github.token }}
           REBUILD_TAG: ${{ inputs.tag }}
-          TESTFLIGHT: ${{ vars.HASS_TESTFLIGHT_ENABLED }}
         run: |
           set -euo pipefail
           if [ -n "$REBUILD_TAG" ]; then
@@ -76,10 +76,6 @@ jobs:
           python3 tools/release/versioning.py "${args[@]}" | tee "$RUNNER_TEMP/bump.json"
           tag="$(python3 -c 'import json,sys; print(" ".join(p["tag"] for p in json.load(open(sys.argv[1])).get("bumped", [])))' "$RUNNER_TEMP/bump.json")"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if [ -n "$tag" ] && [ "$TESTFLIGHT" = "true" ]; then
-            # The TestFlight run uploads every version not yet on TestFlight, oldest first; the tag only wakes it.
-            gh workflow run ios-release-build.yml --ref main -f version_tag="$tag"
-          fi
           python3 - "$RUNNER_TEMP/bump.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json, sys
           doc = json.load(open(sys.argv[1]))
@@ -118,7 +114,7 @@ jobs:
         # workflow runs at (fetch-depth 0 already has it).
         run: |
           set -euo pipefail
-          git checkout "$GITHUB_SHA" -- tools/release/ios_ipa_build.sh tools/release/ExportOptions-appstore.plist tools/release/versioning.py
+          git checkout "$GITHUB_SHA" -- tools/release/ios_ipa_build.sh tools/release/ExportOptions-appstore.plist tools/release/ExportOptions-testflight.plist tools/release/versioning.py
       - name: Check the signing secrets
         env:
           APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
@@ -211,16 +207,28 @@ jobs:
             ${{ steps.build.outputs.dsyms }}
           retention-days: 30
           if-no-files-found: error
+      - name: Upload to TestFlight
+        # A second `xcodebuild -exportArchive` on the archive the build step left (destination upload, the API key, the idle watchdog).
+        # No variable gates it; a failure fails the job (the artifact above is already saved; retry = "Run workflow" with `tag`).
+        id: testflight
+        env:
+          BUILD: ${{ steps.build.outputs.build }}
+        run: |
+          set -euo pipefail
+          tools/release/ios_ipa_build.sh "$TAG" "$BUILD" --upload | tee "$RUNNER_TEMP/upload.out"
+          echo "uploaded=$(sed -n 's/^uploaded=//p' "$RUNNER_TEMP/upload.out")" >> "$GITHUB_OUTPUT"
       - name: Summary
         env:
           VERSION: ${{ steps.build.outputs.version }}
           BUILD: ${{ steps.build.outputs.build }}
+          UPLOADED: ${{ steps.testflight.outputs.uploaded }}
         run: |
           {
             echo "### ios-release $TAG"
             echo "- Version: $VERSION"
             echo "- Build number: $BUILD"
             echo "- Artifact: FentonHome-$VERSION (signed IPA and dSYMs, kept 30 days; download it from this run's Artifacts)"
+            echo "- TestFlight: uploaded to TestFlight: $UPLOADED (it shows in TestFlight once App Store Connect has processed it)"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove the keychain, certificates and API key
         if: always()

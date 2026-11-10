@@ -70,7 +70,7 @@ class BashTests(unittest.TestCase):
                     "echo 'files: .p12 .p8 .mobileprovision'", "printf '%s\\n' 'ASC_PRIVATE_KEY'", "cat a.cert", "ls cert.certificate",
                     "python3 tools/release/versioning.py --repo . build-settings --tag ios/v2611.03.01",
                     "tools/release/testflight_upload.sh --dry-run", "bash tools/release/testflight_upload.sh --dry-run --asc-key-path /x/AuthKey_1.p8 --asc-key-id i --asc-issuer-id j",
-                    "tools/release/ios_ipa_build.sh --dry-run", "python3 tools/release/testflight_queue.py run --dry-run",
+                    "tools/release/ios_ipa_build.sh --dry-run",
                     "# note about .p12\nls", "cat <<'EOF' > notes.md\nthe .p12 file\nEOF"):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.why(cmd), cmd)
@@ -604,13 +604,14 @@ class WiringTests(unittest.TestCase):
         self.assertFalse([r for r in deny if "testflight" in r or "tools/release" in r or "pr_land" in r])
 
     def test_testflight_upload_uses_ci_secrets_not_local_files(self):
-        text = (ROOT / ".github" / "workflows" / "ios-release-build.yml").read_text()
-        self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))), ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY", "HASS_DEFAULT_SERVER"])
+        text = (ROOT / ".github" / "workflows" / "ios-release.yml").read_text()
+        self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))), ["APPLE_DEVELOPMENT_P12_BASE64", "APPLE_DEVELOPMENT_P12_PASSWORD", "APPLE_DISTRIBUTION_P12_BASE64",
+                                                                         "APPLE_DISTRIBUTION_P12_PASSWORD", "ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY"])
         self.assertIn('dir="$RUNNER_TEMP/asc"', text)  # the job writes the key itself, outside any checkout
         self.assertIn('rm -rf "$RUNNER_TEMP/asc"', text)
         for local in ("$HOME", "~/", "/Users/", "MobileDevice", "Provisioning Profiles", "Library/"):
             self.assertNotIn(local, text, f"the upload workflow reads a local path ({local}) that the guard blocks for agents")
-        for script in ("testflight_upload.sh", "testflight_queue.py"):  # what an agent may run: neither needs a flag the guard blocks
+        for script in ("testflight_upload.sh", "ios_ipa_build.sh"):  # what an agent may run: neither needs a flag the guard blocks
             self.assertIsNone(signing_guard.command_reason(f"tools/release/{script} --dry-run"))
 
 

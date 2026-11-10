@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Archives the app and exports a signed IPA (method app-store-connect, destination export: nothing is uploaded).
+# Archives the app and exports a signed IPA (method app-store-connect, destination export: nothing is uploaded), or, with
+# --upload, sends the archive that run left behind to TestFlight.
 #
 # Usage: tools/release/ios_ipa_build.sh TAG BUILD_NUMBER [--dry-run]
+#        tools/release/ios_ipa_build.sh TAG BUILD_NUMBER --upload [--dry-run]
 #        tools/release/ios_ipa_build.sh --probe-signing        (only checks that codesign works without a prompt)
 #   TAG           the version tag to build, ios/v<YYMM.DD.NN>; the checkout must be at that tag
 #   BUILD_NUMBER  CURRENT_PROJECT_VERSION (an integer that grows with every build)
+#   --upload      the TestFlight step of the release pipeline: no archive, no xcodegen. It runs a second `xcodebuild -exportArchive`
+#                 on build/release-ios/FentonHome.xcarchive (the one the build run just made, same version and build number) with
+#                 ExportOptions-testflight.plist (destination upload) and the API key, under the same idle watchdog, and prints
+#                 `uploaded=<version> (<build>)`. A missing archive or a failed upload exits 1.
 # Output (build/release-ios/): FentonHome.xcarchive, export/ (the .ipa), FentonHome-<version>.ipa and
 # FentonHome-<version>-dSYMs.zip. stdout ends with `ipa=…` and `dsyms=…` lines for the workflow.
 # Signing: automatic, team 3Q9X8JX23S, the Apple Distribution identity in the login Keychain and the Apple ID signed in to
@@ -13,13 +19,21 @@
 # Hosted mode (FENTON_CI_HOSTED=1 on a GitHub-hosted runner, tools/ci_hosted.py): the release pipeline's `ipa` job. The runner is
 # a single-tenant VM, so no devcap hold is taken; xcodebuild still runs under the idle watchdog (default 300 s, not 600). The
 # identities come from the job's temporary keychain (two p12 secrets) and the App Store Connect key (ASC_KEY_*), and the BLOCKED
-# message names those secrets. HASS_DEFAULT_SERVER is never printed (a dry run shows `***`); the workflow masks it in the log.
+# message names those secrets. The Server field default (HASS_DEFAULT_SERVER) is passed only when the caller sets it, which the hosted
+# pipeline never does: its IPA builds with a blank field (a manual testflight_upload.sh reads it from the owner's shell). A value
+# is never printed (a dry run shows `***`).
 set -euo pipefail
 
 TAG="${1:?usage: ios_ipa_build.sh TAG BUILD_NUMBER [--dry-run] | --probe-signing}"
 BUILD="${2:-0}"
-DRY=0
-[[ "${3:-}" == "--dry-run" ]] && DRY=1
+DRY=0; UPLOAD=0
+for flag in "${@:3}"; do
+  case "$flag" in
+    --dry-run) DRY=1 ;;
+    --upload) UPLOAD=1 ;;
+    *) echo "[ios_ipa_build] unknown argument '$flag'; usage: ios_ipa_build.sh TAG BUILD_NUMBER [--upload] [--dry-run]" >&2; exit 2 ;;
+  esac
+done
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
@@ -161,7 +175,24 @@ silent_hang() { # EXIT_CODE LABEL: exit 124 means the watchdog fired
 }
 
 if [[ "$TAG" == "--probe-signing" ]]; then probe_signing; echo "signing ok"; exit 0; fi
+# --upload re-exports the archive of the build step: say so first when there is none (before any signing probe).
+if [[ $UPLOAD == 1 && $DRY == 0 && ! -d "$ARCHIVE" ]]; then log "no archive at $ARCHIVE: run the build before --upload"; exit 1; fi
 if [[ $DRY == 0 ]]; then probe_signing; fi
+
+AUTH=()
+if [[ -n "${ASC_KEY_PATH:-}" && -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]]; then
+  AUTH=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+fi
+
+if [[ $UPLOAD == 1 ]]; then
+  # The TestFlight upload re-exports the archive the build run made (nothing is rebuilt, the output directory is kept).
+  run guarded xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUT/upload" \
+    -exportOptionsPlist "$ROOT/tools/release/ExportOptions-testflight.plist" -allowProvisioningUpdates ${AUTH[@]+"${AUTH[@]}"} \
+    || { rc=$?; silent_hang "$rc" "xcodebuild -exportArchive (TestFlight upload)"; log "TestFlight upload failed"; exit 1; }
+  if [[ $DRY == 1 ]]; then exit 0; fi
+  echo "uploaded=${TAG#ios/v} ($BUILD)"
+  exit 0
+fi
 
 SETTINGS=()
 if [[ $DRY == 1 ]]; then SETTINGS=("MARKETING_VERSION=<version>" "CURRENT_PROJECT_VERSION=$BUILD" "HASS_GIT_SHA=<sha>")
@@ -172,18 +203,14 @@ else
   while IFS= read -r line; do [[ -n "$line" ]] && SETTINGS+=("$line"); done <<< "$SETTINGS_OUT"
   [[ ${#SETTINGS[@]} -ge 3 ]] || { log "versioning.py returned no build settings for $TAG"; exit 1; }
 fi
-# The sign-in Server field default comes from the HASS_DEFAULT_SERVER repository variable; empty leaves the field blank.
+# The sign-in Server field default is passed only when the caller sets HASS_DEFAULT_SERVER (a manual testflight_upload.sh run takes it
+# from the owner's shell); the hosted pipeline never sets it, so its IPA builds with a blank field.
 [[ -z "${HASS_DEFAULT_SERVER:-}" ]] || SETTINGS+=("HASS_DEFAULT_SERVER=$HASS_DEFAULT_SERVER")
 VERSION="${TAG#ios/v}"
 
 rm -rf "$OUT"; mkdir -p "$OUT"
 cd "$ROOT/apple"
 run xcodegen generate --quiet
-
-AUTH=()
-if [[ -n "${ASC_KEY_PATH:-}" && -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]]; then
-  AUTH=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
-fi
 
 # The shared Macs hold a devcap build slot; a hosted runner is its own VM and runs xcodebuild directly.
 HOLD=()

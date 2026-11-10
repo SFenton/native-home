@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Archives S+H (FentonHome, Release) and uploads the build to App Store Connect for TestFlight.
+# Archives S+H (FentonHome, Release) and uploads the build to App Store Connect for TestFlight. This is the owner's manual local
+# fallback: the release pipeline (.github/workflows/ios-release.yml) uploads every bumped version itself, through
+# `ios_ipa_build.sh --upload`, from the same archive as the IPA artifact.
 #
 # Usage: tools/release/testflight_upload.sh [--tag ios/v<YYMM.DD.NN>] [--build N] [--source DIR] [--dry-run]
 #          [--no-devcap] [--asc-key-path P --asc-key-id ID --asc-issuer-id ISSUER]
@@ -15,8 +17,8 @@
 # Output: build/testflight/ (FentonHome.xcarchive, export/ and the xcodebuild logs). The last lines say what was uploaded.
 # Signing: automatic, team 3Q9X8JX23S; the Apple ID signed in to Xcode (or the API key) lets -allowProvisioningUpdates
 # create the distribution certificate and profiles. Needs a password, 2FA or a Keychain prompt? It stops there: do that
-# step yourself. Heavy steps run in a tools/devcap.py `build` hold. Never creates or pushes a tag (the upload queue,
-# tools/release/testflight_queue.py, writes the ledger). Documentation: .agents/platforms/apple/testflight.md.
+# step yourself. Heavy steps run in a tools/devcap.py `build` hold. Never creates or pushes a tag (versions come from
+# tools/release/versioning.py). Documentation: .agents/platforms/apple/testflight.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -66,7 +68,8 @@ else
   [[ ${#SETTINGS[@]} -ge 2 ]] || { echo "[testflight] versioning.py returned no settings for $TAG" >&2; exit 1; }
   SETTINGS+=("HASS_GIT_SHA=$(git -C "$SRC" rev-parse HEAD)")
 fi
-# The sign-in Server field default comes from the HASS_DEFAULT_SERVER repository variable; empty leaves the field blank.
+# The sign-in Server field default is read from HASS_DEFAULT_SERVER, which a manual upload reads from the owner's shell; the
+# hosted pipeline never sets it, so its artifact builds with a blank Server field. Empty leaves the field blank.
 [[ -z "${HASS_DEFAULT_SERVER:-}" ]] || SETTINGS+=("HASS_DEFAULT_SERVER=$HASS_DEFAULT_SERVER")
 shown=(); for line in "${SETTINGS[@]}"; do shown+=("$(redact "$line")"); done
 echo "[testflight] ${shown[*]}"

@@ -39,7 +39,7 @@ CONFIG = json.loads((TOOLS / "triage" / "config.json").read_text())
 STATIC_KEPT = [*lane_land.DEFAULT_PROTECTED, *CONFIG["protected_paths"]]
 #: One example of every kind of path in the kept set.
 KEPT_EXAMPLES = (
-    "tools/release/x.sh", "tools/release/versioning.py", ".github/workflows/ios-release.yml", ".github/workflows/ios-release-build.yml",
+    "tools/release/x.sh", "tools/release/versioning.py", ".github/workflows/ios-release.yml", ".github/workflows/ios-release-extra.yml",
     "tools/review/record.py", "tools/review/other.py", "tools/review_verdict.py", ".claude/agents/reviewer.md", "tools/hass_creds.sh", "tools/gh_app_token.py",
     "tools/devcap.py", "tools/ci_hygiene.py", "tools/release_closure.py", "tools/hooks/review_guard.py", ".githooks/pre-commit", ".gitmodules",
 )
@@ -92,7 +92,7 @@ class PrLandRouteTests(tll.PrGateTests):
 
     def test_the_release_closure_is_derived_from_the_trusted_workflow_not_listed_by_hand(self):
         """A file the base's release workflow starts becomes owner-only without a list entry (here a tool the static list does not know)."""
-        self.seed_base({".github/workflows/ios-release-build.yml": "jobs:\n  a:\n    steps:\n      - run: python3 tools/brand_new_step.py\n",
+        self.seed_base({".github/workflows/ios-release-extra.yml": "jobs:\n  a:\n    steps:\n      - run: python3 tools/brand_new_step.py\n",
                         "tools/brand_new_step.py": "print(1)\n"})
         with mock.patch.object(lane_land, "own_checkout", return_value=self.dev):
             refused = self.refuses(self.pr({"tools/brand_new_step.py": "evil\n"}, number=60), "paths", number="60")
@@ -108,7 +108,7 @@ class ReleaseClosureTests(unittest.TestCase):
 
     def test_every_file_a_release_step_runs_or_imports_is_protected(self):
         files = release_closure.release_files(ROOT)
-        for expected in ("tools/ci_hygiene.py", "tools/devcap.py", "tools/release/testflight_queue.py", "tools/release/testflight_upload.sh",
+        for expected in ("tools/devcap.py", "tools/release/ExportOptions-testflight.plist",
                          "tools/release/ios_ipa_build.sh", "tools/release/versioning.py"):
             self.assertIn(expected, files)
         unprotected = [f for f in files if not lane_land.matches(f, STATIC_KEPT)]

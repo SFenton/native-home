@@ -14,7 +14,7 @@ run_part() {
   case "$1" in
     core) python3 -m unittest discover -s tools/tests ;;
     triage) python3 -m unittest discover -s tools/triage/tests ;;
-    release) python3 -m unittest tools.release.tests.test_versioning tools.release.tests.test_testflight tools.release.tests.test_testflight_queue tools.release.tests.test_release_workflows ;;
+    release) python3 -m unittest tools.release.tests.test_versioning tools.release.tests.test_testflight tools.release.tests.test_release_workflows ;;
     *) echo "run_tool_tests: unknown part '$1' (core, triage or release)" >&2; return 2 ;;
   esac
 }
