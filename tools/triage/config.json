@@ -1,6 +1,6 @@
 {
   "request_repo": "",
-  "agent_login": "",
+  "agent_login": "sfenton-agent",
   "product_repo": "SFenton/native-home",
   "product_base": "main",
   "authors": [

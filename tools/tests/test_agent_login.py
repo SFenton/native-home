@@ -56,10 +56,10 @@ class AgentLoginTests(unittest.TestCase):
                 path.write_text(text)
                 self.assertEqual(agent_login.configured(path), want, text)
 
-    def test_the_shipped_config_leaves_agent_login_empty(self):
-        """Fails if: tools/triage/config.json ships a non-empty agent_login (the owner fills it; the repo never names the account)."""
+    def test_the_shipped_config_names_the_agent_account(self):
+        """Fails if: tools/triage/config.json stops naming the owner-approved agent account (owner, 2026-11-10) or names another one."""
         config = Path(__file__).resolve().parents[1] / "triage" / "config.json"
-        self.assertEqual(json.loads(config.read_text())["agent_login"], "")
+        self.assertEqual(json.loads(config.read_text())["agent_login"], "sfenton-agent")
 
 
 if __name__ == "__main__":
