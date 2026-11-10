@@ -4,7 +4,7 @@
 
 ## 1. Operating model
 
-The UIKit port landed on `main` on 2026-11-05 (#308); `workflow_base` is `main`. Opus plans and does the final review; Sonnet lanes implement in separate worktrees; Haiku gathers ([AGENTS.md](AGENTS.md#model-roles)). A lane reads anything and edits only what it owns; ask in your report for a change in a shared seam.
+The UIKit port landed on `main` on 2026-11-05 (#308); `workflow_base` is `main`. Fable 5.2 (medium) plans and designs, Opus does the final review (owner, 2026-11-10); Sonnet lanes implement in separate worktrees; Haiku gathers ([AGENTS.md](AGENTS.md#model-roles)). A lane reads anything and edits only what it owns; ask in your report for a change in a shared seam.
 
 | Seam | Owner |
 |---|---|

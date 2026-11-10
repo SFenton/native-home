@@ -47,7 +47,7 @@ sources to read, the files it owns, the done check (ledger check ids) and the de
 - `coder`: code, tests and docs, **in this same worktree** (one issue, one worktree: never `tools/lane_new.sh`, never a
   second branch).
 - `verifier`: journeys on iPhone, Duo and iPad, the evidence pack (screenshots), device runs.
-- `designer`: visible work only (`opus-ok: designer`): mockups and a recommendation, or a verdict on a built screen.
+- `designer`: visible work only (Fable 5.2 from its file; no `opus-ok`): mockups and a recommendation, or a verdict on a built screen.
 - `reviewer`: the independent review of the finished diff (`opus-ok: final review`).
 - `researcher`: rung-0 research before the gate (`build/research/<slug>.md`, read-only); Features start here.
 - `menial`: re-runs, log reading, git chores.

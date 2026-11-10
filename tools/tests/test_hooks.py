@@ -82,6 +82,16 @@ class AgentModelTests(unittest.TestCase):
                 self.assertEqual(status, 2)
                 self.assertIn("coder", message)
 
+    def test_fable_only_for_designer_and_explicit_coder_researcher(self):
+        for kind in ("designer", "coder", "researcher"):
+            self.assertEqual(run_agent_hook({"subagent_type": kind, "model": "claude-fable-5-2", "prompt": "go"})[0], 0)
+        for kind in ("reviewer", "verifier", "steward", "menial", "general-purpose", None):
+            with self.subTest(kind=kind):
+                self.assertEqual(run_agent_hook({"subagent_type": kind, "model": "claude-fable-5-2", "prompt": "opus-ok: x"})[0], 2)
+
+    def test_designer_still_refuses_explicit_opus(self):
+        self.assertEqual(run_agent_hook({"subagent_type": "designer", "model": "opus", "prompt": "go"})[0], 2)
+
     def test_opus_ok_in_the_prompt_allows_the_final_reviewer(self):
         self.assertEqual(run_agent_hook({"subagent_type": "general-purpose", "model": "opus",
                                          "prompt": "Review the diff. opus-ok: final review"})[0], 0)

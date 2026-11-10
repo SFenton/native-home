@@ -634,7 +634,7 @@ class InstallTests(Base):
         (self.paths.config_dir / "config.json").write_text(json.dumps({"agent": {"effort": "max"}}))
         cfg = ht.load_config(self.home)
         self.assertEqual(cfg["agent"]["effort"], "max")
-        self.assertEqual(cfg["agent"]["model"], "claude-opus-5-5")
+        self.assertEqual(cfg["agent"]["model"], "claude-fable-5-2")
 
 
 class NightlyIntakeTests(Base):
@@ -1412,6 +1412,29 @@ class AgentFlagTests(Base):
         self.argv({})
         self.assertEqual(self.launch_env["FENTON_HEADLESS"], "1")
         self.assertEqual(self.launch_env["FENTON_DEVCAP_MAX_WAIT"], "1200")
+
+    def test_worker_runs_fable_medium_and_the_reviewer_keeps_opus_high(self):
+        argv = self.argv({})
+        self.assertEqual((argv[argv.index("--model") + 1], argv[argv.index("--effort") + 1]), ("claude-fable-5-2", "medium"))
+        self.cfg["agent"]["reviewer"] = ht.load_config(self.home)["agent"]["reviewer"]
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: None)
+        runner.state.data["current"] = {"issue": 1}
+        runner.agent_override = "reviewer"
+        captured: list = []
+
+        class FakeProc:
+            pid = 99
+            stdin = mock.Mock()
+
+            def wait(self, timeout=None):
+                return 0
+
+        with mock.patch.object(subprocess, "Popen", lambda argv, **kw: captured.append(argv) or FakeProc()), \
+                mock.patch.object(ht.shutil, "which", return_value=None):
+            runner._launch(1, self.home, "prompt", self.home / "log")
+        argv = captured[0]
+        self.assertEqual((argv[argv.index("--model") + 1], argv[argv.index("--effort") + 1]), ("claude-opus-5-5", "high"))
+        self.assertEqual(argv[argv.index("--agent") + 1], "reviewer")
 
     def test_orchestrator_agent_is_on_by_default_and_can_be_turned_off(self):
         self.assertEqual(ht.load_config(self.home)["agent"]["agent"], "orchestrator")

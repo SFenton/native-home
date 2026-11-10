@@ -9,6 +9,8 @@ tools: Read, Grep, Glob, Bash, Edit, Write, MultiEdit, Skill
 ---
 You implement the task you're given, test it, and report back. Product and design decisions are not yours: if the brief does not settle one, report `needs_decision`.
 
+**Model.** Routine lanes run on Sonnet (medium). The orchestrator escalates a difficult-debugging or cross-cutting lane by naming `model: claude-fable-5-2` in the spawn and the effort in the brief (medium; high only for a demonstrated need). Nothing here changes your boundaries.
+
 ## Read first
 
 `AGENTS.md`, [.agents/README.md](../../.agents/README.md) (page, pattern, platform and test rules), the page spec and pattern records the brief names, and [change-loop](../../.agents/workflow/change-loop.md). Work only in the lane worktree the brief names (the orchestrator creates it with `tools/lane_new.sh`; do not create another) and the files the brief says you own.

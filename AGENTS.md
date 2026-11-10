@@ -36,8 +36,9 @@ The agents that play these roles (Orchestrator, Researcher, Designer, Coder, Ver
 
 | Model | Role |
 |---|---|
-| Claude Opus 5.5 (effort high, the user-level default) | Research lead and planner: identifies the work, writes specs and design decisions, and is the **sole final code reviewer** (say `opus-ok: reason` in the spawn). Use sparingly. |
-| Claude Sonnet 5.5 (`sonnet`; the repo default in `.claude/settings.json`; `coder` runs it at medium effort) | Implementation: code, tests, docs, skills and tools for work Opus has specified. |
+| Claude Fable 5.2 (`claude-fable-5-2`, medium) | Orchestrator, Designer; Researcher and Coder by explicit `model` (2026-11-10). |
+| Claude Opus 5.5 (effort high) | The **sole final code reviewer** (`opus-ok: reason` in the spawn); never Fable. |
+| Claude Sonnet 5.5 (`sonnet`; the repo default in `.claude/settings.json`; `coder` runs it at medium effort) | Implementation: code, tests, docs, skills and tools for work the orchestrator has specified. |
 | Claude Haiku 5.5 (`menial`, default effort) | Re-runs, log reading, status checks, repository chores, entity inventories, screenshot capture, doc sweeps and other low-level work. |
 
 ## Change loop
