@@ -967,6 +967,7 @@ class LedgerTests(Base):
         self.assertEqual(argv[argv.index("--intake") + 1], "https://github.com/r/issues/70")
         self.assertEqual(cwd, str(self.paths.worktree(70)))
         self.assertEqual(sum(1 for a in argv if a == "--check"), 4)
+        self.assertIn(["/usr/bin/python3", "tools/tasks.py", "add-branch", "R-70", "report/70"], self.commands)  # Fails if: the lane branch is not recorded
         self.assertIn("R-70", self.prompts[0])
         self.assertIn("Route: rules say researcher-first.", self.prompts[0])
         self.assertNotIn("Jev hint", self.prompts[0])

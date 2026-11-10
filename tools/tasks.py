@@ -8,6 +8,7 @@
     tasks.py flip T-0142 a2 --evidence build/evidence/b/iphone.png   # agents: this is all they may change
     tasks.py flip T-0142 a2 --fail                          # mark a check failing again
     tasks.py set-level T-0142 L2 --reason "needs the owner's pick"   # raise only; recorded in level_history
+    tasks.py add-branch T-0142 agents/x-20261110      # record a lane branch; the retro digest reads its review records
     tasks.py show T-0142 | list | check T-0142              # check exits 0 only when every check passes
 
 A check given as ``id=text`` gets that id (``[a-z][a-z0-9_-]{0,15}``, unique in the entry, text not empty); anything
@@ -33,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LEVELS = ("L0", "L1", "L2", "L3")
 STATUSES = ("new", "in_progress", "in_review", "needs_decision", "blocked", "done")
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+BRANCH = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 CHECK_ID = re.compile(r"^[a-z][a-z0-9_-]{0,15}$")
 
 
@@ -155,6 +157,20 @@ def cmd_set_level(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_add_branch(args: argparse.Namespace) -> int:
+    """Record ``args.branch`` in the entry's ``branches`` (once; the retro digest reads the review store for each)."""
+    branch = args.branch.strip()
+    if not BRANCH.match(branch):
+        raise SystemExit(f"tasks: bad branch name {args.branch!r}")
+    entry = load(args.id)
+    branches = entry.setdefault("branches", [])
+    if branch not in branches:
+        branches.append(branch)
+        save(entry)
+    print(f"{args.id} branches: {', '.join(branches)}")
+    return 0
+
+
 def cmd_show(args: argparse.Namespace) -> int:
     print(json.dumps(load(args.id), indent=2))
     return 0
@@ -211,6 +227,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--evidence")
     p.add_argument("--fail", action="store_true")
     p.set_defaults(fn=cmd_flip)
+    p = sub.add_parser("add-branch", help="record a lane branch on the entry")
+    p.add_argument("id")
+    p.add_argument("branch")
+    p.set_defaults(fn=cmd_add_branch)
     p = sub.add_parser("set-level")
     p.add_argument("id")
     p.add_argument("level", choices=LEVELS)

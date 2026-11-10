@@ -195,6 +195,87 @@ class InstrumentTests(Base):
             self.assertNotIn("wrong_instrument", self.fired(self.run_digest("--status", str(status))))
 
 
+class StoreTests(Base):
+    """A ledger's ``branches`` make the digest read the trusted verdict store (a temp home, never the real one)."""
+
+    BRANCH = "agents/merge-guard-fixes-20261109"
+
+    def setUp(self):
+        super().setUp()
+        self.home = self.dir / "home"
+        self.store = self.home / "hass-agents" / "reviews"
+        self.store.mkdir(parents=True)
+        original = rd.review_verdict.reviews_dir
+        rd.review_verdict.reviews_dir = lambda: self.store
+        self.addCleanup(setattr, rd.review_verdict, "reviews_dir", original)
+
+    def ledger(self, *branches, review=0):
+        self.write("build/tasks/R-1.json", {"id": "R-1", "rounds": {"design": 0, "review": review}, "branches": list(branches)})
+
+    def record(self, branch, sha, rnd, stamped=None, head=None):
+        name = f"{branch.replace('/', '__')}-{sha[:12]}.json"
+        (self.store / name).write_text(json.dumps({"branch": stamped or branch, "head": head or sha, "round": rnd, "verdict": "changes"}))
+
+    def test_a_lane_with_records_over_the_cap_fires_review_rounds_over_cap(self):
+        """Fails if: three store records (rounds 1, 2, 3) on two ledger branches do not give review_verdicts 3 and the trigger."""
+        other = "agents/second-20261109"
+        self.ledger(self.BRANCH, other)
+        for i, rnd in enumerate((1, 2)):
+            self.record(self.BRANCH, f"{i}" * 40, rnd)
+        self.record(other, "a" * 40, 3)
+        doc = self.run_digest()
+        self.assertEqual(doc["counts"]["review_verdicts"], 3)
+        self.assertEqual(doc["counts"]["review_rounds"], 3)
+        self.assertEqual(self.fired(doc)["review_rounds_over_cap"], ["3 review rounds (cap 2)"])
+
+    def test_stray_records_for_another_branch_or_sha_are_not_counted(self):
+        """Fails if: a record stamped main, one whose head differs from its file sha, or a prefix-sharing branch name adds to the count."""
+        self.ledger(self.BRANCH)
+        self.record(self.BRANCH, "1" * 40, 1)
+        self.record(self.BRANCH, "2" * 40, 9, stamped="main")
+        self.record(self.BRANCH, "3" * 40, 9, head="4" * 40)
+        self.record(self.BRANCH + "-2", "5" * 40, 9)
+        (self.store / (self.BRANCH.replace("/", "__") + "-6" * 12 + ".json")).write_text("{not json")
+        doc = self.run_digest()
+        self.assertEqual(doc["counts"]["review_verdicts"], 1)
+        self.assertEqual(doc["counts"]["review_rounds"], 1)
+        self.assertEqual(doc["triggers"], [])
+
+    def test_an_empty_or_missing_store_and_no_branches_are_unchanged(self):
+        """Fails if: an empty store, a missing store or a ledger with no branches changes the digest."""
+        self.ledger(self.BRANCH)
+        self.assertEqual(self.run_digest()["counts"]["review_verdicts"], 0)
+        self.store.rmdir()
+        self.assertEqual(self.run_digest()["triggers"], [])
+        self.write("build/tasks/R-1.json", {"id": "R-1", "rounds": {"design": 0, "review": 0}})
+        self.assertEqual(self.run_digest()["counts"]["review_rounds"], 0)
+
+    def test_a_verdict_in_both_the_local_copy_and_the_store_counts_once(self):
+        """Fails if: the copy in build/review and the store copy of the same (branch, head, round) count twice, or a bad branch name reads the store."""
+        sha = "8" * 40
+        self.ledger(self.BRANCH, "../escape")
+        self.record(self.BRANCH, sha, 2)
+        self.write("build/review/local.json", {"branch": self.BRANCH, "head": sha, "round": 2, "verdict": "changes"})
+        self.assertEqual(self.run_digest()["counts"]["review_verdicts"], 1)
+        self.assertEqual(rd.store_records("../escape", self.store), [])
+
+    def test_add_branch_records_once_and_the_digest_reads_it(self):
+        """Fails if: tasks.py add-branch writes a duplicate, accepts a bad name, or the digest cannot read what it wrote."""
+        tasks = importlib.util.spec_from_file_location("tasks_cli", TOOLS / "tasks.py")
+        module = importlib.util.module_from_spec(tasks)
+        tasks.loader.exec_module(module)
+        self.write("build/tasks/R-1.json", {"id": "R-1", "rounds": {"design": 0, "review": 0}})
+        os.environ["TASKS_DIR"] = str(self.build / "tasks")
+        self.addCleanup(os.environ.pop, "TASKS_DIR", None)
+        for _ in range(2):
+            self.assertEqual(module.main(["add-branch", "R-1", self.BRANCH]), 0)
+        with self.assertRaises(SystemExit):
+            module.main(["add-branch", "R-1", "bad branch;"])
+        self.assertEqual(json.loads((self.build / "tasks" / "R-1.json").read_text())["branches"], [self.BRANCH])
+        self.record(self.BRANCH, "7" * 40, 4)
+        self.assertEqual(self.run_digest()["counts"]["review_rounds"], 4)
+
+
 class LaneTests(Base):
     """``--lane``: a digest from what a lane leaves behind (bg_run digests, review file, commits), no ledger task."""
 
