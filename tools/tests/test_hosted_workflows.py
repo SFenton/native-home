@@ -161,12 +161,11 @@ class RuleTests(unittest.TestCase):
         self.assertIn("name: Tool tests (core ${{ matrix.shard }}/4)", core)
         self.assertIn("name: tool-tests-log-core-${{ matrix.shard }}", core)  # one artifact per shard (report-red-main reads tool-tests-log-*)
 
-    def test_the_core_tool_tests_skip_only_for_an_apple_only_diff(self):
+    def test_the_core_tool_tests_always_run(self):
+        """Fails if: tool-tests-core gains an `if:` or the scope grows a core_tests output (some core tests read live apple/ files)."""
         core = jobs("pr-checks.yml")["tool-tests-core"]
-        self.assertIn("needs.scope.outputs.core_tests == 'true'", re.search(r"^    if: (.*)$", core, re.M).group(1))
-        scope = jobs("pr-checks.yml")["scope"]
-        self.assertRegex(scope, r"core_tools:\n\s+- '\*\*'\n\s+- '!apple/\*\*'")
-        self.assertIn("core_tests: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.core_tools }}", scope)
+        self.assertIsNone(re.search(r"^    if: ", core, re.M))
+        self.assertNotIn("core_tests", (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8"))
 
     def test_self_hosted_jobs_never_trigger_on_pull_requests_without_the_private_gate(self):
         for name in ("nightly.yml", "ios-release.yml"):

@@ -20,7 +20,10 @@ run_core() {
   modules="$(python3 tools/ci_shard.py --shard "${FENTON_TOOL_SHARD%/*}" --of "${FENTON_TOOL_SHARD#*/}")" || return 2
   if [[ -z "$modules" ]]; then echo "run_tool_tests: shard $FENTON_TOOL_SHARD has no modules"; return 0; fi
   # shellcheck disable=SC2086  # one module name per word
-  PYTHONPATH="tools/tests${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest $modules
+  # Python 3.12+ lists the slowest tests when asked: the per-test seconds that tools/ci_shard_weights.json is refreshed from (hosted CI logs).
+  local durations=()
+  if python3 -m unittest --help 2>&1 | grep -q -- '--durations'; then durations=(--durations 0); fi
+  PYTHONPATH="tools/tests${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest ${durations[@]+"${durations[@]}"} $modules
 }
 
 run_part() {

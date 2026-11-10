@@ -24,7 +24,7 @@ def run_of(macos="success", **overrides):
     """A pull request that changed app code and tools: every gated job wanted. `macos` is the state of the build and the test matrix."""
     base = needs(scope="success", linux_checks="success", tool_tests_core="success", denylist_scan="success",
                  macos_build=macos, macos_test=macos, build_release=macos)
-    base["scope"]["outputs"] = {"app": "true", "release": "true", "core_tests": "true"}
+    base["scope"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
 
@@ -35,6 +35,7 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual(agg.problems(run_of(macos="skipped"), False), [])
 
     def test_a_skipped_core_job_fails(self):
+        self.assertTrue(agg.problems(run_of(tool_tests_core="skipped"), False))
         self.assertTrue(agg.problems(run_of(linux_checks="skipped"), True))
         self.assertTrue(agg.problems(run_of(scope="skipped"), True))
 
@@ -44,15 +45,6 @@ class AggregateTests(unittest.TestCase):
         run = run_of(macos="skipped")
         run["scope"]["outputs"] = {"app": "false", "release": "false"}
         self.assertEqual(agg.problems(run, True), [])
-
-    def test_the_core_tool_tests_may_skip_only_when_the_diff_is_under_apple_only(self):
-        run = run_of(tool_tests_core="skipped")
-        self.assertTrue(agg.problems(run, True, "pull_request"))
-        self.assertTrue(agg.problems(run, False, "pull_request"))  # not tied to HOSTED_MACOS
-        run["scope"]["outputs"]["core_tests"] = "false"
-        self.assertEqual(agg.problems(run, True, "pull_request"), [])
-        run["tool-tests-core"]["result"] = "failure"
-        self.assertTrue(agg.problems(run, True, "pull_request"))
 
     def test_one_failed_or_skipped_leg_of_the_macos_build_or_test_fails_the_aggregate(self):
         for job in ("macos-build", "macos-test"):
@@ -80,7 +72,7 @@ class AggregateTests(unittest.TestCase):
 
     def test_a_gated_job_missing_from_needs_fails(self):
         """Dropping a job from the workflow's `needs` must not let the aggregate pass blind."""
-        for gone in ("macos-build", "macos-test", "build-release", "tool-tests-core"):
+        for gone in ("macos-build", "macos-test", "build-release"):
             run = run_of()
             del run[gone]
             self.assertTrue(agg.problems(run, True), gone)
