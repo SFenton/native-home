@@ -9,6 +9,7 @@ TOOLS = Path(__file__).resolve().parents[1]
 ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 import ci_wait  # noqa: E402
+import pr_blockers  # noqa: E402
 
 SHA = "a" * 40
 
@@ -214,9 +215,9 @@ class WaitTests(unittest.TestCase):
 
 
 class BlockerTests(unittest.TestCase):
-    """``ci_wait.blockers`` and where ``wait`` uses it; CODEOWNERS is passed in so the tests do not follow the live file."""
+    """``pr_blockers.blockers`` and where ``wait`` uses it; CODEOWNERS is passed in so the tests do not follow the live file."""
 
-    OWNED = ["/tools/pr_land.py"]
+    OWNED = pr_blockers.parse("/tools/pr_land.py @SFenton\n")
 
     def test_a_conflicting_pr_exits_three_on_the_first_poll(self):
         """Fails if: a CONFLICTING PR is polled for a run that GitHub never queues (more than the one `pr view`), or does not exit 3 naming the conflict."""
@@ -228,15 +229,24 @@ class BlockerTests(unittest.TestCase):
         self.assertEqual([c[:2] for c in fake.calls], [["pr", "view"]])
         self.assertEqual(fake.sleeps, [])
 
+    def test_an_unknown_mergeable_does_not_exit_three_and_keeps_waiting(self):
+        """Fails if: mergeable UNKNOWN (GitHub still computing it) is treated as a conflict, so a fresh PR exits 3 instead of waiting for its run."""
+        fake = FakeGh(prs=[{**pr(), "mergeable": "UNKNOWN"}, {**pr(), "mergeable": "UNKNOWN"}, pr("MERGED")], runs=[[], [{"databaseId": 9, "headSha": SHA}]],
+                      views=[run()])
+        code, lines = go(fake, merge_wait=60, poll=30)
+        self.assertEqual(code, 0, lines)
+        self.assertGreaterEqual(len(fake.sleeps), 1)
+        self.assertEqual(pr_blockers.blockers({"mergeable": "UNKNOWN"}), [])
+
     def test_draft_and_review_required_are_named(self):
         """Fails if: a draft or a missing code-owner review is not named, or a PR with neither gets a blocker."""
         state = {"isDraft": True, "reviewDecision": "REVIEW_REQUIRED", "mergeable": "MERGEABLE", "files": [{"path": "tools/pr_land.py"}]}
-        found = ci_wait.blockers(state, self.OWNED)
+        found = pr_blockers.blockers(state, self.OWNED)
         self.assertEqual(len(found), 2, found)
         self.assertIn("draft", found[0])
         self.assertIn("code-owner review required (REVIEW_REQUIRED) for tools/pr_land.py", found[1])
-        self.assertEqual(ci_wait.blockers({**state, "isDraft": False, "reviewDecision": "APPROVED"}, self.OWNED), [])
-        self.assertEqual(ci_wait.blockers({**state, "files": [{"path": "apple/X.swift"}]}, self.OWNED)[1:], [])
+        self.assertEqual(pr_blockers.blockers({**state, "isDraft": False, "reviewDecision": "APPROVED"}, self.OWNED), [])
+        self.assertEqual(pr_blockers.blockers({**state, "files": [{"path": "apple/X.swift"}]}, self.OWNED)[1:], [])
 
     def test_a_blocked_pr_names_its_reason_at_the_end(self):
         """Fails if: a green run on a PR left BLOCKED by a draft or a missing code-owner review ends with only `armed but BLOCKED`."""
@@ -250,11 +260,11 @@ class BlockerTests(unittest.TestCase):
 
     def test_the_live_codeowners_file_matches_what_the_gate_owns(self):
         """Fails if: the matcher stops reading .github/CODEOWNERS, or stops matching a directory and a glob pattern in it."""
-        patterns = ci_wait.codeowners_patterns()
-        self.assertIn("/tools/pr_land.py", patterns)
+        patterns = pr_blockers.load_rules()
+        self.assertIn("/tools/pr_land.py", [pattern for pattern, _ in patterns])
         for path in ("tools/pr_land.py", "tools/lane_land.py", ".github/workflows/pr-checks.yml", ".agents/workflow/ci.md"):
-            self.assertEqual(ci_wait.owned_files({"files": [{"path": path}]}, patterns), [path], path)
-        self.assertEqual(ci_wait.owned_files({"files": [{"path": "apple/HassCore/EntityStore.swift"}, {"path": "tools/ci_wait.py"}]}, patterns), [])
+            self.assertEqual(pr_blockers.owned_files({"files": [{"path": path}]}, patterns), [path], path)
+        self.assertEqual(pr_blockers.owned_files({"files": [{"path": "apple/HassCore/EntityStore.swift"}, {"path": "tools/ci_wait.py"}]}, patterns), [])
 
 
 class RuleGrepTests(unittest.TestCase):

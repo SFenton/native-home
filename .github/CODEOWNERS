@@ -16,6 +16,7 @@
 /tools/ship.sh @SFenton
 /tools/ship_guard.sh @SFenton
 /tools/pr_land.py @SFenton
+/tools/pr_blockers.py @SFenton
 /tools/pr_land.sh @SFenton
 /tools/lane_*.py @SFenton
 /tools/ruleset_gate.py @SFenton

@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import agent_login
-import ci_wait
+import pr_blockers
 import review_verdict
 import ruleset_gate
 
@@ -294,15 +294,26 @@ def owner_recipe(number: str, info: Dict[str, Any]) -> List[str]:
 
     The ruleset requires code-owner review, so GitHub will not merge such a PR on an agent's say-so: the owner marks it ready, approves
     it as code owner and squash-merges it pinned to the head. The three exact ``gh`` commands are printed for the owner; no agent runs them.
-    ``info`` is the ``gh pr view`` JSON (``files``, ``headRefOid``); :func:`ci_wait.blockers` is the shared reading of the PR."""
-    if not ci_wait.owned_files(info):
+    ``info`` is the ``gh pr view`` JSON (``files``, ``headRefOid``); :func:`pr_blockers.blockers` is the shared reading of the PR."""
+    if not pr_blockers.owned_files(info):
         return []
     head = str(info.get("headRefOid") or "")
-    why = "; ".join(ci_wait.blockers(info))
+    why = "; ".join(pr_blockers.blockers(info))
     return [f"owner-only: #{number} touches CODEOWNERS paths ({why}); the owner lands it from their own terminal (agents never run these):",
             f"  gh pr ready {number} -R {PRODUCT_REPO}",
             f"  gh pr review {number} -R {PRODUCT_REPO} --approve",
             f"  gh pr merge {number} -R {PRODUCT_REPO} --squash --match-head-commit {head}"]
+
+
+#: The phrase ``lane_land`` puts in a refusal of the owner-kept set; such a block is the owner's to clear.
+OWNER_KEPT = "owner-only set"
+
+
+def print_owner_recipe(number: str, info: Dict[str, Any]) -> None:
+    """Print :func:`owner_recipe` (nothing for a PR that touches no CODEOWNERS path). Called only once a gate of ours has run and what
+    remains is owner-only (code-owner review, a draft, or the owner-kept set); never before a refusal of another kind."""
+    for line in owner_recipe(number, info):
+        print(line)
 
 
 def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_worktree: bool = False,
@@ -318,8 +329,6 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
                            "state,isDraft,headRefName,headRefOid,mergeable,reviewDecision,baseRefName,labels,files,body,title,author,isCrossRepository"]).stdout)
     if info["state"] != "OPEN":
         return 1, f"blocked #{number}: pull request is {info['state'].lower()}"
-    for recipe_line in owner_recipe(number, info):
-        print(recipe_line)
     if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
            for label in info.get("labels") or []):
         return 1, f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park), so the owner decides first (reply on the issue, or merge the PR to accept)"
@@ -345,12 +354,16 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
         try:
             gate = ui_gate(number, info)
         except GateRefused as exc:
+            if OWNER_KEPT in str(exc):
+                print_owner_recipe(number, info)
             return 1, f"blocked #{number}: app-UI gate ({exc.kind}): {exc}"
         except (RuntimeError, ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
             return 1, f"blocked #{number}: app-UI gate failed closed: {exc}"
     refused = denylist_gate(number, head, load_config().get("denylist_required") is True, base_name)
     if refused:
         return 1, f"blocked #{number}: {refused}"
+    if pr_blockers.owner_only(info):  # every gate of ours passed; what is left is the owner's alone
+        print_owner_recipe(number, info)
     if dry_run:
         return 0, f"would arm #{number} at {head[:8]} ({gate})"
     if info.get("isDraft"):
