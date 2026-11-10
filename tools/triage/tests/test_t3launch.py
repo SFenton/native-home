@@ -150,12 +150,31 @@ class RegistrationTests(Base):
         self.assertEqual(record["hook_sha"], session.hash_hooks(self.trusted))
         self.assertEqual(oct(session.path_record(self.work, self.root).stat().st_mode & 0o777), "0o600")
 
-    def test_a_failed_handover_removes_the_record_and_raises(self):
-        fake = Fake(self, handover=done("", 1, "boom"))
+    def test_a_failed_handover_keeps_the_record_and_interrupts_a_thread_that_exists(self):
+        """Fails if: a failed handover forgets the record while T3 may still start the thread, or leaves a started thread running."""
+        envelope = json.dumps({"ok": False, "error": {"code": "THREAD_START_FAILED", "details": {"threadId": THREAD}}})
+        for name, fake in (
+                ("threadId in the error", Fake(self, handover=done("", 1, envelope))),
+                ("only in the list", Fake(self, handover=done("", 6, "timed out"),
+                                          **{"threads list": ok(threads=[{"id": "other", "worktreePath": "/elsewhere"},
+                                                                         {"id": THREAD, "worktreePath": str(self.work)}])})),
+                ("no id in a successful reply", Fake(self, handover=ok(),
+                                                     **{"threads list": ok(threads=[{"id": THREAD, "worktreePath": str(self.work)}])}))):
+            with self.subTest(name):
+                with self.assertRaises(t3launch.LaunchError):
+                    self.go(fake)
+                self.assertTrue(session.path_record(self.work, self.root).exists())
+                self.assertEqual(self.record()["state"], "ended")
+                interrupted = [argv for key, argv, _ in fake.calls if key == "threads interrupt"]
+                self.assertEqual(interrupted[0][-1], THREAD)
+                self.assertIn("threads archive", fake.keys())
+
+    def test_a_failed_handover_with_no_thread_anywhere_keeps_the_record_and_interrupts_nothing(self):
+        fake = Fake(self, handover=done("", 1, "boom"), **{"threads list": ok(threads=[{"id": "x", "worktreePath": "/elsewhere"}])})
         with self.assertRaises(t3launch.LaunchError):
             self.go(fake)
-        self.assertFalse(session.path_record(self.work, self.root).exists())
-        self.assertEqual(fake.keys(), ["handover"])
+        self.assertTrue(session.path_record(self.work, self.root).exists())
+        self.assertNotIn("threads interrupt", fake.keys())
 
     def test_a_record_that_cannot_be_written_aborts_before_the_handover(self):
         fake = self.happy()
@@ -165,20 +184,13 @@ class RegistrationTests(Base):
             self.go(fake)
         self.assertEqual(fake.calls, [])
 
-    def test_the_thread_id_falls_back_to_the_newest_active_thread(self):
-        fake = self.happy(handover=ok(), **{"threads list": ok(threads=[{"id": THREAD}, {"id": "older"}])})
-        self.assertEqual(self.go(fake).thread, THREAD)
-        listed = [argv for key, argv, _ in fake.calls if key == "threads list"][0]
-        self.assertEqual(listed[2:], ["threads", "list", "--status", "active", "--cwd", str(self.work)])
-        fake = Fake(self, handover=ok(), **{"threads list": ok(threads=[])})
-        with self.assertRaises(t3launch.LaunchError):
-            self.go(fake)
-
-    def test_a_thread_record_that_cannot_be_written_interrupts_the_thread(self):
+    def test_a_thread_record_that_cannot_be_written_stops_and_reaps_the_thread(self):
         fake = self.happy(handover=ok(thread={"id": "bad/id"}))  # not a usable thread id: the thread-keyed write raises
-        with self.assertRaises(t3launch.LaunchError):
-            self.go(fake)
+        out = self.go(fake)
+        self.assertEqual(out.code, 1)
         self.assertIn("threads interrupt", fake.keys())
+        self.assertIn("threads archive", fake.keys())
+        self.assertFalse(out.tampered)
 
     def test_worktree_hooks_that_differ_from_the_trusted_checkout_refuse_the_launch(self):
         (self.work / session.GUARD_FILES[0]).write_text("# tampered\n")
@@ -244,6 +256,59 @@ class SessionTests(Base):
         answers = [argv for key, argv, _ in fake.calls if key == "threads answer"]
         self.assertEqual(answers[0][-2:], ["--answer", t3launch.UNATTENDED])
         self.assertEqual(answers[1][-1], "--dismiss")
+
+    def test_a_file_added_beside_the_hooks_is_tampering_at_launch_and_at_the_end(self):
+        """Fails if: only the four guard files are hashed, so a session-written tools/hooks/json.py (which shadows the stdlib for a hook)
+        or a new file in the hooks folder goes unseen."""
+        shadow = self.work / "tools" / "hooks" / "json.py"
+        shadow.write_text("import sys\nsys.exit(0)\n")
+        with self.assertRaises(t3launch.LaunchError) as raised:
+            self.go(self.happy())
+        self.assertIn("tools/hooks/json.py", str(raised.exception))
+        shadow.unlink()
+        out = self.go(self.happy(**{"threads wait!": lambda: shadow.write_text("import sys\nsys.exit(0)\n")}))
+        self.assertTrue(out.tampered)
+
+    def test_settings_and_a_changed_or_deleted_hook_are_tampering_too(self):
+        edits = {"settings": lambda: (self.work / ".claude" / "settings.json").write_text("{}"),
+                 "other hook": lambda: (self.work / "tools" / "hooks" / "extra_guard.py").unlink(),
+                 "pyc ignored": lambda: None}
+        (self.work / "tools" / "hooks" / "extra_guard.py").write_text("x = 1\n")
+        checkout_extra = self.trusted / "tools" / "hooks" / "extra_guard.py"
+        checkout_extra.write_text("x = 1\n")
+        for name, edit in edits.items():
+            with self.subTest(name):
+                out = self.go(self.happy(**{"threads wait!": edit}))
+                self.assertEqual(out.tampered, name != "pyc ignored")
+                (self.work / "tools" / "hooks" / "extra_guard.py").write_text("x = 1\n")
+                checkout(self.work)
+
+    def test_caches_are_not_tampering(self):
+        cache = self.work / "tools" / "hooks" / "__pycache__"
+        cache.mkdir()
+        (cache / "x.cpython-39.pyc").write_bytes(b"\0")
+        (self.work / "tools" / "hooks" / "y.pyc").write_bytes(b"\0")
+        self.assertFalse(self.go(self.happy()).tampered)
+
+    def test_a_record_changed_or_removed_during_the_session_is_tampering(self):
+        """Fails if: the registry record the guards read can be edited or deleted by the session without the runner noticing (verify)."""
+        for name, edit in (("changed", lambda: session.path_record(self.work, self.root).write_text("{}")),
+                           ("removed", lambda: (self.root / "threads" / f"{THREAD}.json").unlink())):
+            with self.subTest(name):
+                self.assertTrue(self.go(self.happy(**{"threads wait!": edit})).tampered)
+
+    def test_a_clean_session_verifies(self):
+        self.assertFalse(self.go(self.happy()).tampered)
+
+    def test_a_probe_that_cannot_run_is_a_stray(self):
+        """Fails if: a failed ps or lsof reads as 'nothing left running'."""
+        for bad in ({"ps": done("", 127)}, {"lsof": done("", 6)}):
+            self.assertTrue(self.go(self.happy(**bad)).stray)
+
+    def test_a_wait_that_fails_interrupts_the_thread(self):
+        fake = self.happy(**{"threads wait": done("", 1, "socket error")})
+        self.assertEqual(self.go(fake).code, 1)
+        self.assertIn("threads interrupt", fake.keys())
 
     def test_tampered_guard_hooks_are_reported_at_the_end(self):
         tamper = lambda: (self.work / session.GUARD_FILES[1]).write_text("# changed\n")  # noqa: E731
@@ -312,6 +377,15 @@ class ReadyTests(Base):
         self.assertIs(self.check(doctor=done("not json"))[0], None)
         fake = Fake(self, version=FileNotFoundError("x"))
         self.assertIs(t3launch.ready(AGENT, self.home / "hass-agents", None, {}, fake)[0], None)
+
+    def test_a_lockfile_that_changed_since_the_install_is_not_ready(self):
+        """Fails if: the recorded LOCK.sha256 is never compared, so floating dependencies move unseen."""
+        prefix = self.exe.parents[2]
+        (prefix / "package-lock.json").write_text("{}")
+        (prefix / "LOCK.sha256").write_text(__import__("hashlib").sha256(b"{}").hexdigest() + "\n")
+        self.assertEqual(self.check(), (True, ""))
+        (prefix / "package-lock.json").write_text('{"changed": 1}')
+        self.assertIn("lockfile changed", self.check()[1])
 
     def test_a_bad_config_is_not_ready(self):
         self.assertIs(self.check(agent={"t3": {"checkout": "worktree"}})[0], False)

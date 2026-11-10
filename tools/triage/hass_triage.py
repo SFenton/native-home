@@ -461,6 +461,14 @@ class GitHub:
         """Mark a draft pull request ready for review (the runner's own call: the worker's deny list keeps ``gh pr ready``)."""
         self._write(["pr", "ready", url])
 
+    def branch_pulls(self, repo: str, branch: str) -> List[Dict[str, Any]]:
+        """Every pull request (any state) whose head branch is ``branch``: ``url``, ``state``, ``labels``."""
+        return json.loads(self._gh(["pr", "list", "-R", repo, "--head", branch, "--state", "all", "--json", "url,state,labels"]) or "[]")
+
+    def disarm_pull(self, url: str) -> None:
+        """Turn auto-merge off (the runner's own call: the worker's deny list keeps every other merge form)."""
+        self._write(["pr", "merge", url, "--disable-auto"])
+
     def label_pull(self, url: str, add: str = "", remove: str = "") -> None:
         args = ["pr", "edit", url]
         if add:
@@ -1374,8 +1382,8 @@ class Runner:
         code = self.launch(n, worktree, prompt, log)
         self.state.data["current"] = None
         if self.guard_tampered:  # the session changed the hooks that guarded it: nothing it reports is trusted
-            return self.block(n, "The session changed the guard hooks in its worktree, so its result was not used.",
-                              "guard_tampered", self.log_tail(log))
+            return self.block(n, "The session changed the guard hooks, settings or triage record, so its result was not used."
+                              + self.undo_landing(n), "guard_tampered", self.log_tail(log))
         status = self.read_status(n)
         if status and "Workflow" in label_names(issue) and status.get("lanes") and not status.get("pr"):
             return self.finish_workflow(n, status, worktree)  # Steward entry B: the runner lands the lanes the worker pushed
@@ -2435,6 +2443,8 @@ class Runner:
                 self.state.data["current"].update(thread=thread, launcher="t3code", pid=os.getpid())
                 self.state.save()
 
+        # The claude path keeps the Mac awake for the session (caffeinate on its pid); the runner is what blocks in `threads wait` here.
+        awake = subprocess.Popen(["caffeinate", "-is", "-w", str(os.getpid())]) if shutil.which("caffeinate") else None
         try:
             launcher = t3launch.Launcher(agent, self.paths.home, self.paths.root, env, self.run)
             out = launcher.launch(kind=kind, issue=n if isinstance(n, int) else None, role="worker" if isinstance(n, int) else str(n),
@@ -2447,12 +2457,36 @@ class Runner:
             with open(log, "ab") as handle:
                 handle.write((json.dumps({"type": "t3_launch_failed", "reason": redact(str(exc))[:300]}) + "\n").encode())
             return 1
+        finally:
+            if awake:
+                awake.terminate()
         self.stray, self.guard_tampered = out.stray or out.tampered, out.tampered  # a tampered session lands nothing either
         if out.stray:
             print(f"{n}: processes of the T3 session are still running after the cleanup")
         if out.tampered:
             print(f"{n}: the guard hooks changed during the session")
         return out.code
+
+    def undo_landing(self, n: int) -> str:
+        """After ``guard_tampered``: the worker lands its own pull request inside the session, so disarm auto-merge on every pull request of
+        its branch and take off the merge label. Returns a sentence for the block comment (it says when a pull request already merged)."""
+        notes = []
+        try:
+            pulls = self.gh.branch_pulls(self.cfg["product_repo"], f"{self.branch}/{n}")
+        except TriageError as exc:
+            return f" Its pull requests could not be listed to disarm them ({exc}); check {self.branch}/{n} by hand."
+        for pull in pulls:
+            url, state = str(pull.get("url") or ""), pull.get("state")
+            if state == "MERGED":
+                notes.append(f"{url} had already merged")
+            elif state == "OPEN":
+                try:
+                    self.gh.disarm_pull(url)
+                    self.gh.label_pull(url, remove=self.cfg["merge"]["label"])
+                    notes.append(f"auto-merge on {url} was turned off")
+                except TriageError as exc:
+                    notes.append(f"{url} could not be disarmed ({exc}); disarm it by hand")
+        return " " + "; ".join(notes) + "." if notes else ""
 
     def _drop_worktree(self, path: Path, clone: str) -> None:
         """``git worktree remove`` and forget its T3 triage records (``t3launch.forget``)."""

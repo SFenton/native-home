@@ -162,13 +162,14 @@ def metrics(records: Dict[str, Any], start: datetime, end: datetime) -> Dict[str
         corrections += count
         nudged += 1 if "owner_correction" in ids else 0
         overrides += 1 if "routing_override" in ids else 0
-        token = float(((data.get("cost") or {}).get("tokens")) or 0)
+        raw_tokens = (data.get("cost") or {}).get("tokens")  # None for a T3 flow: unknown, not zero
+        token = float(raw_tokens or 0)
         minute = float(((data.get("durations") or {}).get("minutes")) or 0)
         if token:
             tokens.append(token)
         if minute:
             minutes.append(minute)
-        rows.append({"task": record["task"], "tokens": int(token), "minutes": minute, "corrections": count,
+        rows.append({"task": record["task"], "tokens": None if raw_tokens is None and "cost" in data else int(token), "minutes": minute, "corrections": count,
                      "triggers": ids})
     reviews = [r for r in records["reviews"] if inside(r["at"])]
     merges = reverts = rule_repeats = 0
@@ -301,7 +302,7 @@ def render_md(doc: Dict[str, Any]) -> str:
     lines += ["", "## Triggers", ""]
     lines += [f"- {k}: {v}" for k, v in m["triggers"].items()] or ["- none"]
     lines += ["", "## Tasks", "", "| Task | Tokens | Minutes | Corrections | Triggers |", "|---|---|---|---|---|"]
-    lines += [f"| {r['task']} | {r['tokens']} | {r['minutes']} | {r['corrections']} | {', '.join(r['triggers']) or '-'} |"
+    lines += [f"| {r['task']} | {'unknown' if r['tokens'] is None else r['tokens']} | {r['minutes']} | {r['corrections']} | {', '.join(r['triggers']) or '-'} |"
               for r in m["tasks"]]
     return "\n".join(lines) + "\n"
 

@@ -216,10 +216,33 @@ def trusted_hashes(trusted: Path) -> Dict[str, str]:
     return found
 
 
-def hooks_changed(worktree: Path, expected: Mapping[str, str]) -> List[str]:
-    """The guard files of ``worktree`` whose bytes differ from ``expected`` (a missing file counts)."""
-    now = session_module().hash_hooks(worktree)
-    return sorted(rel for rel, digest in expected.items() if now.get(rel) != digest)
+def tree_digests(repo: Path) -> Dict[str, str]:
+    """``{relative path: sha256}`` of every file under ``tools/hooks/`` (symlinks recorded by target, caches skipped) and of
+    ``.claude/settings.json``. A file added next to the hooks counts: a sibling ``json.py`` shadows the stdlib for a hook."""
+    out: Dict[str, str] = {}
+    base = Path(repo)
+
+    def add(path: Path) -> None:
+        rel = str(path.relative_to(base))
+        try:
+            out[rel] = "link:" + os.readlink(path) if path.is_symlink() else hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            out[rel] = "unreadable"
+
+    for folder, dirs, files in os.walk(base / "tools" / "hooks"):
+        dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+        for name in sorted(files) + [d for d in dirs if (Path(folder) / d).is_symlink()]:
+            if not name.endswith(".pyc"):
+                add(Path(folder) / name)
+    if (base / ".claude" / "settings.json").exists():
+        add(base / ".claude" / "settings.json")
+    return out
+
+
+def tree_diff(worktree: Path, expected: Mapping[str, str]) -> List[str]:
+    """The paths where ``worktree`` differs from ``expected`` (:func:`tree_digests` of the trusted checkout): changed, missing or extra."""
+    now = tree_digests(worktree)
+    return sorted(rel for rel in set(now) | set(expected) if now.get(rel) != expected.get(rel))
 
 
 def ready(agent: Mapping[str, Any], root: Path, trusted: Optional[Path] = None, env: Optional[Mapping[str, str]] = None,
@@ -234,6 +257,12 @@ def ready(agent: Mapping[str, Any], root: Path, trusted: Optional[Path] = None, 
     exe = executable(cfg, root)
     if not (os.path.isfile(exe) and os.access(exe, os.X_OK)):
         return False, f"t3code is not installed at {exe}; run: python3 tools/triage/hass_triage.py install-t3code"
+    prefix = root.joinpath(*INSTALL_DIR)
+    try:  # the install recorded its lockfile's hash; a changed lockfile means dependencies moved
+        if (prefix / "LOCK.sha256").read_text().strip() != hashlib.sha256((prefix / "package-lock.json").read_bytes()).hexdigest():
+            return False, "the t3code lockfile changed since install-t3code; run it again"
+    except OSError:
+        pass
     try:
         version = (run([exe, "--version"], capture_output=True, text=True, env=dict(env) if env else None).stdout or "").strip()
         report = data_of(run([exe, "--json", "doctor"], capture_output=True, text=True, env=dict(env) if env else None))
@@ -282,48 +311,74 @@ class Launcher:
     def launch(self, *, kind: str, issue: Optional[int], role: str, worktree: Path, branch: str, session_env: Mapping[str, str],
                deny: List[str], prompt: str, log: Path, timeout: float, trusted: Path,
                on_thread: Callable[[str], None] = lambda _id: None) -> Outcome:
-        """Run the session to its end. Raises ``LaunchError`` when it could not be started safely."""
+        """Run the session to its end. Raises ``LaunchError`` when it could not be started (a thread that may exist is interrupted and
+        reaped first, and its record stays armed until the runner removes the worktree)."""
         session = session_module()
-        expected = trusted_hashes(trusted)
-        changed = hooks_changed(worktree, expected)
+        guard_sha = trusted_hashes(trusted)
+        expected = tree_digests(trusted)
+        changed = tree_diff(worktree, expected)
         if changed:
-            raise LaunchError(f"guard files differ from the trusted checkout: {', '.join(changed)}")
+            raise LaunchError(f"hooks or settings differ from the trusted checkout: {', '.join(changed[:6])}")
         record = session.build_record(kind, issue, role, worktree, branch, session_env, deny + list(self.cfg["extra_denied"]),
-                                      ttl_hours=timeout / 3600 + 1, hook_sha=expected)
+                                      ttl_hours=timeout / 3600 + 1, hook_sha=guard_sha)
         root = registry_root(self.home)
         try:
-            session.write_record(record, root)  # before the handover: the first tool call is already covered
+            written = session.write_record(record, root)  # before the handover: the first tool call is already covered
         except (OSError, ValueError) as exc:
             raise LaunchError(f"could not write the triage record: {type(exc).__name__}") from exc
         argv = handover_argv(self.exe, self.cfg, worktree)
         proc = self.call(argv, prompt=prompt, timeout=120)
         thread = (data_of(proc).get("thread") or {}).get("id") if proc.returncode == 0 else None
-        if proc.returncode == 0 and not thread:
-            thread = self.newest_thread(worktree)
         if not isinstance(thread, str) or not thread:
-            session.forget(worktree, root)
+            # T3 may still start the thread (a timed-out CLI, THREAD_START_FAILED "server-managed"): the record stays, and any thread
+            # at this worktree is interrupted and reaped. Only the runner's worktree cleanup removes the record.
+            found = self.failed_thread(proc, worktree)
+            if found:
+                self.stop(found)
+                self.reap(found, worktree)
+            session.set_state(worktree, "ended", root)
             raise LaunchError(f"t3code handover failed (exit {proc.returncode}): {(proc.stderr or '')[:200].strip()}")
-        log.parent.mkdir(parents=True, exist_ok=True)
-        with open(log, "ab") as handle:
-            handle.write((json.dumps({"type": "t3_launch", "thread": thread, "worktree": str(worktree),
-                                      "command": shlex.join(argv)}) + "\n").encode())
+        digest, with_thread, code, problem = written.digest, False, 1, ""
         try:
-            session.write_record({**record, "thread_id": thread, "state": "running"}, root)
-        except (OSError, ValueError) as exc:  # the path record still guards; do not leave the thread running unregistered
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with open(log, "ab") as handle:
+                handle.write((json.dumps({"type": "t3_launch", "thread": thread, "worktree": str(worktree),
+                                          "command": shlex.join(argv)}) + "\n").encode())
+            digest = session.write_record({**record, "thread_id": thread, "state": "running"}, root).digest
+            with_thread = True
+            on_thread(thread)
+            code = self.supervise(thread, worktree, timeout, log)
+        except Exception as exc:  # noqa: BLE001 (whatever went wrong, the thread is stopped and reaped below)
+            problem = f"{type(exc).__name__}: {str(exc)[:200]}"
             self.stop(thread)
-            raise LaunchError(f"could not write the thread record: {type(exc).__name__}") from exc
-        on_thread(thread)
-        code = self.supervise(thread, worktree, timeout, log)
         stray = self.reap(thread, worktree)
+        verdict = session.verify(worktree, thread if with_thread else None, digest, root)  # before set_state rewrites the file
         session.set_state(worktree, "ended", root)
-        return Outcome(code, thread, stray, bool(hooks_changed(worktree, expected)))
+        tampered = verdict != "ok" or bool(tree_diff(worktree, expected))
+        if problem:
+            print(f"t3 session {thread}: {problem}")
+        return Outcome(code, thread, stray, tampered)
+
+    def failed_thread(self, proc: Any, worktree: Path) -> Optional[str]:
+        """The thread a failed handover may have left: ``error.details.threadId`` of the stderr envelope, else the newest active
+        thread whose ``worktreePath`` is this worktree."""
+        try:
+            details = ((json.loads(proc.stderr or "") or {}).get("error") or {}).get("details") or {}
+        except (ValueError, AttributeError):
+            details = {}
+        if isinstance(details, dict) and isinstance(details.get("threadId"), str) and details["threadId"]:
+            return details["threadId"]
+        return self.newest_thread(worktree)
 
     def newest_thread(self, worktree: Path) -> Optional[str]:
-        """The handover JSON did not name the thread: the newest active thread of the worktree's project."""
+        """The newest active thread whose ``worktreePath`` is ``worktree`` (``threads list`` filters by project, not by worktree)."""
         proc = self.call([self.exe, "--json", "threads", "list", "--status", "active", "--cwd", str(worktree)], timeout=60)
-        threads = data_of(proc).get("threads")
-        first = threads[0] if isinstance(threads, list) and threads else None
-        return first.get("id") if isinstance(first, dict) and isinstance(first.get("id"), str) else None
+        here = os.path.realpath(str(worktree))
+        for thread in data_of(proc).get("threads") or []:
+            if isinstance(thread, dict) and isinstance(thread.get("id"), str) and isinstance(thread.get("worktreePath"), str) \
+                    and os.path.realpath(thread["worktreePath"]) == here:
+                return thread["id"]
+        return None
 
     def supervise(self, thread: str, worktree: Path, timeout: float, log: Path) -> int:
         """One blocking ``threads wait`` for the whole session. A person-needed pause is answered (a few times at most), a timeout
@@ -346,6 +401,8 @@ class Launcher:
                 self.answer(thread, data.get("pendingRequests"))
                 continue
             code = 0 if proc.returncode == 0 and outcome in ("completed", "interrupted", "ended", "idle") else 1
+            if proc.returncode != 0:  # the wait itself failed (T3 restart, socket): the turn may still run
+                self.stop(thread)
             break
         self.transcript(thread, log)
         return code
@@ -373,16 +430,21 @@ class Launcher:
 
     # -- process cleanup: the runner cannot kill a T3 session's process group, so it finds what is left by environment and cwd
 
-    def survivors(self, thread: str, worktree: Path) -> List[int]:
-        """Pids (other than ours) whose environment holds ``T3CODE_THREAD_ID=<thread>`` or whose cwd is inside the worktree."""
+    def survivors(self, thread: str, worktree: Path) -> Optional[List[int]]:
+        """Pids (other than ours) whose environment holds ``T3CODE_THREAD_ID=<thread>`` or whose cwd is inside the worktree; ``None``
+        when a probe could not run (then nothing is known and the caller treats it as a survivor)."""
         found = set()
         needle = f"T3CODE_THREAD_ID={thread}"
-        for line in (self.call(["ps", "-A", "-E", "-ww", "-o", "pid=,command="], timeout=30).stdout or "").splitlines():
+        ps = self.call(["ps", "-A", "-E", "-ww", "-o", "pid=,command="], timeout=30)
+        lsof = self.call(["lsof", "-d", "cwd", "-Fpn"], timeout=30)
+        if any(p.returncode in (127, 6) or (p.returncode != 0 and not p.stdout) for p in (ps, lsof)):
+            return None
+        for line in (ps.stdout or "").splitlines():
             pid, _, rest = line.strip().partition(" ")
             if pid.isdigit() and any(word == needle for word in rest.split()):
                 found.add(int(pid))
         base, pid = os.path.realpath(str(worktree)), None
-        for line in (self.call(["lsof", "-d", "cwd", "-Fpn"], timeout=30).stdout or "").splitlines():
+        for line in (lsof.stdout or "").splitlines():
             if line.startswith("p") and line[1:].isdigit():
                 pid = int(line[1:])
             elif line.startswith("n") and pid and (line[1:] == base or line[1:].startswith(base + os.sep)):
@@ -397,6 +459,8 @@ class Launcher:
         self.call(thread_argv(self.exe, "archive", thread=thread), timeout=120)
         for sig in (signal.SIGTERM, signal.SIGKILL):
             left = self.survivors(thread, worktree)
+            if left is None:
+                return True  # cannot look: nothing lands
             if not left:
                 return False
             for pid in left:
@@ -405,4 +469,4 @@ class Launcher:
                 except OSError:
                     pass
             self.sleep(2)
-        return bool(self.survivors(thread, worktree))
+        return self.survivors(thread, worktree) != []

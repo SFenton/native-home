@@ -45,6 +45,7 @@ class FakeGitHub(ht.GitHub):
         self.pull_files: Dict[str, Dict[str, Any]] = {}
         self.variables: Dict[str, str] = {}
         self.next_id = 100
+        self.branch_pull_list: List[Dict[str, Any]] = []
 
     def token(self) -> str:
         return "ghp_" + "x" * 30
@@ -76,6 +77,13 @@ class FakeGitHub(ht.GitHub):
             for c in items:
                 if c["id"] == comment_id:
                     c["body"] = body
+
+    def branch_pulls(self, repo, branch):
+        self.calls.append(("branch_pulls", branch))
+        return self.branch_pull_list
+
+    def disarm_pull(self, url):
+        self.calls.append(("disarm", url))
 
     def close(self, repo, n, not_planned=False):
         self.calls.append(("close", n, not_planned))
@@ -2208,9 +2216,11 @@ class T3LauncherTests(Base):
         self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
         self.assertEqual(argv[-1], ",".join(self.cfg["agent"]["disallowed_tools"]))
         self.assertEqual(argv, self.argv({"launcher": "claude"}))
-        self.assertLessEqual({"FENTON_DEVCAP_MAX_WAIT", "FENTON_HEADLESS", "HASS_TRIAGE_BIN", "HASS_TRIAGE_ISSUE", "HASS_TRIAGE_PAUSED_FILE",
-                              "HASS_TRIAGE_STATUS_FILE", "PATH"}, set(self.launch_env))
-        self.assertFalse([k for k in self.launch_env if k.startswith("T3CODE")])
+        base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
+        expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
+                    "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(1)), "HASS_TRIAGE_BIN": str(ht.HERE / "hass_triage.py"),
+                    "FENTON_DEVCAP_MAX_WAIT": "1200", "FENTON_HEADLESS": "1", **base}
+        self.assertEqual(self.launch_env, expected)  # exactly today's environment: no key added or dropped
 
     def test_the_t3_block_does_not_touch_the_deny_list(self):
         agent = self.cfg["agent"]
@@ -2272,9 +2282,14 @@ class T3LauncherTests(Base):
                 kw["on_thread"]("thread-1")
                 return ht.t3launch.Outcome(0, "thread-1", True, False)
 
+        awake = mock.Mock()
+        popen = mock.Mock(return_value=awake)
         with mock.patch.object(ht.t3launch, "Launcher", FakeLauncher), mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch.object(ht.shutil, "which", return_value="/usr/bin/caffeinate"), mock.patch.object(subprocess, "Popen", popen), \
                 mock.patch("sys.stdout", new=io.StringIO()):
             self.assertEqual(runner._launch(7, tree, "the prompt", self.home / "logs" / "7-1.log"), 0)
+        self.assertEqual(popen.call_args[0][0], ["caffeinate", "-is", "-w", str(os.getpid())])  # awake for the whole session
+        awake.terminate.assert_called_once()
         self.assertEqual((seen["kind"], seen["issue"], seen["role"], seen["prompt"]), ("request", 7, "worker", "the prompt"))
         self.assertEqual(seen["timeout"], 300 * 60)
         self.assertEqual(seen["deny"], self.cfg["agent"]["disallowed_tools"])
@@ -2308,8 +2323,12 @@ class T3LauncherTests(Base):
         self.assertEqual(json.loads(log.read_text())["type"], "t3_launch_failed")
         self.assertIn("guard files differ", runner.log_tail(log))
 
-    def test_tampered_guard_hooks_block_the_issue_and_land_nothing(self):
+    def test_tampered_guard_hooks_block_the_issue_and_undo_an_armed_pull_request(self):
+        """Fails if: after guard_tampered an auto-merge the worker armed inside the session stays armed, or the merge label stays."""
         gh = FakeGitHub([issue(31)])
+        pr = "https://github.com/SFenton/native-home/pull/77"
+        gh.branch_pull_list = [{"url": pr, "state": "OPEN", "labels": [{"name": "Ready to Merge"}]},
+                               {"url": pr.replace("77", "70"), "state": "MERGED", "labels": []}]
         runner = self.runner(gh, {"state": "done", "summary": "x", "pr": PRODUCT_PR, "tests_passed": True})
         plain = runner.launch
 
@@ -2322,8 +2341,18 @@ class T3LauncherTests(Base):
         with mock.patch("sys.stdout", new=io.StringIO()):
             self.assertEqual(runner.work(31), "blocked")
         self.assertIn("Blocked", ht.label_names(gh.issues[31]))
-        self.assertTrue(any("guard hooks" in str(c) for c in gh.calls))
+        self.assertIn(("branch_pulls", "report/31"), gh.calls)
+        self.assertIn(("disarm", pr), gh.calls)
+        self.assertNotIn(("disarm", pr.replace("77", "70")), gh.calls)
+        body = [c for c in gh.calls if c[0] == "comment"][-1][2]
+        self.assertIn("auto-merge on " + pr + " was turned off", body)
+        self.assertIn("pull/70 had already merged", body)
         self.assertNotIn("Merging", ht.label_names(gh.issues[31]))
+
+    def test_a_pull_request_list_that_fails_is_said_in_the_block_comment(self):
+        gh = FakeGitHub([issue(32)])
+        gh.branch_pulls = lambda repo, branch: (_ for _ in ()).throw(ht.TriageError("offline"))
+        self.assertIn("could not be listed", self.runner(gh).undo_landing(32))
 
     def test_preflight_refuses_the_tick_when_t3_is_not_ready_and_launches_when_it_cannot_say(self):
         for ready, launches in (((False, "T3 does not speak protocol 2"), 0), ((None, "no report"), 1), ((True, ""), 1)):
