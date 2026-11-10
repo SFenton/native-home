@@ -56,6 +56,60 @@ final class UKHostedPageBaseTests: DemoHouseTestCase {
         XCTAssertEqual(page.headerProfileName, "Alex Demo")
     }
 
+    /// Each page's bar items carry the same stable identifiers on iOS 26, so the bar treats Profile and Quick Links as the same
+    /// items across a push and a pop instead of cross-fading them (a bar item cannot be shared between two pages: UIKit moves it).
+    func testPagesCarryStableBarItemIdentifiersAndKeepTheirItemsAcrossPushAndPop() throws {
+        let context = context()
+        context.navigator?.profileName = "Alex Demo"
+        let first = HostedScrollPage(context: context, title: "Climate")
+        let second = HostedScrollPage(context: context, title: "Lights")
+        let (navigation, window) = host(first)
+        defer { window.isHidden = true }
+        navigation.pushViewController(second, animated: false)
+        HostedPage.wait(0.3)
+        let a = first.navigationItem.rightBarButtonItems ?? []
+        let b = second.navigationItem.rightBarButtonItems ?? []
+        XCTAssertFalse(a.isEmpty)
+        XCTAssertEqual(a.count, b.count)
+        if #available(iOS 26.0, *) {
+            XCTAssertEqual(a.count, 3)
+            XCTAssertEqual(a.compactMap(\.identifier), b.compactMap(\.identifier))
+            XCTAssertEqual(Set(b.compactMap(\.identifier)), [UKShellHeaderItems.profileIdentifier, UKShellHeaderItems.quickLinksIdentifier])
+        }
+        navigation.popViewController(animated: false)
+        HostedPage.wait(0.3)
+        let profile = HostedPage.descendants(of: window).compactMap { $0 as? UKProfileButtonView }.first
+        XCTAssertNotNil(profile?.window, "Profile is on the window after the pop")
+        XCTAssertTrue(profile?.isUserInteractionEnabled ?? false)
+        XCTAssertEqual(first.navigationItem.rightBarButtonItems?.count, a.count)
+    }
+
+    /// The Duo's vertical bar: the rail's Profile and Quick Links carry the stable identifiers on both pages and are still there after
+    /// a push and a pop.
+    func testVerticalBarPagesCarryMatchingIdentifiersAcrossPushAndPop() throws {
+        guard #available(iOS 26.0, *), UKGlassEra.hasGlass else { throw XCTSkip("the rail's items are an iOS 26 glass-bar feature") }
+        let context = context(inBar: true)
+        context.navigator?.profileName = "Alex Demo"
+        let first = HostedScrollPage(context: context, title: "Climate")
+        let second = HostedScrollPage(context: context, title: "Lights")
+        let (navigation, window) = host(first)
+        defer { window.isHidden = true }
+        navigation.pushViewController(second, animated: false)
+        HostedPage.wait(0.3)
+        let expected = [UKShellHeaderItems.profileIdentifier, UKShellHeaderItems.quickLinksIdentifier]
+        func identifiers(_ page: UIViewController) -> [String] {
+            let items = page.navigationItem.rightBarButtonItems ?? page.navigationItem.trailingItemGroups.flatMap(\.barButtonItems)
+            return items.compactMap(\.identifier)
+        }
+        XCTAssertEqual(identifiers(first), expected)
+        XCTAssertEqual(identifiers(second), expected)
+        navigation.popViewController(animated: false)
+        HostedPage.wait(0.3)
+        XCTAssertEqual(identifiers(first), expected, "Profile and Quick Links are still on the rail after the pop")
+        let profile = (first.navigationItem.rightBarButtonItems ?? []).first
+        XCTAssertEqual(profile?.accessibilityIdentifier, "nav.profile")
+    }
+
     /// A live text-size change rebuilds the page's header items, so the rail's system badge takes the new size, capped at xLarge, and the
     /// rail's Large Content title carries the count.
     func testALiveTextSizeChangeRefontsTheRailBadge() throws {

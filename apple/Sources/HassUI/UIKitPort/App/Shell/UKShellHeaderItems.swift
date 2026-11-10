@@ -35,6 +35,9 @@ final class UKShellHeaderItems {
     private let railProfileItem: UIBarButtonItem
     private let arcView = UKReconnectingArcView()
     private let arcItem: UIBarButtonItem
+    /// The 12 pt spaces between the circles, made once per ``UKShellHeaderItems``. Each page owns its own set (UIKit moves a bar item to the page it was last set on, so a set is never shared between pages); caching only spares a page's own state changes from rebuilding them.
+    private let profileGap = UIBarButtonItem.fixedSpace(12)
+    private let arcGap = UIBarButtonItem.fixedSpace(12)
     private let openQuickLinks: () -> Void
     private let openAccount: () -> Void
     private var last: State?
@@ -82,8 +85,23 @@ final class UKShellHeaderItems {
         if #available(iOS 26.0, *) {
             profileItem.hidesSharedBackground = true
             arcItem.hidesSharedBackground = true
+            // Stable identifiers: the bar treats an item with the same identifier on two pages as the same item across a push or pop,
+            // so it stays still instead of cross-fading. Only one of the two Profile items is installed at a time.
+            profileItem.identifier = Self.profileIdentifier
+            railProfileItem.identifier = Self.profileIdentifier
+            quickLinks.identifier = Self.quickLinksIdentifier
+            arcItem.identifier = Self.arcIdentifier
         }
     }
+
+    /// The Profile item's identifier (iOS 26), on both the header's custom view and the rail's image item, the same on every page.
+    static let profileIdentifier = "shell.profile"
+    /// The Quick Links item's identifier (iOS 26), the same on every page.
+    static let quickLinksIdentifier = "shell.quickLinks"
+    /// The reconnecting arc item's identifier (iOS 26), the same on every page.
+    static let arcIdentifier = "shell.arc"
+    /// The menu (flyout) button's identifier (iOS 26), set by the page base, the same on every section root.
+    static let menuIdentifier = "shell.menu"
 
     /// What the Profile button is called in the bar's "…" menu: the sheet it opens (owner, 2026-11-01). VoiceOver keeps "Profile".
     static let profileMenuTitle = "Your Summary"
@@ -193,11 +211,11 @@ final class UKShellHeaderItems {
             let isMonogram: Bool = { if case .monogram = ProfileButton.Presentation.resolve(name: state.profileName) { true } else { false } }()
             profileItem.hidesSharedBackground = isMonogram && !oneGroup
             profileView.side = !isMonogram && !oneGroup ? HassTokens.minTarget - 8 : HassTokens.minTarget
-            if !oneGroup { result.append(UIBarButtonItem.fixedSpace(12)) }
+            if !oneGroup { result.append(profileGap) }
             result.append(quickLinks)
             // The arc is a custom view: like the monogram it stays in the horizontal page header and never joins the rail.
             if state.reconnectingPresent {
-                if !oneGroup { result.append(UIBarButtonItem.fixedSpace(12)) }
+                if !oneGroup { result.append(arcGap) }
                 result.append(arcItem)
             }
         } else {
