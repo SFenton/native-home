@@ -40,6 +40,7 @@ public final class WakeLightController {
     public static let revert: Duration = .seconds(8)
     /// How long a command may take before it counts as a transport failure.
     public static let timeout: Duration = .seconds(10)
+    @ObservationIgnored private let commandTimeout: Duration
 
     // MARK: - Init
 
@@ -50,15 +51,19 @@ public final class WakeLightController {
     ///   - caller: Sends response-checked commands (the connection, or a recorder).
     ///   - canEdit: Whether the signed-in user may change alarms.
     ///   - scheduler: Runs revert timers.
+    ///   - timeout: How long a command may take; tests that do not exercise the timeout pass a long one so a
+    ///     stalled run cannot overtake the reply.
     ///   - requestId: Makes each command's `request_id`.
     public init(config: WakeLightConfig, store: EntityStore, caller: any HassServiceResponding, canEdit: Bool = true,
                 scheduler: any RevertScheduler = TaskRevertScheduler(),
+                timeout: Duration = WakeLightController.timeout,
                 requestId: @escaping @MainActor () -> String = { UUID().uuidString.lowercased() }) {
         self.config = config
         self.store = store
         self.caller = caller
         self.canEdit = canEdit
         self.scheduler = scheduler
+        commandTimeout = timeout
         makeRequestId = requestId
     }
 
@@ -180,7 +185,7 @@ public final class WakeLightController {
         let outcome: CommandOutcome?
         do {
             let caller = caller
-            outcome = CommandOutcome(response: try await withTimeout(Self.timeout) {
+            outcome = CommandOutcome(response: try await withTimeout(commandTimeout) {
                 try await caller.callServiceWithResponse("wake_light", "command", data: data)
             })
         } catch {
