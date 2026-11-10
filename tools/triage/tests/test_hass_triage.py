@@ -2163,5 +2163,84 @@ class HaRollbackAlertTests(Base):
         self.assertIsNone(ht.status_report(self.cfg, self.paths, gh)["ha_changes_unreachable_since"])
 
 
+class BaseMovedDedupeTests(Base):
+    def moved(self, runner, current, expected="a" * 40):
+        with mock.patch.object(runner, "land_clone", return_value=Path("/nonexistent")), \
+                mock.patch.object(ht.lane_land, "git", return_value=subprocess.CompletedProcess([], 0, "x", "")), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            runner.base_moved("main", expected, current, "tick")
+
+    def issues(self, gh):
+        return [c for c in gh.calls if c[0] == "issue"]
+
+    def comments_on(self, gh):
+        return [c for c in gh.calls if c[0] == "comment"]
+
+    def test_three_moves_file_one_issue_and_comment_twice(self):
+        """Fails if: each new SHA files its own issue, or a later move clears or skips the pause or drops a move.
+
+        Three base_moved calls for different SHAs: one issue, two comments, both pause files still there, three moves listed."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        shas = ["b" * 40, "c" * 40, "d" * 40]
+        for sha in shas:
+            self.moved(runner, sha)
+        self.assertEqual(len(self.issues(gh)), 1)
+        self.assertEqual(self.issues(gh)[0][2], "Workflow: main moved without the runner")
+        comments = self.comments_on(gh)
+        self.assertEqual(len(comments), 2)
+        self.assertIn("c" * 10, comments[0][2])
+        self.assertIn("d" * 10, comments[1][2])
+        state = self.paths.state_dir
+        self.assertTrue((state / "SELF_CHANGE_PAUSED").exists())
+        info = json.loads((state / "SELF_CHANGE_PAUSED.json").read_text())
+        self.assertEqual(info["sha"], shas[0])
+        self.assertEqual([m["sha"] for m in info["moves"]], shas[1:])
+
+    def test_an_old_per_sha_issue_gets_the_comment_not_a_new_issue(self):
+        """Fails if: an open issue titled with the old per-SHA form is ignored and a new issue is filed, or the newest one is
+        commented instead of the oldest."""
+        def old(n, sha):
+            return {"number": n, "title": f"Workflow: main moved without the runner ({sha})", "state": "OPEN", "labels": []}
+
+        gh = FakeGitHub([old(9, "1111111111"), old(5, "2222222222")])
+        runner = self.runner(gh)
+        self.moved(runner, "e" * 40)
+        self.assertEqual(self.issues(gh), [])
+        [comment] = self.comments_on(gh)
+        self.assertEqual(comment[1], 5)
+        self.assertIn("e" * 10, comment[2])
+
+    def test_an_unknown_expected_sha_says_the_repo_changed_and_still_refuses(self):
+        """Fails if: a recorded base that is not in the product repo is reported as a force push, or the move is accepted."""
+        runner = self.runner(FakeGitHub([]))
+
+        def git(clone, *args, **kw):
+            rc = 1 if args[0] in ("merge-base", "cat-file") else 0
+            return subprocess.CompletedProcess([], rc, "", "")
+
+        expected = "f" * 40
+        with mock.patch.object(runner, "land_clone", return_value=Path("/nonexistent")), \
+                mock.patch.object(ht.lane_land, "git", side_effect=git), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertFalse(runner.moves_are_merged_prs("main", expected, "0" * 40))
+        self.assertIn(f"recorded base {expected[:10]} is not in", out.getvalue())
+        self.assertIn("repo changed?", out.getvalue())
+        self.assertNotIn("force push", out.getvalue())
+
+    def test_an_ancestor_failure_with_the_commit_present_is_still_a_force_push(self):
+        """Fails if: the force-push message is lost when the recorded commit does exist."""
+        runner = self.runner(FakeGitHub([]))
+
+        def git(clone, *args, **kw):
+            return subprocess.CompletedProcess([], 1 if args[0] == "merge-base" else 0, "", "")
+
+        with mock.patch.object(runner, "land_clone", return_value=Path("/nonexistent")), \
+                mock.patch.object(ht.lane_land, "git", side_effect=git), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertFalse(runner.moves_are_merged_prs("main", "f" * 40, "0" * 40))
+        self.assertIn("force push", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
