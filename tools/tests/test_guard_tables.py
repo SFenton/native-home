@@ -10,6 +10,7 @@ lists the hooks without a table; it may only shrink, checked against the copy at
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -86,9 +87,21 @@ def rows(name):
     return out
 
 
+def bash_input(command):
+    """The Bash ``tool_input`` for a table row's command. A leading ``@bg `` marks a ``run_in_background`` call and ``@bg:MS `` one
+    that also passes ``timeout`` MS, so a guard that reads those fields (``bg_timeout_guard``) has rows for them."""
+    match = re.match(r"@bg(?::(\d+))? ", command)
+    if not match:
+        return {"command": command}
+    tool_input = {"command": command[match.end():], "run_in_background": True}
+    if match.group(1):
+        tool_input["timeout"] = int(match.group(1))
+    return tool_input
+
+
 def replay(module, command, agent, home):
     """The exit code of the guard's real ``main`` for a Bash payload carrying ``command``, as a main or an agent session."""
-    payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(ROOT)}
+    payload = {"tool_name": "Bash", "tool_input": bash_input(command), "cwd": str(ROOT)}
     if agent:
         payload.update({"agent_type": "coder", "agent_id": "a1"})
     env = {"PATH": os.environ.get("PATH", ""), "HOME": home, "LANG": "C"}
