@@ -24,9 +24,8 @@ _MIRROR = []
 
 
 def denylist_only_hook():
-    """The real ``.githooks/pre-push`` and the real denylist scripts in a temp mirror whose review step (``tools/prepush_review.py``) is a stub that
-    allows. The review step has its own tests (``test_prepush_review.py``); here it is replaced, not skipped through the owner escape, so these tests
-    drive the denylist alone, the same inside and outside an agent session. Built once per test process."""
+    """The real ``.githooks/pre-push`` and the real denylist scripts in a temp mirror. The hook runs the denylist alone (push, then review, owner
+    2026-11-10: there is no review step and the mirror holds no review store). Built once per test process."""
     if not _MIRROR:
         tmp = tempfile.TemporaryDirectory()
         _MIRROR.append(tmp)
@@ -37,7 +36,6 @@ def denylist_only_hook():
         (root / ".githooks" / "pre-push").chmod(0o755)
         for name in ("prepush_denylist.py", "house_scan.py"):
             (root / "tools" / name).write_bytes((ROOT / "tools" / name).read_bytes())
-        (root / "tools" / "prepush_review.py").write_text("import sys\nsys.stdin.read()\nsys.exit(0)\n")
     return Path(_MIRROR[0].name) / ".githooks" / "pre-push"
 
 
@@ -75,7 +73,7 @@ class Repo:
         return self.git("rev-parse", "HEAD")
 
     def push(self, local, remote=ZERO, url=PUBLIC, line=None, name="origin"):
-        stdin = line if line is not None else f"refs/heads/main {local} refs/heads/main {remote}\n"
+        stdin = line if line is not None else f"refs/heads/work {local} refs/heads/work {remote}\n"
         return subprocess.run([str(denylist_only_hook()), name, url], cwd=self.work, env=self.env, input=stdin, capture_output=True, text=True)
 
 
@@ -90,6 +88,28 @@ class PrePushTests(unittest.TestCase):
         done = self.repo.push(head, self.base)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("1 commit(s) scanned, 0 hit(s)", done.stdout)
+
+    def test_unreviewed_push_of_a_branch_to_native_home_is_allowed(self):
+        """Fails if: the hook asks for a reviewer pass again (push, then review, owner 2026-11-10) or stops running the denylist on a clean branch push."""
+        text = HOOK.read_text()
+        self.assertNotIn("prepush_review", text)
+        self.assertNotIn("SH_OWNER_PUSH", text)
+        self.assertIn("prepush_denylist.py", text)
+        head = self.repo.commit("a.txt", "nothing here\n", "add a")
+        done = self.repo.push(head, ZERO, line=f"refs/heads/agents/x {head} refs/heads/agents/x {ZERO}\n", url=PUBLIC)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("0 hit(s)", done.stdout)
+
+    def test_a_push_to_main_or_master_of_native_home_is_refused_locally(self):
+        """Fails if: the hook lets a push to main or master (deletes included) of SFenton/native-home through, or refuses the same ref on another repository."""
+        head = self.repo.commit("a.txt", "nothing here\n", "add a")
+        for ref in ("main", "master"):
+            for local, sha in ((f"refs/heads/{ref}", head), ("(delete)", ZERO)):
+                done = self.repo.push(head, ZERO, line=f"{local} {sha} refs/heads/{ref} {ZERO}\n", url=PUBLIC)
+                self.assertEqual(done.returncode, 1, (ref, local))
+                self.assertIn("pull request", done.stderr)
+        other = self.repo.push(head, ZERO, line=f"refs/heads/main {head} refs/heads/main {ZERO}\n", url=OTHER)
+        self.assertEqual(other.returncode, 0, other.stderr)
 
     def test_hit_in_file_is_refused_without_printing_the_term(self):
         head = self.repo.commit("a.txt", "ok\nthe ZORBLAX3 room\n", "add a")
@@ -461,7 +481,7 @@ class PrePushTests(unittest.TestCase):
         self.repo.git("remote", "add", "origin", bare)
         self.repo.git("config", "core.hooksPath", str(ROOT / ".githooks"))
         self.repo.commit("a.txt", "zorblax9\n", "add a")
-        done = subprocess.run(["git", "push", "-q", "origin", "main"], cwd=self.repo.work, env=self.repo.env, capture_output=True, text=True)
+        done = subprocess.run(["git", "push", "-q", "origin", "main:work"], cwd=self.repo.work, env=self.repo.env, capture_output=True, text=True)
         self.assertEqual(done.returncode, 0)  # a private remote only warns
         self.assertIn("allowed for a non-public remote", done.stderr)
         self.assertNotIn("zorblax", (done.stdout + done.stderr).lower())

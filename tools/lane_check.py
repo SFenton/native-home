@@ -170,7 +170,7 @@ def check_hooks() -> Optional[str]:
     """None only when ``core.hooksPath`` resolves to this worktree's own ``<toplevel>/.githooks``, else the reason.
 
     The relative ``.githooks`` that ``tools/setup.sh`` writes does this per worktree. Another checkout's hooks folder is refused
-    even when its ``pre-push`` is byte-identical, because that hook runs the other checkout's ``tools/`` scripts (``prepush_review.py``),
+    even when its ``pre-push`` is byte-identical, because that hook runs the other checkout's ``tools/`` scripts (``prepush_denylist.py``),
     which nothing here checks and which may be stale or missing.
     """
     top = toplevel()

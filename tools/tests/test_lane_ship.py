@@ -302,7 +302,7 @@ class ShipArmTests(unittest.TestCase):
                 done, _, arm = self.run_ship(arm_rc=rc)
                 self.assertEqual(done.returncode, 0, done.stderr)
                 self.assertEqual(arm.strip(), "7")
-                self.assertIn("ship: not armed (see above); land it with tools/pr_land.sh 7", done.stderr)
+                self.assertIn("ship: not armed (see above); expected until the reviewer passes this head, then land it with tools/pr_land.sh 7", done.stderr)
 
     def test_another_repository_never_runs_pr_land(self):
         """Fails if: ship.sh arms a pull request of a repository other than SFenton/native-home."""
@@ -312,12 +312,17 @@ class ShipArmTests(unittest.TestCase):
         self.assertNotIn("pr merge", log)
 
 
-class ShipReviewBeforePushTests(unittest.TestCase):
-    """A native-home (or unreadable) origin refuses the push without a pass; nothing leaves the machine."""
+class ShipPushThenReviewTests(unittest.TestCase):
+    """Push, then review (owner, 2026-11-10): a native-home origin is pushed without a reviewer pass; the hook install and a readable origin are still required."""
 
     def ship_with_origin(self, url, passed, hooks=True):
+        """Run ship.sh with ``origin`` set to ``url``; returns the result. ``self.pushed`` says whether ``claude/x`` reached the local bare origin.
+        An ssh-form url is served by a fake ``GIT_SSH_COMMAND`` that runs ``git receive-pack`` on the local bare repository, so nothing touches the network."""
         with TemporaryDirectory() as tmp:
             clone, origin = make_repo(tmp)
+            fake_ssh = Path(tmp) / "fake_ssh.sh"
+            fake_ssh.write_text('#!/bin/sh\nexec git receive-pack "%s"\n' % origin)
+            fake_ssh.chmod(0o755)
             home = Path(tmp) / "home"
             home.mkdir()
             use_home(clone, home)
@@ -330,31 +335,41 @@ class ShipReviewBeforePushTests(unittest.TestCase):
             if hooks:
                 git(clone, "config", "core.hooksPath", ".githooks" if hooks is True else str(clone / ".githooks"))
             git(clone, "remote", "set-url", "origin", url)
-            done = subprocess.run(["bash", "tools/ship.sh", "Add a"], cwd=clone, env={**ENV, "HOME": str(home)}, capture_output=True, text=True)
+            done = subprocess.run(["bash", "tools/ship.sh", "Add a"], cwd=clone, capture_output=True, text=True,
+                                  env={**ENV, "HOME": str(home), "GIT_SSH_COMMAND": str(fake_ssh)})
+            self.pushed = subprocess.run(["git", "rev-parse", "--verify", "-q", "refs/heads/claude/x"], cwd=origin, env=ENV).returncode == 0
             return done
 
-    def test_native_home_without_a_pass_is_refused_before_the_push(self):
+    def test_native_home_without_a_pass_is_pushed(self):
+        """Fails if: ship.sh asks for the reviewer's pass before the push again (the 2026-11-09 review-before-push rule)."""
         done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=False)
-        self.assertEqual(done.returncode, 1)
-        self.assertIn("needs the reviewer's pass", done.stderr)
-        self.assertNotIn("pushed", done.stdout)
+        self.assertNotIn("needs the reviewer's pass", done.stderr)
+        self.assertNotIn("review before push", done.stderr)
+        self.assertNotIn("tools/setup.sh", done.stderr)
+        self.assertNotIn("not a readable GitHub URL", done.stderr)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue(self.pushed, "the branch must reach the (local, fake-ssh) origin without a pass")
 
     def test_native_home_without_the_git_hook_installed_is_refused(self):
         done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=True, hooks=False)
         self.assertEqual(done.returncode, 1)
         self.assertIn("tools/setup.sh", done.stderr)
         self.assertNotIn("pushed", done.stdout)
+        self.assertFalse(self.pushed)
 
     def test_an_absolute_hooks_path_to_the_repos_githooks_is_accepted(self):
         """Fails if: ship.sh refuses core.hooksPath given as the absolute path of the repo's own .githooks (the flip that stopped lane D)."""
         done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=False, hooks="absolute")
-        self.assertIn("needs the reviewer's pass", done.stderr)
-        self.assertNotIn("core.hooksPath", done.stderr)
+        self.assertNotIn("tools/setup.sh", done.stderr)
+        self.assertNotIn("needs the reviewer's pass", done.stderr)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue(self.pushed)
 
     def test_an_unreadable_origin_fails_closed(self):
         done = self.ship_with_origin("nonsense", passed=True)
         self.assertEqual(done.returncode, 1)
         self.assertIn("not a readable GitHub URL", done.stderr)
+        self.assertFalse(self.pushed)
 
 
 RECORD_STUB = """import os, sys
@@ -510,17 +525,15 @@ class ShipUpdateTests(unittest.TestCase):
             self.assertIn("ship it plainly first", done.stderr)
             self.assertEqual(subprocess.run(["git", "rev-parse", "--verify", "-q", "agents/x"], cwd=origin, env=ENV).returncode, 1)
 
-    def test_an_amended_head_without_its_own_pass_is_not_pushed_or_checked(self):
-        """Fails if: --update lets an unreviewed head through, or posts an ai-review check for it."""
+    def test_an_amended_head_without_its_own_pass_is_pushed_for_review(self):
+        """Fails if: --update refuses an amended head for lacking a pass (push, then review, owner 2026-11-10), or tries to post ai-review for a head with no pass."""
         with TemporaryDirectory() as tmp:
             clone, origin, home, env = self.setup_lane(tmp)
-            old = git(origin, "rev-parse", "agents/x")
             self.amend(clone, home, reviewed=False)
             done = self.ship(clone, env, "--update")
-            self.assertEqual(done.returncode, 1)
-            self.assertIn("needs the reviewer's pass", done.stderr)
-            self.assertEqual(git(origin, "rev-parse", "agents/x"), old)
-            self.assertFalse(Path(env["RECORD_LOG"]).exists())
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(git(origin, "rev-parse", "agents/x"), git(clone, "rev-parse", "HEAD"))
+            self.assertFalse(Path(env["RECORD_LOG"]).exists(), "no pass yet: ship must not try to post ai-review")
 
     def test_a_stale_jev_question_list_blocks_every_push_with_the_sync_command(self):
         """Fails if: ship.sh pushes while `jev_ask.py sync --check` fails (CI would go red), or the message omits the sync command."""

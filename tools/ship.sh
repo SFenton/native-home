@@ -14,24 +14,23 @@
 #   --pr always opens a draft (--draft is accepted and implied): review and landing come afterwards, and
 #   tools/pr_land.py marks it ready and arms auto-merge once the gates pass. ship.sh never merges itself (pr-lifecycle.md).
 #   Without --pr only the branch is pushed.
-#   --update  for a lane branch you amended or rebased after it was pushed (and had reviewed again): pushes with `--force-with-lease=refs/heads/BRANCH:SHA`,
+#   --update  for a lane branch you amended or rebased after it was pushed: pushes with `--force-with-lease=refs/heads/BRANCH:SHA`,
 #             where SHA is what `git ls-remote` reports for origin/BRANCH, and only when this checkout knows it (an ancestor of HEAD, or in the local
-#             branch's reflog because this checkout pushed it): a commit someone else pushed is refused, never overwritten. Then it re-posts the
-#             `ai-review` check for the new head and, when the branch has a PR on native-home, re-arms it (a new head loses the old pin).
+#             branch's reflog because this checkout pushed it): a commit someone else pushed is refused, never overwritten. Then it posts the
+#             `ai-review` check for the new head only if that head already has a pass (otherwise nothing) and, when the branch has a PR on native-home, re-arms it (a new head loses the old pin).
 #             Only `agents/*` and `port/*` branches; anything else is refused before it commits. A branch not on origin yet needs a plain ship.
-#             The new head still needs its own reviewer pass: git's pre-push hook and `record.py --post-check` both read the trusted store, so --update
+#             The new head still needs its own reviewer pass before it is armed: `record.py --post-check` reads the trusted store, so --update
 #             cannot produce a check the reviewer did not earn. ship.sh posts the check as a child process of this script, the same way a plain ship does;
 #             that is not the agent's own `record.py` command which tools/hooks/review_guard.py reserves for the reviewer, and the check is only as green
 #             as the recorded verdict.
 #   The Jev question list must be current before any push: `python3 tools/jev_ask.py sync --check` (CI runs it too) blocks the push when stale.
-#   Review before push (owner, 2026-11-09; ci.md#merge-gate): on SFenton/native-home nothing is pushed, opened or armed without an independent
-#   `pass` for the exact HEAD in the trusted store (tools/review_verdict.py, the reviewer's `record.py --lane`). Commit, get the pass, then ship;
-#   a ship that has to commit new changes stops at the push, because the new HEAD has no pass yet. Which guard covers which step: git's own pre-push
-#   hook (.githooks/pre-push, tools/prepush_review.py, which sees every sha really pushed) enforces the push, this script only gives the early
-#   message, and tools/hooks/push_guard.py stops a command going around the hook.
+#   Push, then review (owner, 2026-11-10; ci.md#merge-gate): the branch is pushed and the draft PR opened without a reviewer pass, so CI runs while the
+#   Reviewer reads the exact head. On `changes` fix and push again (`--update` after an amend); on `pass` the orchestrator arms the PR (tools/pr_land.sh N).
+#   Git's pre-push hook (.githooks/pre-push) still runs the house denylist on every push; this file only checks that the hook is installed.
 #   After the PR opens ship.sh runs tools/pr_land.py N on native-home: it runs the gates GitHub cannot (kill switch, app-UI gate, denylist, author and fork,
-#   the pass for HEAD, the live ruleset) and arms the squash auto-merge pinned to HEAD. GitHub then merges when the required checks pr-checks and ai-review pass; a CI
-#   failure means fix, re-review, push. It then prints the ci_wait.py command for the orchestrator to start in the background. A refusal prints a notice and never changes ship's exit code.
+#   the pass for HEAD, the live ruleset) and arms the squash auto-merge pinned to HEAD. With no pass yet it prints `not armed`, which is expected; the
+#   reviewer posts `ai-review` after its pass and the orchestrator then arms with tools/pr_land.sh N. GitHub then merges when the required checks pr-checks and ai-review pass; a CI
+#   failure means fix, push again, and the new head needs its own review. It then prints the ci_wait.py command for the orchestrator to start in the background. A refusal prints a notice and never changes ship's exit code.
 set -euo pipefail
 
 SUBJECT="${1:-}"
@@ -109,9 +108,8 @@ if [[ -f "$LC" ]]; then
     || { echo "ship: lane_check failed (above); nothing was pushed. Fix it and ship again." >&2; exit 1; }
 fi
 
-# Review before push. Git's own pre-push hook (.githooks/pre-push -> tools/prepush_review.py) is the enforcement: it sees the url and every
-# sha really pushed. This block is the early, friendly message only: for a native-home origin it needs the hook installed (tools/setup.sh) and a
-# pass for HEAD in the trusted store; an origin it cannot read is refused here as the hook would refuse it. Other origins are left to the hook.
+# Push, then review. No reviewer pass is needed to push (owner, 2026-11-10); git's pre-push hook (.githooks/pre-push) still runs the house denylist on every
+# push, so for a native-home origin it must be installed (tools/setup.sh). An origin this file cannot read is refused here, as before.
 HEAD_SHA="$(git rev-parse HEAD)"
 RV="$(dirname "$0")/review_verdict.py"
 ORIGIN_KIND="unknown"
@@ -119,8 +117,7 @@ if [[ -f "$RV" ]]; then ORIGIN_KIND="$(python3 "$RV" remote "$(git remote get-ur
 case "$ORIGIN_KIND" in
   other|local) ;;
   native-home)
-    python3 "$LC" check --only hooks || { echo "ship: nothing was pushed; core.hooksPath does not lead to this repo's .githooks (relative or absolute), so git's pre-push hook would not run. Run tools/setup.sh." >&2; exit 1; }
-    python3 "$RV" pass "$HEAD_SHA" || { echo "ship: nothing was pushed; ${HEAD_SHA:0:12} needs the reviewer's pass first (review before push)." >&2; exit 1; } ;;
+    python3 "$LC" check --only hooks || { echo "ship: nothing was pushed; core.hooksPath does not lead to this repo's .githooks (relative or absolute), so git's pre-push hook (the house denylist) would not run. Run tools/setup.sh." >&2; exit 1; } ;;
   *) echo "ship: origin is not a readable GitHub URL (or review_verdict.py is missing); nothing was pushed." >&2; exit 1 ;;
 esac
 
@@ -146,9 +143,10 @@ git push "${PUSH_ARGS[@]}" origin "refs/heads/$BRANCH:refs/heads/$BRANCH" \
   || { echo "ship: the push was refused (with --update: origin/$BRANCH is no longer ${LEASE:-the leased sha}; the pre-push hook may also have said no). Nothing was overwritten." >&2; exit 1; }
 echo "pushed $BRANCH${LEASE:+ (forced over ${LEASE:0:12})}"
 
-# Server-side backstop: post the `ai-review` check run for the pushed (reviewed) sha as the reviewer App, from its recorded verdict. GitHub cannot take a
-# check on a commit it has not received, so this runs after the push. It never fails ship: on error it prints `ai-review check NOT posted: <reason>`.
-if [[ "$ORIGIN_KIND" == "native-home" ]]; then
+# Server-side backstop: post the `ai-review` check run for the pushed sha when its recorded pass already exists (a re-ship of a reviewed head). With no pass
+# (the usual case: ship runs before the review) this is a silent no-op; the Reviewer posts the check itself right after recording its pass
+# (`record.py --post-check SHA --repo SFenton/native-home`, which tools/hooks/review_guard.py allows only for the reviewer). It never fails ship.
+if [[ "$ORIGIN_KIND" == "native-home" ]] && python3 "$RV" pass "$HEAD_SHA" >/dev/null 2>&1; then
   python3 "$(dirname "$0")/review/record.py" --post-check "$HEAD_SHA" --repo SFenton/native-home || true
 fi
 
@@ -172,7 +170,7 @@ elif [[ $PR == 1 ]]; then
   if [[ -n "$PR_NUM" && -f "$(dirname "$0")/pr_land.py" ]]; then
     REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
     if [[ "$REPO" == "SFenton/native-home" ]]; then
-      python3 "$(dirname "$0")/pr_land.py" "$PR_NUM" || echo "ship: not armed (see above); land it with tools/pr_land.sh $PR_NUM" >&2
+      python3 "$(dirname "$0")/pr_land.py" "$PR_NUM" || echo "ship: not armed (see above); expected until the reviewer passes this head, then land it with tools/pr_land.sh $PR_NUM" >&2
       echo "ship: start the waiter: tools/bg_run.py ci-$PR_NUM --timeout 7200 -- python3 tools/ci_wait.py $PR_NUM"
     fi
   fi
