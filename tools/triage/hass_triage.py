@@ -48,6 +48,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from redact import copy_redacted, redact, redact_lines  # noqa: E402,F401  (the one shared scrubber, tools/redact.py)
+import agent_login  # noqa: E402  (the agent account's login, a name: tools/agent_login.py)
 import request_repo  # noqa: E402  (the request repository comes from local configuration, tools/request_repo.py)
 import lane_land  # noqa: E402  (the runner lands the lanes agents push: tools/lane_land.py)
 import retro_weekly  # noqa: E402  (the metrics the automatic revert compares: tools/retro_weekly.py)
@@ -197,12 +198,25 @@ def deep_merge(base: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def drop_agent_from_authors(cfg: Dict[str, Any]) -> None:
+    """Remove the agent account's login (``cfg["agent_login"]``) from every ``authors`` list: a request or reply by the agent is agent
+    work, never the owner's, even if a local override lists it. A no-op while no agent login is configured."""
+    agent = str(cfg.get("agent_login") or "").lower()
+    if not agent:
+        return
+    for holder in (cfg, cfg.get("nightly") or {}):
+        if isinstance(holder.get("authors"), list):
+            holder["authors"] = [a for a in holder["authors"] if str(a).lower() != agent]
+
+
 def load_config(home: Path) -> Dict[str, Any]:
     cfg = json.loads((HERE / "config.json").read_text())
     local = home / ".config" / "hass-triage" / "config.json"
     if local.exists():
         cfg = deep_merge(cfg, json.loads(local.read_text()))
     cfg["request_repo"] = request_repo.require(cfg.get("request_repo"), home)  # the real name is local; unset raises NotConfigured
+    cfg["agent_login"] = agent_login.resolve(cfg.get("agent_login"))
+    drop_agent_from_authors(cfg)
     name = cfg["request_repo"].split("/")[-1]
     denied = cfg.setdefault("agent", {}).setdefault("disallowed_tools", [])
     for rule in (f"Bash(gh issue edit*{name}*)", f"Bash(*GH_REPO=*{name}*)"):  # built here so config.json never names the repository
@@ -577,10 +591,21 @@ def author(item: Dict[str, Any]) -> str:
     return value.get("login", "") if isinstance(value, dict) else str(value)
 
 
-def eligible(issues: List[Dict[str, Any]], authors: List[str], required_label: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Open issues by an allowed author with no working/stopped label; ``Priority`` first, then oldest.
-    ``required_label`` (nightly intake) also requires that label."""
-    picked = [i for i in issues if author(i) in authors and not SKIP_LABELS.intersection(label_names(i))
+def may_pick(issue: Dict[str, Any], authors: List[str], agent: str = "") -> bool:
+    """Whether the runner may work ``issue`` by its author: an owner author (``authors``), or the configured agent login (``agent``)
+    when the issue carries ``Workflow`` (the runner's and agents' own filings). Owner-only decisions (vouching for a request, replies
+    and commands) use ``authors`` alone, never this. An agent-authored issue without ``Workflow`` is not picked up."""
+    who = author(issue)
+    if who in authors:
+        return True
+    return bool(agent) and who.lower() == agent.lower() and "Workflow" in label_names(issue)
+
+
+def eligible(issues: List[Dict[str, Any]], authors: List[str], required_label: Optional[str] = None, agent: str = "") -> List[Dict[str, Any]]:
+    """Open issues the runner may work (:func:`may_pick`) with no working/stopped label; ``Priority`` first, then oldest.
+    ``required_label`` (nightly intake) also requires that label. ``agent`` is the configured agent login (``""`` for the nightly
+    intake: its issues are filed by the nightly workflow, not by the agent account)."""
+    picked = [i for i in issues if may_pick(i, authors, agent) and not SKIP_LABELS.intersection(label_names(i))
               and (required_label is None or required_label in label_names(i))]
     return sorted(picked, key=lambda i: (0 if "Priority" in label_names(i) else 1, i.get("createdAt", "")))
 
@@ -872,7 +897,9 @@ class Runner:
         self.wall_clock: Callable[[], float] = time.time
         self.state = State(paths.state)
         self.repo = intake["repo"] if intake else cfg["request_repo"]
-        self.authors: List[str] = intake["authors"] if intake else cfg["authors"]
+        self.authors: List[str] = intake["authors"] if intake else cfg["authors"]  # owner authors: vouch, replies, commands
+        #: The agent account's login: its ``Workflow`` issues are picked up (:func:`may_pick`); the nightly intake has none.
+        self.agent: str = "" if intake else str(cfg.get("agent_login") or "")
         self.required_label: Optional[str] = intake["label"] if intake else None
         self.branch = intake.get("branch", "nightly") if intake else "report"
         self.template = intake.get("template", "nightly.md") if intake else "worker.md"
@@ -941,7 +968,7 @@ class Runner:
             while max_items is None or done < max_items:
                 if self.clock() > deadline or self.paths.paused.exists():
                     break
-                queue = eligible(self.gh.open_issues(self.repo), self.authors, self.required_label)
+                queue = eligible(self.gh.open_issues(self.repo), self.authors, self.required_label, self.agent)
                 if not queue:
                     drained = True
                     break
@@ -1175,7 +1202,7 @@ class Runner:
         for issue in self.gh.open_issues(self.repo):
             labels = set(label_names(issue))
             stopped = labels.intersection({"Blocked", "Needs Decision"})
-            if not stopped or not self._mine(issue) or author(issue) not in self.authors:
+            if not stopped or not self._mine(issue) or not may_pick(issue, self.authors, self.agent):
                 continue
             n = int(issue["number"])
             reply = owner_reply_after_stop(self.gh.comments(self.repo, n), self.authors)
@@ -1274,7 +1301,7 @@ class Runner:
 
     def _work(self, n: int) -> str:
         issue = self.gh.issue(self.repo, n)
-        if author(issue) not in self.authors:
+        if not may_pick(issue, self.authors, self.agent):
             raise TriageError(f"#{n} was not filed by an allowed author")
         self.snapshot_request(n, issue)
         attempt = self.state.attempts(n) + 1
@@ -2905,7 +2932,7 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         pass
     try:
         queue = [{"number": i["number"], "title": i.get("title", "")}
-                 for i in eligible(gh.open_issues(cfg["request_repo"]), cfg["authors"])]
+                 for i in eligible(gh.open_issues(cfg["request_repo"]), cfg["authors"], None, cfg.get("agent_login", ""))]
     except TriageError as exc:
         queue = [{"error": str(exc)}]
     nightly = cfg.get("nightly")

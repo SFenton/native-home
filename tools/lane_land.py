@@ -1445,8 +1445,9 @@ PR_GATE_FILES_CAP = 100  # `gh pr view --json files` stops at 100: a PR that lon
 def live_request_reader(gh: GH, cfg: dict) -> RequestReader:
     """Interactive sessions: a linked **request-repo** issue (``Closes #N`` / ``Owner-Request: #N`` / ``<request repo>#N``) counts
     when an allowed author filed it and it is not a ``Workflow`` or ``Nightly Fix`` item (:func:`vouched_request`). A product-repo
-    issue, the pull request's own text and anything unreadable count as nothing: agents use the owner's login, so only the
-    request repo (where agent-filed issues carry ``Workflow``) can show an owner's request. The owner's way around is
+    issue, the pull request's own text and anything unreadable count as nothing: agents use the owner's login or, once configured,
+    the agent login (which :func:`read_config` drops from ``authors``, so it never vouches), so only the request repo (where
+    agent-filed issues carry ``Workflow``) can show an owner's request. The owner's way around is
     ``--owner-ack``."""
     authors = list(cfg.get("authors") or [])
     repo = str(cfg.get("request_repo") or "")
@@ -1831,6 +1832,19 @@ def land(lane: str, base: str, *, clone: Path, home: Path, reviews_dir: Path, te
     return result
 
 
+def agent_login_of(cfg: dict) -> str:
+    """The agent account's login (``agent_login`` of the config ``cfg``; ``""`` when none), loaded from the helper beside this file.
+    Config only, no process setting. A request filed by it is agent work: :func:`read_config` drops it from ``authors``, so
+    :func:`vouched_request` never counts it as the owner's even if a config lists it."""
+    try:
+        spec = importlib.util.spec_from_file_location("agent_login", Path(__file__).resolve().with_name("agent_login.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.resolve(cfg.get("agent_login"))
+    except (AttributeError, ImportError, OSError):
+        return ""
+
+
 def read_config(repo: Path) -> dict:
     """``tools/triage/config.json`` of ``repo`` with ``request_repo`` resolved from local configuration (``tools/request_repo.py``)."""
     try:
@@ -1844,6 +1858,8 @@ def read_config(repo: Path) -> dict:
         cfg["request_repo"] = module.resolve(cfg.get("request_repo")) or ""
     except (AttributeError, ImportError, OSError):
         cfg["request_repo"] = ""  # no helper: no linked request counts
+    agent = agent_login_of(cfg)  # loaded once, not per author
+    cfg["authors"] = [a for a in cfg.get("authors") or [] if not agent or str(a).lower() != agent.lower()]
     return cfg
 
 

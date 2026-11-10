@@ -6,7 +6,7 @@ gate and this hook closes the bypasses: ``gh pr merge``, ``gh api …/pulls/N/me
 merge mutations, a PUT or DELETE on ``/contents/`` and a ``git push`` that lands on main or master.
 
 Arming auto-merge is ``tools/pr_land.sh N`` only (owner, 2026-11-09): the raw ``gh pr merge N --auto ...`` form is refused like any other
-``gh pr merge`` (``--admin`` has its own reason); the one allowed ``gh pr merge`` is ``N -R SFenton/native-home --disable-auto`` on the agent's own PR.
+``gh pr merge`` (``--admin`` has its own reason); the one allowed ``gh pr merge`` is ``N -R SFenton/native-home --disable-auto`` on the agent's own PR (authored by ``SFenton`` or the ``agent_login`` of ``tools/triage/config.json``, from this repository).
 Repo-admin writes are refused in every session: a ``gh api`` write to rulesets, ``branches/*/protection``, the repository settings
 (``repos/OWNER/NAME``) or App installations, a GraphQL ruleset or branch-protection mutation, and ``gh repo edit`` of the merge settings.
 
@@ -70,6 +70,7 @@ from typing import Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import agent_login as agent_login_module  # noqa: E402
 import request_repo as request_repo_module  # noqa: E402
 from shell_parse import FEEDERS, scan_shell, strip_prefixes, tokenize as _tokenize, unwrap_xargs  # noqa: E402
 
@@ -77,7 +78,7 @@ MESSAGE = (
     "Blocked: agents merge only through `tools/pr_land.sh N` (its gate: the configured checks and a recorded independent review), never with "
     "`gh pr merge` (including `--auto` and `--admin`), `gh api …/merge` or a push to main, and never change the rulesets, branch protection, "
     "repository settings or App installations (`gh api` writes to them are refused for every session). Run the reviewer (tools/review/record.py) "
-    "then `tools/pr_land.sh N`, which arms auto-merge for a native-home PR. The one `gh pr merge` allowed is `--disable-auto` on your own PR: "
+    "then `tools/pr_land.sh N`, which arms auto-merge for a native-home PR. The one `gh pr merge` allowed is `--disable-auto` on your own PR (by SFenton or the configured agent login): "
     "`gh pr merge N -R SFenton/native-home --disable-auto`. See .agents/workflow/pr-lifecycle.md."
 )
 
@@ -94,6 +95,8 @@ LAND_MESSAGE = (
 )
 
 REPO = Path(__file__).resolve().parents[2]
+#: The pinned config the agent login is read from (never the process settings: see ``tools/agent_login.py``).
+AGENT_CONFIG = REPO / "tools" / "triage" / "config.json"
 METACHARS = re.compile(r"[;&|(){}`$<>\\\n\r\"']")
 SPLIT = re.compile(r"&&|\|\||\$\(|[;|&(){}`\n]|\b(?:then|do|else|elif|if|while|until)\b")
 #: Wrapper programs and the options of each that take a value (so ``env -u X gh …`` still finds ``gh``).
@@ -204,8 +207,8 @@ def git_out(top: str, *args: str) -> str:
 #: Files each landing tool is hashed with (beside its own folder): the tool, what it loads, and ``tools/triage/config.json`` (it names the
 #: product repo, the protected paths and the bases the tools clone and trust).
 PINNED_WITH = {
-    "pr_land.sh": ("pr_land.sh", "pr_land.py", "house_scan.py"),
-    "lane_land.py": ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py"),
+    "pr_land.sh": ("pr_land.sh", "pr_land.py", "house_scan.py", "agent_login.py"),
+    "lane_land.py": ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "agent_login.py"),
     "go_public.sh": ("go_public.sh", "go_public_gate.py", "house_scan.py"),
 }
 
@@ -850,10 +853,12 @@ def pr_origin(number: str) -> object:
 
 
 def own_pr(number: str) -> bool:
-    """True only when the PR is authored by ``SFenton`` and its head is in ``SFenton/native-home`` (not a fork); fails closed."""
+    """True only when the PR is authored by ``SFenton`` or the configured agent login (``tools/agent_login.py``; none by default) and its
+    head is in ``SFenton/native-home`` (not a fork); fails closed."""
     try:
         facts = pr_origin(number)
-        return (facts["author"]["login"] == "SFenton" and facts["headRepositoryOwner"]["login"] == "SFenton"
+        return (agent_login_module.is_own(facts["author"]["login"], agent_login_module.configured(AGENT_CONFIG))
+                and facts["headRepositoryOwner"]["login"] == "SFenton"
                 and facts["headRepository"]["name"] == "native-home")
     except Exception:  # noqa: BLE001 - any failure refuses
         return False
@@ -907,14 +912,14 @@ def disarm_repo(value: str) -> str:
 
 
 def disarm_reason(command: str) -> Optional[str]:
-    """``None`` when ``command`` is the allowed disarm and the PR is the agent's own (by ``SFenton``, from this repository), else why not."""
+    """``None`` when ``command`` is the allowed disarm and the PR is the agent's own (by ``SFenton`` or the configured agent login, from this repository), else why not."""
     found = disarm_form(command)
     if found is None:
         return "gh pr merge"
     if disarm_repo(found["-R"]) != DISARM_REPO:
         return "gh pr merge outside SFenton/native-home"
     if not own_pr(found["pr"]):
-        return "gh pr merge of a PR not authored by SFenton from SFenton/native-home (or its author could not be read)"
+        return "gh pr merge of a PR not authored by SFenton (or the agent login) from SFenton/native-home (or its author could not be read)"
     return None
 
 

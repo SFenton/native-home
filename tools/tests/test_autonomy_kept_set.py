@@ -390,7 +390,7 @@ class LaneLandPinTests(unittest.TestCase):
         self.repo = self.dir / "repo"
         (self.repo / "tools" / "triage").mkdir(parents=True)
         subprocess.run(["git", "init", "-q", "-b", "main", str(self.repo)], check=True)
-        for name in ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "go_public.sh", "go_public_gate.py", "house_scan.py", "pr_land.sh", "pr_land.py"):
+        for name in ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "agent_login.py", "go_public.sh", "go_public_gate.py", "house_scan.py", "pr_land.sh", "pr_land.py"):
             (self.repo / "tools" / name).write_text(f"# {name}\n")
         (self.repo / "tools" / "triage" / "config.json").write_text("{}\n")
         g(self.repo, "add", "-A")
@@ -406,7 +406,7 @@ class LaneLandPinTests(unittest.TestCase):
     def test_a_matching_copy_runs_and_an_edited_one_is_refused(self):
         command = "python3 tools/lane_land.py agents/x --into main --dry-run"
         self.assertIsNone(self.why(command))
-        for name in ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "triage/config.json"):
+        for name in ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "agent_login.py", "triage/config.json"):
             with self.subTest(name=name):
                 path = self.repo / "tools" / name
                 original = path.read_text()

@@ -23,6 +23,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import agent_login
 import review_verdict
 import ruleset_gate
 
@@ -248,8 +249,16 @@ def ui_gate(number: str, info: Dict[str, Any]) -> str:
     return (proc.stdout.strip().splitlines() or ["app-UI gate passed"])[-1]
 
 
-#: Who may have a pull request armed: the owner's own, from this repository (a fork or a foreign author is refused).
-AUTHOR = "SFenton"
+#: Who may have a pull request armed: the owner's own or, once ``agent_login`` is configured (``tools/agent_login.py``), the agent
+#: account's, from this repository (a fork or a foreign author is refused). With none configured only ``AUTHOR`` counts, as before.
+AUTHOR = agent_login.OWNER
+#: The pinned config the agent login is read from (never the process settings: see ``tools/agent_login.py``).
+CONFIG = Path(__file__).resolve().parent / "triage" / "config.json"
+
+
+def author_ok(login: object) -> bool:
+    """Whether ``login`` may have its pull request armed: ``AUTHOR`` or the configured agent login."""
+    return agent_login.is_own(login, agent_login.configured(CONFIG))
 
 
 def arm_command(number: str, head: str, auto: bool = True) -> List[str]:
@@ -295,7 +304,7 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
     if info.get("mergeable") == "CONFLICTING":
         return 1, f"blocked #{number}: merge conflicts with {info.get('baseRefName', 'main')}"
     login = info["author"].get("login") if isinstance(info.get("author"), dict) else None
-    if login != AUTHOR or info.get("isCrossRepository") is not False:
+    if not author_ok(login) or info.get("isCrossRepository") is not False:
         return 1, f"blocked #{number}: not a pull request by {AUTHOR} from {PRODUCT_REPO} (author {login!r}, fork {info.get('isCrossRepository')!r})"
     base_name = str(info.get("baseRefName") or "")
     if base_name not in ALLOWED_BASES:

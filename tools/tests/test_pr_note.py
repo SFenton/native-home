@@ -252,6 +252,44 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(verbs, {"view", "edit", "comment"})
 
 
+class AgentLoginIdentityTests(Base):
+    """With an agent login configured ``gh`` is the agent: the owner stays the constant SFenton and both count as plain-``gh`` writers."""
+
+    def setUp(self):
+        super().setUp()
+        pr_note._OWNER_LOGIN.clear()
+        self.addCleanup(pr_note._OWNER_LOGIN.clear)
+
+    def configure(self, login):
+        """Write ``agent_login`` into the (temporary) ROOT's pinned config, where pr_note reads it."""
+        config = pr_note.ROOT / "tools" / "triage" / "config.json"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(json.dumps({"agent_login": login}))
+
+    def test_empty_agent_login_reads_the_owner_from_gh_as_before(self):
+        """Fails if: an unset agent_login changes owner_login (it must still be gh's own login) or adds a second writer, or a process
+        setting names a writer the config does not."""
+        self.configure("")
+        with mock.patch.dict(os.environ, {"FENTON_AGENT_LOGIN": "mallory"}):
+            self.assertEqual(pr_note.owner_login(), "SFenton")
+            self.assertEqual(pr_note.gh_logins(), {"SFenton"})
+            self.assertFalse(pr_note.Identity().mine({"user": {"login": "mallory"}}))
+            self.assertFalse(pr_note.Identity().mine({"user": {"login": "sh-agent"}}))
+
+    def test_agent_login_keeps_the_owner_constant_and_both_logins_write_as_gh(self):
+        """Fails if: owner_login asks gh (which now answers with the agent) so @SFenton handoffs go to the agent, or the agent's own
+        comments are no longer editable, or a third login's comment is."""
+        self.configure("sh-agent")
+        with mock.patch.object(pr_note, "gh", side_effect=AssertionError("gh api user must not be asked")):
+            self.assertEqual(pr_note.owner_login(), "SFenton")
+        self.assertEqual(pr_note.gh_logins(), {"SFenton", "sh-agent"})
+        self.assertEqual(pr_note.MENTION, "@SFenton")
+        identity = pr_note.Identity()
+        self.assertTrue(identity.mine({"user": {"login": "sh-agent"}}))
+        self.assertTrue(identity.mine({"user": {"login": "SFenton"}}))
+        self.assertFalse(identity.mine({"user": {"login": "mallory"}}))
+
+
 class InitAndQueueIdentityTests(Base):
     """``init`` makes the body follow the template; queues are keyed by task and never go stale."""
 
