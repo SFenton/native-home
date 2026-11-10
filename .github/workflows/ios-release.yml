@@ -11,7 +11,8 @@ name: ios-release
 #                   profiles, tools/release/ios_ipa_build.sh archives and exports, and the IPA plus dSYMs are uploaded as the
 #                   artifact FentonHome-<version> (30 days). Until the secrets exist the job fails with an error naming them.
 # The repository is public: the IPA is never attached to the GitHub Release (assets are anonymous and permanent), and
-# HASS_DEFAULT_SERVER is masked in the log. Nothing is uploaded to App Store Connect here (export only; TestFlight is the other workflow).
+# The sign-in Server default is never passed here (the IPA builds with a blank Server field; the TestFlight workflow supplies it
+# from a secret). Nothing is uploaded to App Store Connect here (export only; TestFlight is the other workflow).
 # A tag pushed with GITHUB_TOKEN triggers no workflow, which is why the ipa job is a job of this workflow and not a tag trigger.
 # "Run workflow": `tag` rebuilds an existing ios/v* tag without bumping; `force` bumps even without app changes.
 # Owner checklist (environment, secrets, yearly renewal): .agents/platforms/apple/testflight.md. Documentation: .agents/workflow/ci.md, versioning.md.
@@ -33,6 +34,7 @@ defaults:
     shell: bash
 jobs:
   bump:
+    if: ${{ github.ref == 'refs/heads/main' }}   # the whole pipeline runs on main only (a dispatch from another branch does nothing)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -91,7 +93,7 @@ jobs:
   ipa:
     needs: bump
     # Only when a tag came out, and, like every hosted macOS job (tools/tests/test_hosted_workflows.py), behind the HOSTED_MACOS variable.
-    if: ${{ vars.HOSTED_MACOS == 'on' && needs.bump.outputs.tag != '' }}
+    if: ${{ github.ref == 'refs/heads/main' && vars.HOSTED_MACOS == 'on' && needs.bump.outputs.tag != '' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
     environment: release-signing   # limited to main; holds the signing secrets
     timeout-minutes: 90
@@ -169,9 +171,13 @@ jobs:
           security list-keychain -d user -s "$keychain" ${existing[@]+"${existing[@]}"}
           security default-keychain -s "$keychain"
           identities="$(security find-identity -v -p codesigning "$keychain")"
-          echo "$identities" | sed -E 's/[0-9A-F]{40}/<sha1>/'
+          # Never print the listing (it carries certificate subject names): only the count and whether each kind is present.
           count="$(echo "$identities" | grep -cE '^[[:space:]]+[0-9]+\) ' || true)"
-          if [ "$count" -lt 2 ] || ! echo "$identities" | grep -q 'Apple Distribution' || ! echo "$identities" | grep -q 'Apple Development'; then
+          has_dist=no; has_dev=no
+          if echo "$identities" | grep -q 'Apple Distribution'; then has_dist=yes; fi
+          if echo "$identities" | grep -q 'Apple Development'; then has_dev=yes; fi
+          echo "valid signing identities: $count; Apple Distribution: $has_dist; Apple Development: $has_dev"
+          if [ "$count" -lt 2 ] || [ "$has_dist" != yes ] || [ "$has_dev" != yes ]; then
             echo "::error title=ios-release found fewer than two signing identities::Expected an Apple Distribution and an Apple Development identity in the keychain, found $count valid. Re-export the p12s (a certificate lasts a year): .agents/platforms/apple/testflight.md."
             exit 1
           fi
@@ -191,11 +197,8 @@ jobs:
         id: build
         env:
           FENTON_DERIVED_DATA: ${{ runner.temp }}/dd
-          # The sign-in Server field's default (a repository variable). The repository is public, so the value is masked in the log.
-          HASS_DEFAULT_SERVER: ${{ vars.HASS_DEFAULT_SERVER }}
         run: |
           set -euo pipefail
-          if [ -n "$HASS_DEFAULT_SERVER" ]; then echo "::add-mask::$HASS_DEFAULT_SERVER"; fi
           build="$(date -u +%Y%m%d%H%M)"
           tools/release/ios_ipa_build.sh "$TAG" "$build" | tee "$RUNNER_TEMP/build.out"
           { echo "version=${TAG#ios/v}"; echo "build=$build"; echo "ipa=$(sed -n 's/^ipa=//p' "$RUNNER_TEMP/build.out")"; echo "dsyms=$(sed -n 's/^dsyms=//p' "$RUNNER_TEMP/build.out")"; } >> "$GITHUB_OUTPUT"

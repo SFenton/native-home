@@ -79,8 +79,8 @@ jobs:
         env:
           VERSION_TAG: ${{ inputs.version_tag }}
           DRY_RUN: ${{ inputs.dry_run }}
-          # The sign-in Server field's default (a repository variable, not a secret); empty leaves the field blank.
-          HASS_DEFAULT_SERVER: ${{ vars.HASS_DEFAULT_SERVER }}
+          # The sign-in Server field's default: a secret of the testflight environment (masked in logs, never a repository variable); empty leaves the field blank.
+          HASS_DEFAULT_SERVER: ${{ secrets.HASS_DEFAULT_SERVER }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

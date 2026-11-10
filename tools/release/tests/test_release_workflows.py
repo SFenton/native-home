@@ -144,13 +144,34 @@ class FlowTests(unittest.TestCase):
         self.assertLess(text.index("-A -t cert -f pkcs12"), text.index("set-key-partition-list"))
         self.assertLess(text.index("set-key-partition-list"), text.index("Archive and export the IPA"))
 
-    def test_the_build_masks_the_server_and_uses_the_hosted_script_with_a_date_build_number(self):
+    def test_the_build_uses_the_hosted_script_with_a_date_build_number(self):
         text = read("ios-release.yml")
-        self.assertIn("::add-mask::$HASS_DEFAULT_SERVER", text)
-        self.assertLess(text.index("::add-mask::$HASS_DEFAULT_SERVER"), text.index('tools/release/ios_ipa_build.sh "$TAG"'))
         self.assertIn("date -u +%Y%m%d%H%M", text)
         self.assertIn('tools/release/ios_ipa_build.sh "$TAG" "$build"', text)
         self.assertIn("command -v xcodegen > /dev/null || brew install xcodegen", text)  # the line tools/ci_hosted_setup.sh runs
+
+    def test_the_default_server_is_never_a_repository_variable_and_never_in_the_public_ipa_job(self):
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            self.assertNotIn("vars.HASS_DEFAULT_SERVER", path.read_text(encoding="utf-8"),
+                             "%s: a repository variable is printed in the log by the env block; use a secret" % path.name)
+        self.assertNotIn("HASS_DEFAULT_SERVER", read("ios-release.yml"))
+        self.assertIn("secrets.HASS_DEFAULT_SERVER", read("ios-release-build.yml"))
+
+    def test_the_pipeline_runs_on_main_only(self):
+        jobs = self.jobs()
+        self.assertIn("if: ${{ github.ref == 'refs/heads/main' }}", "\n".join(jobs["bump"]))
+        self.assertIn("github.ref == 'refs/heads/main'", "\n".join(jobs["ipa"]))
+
+    def test_the_keychain_step_never_prints_the_identities(self):
+        text = read("ios-release.yml")
+        step = text[text.index("Temporary keychain with the signing identities"):text.index("App Store Connect API key (temporary file)")]
+        for line in step.splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            if "echo" in line and "$identities" in line:
+                self.assertIn("| grep", line, "an identities listing is echoed: " + line)  # only piped into grep, never printed
+        self.assertNotIn("sed -E", step)
+        self.assertIn("valid signing identities: $count", step)
 
     def test_the_ipa_is_a_workflow_artifact_and_never_a_release_asset(self):
         text = read("ios-release.yml")
@@ -190,7 +211,7 @@ class FlowTests(unittest.TestCase):
         inputs = blocks("\n".join(triggers("ios-release-build.yml")["workflow_dispatch"]), 4)["inputs"]
         self.assertEqual(set(blocks("\n".join(inputs), 6)), {"version_tag", "dry_run"})
         self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))),
-                         ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY"])
+                         ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY", "HASS_DEFAULT_SERVER"])
         code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
         self.assertNotRegex(code, r"(?i)p12|IOS_DIST|keychain")
         self.assertNotIn("FentonHomeWatch", text)
