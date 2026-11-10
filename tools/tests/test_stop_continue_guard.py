@@ -90,6 +90,33 @@ class StopContinueGuardTests(unittest.TestCase):
                          assistant_text("Merged.")]
         self.assertIsNone(guard.decide(self.event(done)))
 
+    LAUNCH = [tool_use("Agent", {"description": "Coder A", "run_in_background": True, "prompt": "p"}, "a1"),
+              tool_result("a1", "Async agent launched. agentId: abc123def456"), assistant_text("Launched.")]
+
+    def test_queue_operation_notice_clears_agent(self):
+        """Fails if: a completion notice stored as a queue-operation entry leaves the agent reported as running."""
+        notice = {"type": "queue-operation", "operation": "enqueue", "content":
+                  "<task-notification><task-id>abc123def456</task-id><status>completed</status></task-notification>"}
+        self.assertIsNone(guard.decide(self.event(self.LAUNCH + [notice, assistant_text("Merged.")])))
+
+    def test_missing_notice_keeps_background_reason(self):
+        """Fails if: an agent with no completion notice stops blocking, or the reason loses the agent name."""
+        reason = guard.decide(self.event(self.LAUNCH))
+        self.assertIn("Coder A", reason)
+        self.assertIn("Background work you started is still running", reason)
+
+    def test_attachment_notice_clears_agent(self):
+        """Fails if: a completion notice stored as an attachment entry leaves the agent reported as running."""
+        notice = {"type": "attachment", "attachment": {"type": "queued_command", "prompt":
+                  "<task-notification><task-id>abc123def456</task-id><status>completed</status></task-notification>"}}
+        self.assertIsNone(guard.decide(self.event(self.LAUNCH + [notice, assistant_text("Merged.")])))
+
+    def test_reason_tells_headless_agent_not_to_wait(self):
+        """Fails if: the block reason mentions waiting_bg no more, or again says to wait for a notification."""
+        reason = guard.decide(self.event(self.LAUNCH))
+        self.assertIn("waiting_bg", reason)
+        self.assertNotIn("Wait for its notification", reason)
+
     def test_foreground_agent_does_not_block(self):
         items = [tool_use("Agent", {"description": "x", "prompt": "p"}, "a1"),
                  tool_result("a1", "agentId: abc123def456"), assistant_text("Done.")]
