@@ -199,5 +199,60 @@ class ArchiveWatchdogTests(unittest.TestCase):
         self.assertIn("export failed", proc.stderr)
 
 
+class HostedModeTests(unittest.TestCase):
+    """FENTON_CI_HOSTED=1 on a GitHub-hosted runner (the release pipeline's ipa job): no devcap, no leaked server, named secrets."""
+
+    HOSTED = {"FENTON_CI_HOSTED": "1", "RUNNER_ENVIRONMENT": "github-hosted"}
+
+    def dry(self, extra):
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("FENTON_", "HASS_", "ASC_", "RUNNER_"))}
+        env.update(extra)
+        return subprocess.run(["bash", str(SCRIPT), "ios/v2611.09.01", "202611091200", "--dry-run"], env=env,
+                              capture_output=True, text=True, timeout=60)
+
+    def test_dry_run_needs_no_secrets_and_no_keychain_and_holds_no_devcap_slot(self):
+        proc = self.dry(self.HOSTED)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("devcap", proc.stderr)
+        self.assertIn("xcodebuild archive", proc.stderr)
+        self.assertIn("exportArchive", proc.stderr)
+        self.assertIn("' 300 xcodebuild archive", proc.stderr)  # the hosted idle timeout
+
+    def test_the_variable_alone_does_not_switch_hosted_mode_on(self):
+        proc = self.dry({"FENTON_CI_HOSTED": "1"})
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("devcap.py", proc.stderr)
+
+    def test_the_local_run_still_holds_a_devcap_slot(self):
+        proc = self.dry({})
+        self.assertIn("devcap.py run --pool build", proc.stderr)
+
+    def test_the_default_server_is_never_printed(self):
+        proc = self.dry(dict(self.HOSTED, HASS_DEFAULT_SERVER="https://house.example.invalid"))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("house.example.invalid", proc.stderr + proc.stdout)
+        self.assertIn("HASS_DEFAULT_SERVER=\\*\\*\\*", proc.stderr)  # printf %q escapes the stars
+
+    def test_the_api_key_reaches_both_xcodebuild_steps(self):
+        proc = self.dry(dict(self.HOSTED, ASC_KEY_PATH="/tmp/AuthKey_K.p8", ASC_KEY_ID="K", ASC_ISSUER_ID="I"))
+        lines = [line for line in proc.stderr.splitlines() + [proc.stderr.replace("\n", " ")] if "-authenticationKeyID K" in line]
+        self.assertTrue(lines, proc.stderr)
+        self.assertEqual(proc.stderr.count("-authenticationKeyIssuerID I"), 2)
+
+    def test_blocked_names_the_secrets_not_the_macbook_keychain(self):
+        env = dict(os.environ, FENTON_IPA_TEST="1", **self.HOSTED)
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = Path(tmp) / "security"
+            stub.write_text("#!/bin/sh\nexit 0\n")
+            stub.chmod(0o755)
+            env["PATH"] = tmp + ":" + os.environ["PATH"]
+            proc = subprocess.run(["bash", str(SCRIPT), "ios/v2611.09.01", "1"], env=env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(proc.returncode, 4, proc.stderr)
+        self.assertIn("BLOCKED", proc.stderr)
+        self.assertIn("APPLE_DISTRIBUTION_P12_BASE64", proc.stderr)
+        self.assertIn("release-signing", proc.stderr)
+        self.assertNotIn("login Keychain", proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

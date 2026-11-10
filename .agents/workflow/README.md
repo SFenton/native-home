@@ -6,7 +6,7 @@
 |---|---|
 | [change-loop.md](change-loop.md) | The per-change procedure |
 | [pr-lifecycle.md](pr-lifecycle.md) | How a session ends: ship, review, `pr_land.sh`, the merge gate and its hook |
-| [ci.md](ci.md) | The Mac runner, `pr-checks`, `ios-release`, `version-bump` and the 2 AM nightly run with its `Nightly Fix` issues |
+| [ci.md](ci.md) | The Mac runner, `pr-checks`, `ios-release` and the 2 AM nightly run with its `Nightly Fix` issues |
 | [propose-first.md](propose-first.md) | Propose, build, judge, record: how a visible choice is decided without waiting on the owner |
 | [docs-conventions.md](docs-conventions.md) | Rules for `.agents` files |
 | [token-economy.md](token-economy.md) | No polling, session size, model routing, the test ladder, and the tools that enforce them |

@@ -1,89 +1,230 @@
 name: ios-release
-# Builds the IPA for an `ios/v<YYMM.DD.NN>` tag and attaches it to that tag's GitHub Release, with the dSYMs and notes
-# from the Release-Note trailers since the previous tag. Runs on the MacBook runner (needs the Apple Distribution identity in
-# its login Keychain). Nothing is uploaded to App Store Connect (export only). A tag pushed with GITHUB_TOKEN does not
-# trigger this workflow, so version-bump.yml dispatches it. Documentation: .agents/workflow/ci.md, versioning.md.
+# The release pipeline (owner, 2026-11-09): every push to main bumps the version and builds and signs a release IPA, kept as a
+# workflow artifact. It runs no tests, no coverage and no simulator, and it does not wait for pr-checks: the pull request that
+# landed already passed it (the merge gate), and this pipeline only versions and signs what is on main.
+#   bump  (ubuntu)  tools/release/versioning.py bump --head $GITHUB_SHA --push: tags the next ios/v<YYMM.DD.NN> when the app changed
+#                   since the previous tag (skips: no app change, already tagged, behind). It needs no secrets, so it always runs, and
+#                   it dispatches ios-release-build.yml (TestFlight) for the new tag only when HASS_TESTFLIGHT_ENABLED is `true`.
+#   ipa   (macOS)   only when a tag came out: GitHub-hosted runner (same label as the pr-checks macOS job), the `release-signing`
+#                   environment (limited to main) holds the signing secrets. A temporary keychain gets the Apple Distribution and
+#                   Apple Development p12s (so a fresh runner never mints certificates), the Admin App Store Connect key signs the
+#                   profiles, tools/release/ios_ipa_build.sh archives and exports, and the IPA plus dSYMs are uploaded as the
+#                   artifact FentonHome-<version> (30 days). Until the secrets exist the job fails with an error naming them.
+# The repository is public: the IPA is never attached to the GitHub Release (assets are anonymous and permanent), and
+# The sign-in Server default is never passed here (the IPA builds with a blank Server field; the TestFlight workflow supplies it
+# from a secret). Nothing is uploaded to App Store Connect here (export only; TestFlight is the other workflow).
+# A tag pushed with GITHUB_TOKEN triggers no workflow, which is why the ipa job is a job of this workflow and not a tag trigger.
+# "Run workflow": `tag` rebuilds an existing ios/v* tag without bumping; `force` bumps even without app changes.
+# Owner checklist (environment, secrets, yearly renewal): .agents/platforms/apple/testflight.md. Documentation: .agents/workflow/ci.md, versioning.md.
 on:
   push:
-    tags: ['ios/v*']
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
-        description: Version tag to build, ios/v<YYMM.DD.NN>
-        required: true
+        description: Rebuild this existing version tag (ios/v<YYMM.DD.NN>) without bumping; empty bumps the commit the run is on
         type: string
-permissions:
-  contents: write   # create the release and upload its assets
-concurrency:
-  group: ios-release-${{ inputs.tag || github.ref_name }}
-  cancel-in-progress: false
-env:
-  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
-  TAG: ${{ inputs.tag || github.ref_name }}
+        default: ''
+      force:
+        description: Bump even without app changes since the previous tag (ignored when a tag is given)
+        type: boolean
+        default: false
 defaults:
   run:
     shell: bash
 jobs:
-  ios-release:
-    runs-on: [self-hosted, macOS, hass]
-    timeout-minutes: 120
+  bump:
+    if: ${{ github.ref == 'refs/heads/main' }}   # the whole pipeline runs on main only (a dispatch from another branch does nothing)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write   # push version tags
+      actions: write    # dispatch ios-release-build.yml
+    concurrency:
+      # One bump at a time, never cancelled. GitHub keeps one pending run per group and may drop the others; that is safe, because
+      # bumping is a function of the commit ("the app changed since the previous tag"): the newest head covers every merge before
+      # it, and an older head that runs late is skipped as behind_previous_tag.
+      group: ios-release-bump
+      cancel-in-progress: false
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
     steps:
-      - name: Check the tag
-        run: |
-          [[ "$TAG" =~ ^ios/v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]] || { echo "not a version tag: $TAG"; exit 1; }
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
           fetch-tags: true
-          clean: false
-      - name: Reset the workspace (keeps the build caches)
-        run: git clean -ffdx -e apple/.build -e build
-      - name: Use the release tooling of the workflow's own commit
-        # A tag may predate these scripts (workflow_dispatch of an older tag): the app source comes from the tag,
-        # the release tooling from the commit this workflow runs at (the same commit for a pushed tag).
+      - name: Bump
+        id: bump
+        env:
+          FORCE: ${{ inputs.force }}
+          GH_TOKEN: ${{ github.token }}
+          REBUILD_TAG: ${{ inputs.tag }}
+          TESTFLIGHT: ${{ vars.HASS_TESTFLIGHT_ENABLED }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "$GITHUB_SHA"
+          if [ -n "$REBUILD_TAG" ]; then
+            [[ "$REBUILD_TAG" =~ ^ios/v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]] || { echo "::error title=Not a version tag::$REBUILD_TAG"; exit 1; }
+            git rev-parse -q --verify "refs/tags/$REBUILD_TAG" > /dev/null || { echo "::error title=No such tag::$REBUILD_TAG"; exit 1; }
+            echo "tag=$REBUILD_TAG" >> "$GITHUB_OUTPUT"
+            echo "### ios-release: rebuild of \`$REBUILD_TAG\` (no bump)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          args=(bump --head "$GITHUB_SHA" --push)
+          if [ "${FORCE:-false}" = "true" ]; then args+=(--force); fi
+          python3 tools/release/versioning.py "${args[@]}" | tee "$RUNNER_TEMP/bump.json"
+          tag="$(python3 -c 'import json,sys; print(" ".join(p["tag"] for p in json.load(open(sys.argv[1])).get("bumped", [])))' "$RUNNER_TEMP/bump.json")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -n "$tag" ] && [ "$TESTFLIGHT" = "true" ]; then
+            # The TestFlight run uploads every version not yet on TestFlight, oldest first; the tag only wakes it.
+            gh workflow run ios-release-build.yml --ref main -f version_tag="$tag"
+          fi
+          python3 - "$RUNNER_TEMP/bump.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          doc = json.load(open(sys.argv[1]))
+          print("### ios-release: bump")
+          for plan in doc.get("bumped", []):
+              print("- **%s** → `%s` (%s)" % (plan["platform"], plan["tag"], plan["reason"]))
+          for plan in doc.get("skipped", []):
+              print("- %s: skipped, no IPA (%s)" % (plan["platform"], plan["reason"]))
+          PY
+
+  ipa:
+    needs: bump
+    # Only when a tag came out, and, like every hosted macOS job (tools/tests/test_hosted_workflows.py), behind the HOSTED_MACOS variable.
+    if: ${{ github.ref == 'refs/heads/main' && vars.HOSTED_MACOS == 'on' && needs.bump.outputs.tag != '' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    environment: release-signing   # limited to main; holds the signing secrets
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    concurrency:
+      group: ios-release-ipa-${{ needs.bump.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+      TAG: ${{ needs.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: refs/tags/${{ needs.bump.outputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Use the release tooling of the workflow's own commit
+        # A rebuilt tag may predate these scripts: the app source comes from the tag, the release tooling from the commit this
+        # workflow runs at (fetch-depth 0 already has it).
+        run: |
+          set -euo pipefail
           git checkout "$GITHUB_SHA" -- tools/release/ios_ipa_build.sh tools/release/ExportOptions-appstore.plist tools/release/versioning.py
-      - name: Disk pre-flight (30 GB free)
-        run: python3 tools/ci_hygiene.py preflight --min-gb 30
+      - name: Check the signing secrets
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_DEVELOPMENT_P12_BASE64: ${{ secrets.APPLE_DEVELOPMENT_P12_BASE64 }}
+          APPLE_DEVELOPMENT_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPMENT_P12_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          missing=""
+          for name in APPLE_DISTRIBUTION_P12_BASE64 APPLE_DISTRIBUTION_P12_PASSWORD APPLE_DEVELOPMENT_P12_BASE64 APPLE_DEVELOPMENT_P12_PASSWORD ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=ios-release cannot sign::Missing in the release-signing environment:$missing. Owner checklist: .agents/platforms/apple/testflight.md (Release pipeline: owner checklist)."
+            exit 1
+          fi
+      - name: Prepare the runner (xcodegen is not on the image)
+        # The same line as tools/ci_hosted_setup.sh, inline so this signing workflow's closure stays the release files only.
+        run: |
+          command -v xcodegen > /dev/null || brew install xcodegen
+          xcodebuild -version
+      - name: Temporary keychain with the signing identities
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_DEVELOPMENT_P12_BASE64: ${{ secrets.APPLE_DEVELOPMENT_P12_BASE64 }}
+          APPLE_DEVELOPMENT_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPMENT_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/release-signing.keychain-db"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          echo "RELEASE_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          for kind in DISTRIBUTION DEVELOPMENT; do
+            data="APPLE_${kind}_P12_BASE64"; pass="APPLE_${kind}_P12_PASSWORD"
+            file="$RUNNER_TEMP/apple-${kind}.p12"
+            printf '%s' "${!data}" | base64 --decode > "$file"
+            chmod 600 "$file"
+            security import "$file" -P "${!pass}" -A -t cert -f pkcs12 -k "$keychain"
+            rm -f "$file"
+          done
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          existing=()
+          while IFS= read -r line; do line="${line//\"/}"; line="${line#"${line%%[![:space:]]*}"}"; [ -z "$line" ] || existing+=("$line"); done < <(security list-keychain -d user)
+          security list-keychain -d user -s "$keychain" ${existing[@]+"${existing[@]}"}
+          security default-keychain -s "$keychain"
+          identities="$(security find-identity -v -p codesigning "$keychain")"
+          # Never print the listing (it carries certificate subject names): only the count and whether each kind is present.
+          count="$(echo "$identities" | grep -cE '^[[:space:]]+[0-9]+\) ' || true)"
+          has_dist=no; has_dev=no
+          if echo "$identities" | grep -q 'Apple Distribution'; then has_dist=yes; fi
+          if echo "$identities" | grep -q 'Apple Development'; then has_dev=yes; fi
+          echo "valid signing identities: $count; Apple Distribution: $has_dist; Apple Development: $has_dev"
+          if [ "$count" -lt 2 ] || [ "$has_dist" != yes ] || [ "$has_dev" != yes ]; then
+            echo "::error title=ios-release found fewer than two signing identities::Expected an Apple Distribution and an Apple Development identity in the keychain, found $count valid. Re-export the p12s (a certificate lasts a year): .agents/platforms/apple/testflight.md."
+            exit 1
+          fi
+      - name: App Store Connect API key (temporary file)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/asc"
+          mkdir -p "$dir" && chmod 700 "$dir"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$dir/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$dir/AuthKey_$ASC_KEY_ID.p8"
+          { echo "ASC_KEY_ID=$ASC_KEY_ID"; echo "ASC_ISSUER_ID=$ASC_ISSUER_ID"; echo "ASC_KEY_PATH=$dir/AuthKey_$ASC_KEY_ID.p8"; } >> "$GITHUB_ENV"
       - name: Archive and export the IPA
         id: build
         env:
-          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
-          # The sign-in Server field's default (a repository variable, not a secret); empty leaves the field blank.
-          HASS_DEFAULT_SERVER: ${{ vars.HASS_DEFAULT_SERVER }}
+          FENTON_DERIVED_DATA: ${{ runner.temp }}/dd
         run: |
           set -euo pipefail
-          tools/release/ios_ipa_build.sh "$TAG" "$GITHUB_RUN_NUMBER" | tee "$RUNNER_TEMP/build.out"
-          { echo "ipa=$(sed -n 's/^ipa=//p' "$RUNNER_TEMP/build.out")"; echo "dsyms=$(sed -n 's/^dsyms=//p' "$RUNNER_TEMP/build.out")"; } >> "$GITHUB_OUTPUT"
-      - name: Say what is missing
-        if: failure() && steps.build.outcome == 'failure'
-        run: |
-          echo "::error title=ios-release could not sign::If the log above says BLOCKED, the owner must provide an Apple Distribution certificate for team 3Q9X8JX23S in this Mac's login Keychain and the team's Apple ID signed in to Xcode (or an App Store Connect API key: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH). See .agents/workflow/ci.md."
-      - name: GitHub Release
+          build="$(date -u +%Y%m%d%H%M)"
+          tools/release/ios_ipa_build.sh "$TAG" "$build" | tee "$RUNNER_TEMP/build.out"
+          { echo "version=${TAG#ios/v}"; echo "build=$build"; echo "ipa=$(sed -n 's/^ipa=//p' "$RUNNER_TEMP/build.out")"; echo "dsyms=$(sed -n 's/^dsyms=//p' "$RUNNER_TEMP/build.out")"; } >> "$GITHUB_OUTPUT"
+      - name: Upload the IPA and dSYMs (workflow artifact, not a Release asset)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: FentonHome-${{ steps.build.outputs.version }}
+          path: |
+            ${{ steps.build.outputs.ipa }}
+            ${{ steps.build.outputs.dsyms }}
+          retention-days: 30
+          if-no-files-found: error
+      - name: Summary
         env:
-          GH_TOKEN: ${{ github.token }}
-          IPA: ${{ steps.build.outputs.ipa }}
-          DSYMS: ${{ steps.build.outputs.dsyms }}
+          VERSION: ${{ steps.build.outputs.version }}
+          BUILD: ${{ steps.build.outputs.build }}
         run: |
-          set -euo pipefail
-          version="${TAG#ios/v}"
-          python3 tools/release/versioning.py notes --tag "$TAG" > "$RUNNER_TEMP/notes.md"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "S+H $version" --notes-file "$RUNNER_TEMP/notes.md"
-          else
-            gh release create "$TAG" --verify-tag --title "S+H $version" --notes-file "$RUNNER_TEMP/notes.md"
-          fi
-          gh release upload "$TAG" "$IPA" "$DSYMS" --clobber
           {
             echo "### ios-release $TAG"
-            echo "- Release: $(gh release view "$TAG" --json url --jq .url)"
-            echo "- Assets: $(basename "$IPA"), $(basename "$DSYMS")"
+            echo "- Version: $VERSION"
+            echo "- Build number: $BUILD"
+            echo "- Artifact: FentonHome-$VERSION (signed IPA and dSYMs, kept 30 days; download it from this run's Artifacts)"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Delete this job's DerivedData
+      - name: Remove the keychain, certificates and API key
         if: always()
-        env:
-          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-${{ github.run_id }}-${{ github.job }}
-        run: python3 tools/ci_hygiene.py rm-dir "$FENTON_DERIVED_DATA"
+        run: |
+          if [ -n "${RELEASE_KEYCHAIN:-}" ]; then security delete-keychain "$RELEASE_KEYCHAIN" || true; fi
+          rm -f "$RUNNER_TEMP"/apple-*.p12
+          rm -rf "$RUNNER_TEMP/asc"

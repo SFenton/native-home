@@ -605,7 +605,7 @@ class WiringTests(unittest.TestCase):
 
     def test_testflight_upload_uses_ci_secrets_not_local_files(self):
         text = (ROOT / ".github" / "workflows" / "ios-release-build.yml").read_text()
-        self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))), ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY"])
+        self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))), ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY", "HASS_DEFAULT_SERVER"])
         self.assertIn('dir="$RUNNER_TEMP/asc"', text)  # the job writes the key itself, outside any checkout
         self.assertIn('rm -rf "$RUNNER_TEMP/asc"', text)
         for local in ("$HOME", "~/", "/Users/", "MobileDevice", "Provisioning Profiles", "Library/"):

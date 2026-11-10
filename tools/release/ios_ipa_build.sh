@@ -10,6 +10,10 @@
 # Signing: automatic, team 3Q9X8JX23S, the Apple Distribution identity in the login Keychain and the Apple ID signed in to
 # Xcode (xcodebuild -allowProvisioningUpdates fetches the App Store profiles). When that is missing the script exits 4 with a
 # message naming exactly what to provide. Documentation: .agents/workflow/ci.md.
+# Hosted mode (FENTON_CI_HOSTED=1 on a GitHub-hosted runner, tools/ci_hosted.py): the release pipeline's `ipa` job. The runner is
+# a single-tenant VM, so no devcap hold is taken; xcodebuild still runs under the idle watchdog (default 300 s, not 600). The
+# identities come from the job's temporary keychain (two p12 secrets) and the App Store Connect key (ASC_KEY_*), and the BLOCKED
+# message names those secrets. HASS_DEFAULT_SERVER is never printed (a dry run shows `***`); the workflow masks it in the log.
 set -euo pipefail
 
 TAG="${1:?usage: ios_ipa_build.sh TAG BUILD_NUMBER [--dry-run] | --probe-signing}"
@@ -40,12 +44,33 @@ if [[ -n "${FENTON_IPA_OUT:-}" ]]; then
   [[ $ok == 1 ]] || { echo "[ios_ipa_build] FENTON_IPA_OUT ($OUT_REAL) must be inside $ROOT/build or \$TMPDIR" >&2; exit 2; }
 fi
 
+# Hosted mode: same switch as ci_hosted.active() (the variable alone is not enough; the runner must be GitHub-hosted).
+HOSTED=0
+[[ "${FENTON_CI_HOSTED:-}" == "1" && "${RUNNER_ENVIRONMENT:-}" == "github-hosted" ]] && HOSTED=1
+if [[ -n "${FENTON_IDLE_TIMEOUT_SECONDS:-}" ]]; then IDLE_TIMEOUT="$FENTON_IDLE_TIMEOUT_SECONDS"
+elif [[ $HOSTED == 1 ]]; then IDLE_TIMEOUT=300
+else IDLE_TIMEOUT=600; fi
+
 log() { echo "[ios_ipa_build] $*" >&2; }
 run() {
-  if [[ $DRY == 1 ]]; then printf '+' >&2; printf ' %q' "$@" >&2; printf '\n' >&2; else "$@"; fi
+  if [[ $DRY == 1 ]]; then
+    local arg out=""
+    for arg in "$@"; do
+      if [[ -n "${HASS_DEFAULT_SERVER:-}" && "$arg" == "HASS_DEFAULT_SERVER=$HASS_DEFAULT_SERVER" ]]; then arg="HASS_DEFAULT_SERVER=***"; fi
+      out+=" $(printf '%q' "$arg")"
+    done
+    echo "+$out" >&2
+  else "$@"; fi
 }
 missing() {
   log "BLOCKED: $1"
+  if [[ $HOSTED == 1 ]]; then
+    log "Hosted run: the job's temporary keychain must hold the Apple Distribution and Apple Development identities of team 3Q9X8JX23S."
+    log "Owner step: set APPLE_DISTRIBUTION_P12_BASE64, APPLE_DISTRIBUTION_P12_PASSWORD, APPLE_DEVELOPMENT_P12_BASE64,"
+    log "APPLE_DEVELOPMENT_P12_PASSWORD, ASC_KEY_ID, ASC_ISSUER_ID and ASC_PRIVATE_KEY (an Admin key) in the release-signing"
+    log "environment; the checklist is in .agents/platforms/apple/testflight.md. A certificate older than a year must be renewed and re-exported."
+    exit 4
+  fi
   log "Owner step (needs the login password, run once in Terminal on the runner Mac):"
   log "  security set-key-partition-list -S apple-tool:,apple: -s -k '<login password>' ~/Library/Keychains/login.keychain-db"
   log "(or open Keychain Access, the Apple Distribution private key > Access Control > add /usr/bin/codesign), and keep the user logged in and unlocked."
@@ -102,8 +127,8 @@ probe_signing() {
 }
 
 # Runs a command and kills it when it prints nothing (stdout and stderr) for FENTON_IDLE_TIMEOUT_SECONDS (default 600): a
-# signing step waiting on a Keychain prompt is silent. Exit 124 on a kill. Used inside the devcap hold so queueing for a
-# slot is not counted.
+# signing step waiting on a Keychain prompt is silent. Exit 124 on a kill. Used inside the devcap hold (when there is one) so
+# queueing for a slot is not counted.
 IDLE_WATCHDOG='
 use IO::Select; use POSIX ":sys_wait_h"; $| = 1;
 my $idle = shift; pipe(my $or, my $ow); pipe(my $er, my $ew);
@@ -130,9 +155,9 @@ while ($sel->count) {
 if (!defined $status) { waitpid($pid, 0); $status = $? }
 exit($status & 127 ? 128 + ($status & 127) : $status >> 8);
 '
-guarded() { perl -e "$IDLE_WATCHDOG" "${FENTON_IDLE_TIMEOUT_SECONDS:-600}" "$@"; }
+guarded() { perl -e "$IDLE_WATCHDOG" "$IDLE_TIMEOUT" "$@"; }
 silent_hang() { # EXIT_CODE LABEL: exit 124 means the watchdog fired
-  [[ $1 != 124 ]] || missing "$2 printed nothing for ${FENTON_IDLE_TIMEOUT_SECONDS:-600} s and was killed; it is almost certainly waiting on a Keychain prompt for a signing key"
+  [[ $1 != 124 ]] || missing "$2 printed nothing for ${IDLE_TIMEOUT} s and was killed; it is almost certainly waiting on a Keychain prompt for a signing key"
 }
 
 if [[ "$TAG" == "--probe-signing" ]]; then probe_signing; echo "signing ok"; exit 0; fi
@@ -160,8 +185,12 @@ if [[ -n "${ASC_KEY_PATH:-}" && -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" 
   AUTH=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
 fi
 
-run python3 "$DEVCAP_PY" run --pool build --hold 3600 --purpose "ios-release archive $TAG" -- \
-  perl -e "$IDLE_WATCHDOG" "${FENTON_IDLE_TIMEOUT_SECONDS:-600}" \
+# The shared Macs hold a devcap build slot; a hosted runner is its own VM and runs xcodebuild directly.
+HOLD=()
+if [[ $HOSTED == 0 ]]; then HOLD=(python3 "$DEVCAP_PY" run --pool build --hold 3600 --purpose "ios-release archive $TAG" --); fi
+
+run ${HOLD[@]+"${HOLD[@]}"} \
+  perl -e "$IDLE_WATCHDOG" "$IDLE_TIMEOUT" \
   xcodebuild archive -project FentonHome.xcodeproj -scheme FentonHome -configuration Release \
     -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" -derivedDataPath "${FENTON_DERIVED_DATA:-$OUT/DerivedData}" -allowProvisioningUpdates \
     ${AUTH[@]+"${AUTH[@]}"} "${SETTINGS[@]}" \

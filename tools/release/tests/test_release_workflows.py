@@ -1,9 +1,10 @@
-"""Lints the release workflows and script flags: the owner's flow (merge, CI, bump, build, TestFlight) as assertions.
+"""Lints the release workflows and script flags: the owner's flow (merge to main, bump, signed IPA artifact, TestFlight) as assertions.
 
 No YAML library is available on the runner's system Python, so the workflow files are read by indentation: a block is
 the lines under a key until the next key at the same indent.
 """
 
+import os
 import re
 import subprocess
 import unittest
@@ -41,23 +42,38 @@ def triggers(name: str) -> Dict[str, List[str]]:
 
 
 class FlowTests(unittest.TestCase):
+    @staticmethod
+    def code(text: str) -> str:
+        """The workflow without comment-only lines (a comment may name what the job must not do)."""
+        return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+    @staticmethod
+    def jobs() -> Dict[str, List[str]]:
+        return blocks("\n".join(blocks(read("ios-release.yml"))["jobs"]), 2)
+
     def test_no_push_pull_request_or_tag_trigger_builds_or_uploads(self):
         self.assertEqual(set(triggers("ios-release-build.yml")), {"workflow_dispatch"})
 
-    def test_the_bump_waits_for_pr_checks_on_main_and_keeps_manual_runs(self):
-        on = triggers("version-bump.yml")
-        self.assertEqual(set(on), {"workflow_run", "workflow_dispatch"})
-        run = "\n".join(on["workflow_run"])
-        self.assertIn("workflows: [pr-checks]", run)
-        self.assertIn("types: [completed]", run)
-        self.assertIn("branches: [main]", run)
-        job = read("version-bump.yml")
-        # only a successful push run of pr-checks; the commit bumped is the one that was checked
-        self.assertIn("github.event.workflow_run.conclusion == 'success'", job)
-        self.assertIn("github.event.workflow_run.event == 'push'", job)
-        self.assertIn("vars.HASS_VERSION_BUMP_ENABLED == 'true'", job)
-        self.assertGreaterEqual(job.count("github.event.workflow_run.head_sha"), 2)  # checkout ref and bump --head
-        self.assertIn('--head "$HEAD_SHA"', job)
+    def test_the_pipeline_runs_on_a_push_to_main_with_no_pr_checks_dependency(self):
+        on = triggers("ios-release.yml")
+        self.assertEqual(set(on), {"push", "workflow_dispatch"})
+        push = blocks("\n".join(on["push"]), 4)
+        self.assertEqual(set(push), {"branches"})
+        self.assertIn("[main]", push["branches"][0])
+        text = read("ios-release.yml")
+        code = self.code(text)
+        self.assertNotIn("workflow_run", code)
+        self.assertNotIn("pr-checks", code)
+        self.assertNotIn("HASS_VERSION_BUMP_ENABLED", text)
+        inputs = blocks("\n".join(on["workflow_dispatch"]), 4)["inputs"]
+        self.assertEqual(set(blocks("\n".join(inputs), 6)), {"tag", "force"})
+        self.assertFalse((WORKFLOWS / "version-bump.yml").exists(), "folded into ios-release.yml: one bumper, no race")
+
+    def test_the_pipeline_runs_no_tests_coverage_or_simulator(self):
+        code = self.code(read("ios-release.yml"))
+        for banned in ("swift test", "xcodebuild test", "apple_coverage", "ios_uitest", "simctl", "affected_tests", "run_tool_tests",
+                       "build-for-testing", "FENTON_SIM_"):
+            self.assertNotIn(banned, code)
 
     def test_pr_checks_still_runs_on_pushes_to_main(self):
         on = triggers("pr-checks.yml")
@@ -65,19 +81,118 @@ class FlowTests(unittest.TestCase):
         self.assertIn("pull_request", on)
 
     def test_bump_serializes_and_never_cancels(self):
-        concurrency = blocks(read("version-bump.yml"))["concurrency"]
-        text = "\n".join(concurrency)
-        self.assertIn("group: version-bump", text)
-        self.assertIn("cancel-in-progress: false", text)
+        bump = "\n".join(self.jobs()["bump"])
+        self.assertIn("group: ios-release-bump", bump)
+        self.assertIn("cancel-in-progress: false", bump)
+        self.assertIn("contents: write", bump)
+        self.assertIn("actions: write", bump)
+        self.assertIn("runs-on: ubuntu-24.04", bump)
+        self.assertNotIn("secrets.", bump, "the bump needs no secrets, so it always runs")
+        self.assertIn('--head "$GITHUB_SHA"', bump)
+        self.assertIn("--push", bump)
+        self.assertIn("tag: ${{ steps.bump.outputs.tag }}", bump)
 
     def test_bump_dispatches_testflight_only_when_enabled_and_never_by_tag_push(self):
-        text = read("version-bump.yml")
-        self.assertIn('if [ "$TESTFLIGHT" = "true" ]', text)
+        text = read("ios-release.yml")
+        self.assertIn('[ "$TESTFLIGHT" = "true" ]', text)
         self.assertIn("vars.HASS_TESTFLIGHT_ENABLED", text)
         self.assertIn("gh workflow run ios-release-build.yml --ref main", text)
-        self.assertIn("actions: write", text)
-        self.assertNotIn("gh workflow run ios-release.yml", text,
-                         "the bump must not start the IPA workflow (owner, 2026-10-29: it holds the Mac runner)")
+        self.assertNotIn("gh workflow run ios-release.yml", text)
+        self.assertNotIn("tags:", "\n".join(triggers("ios-release.yml")["push"]), "a tag push (GITHUB_TOKEN) starts nothing; the ipa job is a job")
+
+    def test_a_dispatched_tag_is_validated_and_rebuilt_without_a_bump(self):
+        bump = "\n".join(self.jobs()["bump"])
+        self.assertIn("^ios/v[0-9]{4}", bump)
+        self.assertIn('echo "tag=$REBUILD_TAG" >> "$GITHUB_OUTPUT"', bump)
+        self.assertLess(bump.index('echo "tag=$REBUILD_TAG"'), bump.index("args=(bump"))
+
+    def test_the_ipa_job_is_hosted_signed_from_the_environment_and_only_after_a_tag(self):
+        ipa = "\n".join(self.jobs()["ipa"])
+        self.assertIn("needs: bump", ipa)
+        self.assertIn("needs.bump.outputs.tag != ''", ipa)
+        self.assertIn("vars.HOSTED_MACOS == 'on'", ipa)  # the repo-wide switch for hosted macOS jobs
+        self.assertIn("environment: release-signing", ipa)
+        self.assertIn("vars.HOSTED_XCODE_LABEL", ipa)
+        self.assertIn("'xcode-27'", ipa)
+        self.assertIn("vars.HOSTED_DEVELOPER_DIR", ipa)
+        self.assertIn('FENTON_CI_HOSTED: "1"', ipa)
+        self.assertNotIn("self-hosted", ipa)
+        self.assertRegex(ipa, r"permissions:\s*\n\s*contents: read")
+        self.assertNotIn("contents: write", ipa)
+        self.assertIn("timeout-minutes: 90", ipa)
+        self.assertIn("group: ios-release-ipa-${{ needs.bump.outputs.tag }}", ipa)
+        self.assertIn("persist-credentials: false", ipa)
+
+    def test_the_signing_secrets_are_exactly_the_checklist_and_named_in_the_error(self):
+        text = read("ios-release.yml")
+        names = ["APPLE_DEVELOPMENT_P12_BASE64", "APPLE_DEVELOPMENT_P12_PASSWORD", "APPLE_DISTRIBUTION_P12_BASE64",
+                 "APPLE_DISTRIBUTION_P12_PASSWORD", "ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY"]
+        self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))), names)
+        check = text[text.index("Check the signing secrets"):text.index("Prepare the runner")]
+        for name in names:
+            self.assertIn(name, check.split("run: |")[1], "the missing-secret loop must name every secret")
+        self.assertIn("::error title=ios-release cannot sign::", check)
+        self.assertIn("testflight.md", check)
+
+    def test_the_keychain_is_temporary_unlocked_for_codesign_and_checked(self):
+        text = read("ios-release.yml")
+        for command in ("openssl rand -hex 24", "::add-mask::$password", "security create-keychain", "-lut 21600", "security unlock-keychain",
+                        "-A -t cert -f pkcs12", "security set-key-partition-list -S apple-tool:,apple:",
+                        "security list-keychain -d user -s", "security default-keychain -s", "security find-identity -v -p codesigning"):
+            self.assertIn(command, text)
+        self.assertIn('"$count" -lt 2', text)  # fewer than the two identities fails
+        self.assertLess(text.index("-A -t cert -f pkcs12"), text.index("set-key-partition-list"))
+        self.assertLess(text.index("set-key-partition-list"), text.index("Archive and export the IPA"))
+
+    def test_the_build_uses_the_hosted_script_with_a_date_build_number(self):
+        text = read("ios-release.yml")
+        self.assertIn("date -u +%Y%m%d%H%M", text)
+        self.assertIn('tools/release/ios_ipa_build.sh "$TAG" "$build"', text)
+        self.assertIn("command -v xcodegen > /dev/null || brew install xcodegen", text)  # the line tools/ci_hosted_setup.sh runs
+
+    def test_the_default_server_is_never_a_repository_variable_and_never_in_the_public_ipa_job(self):
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            self.assertNotIn("vars.HASS_DEFAULT_SERVER", path.read_text(encoding="utf-8"),
+                             "%s: a repository variable is printed in the log by the env block; use a secret" % path.name)
+        self.assertNotIn("HASS_DEFAULT_SERVER", read("ios-release.yml"))
+        self.assertIn("secrets.HASS_DEFAULT_SERVER", read("ios-release-build.yml"))
+
+    def test_the_pipeline_runs_on_main_only(self):
+        jobs = self.jobs()
+        self.assertIn("if: ${{ github.ref == 'refs/heads/main' }}", "\n".join(jobs["bump"]))
+        self.assertIn("github.ref == 'refs/heads/main'", "\n".join(jobs["ipa"]))
+
+    def test_the_keychain_step_never_prints_the_identities(self):
+        text = read("ios-release.yml")
+        step = text[text.index("Temporary keychain with the signing identities"):text.index("App Store Connect API key (temporary file)")]
+        for line in step.splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            if "echo" in line and "$identities" in line:
+                self.assertIn("| grep", line, "an identities listing is echoed: " + line)  # only piped into grep, never printed
+        self.assertNotIn("sed -E", step)
+        self.assertIn("valid signing identities: $count", step)
+
+    def test_the_ipa_is_a_workflow_artifact_and_never_a_release_asset(self):
+        text = read("ios-release.yml")
+        code = self.code(text)
+        self.assertRegex(text, r"uses: actions/upload-artifact@[0-9a-f]{40} # v")
+        self.assertIn("name: FentonHome-${{ steps.build.outputs.version }}", text)
+        self.assertIn("retention-days: 30", text)
+        self.assertIn("if-no-files-found: error", text)
+        self.assertIn("steps.build.outputs.ipa", text)
+        self.assertIn("steps.build.outputs.dsyms", text)
+        self.assertNotIn("gh release", code)
+        self.assertNotIn("softprops", code)
+
+    def test_cleanup_runs_always_and_removes_the_keychain_certificates_and_key(self):
+        text = read("ios-release.yml")
+        cleanup = text[text.index("Remove the keychain"):]
+        self.assertIn("if: always()", cleanup)
+        self.assertIn('security delete-keychain "$RELEASE_KEYCHAIN"', cleanup)
+        self.assertIn('rm -f "$RUNNER_TEMP"/apple-*.p12', cleanup)
+        self.assertIn('rm -rf "$RUNNER_TEMP/asc"', cleanup)
+        self.assertNotIn('echo "$ASC_PRIVATE_KEY"', text)
 
     def test_release_build_is_gated_on_main_the_variable_and_the_environment(self):
         text = read("ios-release-build.yml")
@@ -96,7 +211,7 @@ class FlowTests(unittest.TestCase):
         inputs = blocks("\n".join(triggers("ios-release-build.yml")["workflow_dispatch"]), 4)["inputs"]
         self.assertEqual(set(blocks("\n".join(inputs), 6)), {"version_tag", "dry_run"})
         self.assertEqual(sorted(set(re.findall(r"secrets\.(\w+)", text))),
-                         ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY"])
+                         ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY", "HASS_DEFAULT_SERVER"])
         code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
         self.assertNotRegex(code, r"(?i)p12|IOS_DIST|keychain")
         self.assertNotIn("FentonHomeWatch", text)
@@ -117,7 +232,7 @@ class FlowTests(unittest.TestCase):
 
     def test_ledger_tags_cannot_start_the_ipa_workflow(self):
         push = triggers("ios-release.yml")["push"]
-        self.assertIn("ios/v*", "\n".join(push))
+        self.assertNotIn("tags", "\n".join(push))  # only a push to main starts it, so neither ios/v* nor ios/tf/* tags can
         self.assertFalse(re.fullmatch(r"ios/v.*", "ios/tf/2610.29.01"))
 
     def test_pr_checks_runs_the_new_tests(self):
@@ -151,6 +266,14 @@ class UploadScriptTests(unittest.TestCase):
             self.assertIn("-authenticationKeyID KEYID", line)
             self.assertIn("-authenticationKeyIssuerID ISSUER", line)
         self.assertIn("exportArchive", commands[1])
+
+    def test_the_default_server_value_never_reaches_the_output(self):
+        env = dict(os.environ, HASS_DEFAULT_SERVER="https://house.example.invalid")
+        out = subprocess.run([str(SCRIPT), "--dry-run", "--tag", "ios/v2610.29.01"], capture_output=True, text=True, env=env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("house.example.invalid", out.stdout + out.stderr)
+        self.assertIn("HASS_DEFAULT_SERVER=", out.stdout)
+        self.assertIn("***", out.stdout)
 
     def test_a_partial_api_key_is_refused(self):
         out = self.dry("--asc-key-id", "KEYID")

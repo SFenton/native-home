@@ -52,7 +52,9 @@ if [[ -z "$TAG" ]]; then
 fi
 
 OUT="$ROOT/build/testflight"; ARCHIVE="$OUT/FentonHome.xcarchive"
-run() { if [[ $DRY == 1 ]]; then printf '+'; printf ' %q' "$@"; printf '\n'; else "$@"; fi; }
+# A dry run never prints HASS_DEFAULT_SERVER's value (the repository is public, so is the job log): it shows ***.
+redact() { if [[ -n "${HASS_DEFAULT_SERVER:-}" && "$1" == "HASS_DEFAULT_SERVER=$HASS_DEFAULT_SERVER" ]]; then echo "HASS_DEFAULT_SERVER=***"; else printf '%s' "$1"; fi; }
+run() { if [[ $DRY == 1 ]]; then printf '+'; local arg; for arg in "$@"; do printf ' %q' "$(redact "$arg")"; done; printf '\n'; else "$@"; fi; }
 
 # Version settings from the tag, with the checkout's own commit as HassGitSHA.
 SETTINGS=()
@@ -66,7 +68,8 @@ else
 fi
 # The sign-in Server field default comes from the HASS_DEFAULT_SERVER repository variable; empty leaves the field blank.
 [[ -z "${HASS_DEFAULT_SERVER:-}" ]] || SETTINGS+=("HASS_DEFAULT_SERVER=$HASS_DEFAULT_SERVER")
-echo "[testflight] ${SETTINGS[*]}"
+shown=(); for line in "${SETTINGS[@]}"; do shown+=("$(redact "$line")"); done
+echo "[testflight] ${shown[*]}"
 
 [[ $DRY == 1 ]] || { rm -rf "$OUT"; mkdir -p "$OUT"; }
 cd "$SRC/apple"
