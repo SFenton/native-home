@@ -1798,7 +1798,10 @@ class Runner:
                 protected=self.cfg.get("protected_paths") or (), append_only=self.cfg.get("append_only_paths") or (),
                 core_tests=self.cfg.get("land_core_tests") or (), full_suite_triggers=self.cfg.get("land_full_suite_triggers") or (),
                 reaper=lane_land.reap_merged_lane, launch_review=self.review_lane, base_counts=self.state.data.setdefault("test_counts", {}),
-                expected_base=expected, expected_sha=expected_sha or None, request_reader=lambda _trusted, ref: self.owner_request_text(str(label), ref))
+                expected_base=expected, expected_sha=expected_sha or None,
+                test_timeout=lane_land.config_number(self.cfg, "land_test_timeout", lane_land.LAND_TEST_TIMEOUT),
+                test_workers=int(lane_land.config_number(self.cfg, "land_test_workers", lane_land.LAND_TEST_WORKERS)),
+                request_reader=lambda _trusted, ref: self.owner_request_text(str(label), ref))
         except lane_land.Refused as exc:
             if exc.kind == "base":  # the base moved during the review or tests: nothing merged; the monitor pauses and files
                 if self.base_absent(base):

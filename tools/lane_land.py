@@ -706,6 +706,12 @@ def _run_files(tree: Path, files: Sequence[str], timeout: float, workers: int,
     return code, "".join(o if o.endswith("\n") or not o else o + "\n" for _, o in results)
 
 
+def _base_timed_out(code: int, what: str, timeout: float) -> None:
+    """Refuse (kind ``tests``, nothing cached) when a trusted base run was cut by the timeout: its counts would be low."""
+    if code == TIMEOUT_CODE:
+        raise Refused(f"base tests timed out after {timeout:.0f} s ({what}): a timeout, not a lane fault", "tests")
+
+
 def _base_file_cached(cache: Dict[str, Any], base_key: str, test_file: str) -> bool:
     value = cache.get(f"{base_key}|file|{test_file}")
     return isinstance(value, list) and len(value) == 4
@@ -716,7 +722,8 @@ def base_file_stats(base_cwd: Path, base_key: str, test_file: str, cache: Dict[s
     lanes with different selections share the base side). A file the base lacks runs as nothing."""
     key = f"{base_key}|file|{test_file}"
     if not (isinstance(cache.get(key), list) and len(cache[key]) == 4):
-        _, output = _run_fixed(base_cwd, suite_command([test_file]), timeout)
+        code, output = _run_fixed(base_cwd, suite_command([test_file]), timeout)
+        _base_timed_out(code, test_file, timeout)
         suites, total, _ = test_stats(output)
         cache[key] = [suites, total, failing_ids(output), test_ids(output)]
     return cache[key]
@@ -739,7 +746,9 @@ def run_tests(clone: Path, tests: str, timeout: float = LAND_TEST_TIMEOUT, *, wo
     :func:`fresh_checkout`); the lane's own tests run after it. After a base move the rerun's trusted side runs after lane code
     has already run once this round (a weaker ordering; agents run as the owner's user, so it is detection, not prevention).
     A run cut by ``timeout`` is refused as a timeout (naming the suite it reached) before any failure or count check, since a
-    truncated run would otherwise read as a count shortfall. A per-file selection runs ``workers`` files at a time, base and lane.
+    truncated run would otherwise read as a count shortfall; a base run cut off the same way is refused too and never cached.
+    A per-file selection runs ``workers`` files at a time, base and lane, whatever its size: counts and order equal the serial
+    run, so there is no reason to keep small selections serial.
     ``eval_base`` (a ref such as ``refs/remotes/origin/<base>``) is passed to the lane's eval run as ``FENTON_EVAL_BASE`` so
     ``tools/agent_eval.py`` can re-measure the Jev questions the lane changed; the trusted base run has none."""
     commands = _commands(clone, tests, base_clone)
@@ -759,7 +768,8 @@ def run_tests(clone: Path, tests: str, timeout: float = LAND_TEST_TIMEOUT, *, wo
                 continue
             key = f"{base_key}|{base_command}"
             if not (isinstance(cache.get(key), list) and len(cache[key]) == 3):
-                _, base_output = _run_fixed(base_cwd, base_command, timeout)
+                base_code, base_output = _run_fixed(base_cwd, base_command, timeout)
+                _base_timed_out(base_code, base_command, timeout)
                 b_suites, b_total, _ = test_stats(base_output)
                 cache[key] = [b_suites, b_total, failing_ids(base_output)]
     for stage, command, base_command, cwd, _base_cwd in commands:

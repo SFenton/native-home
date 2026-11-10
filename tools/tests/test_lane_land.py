@@ -1049,6 +1049,18 @@ class TimeoutAndParallelTests(unittest.TestCase):
         self.assertIn("tools.tests.test_two", text)
         self.assertNotIn("a lane cannot run fewer", text)
 
+    def test_a_timed_out_base_run_is_refused_and_not_cached(self):
+        for files in (None, ["tools/tests/test_one.py"]):
+            cache = {}
+            with mock.patch.object(lane_land, "_run_fixed", return_value=(-9, self.PARTIAL)) as run:
+                with self.assertRaises(lane_land.Refused) as cm:
+                    lane_land.run_tests(self.tree(f"l{bool(files)}"), self.CMD, base_clone=self.tree(f"b{bool(files)}"), base_key="k",
+                                        base_counts=cache, timeout=5, files=files)
+            self.assertEqual(cm.exception.kind, "tests")
+            self.assertIn("base tests timed out after 5 s", str(cm.exception))
+            self.assertEqual(cache, {})
+            self.assertEqual(run.call_count, 1)
+
     def test_a_timeout_without_a_base_is_refused_as_a_timeout(self):
         with mock.patch.object(lane_land, "_run_fixed", return_value=(-9, "")):
             with self.assertRaises(lane_land.Refused) as cm:
