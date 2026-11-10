@@ -264,7 +264,7 @@ class ToolShellTests(Base):
 
     def test_a_lookup_failure_counts_as_headless(self):
         """Fails if: an error in the lookup lets a landing tool run as the owner."""
-        with mock.patch.object(ts.subprocess, "run", side_effect=OSError("no git")):
+        with mock.patch.object(ts, "resolve", side_effect=OSError("boom")):
             self.assertEqual(ts.session_env({}, root=self.root), {"FENTON_HEADLESS": "1"})
 
 

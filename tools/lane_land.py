@@ -1568,8 +1568,12 @@ def _triage_session() -> Any:
         return sys.modules["triage_session"]
     spec = importlib.util.spec_from_file_location("triage_session", Path(__file__).resolve().parent / "hooks" / "triage_session.py")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    sys.modules["triage_session"] = module
+    sys.modules["triage_session"] = module  # a dataclass in the module looks itself up here while it loads
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop("triage_session", None)
+        raise
     return module
 
 

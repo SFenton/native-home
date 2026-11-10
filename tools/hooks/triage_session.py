@@ -36,7 +36,6 @@ import json
 import os
 import re
 import shlex
-import subprocess
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -299,15 +298,24 @@ def apply(payload: Optional[Mapping[str, Any]] = None, env: Optional[MutableMapp
     return found
 
 
+def _toplevel(cwd: Optional[str] = None) -> str:
+    """The checkout root above ``cwd`` (the process's own by default): the nearest parent holding a ``.git`` entry, which is what
+    ``git rev-parse --show-toplevel`` reports, found without running git. ``""`` outside a checkout."""
+    here = Path(os.path.realpath(cwd or os.getcwd()))
+    for folder in (here, *here.parents):
+        if (folder / ".git").exists():
+            return str(folder)
+    return ""
+
+
 def session_env(env: Optional[Mapping[str, str]] = None, cwd: Optional[str] = None, root: Optional[Path] = None) -> Optional[Dict[str, str]]:
     """For scripts that run from a tool shell (``pr_land``, ``lane_land``): the record's ``env`` when this process is inside a registered
-    session, else ``None``. Uses ``T3CODE_THREAD_ID`` and ``git rev-parse --show-toplevel`` of ``cwd`` (the process's own by default).
+    session, else ``None``. Uses ``T3CODE_THREAD_ID`` and the checkout root of ``cwd`` (what ``git rev-parse --show-toplevel`` reports; the process's own by default).
 
     Fails closed: if the lookup itself raises, the answer is the bare headless marker."""
     env = os.environ if env is None else env
     try:
-        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd, capture_output=True, text=True, timeout=10).stdout.strip()
-        found = resolve(env, {}, root, project_dir=top or "")
+        found = resolve(env, {}, root, project_dir=_toplevel(cwd))
     except Exception:  # noqa: BLE001
         return {"FENTON_HEADLESS": "1"}
     return dict(found.env) if found else None

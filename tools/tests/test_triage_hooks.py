@@ -211,6 +211,14 @@ class LandingToolTests(Base):
             os.chdir(self.owner)
             self.assertIsNone(lane_land.triage_session_env())
 
+    def test_the_tools_load_the_registry_module_by_path_in_a_fresh_interpreter(self):
+        """Fails if: tools/hooks is not on the path and the by-path load breaks (it fails closed, so every landing would be refused)."""
+        code = "import sys; sys.path[:] = [p for p in sys.path if 'hooks' not in p]; import {0}; print({0}.triage_session_env())"
+        for tool in ("lane_land", "pr_land"):
+            out = subprocess.run([sys.executable, "-c", code.format(tool)], cwd=str(TOOLS), capture_output=True, text=True,
+                                 env={"PATH": os.environ.get("PATH", ""), "HOME": str(self.tmp)})
+            self.assertEqual((out.stdout.strip(), out.stderr), ("None", ""), tool)
+
     def test_lane_land_fails_closed_when_the_registry_module_is_gone(self):
         """Fails if: an unloadable triage_session lets lane_land run as the owner."""
         with mock.patch.object(lane_land, "_triage_session", side_effect=ImportError("gone")):
