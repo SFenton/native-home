@@ -24,7 +24,9 @@ final class UKHostedVacuumMapGestureTests: DemoHouseTestCase {
         override func location(in view: UIView?) -> CGPoint { stubPoint }
     }
 
-    private let vacuum = Vacuums.all.first { $0.areaCleaning != nil } ?? Vacuums.all[0]
+    /// Read when a test runs, not when the case is created: XCTest creates every case while it lists the bundle, before `setUp`
+    /// installs the demo house, and `Vacuums.all` is empty until then (a stored property crashed the whole host there).
+    private var vacuum: VacuumConfig { Vacuums.all.first { $0.areaCleaning != nil } ?? Vacuums.all[0] }
 
     private func editor(area: MapGridRect? = nil)
         -> (page: UKVacuumAreaEditorViewController, controller: VacuumController, window: UIWindow, map: UKValetudoMapView) {

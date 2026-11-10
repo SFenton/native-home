@@ -212,7 +212,7 @@ final class UKHostedGridFillTests: DemoHouseTestCase {
     }
 
     func testTheWakeLightTileFillsItsSection() throws {
-        let (controller, window) = try room("master-bedroom", width: 637)
+        let (controller, window) = try room("bedroom-1", width: 637)
         defer { window.isHidden = true }
         let wake = try XCTUnwrap(tiles(in: controller.view).first { $0.accessibilityLabel == RoomsConfig.WakeLight.title }, "the Wake-Light tile")
         let grid = try XCTUnwrap(wake.superview)
