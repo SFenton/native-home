@@ -92,7 +92,7 @@ brief states the objective, the output (files plus the status block), the source
 The runner queues the post-mortem for this flow itself (digest, then a one-at-a-time retro on an idle tick), so do not
 run the Steward or change agents, hooks, skills, tools or Jev questions here. If you spot a workflow problem, say so in
 `summary`, or file it as a `Workflow` issue (`gh issue create -R {{REQUEST_REPO}} --label Workflow`) with the spec. Never
-build anything in the fixed set (credentials, signing, physical devices, the review recorder, `ack-base`;
+build anything in the fixed set (credentials, signing, physical devices, the review recorder, `ack-base <sha>` and `--owner-ack`;
 the merge path, guards and graders are unlocked but need an independent review): file it with the labels `Workflow` and `On Hold` for the owner.
 
 ## Finish: the status file

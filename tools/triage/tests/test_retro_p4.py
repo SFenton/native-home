@@ -524,3 +524,52 @@ class MissingBaseTests(p3.LandBase):
         [issue] = [c for c in gh.calls if c[0] == "issue"]
         self.assertEqual(issue[4], ("Workflow", "On Hold"))
         self.assertIn("not on origin", issue[2])
+
+
+class AckVerifiedCliTests(p3.LandBase):
+    """``hass_triage.py ack-verified``: agent sessions may run it; the runner's own sessions may not; ``ack-base <sha>`` stays owner-only."""
+
+    def run_cli(self, env, tty, result=None, raises=None):
+        ok = {"ok": True, "reason": "", "head": "c" * 40, "prs": [36, 37]}
+        with mock.patch.dict(os.environ, env), mock.patch("sys.stdin") as stdin, \
+                mock.patch("sys.stderr", new=io.StringIO()) as err, mock.patch("sys.stdout", new=io.StringIO()) as out, \
+                mock.patch.object(ht.Runner, "ack_verified", side_effect=raises, return_value=result or ok) as ack:
+            stdin.isatty.return_value = tty
+            code = ht.main(["ack-verified"], home=self.home)
+        return code, out.getvalue(), err.getvalue(), ack
+
+    def test_it_refuses_the_runners_own_sessions(self):
+        """Fails if: a headless worker or issue session (FENTON_HEADLESS, HASS_TRIAGE_ISSUE) can clear its own pause."""
+        for env in ({"FENTON_HEADLESS": "1"}, {"HASS_TRIAGE_ISSUE": "9"}):
+            with self.subTest(env=env):
+                code, _out, err, ack = self.run_cli(env, True)
+                self.assertEqual(code, 2)
+                ack.assert_not_called()
+                self.assertIn("ack-verified", err)
+
+    def test_it_runs_with_or_without_a_tty_and_logs_who_ran_it(self):
+        """Fails if: a TTY is required (agent sessions have none) or the session label does not follow the TTY."""
+        for tty, session in ((False, "agent"), (True, "owner")):
+            with self.subTest(tty=tty):
+                code, out, _err, ack = self.run_cli({}, tty)
+                self.assertEqual(code, 0)
+                ack.assert_called_once_with(session)
+                self.assertIn("#36 #37", out)
+                self.assertIn("cccccccccc", out)
+
+    def test_a_refusal_exits_one_and_a_missing_pause_exits_one(self):
+        """Fails if: a failed verification exits 0, or 'nothing to acknowledge' is not reported."""
+        code, _out, err, _ack = self.run_cli({}, False, result={"ok": False, "reason": "x. Nothing was accepted: owner: `ack-base <sha>`."})
+        self.assertEqual(code, 1)
+        self.assertIn("ack-base", err)
+        code, _out, err, _ack = self.run_cli({}, False, raises=ht.TriageError("no pending SELF_CHANGE_PAUSED: nothing to acknowledge"))
+        self.assertEqual(code, 1)
+        self.assertIn("nothing to acknowledge", err)
+
+    def test_ack_base_still_refuses_a_session_without_a_terminal(self):
+        """Fails if: adding ack-verified loosened ack-base <sha>, which stays owner-only."""
+        with mock.patch("sys.stdin") as stdin, mock.patch("sys.stderr", new=io.StringIO()), \
+                mock.patch.object(ht.Runner, "ack_base") as ack:
+            stdin.isatty.return_value = False
+            self.assertEqual(ht.main(["ack-base", "0" * 40], home=self.home), 2)
+            ack.assert_not_called()

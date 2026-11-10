@@ -123,5 +123,52 @@ class RulesetGateTests(unittest.TestCase):
             self.assertEqual(gate.main(["--repo", "SFenton/native-home"]), 1)
 
 
+
+RULESET = {"enforcement": "active", "bypass_actors": [], "updated_at": "2026-11-10T09:00:00.000-05:00", "current_user_can_bypass": "never"}
+BOTH = {"type": "required_status_checks", "ruleset_id": 7, "parameters": {"required_status_checks": [
+    {"context": "pr-checks", "integration_id": 15368}, {"context": "ai-review", "integration_id": 5618837}]}}
+
+
+class LiveRequirementsTests(unittest.TestCase):
+    """``live_requirements``: the live ruleset's required checks and ``updated_at`` for the range verifier."""
+
+    def live(self, rules, ruleset=None):
+        return gate.live_requirements("o/r", fetch=lambda repo, branch: rules, fetch_one=lambda repo, rid: ruleset or RULESET)
+
+    def test_todays_ruleset_reads_back_with_both_contexts_and_a_utc_time(self):
+        """Fails if: the contexts are not read from the live rules, the offset timestamp is not normalised to UTC, or a good ruleset has problems."""
+        found = self.live([PULL, BOTH])
+        self.assertEqual(found["contexts"], [("pr-checks", 15368), ("ai-review", 5618837)])
+        self.assertEqual(found["problems"], [])
+        self.assertEqual(found["updated_at"].isoformat(), "2026-11-10T14:00:00+00:00")
+
+    def test_bypass_actors_are_not_a_condition(self):
+        """Fails if: a bypass_actors list (which the agent login cannot see, so "none" would verify nothing) becomes a problem or a key again."""
+        actor = {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
+        found = self.live([PULL, BOTH], {**RULESET, "bypass_actors": [actor]})
+        self.assertEqual(found["problems"], [])
+        self.assertNotIn("bypass_actors", found)
+
+    def test_an_inactive_ruleset_or_a_missing_rule_is_a_problem(self):
+        """Fails if: a ruleset that is not active, lacks a pull request or checks, or has no readable updated_at leaves `problems` empty."""
+        self.assertTrue(any("not active" in p for p in self.live([PULL, BOTH], {**RULESET, "enforcement": "disabled"})["problems"]))
+        self.assertTrue(any("pull request" in p for p in self.live([BOTH])["problems"]))
+        self.assertTrue(any("no status check" in p for p in self.live([PULL])["problems"]))
+        self.assertTrue(any("updated_at" in p for p in self.live([PULL, BOTH], {**RULESET, "updated_at": None})["problems"]))
+
+    def test_a_failed_read_is_a_problem_and_never_raises(self):
+        """Fails if: an unreadable ruleset raises into the verifier or looks like a gate."""
+        def boom(repo, branch):
+            raise subprocess.CalledProcessError(1, "gh")
+        found = gate.live_requirements("o/r", fetch=boom)
+        self.assertEqual((found["contexts"], found["updated_at"]), ([], None))
+        self.assertTrue(found["problems"])
+
+    def test_check_and_its_exit_codes_are_unchanged(self):
+        """Fails if: adding live_requirements changed what `check` reports for the same rules."""
+        self.assertEqual(gate.check("o/r", fetch=lambda repo, branch: [PULL, BOTH], fetch_one=one), [])
+        self.assertEqual(gate.check("o/r", fetch=lambda repo, branch: [BOTH], fetch_one=one), ["the ruleset does not require a pull request"])
+
+
 if __name__ == "__main__":
     unittest.main()

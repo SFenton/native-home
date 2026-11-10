@@ -13,6 +13,8 @@ pull request on the product repository. The worker lands its own pull request th
     hass_triage.py run-issue N [--dry-run]            # work one issue now
     hass_triage.py run-job NAME                       # run one scheduled job (steward, researcher) now
     hass_triage.py status [--json]
+    hass_triage.py ack-verified                       # accept a moved base when every move is a checked PR merge (agent sessions may)
+    hass_triage.py ack-base SHA                       # owner only: accept any moved base after checking it
     hass_triage.py pause | resume
     hass_triage.py init-labels
     hass_triage.py install [--interval S] [--uninstall]
@@ -50,6 +52,7 @@ sys.path.insert(0, str(HERE.parent))
 from redact import copy_redacted, redact, redact_lines  # noqa: E402,F401  (the one shared scrubber, tools/redact.py)
 import agent_login  # noqa: E402  (the agent account's login, a name: tools/agent_login.py)
 import request_repo  # noqa: E402  (the request repository comes from local configuration, tools/request_repo.py)
+import ruleset_gate  # noqa: E402  (the live ruleset's requirements, tools/ruleset_gate.py)
 import lane_land  # noqa: E402  (the runner lands the lanes agents push: tools/lane_land.py)
 import retro_weekly  # noqa: E402  (the metrics the automatic revert compares: tools/retro_weekly.py)
 LAUNCHD_LABEL = "com.sfenton.hass-triage"
@@ -66,6 +69,11 @@ AUTH_MESSAGE = "claude is not logged in; run claude auth login"
 WORKFLOW_PATHS = (".claude/agents", ".agents/workflow", "tools/hooks", "tools/triage", "contracts/jev")
 #: The most first-parent commits ``check_base`` walks when it vets a move of a shared workflow base; more pauses.
 BASE_WALK_CAP = 200
+#: What a pause tells the reader about the two ways out: the checked-PR verb (agent sessions may run it) and the owner's.
+ACK_HOW = ("Accept with `python3 tools/triage/hass_triage.py ack-verified` when every move is a checked PR merge; for anything "
+           "else the owner runs `ack-base <sha>` from a terminal.")
+#: The most rounds ``ack_verified`` re-reads a moving base before it records the last head it verified.
+ACK_ROUNDS = 3
 #: The default base a retro job branches from (``workflow_base`` in config.json).
 DEFAULT_WORKFLOW_BASE = "main"
 #: The automatic revert (plan section 9): flows compared on each side of a landing, the days after which a slow landing is
@@ -365,6 +373,33 @@ class GitHub:
     def commit_pulls(self, repo: str, sha: str) -> List[Dict[str, Any]]:
         """The pull requests GitHub associates with ``sha`` (``repos/<repo>/commits/<sha>/pulls``). Raises on any failure."""
         return json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}/pulls"]) or "[]")
+
+    def commit_record(self, repo: str, sha: str) -> Dict[str, Any]:
+        """``repos/<repo>/commits/<sha>``: the message, the committer and GitHub's signature verdict. Raises on any failure."""
+        return json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}"]) or "{}")
+
+    def pull_record(self, repo: str, number: int) -> Dict[str, Any]:
+        """``repos/<repo>/pulls/<number>``: the pull request itself (``merged_at``, ``base.ref``, ``merge_commit_sha``, ``head.sha``)."""
+        return json.loads(self._gh(["api", f"repos/{repo}/pulls/{int(number)}"]) or "{}")
+
+    def check_runs(self, repo: str, sha: str) -> List[Dict[str, Any]]:
+        """Every check run on ``sha`` (``commits/<sha>/check-runs``, all pages up to 1000 runs). Raises on any failure."""
+        runs: List[Dict[str, Any]] = []
+        for page in range(1, 11):
+            answer = json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}/check-runs?per_page=100&page={page}"]) or "{}")
+            batch = [r for r in answer.get("check_runs") or [] if isinstance(r, dict)]
+            runs += batch
+            if len(batch) < 100 or len(runs) >= int(answer.get("total_count") or 0):
+                break
+        return runs
+
+    def commit_status(self, repo: str, sha: str) -> Dict[str, Any]:
+        """The combined commit status of ``sha`` (``commits/<sha>/status``). Raises on any failure."""
+        return json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}/status?per_page=100"]) or "{}")
+
+    def live_requirements(self, repo: str, branch: str) -> Dict[str, Any]:
+        """The live ruleset's required checks and ``updated_at`` (:func:`ruleset_gate.live_requirements`); never raises."""
+        return ruleset_gate.live_requirements(repo, branch)
 
     def edit_labels(self, repo: str, n: int, add: Iterable[str] = (), remove: Iterable[str] = ()) -> None:
         args = ["issue", "edit", str(n), "-R", repo]
@@ -1576,54 +1611,146 @@ class Runner:
 
     def pr_moves_ok(self, base: str, expected: str, current: str) -> bool:
         """The acceptance rule for a shared base: ``base`` is the product base and ``expected..current`` is only merged pull
-        requests (:meth:`moves_are_merged_prs`). Always False for a separate workflow base."""
-        return base == str(self.cfg.get("product_base") or "") and self.moves_are_merged_prs(base, expected, current)
+        requests that passed the live ruleset's required checks (:meth:`verify_pr_range`); the reason is printed on a failure.
+        Always False for a separate workflow base."""
+        if base != str(self.cfg.get("product_base") or ""):
+            return False
+        ok, _evidence, reason = self.verify_pr_range(base, expected, current)
+        if not ok:
+            print(f"base integrity: {reason}")
+        return ok
 
-    def moves_are_merged_prs(self, base: str, expected: str, current: str) -> bool:
-        """Is every move of the shared base from ``expected`` to ``current`` a merged pull request? When the workflow base is also
-        the product base, merged product PRs move it legitimately. True only when ``expected`` is an ancestor of ``current`` and
-        every first-parent commit in ``expected..current`` (at most ``BASE_WALK_CAP``) is the merge commit of a merged PR into
-        ``base`` on the product repo (``merged_at`` set, ``base.ref`` and ``merge_commit_sha`` matching). A direct push, a force
-        push, an over-long walk or a failed lookup (retried once) is False: no evidence is not evidence of a PR, so it pauses."""
+    def verify_pr_range(self, base: str, expected: str, head: str) -> Tuple[bool, List[Dict[str, Any]], str]:
+        """Is every move of ``base`` from ``expected`` to ``head`` a squash-merged pull request that passed the required checks?
+
+        Returns ``(ok, evidence, reason)``: one ``{sha, pr, head_sha, contexts}`` per commit and the first failure's sha and
+        reason. All or nothing, fail closed: no answer is never taken as a pull request. Runs in the land clone after fetching
+        ``base``. ``expected`` must be an ancestor of ``head`` and the first-parent walk at most ``BASE_WALK_CAP`` (and not empty).
+        Each commit needs: exactly one parent; a GitHub-made (web-flow), signature-verified commit; a merged PR into ``base``
+        whose ``merge_commit_sha`` is this commit (from ``commits/<sha>/pulls``, else the ``(#N)`` in the subject read as a hint
+        only, GitHub's own record ``pulls/N`` being the authority: a forged subject cannot pass); and, on the PR head, the newest
+        run of every context the LIVE rules require, from the integration the rules name, concluded ``success`` (or a
+        ``success`` commit status of that context when no run exists). Once per range: the ruleset is live, needs a pull
+        request and checks, and was not edited after the oldest merge in the range.
+
+        Bypass actors are not checked (the agent login cannot read the list); the per-commit evidence is the authority. A bypass
+        could only produce a direct push (no owning PR, not made by GitHub) or a merge with a required check failing or missing
+        on the PR head, and both are refused above. CODEOWNERS approval is not re-verified for the same reason."""
         repo = str(self.cfg["product_repo"])
         try:
             clone = self.land_clone()
             lane_land.git(clone, "fetch", "-q", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}")
-            if lane_land.git(clone, "merge-base", "--is-ancestor", expected, current).returncode != 0:
-                print(f"base integrity: {expected} is not an ancestor of {current} (a force push?)")
-                return False
-            walk = lane_land.git(clone, "rev-list", "--first-parent", f"--max-count={BASE_WALK_CAP + 1}", f"{expected}..{current}")
+            if lane_land.git(clone, "merge-base", "--is-ancestor", expected, head).returncode != 0:
+                return False, [], f"{expected} is not an ancestor of {head} (a force push?)"
+            walk = lane_land.git(clone, "rev-list", "--first-parent", f"--max-count={BASE_WALK_CAP + 1}", f"{expected}..{head}")
             if walk.returncode != 0:
-                return False
+                return False, [], f"could not walk {expected}..{head}"
             shas = walk.stdout.split()
         except Exception as exc:  # noqa: BLE001
-            print(f"base integrity: could not walk {expected}..{current}: {redact(str(exc))[:200]}")
-            return False
+            return False, [], f"could not walk {expected}..{head}: {redact(str(exc))[:200]}"
         if not shas or len(shas) > BASE_WALK_CAP:
-            print(f"base integrity: {len(shas)} first-parent commits in {expected}..{current} (cap {BASE_WALK_CAP}): not vetted")
-            return False
-        for sha in shas:
-            for attempt in (1, 2):
-                try:
-                    pulls = self.gh.commit_pulls(repo, sha)
-                    break
-                except Exception as exc:  # noqa: BLE001
-                    if attempt == 2:
-                        print(f"base integrity: PR lookup for {sha} failed: {redact(str(exc))[:200]}")
-                        return False
-            if not any(isinstance(pr, dict) and pr.get("merged_at") and str((pr.get("base") or {}).get("ref")) == base
-                       and pr.get("merge_commit_sha") == sha for pr in pulls):
-                print(f"base integrity: {sha} on origin/{base} is not the merge commit of a merged pull request")
-                return False
-        return True
+            return False, [], f"{len(shas)} first-parent commits in {expected}..{head} (cap {BASE_WALK_CAP}): not vetted"
+        requirements = self.gh.live_requirements(repo, base)
+        found = list(requirements.get("problems") or [])
+        if found:
+            return False, [], "the live ruleset is not a gate: " + "; ".join(str(x) for x in found)
+        contexts = [(str(name), integration) for name, integration in requirements.get("contexts") or []]
+        evidence: List[Dict[str, Any]] = []
+        merged_times: List[Any] = []
+        for sha in reversed(shas):  # oldest first, so the evidence reads in merge order
+            try:
+                parents = lane_land.git(clone, "rev-list", "--parents", "-n1", sha).stdout.split()
+                if len(parents) != 2:
+                    return False, evidence, f"{sha} has {max(len(parents) - 1, 0)} parents, not one (not a squash merge)"
+                record = self._lookup(self.gh.commit_record, repo, sha)
+                if not self._github_made(record):
+                    return False, evidence, f"{sha} was not made and signed by GitHub (a direct push?)"
+                pr = self._owning_pull(repo, base, sha, record)
+                if pr is None:
+                    return False, evidence, f"{sha} on origin/{base} is not the merge commit of a merged pull request"
+                head_sha = str((pr.get("head") or {}).get("sha") or "")
+                if not head_sha:
+                    return False, evidence, f"{sha}: pull request #{pr.get('number')} names no head commit"
+                why = self._checks_failed(repo, head_sha, contexts)
+                if why:
+                    return False, evidence, f"{sha}: pull request #{pr.get('number')}: {why}"
+            except Exception as exc:  # noqa: BLE001 (a lookup that failed twice is not evidence)
+                return False, evidence, f"{sha}: lookup failed: {redact(str(exc))[:200]}"
+            merged_times.append(ruleset_gate.utc(pr.get("merged_at")))
+            evidence.append({"sha": sha, "pr": pr.get("number"), "head_sha": head_sha, "contexts": [name for name, _ in contexts]})
+        changed = requirements.get("updated_at")
+        oldest = min((m for m in merged_times if m is not None), default=None)
+        if changed is None or oldest is None or changed > oldest:
+            return False, evidence, ("the ruleset changed in the range (edited after the oldest merge in it): the owner's "
+                                     "`ack-base <sha>` clears it once")
+        return True, evidence, ""
+
+    @staticmethod
+    def _lookup(fetch: Callable[..., Any], *args: Any) -> Any:
+        """``fetch(*args)``, retried once; a second exception propagates."""
+        try:
+            return fetch(*args)
+        except Exception:  # noqa: BLE001
+            return fetch(*args)
+
+    @staticmethod
+    def _github_made(record: Dict[str, Any]) -> bool:
+        """Did GitHub itself make and sign this commit? Needs the committer LOGIN ``web-flow`` AND ``verification.verified`` true with
+        reason ``valid``; the committer name alone (anyone can set it) never counts."""
+        commit = record.get("commit") if isinstance(record.get("commit"), dict) else {}
+        verification = commit.get("verification") or {}
+        login = (record.get("committer") or {}).get("login")
+        return login == "web-flow" and verification.get("verified") is True and verification.get("reason") == "valid"
+
+    def _owning_pull(self, repo: str, base: str, sha: str, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """The merged pull request into ``base`` whose merge commit is ``sha``: from ``commits/<sha>/pulls`` and, when that lists
+        none that matches (GitHub's commit-to-PR index has gaps), from the ``(#N)`` ending the squash subject, fetching
+        ``pulls/N`` and requiring that record itself to name ``sha``. None when nothing matches."""
+        def owns(pr: Any) -> bool:
+            return (isinstance(pr, dict) and bool(pr.get("merged_at")) and str((pr.get("base") or {}).get("ref")) == base
+                    and pr.get("merge_commit_sha") == sha)
+        for pr in self._lookup(self.gh.commit_pulls, repo, sha) or []:
+            if owns(pr):
+                return pr
+        subject = str(((record.get("commit") or {}).get("message") or "")).splitlines()[0:1]
+        hint = re.search(r"\(#(\d+)\)\s*$", subject[0]) if subject else None
+        if hint:
+            pr = self._lookup(self.gh.pull_record, repo, int(hint.group(1)))
+            if owns(pr):
+                return pr
+        return None
+
+    def _checks_failed(self, repo: str, head_sha: str, contexts: List[Tuple[str, Any]]) -> str:
+        """Why a required context did not pass on the PR head (empty when all did). The newest run of a name decides; its app
+        must be the integration the rules name; with no run, a ``success`` status of that context stands only for a check whose rules name no integration."""
+        runs = self._lookup(self.gh.check_runs, repo, head_sha)
+        status: Optional[Dict[str, Any]] = None
+        zero = datetime.min.replace(tzinfo=timezone.utc)
+        for name, integration in contexts:
+            named = [r for r in runs if r.get("name") == name]
+            if named:
+                newest = max(named, key=lambda r: (ruleset_gate.utc(r.get("completed_at") or r.get("started_at")) or zero, int(r.get("id") or 0)))
+                if integration is not None and (newest.get("app") or {}).get("id") != integration:
+                    return f"{name} was not reported by the required integration {integration}"
+                if newest.get("conclusion") != "success":
+                    return f"{name} concluded {newest.get('conclusion') or newest.get('status') or 'nothing'}"
+                continue
+            if integration:  # the rules bind this check to an app: a status (any token can post one) never stands in for its run
+                return f"{name} did not run on {head_sha[:10]} (a status cannot replace the run from integration {integration})"
+            if status is None:
+                status = self._lookup(self.gh.commit_status, repo, head_sha)
+            if not any(isinstance(x, dict) and x.get("context") == name and x.get("state") == "success"
+                       for x in status.get("statuses") or []):
+                return f"{name} did not run on {head_sha[:10]}"
+        return ""
 
     @staticmethod
     def pause_text(base: str, shas: List[str], at: str, when: str) -> str:
         """The pause message when ``origin/<base>`` has moved without the runner more than once: every move, oldest first."""
         listing = "; ".join(f"{n}. {sha}" for n, sha in enumerate(shas, 1))
         return (f"origin/{base} moved {len(shas)} times without the runner (first noticed at {when}, {at}). Every move, oldest "
-                f"first: {listing}. Self-change landings are paused. Owner only: check each of them, then accept the newest from "
-                f"an interactive shell with `python3 tools/triage/hass_triage.py ack-base {shas[-1]}` (agents never run this).")
+                f"first: {listing}. Self-change landings are paused. {ACK_HOW} Owner only: check each of them, then accept the "
+                f"newest from an interactive shell with `python3 tools/triage/hass_triage.py ack-base {shas[-1]}` (agents never run this).")
 
     def base_moved(self, base: str, expected: str, current: str, when: str) -> None:
         details = ""
@@ -1636,8 +1763,8 @@ class Runner:
         except Exception as exc:  # noqa: BLE001
             details = f"\n\n(could not read the commit: {redact(str(exc))[:160]})"
         reason = (f"origin/{base} is {current}, but the runner last landed or saw {expected} (noticed at {when}, {iso()}). "
-                  "Self-change landings are paused. Owner only: after checking the change, accept it from an interactive shell with "
-                  f"`python3 tools/triage/hass_triage.py ack-base {current}` (agents never run this).")
+                  f"Self-change landings are paused. {ACK_HOW} Owner only: after checking the change, accept it from an interactive "
+                  f"shell with `python3 tools/triage/hass_triage.py ack-base {current}` (agents never run this).")
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         pending = pause_info(self.paths)
         if (self.paths.state_dir / "SELF_CHANGE_PAUSED").exists() and pending.get("sha"):
@@ -1700,6 +1827,60 @@ class Runner:
         pause.unlink(missing_ok=True)
         (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").unlink(missing_ok=True)
         return current
+
+    def ack_verified(self, session: str = "agent") -> Dict[str, Any]:
+        """Accept ``origin/<workflow_base>`` when every move since the last accepted SHA is a checked, squash-merged pull request
+        (:meth:`verify_pr_range`). Needs a pending ``SELF_CHANGE_PAUSED`` (else raises) and a workflow base that is the product base.
+        Returns ``{ok, reason, head, prs}``; on ``ok`` False nothing changed (the owner runs ``ack-base <sha>``). Under the ack
+        lock it verifies ``recorded..head`` and re-reads the base: if it moved, only the increment is verified, at most
+        ``ACK_ROUNDS`` rounds, then the last VERIFIED head is recorded (``check_base`` vets the rest on the next tick). Records
+        that head, clears the pause and appends a line to ``ack-log.jsonl``."""
+        base = str(self.cfg.get("workflow_base") or DEFAULT_WORKFLOW_BASE)
+        pause = self.paths.state_dir / "SELF_CHANGE_PAUSED"
+        if not pause.exists():
+            raise TriageError("no pending SELF_CHANGE_PAUSED: nothing to acknowledge")
+
+        def refused(reason: str) -> Dict[str, Any]:
+            return {"ok": False, "reason": f"{reason}. Nothing was accepted: owner: `ack-base <sha>`.", "head": None, "prs": []}
+
+        if base != str(self.cfg.get("product_base") or ""):
+            return refused(f"{base} is not the product base, so pull requests do not move it")
+        try:
+            expected = json.loads(self.base_record().read_text()).get(base)
+        except (OSError, ValueError):
+            expected = None
+        if not expected:
+            return refused(f"no accepted SHA is recorded for {base}")
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.paths.state_dir / "ack.lock", "a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                head = self.remote_base_sha(base)
+                if not head:
+                    return refused(f"{base} is not on origin")
+                verified, evidence = str(expected), []
+                for _round in range(ACK_ROUNDS):
+                    ok, found, reason = self.verify_pr_range(base, verified, head)
+                    if not ok:
+                        return refused(reason)
+                    evidence += found
+                    verified = head
+                    again = self.remote_base_sha(base)
+                    if not again or again == head:
+                        break
+                    head = again
+                prs = [int(e["pr"]) for e in evidence]
+                contexts = sorted({c for e in evidence for c in e["contexts"]})
+                self.base_record().parent.mkdir(parents=True, exist_ok=True)
+                self.base_record().write_text(json.dumps({base: verified}, indent=2, sort_keys=True))
+                pause.unlink(missing_ok=True)
+                (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").unlink(missing_ok=True)
+                with open(self.paths.state_dir / "ack-log.jsonl", "a") as log:
+                    log.write(json.dumps({"at": iso(), "mode": "verified", "from": expected, "to": verified, "prs": prs,
+                                          "contexts": contexts, "session": session}, sort_keys=True) + "\n")
+                return {"ok": True, "reason": "", "head": verified, "prs": prs}
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def base_missing(self, base: str, label: str) -> None:
         """The workflow base is not on origin, so every self-change lane waits. File one ``Workflow`` + ``On Hold`` issue per
@@ -2220,7 +2401,7 @@ class Runner:
             argv += ["--allowedTools", ",".join(agent["allowed_tools"])]
         denied = list(agent.get("disallowed_tools") or [])
         if self.agent_override == "reviewer":  # the reviewer never pushes, lands or acknowledges anything
-            denied += ["Bash(git push*)", "Bash(*hass_triage*)", "Bash(*ack-base*)", "Bash(*lane_land*)"]
+            denied += ["Bash(git push*)", "Bash(*hass_triage*)", "Bash(*ack-base*)", "Bash(*ack-verified*)", "Bash(*lane_land*)"]
         if denied:
             argv += ["--disallowedTools", ",".join(denied)]
         for extra in self.extra_dirs:
@@ -2918,6 +3099,8 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
     ack = sub.add_parser("ack-base", help="owner only (interactive shell): accept origin/<workflow_base> after an unexpected move "
                                           "and clear SELF_CHANGE_PAUSED")
     ack.add_argument("sha", help="the exact current SHA of origin/<workflow_base>")
+    sub.add_parser("ack-verified", help="interactive sessions (not the runner's workers): accept origin/<workflow_base> when every move "
+                                        "since the last accepted SHA is a squash-merged PR that passed the live ruleset's checks")
     sub.add_parser("pause")
     sub.add_parser("resume")
     sub.add_parser("init-labels")
@@ -3022,6 +3205,22 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                 print("ack-base is owner-only: run it from an interactive shell, never from an agent session.", file=sys.stderr)
                 return 2
             print(f"Accepted {Runner(cfg, paths, gh).ack_base(args.sha)[:10]} as the workflow base; SELF_CHANGE_PAUSED cleared.")
+            return 0
+        if args.cmd == "ack-verified":
+            if os.environ.get("FENTON_HEADLESS") == "1" or os.environ.get("HASS_TRIAGE_ISSUE"):
+                print("ack-verified is not for the runner's own sessions: they cannot clear their own pause.", file=sys.stderr)
+                return 2
+            owner = sys.stdin.isatty()
+            try:
+                result = Runner(cfg, paths, gh).ack_verified("owner" if owner else "agent")
+            except TriageError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            if not result["ok"]:
+                print(f"ack-verified: {result['reason']}", file=sys.stderr)
+                return 1
+            print(f"Accepted {len(result['prs'])} PR merges: {' '.join('#%d' % n for n in result['prs'])}; head {result['head'][:10]}; "
+                  "SELF_CHANGE_PAUSED cleared.")
             return 0
         if args.cmd == "pause":
             paths.config_dir.mkdir(parents=True, exist_ok=True)

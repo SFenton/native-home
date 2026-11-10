@@ -22,7 +22,7 @@ targets ``refs/heads/agents/*`` (``agents/x``, ``HEAD:agents/x``, ``refs/heads/a
 ``git push``, a ``HEAD`` or branch-name refspec whose destination depends on the checkout, any ``+`` or ``--force*``,
 ``--all``, ``--mirror``, ``--tags``, ``--delete``, glob or delete refspecs, another remote or URL, a push inside ``-C``,
 ``git -c ...``, ``xargs``, ``timeout`` and other wrappers, subshells, ``bash -c`` and ``eval``, an alias (``-c alias.*``,
-``git config alias.*``), ``git send-pack`` and ``http-push``, ``tools/lane_land.py`` (the runner lands), ``hass_triage.py ack-base`` (owner only), writes to the git
+``git config alias.*``), ``git send-pack`` and ``http-push``, ``tools/lane_land.py`` (the runner lands), ``hass_triage.py ack-base`` (owner only; ``ack-verified`` is the agent-runnable form: blocked headless, allowed only in its exact form), writes to the git
 refs, branches, merges or contents API, and any command that mentions ``git`` and ``push`` through a shell expansion or that
 cannot be parsed. Merging locally is harmless now: only the runner, from its own land clone, moves the workflow base.
 
@@ -159,7 +159,11 @@ ENV_TAMPER = (
     re.compile(r"\b(?:export|declare|typeset)\s+-[a-zA-Z]*n?\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)\s*$"),
 )
 PTY_WRAPPER = re.compile(r"(?:^|[\s;&|(`])(?:\S*/)?(?:script|expect|unbuffer|faketty|socat|screen|tmux)(?=\s|$)")
-LAND_WORDS = re.compile(r"pr_land|lane_land|ack[-_]?base")
+LAND_WORDS = re.compile(r"pr_land|lane_land|ack[-_]?(?:base|verified)")
+#: `hass_triage` run with `ack-verified`: the agent-runnable acceptance of a range of checked PR merges (owner, 2026-11-10).
+ACK_VERIFIED = re.compile(r"hass_triage[\s\S]*ack[-_]?verified", re.I)
+#: The only form it may take: no wrapper, prefix, chain, pipe or substitution; a relative or absolute path to `hass_triage.py`.
+ACK_VERIFIED_FORM = re.compile(r"^python3\s+(?:[\w./~+-]*/)?hass_triage\.py\s+ack-verified$")
 INTERPRETERS = re.compile(r"^(?:python[\d.]*|bash|sh|zsh|dash|source|\.)$")
 
 
@@ -213,6 +217,11 @@ PINNED_WITH = {
 }
 
 
+#: What ``hass_triage.py ack-verified`` runs, relative to the checkout top: itself and the modules the verifier imports. Pinned like the landers.
+ACK_VERIFIED_PINNED = ("tools/triage/hass_triage.py", "tools/ruleset_gate.py", "tools/redact.py", "tools/agent_login.py", "tools/request_repo.py",
+                       "tools/lane_land.py", "tools/release_closure.py", "tools/agent_eval_measure.py", "tools/retro_weekly.py")
+
+
 def pr_land_matches_base(command: str, script_word: Optional[str] = None) -> bool:
     """Is the landing script this command runs (``tools/pr_land.sh``, ``tools/lane_land.py`` or ``tools/go_public.sh``: see
     :data:`PINNED_WITH` for what it is hashed with) byte-identical to ``origin/<base>``'s? An edited copy, a missing remote branch or
@@ -223,7 +232,8 @@ def pr_land_matches_base(command: str, script_word: Optional[str] = None) -> boo
         folder = script.resolve().parent
         top = git_out(str(folder), "rev-parse", "--show-toplevel")
         rel = folder.relative_to(Path(top).resolve()).as_posix()
-        names = [f"{rel}/{n}" for n in PINNED_WITH.get(script.name, PINNED_WITH["pr_land.sh"])] + ["tools/triage/config.json"]
+        names = ([*ACK_VERIFIED_PINNED] if script.name == "hass_triage.py"
+                 else [f"{rel}/{n}" for n in PINNED_WITH.get(script.name, PINNED_WITH["pr_land.sh"])]) + ["tools/triage/config.json"]
         local = [git_out(top, "hash-object", "--", n) for n in names]
         for base in base_refs():
             try:
@@ -246,7 +256,7 @@ def headless_land_reason(command: str) -> Optional[str]:
     if any(pattern.search(command) for pattern in ENV_TAMPER):
         return "landing: the session markers FENTON_HEADLESS and HASS_TRIAGE_* are not for a command to unset or change"
     if PTY_WRAPPER.search(command) and LAND_WORDS.search(command):
-        return "landing: script/expect/unbuffer around pr_land, lane_land or ack-base (a pty would fake a terminal)"
+        return "landing: script/expect/unbuffer around pr_land, lane_land, ack-base or ack-verified (a pty would fake a terminal)"
     lane = runs_script(command, "lane_land")
     if lane and not re.search(r"ack[-_]?base", command) and not pr_land_matches_base(command, lane):  # ack-base has its own refusal
         return ("landing: this checkout's tools/lane_land.py, release_closure.py or triage/config.json differs from origin/" + "|".join(base_refs())
@@ -1203,6 +1213,16 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
         return "script piped into a shell"
     if headless() and re.search(r"ack[-_]?base", command):
         return "ack-base in a headless session (headless: only the owner accepts a moved base)"
+    if re.search(r"ack[-_]?verified", command) and headless():
+        return "ack-verified in a headless session (headless: the runner's own sessions cannot clear their own pause)"
+    if ACK_VERIFIED.search(command):
+        if PTY_WRAPPER.search(command):
+            return "ack-verified: no pty wrapper around it (a pty would fake a terminal)"
+        if not ACK_VERIFIED_FORM.match(command.strip()):
+            return "ack-verified: runs only as exactly `python3 tools/triage/hass_triage.py ack-verified` (no wrapper, chain, pipe or substitution)"
+        if not pr_land_matches_base(command, command.split()[1]):
+            return ("ack-verified: this checkout's tools/triage/hass_triage.py, ruleset_gate.py or what they import differs from origin/"
+                    + "|".join(base_refs()) + " (or git could not say): run it from a checkout whose copy is the base branch's")
     if headless():
         why = request_repo_reason(command)
         if why:
