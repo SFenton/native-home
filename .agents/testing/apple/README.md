@@ -45,7 +45,7 @@ The >=95% coverage bar is **certified by the nightly and release full run**; a P
 |---|---|---|
 | **Perf** | XCTest metric and signpost runs | class `*PerformanceTests` or `PerformanceJourneyTests` |
 | **Capture** | screenshots and gallery sweeps | method `testCapture*` or ending `Screenshots`; class `*Capture*`; the Motion gallery sweep (`Gallery`, `EveryComponent`, `ToggleAll` in `MotionJourneyTests`) |
-| **Live** | tests that need the real house | the test calls `FentonHomeApp.launchSignedIn(` (directly or through a helper of its class), is named `testLive*`, or is in a camera class (WebRTC, HLS). They skip without `FENTON_HASS_*` credentials |
+| **Live** | tests that need the real house | the test calls `FentonHomeApp.launchSignedIn(` or `FentonHomeApp.requireServer(` (directly or through a helper of its class), is named `testLive*`, or is in a camera class (WebRTC, HLS). They skip without `FENTON_HASS_*` credentials |
 | **Gate** | everything else: fixture galleries and signed-out screens, deterministic | the rest |
 | **Smoke** | not a partition: 11 named tests (the `smoke` list in `contracts/test-map.json`) | a signed-out audit, AX5 relaunch, the tab shell, a sheet opening, an audit, the Duo hinge, a rotation |
 

@@ -10,6 +10,7 @@ final class FoodLiveJourneyTests: FoodJourneyTestCase {
         guard let token = environment["FENTON_HASS_TOKEN"], !token.isEmpty else {
             throw XCTSkip("Set TEST_RUNNER_FENTON_HASS_TOKEN to check the live EverShelf recipe calls")
         }
+        try FentonHomeApp.requireServer(environment)
         let app = FentonHomeApp.makeApp()
         app.launchEnvironment["FENTON_UITEST_RESET"] = "1"
         app.launchEnvironment["FENTON_HASS_TOKEN"] = token

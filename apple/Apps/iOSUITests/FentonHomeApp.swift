@@ -18,6 +18,20 @@ enum FentonHomeApp {
         return UIDevice.current.userInterfaceIdiom == .pad ? .iPad : .iPhone
     }
 
+    /// Thrown by ``requireServer(_:)`` when a signed-in launch has credentials but `FENTON_HASS_SERVER` is not set, so the
+    /// journey fails at once with the cause. Conforms to `LocalizedError` so XCTest prints the message.
+    struct ServerNotSet: LocalizedError {
+        var errorDescription: String? { "FENTON_HASS_SERVER is not set: add it to the credentials file (devices.md)" }
+    }
+
+    /// Throws ``ServerNotSet`` when the runner provides no server. No server is compiled into the app, so a token or password
+    /// launch without one stays on the sign-in form and the journey would wait 30 s for a Home that never appears. Call it
+    /// once a launch has settled on using a token or a password, never before (a run with no credentials still skips).
+    /// - Parameter environment: The runner's environment (injectable for tests).
+    static func requireServer(_ environment: [String: String] = ProcessInfo.processInfo.environment) throws {
+        if (environment["FENTON_HASS_SERVER"] ?? "").isEmpty { throw ServerNotSet() }
+    }
+
     static var credentials: (username: String, password: String, server: String?)? {
         let environment = ProcessInfo.processInfo.environment
         guard let username = environment["FENTON_HASS_USERNAME"], !username.isEmpty,
@@ -86,7 +100,8 @@ enum FentonHomeApp {
 
     /// Launches signed out, then signs in with the runner's credentials. Skips when none are provided.
     /// `TEST_RUNNER_FENTON_HASS_TOKEN` (a long-lived access token) takes precedence over the password.
-    /// - Parameter passwordOnly: Ignore the token and go through the real login flow.
+    /// - Parameter passwordOnly: Ignore the token and go through the real login flow. Both paths need `FENTON_HASS_SERVER`
+    ///     (``requireServer(_:)``); with only a token and `passwordOnly` set, the journey skips as it has no password.
     ///   - arguments: Extra launch arguments (e.g. ``ax5``).
     ///   - environment: Extra launch environment (e.g. `FENTON_CAMERA_MODE`).
     ///   - readyIdentifier: What shows once signed in, when not Home (e.g. `inventory.pantry` with
@@ -98,6 +113,7 @@ enum FentonHomeApp {
         }
         let environment = ProcessInfo.processInfo.environment
         if !passwordOnly, let token = environment["FENTON_HASS_TOKEN"], !token.isEmpty {
+            try requireServer(environment)
             let app = makeApp()
             app.launchEnvironment["FENTON_UITEST_RESET"] = "1"
             app.launchEnvironment["FENTON_HASS_TOKEN"] = token
@@ -111,6 +127,7 @@ enum FentonHomeApp {
         guard let credentials else {
             throw XCTSkip("Set TEST_RUNNER_FENTON_HASS_USERNAME / _PASSWORD to run signed-in journeys")
         }
+        try requireServer(environment)
         let app = makeApp()
         app.launchEnvironment["FENTON_UITEST_RESET"] = "1"
         app.launchEnvironment["FENTON_HASS_USERNAME"] = credentials.username
