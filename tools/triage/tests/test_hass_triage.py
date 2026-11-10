@@ -45,6 +45,7 @@ class FakeGitHub(ht.GitHub):
         self.pull_files: Dict[str, Dict[str, Any]] = {}
         self.variables: Dict[str, str] = {}
         self.next_id = 100
+        self.fail_once: set = set()  # call kinds ("issue", "comment") that raise once, then work
 
     def token(self) -> str:
         return "ghp_" + "x" * 30
@@ -65,6 +66,9 @@ class FakeGitHub(ht.GitHub):
         self.issues[n]["labels"] = [{"name": x} for x in names]
 
     def create_comment(self, repo, n, body):
+        if "comment" in self.fail_once:
+            self.fail_once.discard("comment")
+            raise RuntimeError("comment failed")
         self.calls.append(("comment", n, body))
         self.next_id += 1
         self.comment_store.setdefault(n, []).append({"id": self.next_id, "body": body, "user": {"login": "SFenton"},
@@ -103,6 +107,9 @@ class FakeGitHub(ht.GitHub):
         self.calls.append(("label", repo, name))
 
     def create_issue(self, repo, title, body, labels=()):
+        if "issue" in self.fail_once:
+            self.fail_once.discard("issue")
+            raise RuntimeError("issue failed")
         self.calls.append(("issue", repo, title, body, tuple(labels)))
         self.next_id += 1
         self.issues[self.next_id] = {"number": self.next_id, "title": title, "state": "OPEN",
@@ -2175,6 +2182,81 @@ class BaseMovedDedupeTests(Base):
 
     def comments_on(self, gh):
         return [c for c in gh.calls if c[0] == "comment"]
+
+    def notified(self):
+        return json.loads((self.paths.state_dir / "SELF_CHANGE_PAUSED.json").read_text())["notified"]
+
+    def test_the_same_sha_three_times_files_one_issue_and_no_comment(self):
+        """Fails if: a repeat check of the same SHA (check_base does this every tick while paused) posts again."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        for _ in range(3):
+            self.moved(runner, "b" * 40)
+        self.assertEqual(len(self.issues(gh)), 1)
+        self.assertEqual(self.comments_on(gh), [])
+        self.assertEqual(self.notified(), ["b" * 40])
+
+    def test_a_repeat_makes_no_github_call_at_all(self):
+        """Fails if: a SHA already in notified still lists issues or posts."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        self.moved(runner, "b" * 40)
+        with mock.patch.object(gh, "open_issues", side_effect=AssertionError("called")):
+            self.moved(runner, "b" * 40)
+        self.assertEqual(len(gh.calls), 1)
+
+    def test_a_second_sha_checked_twice_comments_once(self):
+        """Fails if: the second SHA gets a comment on every call, or its own issue."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        self.moved(runner, "b" * 40)
+        self.moved(runner, "c" * 40)
+        self.moved(runner, "c" * 40)
+        self.assertEqual(len(self.issues(gh)), 1)
+        self.assertEqual(len(self.comments_on(gh)), 1)
+        self.assertEqual(self.notified(), ["b" * 40, "c" * 40])
+
+    def test_a_failed_issue_is_retried_and_then_posts_once(self):
+        """Fails if: a failed create_issue marks the SHA as notified (never retried), or the retry posts twice."""
+        gh = FakeGitHub([])
+        gh.fail_once.add("issue")
+        runner = self.runner(gh)
+        self.moved(runner, "b" * 40)
+        self.assertEqual(self.notified(), [])
+        self.assertEqual(self.issues(gh), [])
+        self.moved(runner, "b" * 40)
+        self.moved(runner, "b" * 40)
+        self.assertEqual(len(self.issues(gh)), 1)
+        self.assertEqual(self.notified(), ["b" * 40])
+
+    def test_a_failed_comment_is_retried_and_then_posts_once(self):
+        """Fails if: a failed create_comment is marked as notified, never retried, or posts twice after the retry."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        self.moved(runner, "b" * 40)
+        gh.fail_once.add("comment")
+        self.moved(runner, "c" * 40)
+        self.assertEqual(self.notified(), ["b" * 40])
+        self.assertEqual(self.comments_on(gh), [])
+        self.moved(runner, "c" * 40)
+        self.moved(runner, "c" * 40)
+        self.assertEqual(len(self.comments_on(gh)), 1)
+        self.assertEqual(self.notified(), ["b" * 40, "c" * 40])
+
+    def test_a_pause_file_without_notified_posts_once_then_dedupes(self):
+        """Fails if: the old pause format (no notified key) crashes, never posts, or keeps posting."""
+        gh = FakeGitHub([])
+        runner = self.runner(gh)
+        self.moved(runner, "b" * 40)
+        path = self.paths.state_dir / "SELF_CHANGE_PAUSED.json"
+        info = json.loads(path.read_text())
+        del info["notified"]
+        path.write_text(json.dumps(info))
+        gh.calls.clear()
+        self.moved(runner, "b" * 40)
+        self.moved(runner, "b" * 40)
+        self.assertEqual(len(self.comments_on(gh)), 1)
+        self.assertEqual(self.notified(), ["b" * 40])
 
     def test_three_moves_file_one_issue_and_comment_twice(self):
         """Fails if: each new SHA files its own issue, or a later move clears or skips the pause or drops a move.

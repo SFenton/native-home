@@ -1678,9 +1678,12 @@ class Runner:
             (self.paths.state_dir / "SELF_CHANGE_PAUSED").write_text(reason + "\n")
             (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").write_text(
                 json.dumps({"base": base, "sha": current, "expected": expected, "when": when, "at": iso(), "latest": current,
-                            "moves": []}, indent=2, sort_keys=True))
+                            "moves": [], "notified": []}, indent=2, sort_keys=True))
         print(f"base integrity: {reason}")
         title = f"Workflow: {base} moved without the runner"
+        # ``notified`` lists the SHAs already posted to GitHub; a pause written before it existed has none (counts as []).
+        if current in [str(n) for n in pause_info(self.paths).get("notified") or []]:
+            return
         try:
             repo = self.cfg["request_repo"]
             # One issue per pause: a later move comments on the oldest open one (this also matches the old per-SHA titles).
@@ -1692,6 +1695,13 @@ class Runner:
                     f"{details}"))
             else:
                 self.gh.create_issue(repo, title, redact(reason) + details, ["Workflow", "On Hold"])
+            # Mark only after the post succeeded, so a failed post is retried on the next call.
+            fresh = pause_info(self.paths)
+            notified = [str(n) for n in fresh.get("notified") or []]
+            if current not in notified:
+                notified.append(current)
+            (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").write_text(
+                json.dumps({**fresh, "notified": notified}, indent=2, sort_keys=True))
         except Exception as exc:  # noqa: BLE001
             print(f"base integrity: could not file the issue: {redact(str(exc))[:200]}")
 
