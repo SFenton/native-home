@@ -6,7 +6,7 @@ check ran against an open PR; a ``git reset --soft origin/main`` squash reverted
 shared ``origin/main``; ``house_scan`` ran only at push time; ``core.hooksPath`` flipped between ``.githooks`` and an absolute path.
 
     python3 tools/lane_check.py start --task T --branch B --paths P...   # run with the lane worktree as the current directory (after lane_new.sh, before the Coder works)
-    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape]...   # no push; exit 1 on a failure
+    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap]...   # no push; exit 1 on a failure
     python3 tools/lane_check.py squash [--dry-run]                       # soft-reset onto the recorded lane base, never origin/main
 
 ``start`` fetches, records the base (the ``origin/main`` sha) in ``<git-dir>/lane-base`` (worktree-local, so another session's fetch
@@ -19,7 +19,11 @@ lane-base file carries the task id.
 
 ``check`` runs: ``hooks`` (``core.hooksPath`` resolves to this worktree's ``<toplevel>/.githooks``; nothing else passes), ``scan`` (``house_scan.py denylist``, the
 exit mapping ship.sh always had), ``revert`` (files the parent has changed since the lane base that HEAD puts back, the shape of a
-squash over a moved base) and ``shape`` (advisory: one commit, parent equal to ``origin/<base>``, else the safe squash is printed).
+squash over a moved base) and ``shape`` (advisory: one commit, parent equal to ``origin/<base>``, else the safe squash is printed),
+``jev`` (``jev_ask.py sync --check``, so a stale generated question fails here and not at the push preflight or in ``test_jev``, plus the
+label-anchor check of ``test_labels_point_at_real_sections``: every ``tools/tests/fixtures/jev_section_labels.json`` pair must still find its
+``any_of`` phrase in its file; the failure names the file and the anchor) and ``overlap`` (``open_pr_overlaps`` and ``commit_overlaps``
+re-run against the files the branch actually changes since the recorded lane base, not only the paths declared at ``start``; needs ``gh``).
 
 Hooks-path environment: ``core.hooksPath`` lives in the repository's shared config, so every worktree sees one value. Only the relative
 ``.githooks`` that ``tools/setup.sh`` writes resolves to each worktree's own hooks; an absolute path points every worktree at one checkout,
@@ -31,7 +35,10 @@ Standard library only. Exit codes: 0 ok, 1 a check failed or overlap found, 2 us
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
+import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -41,7 +48,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 TOOLS = Path(__file__).resolve().parent
-CHECKS = ("hooks", "scan", "revert", "shape")
+CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap")
 
 
 class LaneError(Exception):
@@ -254,6 +261,78 @@ def check_revert(target: str = "main") -> Optional[str]:
     return None
 
 
+def load_tool(name: str):
+    """Import ``tools/<name>.py`` as a module (the tools are scripts, not a package)."""
+    spec = importlib.util.spec_from_file_location(name, TOOLS / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def check_jev(root: Optional[Path] = None) -> Optional[str]:
+    """None when the generated Jev questions are fresh and every section label still finds its anchor, else the reason.
+
+    ``root`` (default: this worktree) is where the questions, ``.agents`` docs and labels fixture are read; the tool code is this file's own.
+    Runs the logic of ``jev_ask.py sync --check`` and of ``test_labels_point_at_real_sections``; the fixture and its thresholds are only read.
+    """
+    root = root or toplevel()
+    problems = []
+    if (TOOLS / "jev_ask.py").is_file():
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            stale = load_tool("jev_ask").sync(check=True, root=root)
+        if stale:
+            problems.append("; ".join(line for line in out.getvalue().splitlines() if "stale" in line)
+                            or "a generated Jev question is stale (`python3 tools/jev_ask.py sync --check`)")
+    labels = root / "tools" / "tests" / "fixtures" / "jev_section_labels.json"
+    if labels.is_file() and (TOOLS / "jev_sections.py").is_file():
+        sections = load_tool("jev_sections")
+        for pair in json.loads(labels.read_text(encoding="utf-8")).get("pairs", []):
+            file = pair.get("file", "")
+            try:
+                text = (root / file).read_text(encoding="utf-8")
+            except OSError:
+                problems.append(f"jev label file {file} is missing (question: {pair.get('question')!r})")
+                continue
+            parts = sections.split_sections(text, sections.detect_kind(file, text))
+            if not any(anchor in sec.text for sec in parts for anchor in pair.get("any_of", [])):
+                problems.append(f"jev label anchor {pair.get('any_of')} not found in {file} (question: {pair.get('question')!r}); "
+                                "restore the text, or move the label in a change that owns the fixture")
+    return "; ".join(problems) if problems else None
+
+
+def branch_files(rec: dict, target: str = "main") -> List[str]:
+    """Files this branch changes versus its lane base, committed or not (the same base ``check_revert`` uses)."""
+    return sorted(set(git("diff", "--name-only", effective_base(rec, target)).splitlines()))
+
+
+def check_overlap(target: str = "main") -> Optional[str]:
+    """None when no other open PR or later ``origin/<target>`` commit touches a file this branch changes, else the reason.
+
+    The paths are the files the branch changes versus its recorded lane base, not those declared at ``start``. Without a recorded base
+    for this branch there is nothing to compare with and the check is skipped with a note.
+    """
+    rec = read_lane_base()
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    if not rec or rec.get("branch") != branch:
+        print("lane_check: no lane base recorded for this branch (run `lane_check.py start`); overlap check skipped", file=sys.stderr)
+        return None
+    files = branch_files(rec, target)
+    if not files:
+        return None
+    run(["git", "fetch", "-q", "origin", target], check=False)
+    base = effective_base(rec, target)
+    try:
+        hits = open_pr_overlaps(files, branch) + commit_overlaps(files, base)
+    except LaneError as exc:
+        return f"overlap could not be checked: {exc}"
+    if not hits:
+        return None
+    return ("the branch changes files others are changing: " + "; ".join(hits)
+            + ". Merge or rebase deliberately and review again, or coordinate with that lane.")
+
+
 def shape_notes(base: str) -> List[str]:
     """Advisory lines: one commit whose parent is the current ``origin/<base>``, else the safe squash."""
     rec = read_lane_base()
@@ -282,6 +361,10 @@ def cmd_check(args: argparse.Namespace) -> int:
     if "scan" in wanted and (why := check_scan(args.base)):
         failures.append(why)
     if "revert" in wanted and (why := check_revert(args.base)):
+        failures.append(why)
+    if "jev" in wanted and (why := check_jev()):
+        failures.append(why)
+    if "overlap" in wanted and (why := check_overlap(args.base)):
         failures.append(why)
     if "shape" in wanted:
         for note in shape_notes(args.base):
