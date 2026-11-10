@@ -1921,6 +1921,23 @@ class NoHandoffPromptTests(Base):
 
 
 class PromptFileTests(Base):
+    def test_product_pr_prompts_ship_after_review(self):
+        """The nightly, worker and researcher prompts describe review-before-push through ship.sh.
+
+        Fails if: a rendered prompt omits `tools/ship.sh` or `record.py --lane`, or tells the agent to open the
+        product PR with `gh pr create` (a raw push is refused without a recorded pass; pr-lifecycle.md).
+        """
+        texts = {}
+        for template in ("worker.md", "nightly.md"):
+            texts[template] = ht.render_prompt(self.cfg, self.paths, issue(5), [], 1, None, ht.HERE / "hass_triage.py",
+                                               template, task="R-5", route="Route: x", level="L1")
+        texts["researcher.md"] = ht.render_job_prompt(self.cfg, self.paths, "researcher", {"template": "researcher.md"},
+                                                      "agents/x-261101", self.paths.status_file("job-x"), ht.HERE / "hass_triage.py")
+        for name, text in texts.items():
+            self.assertIn("tools/ship.sh", text, name)
+            self.assertIn("record.py --lane", text, name)
+            self.assertNotIn("gh pr create", text, name)
+
     def test_every_prompt_template_resolves_all_placeholders(self):
         for name in ("steward.md", "researcher.md"):
             text = ht.render_job_prompt(self.cfg, self.paths, name[:-3], {"template": name}, "agents/x-261101",
