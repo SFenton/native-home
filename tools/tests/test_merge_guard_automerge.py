@@ -3,7 +3,9 @@
 ``gh`` is stubbed. Lane A made ``pr_land`` the only thing that arms auto-merge (its gates run what GitHub cannot), so the raw form is closed.
 """
 
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -96,6 +98,41 @@ class DisarmTests(unittest.TestCase):
         for origin in (fork, renamed, other, "error", {}, {"author": None}, {**ORIGIN, "headRepository": None}):
             with self.subTest(origin=origin):
                 self.assertIn("not authored by SFenton", self.verdict(DISARM, origin=origin))
+
+    def config_with(self, login, env=None):
+        """Point ``merge_guard.AGENT_CONFIG`` at a temp config whose ``agent_login`` is ``login`` (``env`` sets the override that must not exist)."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        config = Path(tmp.name) / "config.json"
+        config.write_text(json.dumps({"agent_login": login}))
+        patches = [mock.patch.object(merge_guard, "AGENT_CONFIG", config)]
+        if env is not None:
+            patches.append(mock.patch.dict("os.environ", {"FENTON_AGENT_LOGIN": env}))
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_with_no_agent_login_an_agent_authored_pr_still_refuses(self):
+        """Fails if: an empty agent_login lets --disable-auto through for a PR by any login but SFenton."""
+        self.config_with("")
+        self.assertIn("not authored by SFenton", self.verdict(DISARM, origin={**ORIGIN, "author": {"login": "sh-agent"}}))
+
+    def test_a_process_setting_cannot_widen_own_pr(self):
+        """Fails if: FENTON_AGENT_LOGIN=<stranger> (a command prefix or shell profile) makes a stranger's PR 'own' while the pinned
+        config has no agent_login (or another one)."""
+        for configured in ("", "sh-agent"):
+            self.config_with(configured, env="mallory")
+            self.assertIn("not authored by SFenton", self.verdict(DISARM, origin={**ORIGIN, "author": {"login": "mallory"}}))
+
+    def test_the_agent_login_owns_a_pr_but_a_third_login_and_a_fork_do_not(self):
+        """Fails if: own_pr rejects the configured agent login, accepts a third login, or accepts the agent's fork."""
+        agent = {**ORIGIN, "author": {"login": "sh-agent"}}
+        self.config_with("sh-agent")
+        self.assertIsNone(self.verdict(DISARM, origin=agent))
+        self.assertIsNone(self.verdict(DISARM, origin=ORIGIN))
+        self.assertIn("not authored by SFenton", self.verdict(DISARM, origin={**ORIGIN, "author": {"login": "mallory"}}))
+        self.assertIn("not authored by SFenton", self.verdict(DISARM, origin={**agent, "headRepositoryOwner": {"login": "sh-agent"}}))
+        self.assertIn("not authored by SFenton", self.verdict(DISARM, origin={"author": None}))
 
     def test_extra_flags_and_shell_tricks_refuse(self):
         for cmd in (DISARM + " --admin", DISARM + " --squash", DISARM + " --auto", DISARM + "; gh pr merge 3 --admin",

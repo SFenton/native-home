@@ -65,6 +65,7 @@ try:
     from redact import redact as _redact
 except ImportError:  # pragma: no cover - redact ships in the repo
     _redact = None
+import agent_login  # noqa: E402
 import gh_app_token  # noqa: E402
 
 KINDS = ("pick", "evidence", "verdict", "owner", "handoff", "shipped")
@@ -148,8 +149,21 @@ def remove_comment(comment_id: Any) -> None:
 _OWNER_LOGIN: List[str] = []
 
 
+def agent_login_name() -> str:
+    """The configured agent login (``tools/agent_login.py``: ``agent_login`` of ``tools/triage/config.json`` only), ``""`` when none."""
+    return agent_login.resolve(agent_login.configured(ROOT / "tools" / "triage" / "config.json"))
+
+
+def gh_logins() -> set:
+    """Logins that write through plain ``gh`` (no app role): the owner and, when configured, the agent login."""
+    return {login for login in (owner_login(), agent_login_name()) if login}
+
+
 def owner_login() -> Optional[str]:
-    """The owner's GitHub login (``gh api user``), remembered for the run; ``None`` when it cannot be read."""
+    """The owner's GitHub login, remembered for the run. With an agent login configured ``gh`` is the agent, so it is the constant
+    ``SFenton`` (comments that mention ``@SFenton`` stay addressed to the owner); otherwise ``gh api user``, ``None`` when unreadable."""
+    if agent_login_name():
+        return agent_login.OWNER
     if not _OWNER_LOGIN:
         try:
             _OWNER_LOGIN.append(gh(["api", "user", "--jq", ".login"]).strip())
@@ -183,15 +197,15 @@ class Identity:
         user = comment.get("user") or {}
         if self.role:
             return user.get("login") == self.login
-        owner = owner_login()
-        return user.get("login") == owner if owner and user else user.get("type") != "Bot"
+        owners = gh_logins()
+        return user.get("login") in owners if owners and user else user.get("type") != "Bot"
 
     def replaceable(self, comment: Dict[str, Any]) -> bool:
         """Whether ``comment`` is the counterpart this identity may delete after replacing it: the owner's own
         (when an app posts) or one of our apps' (when the owner posts). Anyone else's is never touched."""
         login = (comment.get("user") or {}).get("login") or ""
         if self.role:
-            return bool(login) and login == owner_login()
+            return bool(login) and login in gh_logins()
         return is_app_login(login)
 
     def create(self, pr: int, text: str) -> None:

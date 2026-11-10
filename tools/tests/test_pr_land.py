@@ -94,6 +94,54 @@ class ArmTests(unittest.TestCase):
         view = next(c for c in calls if c[:3] == ["gh", "pr", "view"])
         self.assertNotIn("statusCheckRollup", view[-1])
 
+    def with_agent(self, login, env=None):
+        """Point ``pr_land.CONFIG`` at a temp config whose ``agent_login`` is ``login``; ``env`` is set as FENTON_AGENT_LOGIN (the override
+        that must not exist)."""
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        config = Path(tmp.name) / "config.json"
+        config.write_text(json.dumps({"agent_login": login}))
+        patches = [mock.patch.object(pr_land, "CONFIG", config)]
+        if env is not None:
+            patches.append(mock.patch.dict(os.environ, {"FENTON_AGENT_LOGIN": env}))
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_a_process_setting_cannot_widen_the_author_gate(self):
+        """Fails if: FENTON_AGENT_LOGIN=<stranger> in front of ship.sh or pr_land (or in a shell profile) makes a stranger's PR armable
+        while the pinned config has no agent_login (or another one)."""
+        for configured in ("", "sh-agent"):
+            self.with_agent(configured, env="mallory")
+            (code, line), calls = self.land(info=self.info(author={"login": "mallory"}))
+            self.assertEqual(code, 1, line)
+            self.assertIn("not a pull request by SFenton", line)
+            self.assertEqual(self.merge_calls(calls), [])
+
+    def test_with_no_agent_login_only_the_owner_is_armed(self):
+        """Fails if: an empty agent_login lets the author gate accept anyone but SFenton (behaviour must equal the pre-agent gate)."""
+        self.with_agent("")
+        (code, line), calls = self.land(info=self.info(author={"login": "sh-agent"}))
+        self.assertEqual(code, 1, line)
+        self.assertIn("not a pull request by SFenton", line)
+        self.assertEqual(self.merge_calls(calls), [])
+        (code, line), _ = self.land(after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        self.assertEqual(code, 0, line)
+
+    def test_an_agent_login_pull_request_is_armed_and_a_third_login_or_a_fork_is_not(self):
+        """Fails if: a PR by the configured agent login is refused, a third login passes, or the agent's fork passes."""
+        self.with_agent("sh-agent")
+        (code, line), calls = self.land(info=self.info(author={"login": "sh-agent"}), after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        self.assertEqual(code, 0, line)
+        self.assertEqual(len(self.merge_calls(calls)), 1)
+        for name, info in (("third login", self.info(author={"login": "mallory"})),
+                           ("agent fork", self.info(author={"login": "sh-agent"}, isCrossRepository=True)),
+                           ("owner fork", self.info(isCrossRepository=True)), ("no author", self.info(author=None))):
+            (code, line), calls = self.land(info=info)
+            self.assertEqual(code, 1, name)
+            self.assertIn("not a pull request by SFenton", line, name)
+            self.assertEqual(self.merge_calls(calls), [], name)
+
     def test_the_arm_argv_is_exactly_the_pinned_auto_squash(self):
         """Fails if: the arm drops -R, --auto, --squash or --match-head-commit, or pins any commit but the PR head."""
         _, calls = self.land(after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
@@ -526,7 +574,7 @@ class BaseMatchHashTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.top = Path(self._tmp.name)
         (self.top / "tools" / "triage").mkdir(parents=True)
-        for name, text in (("tools/pr_land.sh", "sh\n"), ("tools/pr_land.py", "py\n"), ("tools/house_scan.py", "hs\n"), ("tools/triage/config.json", "{}\n")):
+        for name, text in (("tools/pr_land.sh", "sh\n"), ("tools/pr_land.py", "py\n"), ("tools/house_scan.py", "hs\n"), ("tools/agent_login.py", "al\n"), ("tools/triage/config.json", "{}\n")):
             (self.top / name).write_text(text)
         self.git("init", "-q")
         self.git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")

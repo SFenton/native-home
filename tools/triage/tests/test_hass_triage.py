@@ -188,6 +188,61 @@ class SelectionTests(Base):
                   issue(6, labels=["On Hold"]), issue(7, labels=["Merging"]), issue(8, created="2026-10-12T00:00:00Z")]
         self.assertEqual([i["number"] for i in ht.eligible(issues, ["SFenton"])], [2, 8, 1])
 
+    def test_empty_agent_login_leaves_the_authors_exactly_as_configured(self):
+        """Fails if: an unset agent_login changes cfg authors or nightly authors (behaviour must equal the pre-agent runner)."""
+        with mock.patch.dict(os.environ, {"FENTON_AGENT_LOGIN": "mallory"}):  # a process setting changes nothing
+            cfg = ht.load_config(self.home)
+        self.assertEqual(cfg["agent_login"], "")
+        self.assertEqual(cfg["authors"], ["SFenton"])
+        self.assertEqual(cfg["nightly"]["authors"], ["SFenton", "github-actions", "app/github-actions"])
+
+    def test_an_issue_by_the_agent_login_is_never_the_owners_request(self):
+        """Fails if: the agent login is listed among the authors (even by a local override), so an agent-filed issue is picked up as an
+        owner request; owner requests must stay authors ['SFenton']."""
+        override = self.home / ".config" / "hass-triage" / "config.json"
+        override.parent.mkdir(parents=True)
+        override.write_text(json.dumps({"agent_login": "sh-agent", "authors": ["SFenton", "sh-agent"],
+                                        "nightly": {"authors": ["Sh-Agent", "github-actions"]}}))
+        cfg = ht.load_config(self.home)
+        self.assertEqual(cfg["agent_login"], "sh-agent")
+        self.assertEqual(cfg["authors"], ["SFenton"])
+        self.assertEqual(cfg["nightly"]["authors"], ["github-actions"])
+        issues = [issue(1, author="SFenton"), issue(2, author="sh-agent", labels=["Workflow"]), issue(3, author="sh-agent")]
+        self.assertEqual([i["number"] for i in ht.eligible(issues, cfg["authors"])], [1])
+
+    def test_pickup_accepts_the_agents_workflow_issues_only(self):
+        """Fails if: after cutover the runner's own Workflow issues (filed by the agent account) are never picked up, or an agent-authored
+        issue without Workflow is, or a third login's Workflow issue is, or the nightly intake takes the agent's issues."""
+        issues = [issue(1, author="SFenton"), issue(2, author="sh-agent", labels=["Workflow"], created="2026-10-12T00:00:00Z"),
+                  issue(3, author="sh-agent"), issue(4, author="mallory", labels=["Workflow"]),
+                  issue(5, author="Sh-Agent", labels=["Workflow", "On Hold"]), issue(6, author="sh-agent", labels=["Nightly Fix"])]
+        self.assertEqual([i["number"] for i in ht.eligible(issues, ["SFenton"], None, "sh-agent")], [2, 1])
+        self.assertEqual([i["number"] for i in ht.eligible(issues, ["SFenton"])], [1])  # no agent configured: exactly as before
+        nightly = [i for i in ht.eligible(issues, ["SFenton"], "Nightly Fix")]
+        self.assertEqual(nightly, [])
+        self.assertFalse(ht.may_pick(issue(7, author="SFenton", labels=["Workflow"]), [], "sh-agent"))
+
+    def test_owner_decisions_never_count_the_agent(self):
+        """Fails if: the agent login's comment is taken as the owner's reply or command, or its request is vouched as the owner's."""
+        stop = {"body": "x " + ht.marker(4, "blocked"), "created_at": "2026-10-13T10:00:00Z", "user": {"login": "sh-agent"}}
+        reply = {"body": "/retry", "created_at": "2026-10-13T12:00:00Z", "user": {"login": "sh-agent"}, "id": 9}
+        self.assertIsNone(ht.owner_reply_after_stop([stop, reply], ["SFenton"]))
+        entry = {"title": "T", "body": "B", "author": "sh-agent", "labels": ["Workflow"]}
+        self.assertIsNone(ht.lane_land.vouched_request(entry, ["SFenton"]))
+        self.assertIsNone(ht.lane_land.vouched_request({**entry, "labels": []}, ["SFenton"]))
+
+    def test_the_runner_takes_the_agent_login_for_the_request_intake_only(self):
+        """Fails if: the runner drops the configured agent login (its Workflow issues are then never picked up) or hands it to the nightly
+        intake."""
+        override = self.home / ".config" / "hass-triage" / "config.json"
+        override.parent.mkdir(parents=True)
+        override.write_text(json.dumps({"agent_login": "sh-agent"}))
+        self.cfg = ht.load_config(self.home)
+        self.paths = ht.Paths(self.cfg, self.home)
+        self.assertEqual(self.runner(FakeGitHub()).agent, "sh-agent")
+        nightly = dict(self.cfg["nightly"], repo="o/n", label="Nightly Fix")
+        self.assertEqual(ht.Runner(self.cfg, self.paths, FakeGitHub(), intake=nightly).agent, "")
+
     def test_owner_reply_after_stop(self):
         stop = {"body": "x " + ht.marker(4, "blocked"), "created_at": "2026-10-13T10:00:00Z", "user": {"login": "SFenton"}}
         before = {"body": "earlier", "created_at": "2026-10-13T09:00:00Z", "user": {"login": "SFenton"}}

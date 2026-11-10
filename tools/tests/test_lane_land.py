@@ -493,6 +493,22 @@ class DesignRecordTests(Repo):
         self.assertEqual(self.land(jev_ask=self.jev(0.05, calls), request_reader=lambda t, ref: None)["sha"], sha)
         self.assertEqual([c[0] for c in calls], ["design.app_wide"])
 
+    def test_read_config_never_vouches_for_the_agent_login(self):
+        """Fails if: an unset agent_login changes authors, or a configured one stays in authors so a request it filed counts as the owner's."""
+        repo = Path(self.dir) / "cfgrepo"
+        (repo / "tools" / "triage").mkdir(parents=True)
+        config = repo / "tools" / "triage" / "config.json"
+        config.write_text(json.dumps({"authors": ["SFenton", "sh-agent"], "agent_login": ""}))
+        entry = {"title": "T", "body": "Bigger", "author": "sh-agent", "labels": []}
+        with mock.patch.dict(os.environ, {"FENTON_AGENT_LOGIN": "SFenton"}):  # a process setting changes nothing
+            self.assertEqual(lane_land.read_config(repo)["authors"], ["SFenton", "sh-agent"])
+        config.write_text(json.dumps({"authors": ["SFenton", "sh-agent"], "agent_login": "sh-agent"}))  # read from the repo's config
+        loaded = lane_land.read_config(repo)
+        authors = loaded["authors"]
+        self.assertEqual(authors, ["SFenton"])
+        self.assertIsNone(lane_land.vouched_request(entry, authors))
+        self.assertEqual(lane_land.vouched_request({**entry, "author": "SFenton"}, authors), "T\nBigger")
+
     def test_the_first_vouched_request_among_several_refs_is_used(self):
         self.lane_with({self.VIEW: "x\n", self.RECORD: self.GOOD}, "Chips\n\nOwner-Request: 98\nOwner-Request: 12\n")
         calls = []
@@ -1271,6 +1287,7 @@ class PrLandMatchesBaseTests(unittest.TestCase):
         (self.repo / "tools" / "pr_land.sh").write_text("#!/bin/sh\nexec python3 pr_land.py\n")
         (self.repo / "tools" / "pr_land.py").write_text("print('base')\n")
         (self.repo / "tools" / "house_scan.py").write_text("print('scan')\n")
+        (self.repo / "tools" / "agent_login.py").write_text("print('login')\n")
         (self.repo / "tools" / "triage").mkdir()
         (self.repo / "tools" / "triage" / "config.json").write_text("{}\n")
         g(self.repo, "add", "-A")
@@ -1293,7 +1310,7 @@ class PrLandMatchesBaseTests(unittest.TestCase):
             self.assertIsNone(self.why(agent=True))
 
     def test_an_edited_copy_is_refused_whichever_file_changed(self):
-        for name in ("pr_land.py", "pr_land.sh", "house_scan.py", "triage/config.json"):
+        for name in ("pr_land.py", "pr_land.sh", "house_scan.py", "agent_login.py", "triage/config.json"):
             with self.subTest(name=name):
                 path = self.repo / "tools" / name
                 original = path.read_text()
