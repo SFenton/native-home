@@ -1012,6 +1012,121 @@ class BaseComparisonTests(unittest.TestCase):
             self.run_it(self.tree("l", code=1), self.tree("b"))
 
 
+class TimeoutAndParallelTests(unittest.TestCase):
+    """A cut-off run is a timeout; per-file selections run in a worker pool with the serial result."""
+
+    CMD = "cat out.txt"
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="lane-to-")).resolve()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def tree(self, name):
+        d = self.root / name
+        d.mkdir()
+        return d
+
+    PARTIAL = ("test_a (tools.tests.test_one.A) ... ok\ntest_b (tools.tests.test_two.B) ... FAIL\n"
+               "FAIL: test_b (tools.tests.test_two.B)\nRan 3 tests in 1.0s\n\nFAILED (failures=1)\n")
+
+    def stub(self, lane_result):
+        base_out = ("FAIL: test_b (tools.tests.test_two.B)\nRan 3 tests in 1.0s\n\nFAILED (failures=1)\n"
+                    "Ran 9 tests in 1.0s\n\nOK\n")
+
+        def fake(tree, command, timeout, extra_env=None):
+            return (1, base_out) if tree.name == "b" else lane_result
+
+        return mock.patch.object(lane_land, "_run_fixed", side_effect=fake)
+
+    def test_a_timeout_is_refused_as_a_timeout_not_a_count_shortfall(self):
+        with self.stub((-9, self.PARTIAL)):
+            with self.assertRaises(lane_land.Refused) as cm:
+                lane_land.run_tests(self.tree("l"), self.CMD, base_clone=self.tree("b"), base_key="k", base_counts={}, timeout=5)
+        text = str(cm.exception)
+        self.assertEqual(cm.exception.kind, "tests")
+        self.assertIn("timed out after 5 s", text)
+        self.assertIn("1 of the base's 2 suites", text)
+        self.assertIn("tools.tests.test_two", text)
+        self.assertNotIn("a lane cannot run fewer", text)
+
+    def test_a_timeout_without_a_base_is_refused_as_a_timeout(self):
+        with mock.patch.object(lane_land, "_run_fixed", return_value=(-9, "")):
+            with self.assertRaises(lane_land.Refused) as cm:
+                lane_land.run_tests(self.tree("l"), self.CMD, timeout=7)
+        self.assertIn("timed out after 7 s", str(cm.exception))
+        self.assertIn("last suite unknown", str(cm.exception))
+
+    def test_a_short_run_keeps_the_count_message_with_the_exit_code(self):
+        with self.stub((1, self.PARTIAL)):
+            with self.assertRaises(lane_land.Refused) as cm:
+                lane_land.run_tests(self.tree("l"), self.CMD, base_clone=self.tree("b"), base_key="k", base_counts={})
+        self.assertIn("tests ran 3 tests in 1 suites but the base ran 12 in 2", str(cm.exception))
+        self.assertIn("exit 1", str(cm.exception))
+
+    def test_the_config_numbers_have_defaults(self):
+        self.assertEqual(lane_land.LAND_TEST_TIMEOUT, 7200.0)
+        self.assertEqual(lane_land.LAND_TEST_WORKERS, 4)
+        f = lane_land.config_number
+        self.assertEqual(f({}, "k", 7200.0), 7200.0)
+        self.assertEqual(f({"k": 900}, "k", 7200.0), 900.0)
+        self.assertEqual(f({"k": "x"}, "k", 4.0), 4.0)
+        self.assertEqual(f({"k": True}, "k", 4.0), 4.0)
+        self.assertEqual(f({"k": 0}, "k", 4.0), 4.0)
+        cfg = json.loads((Path(lane_land.__file__).parent / "triage" / "config.json").read_text())
+        self.assertEqual((cfg["land_test_timeout"], cfg["land_test_workers"]), (7200, 4))
+
+    def files_tree(self, name, failing=False):
+        d = self.tree(name)
+        (d / "tools" / "tests").mkdir(parents=True)
+        names = []
+        for i in range(5):
+            f = f"tools/tests/test_f{i}.py"
+            body = "import unittest\nclass T(unittest.TestCase):\n"
+            for j in range(i + 1):
+                check = "self.fail('x')" if failing and i == 2 and j == 1 else "pass"
+                body += f"    def test_{j}(self): {check}\n"
+            (d / f).write_text(body)
+            names.append(f)
+        return d, names
+
+    def test_parallel_and_serial_selections_agree(self):
+        d, names = self.files_tree("l", failing=True)
+        code_s, out_s = lane_land._run_fixed(d, lane_land.suite_command(names), 120)
+        code_p, out_p = lane_land._run_files(d, names, 120, 4)
+        self.assertEqual((code_s, code_p), (1, 1))
+        self.assertEqual(lane_land.test_stats(out_p), lane_land.test_stats(out_s))
+        self.assertEqual(lane_land.test_stats(out_p)[:2], (5, 15))
+        self.assertEqual(lane_land.failing_ids(out_p), lane_land.failing_ids(out_s))
+        self.assertEqual(lane_land.test_ids(out_p), lane_land.test_ids(out_s))
+        self.assertEqual(len(lane_land.failing_ids(out_p)), 1)
+
+    def test_run_tests_uses_the_pool_for_files_and_matches_the_base(self):
+        base, names = self.files_tree("b")
+        lane, _ = self.files_tree("l")
+        counts = {}
+        lane_land.run_tests(lane, lane_land.suite_command(names), base_clone=base, base_key="k", base_counts=counts,
+                            files=names, workers=3)
+        self.assertEqual(sum(v[1] for k, v in counts.items() if "|file|" in k), 15)
+
+    def test_a_surviving_process_group_in_a_parallel_run_is_refused(self):
+        d, names = self.files_tree("l")
+        with mock.patch.object(lane_land, "reap_group", return_value=False):
+            with self.assertRaises(lane_land.Refused) as cm:
+                lane_land._run_files(d, names, 60, 2)
+        self.assertEqual(cm.exception.kind, "processes")
+
+    def test_a_timeout_in_one_parallel_file_is_a_timeout_code(self):
+        d, names = self.files_tree("l")
+        real = lane_land._run_fixed
+
+        def fake(tree, command, timeout, extra_env=None):
+            return (-9, "") if "test_f3.py" in command else real(tree, command, timeout, extra_env)
+
+        with mock.patch.object(lane_land, "_run_fixed", side_effect=fake):
+            code, _ = lane_land._run_files(d, names, 60, 2)
+        self.assertEqual(code, -9)
+
+
 class CliTests(Repo):
     def setUp(self):
         super().setUp()

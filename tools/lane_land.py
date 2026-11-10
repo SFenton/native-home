@@ -55,6 +55,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple
@@ -653,12 +654,61 @@ def _run_fixed(tree: Path, command: str, timeout: float, extra_env: Optional[Dic
     return code, output
 
 
+#: Seconds one land test run may take before it is cut (a timeout is refused as such, never as a count shortfall).
+#: ``land_test_timeout`` in ``tools/triage/config.json`` overrides it.
+LAND_TEST_TIMEOUT = 7200.0
+#: Test files run at once for a per-file selection; ``land_test_workers`` in the config overrides it. 1 is serial.
+LAND_TEST_WORKERS = 4
+#: What :func:`wait_group` returns as the exit code when it had to kill the group on the timeout.
+TIMEOUT_CODE = -9
+
+
+def config_number(cfg: Dict[str, Any], key: str, default: float, minimum: float = 1.0) -> float:
+    """``cfg[key]`` as a number of at least ``minimum``; ``default`` when absent, not a number (``bool`` included) or too small."""
+    value = cfg.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < minimum:
+        return default
+    return float(value)
+
+
 FAILURE_RE = re.compile(r"^(?:FAIL|ERROR): (.+?)\s*$", re.M)
 
 
 def failing_ids(output: str) -> List[str]:
     """Sorted unique ``FAIL: name (module.Class)`` / ``ERROR: ...`` ids from unittest output (import failures included)."""
     return sorted(set(FAILURE_RE.findall(output)))
+
+
+SUITE_LINE_RE = re.compile(r"^\S+ \(([\w.]+)\.\w+\) \.\.\.", re.M)
+
+
+def last_suite(output: str) -> str:
+    """The module of the last verbose test line in ``output`` (where a cut-off run stopped), or ``unknown``."""
+    found = SUITE_LINE_RE.findall(output)
+    return found[-1] if found else "unknown"
+
+
+def _run_files(tree: Path, files: Sequence[str], timeout: float, workers: int,
+               extra_env: Optional[Dict[str, str]] = None) -> Tuple[int, str]:
+    """Run each of ``files`` as its own :func:`suite_command` in ``tree``, ``workers`` at a time under one shared deadline, and
+    return ``(exit code, output)`` as the serial single command would: the outputs joined in sorted-file order, ``TIMEOUT_CODE``
+    when any file was cut, else 1 when any failed. A surviving process group in any file refuses."""
+    ordered = sorted(files)
+    deadline = time.monotonic() + timeout
+
+    def one(f: str) -> Tuple[int, str]:
+        return _run_fixed(tree, suite_command([f]), max(1.0, deadline - time.monotonic()), extra_env)
+
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(ordered)))) as pool:
+        results = list(pool.map(one, ordered))
+    codes = [c for c, _ in results]
+    code = TIMEOUT_CODE if TIMEOUT_CODE in codes else (1 if any(codes) else 0)
+    return code, "".join(o if o.endswith("\n") or not o else o + "\n" for _, o in results)
+
+
+def _base_file_cached(cache: Dict[str, Any], base_key: str, test_file: str) -> bool:
+    value = cache.get(f"{base_key}|file|{test_file}")
+    return isinstance(value, list) and len(value) == 4
 
 
 def base_file_stats(base_cwd: Path, base_key: str, test_file: str, cache: Dict[str, Any], timeout: float) -> List[Any]:
@@ -672,7 +722,7 @@ def base_file_stats(base_cwd: Path, base_key: str, test_file: str, cache: Dict[s
     return cache[key]
 
 
-def run_tests(clone: Path, tests: str, timeout: float = 3600.0, *, base_clone: Optional[Path] = None,
+def run_tests(clone: Path, tests: str, timeout: float = LAND_TEST_TIMEOUT, *, workers: int = LAND_TEST_WORKERS, base_clone: Optional[Path] = None,
               base_key: str = "", base_counts: Optional[Dict[str, Any]] = None, eval_base: str = "",
               files: Optional[Sequence[str]] = None, removed: Sequence[str] = (), retired: Sequence[str] = ()) -> None:
     """Run the fixed test command(s) in ``clone`` with output captured and compare with the trusted base.
@@ -688,6 +738,8 @@ def run_tests(clone: Path, tests: str, timeout: float = 3600.0, *, base_clone: O
     The eval harness runs first, from the trusted checkout, against the lane clone as its ``--target`` (after
     :func:`fresh_checkout`); the lane's own tests run after it. After a base move the rerun's trusted side runs after lane code
     has already run once this round (a weaker ordering; agents run as the owner's user, so it is detection, not prevention).
+    A run cut by ``timeout`` is refused as a timeout (naming the suite it reached) before any failure or count check, since a
+    truncated run would otherwise read as a count shortfall. A per-file selection runs ``workers`` files at a time, base and lane.
     ``eval_base`` (a ref such as ``refs/remotes/origin/<base>``) is passed to the lane's eval run as ``FENTON_EVAL_BASE`` so
     ``tools/agent_eval.py`` can re-measure the Jev questions the lane changed; the trusted base run has none."""
     commands = _commands(clone, tests, base_clone)
@@ -697,8 +749,13 @@ def run_tests(clone: Path, tests: str, timeout: float = 3600.0, *, base_clone: O
         # The trusted base runs first, before any lane code has run on this machine this round, and is cached per base SHA.
         for stage, _command, base_command, _cwd, base_cwd in commands:
             if stage == "tests" and per_file:
-                for test_file in files or ():
-                    base_file_stats(base_cwd, base_key, test_file, cache, timeout)
+                todo = [f for f in files or () if not _base_file_cached(cache, base_key, f)]
+                if len(todo) > 1 and workers > 1:
+                    with ThreadPoolExecutor(max_workers=min(workers, len(todo))) as pool:
+                        list(pool.map(lambda f: base_file_stats(base_cwd, base_key, f, cache, timeout), todo))
+                else:
+                    for test_file in todo:
+                        base_file_stats(base_cwd, base_key, test_file, cache, timeout)
                 continue
             key = f"{base_key}|{base_command}"
             if not (isinstance(cache.get(key), list) and len(cache[key]) == 3):
@@ -720,9 +777,16 @@ def run_tests(clone: Path, tests: str, timeout: float = 3600.0, *, base_clone: O
         extra = {"FENTON_EVAL_BASE": eval_base} if eval_base and stage == "eval" else {}
         if stage == "eval" and (clone / ".git").exists():  # the commit the eval stage was just reset to: tier 1 reads this one
             extra["FENTON_EVAL_HEAD"] = git(clone, "rev-parse", "--verify", "-q", "HEAD").stdout.strip()
-        code, output = _run_fixed(cwd, command, timeout, extra or None)
+        if stage == "tests" and per_file and workers > 1 and len(files or ()) > 1:
+            code, output = _run_files(cwd, files or (), timeout, workers, extra or None)
+        else:
+            code, output = _run_fixed(cwd, command, timeout, extra or None)
         suites, total, ok = test_stats(output)
         failed = failing_ids(output)
+        if code == TIMEOUT_CODE:
+            seen = f"{suites} of the base's {cached[0]} suites reported" if cached else f"{suites} suites reported"
+            raise Refused(f"tests timed out after {timeout:.0f} s ({base_command}): {seen}, last suite {last_suite(output)}; "
+                          f"a timeout, not a lane fault", "tests")
         if base_clone is None:
             if code != 0:
                 tail = "\n".join(output.strip().splitlines()[-15:])
@@ -738,7 +802,7 @@ def run_tests(clone: Path, tests: str, timeout: float = 3600.0, *, base_clone: O
             raise Refused(f"tests failed ({base_command}, exit {code}) with no failing test ids:\n{tail}", "tests")
         if suites < cached[0] or total < cached[1]:
             raise Refused(f"tests ran {total} tests in {suites} suites but the base ran {cached[1]} in {cached[0]} "
-                          f"({base_command}): a lane cannot run fewer tests than the base (a suite ended without its summary?)",
+                          f"({base_command}, exit {code}): a lane cannot run fewer tests than the base (a suite ended without its summary?)",
                           "tests")
         if base_ids:
             retired_stems = {Path(r).stem for r in retired}
@@ -1667,6 +1731,7 @@ def land(lane: str, base: str, *, clone: Path, home: Path, reviews_dir: Path, te
          base_counts: Optional[Dict[str, Any]] = None, expected_base: Optional[str] = None,
          expected_sha: Optional[str] = None, jev_ask: JevAsk = ask_jev,
          request_reader: RequestReader = no_request, core_tests: Sequence[str] = (), full_suite_triggers: Sequence[str] = (),
+         test_timeout: float = LAND_TEST_TIMEOUT, test_workers: int = LAND_TEST_WORKERS,
          reaper: Optional[Callable[[str, str, Path], List[str]]] = None) -> Dict[str, Any]:
     """Land ``origin/<lane>`` into ``origin/<base>`` from the land ``clone``; returns ``{"sha", "review", "merge", "parent"}``.
 
@@ -1765,7 +1830,7 @@ def land(lane: str, base: str, *, clone: Path, home: Path, reviews_dir: Path, te
     eval_base = f"refs/remotes/origin/{base}"
     files = selection.files if tests == DEFAULT_TESTS else None
     run_tests(clone, selection.command, base_clone=trusted, base_key=base_sha, base_counts=base_counts, eval_base=eval_base,
-              files=files, removed=selection.removed, retired=selection.retired)
+              timeout=test_timeout, workers=test_workers, files=files, removed=selection.removed, retired=selection.retired)
     if dry_run:
         print(f"dry run: {lane} at {sha[:10]} would merge into {base} (review {verdict_file.name}) and push")
         return {"sha": sha, "review": str(verdict_file), "merge": "", "parent": recorded}
@@ -1790,7 +1855,7 @@ def land(lane: str, base: str, *, clone: Path, home: Path, reviews_dir: Path, te
         print(f"origin/{base} moved {recorded[:10]} to {now[:10]}; rerunning: {fast.why}", file=sys.stderr)
         recorded = now
         run_tests(clone, fast.command, base_clone=trusted, base_key=new_base, base_counts=base_counts, eval_base=eval_base,
-                  files=fast.files if tests == DEFAULT_TESTS else None, removed=fast.removed, retired=fast.retired)
+                  timeout=test_timeout, workers=test_workers, files=fast.files if tests == DEFAULT_TESTS else None, removed=fast.removed, retired=fast.retired)
         base_check("during the rerun after it moved")
     # The lane may have moved since the review: the verified SHA is the only thing that merges.
     git(clone, "fetch", "-q", "origin", f"+refs/heads/{lane}:refs/remotes/origin/{lane}", f"+refs/heads/{base}:refs/remotes/origin/{base}")
@@ -1888,6 +1953,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                       tests=str(cfg.get("land_tests") or DEFAULT_TESTS), protected=protected_set(own_checkout(), cfg),
                       append_only=cfg.get("append_only_paths") or (), dry_run=args.dry_run,
                       core_tests=cfg.get("land_core_tests") or (), full_suite_triggers=cfg.get("land_full_suite_triggers") or (),
+                      test_timeout=config_number(cfg, "land_test_timeout", LAND_TEST_TIMEOUT),
+                      test_workers=int(config_number(cfg, "land_test_workers", LAND_TEST_WORKERS)),
                       reaper=reap_merged_lane)
     except Refused as exc:
         print(f"lane_land: refused ({exc.kind}): {exc}", file=sys.stderr)

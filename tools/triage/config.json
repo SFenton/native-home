@@ -150,6 +150,8 @@
   "denylist_required": true,
   "land_core_tests": [],
   "land_full_suite_triggers": [],
+  "land_test_timeout": 7200,
+  "land_test_workers": 4,
   "protected_paths": [
     "tools/review/**",
     "tools/review_verdict.py",
