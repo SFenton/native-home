@@ -398,7 +398,7 @@ class GitHub:
         return json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}/status?per_page=100"]) or "{}")
 
     def live_requirements(self, repo: str, branch: str) -> Dict[str, Any]:
-        """The live ruleset's required checks, bypass actors and ``updated_at`` (:func:`ruleset_gate.live_requirements`); never raises."""
+        """The live ruleset's required checks and ``updated_at`` (:func:`ruleset_gate.live_requirements`); never raises."""
         return ruleset_gate.live_requirements(repo, branch)
 
     def edit_labels(self, repo: str, n: int, add: Iterable[str] = (), remove: Iterable[str] = ()) -> None:
@@ -1631,10 +1631,11 @@ class Runner:
         only, GitHub's own record ``pulls/N`` being the authority: a forged subject cannot pass); and, on the PR head, the newest
         run of every context the LIVE rules require, from the integration the rules name, concluded ``success`` (or a
         ``success`` commit status of that context when no run exists). Once per range: the ruleset is live, needs a pull
-        request and checks and has no bypass actor, and was not edited after the oldest merge in the range.
+        request and checks, and was not edited after the oldest merge in the range.
 
-        CODEOWNERS approval is not re-verified: the ruleset enforces ``require_code_owner_review`` for every merged PR and, with
-        no bypass actors (checked here), nothing merges around it."""
+        Bypass actors are not checked (the agent login cannot read the list); the per-commit evidence is the authority. A bypass
+        could only produce a direct push (no owning PR, not made by GitHub) or a merge with a required check failing or missing
+        on the PR head, and both are refused above. CODEOWNERS approval is not re-verified for the same reason."""
         repo = str(self.cfg["product_repo"])
         try:
             clone = self.land_clone()
@@ -1653,8 +1654,6 @@ class Runner:
         found = list(requirements.get("problems") or [])
         if found:
             return False, [], "the live ruleset is not a gate: " + "; ".join(str(x) for x in found)
-        if requirements.get("bypass_actors"):
-            return False, [], "the live ruleset has bypass actors: the checks could have been skipped"
         contexts = [(str(name), integration) for name, integration in requirements.get("contexts") or []]
         evidence: List[Dict[str, Any]] = []
         merged_times: List[Any] = []
@@ -1682,7 +1681,8 @@ class Runner:
         changed = requirements.get("updated_at")
         oldest = min((m for m in merged_times if m is not None), default=None)
         if changed is None or oldest is None or changed > oldest:
-            return False, evidence, "ruleset changed inside the range: owner reviews"
+            return False, evidence, ("the ruleset changed in the range (edited after the oldest merge in it): the owner's "
+                                     "`ack-base <sha>` clears it once")
         return True, evidence, ""
 
     @staticmethod
@@ -1695,12 +1695,12 @@ class Runner:
 
     @staticmethod
     def _github_made(record: Dict[str, Any]) -> bool:
-        """Did GitHub itself make and sign this commit (the web-flow committer, ``verification.verified``)?"""
+        """Did GitHub itself make and sign this commit? Needs the committer LOGIN ``web-flow`` AND ``verification.verified`` true with
+        reason ``valid``; the committer name alone (anyone can set it) never counts."""
         commit = record.get("commit") if isinstance(record.get("commit"), dict) else {}
-        verified = (commit.get("verification") or {}).get("verified") is True
-        who = commit.get("committer") or {}
+        verification = commit.get("verification") or {}
         login = (record.get("committer") or {}).get("login")
-        return verified and (who.get("name") == "GitHub" or login == "web-flow")
+        return login == "web-flow" and verification.get("verified") is True and verification.get("reason") == "valid"
 
     def _owning_pull(self, repo: str, base: str, sha: str, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """The merged pull request into ``base`` whose merge commit is ``sha``: from ``commits/<sha>/pulls`` and, when that lists

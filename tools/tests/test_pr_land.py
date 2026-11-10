@@ -596,6 +596,42 @@ class BaseMatchHashTests(unittest.TestCase):
         self.assertFalse(merge_guard.pr_land_matches_base(self.cmd))
 
 
+class AckVerifiedPinTests(unittest.TestCase):
+    """``merge_guard.pr_land_matches_base`` pins ``hass_triage.py`` and the modules the verifier imports (real git, a throwaway repo)."""
+
+    def git(self, *a):
+        subprocess.run(["git", "-C", str(self.top), *a], check=True, capture_output=True)
+
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.top = Path(self._tmp.name)
+        (self.top / "tools" / "triage").mkdir(parents=True)
+        for name in (*merge_guard.ACK_VERIFIED_PINNED, "tools/triage/config.json"):
+            (self.top / name).write_text(name + "\n")
+        self.git("init", "-q")
+        self.git("-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+        self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.script = f"{self.top}/tools/triage/hass_triage.py"
+        self.cmd = f"python3 {self.script} ack-verified"
+
+    def test_a_matching_copy_is_allowed(self):
+        """Fails if: an identical checkout is refused, so the verb could never run."""
+        self.assertTrue(merge_guard.pr_land_matches_base(self.cmd, self.script))
+
+    def test_an_edited_verifier_or_import_no_longer_matches(self):
+        """Fails if: editing hass_triage.py, ruleset_gate.py or any other pinned import still passes the pin."""
+        for name in (*merge_guard.ACK_VERIFIED_PINNED, "tools/triage/config.json"):
+            with self.subTest(name=name):
+                path = self.top / name
+                original = path.read_text()
+                path.write_text("edited\n")
+                self.assertFalse(merge_guard.pr_land_matches_base(self.cmd, self.script))
+                path.write_text(original)
+        self.assertTrue(merge_guard.pr_land_matches_base(self.cmd, self.script))
+
+
 class MergeGuardTests(unittest.TestCase):
     BLOCKED = [
         "gh pr merge 12 --squash",

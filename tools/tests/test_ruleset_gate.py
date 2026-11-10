@@ -130,7 +130,7 @@ BOTH = {"type": "required_status_checks", "ruleset_id": 7, "parameters": {"requi
 
 
 class LiveRequirementsTests(unittest.TestCase):
-    """``live_requirements``: the live ruleset's required checks, bypass actors and ``updated_at`` for the range verifier."""
+    """``live_requirements``: the live ruleset's required checks and ``updated_at`` for the range verifier."""
 
     def live(self, rules, ruleset=None):
         return gate.live_requirements("o/r", fetch=lambda repo, branch: rules, fetch_one=lambda repo, rid: ruleset or RULESET)
@@ -140,13 +140,17 @@ class LiveRequirementsTests(unittest.TestCase):
         found = self.live([PULL, BOTH])
         self.assertEqual(found["contexts"], [("pr-checks", 15368), ("ai-review", 5618837)])
         self.assertEqual(found["problems"], [])
-        self.assertEqual(found["bypass_actors"], [])
         self.assertEqual(found["updated_at"].isoformat(), "2026-11-10T14:00:00+00:00")
 
-    def test_a_bypass_actor_an_inactive_ruleset_or_a_missing_rule_is_a_problem(self):
-        """Fails if: any way the ruleset stops being an unbypassable gate leaves `problems` empty."""
+    def test_bypass_actors_are_not_a_condition(self):
+        """Fails if: a bypass_actors list (which the agent login cannot see, so "none" would verify nothing) becomes a problem or a key again."""
         actor = {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
-        self.assertTrue(any("bypass actor" in p for p in self.live([PULL, BOTH], {**RULESET, "bypass_actors": [actor]})["problems"]))
+        found = self.live([PULL, BOTH], {**RULESET, "bypass_actors": [actor]})
+        self.assertEqual(found["problems"], [])
+        self.assertNotIn("bypass_actors", found)
+
+    def test_an_inactive_ruleset_or_a_missing_rule_is_a_problem(self):
+        """Fails if: a ruleset that is not active, lacks a pull request or checks, or has no readable updated_at leaves `problems` empty."""
         self.assertTrue(any("not active" in p for p in self.live([PULL, BOTH], {**RULESET, "enforcement": "disabled"})["problems"]))
         self.assertTrue(any("pull request" in p for p in self.live([BOTH])["problems"]))
         self.assertTrue(any("no status check" in p for p in self.live([PULL])["problems"]))

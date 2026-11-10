@@ -1185,7 +1185,7 @@ class HookTests(unittest.TestCase):
         for cmd in (*exact, "$HASS_TRIAGE_BIN ack-verified", "cd x && hass_triage.py ack-verified"):
             self.assertIn("ack-verified", self.why(cmd) or "", cmd)  # headless: every form is blocked
         self.assertIn("headless", self.why(exact[0]))
-        with mock.patch.dict(os.environ, {"FENTON_HEADLESS": "0"}):
+        with mock.patch.dict(os.environ, {"FENTON_HEADLESS": "0"}), mock.patch.object(merge_guard, "pr_land_matches_base", return_value=True):
             for cmd in exact:
                 self.assertIsNone(self.why(cmd), cmd)
             for cmd in ("python3 tools/triage/hass_triage.py ack-verified && echo ok", "python3 tools/triage/hass_triage.py ack-verified | tee out",
@@ -1194,6 +1194,16 @@ class HookTests(unittest.TestCase):
                         "script -q /dev/null python3 tools/triage/hass_triage.py ack-verified"):
                 self.assertIn("ack-verified", self.why(cmd) or "", cmd)
             self.assertIsNone(self.why("grep -n ack-verified tools/triage/hass_triage.py"))  # a search is not a run
+
+    def test_ack_verified_is_refused_from_a_stale_copy_of_the_verifier(self):
+        """Fails if: an interactive session can run an edited hass_triage.py or ruleset_gate.py (a copy that differs from origin/<base>'s)."""
+        cmd = "python3 tools/triage/hass_triage.py ack-verified"
+        with mock.patch.dict(os.environ, {"FENTON_HEADLESS": "0"}):
+            with mock.patch.object(merge_guard, "pr_land_matches_base", return_value=False) as pinned:
+                self.assertIn("differs from origin/", self.why(cmd) or "")
+                pinned.assert_called_once_with(cmd, "tools/triage/hass_triage.py")
+            with mock.patch.object(merge_guard, "pr_land_matches_base", return_value=True):
+                self.assertIsNone(self.why(cmd))
 
     def test_allowed_lane_pushes(self):
         for cmd in ("git push origin agents/x", "git push origin HEAD:agents/x", "git push origin HEAD:refs/heads/agents/x",

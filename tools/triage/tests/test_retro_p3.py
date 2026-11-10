@@ -819,7 +819,7 @@ HEAD_SHA = "a" * 40
 
 def good_rules(**kw):
     """What ``live_requirements`` returns for today's ruleset: both checks bound to their apps, no bypass actor, edited before any merge."""
-    base = {"contexts": list(GOOD_CONTEXTS), "bypass_actors": [], "problems": [],
+    base = {"contexts": list(GOOD_CONTEXTS), "problems": [],
             "updated_at": datetime(2026, 11, 1, tzinfo=timezone.utc)}
     base.update(kw)
     return base
@@ -877,7 +877,7 @@ class PullGitHub(FakeGitHub):
 def web_flow_commit(subject, verified=True, committer="GitHub", login="web-flow"):
     """``commits/<sha>`` as GitHub answers for a squash merge made on github.com."""
     return {"commit": {"message": subject + "\n\nbody", "committer": {"name": committer},
-                       "verification": {"verified": verified}}, "committer": {"login": login}}
+                       "verification": {"verified": verified, "reason": "valid" if verified else "unsigned"}}, "committer": {"login": login}}
 
 
 def merged_pr(sha, base="main", merged_at="2026-11-05T10:00:00Z", merge_sha=None, number=9, head=HEAD_SHA):
@@ -1113,9 +1113,15 @@ class AckVerifiedRefusalTests(VerifiedRangeBase):
     """Every way a range can fail the verifier leaves the pause, ``workflow-base.json`` and ``ack-log.jsonl`` untouched."""
 
     def test_a_direct_push_is_refused(self):
-        """Fails if: a commit not made and signed by GitHub (a push by an agent or the owner) is accepted as a PR merge."""
+        """Fails if: a commit not made and signed by GitHub (a push by an agent or the owner) is accepted as a PR merge, or the committer
+        NAME "GitHub" (anyone can set it) is accepted without the login web-flow and a valid verification."""
         for label, record in (("not web-flow", web_flow_commit("x (#9)", committer="t", login="t")),
-                              ("unsigned", web_flow_commit("x (#9)", verified=False))):
+                              ("unsigned", web_flow_commit("x (#9)", verified=False)),
+                              ("name GitHub, other login", web_flow_commit("x (#9)", committer="GitHub", login="someone")),
+                              ("web-flow but unverified", web_flow_commit("x (#9)", login="web-flow", verified=False)),
+                              ("verified but reason not valid", {**web_flow_commit("x (#9)"), "commit": {
+                                  **web_flow_commit("x (#9)")["commit"], "verification": {"verified": True, "reason": "unknown_key"}}}),
+                              ("no login at all", {**web_flow_commit("x (#9)"), "committer": None})):
             with self.subTest(label):
                 sha = self.push_main(label.replace(" ", "-"), number=9)
                 self.gh.records[sha] = record
@@ -1233,22 +1239,34 @@ class AckVerifiedRefusalTests(VerifiedRangeBase):
         self.assertTrue(self.ack()["ok"])
 
     def test_a_ruleset_that_is_not_live_or_can_be_bypassed_is_refused(self):
-        """Fails if: a range is accepted while the live ruleset is not a gate (not live, unreadable, or any bypass actor)."""
+        """Fails if: a range is accepted while the live ruleset is not a gate (not live or unreadable)."""
         self.push_main("one", number=9)
         self.pause()
         for label, requirements in (("not live", good_rules(problems=["the ruleset does not require a pull request"])),
-                                    ("unreadable", good_rules(problems=["the rules could not be read (CalledProcessError)"])),
-                                    ("bypass", good_rules(bypass_actors=[{"actor_id": 5, "actor_type": "RepositoryRole"}]))):
+                                    ("unreadable", good_rules(problems=["the rules could not be read (CalledProcessError)"]))):
             with self.subTest(label):
                 self.gh.requirements = requirements
                 self.refused("ruleset")
+
+    def test_a_commit_merged_with_a_required_check_failing_is_refused_whatever_the_bypass_list_says(self):
+        """Fails if: a merge with a failing required check is accepted because the ruleset lists (or hides) bypass actors, i.e. if the
+        verdict depends on anything but the per-commit evidence."""
+        self.push_main("one", number=9)
+        self.gh.runs[f"{9:040x}"] = [run("pr-checks", 15368, "failure"), run("ai-review", 5618837, rid=2)]
+        self.pause()
+        for label, extra in (("no list", {}), ("empty list", {"bypass_actors": []}),
+                             ("an admin bypass", {"bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}]})):
+            with self.subTest(label):
+                self.gh.requirements = {**good_rules(), **extra}
+                self.refused("concluded failure")
 
     def test_a_ruleset_edited_inside_the_range_is_refused(self):
         """Fails if: rules edited after the oldest merge in the range are trusted to have governed it."""
         self.push_main("one", number=9)
         self.pause()
         self.gh.requirements = good_rules(updated_at=datetime(2026, 11, 5, 12, 0, tzinfo=timezone.utc))  # merged_at is 10:00 that day
-        self.refused("ruleset changed inside the range: owner reviews")
+        result = self.refused("the ruleset changed in the range")
+        self.assertIn("ack-base <sha>", result["reason"])
         self.gh.requirements = good_rules(updated_at=datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc))  # equal: not later
         self.assertTrue(self.ack()["ok"])
 

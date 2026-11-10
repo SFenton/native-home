@@ -11,7 +11,7 @@ Ships as ONE PR that the owner approves (CODEOWNERS) and merges. It is not a lan
 
 ## Problem
 
-`SELF_CHANGE_PAUSED` fires whenever `origin/main` moves without the runner. PRs #36, #37, #45, #48, #50, #47, #46 landed through GitHub's ruleset `main-checks` (squash only; required checks `pr-checks` app 15368 and `ai-review` app 5618837; code-owner review required; no bypass actors). Only the owner can clear the pause, and `ack-base` needs a typed SHA while main keeps moving ("main moved again").
+`SELF_CHANGE_PAUSED` fires whenever `origin/main` moves without the runner. PRs #36, #37, #45, #48, #50, #47, #46 landed through GitHub's ruleset `main-checks` (squash only; required checks `pr-checks` app 15368 and `ai-review` app 5618837; code-owner review required). Only the owner can clear the pause, and `ack-base` needs a typed SHA while main keeps moving ("main moved again").
 
 ## Step 0 result (done: root cause found, read-only)
 
@@ -44,17 +44,17 @@ Range: `expected` must be an ancestor of `head` (else "force push?"). `git rev-l
 Each commit passes only if ALL of these hold:
 
 1. **One parent.** `git rev-list --parents -n1 <sha>` shows exactly one parent.
-2. **GitHub made it.** `gh api repos/<repo>/commits/<sha>`: `commit.verification.verified` is true and `commit.committer.name` / `committer.login` is GitHub (`web-flow`). A direct push by an agent or the owner's git fails this.
+2. **GitHub made it.** `gh api repos/<repo>/commits/<sha>`: `commit.verification.verified` is true (reason `valid`) AND the committer LOGIN is `web-flow`. The committer name alone never counts (amended 2026-11-10, review round 1). A direct push by an agent or the owner's git fails this.
 3. **A merged PR owns it.** From `commits/<sha>/pulls`, or the `(#N)` fallback above: `merged_at` set, `base.ref == base`, `merge_commit_sha == sha`. If more than one PR claims the sha, pick the one that matches; none matching fails.
-4. **Required checks passed on the PR head.** `pr.head.sha` is the sha the checks ran on (not the squash commit). The required contexts and integration ids come from the LIVE rules (`ruleset_gate.fetch_rules`), never hardcoded (today `pr-checks`/15368 and `ai-review`/5618837). For each context, read `commits/<head_sha>/check-runs` (paginate; `app.id` must equal the integration id; take the newest run of that name; `conclusion == "success"`) and, if no check run exists, `commits/<head_sha>/status` (`context` and `state == "success"`). Missing, failed, skipped, neutral, or a wrong app id fails.
-5. **Ruleset is live and unbypassable** (once per range, not per commit): `ruleset_gate.check` passes, the rules include `pull_request` and `required_status_checks`, and the active ruleset has no bypass actors. `main-merge-actor` (disabled) is ignored.
-6. **Rules did not change mid-range** (once per range): the active ruleset `updated_at` is not later than the oldest `merged_at` in the range. If it is, fail with "ruleset changed inside the range: owner reviews". (May over-refuse after a ruleset edit. Intended.)
+4. **Required checks passed on the PR head.** `pr.head.sha` is the sha the checks ran on (not the squash commit). The required contexts and integration ids come from the LIVE rules (`ruleset_gate.fetch_rules`), never hardcoded (today `pr-checks`/15368 and `ai-review`/5618837). For each context, read `commits/<head_sha>/check-runs` (paginate; `app.id` must equal the integration id; take the newest run of that name; `conclusion == "success"`) and, only for a required check whose rule names NO integration, `commits/<head_sha>/status` (`context` and `state == "success"`) when no check run exists (amended 2026-11-10, coordinator: a status never replaces a run bound to an integration). Missing, failed, skipped, neutral, or a wrong app id fails.
+5. **Ruleset is live** (once per range, not per commit): `ruleset_gate.check` passes and the rules include `pull_request` and `required_status_checks`. Bypass actors are NOT a condition (amended 2026-11-10, review round 1): the agent login cannot read the list, so a "none" would verify nothing. The per-commit evidence is the authority: one parent, made by GitHub, a merged PR that owns the commit, required checks passed on its head. A bypass can only produce a direct push (no owning PR, not made by GitHub) or a merge with a failed or missing required check, and both are refused. `main-merge-actor` (disabled) is ignored.
+6. **Rules did not change mid-range** (once per range): the active ruleset `updated_at` is not later than the oldest `merged_at` in the range. If it is, fail with a message that the ruleset changed in the range and the owner's `ack-base <sha>` clears it once. (May over-refuse after a ruleset edit. Intended.)
 
 Lookups: retry once on exception; a second failure fails the range. No answer is never taken as a PR. All-or-nothing: no partial acceptance. The first failure's sha and reason are printed.
 
-CODEOWNERS approval is not re-verified: the ruleset enforces `require_code_owner_review` for merged PRs and there are no bypass actors (item 5). Leave a comment in the code saying so.
+CODEOWNERS approval is not re-verified: the ruleset enforces `require_code_owner_review` for merged PRs and the per-commit evidence refuses what a bypass could do (item 5). Leave a comment in the code saying so.
 
-Extend `tools/ruleset_gate.py` with a function `live_requirements(repo, branch) -> dict` returning `{contexts: [(name, integration_id)], bypass_actors: [...], updated_at, problems: [...]}`; keep `check()` and its CLI exit codes unchanged.
+Extend `tools/ruleset_gate.py` with a function `live_requirements(repo, branch) -> dict` returning `{contexts: [(name, integration_id)], updated_at, problems: [...]}`; keep `check()` and its CLI exit codes unchanged.
 
 ### 2. `check_base` uses the verifier
 
@@ -77,7 +77,7 @@ Extend `tools/ruleset_gate.py` with a function `live_requirements(repo, branch) 
 
 ### 4. Hooks and deny lists
 
-- `tools/hooks/merge_guard.py`: the `ack[-_]?base` patterns (module docstring ~25, ~251, ~1204) STAY; `ack-verified` does not match them. Add an explicit allow for the exact form `python3 tools/triage/hass_triage.py ack-verified` (or an absolute path to `hass_triage.py`) in non-headless sessions. Headless sessions block it (`headless()` true: new reason string "ack-verified in a headless session"). The pty rule at ~249 (`script|expect|unbuffer`) must also name `ack-verified`, and a chained or piped command around it is refused. Do not touch the `--owner-ack` refusal.
+- `tools/hooks/merge_guard.py`: the `ack[-_]?base` patterns (module docstring ~25, ~251, ~1204) STAY; `ack-verified` does not match them. Add an explicit allow (only from a checkout whose `hass_triage.py` and its verifier imports, `ruleset_gate.py` among them, equal origin/<base>'s, the pr_land pin; amended 2026-11-10) for the exact form `python3 tools/triage/hass_triage.py ack-verified` (or an absolute path to `hass_triage.py`) in non-headless sessions. Headless sessions block it (`headless()` true: new reason string "ack-verified in a headless session"). The pty rule at ~249 (`script|expect|unbuffer`) must also name `ack-verified`, and a chained or piped command around it is refused. Do not touch the `--owner-ack` refusal.
 - `tools/triage/config.json`: `Bash(*ack-base*)` (line 26) and `Bash(*owner-ack*)` (line 76) stay. Add `Bash(*ack-verified*)` to the headless worker `disallowed_tools` next to line 26. The reviewer deny list (`hass_triage.py` ~2223) already denies `*hass_triage*`; add `Bash(*ack-verified*)` beside `*ack-base*` for clarity.
 - No other hook mentions `ack-base`.
 
@@ -93,7 +93,7 @@ Extend `tools/ruleset_gate.py` with a function `live_requirements(repo, branch) 
 Add to `tools/triage/tests/test_retro_p3.py` (it already has the `FakeGitHub` table helper at ~816, extend with `pull(n)`, `commit(sha)`, `check_runs(sha)`, `status(sha)`, `rules()`) and `test_retro_p4.py`:
 
 Negative (each: `ack_verified` returns failure, pause files remain, `workflow-base.json` and `ack-log.jsonl` unchanged):
-- direct push (committer not GitHub, or `verified` false); two-parent commit; force push (expected not an ancestor); unmerged PR; `merge_commit_sha` mismatch; commit with no PR and no `(#N)`; `(#N)` fallback whose `pulls/N` names a different merge commit; `pr-checks` failing, missing, skipped, or wrong `app.id`; `ai-review` missing; required context added to the live ruleset that the PR did not run; ruleset not live; bypass actor present; ruleset `updated_at` inside the range; range over the cap; lookup fails twice; empty range.
+- direct push (committer not GitHub, or `verified` false); two-parent commit; force push (expected not an ancestor); unmerged PR; `merge_commit_sha` mismatch; commit with no PR and no `(#N)`; `(#N)` fallback whose `pulls/N` names a different merge commit; `pr-checks` failing, missing, skipped, or wrong `app.id`; `ai-review` missing; required context added to the live ruleset that the PR did not run; ruleset not live; a merge with a failing required check whatever the bypass list says; ruleset `updated_at` inside the range; range over the cap; lookup fails twice; empty range.
 
 Positive:
 - Today's real shape: 7 commits, one of them (4b86f73) empty from `commits/<sha>/pulls` but matched through `pulls/36` from the subject `(#36)`: accepted, pause cleared, `workflow-base.json` = head, log line has prs `[36,37,45,48,50,47,46]`.

@@ -119,13 +119,14 @@ def live_requirements(repo: str, branch: str = "main", fetch: Optional[Callable[
                       fetch_one: Optional[Callable[[str, object], object]] = None) -> Dict[str, object]:
     """What the live rules on ``branch`` demand of a merge, for the verifier that vets a range of merged pull requests.
 
-    Returns ``{contexts, bypass_actors, updated_at, problems}``: ``contexts`` is every required status check as
-    ``(name, integration_id)`` (never hardcoded), ``bypass_actors`` the actors any active ruleset lets skip the rules,
-    ``updated_at`` the newest ``updated_at`` of those rulesets as an aware UTC datetime (None when unknown), and ``problems``
-    why the rules are not a gate (``check``'s findings, plus: no required checks, a ruleset that is not active, any bypass
-    actor, an unreadable ``updated_at``). Any failure is a problem; this never raises. ``check`` and its exit codes are unchanged.
+    Returns ``{contexts, updated_at, problems}``: ``contexts`` is every required status check as ``(name, integration_id)``
+    (never hardcoded), ``updated_at`` the newest ``updated_at`` of those rulesets as an aware UTC datetime (None when unknown), and
+    ``problems`` why the rules are not a gate (``check``'s findings, plus: no required checks, a ruleset that is not active, an
+    unreadable ``updated_at``). Bypass actors are NOT a condition: the agent login cannot read them (GitHub hides the list), so a
+    "none" would verify nothing; the per-commit evidence is the authority. Any failure is a problem; this never raises. ``check``
+    and its exit codes are unchanged.
     """
-    out: Dict[str, object] = {"contexts": [], "bypass_actors": [], "updated_at": None, "problems": []}
+    out: Dict[str, object] = {"contexts": [], "updated_at": None, "problems": []}
     try:
         rules = (fetch or fetch_rules)(repo, branch)
         listed = rules if isinstance(rules, list) else []
@@ -142,20 +143,16 @@ def live_requirements(repo: str, branch: str = "main", fetch: Optional[Callable[
         if not contexts:
             found.append("the ruleset requires no status check")
         newest: Optional[datetime] = None
-        bypass: List[object] = []
         for ruleset_id, answer in rulesets.items():
             answer = answer if isinstance(answer, dict) else {}
             if answer.get("enforcement") != "active":
                 found.append("the ruleset %s is not active" % ruleset_id)
-            bypass.extend(answer.get("bypass_actors") or [])
             moment = utc(answer.get("updated_at"))
             if moment is None:
                 found.append("the ruleset %s has no readable updated_at" % ruleset_id)
             elif newest is None or moment > newest:
                 newest = moment
-        if bypass:
-            found.append("the ruleset has %d bypass actor(s)" % len(bypass))
-        out.update(contexts=contexts, bypass_actors=bypass, updated_at=newest, problems=found)
+        out.update(contexts=contexts, updated_at=newest, problems=found)
     except Exception as error:  # noqa: BLE001 - any failure means "not a gate"
         out["problems"] = ["the rules of %s could not be read (%s)" % (repo, type(error).__name__)]
     return out

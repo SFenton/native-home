@@ -217,6 +217,11 @@ PINNED_WITH = {
 }
 
 
+#: What ``hass_triage.py ack-verified`` runs, relative to the checkout top: itself and the modules the verifier imports. Pinned like the landers.
+ACK_VERIFIED_PINNED = ("tools/triage/hass_triage.py", "tools/ruleset_gate.py", "tools/redact.py", "tools/agent_login.py", "tools/request_repo.py",
+                       "tools/lane_land.py", "tools/release_closure.py", "tools/agent_eval_measure.py", "tools/retro_weekly.py")
+
+
 def pr_land_matches_base(command: str, script_word: Optional[str] = None) -> bool:
     """Is the landing script this command runs (``tools/pr_land.sh``, ``tools/lane_land.py`` or ``tools/go_public.sh``: see
     :data:`PINNED_WITH` for what it is hashed with) byte-identical to ``origin/<base>``'s? An edited copy, a missing remote branch or
@@ -227,7 +232,8 @@ def pr_land_matches_base(command: str, script_word: Optional[str] = None) -> boo
         folder = script.resolve().parent
         top = git_out(str(folder), "rev-parse", "--show-toplevel")
         rel = folder.relative_to(Path(top).resolve()).as_posix()
-        names = [f"{rel}/{n}" for n in PINNED_WITH.get(script.name, PINNED_WITH["pr_land.sh"])] + ["tools/triage/config.json"]
+        names = ([*ACK_VERIFIED_PINNED] if script.name == "hass_triage.py"
+                 else [f"{rel}/{n}" for n in PINNED_WITH.get(script.name, PINNED_WITH["pr_land.sh"])]) + ["tools/triage/config.json"]
         local = [git_out(top, "hash-object", "--", n) for n in names]
         for base in base_refs():
             try:
@@ -1214,6 +1220,9 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
             return "ack-verified: no pty wrapper around it (a pty would fake a terminal)"
         if not ACK_VERIFIED_FORM.match(command.strip()):
             return "ack-verified: runs only as exactly `python3 tools/triage/hass_triage.py ack-verified` (no wrapper, chain, pipe or substitution)"
+        if not pr_land_matches_base(command, command.split()[1]):
+            return ("ack-verified: this checkout's tools/triage/hass_triage.py, ruleset_gate.py or what they import differs from origin/"
+                    + "|".join(base_refs()) + " (or git could not say): run it from a checkout whose copy is the base branch's")
     if headless():
         why = request_repo_reason(command)
         if why:
