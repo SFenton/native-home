@@ -12,8 +12,8 @@ name: ios-release
 #                   ExportOptions-testflight.plist, which sends the build to App Store Connect: every bumped version goes to
 #                   TestFlight (owner, 2026-11-10), with no variable and no gate. Until the secrets exist the job fails with an error naming them.
 # The repository is public: the IPA is never attached to the GitHub Release (assets are anonymous and permanent), and the sign-in
-# Server default is never passed here (the build has a blank Server field; only a manual tools/release/testflight_upload.sh takes it
-# from a testflight secret).
+# Server default is never passed here (the build has a blank Server field; only a manual tools/release/testflight_upload.sh reads it
+# from the owner's shell).
 # A tag pushed with GITHUB_TOKEN triggers no workflow, which is why the ipa job is a job of this workflow and not a tag trigger.
 # Retry: "Run workflow" with `tag` rebuilds an existing ios/v* tag without bumping and uploads it again (a new build number); that
 # is also the way back after a failed upload, whose artifact was already saved. `force` bumps even without app changes.

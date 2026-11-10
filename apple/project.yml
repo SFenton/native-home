@@ -23,7 +23,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     HASS_GIT_SHA: dev
     # The sign-in Server field's default (`HassServer.buildDefault`). Empty in the repo and blank in the hosted release
-    # artifact build; only a manual testflight_upload.sh passes it on the xcodebuild command line, from a testflight secret.
+    # artifact build; only a manual testflight_upload.sh passes it on the xcodebuild command line, with HASS_DEFAULT_SERVER set in the owner's shell.
     HASS_DEFAULT_SERVER: ""
 targets:
   FentonHome:

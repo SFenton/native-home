@@ -68,7 +68,7 @@ else
   [[ ${#SETTINGS[@]} -ge 2 ]] || { echo "[testflight] versioning.py returned no settings for $TAG" >&2; exit 1; }
   SETTINGS+=("HASS_GIT_SHA=$(git -C "$SRC" rev-parse HEAD)")
 fi
-# The sign-in Server field default is read from HASS_DEFAULT_SERVER, which a manual upload takes from the testflight secret; the
+# The sign-in Server field default is read from HASS_DEFAULT_SERVER, which a manual upload reads from the owner's shell; the
 # hosted pipeline never sets it, so its artifact builds with a blank Server field. Empty leaves the field blank.
 [[ -z "${HASS_DEFAULT_SERVER:-}" ]] || SETTINGS+=("HASS_DEFAULT_SERVER=$HASS_DEFAULT_SERVER")
 shown=(); for line in "${SETTINGS[@]}"; do shown+=("$(redact "$line")"); done

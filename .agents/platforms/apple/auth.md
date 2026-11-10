@@ -46,7 +46,7 @@ Uses Home Assistant's login flow API, the same path the HA web login uses, so th
 ## Default server (`HASS_DEFAULT_SERVER`)
 
 - No address is compiled into the app. The sign-in Server field starts with the last server signed in to, else the build's default (`HassServer.buildDefault`, Info.plist `HASS_DEFAULT_SERVER`, parsed with `HassServerAddress.parse` so a value with no scheme or a trailing newline works like typed text), else blank with its placeholder. Debug builds put `FENTON_HASS_SERVER` above both.
-- TestFlight builds get the value from the `testflight` environment **secret** `HASS_DEFAULT_SERVER` (never a repository variable: the repository is public; the owner sets it with `gh secret set HASS_DEFAULT_SERVER --env testflight`). The hosted artifact IPA of `ios-release.yml` is built without it. Unset, the build setting is empty and a fresh install starts with a blank Server field. See [testflight](testflight.md#default-server-variable).
+- The hosted `ios-release.yml` builds, both the IPA artifact and the TestFlight upload, are made without it: their Server field is blank. Only a manual local `tools/release/testflight_upload.sh` run takes `HASS_DEFAULT_SERVER` from the owner's own shell (never a repository variable or a workflow secret: the repository is public). Unset, the build setting is empty and a fresh install starts with a blank Server field. See [testflight](testflight.md#default-server-manual-uploads-only).
 - Existing installs keep their server: it is restored from the Keychain session, never from the build setting, so changing or clearing the variable signs nobody out or moves them (`AppSessionTests`).
 
 ## Storage

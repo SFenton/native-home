@@ -1,6 +1,6 @@
 # CI: the Mac runners, pr-checks, ios-release and nightly
 
-> **What:** pull-request CI runs on GitHub-hosted runners (Linux for the checks and tool tests, one macOS job for the app); the release and nightly workflows still use the owner's self-hosted Macs. **Read when:** a check fails or hangs, you touch a workflow, or you wonder what runs when.
+> **What:** pull-request CI runs on GitHub-hosted runners (Linux for the checks and tool tests, one macOS job for the app); the release workflow (`ios-release.yml`, which also uploads to TestFlight) is hosted too; only the nightly workflow still uses the owner's self-hosted Macs. **Read when:** a check fails or hangs, you touch a workflow, or you wonder what runs when.
 
 The repo is public, so GitHub enforces the ruleset on `main` and [`pr-checks`](#the-merge-gate) is the merge gate (see below); [`tools/pr_land.sh`](../../tools/pr_land.sh) arms auto-merge after the gates GitHub cannot run. The self-hosted runners below serve the nightly run only; `ios-release` runs on GitHub-hosted runners. While a runner's Mac is asleep or off, its jobs queue. Each runner has one slot, so its jobs run one after another.
 

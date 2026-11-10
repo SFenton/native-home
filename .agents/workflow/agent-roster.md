@@ -71,7 +71,7 @@ The `SubagentStop` hook (`tools/hooks/subagent_report.py`) applies to the roster
 **The fixed set (owner, 2026-11-02, changed 2026-11-03, narrowed 2026-11-07).** L3 is only this:
 
 - credentials, tokens, the Jev key and secrets handling (`~/.config/fenton-hass/**`, the Keychain);
-- signing: certificates, provisioning profiles and Apple ID/App Store Connect keys, with the release pipeline that uses them (`tools/release/**`, `.github/workflows/ios-release*.yml`; TestFlight upload of a reviewed build is autonomous, runner-dispatched);
+- signing: certificates, provisioning profiles and Apple ID/App Store Connect keys, with the release pipeline that uses them (`tools/release/**`, `.github/workflows/ios-release*.yml`; TestFlight upload of every bumped version is autonomous, a step of the hosted `ios-release.yml`);
 - physical-device automation;
 - the review recorder and the reviewer's identity (`tools/review/**`, `tools/hooks/review_guard.py`, `.claude/agents/reviewer.md`), and every file the release jobs run or import (`tools/devcap.py`, `tools/ci_hygiene.py`, derived by `tools/release_closure.py`), git's own plumbing (`.git/**`, `.githooks/**`), and `ack-base` / `--owner-ack`, which stay owner terminal actions in code.
 

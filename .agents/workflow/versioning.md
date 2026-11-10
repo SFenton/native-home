@@ -40,7 +40,7 @@ xcodebuild archive -project FentonHome.xcodeproj -scheme FentonHome -destination
   $(python3 ../tools/release/versioning.py build-settings --tag ios/v2610.26.01 --build "$(date -u +%Y%m%d%H%M)")
 ```
 
-`HASS_DEFAULT_SERVER` is a build setting too, but not a version: the sign-in default server, passed on the same command line by the TestFlight scripts from the `testflight` environment secret of that name when set (never a repository variable, and never in the public `ios-release.yml` artifact build) ([testflight](../platforms/apple/testflight.md#default-server-variable)); empty in `apple/project.yml`.
+`HASS_DEFAULT_SERVER` is a build setting too, but not a version: the sign-in default server, blank in every `ios-release.yml` build (the artifact and the TestFlight upload); only a manual local `testflight_upload.sh` run passes it on the command line, from the owner's own shell (never a repository variable) ([testflight](../platforms/apple/testflight.md#default-server-manual-uploads-only)); empty in `apple/project.yml`.
 
 `build-settings` prints `MARKETING_VERSION=…`, `CURRENT_PROJECT_VERSION=…` and `HASS_GIT_SHA=…`, one per line. Command-line settings override `apple/project.yml`'s project-wide defaults for **every** target, so the app, both extensions, the widget and the Watch app (generated Info.plist) ship matching versions; a mismatch makes App Store Connect reject the embedded watch app. `describe --tag T [--build N]` prints the facts as JSON. `ReleaseVersionStampingTests` fails if a target stops reading these settings or the Watch app pins its own.
 

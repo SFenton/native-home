@@ -296,5 +296,17 @@ class UploadModeTests(unittest.TestCase):
         self.assertNotIn("house.example.invalid", proc.stdout + proc.stderr)
 
 
+    def test_without_an_archive_the_upload_fails_with_a_clear_message(self):
+        """Fails if: --upload without an archive from the build step runs xcodebuild anyway, exits 0, or gives no hint to build first."""
+        with tempfile.TemporaryDirectory(dir=Path(SCRIPT).parents[2] / "build") as out:
+            env = dict(os.environ, FENTON_IPA_OUT=out)
+            proc = subprocess.run(["bash", str(SCRIPT), "ios/v2611.10.01", "1", "--upload"], env=env, capture_output=True,
+                                  text=True, timeout=60)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        self.assertIn("no archive at", proc.stderr)
+        self.assertIn("run the build before --upload", proc.stderr)
+        self.assertNotIn("xcodebuild", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

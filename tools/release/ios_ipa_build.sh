@@ -20,7 +20,7 @@
 # a single-tenant VM, so no devcap hold is taken; xcodebuild still runs under the idle watchdog (default 300 s, not 600). The
 # identities come from the job's temporary keychain (two p12 secrets) and the App Store Connect key (ASC_KEY_*), and the BLOCKED
 # message names those secrets. The Server field default (HASS_DEFAULT_SERVER) is passed only when the caller sets it, which the hosted
-# pipeline never does: its IPA builds with a blank field (a manual testflight_upload.sh takes it from a testflight secret). A value
+# pipeline never does: its IPA builds with a blank field (a manual testflight_upload.sh reads it from the owner's shell). A value
 # is never printed (a dry run shows `***`).
 set -euo pipefail
 
@@ -175,6 +175,8 @@ silent_hang() { # EXIT_CODE LABEL: exit 124 means the watchdog fired
 }
 
 if [[ "$TAG" == "--probe-signing" ]]; then probe_signing; echo "signing ok"; exit 0; fi
+# --upload re-exports the archive of the build step: say so first when there is none (before any signing probe).
+if [[ $UPLOAD == 1 && $DRY == 0 && ! -d "$ARCHIVE" ]]; then log "no archive at $ARCHIVE: run the build before --upload"; exit 1; fi
 if [[ $DRY == 0 ]]; then probe_signing; fi
 
 AUTH=()
@@ -184,7 +186,6 @@ fi
 
 if [[ $UPLOAD == 1 ]]; then
   # The TestFlight upload re-exports the archive the build run made (nothing is rebuilt, the output directory is kept).
-  [[ $DRY == 1 || -d "$ARCHIVE" ]] || { log "no archive at $ARCHIVE: run the build before --upload"; exit 1; }
   run guarded xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUT/upload" \
     -exportOptionsPlist "$ROOT/tools/release/ExportOptions-testflight.plist" -allowProvisioningUpdates ${AUTH[@]+"${AUTH[@]}"} \
     || { rc=$?; silent_hang "$rc" "xcodebuild -exportArchive (TestFlight upload)"; log "TestFlight upload failed"; exit 1; }
@@ -203,7 +204,7 @@ else
   [[ ${#SETTINGS[@]} -ge 3 ]] || { log "versioning.py returned no build settings for $TAG"; exit 1; }
 fi
 # The sign-in Server field default is passed only when the caller sets HASS_DEFAULT_SERVER (a manual testflight_upload.sh run takes it
-# from a testflight secret); the hosted pipeline never sets it, so its IPA builds with a blank field.
+# from the owner's shell); the hosted pipeline never sets it, so its IPA builds with a blank field.
 [[ -z "${HASS_DEFAULT_SERVER:-}" ]] || SETTINGS+=("HASS_DEFAULT_SERVER=$HASS_DEFAULT_SERVER")
 VERSION="${TAG#ios/v}"
 
