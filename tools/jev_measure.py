@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure the Jev hints against history (`.agents/workflow/decision-models.md` records the results).
+"""Measure the Jev hints against history (`.agents/workflow/jev.md` records the results).
 
     python3 tools/jev_measure.py recall [--prs 50] [--prs-file FILE] [--json OUT]
     python3 tools/jev_measure.py complexity [--prs 50] [--prs-file FILE] [--json OUT]

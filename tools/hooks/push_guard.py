@@ -21,7 +21,7 @@ passes untouched. Refused:
 - ``gh api`` writes to ``/git/refs``, ``/merges`` or ``/contents`` (a write method, or any field flag that makes the call a POST), and
   ``gh repo sync`` (both move refs on GitHub without a push).
 
-Residual risk (documented in ``.agents/workflow/ci.md#the-merge-gate``): the hook runs from the worktree's own files, so an uncommitted edit to
+Residual risk (documented in ``.agents/workflow/ci.md#merge-gate``): the hook runs from the worktree's own files, so an uncommitted edit to
 them disables the gate; a push from a clone whose ``core.hooksPath`` was never set
 (``tools/setup.sh``), ``curl`` or an interpreter calling the GitHub API, and a hook skipped by editing ``.git/config`` with a tool.
 ``tools/ship.sh`` checks ``core.hooksPath`` itself. Exit 2 sends the message back; every failure, an import error included, is exit 2,
