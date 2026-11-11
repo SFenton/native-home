@@ -625,7 +625,8 @@ class ElsewhereTests(unittest.TestCase):
     def test_the_server_engine_alone_does_not_point_elsewhere(self):
         """Fails if: a phrase that names a part of the system, not another place, is refused ("the server engine", "in a pull
         request comment"), or a plain "nothing else changes" is."""
-        for text in ("Read the server engine that starts, updates and ends each activity.",
+        for text in ("Nothing else changes elsewhere.", "Matches the upstream UIKit behavior.",
+                     "Read the server engine that starts, updates and ends each activity.",
                      "The pictures are in a pull request comment.", "Nothing else changes."):
             self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {text}")), [], text)
 

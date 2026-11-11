@@ -231,7 +231,7 @@ def elsewhere_problems(text: str, words: Optional[dict] = None) -> list:
     """One line when ``text`` sends the reader to a fix made somewhere else and nothing in the whole text says where and how it stands.
 
     A sentence with a phrase from ``elsewhere_phrases`` ("a different repository", "a separate pull request", "elsewhere",
-    "upstream", "in a follow-up") is allowed when the text, anywhere, holds a concrete name (an ``owner/repo`` or a pull
+    "upstream", "in a follow-up"; "elsewhere" and "upstream" count only beside fix, correction or repair) is allowed when the text, anywhere, holds a concrete name (an ``owner/repo`` or a pull
     request or issue link) and a state word (``elsewhere_state_words``). The line tells the writer what to add."""
     words = words or load_words()
     clean = COMMENT.sub("", FENCE.sub("", text))

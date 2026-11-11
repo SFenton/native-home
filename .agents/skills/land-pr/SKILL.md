@@ -6,7 +6,8 @@ description: Ships a finished branch as a pull request, gets it reviewed, record
 
 > **What:** the steps from a finished branch to a merged pull request. **Read when:** work is ready to land, or you are the Reviewer recording a verdict. Rules: [pr-lifecycle](../../workflow/pr-lifecycle.md#landing).
 
-1. **Ship.** `tools/ship.sh "Subject" --pr --note TEXT` commits with the trailers, pushes the branch and opens a draft pull request. Set `SHIP_TASK=<task>` so the PR notes start with it. `--note none` marks a change users will not notice ([versioning](../../workflow/versioning.md)).
+1. **Ship.** Write `build/pr/summary.md` and `build/pr/tests.md` in the [pr-form](../../workflow/pr-form.md) form, then `python3 tools/pr_text.py compose --summary-file build/pr/summary.md --tests-file build/pr/tests.md > build/pr/body.md`.
+   `tools/ship.sh "Subject" --pr --body-file build/pr/body.md --note TEXT` refuses a bad title or description, then commits with the trailers, pushes the branch and opens a draft pull request. Set `SHIP_TASK=<task>` so the PR notes start with it. `--note none` marks a change users will not notice ([versioning](../../workflow/versioning.md)).
 2. **Wait on CI.** In the same turn start `tools/bg_run.py ci-N --timeout 7200 -- python3 tools/ci_wait.py N` in the background and end the turn ([ci](../../workflow/ci.md#waiting-on-ci)). Its digest ends with one `RESULT:` line.
 3. **Review.** While CI runs, spawn the `reviewer` on the pushed head with a prompt that starts `opus-ok: final review` and names the pull request, the branch and the round.
 4. **Record** (Reviewer only).

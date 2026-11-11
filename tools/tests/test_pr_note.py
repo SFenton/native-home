@@ -290,12 +290,17 @@ class BlockTests(Base):
     BODY = "intro\n<!-- sh-status:start -->\nold\n<!-- sh-status:end -->\nmid\n<!-- sh-devices:start -->\nold\n<!-- sh-devices:end -->\n" + REVIEW + "\ntail\n"
 
     def test_status_and_devices_leave_everything_else_identical(self):
+        """Fails if: ``devices`` writes a table into the description or keeps an old filled block, ``status`` shows text, or
+        either changes text outside its own block, the reviewer's block included."""
         self.set_state(body=self.BODY)
         self.assertIn("updated", self.run_cli("status", "--task", "T", "--line", "**Status:** Review pass")[1])
-        self.run_cli("devices", "--task", "T", "--file", self.body_file("| Device | Result |\n|---|---|\n| Duo | Unchanged |"))
+        self.assertIn("updated", self.run_cli("devices", "--task", "T")[1])
         body = self.get()["body"]
-        self.assertIn("**Status:** Review pass", body)
-        self.assertIn("| Duo | Unchanged |", body)
+        self.assertNotIn("sh-devices", body)
+        self.assertNotIn("| Duo", body)
+        self.assertIn("intro\n", body)
+        self.assertIn("mid\n", body)
+        self.assertIn("unchanged", self.run_cli("devices", "--task", "T")[1])
         self.assertEqual(body[body.index("<!-- review:start -->"):body.index("<!-- review:end -->")],
                          REVIEW[:REVIEW.index("<!-- review:end -->")])
         self.assertTrue(body.startswith("intro\n") and body.endswith("tail\n") and "\nmid\n" in body)
@@ -1915,17 +1920,15 @@ class PictureScaleTests(PictureBase):
         self.assertEqual(re.findall(r"^https://\S+$", body, re.M), [])
         self.assertEqual(self.media()[pr_note.file_hash(clip)], self.url(b"a clip"))
 
-    def test_a_picture_in_the_device_block_of_the_description_is_scaled(self):
-        """Fails if: a picture in the ``sh-devices`` block of the description stays in the full-size form, or text outside the
-        block changes."""
+    def test_devices_never_writes_a_table_or_a_picture_into_the_description(self):
+        """Fails if: ``devices`` puts a table or a picture into a description with an empty block, or adds a block to one without."""
         shot = self.evidence("ipad-portrait/home.png", png(2048, 2732))
-        self.set_state(body="Intro\n<!-- sh-devices:start -->\n<!-- sh-devices:end -->\nTail\n")
         f = Path(self.tmp.name) / "devices.md"
         f.write_text(f"| iPad | ![Home]({shot}) |")
-        self.assertIn("updated", self.run_cli("devices", "--task", "T-x", "--file", str(f))[1])
-        body = self.get()["body"]
-        self.assertEqual(body, "Intro\n<!-- sh-devices:start -->\n| iPad | " + self.img(png(2048, 2732), "Home", 260)
-                         + " |\n<!-- sh-devices:end -->\nTail\n")
+        for start in ("Intro\n<!-- sh-devices:start -->\n<!-- sh-devices:end -->\nTail\n", "Intro\nTail\n"):
+            self.set_state(body=start)
+            self.assertIn("unchanged", self.run_cli("devices", "--task", "T-x", "--file", str(f))[1])
+            self.assertEqual(self.get()["body"], start)
 
 
 class RenderedEvidenceTests(PictureBase):

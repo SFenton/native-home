@@ -10,7 +10,7 @@ Commands::
     pr_note.py post KIND --task T [--class C] --round N --body-file F [--pr N] [--branch B] [--as ROLE] [--step N [--now]] [--head SHA]
     pr_note.py flush --task T [--pr N] [--as ROLE]
     pr_note.py status --task T --line TEXT [--pr N]
-    pr_note.py devices --task T --file F [--pr N]
+    pr_note.py devices --task T [--pr N]    (removes a device table an older description still holds)
     pr_note.py timeline --task T [--pr N]    (removes a step list an older description still holds)
     pr_note.py resolve --task T --round N --text TEXT [--pr N] [--as ROLE]
     pr_note.py init --task T [--pr N]
@@ -90,8 +90,9 @@ Behaviour:
   The same bytes are uploaded once per PR: in any later comment, class or path the image becomes
   ``Same as <first caption or file name>``; a picture that differs is uploaded.
 - ``status`` keeps its line as an HTML comment between the ``sh-status`` markers (nothing about status is shown).
-- ``status`` and ``devices`` replace only the text between their own ``sh-status`` / ``sh-devices`` markers in the PR
-  body. Everything else, including the reviewer's block, is left byte for byte.
+- ``status`` replaces only the text between its ``sh-status`` markers in the PR body. ``devices`` removes a ``sh-devices``
+  block that still holds text, as ``timeline`` does for its block, and writes none. Everything else, including the
+  reviewer's block, is left byte for byte.
 - The description holds no step list. ``timeline`` (and the refresh after a post that changed something) removes a
   ``<!-- sh-timeline:start -->`` / ``<!-- sh-timeline:end -->`` block that still holds text, markers included, and writes
   nothing in its place; the step order stays in this tool's own memory (``steps_of``) for the markers and the hold.
@@ -1480,26 +1481,23 @@ def update_block(pr: int, name: str, content: str, task: Optional[str] = None, a
 
 # MARK: - Step list (removed)
 
+def drop_filled_block(pr: int, name: str) -> str:
+    """Remove the ``name`` block, markers included, from the PR body when it still holds text; ``updated`` or ``unchanged``."""
+    body = json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or ""
+    pair = rf"<!--\s*{re.escape(name)}:start\s*-->(.*?)<!--\s*{re.escape(name)}:end\s*-->[ \t]*\n*"
+    found = re.search(pair, body, re.S)
+    if not (found and found.group(1).strip()):
+        return "unchanged"
+    gh(["pr", "edit", str(pr), "--body-file", "-"], re.sub(pair, "", body, flags=re.S))
+    return "updated"
+
+
 def timeline(pr: int, task: str) -> str:
     """Remove a step list from the PR body: the whole ``sh-timeline`` block when it still holds text.
 
     The description carries no list of steps; one an older run wrote goes on the next post. Returns ``updated`` or
     ``unchanged``. ``task`` is kept for callers and the command line."""
-    body = json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or ""
-    new = _TIMELINE_BLOCK.sub("", body) if _filled_timeline(body) else body
-    if new == body:
-        return "unchanged"
-    gh(["pr", "edit", str(pr), "--body-file", "-"], new)
-    return "updated"
-
-
-_TIMELINE_BLOCK = re.compile(r"<!--\s*sh-timeline:start\s*-->.*?<!--\s*sh-timeline:end\s*-->[ \t]*\n*", re.S)
-
-
-def _filled_timeline(body: str) -> bool:
-    """Whether the ``sh-timeline`` block of ``body`` holds anything besides its markers."""
-    m = re.search(r"<!--\s*sh-timeline:start\s*-->(.*?)<!--\s*sh-timeline:end\s*-->", body, re.S)
-    return bool(m and m.group(1).strip())
+    return drop_filled_block(pr, "sh-timeline")
 
 
 #: Kept for callers that name it; the body no longer copies text from the template.
@@ -1560,7 +1558,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("init")
     add("timeline")
     add("status").add_argument("--line", required=True)
-    add("devices").add_argument("--file", required=True)
+    add("devices").add_argument("--file", help="ignored; kept for old callers")
     s = add("resolve")
     s.add_argument("--round", type=int, required=True)
     s.add_argument("--text", required=True)
@@ -1655,8 +1653,6 @@ def _run(args: argparse.Namespace) -> str:
         return _post(args)
     if args.cmd == "status":
         gate(args.line, "the status line")
-    elif args.cmd == "devices":
-        devices = prepare(Path(args.file).read_text(), f"file {Path(args.file).name}", load_media(args.task))
     elif args.cmd == "resolve":
         gate(args.text, "the resolve text")
     if args.cmd in ("init", "flush"):
@@ -1681,7 +1677,7 @@ def _run(args: argparse.Namespace) -> str:
     if args.cmd == "status":
         return update_block(pr, "sh-status", hidden_status(redact(args.line)))
     if args.cmd == "devices":
-        return update_block(pr, "sh-devices", redact(devices), args.task)
+        return drop_filled_block(pr, "sh-devices")
     return resolve_handoff(pr, args.task, args.round, redact(args.text))
 
 
