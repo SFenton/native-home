@@ -626,6 +626,11 @@ class TimelineTests(Base):
             "7. [Reviewer, round 1: Reviewed the head.](https://example.test/pull/7#issuecomment-3)"])
         self.assertIn("unchanged", self.run_cli("timeline", "--task", "T-x")[1])
 
+    def test_a_bold_lead_in_label_is_not_the_step_sentence(self):
+        """Fails if: a step whose body starts ``**What I did.** I read it.`` is listed as just ``What I did.``."""
+        self.post("research", "**What I did.** I read it. More.", "1")
+        self.assertIn("1. [Researcher, round 1: I read it.](", self.get()["body"])
+
     def test_a_timeline_failure_only_warns(self):
         """Fails if: a failing index update undoes or hides the post, or changes the exit code."""
         with mock.patch.object(pr_note, "timeline", side_effect=pr_note.NoteError("boom")):

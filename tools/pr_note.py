@@ -839,7 +839,8 @@ def first_sentence(comment: Dict[str, Any]) -> str:
         if ln.strip() and not ln.startswith(("@", "<")):
             text = ln
             break
-    text = re.sub(r"[*#`>]+|^\s*[-\d.]+\s+", "", text).strip()
+    lead = re.sub(r"^\*\*[^*]+\*\*\s*", "", text)  # a bold lead-in such as "**What I did.**" is a label, not the sentence
+    text = re.sub(r"[*#`>]+|^\s*[-\d.]+\s+", "", lead if lead.strip() else text).strip()
     sentence = re.split(r"(?<=[.!?])\s", " ".join(text.split()), maxsplit=1)[0]
     return sentence[:140].rstrip()
 
