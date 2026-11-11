@@ -65,6 +65,11 @@ ATTACHMENT_URL = re.compile(r"https://github\.com/user-attachments/(?:assets|fil
 #: The comment the runner posts on the public pull request when the worker's text fails the house-data check.
 GENERIC_PULL_QUESTION = ("An owner decision is needed before this pull request can land. "
                          "The question and options are on the request issue.")
+#: The issue comment the nightly park posts on the public product repository when the worker's text fails the house-data check.
+GENERIC_PARK_ISSUE = "An owner decision is needed before the pull request below can land."
+#: The decision comment the nightly intake posts on the public product repository, with no pull request to name, when the
+#: worker's text fails the house-data check.
+GENERIC_DECISION_ISSUE = "An owner decision is needed before this can continue."
 #: The last line of the pull request question: only what works today (nothing reads replies or approvals there yet).
 PULL_DECIDE_LINE = ("To decide: reply on the request issue with your pick, or approve and merge this pull request "
                     "to accept the recommendation.")
@@ -2666,7 +2671,7 @@ class Runner:
             text = (f"{decision.get('question', summary)}\n\n{options}\n\nRecommended: "
                     f"**{decision.get('recommendation', '?')}**. Reply with your choice and the agent continues on its "
                     "next run.")
-            post_update(self.gh, self.repo, n, "decision-needed", text)
+            self.post_decision(n, text, [], GENERIC_DECISION_ISSUE)
             self.gh.edit_labels(self.repo, n, add=["Needs Decision"], remove=["In Progress"])
             self.state.record(n, "needs_decision", decision.get("question", ""))
             return "needs_decision"
@@ -2686,7 +2691,8 @@ class Runner:
 
         Labels the pull request and the issue ``Needs Decision``, posts the options, and remembers the pull request so
         ``check_parked`` finishes the issue when the owner merges it and ``requeue`` builds the owner's pick when they
-        reply instead. The worktree stays."""
+        reply instead. The worktree stays. The issue comment goes through :meth:`post_decision`, which checks it when the issue
+        is on the public product repository (the nightly intake) and falls back to :data:`GENERIC_PARK_ISSUE` on a hit."""
         summary = str(status.get("summary", "")).strip()
         mockups = "\n".join(f"- {m}" for m in decision.get("mockups") or [])
         text = (f"{decision.get('question', summary)}\n\n{options}\n\nRecommended: "
@@ -2694,7 +2700,7 @@ class Runner:
         if mockups:
             text += f"\n\nMockups:\n{mockups}"
         text += (f"\n\nPull request: {pr}\n\nReply with your pick, or merge the PR to accept the recommendation.")
-        post_update(self.gh, self.repo, n, "decision-needed", text, status.get("screenshots") or [])
+        self.post_decision(n, text, status.get("screenshots") or [], f"{GENERIC_PARK_ISSUE}\n\nPull request: {pr}")
         self.post_pull_question(pr, decision, options)
         self.gh.label_pull(pr, "Needs Decision")
         try:  # a coder's pull request is a draft (ship.sh): ready it so the owner can merge it to accept
@@ -2708,25 +2714,39 @@ class Runner:
         self.state.record(n, "parked", pr)
         return "parked"
 
-    def public_safe(self, text: str) -> bool:
+    def post_decision(self, n: int, text: str, media: List[Dict[str, str]], fallback: str) -> None:
+        """Post the runner's ``decision-needed`` comment on this issue, the one place both decision comments go through.
+
+        When the issue is not on the request repository (the nightly intake is on the public product repository; the
+        comparison ignores case) the exact body that will be posted, captions and file names included, passes
+        :meth:`public_safe`; on a hit, or a checker that cannot run, the comment is ``fallback`` with no media. Any repository
+        other than the request repository is treated as public."""
+        request = str(self.cfg.get("request_repo") or "")
+        if self.repo.lower() != request.lower() and not self.public_safe(render_update(n, "decision-needed", text, media),
+                                                                         "issue comment"):
+            text, media = fallback, []
+        post_update(self.gh, self.repo, n, "decision-needed", text, media)
+
+    def public_safe(self, text: str, target: str = "pull request question") -> bool:
         """May ``text`` go to the public product repository? Fails closed: ``False`` on any house-data hit (``tools/house_scan.py``
         with the owner's denylist), the private request repository's name or an issue link into it, a denylist that is not
-        loaded, or any checker error. Counts only are printed, never a matched term."""
+        loaded, or any checker error. ``target`` names what is being checked in the log. Counts only are printed, never a
+        matched term."""
         try:
             import house_scan
             deny = house_scan.load_denylist()
             if not deny:
-                print("pull request question: denylist not loaded; posting the generic comment")
+                print(f"{target}: denylist not loaded; posting the generic comment")
                 return False
             hits = house_scan.scan_text("pull-comment.md", text, house_scan.load_config(), deny)
             name = str(self.cfg.get("request_repo") or "").strip()
             leaked = bool(name) and any(part.lower() in text.lower() for part in {name, name.split("/")[-1]} if part)
             if hits or leaked:
-                print(f"pull request question: {len(hits) + int(leaked)} house-data hit(s); posting the generic comment")
+                print(f"{target}: {len(hits) + int(leaked)} house-data hit(s); posting the generic comment")
                 return False
             return True
         except Exception as exc:  # noqa: BLE001  a checker that cannot run must never let text through
-            print(f"pull request question: house-data check failed ({type(exc).__name__}); posting the generic comment")
+            print(f"{target}: house-data check failed ({type(exc).__name__}); posting the generic comment")
             return False
 
     def post_pull_question(self, pr: str, decision: Dict[str, Any], options: str) -> None:
