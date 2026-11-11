@@ -36,7 +36,7 @@ issue and nobody is watching: decide and keep going. You do not build or test (a
    Jev questions is autonomous after this gate (owner, 2026-11-02), and never in the same change as `evals/`, labels,
    splits or thresholds.
 5. **The fixed set is never autonomous** (credentials and the Jev key, signing certificates, profiles and keys, physical-device automation,
-   the review recorder, `ack-base <sha>` and `--owner-ack`; the merge path, guards, graders and kill switch are unlocked, 2026-11-07,
+   the review recorder and `ack-base <sha>`; the merge path, guards, graders and kill switch are unlocked, 2026-11-07,
    and land only after an independent review). File each as an issue for the owner with the labels `Workflow` and `On Hold` (the runner skips On Hold)
    (`gh issue list -R <request_repo> --label Workflow --state open` first, no duplicates), with the evidence paths and the proposed rule.
    Anything over the bound or failing twice is filed the same way with its spec. Never put a token, a password or Home

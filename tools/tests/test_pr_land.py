@@ -1,5 +1,6 @@
 """``tools/pr_land.py`` gating, ``tools/review/record.py``, the ``merge_guard`` hook and ship.sh's review rule."""
 
+import inspect
 import io
 import json
 import os
@@ -363,11 +364,9 @@ class LaneWorktreeReapTests(unittest.TestCase):
             self.assertFalse(lane.exists())
 
 
-open_real = open
-
 
 class UiGateInLandTests(unittest.TestCase):
-    """``pr_land.land`` runs the lander's app-UI gate (``lane_land.pr_gate``) before it merges; ``--owner-ack`` is owner-only."""
+    """``pr_land.land`` runs the lander's app-UI gate (``lane_land.pr_gate``) before it merges; there is no owner override."""
 
     HEAD = "a" * 40
 
@@ -376,7 +375,7 @@ class UiGateInLandTests(unittest.TestCase):
                 "baseRefName": "main", "isCrossRepository": False, "labels": [],
                 "files": [{"path": "apple/Sources/HassUI/Chip.swift"}], "body": "", "title": "t", "author": {"login": "SFenton"}, **extra}
 
-    def land(self, gate=None, ack=False, dry=True, env=None, tty=True, info=None):
+    def land(self, gate=None, dry=True, env=None, tty=True, info=None):
         calls = []
 
         def fake_run(args, check=True):
@@ -398,7 +397,7 @@ class UiGateInLandTests(unittest.TestCase):
         for key in ("FENTON_HEADLESS", "HASS_TRIAGE_ISSUE"):
             if key not in (env or {}):
                 os.environ.pop(key, None)
-        return pr_land.land("9", dry, owner_ack=ack), calls
+        return pr_land.land("9", dry), calls
 
     def test_the_gate_runs_with_the_pr_info_and_a_pass_lets_it_land(self):
         seen = []
@@ -421,39 +420,17 @@ class UiGateInLandTests(unittest.TestCase):
                 self.assertTrue(line.startswith("blocked #9: app-UI gate"), line)
                 self.assertFalse([c for c in calls if c[:3] == ["gh", "pr", "merge"]])
 
-    def test_owner_ack_skips_the_gate_only_with_the_head_sha_typed_at_the_terminal(self):
-        def never(n, info):
-            raise AssertionError("gate ran")
-        with mock.patch.object(pr_land, "confirm_head_on_tty", return_value=True) as confirm:
-            (code, line), _ = self.land(gate=never, ack=True, tty=True)
-        self.assertEqual(code, 0, line)
-        self.assertIn("skipped by --owner-ack", line)
-        confirm.assert_called_once_with("9", self.HEAD)
-        with mock.patch.object(pr_land, "confirm_head_on_tty", return_value=False):
-            (code, line), calls = self.land(gate=never, ack=True, tty=True, dry=False)
-        self.assertEqual(code, 1, line)
-        self.assertIn("typed at the terminal", line)
-        self.assertFalse([c for c in calls if c[:3] == ["gh", "pr", "merge"]])
-
-    def test_confirm_head_on_tty_reads_the_terminal_and_wants_the_full_sha(self):
-        with TemporaryDirectory() as tmp:
-            tty = Path(tmp) / "tty"
-            for typed, ok in ((self.HEAD + "\n", True), (self.HEAD.upper() + "\n", True), (self.HEAD[:12] + "\n", False),
-                              ("\n", False), ("yes\n", False), ("", False)):
-                tty.write_text(typed)  # a real /dev/tty shows the prompt and returns only what is typed
-                with mock.patch.object(pr_land, "open", create=True, side_effect=lambda path, mode="r": (io.StringIO() if mode == "a" else open_real(path))):
-                    self.assertEqual(pr_land.confirm_head_on_tty("9", self.HEAD, str(tty)), ok, typed)
-            self.assertFalse(pr_land.confirm_head_on_tty("9", self.HEAD, str(Path(tmp) / "missing")))
-            self.assertFalse(pr_land.confirm_head_on_tty("9", "", str(tty)))
-
-    def test_an_abbreviated_flag_is_not_owner_ack(self):
+    def test_the_owner_override_flag_is_gone_in_every_spelling_and_so_are_its_helpers(self):
         import lane_land
-        for abbreviation in ("--owner", "--owner-a", "--ow", "--own"):
-            with self.subTest(flag=abbreviation), mock.patch.object(pr_land, "land", return_value=(0, "ok")) as fake, \
+        for flag in ("--owner-ack", "--owner", "--owner_ack", "--owner-a", "--ow", "--own"):
+            with self.subTest(flag=flag), mock.patch.object(pr_land, "land", return_value=(0, "ok")) as fake, \
                     mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit) as cm:
-                pr_land.main(["9", abbreviation])
-            self.assertEqual(cm.exception.code, 2)
+                pr_land.main(["9", flag])
+            self.assertEqual(cm.exception.code, 2)  # argparse (allow_abbrev=False) refuses it
             fake.assert_not_called()
+        self.assertNotIn("owner_ack", inspect.signature(pr_land.land).parameters)
+        for name in ("owner_session", "confirm_head_on_tty", "triage_session_env", "_triage_session"):
+            self.assertFalse(hasattr(pr_land, name), name)
         for argv in (["agents/x", "--into", "b", "--dry"], ["gate", "--p", "7"], ["gate", "--pr", "7", "--ro", "/x"]):
             with self.subTest(argv=argv), mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
                 lane_land.main(argv)
@@ -559,20 +536,25 @@ class UiGateInLandTests(unittest.TestCase):
             with self.assertRaises(pr_land.GateRefused):
                 pr_land.trusted_gate_clone(root, str(bare), "no-such-branch")
 
-    def test_owner_ack_is_refused_for_headless_runner_and_non_terminal_sessions(self):
-        def never(n, info):
-            raise AssertionError("gate ran")
-        for env, tty in (({"FENTON_HEADLESS": "1"}, True), ({"HASS_TRIAGE_ISSUE": "4"}, True), ({}, False)):
-            with self.subTest(env=env, tty=tty):
-                (code, line), calls = self.land(gate=never, ack=True, dry=False, env=env, tty=tty)
-                self.assertEqual(code, 2, line)
-                self.assertIn("owner-only", line)
-                self.assertEqual(calls, [])
+    def test_a_refused_owner_kept_pr_says_the_owner_approves_and_merges_on_github(self):
+        def refuse(n, info):
+            raise pr_land.GateRefused("touches the owner-only set: tools/pr_land.py")
+        info = self.info(files=[{"path": "tools/pr_land.py"}])
+        with mock.patch.object(pr_land, "print_owner_recipe") as recipe:
+            (code, line), calls = self.land(gate=refuse, dry=False, info=info)
+        self.assertEqual(code, 1, line)
+        self.assertTrue(line.startswith("blocked #9: app-UI gate"), line)
+        recipe.assert_called_once()
+        self.assertFalse([c for c in calls if c[:3] == ["gh", "pr", "merge"]])
+        header = pr_land.owner_recipe("9", {**info, "files": [{"path": ".github/CODEOWNERS"}]})[0]
+        self.assertIn("approves this pull request on GitHub", header)
+        self.assertNotIn("terminal", header)
 
-    def test_the_cli_flag_reaches_land(self):
-        with mock.patch.object(pr_land, "land", return_value=(0, "ok")) as fake, mock.patch("builtins.print"):
-            self.assertEqual(pr_land.main(["9", "--owner-ack"]), 0)
-        self.assertTrue(fake.call_args.args[4])
+    def test_the_needs_decision_refusal_names_the_pull_request_page(self):
+        (code, line), _ = self.land(gate=lambda n, info: "passed", dry=False, info=self.info(labels=[{"name": "Needs Decision"}]))
+        self.assertEqual(code, 1, line)
+        self.assertIn("approves this pull request on GitHub", line)
+        self.assertNotIn("terminal", line)
 
 
 class RecordTests(unittest.TestCase):

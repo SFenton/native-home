@@ -75,7 +75,7 @@ Numbers from the T-section-sides digest and post-mortem (2026-11-04):
 | Hub guard blocks | more than 20 in one session | tokens, not minutes | the guard read `cwd` and file mtimes | P8 |
 | Guard false positives | `gh issue create` bodies blocked (`merge_guard`, `tier_guard`) | minutes each | the guards read the body text, not the command | P7, P9 |
 | Disk preflight failures | 2 (hass-mac) | CI stopped | nothing reaped merged worktrees | landed (A3) |
-| `--owner-ack` on #270 and #275 | 2 | owner time | an interactive request had no issue for the gate to read | P10 |
+| `--owner-ack` on #270 and #275 (superseded 2026-11-10: the flag is gone) | 2 | owner time | an interactive request had no issue for the gate to read | P10 |
 | A Verifier booted a simulator outside a hold | 1 | broke the shared-capacity invariant | `orchestrator_guard` blocks `simctl boot` for the orchestrator only | P7 |
 
 The two biggest lines, the red base and the long rounds, are both **missing early signals**: nothing tested the base, and nothing separated an inherited failure from a new one. Fix those first.
@@ -348,6 +348,8 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 1. Close #280 as done, or keep it open for what the hook does not cover: a request typed in a session the hook did not run in (a resumed session, another machine in the mesh), a request given as a voice note or in the Claude app, and a request whose quote was edited by the harness (line wrapping).
 2. Check the gate on the next interactive owner request: the PR carries the quote line, `pr_land.sh N --dry-run` shows the gate passing without `--owner-ack`.
 3. Decide whether the 14-day window and the 20-character floor are right.
+
+**Superseded 2026-11-10:** the flag is gone; the metric is now owner terminal actions for landing, target 0.
 
 **How to measure.** How often the owner has to use `--owner-ack`, target zero for requests typed in an attended session; the count of gate answers `unsure` on `design.matches_request` for PRs that carry a quote.
 

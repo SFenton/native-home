@@ -1,5 +1,7 @@
 # Spec: `ack-verified`, an agent-runnable acceptance of a PR-only move of main
 
+Note 2026-11-10: `--owner-ack` retired (see owner-gates); mentions of it below are the record as written.
+
 Date 2026-11-10. Entry B (owner request). Author: Steward. Implementer: Coder, from this file alone.
 Ships as ONE PR that the owner approves (CODEOWNERS) and merges. It is not a lane: the kill switch (`SELF_CHANGE_PAUSED`) is on and the change touches the owner's fixed set.
 
