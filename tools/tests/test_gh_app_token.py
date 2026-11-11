@@ -246,11 +246,14 @@ class AsRoleTests(Base):
         self.assertEqual(self.rest, [])
 
     def test_with_a_key_the_comment_is_posted_by_the_app(self):
+        p = mock.patch.object(gh_app_token, "default_repo", return_value="owner/private-app")  # the origin repository
+        p.start()
+        self.addCleanup(p.stop)
         code, out, err = self.post("verdict", "### Verdict\nok", "1", "--as", "verifier")
         self.assertEqual(out.strip(), "pr_note: posted")
         self.assertEqual(err, "")
         c = self.comments()[0]
-        self.assertEqual(c["user"]["login"], f"{SLUG}[bot]")
+        self.assertEqual(c["user"]["login"], f"{SLUG}[bot]")  # the apps file's repo is not used for paths
         self.assertNotIn("@SFenton", c["body"])
         self.assertNotIn(TOKEN, json.dumps(c) + self.log.read_text())
         posts = [r for r in self.rest if r[0] == "POST" and "comments" in r[1]]
@@ -270,9 +273,12 @@ class AsRoleTests(Base):
         self.post("owner", "### Owner\nlook", "1", "--as", "verifier")
         self.post("pick", "### Pick\nB", "1", "--as", "verifier")
         bodies = [c["body"] for c in self.comments()]
-        self.assertTrue(bodies[0].startswith("@SFenton\n\n### Handoff"))
-        self.assertTrue(bodies[1].startswith("@SFenton\n\n### Owner"))
-        self.assertTrue(bodies[2].startswith("### Pick"))
+        self.assertTrue(bodies[0].startswith("@SFenton\n\n#### Step 1 · Verifier"))
+        self.assertIn("\n\n### Handoff\nneeds you", bodies[0])
+        self.assertTrue(bodies[1].startswith("@SFenton\n\n#### Step"))
+        self.assertIn("\n\n### Owner\nlook", bodies[1])
+        self.assertTrue(bodies[2].startswith("#### Step"))
+        self.assertNotIn("@SFenton", bodies[2])
 
     def test_mention_is_not_doubled_and_not_added_for_the_owner_login(self):
         self.post("handoff", "@SFenton already here", "1", "--as", "verifier")
@@ -355,7 +361,7 @@ class AsRoleTests(Base):
             self.assertIn("failed", err)
         self.assertEqual(len(self.comments()), 2)
 
-    def test_failure_while_posting_as_the_app_queues_the_note(self):
+    def test_failure_while_posting_as_the_app_falls_back_to_the_gh_login(self):
         real = self.api
 
         def flaky(method, path, bearer, payload=None, timeout=None):
@@ -364,8 +370,10 @@ class AsRoleTests(Base):
             return real(method, path, bearer, payload, timeout)
         with mock.patch.object(gh_app_token, "api_request", flaky):
             _c, _o, err = self.post("verdict", "### V\nlost?", "1", "--as", "verifier")
-        self.assertIn("not posted", err)
-        self.assertEqual(len(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))), 1)
+        self.assertIn("verifier app failed (truncated); posted with the gh login", err)
+        self.assertEqual(len(self.comments()), 1)
+        self.assertNotIn("user", self.comments()[0])  # posted by gh, not the app
+        self.assertEqual(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")), [])
 
     def test_flush_posts_each_note_as_its_own_role(self):
         self.set_state(pr=0)
