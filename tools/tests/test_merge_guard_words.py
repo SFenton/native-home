@@ -30,7 +30,10 @@ class CommandWordsTests(unittest.TestCase):
         for cmd in (f"bash -c 'tools/pr_land.sh 1 {FLAG}'", f"eval 'pr_land {FLAG}'", f"python3 -c 'pr_land'",
                     f"echo \"$(pr_land {FLAG})\"", f"echo `pr_land`", "bash <<'EOF'\npr_land\nEOF", "bash <<EOF\npr_land\nEOF",
                     "echo pr_land | sh", "echo 'pr_land' | python3 -", "cat > f <<EOF\n$(pr_land)\nEOF",
-                    "python3 <<'EOF'\npr_land\nEOF", "cat <<'EOF' | bash\npr_land\nEOF"):
+                    "python3 <<'EOF'\npr_land\nEOF", "cat <<'EOF' | bash\npr_land\nEOF",
+                    "echo pr_land |& sh", "echo pr_land | (sh)", "echo pr_land | { sh; }", "echo pr_land |\npython3 -",
+                    "echo $'\\'' ; pr_land #'", "echo '<<EOF'\npr_land\nEOF",
+                    "cat > f <<'EOF'\npr_land\nEOF\nbash f", "cat > f <<'EOF'\npr_land\nEOF\n. f", "printf -v X 'pr_land'"):
             with self.subTest(cmd=cmd):
                 self.assertIn("pr_land", merge_guard.command_words(cmd))
 

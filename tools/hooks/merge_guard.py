@@ -188,7 +188,7 @@ HEREDOC_OPEN = re.compile(r"<<(?!<)(-?)\s*(['\"]?)(\w+)\2")
 def data_segment(segment: str) -> bool:
     """Is the simple command text ``segment`` a data program (``cat``, ``printf``, ``echo``, ``tee``, ``gh pr comment``, ``git commit``...)
     whose quoted arguments run nothing? A leading ``VAR=``, a wrapper, a quoted program word or any substitution says no."""
-    if RUNS_TEXT.search(segment):
+    if RUNS_TEXT.search(segment) or re.search(r"\bprintf\s+-v\b", segment):
         return False
     head = segment.split(None, 3)
     if not head or re.search(r"['\"\\$=]", head[0]):
@@ -242,6 +242,38 @@ def blank_quotes(segment: str) -> str:
     return re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", '""', segment)
 
 
+def heredoc_mark(line: str) -> Optional["re.Match[str]"]:
+    """The heredoc marker on ``line`` when its ``<<`` sits outside quotes (``echo '<<EOF'`` has none), else ``None``."""
+    quote = ""
+    for i, ch in enumerate(line):
+        if quote:
+            quote = "" if ch == quote else quote
+        elif ch in "'\"":
+            quote = ch
+        elif line.startswith("<<", i):
+            return HEREDOC_OPEN.match(line, i)
+    return None
+
+
+#: Programs that run text or files: a shell, an interpreter, ``source``/``.``/``eval``, or a wrapper that starts one.
+RUNNERS = {"sh", "bash", "zsh", "dash", "ksh", "source", ".", "eval", "exec", "xargs", "env", "sudo", "time", "nohup", "command", "builtin",
+           "nice", "timeout", "gtimeout", "perl", "ruby", "node", "php", "awk", "osascript"}
+RUNNER_WORD = re.compile(r"(?<![\w./-])(?:sh|bash|zsh|dash|ksh|source|eval|exec|xargs|env|python[\d.]*|perl|ruby|node|php|awk)(?![\w./-])")
+
+
+def runs_something(parts: List[str]) -> bool:
+    """Does a simple command among ``parts`` (see :func:`split_simple`) start a shell, an interpreter, ``source``/``.``/``eval`` or a wrapper?"""
+    for segment in parts[0::2]:
+        words = segment.split()
+        while words and re.match(r"^\w+=", words[0]):
+            words.pop(0)
+        if words:
+            program = os.path.basename(words[0])
+            if program in RUNNERS or re.match(r"^python[\d.]*$", program) or words[0].startswith("./"):
+                return True
+    return False
+
+
 def drop_data_heredocs(command: str) -> Optional[str]:
     """``command`` without the bodies of heredocs fed to data programs (``cat > f <<'EOF'``, ``gh pr comment --body-file - <<EOF``). A body
     the shell would expand (unquoted delimiter) with a substitution in it, a heredoc fed to anything else (a shell, ``python3``, ``xargs``),
@@ -252,7 +284,7 @@ def drop_data_heredocs(command: str) -> Optional[str]:
     while i < len(lines):
         line = lines[i]
         i += 1
-        mark = HEREDOC_OPEN.search(line)
+        mark = heredoc_mark(line)
         if not lexes(line):
             return None
         if mark:
@@ -280,8 +312,12 @@ def command_words(command: str) -> str:
         return command
     text = drop_data_heredocs(command)
     parts = split_simple(command if text is None else text)
-    if parts is None or any(op == "|" and nxt.strip() and not data_segment(nxt) for op, nxt in zip(parts[1::2], parts[2::2])):
-        return command  # unreadable, or text piped into something that may run it (an interpreter, `xargs`)
+    if parts is None or "$'" in command or '$"' in command:
+        return command  # unreadable, or ANSI-C quotes (their escapes move the quote edges)
+    if runs_something(parts):
+        return command  # a shell, interpreter, `source`, `.` or `eval` may run a file or text written in the same command
+    if "|" in command and RUNNER_WORD.search((text or command).split("|", 1)[1]):
+        return command  # anything after a pipe (`|&`, `| (sh)`, `| { sh; }`, a newline) that names a shell or interpreter
     return "".join(blank_quotes(p) if i % 2 == 0 and data_segment(p) else p for i, p in enumerate(parts))
 
 
