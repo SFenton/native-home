@@ -110,7 +110,7 @@ OWNER_ONLY = {"fixed_set", "app_wide", "unmatched", "gate_unavailable"}
 JUDGE_NOTE = ("\n\nOwner rule (2026-11-03): a design or policy pick is not the owner's. Your last run finished "
               "`needs_decision` on {pr} for one. Build up to 3 options, capture screenshots and behaviour on the affected "
               "families, have the `designer` judge them and record the pick (`design-decision` skill), then land the "
-              "pick through `tools/pr_land.sh` like L0/L1. Finish `needs_decision` only for the fixed set or a `gate: park` "
+              "pick through `tools/pr_land.sh` like L0/L1. Finish `needs_decision` only for the fixed set or a `gate: park route=pr` "
               "from `tools/jev_gate.py`, with `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or "
               "`gate_unavailable`.\n")
 #: Failed attempts to file one ha-changes alert before it is listed as unfiled and later entries go on.
@@ -668,7 +668,7 @@ def preread_section(cfg: Dict[str, Any], title: str, body: str) -> str:
 
     Empty when ``cfg["jev"]["enabled"]`` is false, when there is no key (the file ``~/.config/fenton-hass/typesafe.key``, or ``TYPESAFE_API_KEY`` when there is no file), when the API fails or has
     nothing confident to say, and on any error: the prompt is then exactly what it was without Jev
-    (``tools/jev_hints.py``, ``.agents/workflow/decision-models.md``).
+    (``tools/jev_hints.py``, ``.agents/workflow/jev.md``).
     """
     if not (cfg.get("jev") or {}).get("enabled", True):
         return ""
@@ -802,7 +802,7 @@ def route_rule(issue: Dict[str, Any], nightly: bool, about_workflow: Optional[fl
 
 
 def route_text(rule: str, jev: Optional[str]) -> str:
-    """The ``{{ROUTE}}`` line of the prompt: the rule route only. A shadow answer is never shown (decision-models.md);
+    """The ``{{ROUTE}}`` line of the prompt: the rule route only. A shadow answer is never shown (.agents/workflow/jev.md);
     ``jev`` is recorded in the ledger and the shadow log, not here."""
     if rule == "steward-jev":
         return "Route: steward-first (no Workflow label, but Jev reads the request as about how the agents work)"
