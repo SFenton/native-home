@@ -15,15 +15,27 @@ enum UKTodoListActions {
         TodoRowActions(item: item, canEdit: canEdit, canDelete: canDelete)
     }
 
+    /// What a person is about to do to a row, told to the page's ``UKListUpdater`` so the change is theirs (announced, focused) and plays.
+    enum Expectation {
+        /// The row is about to leave; `title` is announced as "<title> deleted" (deletes only).
+        case removal(title: String?)
+        /// The row is about to come back (Undo).
+        case insertion
+    }
+
     /// Checks `item` off (or puts it back); a tick that keeps the row listed in its done look is announced (HIG Undo and redo).
-    static func toggle(_ item: TodoItem, in list: ChoresConfig.TodoList, controller: TodoListController) {
+    /// - Parameter expect: told `removal` when the tick makes the row leave a list that hides completed tasks.
+    static func toggle(_ item: TodoItem, in list: ChoresConfig.TodoList, controller: TodoListController,
+                       expect: ((Expectation) -> Void)? = nil) {
         let completing = item.status != .completed
+        if completing, list.hideCompleted { expect?(.removal(title: nil)) }
         Task { await controller.toggle(item, completionScript: list.completionScript) }
         if completing, list.hideCompleted { Announcer.announce(TodoItemRow.completionAnnouncement(item.displayTitle)) }
     }
 
     /// Reopens a task checked off a moment ago (`todo.update_item`, also on the Admin To-Do).
-    static func undo(_ item: TodoItem, controller: TodoListController) {
+    static func undo(_ item: TodoItem, controller: TodoListController, expect: ((Expectation) -> Void)? = nil) {
+        expect?(.insertion)
         Task { await controller.undo(item) }
     }
 
@@ -52,8 +64,10 @@ enum UKTodoListActions {
 
     /// Asks before deleting a task (``AlertCopy``): one dialog on the page, since a swipe or menu Delete is gone once the swipe
     /// closes.
-    static func confirmDelete(_ item: TodoItem, controller: TodoListController, from presenter: UIViewController, source: UKPopoverSource = .none) {
+    static func confirmDelete(_ item: TodoItem, controller: TodoListController, from presenter: UIViewController, source: UKPopoverSource = .none,
+                              expect: ((Expectation) -> Void)? = nil) {
         UKAlerts.confirmationDialog(TodoListSection.deleteSpec(for: item), from: presenter, source: source, confirmIdentifier: "todo.delete.confirm") {
+            expect?(.removal(title: item.displayTitle))
             Task { await controller.remove(item) }
         }
     }

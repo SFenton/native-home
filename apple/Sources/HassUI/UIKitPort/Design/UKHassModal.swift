@@ -506,6 +506,23 @@ final class UKHassModalController: UINavigationController, UISheetPresentationCo
     /// sheet; `.medium` until the first measurement.
     private func updateDetents(animated: Bool) {
         guard !options.isFullScreen, let sheet = sheetPresentationController else { return }
+        // An alert or dialog going away over the sheet (a quantity prompt's Delete starts its work as the alert dismisses): UIKit applies
+        // a detent change made during that transition without animation, so the sheet jumped from full height to its content height in
+        // one frame. The change waits for the transition and then animates.
+        if let presented = presentedViewController, presented.isBeingDismissed || presented.isBeingPresented, !detentRetryQueued {
+            detentRetryQueued = true
+            let retry: () -> Void = { [weak self] in
+                guard let self else { return }
+                self.detentRetryQueued = false
+                self.updateDetents(animated: self.view.window != nil)
+            }
+            if let coordinator = presented.transitionCoordinator {
+                coordinator.animate(alongsideTransition: nil) { _ in retry() }
+            } else {
+                Task { @MainActor in retry() }
+            }
+            return
+        }
         // `invalidateDetents` lays the sheet out at once, and that layout reports the new sheet height to the fit model, which asks for
         // detents again: re-entered, a sheet whose height and fit disagreed recursed until the stack ran out (iPad landscape fan sheet,
         // 2026-11-02, a stack overflow in `UIObservationTrackingFeedbackLoopDetected`). A nested request is left to the next layout pass.

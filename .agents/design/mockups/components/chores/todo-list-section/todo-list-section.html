@@ -40,8 +40,8 @@
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the title wraps (and breaks a long word), the check column scales, the Edit target stays 44 pt; Undo drops under the title', render: function (ctx) { return both(ctx, 'AX5', function () { return C.section({ title: 'Past Due', items: ITEMS.slice(0, 2), edit: true }); }); } },
     },
     motion: [
-      { id: 'row-leaves', what: 'A task is completed or deleted: its row leaves and the module closes up; if the call fails it returns', token: 'standard 0.3 s smooth (the page\'s one implicit list animation); 0.2 s fade under Reduce Motion', state: 'section',
-        source: 'TodoPageView motionSafeAnimation(MotionTokens.standard, reduced: .quick); TodoPageLayout.animationKey; motion.md section 6', reduce: 'the row fades at 0.2 s and nothing slides',
+      { id: 'row-leaves', what: 'A task is completed or deleted: its row leaves and the module closes up; if the call fails it returns', token: 'the system list animation through UKListUpdater (the page\'s one list animation), the first or last row\'s card corners re-round in the same update; a fade under Reduce Motion; VoiceOver hears "<task> deleted" and focus moves to the next row', state: 'section',
+        source: 'UKListUpdater (list-row-removal); UKTodoPageViewController', reduce: 'the row fades at 0.2 s and nothing slides',
         play: function (stage) { var r = stage.querySelector('.cz-row[data-item="Replace Humidifier Filter"]'); return r ? C.leave(r).then(function () { return Mock.sleep(500); }).then(function () { return C.enter(r); }).then(function () { return Mock.sleep(300); }) : Promise.resolve(); } },
       { id: 'check-colour', what: 'The check circle and title change colour with the task\'s state', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only (stateForeground)', state: 'row-open',
         source: 'TodoItemRow .stateForeground("TodoItemRow"); motion.md section 6', reduce: 'still cross-fades at 0.2 s',

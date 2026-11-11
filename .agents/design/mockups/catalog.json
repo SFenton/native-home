@@ -3750,9 +3750,12 @@
       ],
       "appearance": "system-sheet",
       "statesHint": [
-        "default"
+        "default",
+        "held swipe under the dialog"
       ],
-      "motionHint": [],
+      "motionHint": [
+        "the held row leaves with the system list animation; neighbours' card corners redraw in the same update"
+      ],
       "inFlight": null,
       "owner": "inventory",
       "mockup": "modals/inventory/inventory-delete-dialog/inventory-delete-dialog.html",
@@ -5055,7 +5058,7 @@
         "context menu: complete/reopen, edit, delete (destructive)"
       ],
       "motionHint": [
-        "rows insert and remove with `standard`"
+        "rows leave with the system list animation; card corners re-round in the same update"
       ],
       "inFlight": null,
       "owner": "chores",
@@ -5987,7 +5990,9 @@
         "redacted",
         "ax5"
       ],
-      "motionHint": [],
+      "motionHint": [
+        "row leaves with the system list animation; card corners re-round in the same update"
+      ],
       "inFlight": null,
       "owner": "inventory",
       "mockup": "components/inventory/inventory-row/inventory-row.html",
@@ -7118,7 +7123,8 @@
         "ax5"
       ],
       "motionHint": [
-        "pressed row highlight"
+        "pressed row highlight",
+        "card corners re-round when a first or last row leaves"
       ],
       "inFlight": null,
       "owner": "inventory",

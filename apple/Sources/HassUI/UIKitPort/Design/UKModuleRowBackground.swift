@@ -33,21 +33,45 @@ final class UKModuleRowBackgroundView: UIView {
 
     @objc private func transparencyChanged() { applyFill() }
 
-    func configure(density: ModuleDensity, surface: TileSurface, isFirst: Bool, isLast: Bool, selected: Bool) {
+    /// - Parameter animated: the card's corners change as part of an animated list update (a first or last row left): the radius animates
+    ///   (``setCorners(_:radius:animated:)``). Off screen, or under Reduce Motion, they change at once.
+    func configure(density: ModuleDensity, surface: TileSurface, isFirst: Bool, isLast: Bool, selected: Bool, animated: Bool = false) {
         self.density = density
         self.surface = surface
         var corners: CACornerMask = []
         if isFirst { corners.formUnion([.layerMinXMinYCorner, .layerMaxXMinYCorner]) }
         if isLast { corners.formUnion([.layerMinXMaxYCorner, .layerMaxXMaxYCorner]) }
-        let radius: CGFloat = corners.isEmpty ? 0 : HassTokens.Radius.module
-        layer.maskedCorners = corners
-        layer.cornerRadius = radius
-        wash.layer.maskedCorners = corners
-        wash.layer.cornerRadius = radius
+        setCorners(corners, radius: corners.isEmpty ? 0 : HassTokens.Radius.module, animated: animated && window != nil && !UKMotion.reduceMotion)
         applyFill()
         let target: CGFloat = selected ? 0.18 : 0
         if wash.alpha != target {
             if window == nil { wash.alpha = target } else { UKMotion.state { self.wash.alpha = target } }
+        }
+    }
+
+    /// Sets the corners. `maskedCorners` is discrete, so a change cannot interpolate; the radius can. Gaining corners from square sets the
+    /// mask and grows the radius from 0, and losing them shrinks the radius and drops the mask when it lands. A change that keeps some
+    /// rounded corners and moves others (a first row that becomes the only row) cross-dissolves, because one radius cannot be both.
+    private func setCorners(_ corners: CACornerMask, radius: CGFloat, animated: Bool) {
+        let oldCorners = layer.maskedCorners
+        let oldRadius = layer.cornerRadius
+        guard corners != oldCorners || radius != oldRadius else { return }
+        func apply(_ mask: CACornerMask, _ value: CGFloat) {
+            layer.maskedCorners = mask
+            layer.cornerRadius = value
+            wash.layer.maskedCorners = mask
+            wash.layer.cornerRadius = value
+        }
+        guard animated else { apply(corners, radius); return }
+        if oldRadius == 0 || oldCorners.isEmpty {
+            apply(corners, 0)
+            UKMotion.animate(.standard) { apply(corners, radius) }
+        } else if radius == 0 || corners.isEmpty {
+            UKMotion.animate(.standard, animations: { apply(oldCorners, 0) }, completion: { _ in apply(corners, radius) })
+        } else {
+            UIView.transition(with: self, duration: MotionTokens.quickDuration, options: [.transitionCrossDissolve, .allowUserInteraction]) {
+                apply(corners, radius)
+            }
         }
     }
 

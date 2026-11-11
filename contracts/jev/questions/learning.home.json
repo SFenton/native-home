@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 10,
+  "version": 12,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -8,6 +8,7 @@
   "criteria": {
     "AGENTS.md": "Fenton HASS Native: agent entry point",
     ".agents/README.md": "Agent knowledge router: the entry map for `.agents`. (read when: always, right after [AGENTS.md](../AGENTS.md); jump straight to the one file your task needs.)",
+    ".agents/decisions/2026-11-09-list-row-removal.md": "List row removal",
     ".agents/design/README.md": "Design: per-platform design decisions. (read when: making any visual or navigation choice.)",
     ".agents/design/action-navigation-tiles.md": "Action and navigation tiles: the decided convention for tiles that do something, tiles that open something, and tiles that only show state, plus the motion of their action buttons. (read when: adding, changing or reviewing any tile with an action, a chevron, or no action at all; building the action...",
     ".agents/design/apple/README.md": "Apple design: HIG-backed decisions per Apple form factor. (read when: changing layout, navigation or presentation on an Apple device.)",
@@ -83,6 +84,7 @@
     ".agents/patterns/image-cache.md": "Image cache: how remote images load, cache and update. (read when: drawing any remote image (camera snapshots, recipe photos, media artwork, app icons).)",
     ".agents/patterns/image-card.md": "Image card: a tappable card with a remote image, title and subtitle. (read when: showing recipes, products or other image-led items in a grid or carousel.)",
     ".agents/patterns/info-box.md": "Info box: a tinted notice with a title and optional message. (read when: a page shows a confirmed state or an informational banner.)",
+    ".agents/patterns/list-row-removal.md": "List row removal: the one way a diffable list applies a snapshot, so a row or form section that leaves slides away the way iOS does, and never on a reopen. (read when: a list adds, removes or re-sorts rows, or you are about to write `dataSource.apply(_:animatingDifferences:)`.)",
     ".agents/patterns/media-remote.md": "Media remote: the media remote sheet (the 3×3 remote grid with power, and the Remote/Apps/Devices/Hue Sync sections) shared by every TV in the house. (read when: opening a remote from any screen, adding a remote, or changing remote controls.)",
     ".agents/patterns/modal-inventory.md": "Modal inventory: every modal in the app (UIKit `FentonHome`; the SwiftUI column records the screens the UIKit ones replaced, deleted 2026-11-01), how it is presented, what it holds, how it behaves in each pose, and the bugs found. (read when: adding, changing or auditing a modal, or a pose-dependent...",
     ".agents/patterns/modal-sheet.md": "Modal sheet: how web hash modals become native sheets. (read when: presenting a modal.)",

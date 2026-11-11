@@ -34,6 +34,7 @@ Status: built 2026-10-18 on `claude/motion-system` (see PROGRESS.md). The sign-i
   Use `MotionTokens` with `motionSafeAnimation` or `withAnimation(MotionTokens.x)`.
 - **No entrance animations in `onAppear`** for content that came from `EntityStore` or a cache.
 - **A pressed control answers where it was pressed** ([design/motion.md §5](../design/motion.md)): `PrimaryButton(isBusy:busyTitle:)` swaps its label for an inline `ArcSpinner` and a present-tense title ("Starting", "Applying", "Scheduling"), keeps its colour and width and ignores presses (VoiceOver: title, value "Busy"); a toolbar check uses `SheetConfirmItem(isBusy:)`; a Sign Out row uses `SignOutRow`; a retry uses `StateMessage(actionBusyTitle:)`. Do not just `.disabled` a control while its call is out.
+- Rows and form sections that leave: [list-row-removal](list-row-removal.md).
 - **Tab switches and sheet-tab switches are cuts.**
 - **Background colour changes always animate,** through `.stateColorTransition(value:)`. A new component, or a new state on one, gets a row in [design/motion-components.md](../design/motion-components.md), a unit test and a gallery entry in the same PR.
 - **Zoom only for tiles that are what they open** ([design/motion.md §4.3](../design/motion.md)).
@@ -79,4 +80,4 @@ It owns Login, the intro and the arrival choreography and wrote its own first ve
 
 Any further exception (a page that should re-animate on revisit, a custom transition) needs the owner's approval and a line here, and in the design doc §3.
 
-- **Owned files** (also in `contracts/patterns.json`): `AnimationsPaused.swift`, `ArcProgressViewStyle.swift`, `PrimaryButton.swift`, `PrimaryButtonStyle.swift`, `ReduceMotionOverride.swift`, `SmoothContentSwap.swift`.
+- **Owned files** (also in `contracts/patterns.json`): `AnimationsPaused.swift`, `ArcProgressViewStyle.swift`, `PrimaryButton.swift`, `PrimaryButtonStyle.swift`, `ReduceMotionOverride.swift`, `SmoothContentSwap.swift`, `ListUpdateCause.swift`, `ListUpdateLedger.swift`, `ListUpdateTransition.swift` (the rules of [list-row-removal](list-row-removal.md): when a diffable list animates a row that leaves).

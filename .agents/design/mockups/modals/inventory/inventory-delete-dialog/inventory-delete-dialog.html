@@ -28,17 +28,21 @@
       'spice-rack': { title: 'Spice Rack page: "from the spice rack"', render: function (c) { return over(c, 'Delete Smoked Paprika from the spice rack?', { space: 'spice-rack' }); } },
       'long-text': { title: 'Long item name', note: 'the title wraps; the sheet grows', render: function (c) { return over(c, 'Delete Organic Extra Virgin Cold-Pressed Olive Oil With Basil and Roasted Garlic from the library?'); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the title and both buttons scale and wrap; the system sheet scrolls if taller than the window', render: function (c) { return over(c, 'Delete Whole Milk from the library?'); } },
-      'closed': { title: 'Before the dialog (trailing swipe open)', note: 'the Delete swipe action is what asks', render: function (c) { return V.page(c, { space: 'all-food', noFab: true, swipe: { 'whole milk': 'trail' } }); } },
+      'held': { title: 'The swiped row stays open under the dialog', note: 'Hold: the row stays swiped open while "Delete <item>?" is up; the dialog sits on the page (it has no row anchor yet)', render: function (c) { return over(c, 'Delete Whole Milk from the library?', { swipe: { 'whole milk': 'trail' } }); } },
+      'swiped': { title: 'Before the dialog (trailing swipe open)', note: 'the Delete swipe action is what asks', render: function (c) { return V.page(c, { space: 'all-food', noFab: true, swipe: { 'whole milk': 'trail' } }); } },
     },
     motion: [
-      { id: 'dialog-in', what: 'The action sheet rises from the bottom (popover on regular width)', token: 'system presentation, not decorated', state: 'closed',
+      { id: 'dialog-in', what: 'The action sheet rises from the bottom (popover on regular width)', token: 'system presentation, not decorated', state: 'swiped',
         source: 'SwiftUI .confirmationDialog; motion.md sections 2 and 4.4', reduce: 'the system cross-fades',
         play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'); var o = V.askSheet(c, 'Delete Whole Milk from the library?'); page.appendChild(o); var sh = o.querySelector('.sheet') || o.querySelector('.inv-pop'); var rm = Mock.settings.reduceMotion;
           if (sh && sh.animate) sh.animate(rm || !o.querySelector('.sheet') ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'translateY(110%)' }, { transform: 'none' }], { duration: rm ? 200 : 350, easing: 'cubic-bezier(.32,.72,0,1)' });
           return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1300); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
+      { id: 'row-leaves', what: 'Delete confirmed: the held row collapses as the card leaves, the rows below close the gap and the first or last row\'s card corners re-round in the same update', token: 'the system list animation (diffable apply), not decorated; a fade under Reduce Motion', state: 'held',
+        source: 'UKListUpdater (list-row-removal); UKInventoryRowActionsHost.swipeDelete', reduce: 'the leaving card fades and the list then changes at once',
+        play: function (stage) { var r = stage.querySelector('.inv-row'); if (!r || !r.animate) return Promise.resolve(); var rm = Mock.settings.reduceMotion; var a = r.animate(rm ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(-28px)' }], { duration: rm ? 200 : 300, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'forwards' }); return a.finished.then(function () { return Mock.sleep(500); }).then(function () { a.cancel(); }); } },
     ],
     transitions: [
-      { from: 'Delete swipe action', to: 'Confirmation dialog', kind: 'fade', state: 'closed', note: 'Tapping Delete on a swiped row presents the dialog; Cancel dismisses and the row snaps back. Delete calls evershelf.delete_inventory and removes the card locally on success.',
+      { from: 'Delete swipe action', to: 'Confirmation dialog', kind: 'fade', state: 'held', note: 'Tapping Delete on a swiped row presents the dialog and the row stays open under it. Cancel dismisses and the row slides back. Delete collapses the swipe as the card leaves with the system list animation, and the neighbours\' card corners are redrawn in the same update; the call is evershelf.delete_inventory, and a refusal brings the card back.',
         play: function (stage) { var c = Mock.current, page = stage.querySelector('.ui-page'); var o = V.askSheet(c, 'Delete Whole Milk from the library?'); page.appendChild(o); return Mock.anim.fade(o, { ms: 200 }).then(function () { return Mock.sleep(1300); }).then(function () { return Mock.anim.fade(o, { from: 1, to: 0, ms: 200 }); }).then(function () { o.remove(); }); } },
     ],
     a11y: [

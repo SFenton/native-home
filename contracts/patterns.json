@@ -901,6 +901,63 @@
       "supersededBy": null
     },
     {
+      "id": "list-row-removal",
+      "title": "List row removal",
+      "status": "current",
+      "doc": ".agents/patterns/list-row-removal.md",
+      "summary": "the one way a diffable list applies a snapshot: the system animation for a row or section that leaves, never on a reapply.",
+      "keywords": [
+        "delete row",
+        "remove row",
+        "row removal",
+        "diffable",
+        "apply snapshot",
+        "animatingDifferences",
+        "swipe delete",
+        "list update",
+        "section removal"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKListUpdater.swift",
+            "symbol": "UKListUpdater"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/Design/UKListUpdater.swift"
+      ],
+      "guards": [
+        {
+          "id": "direct-snapshot-apply",
+          "glob": "apple/Sources/HassUI/UIKitPort/**/*.swift",
+          "regex": "\\.apply\\([^)]*animatingDifferences",
+          "allow": [
+            "apple/Sources/HassUI/UIKitPort/Design/UKListUpdater.swift"
+          ],
+          "debt": {
+            "apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift": 2,
+            "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift": 1,
+            "apple/Sources/HassUI/UIKitPort/Gallery/UKMediaRemoteGalleryPage.swift": 1,
+            "apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon.swift": 3
+          },
+          "message": "A diffable list applies its snapshot through UKListUpdater, never dataSource.apply(_:animatingDifferences:) (list-row-removal)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "motion",
+          "module-list",
+          "swipe-row",
+          "rows"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
       "id": "optimistic-actions",
       "title": "Optimistic actions",
       "status": "current",

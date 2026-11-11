@@ -81,6 +81,16 @@ class InventoryJourneyTestCase: JourneyTestCase {
         app.descendants(matching: .any)["inventory.row.\(name)"]
     }
 
+    /// Cancels the delete confirmation: its Cancel on an action sheet, a tap outside it on the popover that iPad shows (which has none).
+    func cancelConfirmation(_ app: XCUIApplication) {
+        let cancel = app.sheets.buttons["Cancel"].firstMatch
+        if cancel.appears(timeout: 2) {
+            cancel.tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).tap()
+        }
+    }
+
     func lastCall(_ app: XCUIApplication) -> String {
         app.staticTexts["gallery.lastCall"].label
     }

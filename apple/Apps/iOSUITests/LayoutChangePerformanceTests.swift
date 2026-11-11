@@ -142,6 +142,48 @@ final class LayoutChangePerformanceTests: JourneyTestCase {
         flipRemoteActionSet(reduceMotion: true)
     }
 
+    // MARK: List row removal
+
+    /// Swipe-deletes three Pantry rows (`UKListUpdater`): each confirmed delete is one `LayoutChange` interval with page
+    /// `ListRowRemoval.Inventory` (the system list animation; under Reduce Motion a fade). The rows are gone for good, so one iteration.
+    private func removeInventoryRows(reduceMotion: Bool) {
+        let app = FentonHomeApp.makeApp()
+        app.launchEnvironment["FENTON_GALLERY"] = "inventory"
+        app.launchEnvironment["FENTON_GALLERY_SPACE"] = "pantry"
+        app.launchEnvironment["FENTON_SCAN_CAMERA"] = "simulated"
+        if reduceMotion { app.launchEnvironment.merge(FentonHomeApp.SystemSetting.environment([.reduceMotion])) { _, new in new } }
+        app.launch()
+        func row(_ name: String) -> XCUIElement { app.descendants(matching: .any)["inventory.row.\(name)"] }
+        XCTAssertTrue(row("Honey").appears(timeout: 30), "The Inventory gallery did not open")
+        Thread.sleep(forTimeInterval: 1)
+        let options = XCTMeasureOptions()
+        options.iterationCount = 1
+        measure(metrics: metrics(app), options: options) {
+            // The rows are gone for good, so a block that runs again finds fewer of them.
+            for name in ["Honey", "Jasmine Rice", "Spaghetti"] where row(name).exists {
+                row(name).swipeLeft()
+                let delete = app.buttons["Delete"].firstMatch
+                if delete.appears(timeout: 5) { delete.tap() }
+                let confirm = app.buttons["inventory.delete.confirm"].firstMatch
+                if confirm.appears(timeout: 5) { confirm.tap() }
+                _ = row(name).disappears(timeout: 5)
+                Thread.sleep(forTimeInterval: reduceMotion ? 0.6 : 1.0)
+            }
+        }
+    }
+
+    /// A confirmed delete removing its row with the system list animation.
+    func testListRowRemovalCost() throws {
+        try requireOptIn()
+        removeInventoryRows(reduceMotion: false)
+    }
+
+    /// The same with Reduce Motion on: the row fades out and the list closes up at once.
+    func testListRowRemovalCostReduceMotion() throws {
+        try requireOptIn()
+        removeInventoryRows(reduceMotion: true)
+    }
+
     /// The inserts and removals with the `standard` animation.
     func testManualControlInsertCost() throws {
         try requireOptIn()

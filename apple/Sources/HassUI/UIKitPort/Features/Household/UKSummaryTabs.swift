@@ -12,6 +12,7 @@ import UIKit
 class UKSummaryListViewController: UKPaneViewController, UKSheetFitting, UICollectionViewDelegate {
     private(set) var collectionView: UICollectionView!
     private(set) var dataSource: UICollectionViewDiffableDataSource<Int, String>!
+    private(set) var updater: UKListUpdater<Int, String>!
     private(set) lazy var stateOverlay = UKStateMessageOverlay(host: view)
     var sheetFitScrollView: UIScrollView? { collectionView }
 
@@ -36,7 +37,12 @@ class UKSummaryListViewController: UKPaneViewController, UKSheetFitting, UIColle
         dataSource = UICollectionViewDiffableDataSource(collectionView: collectionView) { [weak self] collectionView, path, id in
             self?.cell(collectionView, path, id)
         }
+        updater = UKListUpdater(surface: "Summary", collectionView: collectionView, dataSource: dataSource) { [weak self] in self?.reapplyGeneration() }
     }
+
+    /// `EntityStore.reapplyGeneration` for lists fed by the store; read inside `render()`'s observation so a reconnect applies while its
+    /// window is open. nil: the list is not fed by it.
+    func reapplyGeneration() -> Int? { nil }
 
 
     /// The cell for `id`.
@@ -45,13 +51,13 @@ class UKSummaryListViewController: UKPaneViewController, UKSheetFitting, UIColle
     /// The swipe buttons for the row at `path` on an edge; nil for none.
     func swipe(at path: IndexPath, leading: Bool) -> UISwipeActionsConfiguration? { nil }
 
-    /// Applies `ids`, reconfiguring those in `changed`.
-    func apply(ids: [String], changed: [String]) {
+    /// Applies `ids`, reconfiguring those in `changed`, through ``UKListUpdater`` (`cause`: `.reset` replaces, `.live` animates what is on screen).
+    func apply(ids: [String], changed: [String], cause: ListUpdateCause = .live) {
         var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
         snapshot.appendSections([0])
         snapshot.appendItems(ids)
         snapshot.reconfigureItems(changed.filter { ids.contains($0) && dataSource.snapshot().itemIdentifiers.contains($0) })
-        dataSource.apply(snapshot, animatingDifferences: view.window != nil)
+        updater.apply(snapshot, cause: cause)
     }
 }
 
@@ -138,9 +144,9 @@ final class UKSummaryChoresViewController: UKSummaryListViewController {
         let item = spec.item
         let controller = self.chores.todos.controller(for: list.entityId)
         let actions = UKTodoItemRow.Actions(
-            onToggle: { UKTodoListActions.toggle(item, in: list, controller: controller) },
+            onToggle: { [weak self] in UKTodoListActions.toggle(item, in: list, controller: controller) { self?.expect($0, item: item, in: list) } },
             onEdit: spec.canEdit ? { [weak self] in self?.edit(list, item) } : nil,
-            onUndo: spec.offersUndo ? { UKTodoListActions.undo(item, controller: controller) } : nil,
+            onUndo: spec.offersUndo ? { [weak self] in UKTodoListActions.undo(item, controller: controller) { self?.expect($0, item: item, in: list) } } : nil,
             onDelete: { [weak self, weak cell] in self?.confirmDelete(item, controller: controller, cell: cell) },
             menu: { [weak self, weak cell] in
                 guard let self else { return nil }
@@ -254,13 +260,28 @@ final class UKSummaryChoresViewController: UKSummaryListViewController {
     }
 
     private func confirmDelete(_ item: TodoItem, controller: TodoListController, cell: UIView?) {
-        UKTodoListActions.confirmDelete(item, controller: controller, from: self, source: cell.map(UKPopoverSource.view) ?? UKPopoverSource.none)
+        guard let list = tabLists.first(where: { $0.entityId == controller.entityId }) else { return }
+        UKTodoListActions.confirmDelete(item, controller: controller, from: self, source: cell.map(UKPopoverSource.view) ?? UKPopoverSource.none) { [weak self] in
+            self?.expect($0, item: item, in: list)
+        }
     }
+
+    /// A person is about to remove or bring back `item`: the change is theirs, so it is announced and focused.
+    private func expect(_ expectation: UKTodoListActions.Expectation, item: TodoItem, in list: ChoresConfig.TodoList) {
+        let id = "item:\(list.entityId):\(item.id)"
+        switch expectation {
+        case let .removal(title): updater.expectRemoval(of: [id], title: title)
+        case .insertion: updater.expectInsertion(of: [id])
+        }
+    }
+
+    override func reapplyGeneration() -> Int? { store.reapplyGeneration }
 
     private func perform(_ action: TodoRowActions.Action, _ spec: ItemSpec, cell: UIView?) {
         let controller = chores.todos.controller(for: spec.list.entityId)
         switch action {
-        case .complete, .reopen: UKTodoListActions.toggle(spec.item, in: spec.list, controller: controller)
+        case .complete, .reopen:
+            UKTodoListActions.toggle(spec.item, in: spec.list, controller: controller) { [weak self] in self?.expect($0, item: spec.item, in: spec.list) }
         case .edit: edit(spec.list, spec.item)
         case .delete: confirmDelete(spec.item, controller: controller, cell: cell)
         }
@@ -296,6 +317,8 @@ final class UKSummaryExpiredFoodViewController: UKSummaryListViewController {
     private var rows: [String: InventoryDisplayItem] = [:]
     private var positions: [String: (isFirst: Bool, isLast: Bool)] = [:]
     private weak var currentModel: InventoryListModel?
+    /// Cards whose removal ticket is registered (``InventoryListModel/pendingRemoval``).
+    private var ticketed: Set<String> = []
 
     init(context: UKContext, models: InventoryModels?) {
         self.context = context
@@ -354,8 +377,12 @@ final class UKSummaryExpiredFoodViewController: UKSummaryListViewController {
         let position = self.positions[id] ?? (true, true)
         cell.configure(item: row, model: model, isFirst: position.isFirst, isLast: position.isLast, selected: false, surface: .sheet,
                        actions: UKInventoryRowActions(onEdit: { [weak self] in self?.presentation.open(row, in: model) },
-                                                      onShop: { [weak self] in self?.presentation.ask(.shopping(row)) }))
+                                                      onShop: { [weak self] in self?.presentation.ask(.shopping(row)) },
+                                                      onDelete: { [weak self] in self?.presentation.requestDelete(row, in: model) }),
+                       animatedCorners: self.updater?.isAnimating ?? false)
     }
+
+    override func reapplyGeneration() -> Int? { store.reapplyGeneration }
 
     override func cell(_ collectionView: UICollectionView, _ path: IndexPath, _ id: String) -> UICollectionViewCell? {
         switch id {
@@ -370,13 +397,13 @@ final class UKSummaryExpiredFoodViewController: UKSummaryListViewController {
         let sensor = store.entity(ProfileSummary.expiredFoodEntityId).state
         let count = ProfileSummary.expiredFoodCount(sensor)
         if let empty = ProfileSummary.expiredFoodEmpty(count: count, vacationMode: vacation) {
-            apply(ids: [], changed: [])
+            apply(ids: [], changed: [], cause: .reset)
             stateOverlay.show(UKStateMessageView(symbol: vacation ? "airplane" : "checkmark.circle", title: empty.title, message: empty.description,
                                                  identifier: "summary.empty.expired-food"))
             return
         }
         guard let model = models?.model(for: .allFood) else {
-            apply(ids: [], changed: [])
+            apply(ids: [], changed: [], cause: .reset)
             stateOverlay.show(nil)
             return
         }
@@ -389,6 +416,11 @@ final class UKSummaryExpiredFoodViewController: UKSummaryListViewController {
         }
         // Expired cards, soonest expiry first (the web locks the shared controls to this filter and sort).
         let items = InventoryCatalog.visible(model.displayItems, sort: .expiry, direction: .ascending, filter: .expired, calendar: model.calendar)
+            .filter { model.pendingRemoval[$0.id] == nil }
+        for (id, name) in model.takeRemovals() {
+            ticketed.insert(id)
+            updater.expectRemoval(of: [id], title: name)
+        }
         let showsEmpty = model.phase != .loading && model.loadError == nil && items.isEmpty
         var ids = ["header"]
         var places: [String: (isFirst: Bool, isLast: Bool)] = [:]
@@ -410,6 +442,11 @@ final class UKSummaryExpiredFoodViewController: UKSummaryListViewController {
         rows = newRows
         positions = places
         apply(ids: ids, changed: changed ? ids : [])
+        for id in ticketed where model.pendingRemoval[id] == nil {
+            // A delete that failed brought its card back: drop the ticket so a later removal is not announced for it.
+            ticketed.remove(id)
+            updater.cancelExpectation(of: [id])
+        }
         let empty = ProfileSummary.noExpiredFood
         stateOverlay.show(showsEmpty ? UKStateMessageView(symbol: "checkmark.circle", title: empty.title, message: empty.description,
                                                           identifier: "summary.empty.expired-food") : nil)
@@ -425,8 +462,8 @@ final class UKSummaryExpiredFoodViewController: UKSummaryListViewController {
         }
         guard model.deletableRows(of: item) != nil, model.batches(for: item).count <= 1 else { return nil }
         return UKSwipeAction.configuration([UKSwipeAction("Delete", systemImage: "trash", role: .destructive) { [weak self] done in
-            self?.presentation.requestDelete(item, in: model)
-            done(true)
+            guard let self else { done(false); return }
+            UKInventoryRowActionsHost.swipeDelete(item, in: model, presentation: self.presentation, done: done)
         }])
     }
 

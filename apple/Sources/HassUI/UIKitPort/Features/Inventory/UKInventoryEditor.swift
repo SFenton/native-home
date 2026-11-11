@@ -21,6 +21,8 @@ final class UKInventoryEditorViewController: UKFormViewController {
     private var bundles: [String: BatchRows] = [:]
     private var isSavingAll = false
     private var closed = false
+    /// Batches whose delete is in flight: their section leaves with the system animation when the call succeeds.
+    private var removing: Set<String> = []
     private lazy var confirm = UKSheetConfirmItem("Save", isEnabled: false, busyTitle: "Saving", identifier: "inventory.editor.save") { [weak self] in self?.saveAll() }
     private let saveRow = UKFormActionRow(title: "Save Changes", ink: UKDesignInk.action, bold: true, identifier: "inventory.editor.save", busyLabel: "Saving")
     private let resetRow = UKFormActionRow(title: "Reset Changes", ink: UKDesignInk.action, identifier: "inventory.editor.reset")
@@ -107,7 +109,11 @@ final class UKInventoryEditorViewController: UKFormViewController {
             rows.append(UKFormRow(id: "reset", .custom { [resetRow] in resetRow }))
             sections.append(UKFormSection(id: "changes", headerStyle: .system, rows: rows))
         }
-        setSections(sections, animated: false)
+        // A batch that a confirmed delete just removed leaves with the system animation and the next header updates; every other render (draft
+        // edits, the error, the busy spinner) replaces in place as before.
+        let leaving = removing.contains { key in !batches.contains { $0.key == key } }
+        setSections(sections, animated: false, cause: leaving ? .person : nil)
+        removing = removing.filter { key in batches.contains { $0.key == key } }
 
         switch style {
         case .sheet:
@@ -154,7 +160,22 @@ final class UKInventoryEditorViewController: UKFormViewController {
 
     // MARK: Prompts
 
-    fileprivate func ask(_ prompt: EditorPrompt) {
+    /// Runs a delete of `batch` as a person-caused removal: the call keeps the busy spinner, and when it succeeds the batch's section leaves
+    /// with the system animation. A failure, or a partial delete that leaves the batch, cancels the ticket and moves nothing.
+    func deleting(_ batch: InventoryBatch, run: () async -> Void) async {
+        let key = batch.key
+        let rows = ["delete-row-\(key)", "quantity-\(key)", "hasExpiry-\(key)", "expiry-\(key)", "prepared-\(key)"]
+        removing.insert(key)
+        expectRemoval(of: [rows[0]], title: model.batchName(batch))
+        expectRemoval(of: Array(rows.dropFirst()))
+        await run()
+        if model.batches.contains(where: { $0.key == key }) {
+            removing.remove(key)
+            cancelExpectation(of: rows)
+        }
+    }
+
+    func ask(_ prompt: EditorPrompt) {
         let alert = UIAlertController(title: prompt.title, message: prompt.message, preferredStyle: .alert)
         alert.addTextField { field in
             field.text = "1"
@@ -166,7 +187,14 @@ final class UKInventoryEditorViewController: UKFormViewController {
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: prompt.confirmTitle, style: .default) { [model, weak alert] _ in
             let text = alert?.textFields?.first?.text ?? ""
-            Task { await prompt.submit(text, to: model) }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if case let .delete(batch, _) = prompt {
+                    await self.deleting(batch) { await prompt.submit(text, to: self.model) }
+                } else {
+                    await prompt.submit(text, to: self.model)
+                }
+            }
         })
         present(alert, animated: true)
     }
@@ -239,7 +267,7 @@ final class UKInventoryEditorViewController: UKFormViewController {
             if batch.quantity <= 1 {
                 let spec = AlertCopy.delete("Item", named: editor.model.batchName(batch), detail: "It will be removed from the \(batch.locationPhrase).")
                 UKInventoryAlerts.confirmDelete(spec, from: editor, source: .view(delete), confirmID: "inventory.editor.delete.confirm", onConfirm: {
-                    Task { _ = await EditorPrompt.delete(batch, in: editor.model) }
+                    Task { await editor.deleting(batch) { _ = await EditorPrompt.delete(batch, in: editor.model) } }
                 }, onCancel: {})
             } else {
                 Task { if let prompt = await EditorPrompt.delete(batch, in: editor.model) { editor.ask(prompt) } }

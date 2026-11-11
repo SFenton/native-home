@@ -13,6 +13,8 @@
 - `hasGlyphs: false` starts hairlines at the 16 pt margin for rows of text alone (recipe steps and facts). A feature row that can't be a `ModuleRow` (a tinted title) uses `ModuleRowMetrics` so it lines up with the hairlines.
 - Users: Security's Doors and car lists, Climate's Thermostat Hub and Advanced Controls, Chores todo lists (and the Your Summary sheet's Overdue and Upcoming tabs), the Vacation checklist, Food link rows and recipe sheet lists, the Vacuums Auto-Clean list and vacuum sheet lists, Custom Lights' Front Yard list and light sheet colour group, Sprinklers' controller cards.
 
+- Rows that leave, and the card corners when its first or last row does: [list-row-removal](list-row-removal.md).
+
 ## Switch rows
 
 A row whose control is a switch is a `ModuleToggleRow` (`HassDesign/ModuleToggleRow.swift`), not a `ModuleRow` with a `Toggle` accessory: the whole 52 or 60 pt row flips the switch (the system switch alone is 51 x 31), and VoiceOver gets one switch element named by the title (an `accessibilityRepresentation` of `ActionToggle`, with the hint) instead of a text element and a second stop for the switch. Pass the state to show and an action that asks for the opposite; the controller stays the source of truth. Used by the Vacuums auto-clean rows and Custom Lights' manual control.

@@ -10,6 +10,7 @@
 | [hinge-avoidance.md](hinge-avoidance.md) | `HassDesign/HingeAvoidance.swift`, `HassUI/App/Layout/HingedPanes.swift` | none (iPhone Duo and iPad) |
 | [action-tiles.md](action-tiles.md) | `HassDesign/TileActions/` | none (native convention, owner 2026-10-26) |
 | [entity-tile.md](entity-tile.md) | `HassDesign/GlassTile.swift` | `src/components/core/GlassTile.tsx` |
+| [list-row-removal.md](list-row-removal.md) | `UIKitPort/Design/UKListUpdater.swift`; rules in `HassDesign/Motion/ListUpdateTransition.swift` | none (native) |
 | [module-list.md](module-list.md) | `HassDesign/ModuleList.swift` | none (direction G inset list) |
 | [check-row.md](check-row.md) | `HassDesign/CheckRow.swift` (UIKit `UKCheckRow`) | `CheckboxRow` in `src/components/hass/` (chores, vacation) |
 | [swipe-row.md](swipe-row.md) | `HassDesign/Swipe/SwipeActionRow.swift` | none (custom swipe row on a plain stack, iOS 18+; the List's swipe actions on iOS 17) |
