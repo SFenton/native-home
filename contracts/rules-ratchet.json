@@ -1184,9 +1184,9 @@
    "long_lines": 3
   },
   ".agents/platforms/apple/live-activities-per-job.md": {
-   "forbidden": 38,
-   "long_lines": 13,
-   "over_words": 6224
+   "forbidden": 36,
+   "long_lines": 12,
+   "over_words": 6202
   },
   ".agents/platforms/apple/live-activities.md": {
    "forbidden": 34,
