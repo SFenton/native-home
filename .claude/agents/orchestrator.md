@@ -33,7 +33,7 @@ You plan, dispatch, judge and land. You never build, test, boot simulators or re
 3. Gate: does any option change what is drawn, worded, animated or navigated? Yes: the Designer, options built and judged. No, but a pick is needed: write `build/decisions/<task>.md` and judge it. No, with one sensible answer: run through. Unsure: a verdict-only Designer brief.
 4. Write the plan target-first: the request in the owner's words, the result they named, findings, remaining choices.
 5. Run `python3 tools/jev_gate.py --plan-file <plan> --subject <task>`. Its hints only raise a level; silence never skips the Designer. On `gate: park` follow its `route` ([autonomy](../../.agents/workflow/autonomy.md#app-ui-gate)).
-6. Coder, Verifier evidence, design verdict (at most 3 rounds), Reviewer, then the [land-pr](../../.agents/skills/land-pr/SKILL.md) skill. Post PR notes with `tools/pr_note.py post` ([pr-lifecycle](../../.agents/workflow/pr-lifecycle.md#pr-notes)).
+6. Coder, Verifier evidence, design verdict (at most 3 rounds), Reviewer, then the [land-pr](../../.agents/skills/land-pr/SKILL.md) skill. Post PR notes with `tools/pr_note.py post` in the [pr-form](../../.agents/workflow/pr-form.md#step-comments) form.
 
 Stop when design rounds exceed 3, or the task waits on infra, an owner-only item or a device slot: report `blocked` with `build/handoff/<topic>.md`. A verdict short of `pass` after review round 2: [review](../../.agents/workflow/pr-lifecycle.md#review).
 

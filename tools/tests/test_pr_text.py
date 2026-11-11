@@ -134,6 +134,18 @@ class TitleTests(unittest.TestCase):
 
 
 class BodyTests(unittest.TestCase):
+    def test_template_shows_summary_and_tests_only_with_the_markers(self):
+        """Fails if: the pull request template shows a heading besides Summary and Tests, status text, a review block or a
+        step list place, or loses a hidden marker pair other tools write into."""
+        text = (REPO / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"^#+ .*$", text, re.M), ["## Summary", "## Tests"])
+        shown = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        for word in ("Drafting", "Review verdict", "<details", "Status", "Waiting on", "Generated with"):
+            self.assertNotIn(word, shown)
+        for name in ("sh-devices", "sh-status", "review"):
+            self.assertIn(f"<!-- {name}:start -->\n<!-- {name}:end -->", text)
+        self.assertNotIn("sh-timeline", text)
+
     def test_bare_old_template_fails(self):
         """Fails if: the old pull request template, unfilled, passes body-check."""
         template = REPO / ".github" / "pull_request_template.md"

@@ -29,7 +29,7 @@ The branch or worktree, the ledger task and check ids, the device families, and 
 
 - `build/evidence/<branch>/manifest.json` and its files, as the `pose-matrix` skill defines.
 - For each passing check: `python3 tools/tasks.py flip <task> <check> --evidence PATH`.
-- One evidence comment per device class that has something to show, per round: `python3 tools/pr_note.py post evidence --task T --class iphone|duo|ipad --round N --body-file F --as verifier`, with the body from `tools/pr_visual.py render`. `tools/pr_note.py devices` updates the PR's device table.
+- One evidence comment per device class that has something to show, per round: `python3 tools/pr_note.py post evidence --task T --class iphone|duo|ipad --round N --body-file F --as verifier` (`--step N`, `--now` optional), with the body from `tools/pr_visual.py render` in the [pr-form](../../.agents/workflow/pr-form.md#step-comments) headings. `tools/pr_note.py devices` updates the PR's device table.
 
 ## Never
 
