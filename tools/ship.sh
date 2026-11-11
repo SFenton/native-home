@@ -157,10 +157,8 @@ if [[ $UPDATE == 1 ]]; then
     python3 "$(dirname "$0")/pr_land.py" "$PR_NUM" || echo "ship: not armed (see above); land it with tools/pr_land.sh $PR_NUM" >&2
   fi
 elif [[ $PR == 1 ]]; then
-  FOOTER="🤖 Generated with [Claude Code](https://claude.com/claude-code)"
-  ARGS=(pr create --base "$BASE" --head "$BRANCH" --title "$SUBJECT" --body "${BODY:+$BODY
-
-}$FOOTER" --assignee "${SHIP_ASSIGNEE:-SFenton}")
+  # The description is what the writer composed: no generated-by footer is added (pr_text.py body-check refuses one).
+  ARGS=(pr create --base "$BASE" --head "$BRANCH" --title "$SUBJECT" --body "$BODY" --assignee "${SHIP_ASSIGNEE:-SFenton}")
   ARGS+=(--draft)
   gh "${ARGS[@]}"
   PR_NUM="$(gh pr view "$BRANCH" --json number --jq .number 2>/dev/null || true)"

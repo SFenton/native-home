@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep a pull request followable from the PR alone: one comment per step, plus the status, device and timeline blocks.
+"""Keep a pull request followable from the PR alone: one comment per step, plus the status and device blocks.
 
 Roles call this instead of typing ``gh``. Every comment carries a marker so the helper finds its own earlier comment
 and edits it in place (never ``--edit-last``: every role shares one login). Spec: ``build/research/visual-prs.md``
@@ -11,7 +11,7 @@ Commands::
     pr_note.py flush --task T [--pr N] [--as ROLE]
     pr_note.py status --task T --line TEXT [--pr N]
     pr_note.py devices --task T --file F [--pr N]
-    pr_note.py timeline --task T [--pr N]
+    pr_note.py timeline --task T [--pr N]    (removes a step list an older description still holds)
     pr_note.py resolve --task T --round N --text TEXT [--pr N] [--as ROLE]
     pr_note.py init --task T [--pr N]
 
@@ -92,15 +92,15 @@ Behaviour:
 - ``status`` keeps its line as an HTML comment between the ``sh-status`` markers (nothing about status is shown).
 - ``status`` and ``devices`` replace only the text between their own ``sh-status`` / ``sh-devices`` markers in the PR
   body. Everything else, including the reviewer's block, is left byte for byte.
-- ``timeline`` rewrites the text between ``<!-- sh-timeline:start -->`` and ``<!-- sh-timeline:end -->`` (appended when
-  missing) with one line per posted step, in order: ``N. [Role: first action](comment url)``. ``post``
-  runs it after a post that changed something; a failure there only warns.
+- The description holds no step list. ``timeline`` (and the refresh after a post that changed something) removes a
+  ``<!-- sh-timeline:start -->`` / ``<!-- sh-timeline:end -->`` block that still holds text, markers included, and writes
+  nothing in its place; the step order stays in this tool's own memory (``steps_of``) for the markers and the hold.
 - Local images and videos referenced as markdown paths are attached with ``gh pr comment --attach`` /
   ``gh pr edit --attach`` from a temporary folder under neutral names, so no local path is ever in the text sent; the
   URLs GitHub returns are remembered so an edit keeps them. An edit cannot upload: a changed comment with a picture that is
   not uploaded yet is posted anew (same step and marker) and the old copy removed, result ``replaced``.
 - ``init`` (run once, right after ``ship.sh`` opens the PR) appends any missing ``sh-devices`` / ``sh-status`` /
-  ``sh-timeline`` / review marker block to the PR body, existing text untouched and no placeholder text added; then it
+  review marker block to the PR body, existing text untouched and no placeholder text added; then it
   flushes the task's queue. ``post`` also flushes the task's queue first and drops queued entries for a marker it just
   posted (those with this PR as their target), so a stale queued note never overwrites a newer comment.
 - ``--as ROLE`` (orchestrator, researcher, designer, coder, verifier, reviewer, steward, menial, triage): when that
@@ -148,6 +148,7 @@ except ImportError:  # pragma: no cover - redact ships in the repo
 import agent_login  # noqa: E402
 import evidence_manifest  # noqa: E402
 import house_scan  # noqa: E402
+import pr_text  # noqa: E402
 import prepush_denylist  # noqa: E402
 import gh_app_token  # noqa: E402
 
@@ -500,11 +501,15 @@ def form_problem(body: str) -> Optional[str]:
 
 
 def form_gate(body: str, source: str) -> None:
-    """Refuse (``Refusal``, one line) a comment body that is not three bullet lists under the three headings."""
+    """Refuse (``Refusal``, one line) a comment body that is not three bullet lists under the three headings, or that sends the
+    reader to a fix made elsewhere without naming the repository or pull request and its state (``pr_text.elsewhere_problems``)."""
     problem = form_problem(body)
     if problem:
         raise Refusal(f"{source} is not in the comment form (bullet lists under '### Actions Taken', '### Result' and "
                       f"'### Next Steps'): {problem}; not posting")
+    elsewhere = pr_text.elsewhere_problems(body)
+    if elsewhere:
+        raise Refusal(f"{source} sends the reader to a fix made elsewhere without naming it: {elsewhere[0]}; not posting")
 
 
 def meta_line(step: int, round_no: int, head: Optional[str], by_round: bool = False) -> str:
@@ -1473,62 +1478,34 @@ def update_block(pr: int, name: str, content: str, task: Optional[str] = None, a
     return "updated"
 
 
-# MARK: - Timeline
-
-def first_action(comment: Dict[str, Any]) -> str:
-    """The first bullet under ``### Actions Taken`` of a step comment (140 characters at most). A comment of an older form
-    gives its first line of text instead, without the old header, a mention or the markers."""
-    lines = [ln.strip() for ln in strip_markers(comment.get("body") or "").splitlines()]
-    text = ""
-    if f"### {SECTIONS[0]}" in lines:
-        text = next((ln for ln in lines[lines.index(f"### {SECTIONS[0]}") + 1:] if _BULLET.match(ln)), "")
-    else:
-        for ln in lines:
-            if _HEADER.search(ln):
-                ln = re.sub(r" · (?:updated|happened) [^·]*", "", _HEADER.sub("", ln)).replace("·", " ").replace("####", "")
-            if ln.strip() and not ln.startswith(("@", "<", "#")):
-                text = ln
-                break
-    text = re.sub(r"[*#`>]+|^\s*[-\d.]+\s+", "", text).strip()
-    return " ".join(text.split())[:140].rstrip()
-
-
-def role_of(comment: Dict[str, Any]) -> str:
-    """The role a step comment names: its ``## <Role>`` heading, else the role in an older visible header, else ``""``."""
-    for ln in (comment.get("body") or "").splitlines()[:6]:
-        m = re.match(r"^##\s+([A-Za-z]+)\s*$", ln)
-        if m:
-            return m.group(1)
-    m = header_of(comment)
-    return m.group(2) if m else ""
-
-
-def timeline_lines(comments: List[Dict[str, Any]], task: str) -> List[str]:
-    """``N. [Role: first action](url)`` for each step posted for ``task``, in step order (no round, head or time)."""
-    steps = steps_of(comments, task)
-    rows = [(steps[c.get("id")], c.get("id") or 0, c) for c in comments if comment_tag(c, task) and role_of(c)]
-    out = []
-    for number, _id, c in sorted(rows, key=lambda r: r[:2]):
-        label = f"{role_of(c)}: {first_action(c)}".rstrip(": ")
-        out.append(f"{number}. [{label}]({c['html_url']})" if c.get("html_url") else f"{number}. {label}")
-    return out
-
+# MARK: - Step list (removed)
 
 def timeline(pr: int, task: str) -> str:
-    """Write the step index into the PR body between the ``sh-timeline`` markers (appended when missing)."""
-    lines = timeline_lines(list_comments(pr), task)
-    if not lines:
-        return "no steps"
-    content = "\n".join(lines)
-    gate(content, "the timeline")
-    return update_block(pr, "sh-timeline", content, add_missing=True)
+    """Remove a step list from the PR body: the whole ``sh-timeline`` block when it still holds text.
+
+    The description carries no list of steps; one an older run wrote goes on the next post. Returns ``updated`` or
+    ``unchanged``. ``task`` is kept for callers and the command line."""
+    body = json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or ""
+    new = _TIMELINE_BLOCK.sub("", body) if _filled_timeline(body) else body
+    if new == body:
+        return "unchanged"
+    gh(["pr", "edit", str(pr), "--body-file", "-"], new)
+    return "updated"
+
+
+_TIMELINE_BLOCK = re.compile(r"<!--\s*sh-timeline:start\s*-->.*?<!--\s*sh-timeline:end\s*-->[ \t]*\n*", re.S)
+
+
+def _filled_timeline(body: str) -> bool:
+    """Whether the ``sh-timeline`` block of ``body`` holds anything besides its markers."""
+    m = re.search(r"<!--\s*sh-timeline:start\s*-->(.*?)<!--\s*sh-timeline:end\s*-->", body, re.S)
+    return bool(m and m.group(1).strip())
 
 
 #: Kept for callers that name it; the body no longer copies text from the template.
 TEMPLATE = ROOT / ".github" / "pull_request_template.md"
 _BLOCKS = (("sh-devices", "<!-- sh-devices:start -->\n<!-- sh-devices:end -->"),
            ("sh-status", "<!-- sh-status:start -->\n<!-- sh-status:end -->"),
-           ("sh-timeline", "<!-- sh-timeline:start -->\n<!-- sh-timeline:end -->"),
            ("review", "<!-- review:start -->\n<!-- review:end -->"))
 
 
@@ -1608,7 +1585,7 @@ def _lookup(args: argparse.Namespace) -> "tuple[Optional[int], str]":
 
 
 def _post(args: argparse.Namespace) -> str:
-    """``post``: prepare the body (picture paths, gates), find the PR, flush, post, then refresh the timeline.
+    """``post``: prepare the body (picture paths, gates), find the PR, flush, post, then remove a step list an older description still holds.
 
     With no PR yet, or when ``gh`` fails, the note is queued with its one target (``queue_target``, which refuses a write that
     names none). A new comment with ``--step N`` is held in the queue (result ``held ...``) while a step below N is not on the
@@ -1665,11 +1642,9 @@ def _post(args: argparse.Namespace) -> str:
     report_left(args.task, pr, head)
     if result != "unchanged":
         try:
-            state = timeline(pr, args.task)
-            if state in ("no steps", "no markers"):
-                print(f"pr_note: warning, timeline not updated: {state}", file=sys.stderr)
+            timeline(pr, args.task)
         except (NoteError, Refusal) as exc:
-            print(f"pr_note: warning, timeline not updated: {exc}", file=sys.stderr)
+            print(f"pr_note: warning, step list not removed: {exc}", file=sys.stderr)
     return result
 
 

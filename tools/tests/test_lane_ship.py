@@ -163,7 +163,8 @@ class ShipTests(unittest.TestCase):
             self.assertEqual(args[args.index("--assignee") + 1], "SFenton")
             body = args[args.index("--body") + 1]
             self.assertTrue(body.startswith("Why"))
-            self.assertIn("Generated with [Claude Code]", "\n".join(args))
+            self.assertEqual(body, "Why")
+            self.assertNotIn("Generated with", "\n".join(args))
 
     def test_nothing_to_commit_still_pushes(self):
         with TemporaryDirectory() as tmp:

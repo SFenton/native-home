@@ -12,9 +12,11 @@ Commands::
 
 The rules come from the pull-request timeline proposal: a title is one plain sentence of at most 70 characters; a body has a
 ``## Summary`` and a ``## Tests`` section and nothing a person has to skip. No status text and no review block is shown:
-``compose`` writes only the hidden marker pairs other tools find (``sh-timeline``, ``sh-status``, ``review``). An
+``compose`` writes only the hidden marker pairs other tools find (``sh-status``, ``review``); a body carries no step list. An
 ``## Evidence`` section is for pictures of its own (an image, a gif or a video): one that only links to pictures in the
-comments is refused. The banned words, the internal-label patterns and
+comments is refused. A body that carries a generated-by footer is refused, and under ``--strict`` so is a sentence that sends
+the reader to a fix made elsewhere (another repository, another pull request) when its section does not name it: the
+``owner/repo`` or a pull request link, and its state. The banned words, the internal-label patterns and
 the path-to-area table live in ``tools/pr_text_words.json``, which the owner can edit. Exit codes: 0 clean, 1 a problem (or a
 warning under ``--strict``), 2 bad usage. Standard library only.
 """
@@ -188,6 +190,77 @@ def progressive_hits(sentence: str, words: dict) -> list:
     return found
 
 
+def footer_problems(body: str, words: dict) -> list:
+    """One line when ``body`` carries a generated-by footer (``banned_footers``); code fences and inline code do not count."""
+    prose = INLINE_CODE.sub("", FENCE.sub("", body))
+    if any(re.search(pattern, prose) for pattern in words["banned_footers"]):
+        return ["the body carries a 'Generated with ...' footer; leave it out"]
+    return []
+
+
+#: A heading of level two or three: the unit "the same section" means for a description (``##``) and a comment (``###``).
+PART_HEADING = re.compile(r"^#{2,3}[ \t]+.*$", re.M)
+#: An ``owner/repo`` name, not part of a longer path or a web address.
+REPO_NAME = re.compile(r"(?<![\w/.:-])([A-Za-z0-9][\w-]*)/([A-Za-z0-9][\w.-]*?)\.?(?![\w/-])")
+#: A link to a repository or to one of its pull requests.
+REPO_LINK = re.compile(r"https?://github\.com/[\w.-]+/[\w.-]+", re.I)
+
+
+def names_repository(text: str, words: dict) -> bool:
+    """Whether ``text`` names a repository concretely: a GitHub link, or an ``owner/repo`` that is not a file path.
+
+    A bare ``owner/repo`` needs a capital letter, a digit, a hyphen, an underscore or a dot in it (so ``and/or`` is not one);
+    inside backticks any name will do."""
+    if REPO_LINK.search(text):
+        return True
+    roots, exts = set(words["path_roots"]), set(words["path_extensions"])
+    for m in REPO_NAME.finditer(text):
+        owner, repo = m.group(1), m.group(2).rstrip(".")
+        if owner in roots or repo.rsplit(".", 1)[-1] in exts and "." in repo:
+            continue
+        ticked = text[max(0, m.start() - 1):m.start()] == "`" and text[m.end():m.end() + 1] == "`"
+        if ticked or re.search(r"[A-Z0-9_.-]", owner + repo):
+            return True
+    return False
+
+
+def states_progress(text: str, words: dict) -> bool:
+    """Whether ``text`` says where the fix stands (``elsewhere_state_words``: merged, open, not pushed, not installed ...)."""
+    return any(re.search(rf"\b{re.escape(w)}\b", text, re.I) for w in words["elsewhere_state_words"])
+
+
+def elsewhere_problems(text: str, words: Optional[dict] = None) -> list:
+    """One line for each section that sends the reader to a fix made somewhere else without saying where and how it stands.
+
+    A sentence with a phrase from ``elsewhere_phrases`` ("a different repository", "elsewhere", "the server engine") is
+    allowed only when its section (up to the next ``##`` or ``###`` heading) names the place, as an ``owner/repo`` or a pull
+    request link, and says the state of the change there. The line tells the writer what to add."""
+    words = words or load_words()
+    clean = COMMENT.sub("", FENCE.sub("", text))
+    marks = list(PART_HEADING.finditer(clean))
+    starts = [0] + [m.end() for m in marks]
+    ends = [m.start() for m in marks] + [len(clean)]
+    out = []
+    for start, end in zip(starts, ends):
+        part = clean[start:end]
+        hit = None
+        for _, unit in units(part, keep_code=True):
+            for sentence in sentences(unit):
+                found = next(filter(None, (re.search(p, sentence) for p in words["elsewhere_phrases"])), None)
+                if found and not hit:
+                    hit = (sentence, found)
+        if not hit:
+            continue
+        lacks = [label for label, ok in (("no repository or pull request named", names_repository(part, words)),
+                                         ("no state given", states_progress(part, words))) if not ok]
+        if lacks:
+            sentence, found = hit
+            out.append(f"{sentence[:60]!r} sends the reader elsewhere ({found.group(0)!r}) and the section has {' and '.join(lacks)}; "
+                       f"add the repository (owner/repo or a pull request link), the files, what changes there, and its "
+                       f"state (merged, open, not pushed, not installed)")
+    return out
+
+
 def placeholder_problems(body: str, words: dict) -> list:
     """Template placeholder text left in ``body``: a bracketed ``[ ... ]`` that is not a link or checkbox, or an old instruction string."""
     problems = []
@@ -274,6 +347,8 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
     if "evidence" in found and not has_own_picture(found["evidence"]):
         errors.append("## Evidence holds no picture of its own; leave the section out when the pictures are in the comments")
     errors += placeholder_problems(body, words)
+    errors += footer_problems(body, words)
+    warnings += elsewhere_problems(strip_unlinted(body, words), words)
     first = first_summary_sentence(body, words)
     if first:
         for hit in label_hits(first, words):
@@ -311,12 +386,11 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
 def compose(summary: str, tests: str, evidence: str = "", request: str = "", quote: str = "") -> str:
     """The pull request body: Summary, Tests, Evidence when given, then the hidden marker pairs and the request lines.
 
-    Nothing about status or review is shown: the ``sh-timeline``, ``sh-status`` and ``review`` marker pairs are empty HTML
+    Nothing about status or review is shown, and no step list: the ``sh-status`` and ``review`` marker pairs are empty HTML
     comments, kept so the tools that write between them still find their place."""
     parts = [f"## Summary\n{summary.strip()}", f"## Tests\n{tests.strip()}"]
     if evidence.strip():
         parts.append(f"## Evidence\n{evidence.strip()}")
-    parts.append("<!-- sh-timeline:start -->\n<!-- sh-timeline:end -->")
     parts.append("<!-- sh-status:start -->\n<!-- sh-status:end -->")
     parts.append("<!-- review:start -->\n<!-- review:end -->")
     tail = []

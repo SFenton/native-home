@@ -409,7 +409,7 @@ class InitAndQueueIdentityTests(Base):
 
     def test_init_appends_missing_blocks_only_keeps_review_and_flushes(self):
         """Fails if: ``init`` changes text outside the marker blocks, drops or duplicates the review block, omits a missing
-        ``sh-devices`` / ``sh-status`` / ``sh-timeline`` block, does not flush the queue, or a second ``init`` rewrites the body."""
+        ``sh-devices`` / ``sh-status`` block, adds a ``sh-timeline`` block (a place for a step list), does not flush the queue, or a second ``init`` rewrites the body."""
         self.set_state(pr=None)
         self.post("pick", "**Designer** · pick")
         self.set_state(pr=7, body="Old text\n" + REVIEW + "\ntail")
@@ -418,8 +418,9 @@ class InitAndQueueIdentityTests(Base):
         self.assertTrue(body.startswith("Old text\n"))
         self.assertIn("Old text\n" + REVIEW + "\ntail", body)
         self.assertEqual(body.count("<!-- review:start -->"), 1)
-        for name in ("sh-devices", "sh-status", "sh-timeline"):
+        for name in ("sh-devices", "sh-status"):
             self.assertIn(f"<!-- {name}:start -->", body)
+        self.assertNotIn("sh-timeline", body)
         self.assertEqual(len(self.get()["comments"]), 1)
         self.assertIn("body kept", self.run_cli("init", "--task", "T-x")[1])
 
@@ -757,44 +758,73 @@ class GateTests(Base):
         self.assertEqual(second.count("user-attachments"), 0)
 
 
-class TimelineTests(Base):
-    """The step index in the PR body."""
+STEP_LIST = ("<!-- sh-timeline:start -->\n1. [Researcher: Looked.](https://example.test/pull/7#issuecomment-1)\n"
+             "<!-- sh-timeline:end -->")
 
-    def test_timeline_lists_posted_steps_in_order_with_links(self):
-        """Fails if: a post does not refresh the index, lines are out of step order, a line lacks its link, a line is anything
-        but ``N. [Role: first action](url)`` (a round, a head or a time is shown), the block is duplicated, or other body
-        text changes."""
+
+class TimelineTests(Base):
+    """The description holds no step list; the tool keeps the step order in its own memory."""
+
+    def test_a_post_writes_no_step_list(self):
+        """Fails if: a post writes a ``sh-timeline`` block or any ``N. [Role: ...]`` line into the description, other body text
+        changes, or the step order the tool keeps (``steps_of``) is lost."""
         self.set_state(body="Intro\n")
         self.post("research", "Looked at prior art.\nRead two more notes.", "1")
         self.post("build", "Built the writer.", "1")
-        self.post("review", "Reviewed the head.", "1", "--step", "7", "--now")  # skips steps: sent at once only with --now
+        self.post("review", "Reviewed the head.", "1", "--step", "7", "--now")
         body = self.get()["body"]
-        self.assertTrue(body.startswith("Intro\n"))
-        self.assertEqual(body.count("<!-- sh-timeline:start -->"), 1)
-        block = body.split("<!-- sh-timeline:start -->\n")[1].split("\n<!-- sh-timeline:end -->")[0].splitlines()
-        self.assertEqual(block, [
-            "1. [Researcher: Looked at prior art.](https://example.test/pull/7#issuecomment-1)",
-            "2. [Coder: Built the writer.](https://example.test/pull/7#issuecomment-2)",
-            "7. [Reviewer: Reviewed the head.](https://example.test/pull/7#issuecomment-3)"])
+        self.assertEqual(body, "Intro\n")
+        self.assertNotIn("sh-timeline", body)
+        self.assertNotRegex(body, r"\d+\. \[")
+        self.assertEqual(pr_note.steps_of(self.get()["comments"], "T-x"), {1: 1, 2: 2, 3: 7})
+
+    def test_the_timeline_command_writes_no_list(self):
+        """Fails if: ``timeline`` adds a block to a body that has none, or reports an update."""
+        self.set_state(body="Intro\n")
+        self.post("research", "Looked.", "1")
         self.assertIn("unchanged", self.run_cli("timeline", "--task", "T-x")[1])
+        self.assertEqual(self.get()["body"], "Intro\n")
 
-    def test_older_and_hand_edited_comments_stay_in_the_step_list(self):
-        """Fails if: a comment with the visible header of an older version, or one edited by hand into the plain form (no step
-        recorded anywhere), drops out of the step list, is listed with a round, or is listed out of page order."""
-        old = "#### Step 1 · Researcher · round 1 · 10:00Z\n\nRead the report. More.\n\n<!-- sh-hash:0 -->\n<!-- sh:research:T-x:1 -->\n"
-        plain = "## Designer\n\n" + formed("Wrote two options.") + "\n<!-- sh-hash:0 -->\n<!-- sh:pick:T-x:1 -->\n"
-        self.set_state(comments=[{"id": 1, "body": old, "html_url": "u1"}, {"id": 2, "body": plain, "html_url": "u2"}])
+    def test_a_filled_step_list_goes_on_the_next_post(self):
+        """Fails if: a description that still holds a filled list keeps it after a post, loses text around it, or keeps the
+        markers; or an empty marker pair is rewritten."""
+        self.set_state(body="Intro\n\n" + STEP_LIST + "\n\n<!-- sh-status:start -->\n<!-- sh-status:end -->\n")
+        self.post("research", "Looked.", "1")
+        self.assertEqual(self.get()["body"], "Intro\n\n<!-- sh-status:start -->\n<!-- sh-status:end -->\n")
+        empty = "Intro\n\n<!-- sh-timeline:start -->\n<!-- sh-timeline:end -->\n"
+        self.set_state(body=empty)
+        self.assertIn("unchanged", self.run_cli("timeline", "--task", "T-x")[1])
+        self.assertEqual(self.get()["body"], empty)
+
+    def test_the_timeline_command_removes_a_filled_list(self):
+        """Fails if: the ``timeline`` command leaves a filled list in place."""
+        self.set_state(body="Intro\n\n" + STEP_LIST + "\n")
         self.assertIn("updated", self.run_cli("timeline", "--task", "T-x")[1])
-        block = self.get()["body"].split("<!-- sh-timeline:start -->\n")[1].split("\n<!-- sh-timeline:end -->")[0].splitlines()
-        self.assertEqual(block, ["1. [Researcher: Read the report. More.](u1)", "2. [Designer: Wrote two options.](u2)"])
+        self.assertEqual(self.get()["body"], "Intro\n\n")
 
-    def test_a_timeline_failure_only_warns(self):
-        """Fails if: a failing index update undoes or hides the post, or changes the exit code."""
+    def test_a_list_removal_failure_only_warns(self):
+        """Fails if: a failing removal undoes or hides the post, or changes the exit code."""
         with mock.patch.object(pr_note, "timeline", side_effect=pr_note.NoteError("boom")):
             code, out, err = self.post("build", "Built.")
         self.assertEqual((code, out.strip()), (0, "pr_note: posted"))
-        self.assertIn("timeline not updated", err)
+        self.assertIn("step list not removed", err)
         self.assertEqual(len(self.get()["comments"]), 1)
+
+
+class ElsewhereCommentTests(Base):
+    """A comment that sends the reader to a fix made elsewhere names the repository and its state, as a description does."""
+
+    def test_a_comment_without_a_name_is_refused_and_one_with_a_name_is_posted(self):
+        """Fails if: a comment saying the fix is "in a different repository" is posted, the refusal does not name the rule,
+        the refused text reaches the queue, or a comment that names ``owner/repo`` and its state is refused."""
+        code, _out, err = self.post("build", "The finished card stays; that fix is in the server engine in a different repository.")
+        self.assertEqual(code, 1)
+        self.assertIn("elsewhere", err)
+        self.assertEqual(self.get()["comments"], [])
+        self.assertEqual(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")), [])
+        code, out, _err = self.post(
+            "build", "The finished card stays; that fix is in a different repository, `SFenton/ha-fenton-home`, and is not pushed.")
+        self.assertEqual((code, out.strip()), (0, "pr_note: posted"))
 
 
 class AppFailureTests(Base):
@@ -1414,7 +1444,7 @@ class RepoPathTests(Base):
 
     def test_comments_and_the_timeline_use_the_origin_repository_not_the_apps_file(self):
         """Fails if: comments are listed under the ``repo`` of ``apps.json`` (so markers are never found and the step list stays
-        empty), or the timeline is not written after the posts."""
+        empty); the posts are the check here."""
         self.set_state(slug="Real/Repo", body="Intro\n")
         with mock.patch.object(pr_note.gh_app_token, "default_repo", return_value="Real/Repo"), \
                 mock.patch.object(pr_note.gh_app_token, "repo", return_value="Stale/Repo"):
@@ -1423,15 +1453,8 @@ class RepoPathTests(Base):
             self.assertIn("unchanged", self.post("build", "Built.", "1")[1])
         body = self.get()["body"]
         self.assertEqual(len(self.get()["comments"]), 2)
-        self.assertEqual(body.count("<!-- sh-timeline:start -->"), 1)
-        self.assertIn("2. [Coder: Built.]", body)
+        self.assertNotIn("sh-timeline", body)
         self.assertNotIn("Stale/Repo", self.log.read_text())
-
-    def test_an_empty_step_list_after_a_post_warns_with_its_reason(self):
-        """Fails if: a post that cannot find any step for the task ends silently without a timeline."""
-        with mock.patch.object(pr_note, "timeline", return_value="no steps"):
-            _code, _out, err = self.post("build", "Built.")
-        self.assertIn("timeline not updated: no steps", err)
 
 
 class InitNoPlaceholderTests(Base):
@@ -1776,8 +1799,6 @@ class StepTests(Base):
         self.assertEqual([steps[c["id"]] for c in comments], [1, 3, 4, 2])
         self.assertTrue(comments[3]["body"].endswith("<!-- sh:pick:T:1 -->\n"))
         self.assertIn("user-attachments", comments[3]["body"])
-        block = self.get()["body"].split("<!-- sh-timeline:start -->\n")[1].split("\n<!-- sh-timeline:end -->")[0].splitlines()
-        self.assertEqual([line.split(":")[0] for line in block], ["1. [Researcher", "2. [Designer", "3. [Coder", "4. [Reviewer"])
 
     def test_step_order_hold(self):
         """Fails if: after step 3 is posted before step 2 the page order (creation order) is 3 then 2, a held step is lost or
