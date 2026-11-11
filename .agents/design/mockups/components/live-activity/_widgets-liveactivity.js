@@ -358,6 +358,8 @@
       case 'hotflash-wholebed': r = flash('Whole bed', 845); break;
       case 'hotflash-complete': r = done(flash('Your side')); break;
       case 'problem-completing': r = problemFx(LA.PROBLEMS[0], true); r = awaiting(r, 'done'); break;
+      case 'problem-notice': r = problemFx(LA.PROBLEMS[8], true); r.state.notice = "Couldn't resume. Try again."; break;
+      case 'problem-notice-stuck': r = problemFx(LA.PROBLEMS[0], true); r.state.notice = "Couldn't reach Home"; break;
       default:
         if (name.indexOf('problem-') === 0) {
           for (i = 0; i < LA.PROBLEMS.length; i++) {
@@ -465,13 +467,15 @@
       h('div.la-in', header, vrow, c.bar ? LA.bar(c) : null));
     return tag(card, fx, function (f) { return LA.jobCard(f, o); });
   };
-  /** The problem card (ProblemCardView.swift): severity circle, device, problem, instruction, chip, buttons, 40 pt mark. */
+  /** The problem card (ProblemCardView.swift): severity circle, device, problem, instruction (a failure notice in its place while one stands), chip, buttons, 40 pt mark. */
   LA.problemCard = function (fx, o) {
     o = o || {}; var ctx = o.ctx || Mock.current, c = LA.card(fx), p = c.problem, sev = LA.SEV[p.severity], ax = LA.isAX(ctx), marks = o.mark !== false;
     var first = h('div', { style: { paddingRight: marks ? '48px' : '0' } },
       h('div.la-clamp', { style: { fontSize: px(LA.size(ctx, 'hd')), fontWeight: 600, WebkitLineClamp: ax ? 3 : 1 } }, c.a.title),
       h('div.la-clamp', { style: { fontSize: px(LA.size(ctx, 'sub')), fontWeight: 600, color: sev.light, WebkitLineClamp: ax ? 4 : 1, marginTop: '2px' } }, h('b', null, p.severity === 'critical' ? 'Needs help' : 'Needs attention'), ' \u00b7 ' + p.problem));
     var msg = h('div', { style: { fontSize: px(LA.size(ctx, 'sub')), color: 'rgba(255,255,255,.82)', marginTop: '2px', lineHeight: 1.25, display: ax ? 'block' : '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, p.message);
+    // A failure notice takes the instruction's place while it stands (ProblemCardView.swift; design/live-activity-problem-notice.md): white, semibold, two lines, no limit at accessibility sizes.
+    if (c.notice) msg = h('div', { dataset: { id: 'liveactivity.notice' }, style: { fontSize: px(LA.size(ctx, 'sub')), fontWeight: 600, color: '#fff', marginTop: '2px', lineHeight: 1.25, display: ax ? 'block' : '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, c.notice);
     var top = h('div.la-row', { style: { gap: '14px' } }, LA.sev(glyphForProblem(p), p.severity, 44), h('div', { style: { minWidth: 0, flex: 1 } }, first, msg));
     var btns = LA.buttons(c, c.buttons, { ctx: ctx, fills: true, chips: p.chips });
     var card = h('div.la-card.problem', { role: 'group', 'aria-label': c.spokenSummary, style: { backgroundColor: sev.ground, backgroundImage: 'linear-gradient(180deg,' + sev.g0 + ',' + sev.g1 + ')', boxShadow: 'inset 0 0 0 1px ' + sev.hair, width: o.width ? px(o.width) : '' } },
@@ -666,7 +670,7 @@
     laundry: ['dryer', 'dryer-estimated', 'washer', 'dishwasher-complete', 'dryer-complete', 'washer-complete'],
     vacuums: ['vacuum', 'vacuum-mopping', 'vacuum-cleaning', 'vacuum-drawn', 'vacuum-paused', 'vacuum-long'],
     hotflash: ['hotflash-cooling', 'hotflash-holding', 'hotflash-bysam', 'hotflash-alex-bysam', 'hotflash-wholebed', 'hotflash-byhome', 'hotflash-complete'],
-    states: ['fan-pending', 'fan-pending-stale', 'fan-notice', 'problem-completing'],
+    states: ['fan-pending', 'fan-pending-stale', 'fan-notice', 'problem-completing', 'problem-notice', 'problem-notice-stuck'],
     stack: ['fan', 'dishwasher-percent', 'washer', 'dryer'],
   };
   /** Shared motion item: the system's live timers count and the bar fills with no pushes (JobCardView / ActivityFigure: Text(timerInterval:)). */

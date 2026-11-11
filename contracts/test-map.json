@@ -2096,7 +2096,9 @@
   },
   {
    "prefix": "apple/Sources/FentonActivityViews",
-   "swift": [],
+   "swift": [
+    "ProblemCardNoticeTests"
+   ],
    "journeys": [
     "LiveActivityJourneyTests"
    ]
@@ -2148,6 +2150,13 @@
     "DemoHouseTests",
     "DemoHouseExportTests",
     "HassUITests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Tests/HassUITests/ControlProbe.swift",
+   "swift": [
+    "ProblemCardNoticeTests"
    ],
    "journeys": []
   },

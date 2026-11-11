@@ -38,7 +38,7 @@ In flight (decided, not on `main` yet): none
 
 Scroll rule (owner 2026-10-24): every vertical scroller is static when its content fits and scrolls when it does not, on every page, sheet and list; pull-to-refresh lists always bounce. See [components/shell/scroll-fit](components/shell/scroll-fit/scroll-fit.html) (measured per window and text size, with a matrix) and [patterns/scroll-fit](../../patterns/scroll-fit.md). The kit draws no scroll indicator of its own (scrollbars stay hidden), so an atlas page that fits never showed one; the Page scroll control only moves a page that overflows.
 
-Proposals: all 42 are in `catalog.json` (kind `proposal`) with a status; the hub shows the ones awaiting the owner as current and keeps decided and superseded ones in a collapsed "Why" section. The owner's earlier gallery of 140 rendered screens (2026-10-14, direction G) and the canvases for sign-in, launch motion, profile, Live Activity, Header buttons and the remotes stay on the owner's private gallery, linked from [direction-g](../direction-g.md) and [motion](../motion.md); screenshots are never committed ([devices](../../testing/apple/devices.md)).
+Proposals: all 43 are in `catalog.json` (kind `proposal`) with a status; the hub shows the ones awaiting the owner as current and keeps decided and superseded ones in a collapsed "Why" section. The owner's earlier gallery of 140 rendered screens (2026-10-14, direction G) and the canvases for sign-in, launch motion, profile, Live Activity, Header buttons and the remotes stay on the owner's private gallery, linked from [direction-g](../direction-g.md) and [motion](../motion.md); screenshots are never committed ([devices](../../testing/apple/devices.md)).
 
 ## The rules for agents
 

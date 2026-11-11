@@ -4,8 +4,9 @@
 
 - Mockup: [live-activity-problem-card.html](live-activity-problem-card.html) · status shipped · reviewed 2026-10-23
 - Source: `apple/Sources/FentonActivityViews/ProblemCardView.swift`, `SeverityCircle.swift`, `ActivityStyle.swift`, `FentonActivityModel/ActivityProblem.swift`, `HomeActivityFixtures.swift` · Spec: `.agents/platforms/apple/live-activities-per-job.md` (section 5 table, section 8), `live-activities.md` · Patterns: none
-- States covered: default (critical), warning, banner, critical (all rows), warnings (all rows), flipped (Done), chips, pending, standby, table, ax5
+- States covered: default (critical), warning, banner, critical (all rows), warnings (all rows), flipped (Done), chips, pending, notice, standby, table, ax5
 - Motion: Done to Completing (system content update)
+- Failure notice: in place of the instruction while it stands ([rule](../../../../live-activity-problem-notice.md))
 - Devices: iPhone, iPhone Duo folded; one design for every device
 - Open notes:
   - All 19 section 5 rows drawn from the fixtures; corner mark is 40 pt here (24 pt on job cards).
