@@ -65,6 +65,8 @@ ATTACHMENT_URL = re.compile(r"https://github\.com/user-attachments/(?:assets|fil
 #: The comment the runner posts on the public pull request when the worker's text fails the house-data check.
 GENERIC_PULL_QUESTION = ("An owner decision is needed before this pull request can land. "
                          "The question and options are on the request issue.")
+#: The issue comment the nightly park posts on the public product repository when the worker's text fails the house-data check.
+GENERIC_PARK_ISSUE = "An owner decision is needed before the pull request below can land."
 #: The last line of the pull request question: only what works today (nothing reads replies or approvals there yet).
 PULL_DECIDE_LINE = ("To decide: reply on the request issue with your pick, or approve and merge this pull request "
                     "to accept the recommendation.")
@@ -2686,7 +2688,8 @@ class Runner:
 
         Labels the pull request and the issue ``Needs Decision``, posts the options, and remembers the pull request so
         ``check_parked`` finishes the issue when the owner merges it and ``requeue`` builds the owner's pick when they
-        reply instead. The worktree stays."""
+        reply instead. The worktree stays. When the issue is on the public product repository (the nightly intake) its comment
+        passes :meth:`public_safe` too and falls back to :data:`GENERIC_PARK_ISSUE` on a hit."""
         summary = str(status.get("summary", "")).strip()
         mockups = "\n".join(f"- {m}" for m in decision.get("mockups") or [])
         text = (f"{decision.get('question', summary)}\n\n{options}\n\nRecommended: "
@@ -2694,7 +2697,11 @@ class Runner:
         if mockups:
             text += f"\n\nMockups:\n{mockups}"
         text += (f"\n\nPull request: {pr}\n\nReply with your pick, or merge the PR to accept the recommendation.")
-        post_update(self.gh, self.repo, n, "decision-needed", text, status.get("screenshots") or [])
+        if self.repo == self.cfg["product_repo"] and not self.public_safe(render_update(n, "decision-needed", text, [])):
+            # the nightly intake's issue is on the public repository: the worker's text and media stay off it
+            post_update(self.gh, self.repo, n, "decision-needed", f"{GENERIC_PARK_ISSUE}\n\nPull request: {pr}", [])
+        else:
+            post_update(self.gh, self.repo, n, "decision-needed", text, status.get("screenshots") or [])
         self.post_pull_question(pr, decision, options)
         self.gh.label_pull(pr, "Needs Decision")
         try:  # a coder's pull request is a draft (ship.sh): ready it so the owner can merge it to accept
