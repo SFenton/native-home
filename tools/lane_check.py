@@ -6,7 +6,7 @@ check ran against an open PR; a ``git reset --soft origin/main`` squash reverted
 shared ``origin/main``; ``house_scan`` ran only at push time; ``core.hooksPath`` flipped between ``.githooks`` and an absolute path.
 
     python3 tools/lane_check.py start --task T --branch B --paths P...   # run with the lane worktree as the current directory (after lane_new.sh, before the Coder works)
-    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap]...   # no push; exit 1 on a failure
+    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap|scope]... [--ack-scope REASON]   # no push; exit 1 on a failure
     python3 tools/lane_check.py squash [--dry-run]                       # soft-reset onto the recorded lane base, never origin/main
 
 ``start`` fetches, records the base (the ``origin/main`` sha) in ``<git-dir>/lane-base`` (worktree-local, so another session's fetch
@@ -23,7 +23,11 @@ squash over a moved base) and ``shape`` (advisory: one commit, parent equal to `
 ``jev`` (``jev_ask.py sync --check``, so a stale generated question fails here and not at the push preflight or in ``test_jev``, plus the
 label-anchor check of ``test_labels_point_at_real_sections``: every ``tools/tests/fixtures/jev_section_labels.json`` pair must still find its
 ``any_of`` phrase in its file; the failure names the file and the anchor) and ``overlap`` (``open_pr_overlaps`` and ``commit_overlaps``
-re-run against the files the branch actually changes since the recorded lane base, not only the paths declared at ``start``; needs ``gh``).
+re-run against the files the branch actually changes since the recorded lane base, not only the paths declared at ``start``; needs ``gh``) and
+``scope`` (every file changed since the lane base, committed or not, must match the ``--paths`` ``start``
+stored, by the same matcher ``start`` uses; a stray file fails and is named. ``--ack-scope "<reason>"`` overrides: the reason is printed and
+recorded in the lane-base file together with the exact files it covered, so a later ``check`` passes for those files only; a new stray file fails again. Files ``jev_ask.py sync`` writes (``contracts/jev/questions/*.json``)
+are exempt. With no lane base for this branch the check fails open: a note, and for an ``agents/*`` or ``port/*`` branch a loud ``WARNING`` line, since such a lane should have run ``start``).
 
 Hooks-path environment: ``core.hooksPath`` lives in the repository's shared config, so every worktree sees one value. Only the relative
 ``.githooks`` that ``tools/setup.sh`` writes resolves to each worktree's own hooks; an absolute path points every worktree at one checkout,
@@ -49,7 +53,8 @@ from typing import List, Optional, Sequence
 
 TOOLS = Path(__file__).resolve().parent
 NETWORK_TIMEOUT = 15.0  # seconds for each ``gh`` or ``git fetch`` call
-CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap")
+CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap", "scope")
+SCOPE_EXEMPT = ("contracts/jev/questions/*.json",)  # the files ``jev_ask.py sync`` writes
 
 
 class LaneError(Exception):
@@ -356,6 +361,49 @@ def check_overlap(target: str = "main") -> Optional[str]:
             + ". Merge or rebase deliberately and review again, or coordinate with that lane.")
 
 
+def check_scope(target: str = "main", ack: Optional[str] = None) -> Optional[str]:
+    """None when every file changed since the lane base matches the paths ``start`` declared, else the reason naming the strays.
+
+    Changed means committed since the fork point with ``origin/<target>`` (so files that arrived from main by merge or rebase do not
+    count), modified in the working tree, or untracked (not ignored); all repo-relative. Files ``jev_ask.py sync`` writes are exempt.
+    ``ack`` passes and is printed; it is recorded as ``ack_scope`` (reason and the exact files covered), and a later check passes only
+    the files in that record. No lane base for this branch: fails open with a note, and a ``WARNING`` for an ``agents/*`` or ``port/*`` branch.
+    """
+    rec = read_lane_base()
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    if not rec or rec.get("branch") != branch:
+        if branch.startswith(("agents/", "port/")):
+            print(f"lane_check: WARNING: no lane base recorded for {branch}; the scope check did NOT run. "
+                  "Run `lane_check.py start` for this lane.", file=sys.stderr)
+        else:
+            print("lane_check: no lane base recorded for this branch (run `lane_check.py start`); scope check skipped", file=sys.stderr)
+        return None
+    declared = rec.get("paths") or []
+    if not declared:
+        print("lane_check: the lane base declares no paths; scope check skipped", file=sys.stderr)
+        return None
+    base = branch_range(rec, target)
+    files = set(git("diff", "--name-only", base).splitlines()) | set(
+        git("ls-files", "--others", "--exclude-standard", "--full-name", str(toplevel())).splitlines())
+    strays = sorted(f for f in files if f and not matches(f, declared) and not matches(f, SCOPE_EXEMPT))
+    recorded = rec.get("ack_scope") if isinstance(rec.get("ack_scope"), dict) else {}
+    if ack:
+        recorded = {"reason": ack, "files": sorted(set(recorded.get("files", [])) | set(strays))}
+        rec["ack_scope"] = recorded
+        lane_base_file().write_text(json.dumps(rec) + "\n")
+        if strays:
+            print(f"scope acknowledged: {ack} ({', '.join(strays[:8])})")
+        return None
+    uncovered = [f for f in strays if f not in recorded.get("files", [])]
+    if strays and not uncovered:
+        print(f"scope acknowledged: {recorded.get('reason')} ({', '.join(strays[:8])})")
+    if not uncovered:
+        return None
+    names = ", ".join(uncovered[:8]) + (" ..." if len(uncovered) > 8 else "")
+    return (f"files outside the declared paths ({' '.join(declared)}): {names}. Revert them, or rerun with "
+            '`lane_check.py check --only scope --ack-scope "<reason>"`.')
+
+
 def shape_notes(base: str) -> List[str]:
     """Advisory lines: one commit whose parent is the current ``origin/<base>``, else the safe squash."""
     rec = read_lane_base()
@@ -388,6 +436,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     if "jev" in wanted and (why := check_jev()):
         failures.append(why)
     if "overlap" in wanted and (why := check_overlap(args.base)):
+        failures.append(why)
+    if "scope" in wanted and (why := check_scope(args.base, args.ack_scope)):
         failures.append(why)
     if "shape" in wanted:
         for note in shape_notes(args.base):
@@ -435,6 +485,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     c = sub.add_parser("check", help="pre-push checks without pushing")
     c.add_argument("--base", default="main")
     c.add_argument("--only", action="append", choices=CHECKS)
+    c.add_argument("--ack-scope", metavar="REASON", help="accept files outside the declared paths; the reason is printed and recorded")
     q = sub.add_parser("squash", help="soft-reset onto the recorded lane base")
     q.add_argument("--dry-run", action="store_true")
     q.add_argument("--base", default="main")
