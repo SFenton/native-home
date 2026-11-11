@@ -63,7 +63,7 @@ class RuleTests(unittest.TestCase):
                 self.assertIsNotNone(condition, "%s/%s is a hosted Mac job without an if:" % (path.name, job))
                 self.assertIn(MACOS_GUARD, condition.group(1), "%s/%s lacks the HOSTED_MACOS guard" % (path.name, job))
                 self.assertNotIn("repository.private", condition.group(1), "%s/%s keys a Mac job on visibility" % (path.name, job))
-        self.assertEqual(found, 5)  # macos-build, macos-test, build-release, runtimes smoke, ios-release ipa
+        self.assertEqual(found, 6)  # macos-build, macos-test, coverage-changed, build-release, runtimes smoke, ios-release ipa
 
     def test_the_runner_label_variable_is_validated(self):
         for path in all_files():
@@ -81,7 +81,7 @@ class RuleTests(unittest.TestCase):
     def test_the_aggregate_keeps_its_name_and_covers_the_jobs(self):
         text = jobs("pr-checks.yml")["pr-checks"]
         self.assertIn("if: always()", text)
-        for needed in ("scope", "linux-checks", "tool-tests-core", "denylist-scan", "macos-build", "macos-test", "build-release"):
+        for needed in ("scope", "linux-checks", "tool-tests-core", "denylist-scan", "macos-build", "macos-test", "coverage-changed", "build-release"):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
         self.assertIn("toJSON(needs)", text)
@@ -94,7 +94,7 @@ class RuleTests(unittest.TestCase):
             self.assertIn("tools/ci_new_failures.py --base", jobs("pr-checks.yml")[job])
 
     def test_hosted_macos_jobs_use_the_hosted_mode_and_no_devcap(self):
-        for job in ("macos-build", "macos-test", "build-release"):
+        for job in ("macos-build", "macos-test", "coverage-changed", "build-release"):
             text = jobs("pr-checks.yml")[job]
             self.assertIn('FENTON_CI_HOSTED: "1"', text, job)
             self.assertNotIn("devcap", text, job)
@@ -128,7 +128,7 @@ class RuleTests(unittest.TestCase):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
         self.assertRegex(text.split("\njobs:\n", 1)[0], r"permissions:\n  contents: read\n(?!  issues)")
         for job, body in jobs("pr-checks.yml").items():
-            if job == "report-red-main":
+            if job in ("report-red-main", "close-red-main"):
                 self.assertIn("issues: write", body)
             else:
                 self.assertNotIn("issues:", body, job)
@@ -248,12 +248,65 @@ class RuleTests(unittest.TestCase):
 
     def test_only_the_macos_test_job_installs_simslim(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
-        self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 1)
+        self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 2)  # macos-test, and coverage-changed (its iOS phase boots iPhone)
 
     def test_manual_runs_with_different_dry_run_flags_do_not_cancel_each_other(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
         group = re.search(r"^  group: (.*)$", text, re.M).group(1)
         self.assertIn("inputs.report_dry_run", group)
+
+    def test_main_runs_key_on_the_sha_and_never_cancel_while_pull_requests_do(self):
+        text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
+        group = re.search(r"^  group: (.*)$", text, re.M).group(1)
+        self.assertIn("github.event_name == 'push' && github.sha", group)
+        self.assertIn("github.event.pull_request.number", group)
+        cancel = re.search(r"^  cancel-in-progress: (.*)$", text, re.M).group(1)
+        self.assertIn("github.event_name != 'push'", cancel)
+
+    def test_swift_test_runs_the_full_suite_when_a_pr_touches_core_or_design(self):
+        scope = jobs("pr-checks.yml")["scope"]
+        for path in ("apple/Sources/HassCore/**", "apple/Sources/HassDesign/**", "apple/Tests/HassCoreTests/**", "apple/Tests/HassDesignTests/**"):
+            self.assertIn(path, scope)
+        self.assertIn("swift_full: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.swift_full }}", scope)
+        step = jobs("pr-checks.yml")["macos-test"].split("name: swift test", 1)[1].split("run:", 1)[0]
+        # An empty base makes ci_macos.sh run everything; '' is falsy in an expression, so it must be the `||` fallback, never an `&& ''` arm.
+        self.assertIn("github.event_name == 'pull_request' && needs.scope.outputs.swift_full != 'true' && format('origin/{0}', github.base_ref) || ''", step)
+        self.assertIn("FENTON_AFFECTED_BASE", step)
+
+    def test_no_workflow_uses_the_falsy_empty_string_and_or_pattern(self):
+        """`cond && '' || other` always yields `other` (an empty string is falsy), the bug that kept swift_full from ever running the full suite."""
+        for path in all_files():
+            self.assertNotRegex(path.read_text(encoding="utf-8"), r"&&\s*''\s*\|\|", path.name)
+
+    def test_the_red_main_closer_fails_closed(self):
+        body = jobs("pr-checks.yml")["close-red-main"]
+        self.assertIn("ahead | identical)", body)
+        self.assertNotIn('ahead | identical | ""', body)
+        self.assertIn('*"HTTP 404"*', body)
+        self.assertIn("left open", body)
+
+    def test_the_changed_file_coverage_job_gates_pull_requests_and_fits_the_macos_cap(self):
+        job = jobs("pr-checks.yml")["coverage-changed"]
+        self.assertIn("tools/apple_coverage.sh --changed", job)
+        self.assertIn('FENTON_CI_HOSTED: "1"', job)
+        self.assertIn("needs: scope\n", job)  # starts beside macos-build: 2, then 4 runners, under the 5-concurrent cap
+        cond = re.search(r"^    if: (.*)$", job, re.M).group(1)
+        self.assertIn("github.event_name == 'pull_request'", cond)
+        self.assertIn("needs.scope.outputs.app == 'true'", cond)
+        self.assertNotIn("continue-on-error", job)
+        self.assertIn("coverage-changed", jobs("pr-checks.yml")["pr-checks"].split("steps:")[0])
+
+    def test_a_green_main_closes_the_red_main_issue(self):
+        body = jobs("pr-checks.yml")["close-red-main"]
+        cond = re.search(r"^    if: (.*)$", body, re.M).group(1)
+        self.assertIn("github.event_name == 'push'", cond)
+        self.assertIn("needs.pr-checks.result == 'success'", cond)
+        self.assertIn('title="Tool tests red on ${BRANCH}"', body)
+        self.assertIn("gh issue close", body)
+        self.assertIn("RUN_URL", body)
+        self.assertIn("needs: [pr-checks]", body)
+        report = jobs("pr-checks.yml")["report-red-main"]
+        self.assertIn('title="Tool tests red on ${BRANCH}"', report)  # the two jobs agree on the title
 
     def test_the_red_run_report_files_only_from_a_push_to_main(self):
         text = jobs("pr-checks.yml")["report-red-main"]

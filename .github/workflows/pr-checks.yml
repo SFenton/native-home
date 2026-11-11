@@ -2,8 +2,10 @@ name: pr-checks
 # The merge gate: the aggregate job `pr-checks` (GitHub requires it by name). Everything runs on GitHub-hosted runners.
 # Linux: the repo checks, the Python tool tests (the long core part in 4 shards), the denylist
 # scan and the aggregate. macOS (only while the repository variable HOSTED_MACOS is `on`): one job builds the test products, then a
-# matrix runs Smoke on iPhone, Duo and iPad in parallel from them (swift test rides the iPad leg), and the Release build. All of them run on plain `pull_request` with no
-# secrets (except the denylist scan), FENTON_CI_HOSTED=1 (tools/ci_hosted.py) and no devcap.
+# matrix runs Smoke on iPhone, Duo and iPad in parallel from them (swift test rides the iPad leg: the full suite when the PR touches
+# the Core or Design packages, the affected suites otherwise), a coverage-changed job gates the changed files at 95% (a PR only), and
+# the Release build. All of them run on plain `pull_request` with no secrets (except the denylist scan), FENTON_CI_HOSTED=1
+# (tools/ci_hosted.py) and no devcap.
 # Documentation: .agents/workflow/pr-lifecycle.md, .agents/workflow/ci.md.
 on:
   pull_request:
@@ -19,9 +21,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  # A manual run has its own group per dry-run flag; a new push still cancels the pull request's older run.
-  group: pr-checks-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}', inputs.report_dry_run) || '' }}
-  cancel-in-progress: true
+  # A push to main keys on its own sha and never cancels: every merge gets a verdict, so a red main cannot go unseen and the release
+  # does not wait on a run that a newer merge cancelled. A pull request keeps one group per number and a new push cancels its older run.
+  # A manual run has its own group per dry-run flag and also cancels its older run.
+  group: pr-checks-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha) || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}', inputs.report_dry_run) || '' }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 defaults:
   run:
     shell: bash
@@ -41,6 +45,7 @@ jobs:
     outputs:
       app: ${{ steps.filter.outcome == 'skipped' && 'true' || (steps.filter.outputs.app_code == 'true' || steps.filter.outputs.app_tools == 'true') }}
       release: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.release }}
+      swift_full: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.swift_full }}
     steps:
       - id: filter
         if: ${{ github.event_name == 'pull_request' }}
@@ -63,13 +68,17 @@ jobs:
               - '!contracts/test-suites*'
             app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/ci_macos.sh,tools/ci_release_sims.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
             release: 'apple/**'
+            # swift_full: the packages every Swift suite builds on (HassCore, HassDesign and what they import, the shared test support,
+            # the manifest) and the files that run swift test: a PR that touches them runs the full swift test, as main does.
+            swift_full: '{apple/Sources/HassCore/**,apple/Sources/HassDesign/**,apple/Sources/HassTelemetry/**,apple/Sources/FentonActivityModel/**,apple/Sources/HassDemoHouse/**,apple/Tests/HassCoreTests/**,apple/Tests/HassDesignTests/**,apple/Tests/HassTelemetryTests/**,apple/Tests/FentonActivityModelTests/**,apple/Tests/HassTestSupport/**,apple/Package.swift,apple/Package.resolved,.github/workflows/pr-checks.yml,tools/ci_macos.sh}'
       - name: Summary
         env:
           APP: ${{ steps.filter.outcome == 'skipped' && 'true' || (steps.filter.outputs.app_code == 'true' || steps.filter.outputs.app_tools == 'true') }}
           RELEASE: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.release }}
+          SWIFT_FULL: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.swift_full }}
           FILTER: ${{ steps.filter.outcome }}
         run: |
-          echo "scope - app=$APP release=$RELEASE (filter $FILTER)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "scope - app=$APP release=$RELEASE swift_full=$SWIFT_FULL (filter $FILTER)" | tee -a "$GITHUB_STEP_SUMMARY"
 
   linux-checks:
     # The repo checks and the small tool-test parts in one job: three short Linux jobs cost three runner starts.
@@ -396,6 +405,10 @@ jobs:
             spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
       - name: swift test
         if: ${{ !cancelled() && matrix.family == 'ipad' }}
+        # The full suite on main and on a PR that touches the Core or Design packages (scope swift_full); the affected suites otherwise.
+        # ci_macos.sh runs everything when FENTON_AFFECTED_BASE is empty, so the step blanks it; the journeys keep the job's value.
+        env:
+          FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && needs.scope.outputs.swift_full != 'true' && format('origin/{0}', github.base_ref) || '' }}
         run: tools/ci_macos.sh swift-test
       - name: Timing summary
         if: ${{ !cancelled() }}
@@ -427,6 +440,64 @@ jobs:
             apple/.build
             ~/Library/Caches/org.swift.swiftpm
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+
+  coverage-changed:
+    # The 95% per-PR gate (logic and UX) as a required check instead of the honour system: tools/apple_coverage.sh --changed runs the
+    # affected swift test suites with coverage (and, when UIKitPort sources changed, the diff's journeys on iPhone with an instrumented
+    # app), then gates only the changed source files. Its own job, not a step of macos-test: it cannot reuse the macos-build products
+    # (it builds with coverage on, so its products key differs) and it must not lengthen the iPad leg. It needs only scope, so it starts
+    # beside macos-build: build + coverage is 2 runners, then 3 legs + coverage is 4, never over the 5-concurrent macOS cap. Pull requests only.
+    name: macOS - changed-file coverage
+    needs: scope
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' && github.event_name == 'pull_request' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 120
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+      FENTON_AFFECTED_BASE: ${{ format('origin/{0}', github.base_ref) }}
+      FENTON_HEALTH_SHOT_WALL: "180"
+      FENTON_HEALTH_BOOT_WALL: "300"
+      FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data and products paths
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      - name: Restore SwiftPM caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            apple/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Changed-file coverage (95% logic and UX)
+        run: tools/apple_coverage.sh --changed
+      - name: Keep the coverage logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coverage-changed-logs
+          include-hidden-files: true
+          path: |
+            apple/.build/coverage-class/**
+            apple/.build/coverage-ios/*.json
+          if-no-files-found: ignore
 
   build-release:
     # The Release build runs on a push to main only; a pull request is covered by the macOS job's build and swift test.
@@ -476,7 +547,7 @@ jobs:
     # jobs (the macOS jobs on a docs/tools diff), hosted macOS while HOSTED_MACOS is off, the
     # denylist scan on a fork PR. A matrix job's result is the worst of its legs: a failed shard or a failed Smoke leg fails this check.
     if: always()
-    needs: [scope, linux-checks, tool-tests-core, denylist-scan, macos-build, macos-test, build-release]
+    needs: [scope, linux-checks, tool-tests-core, denylist-scan, macos-build, macos-test, coverage-changed, build-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -560,3 +631,45 @@ jobs:
           else
             gh issue create --label Workflow --title "$title @ ${HEAD_SHA:0:10}" --body "$body"
           fi
+
+  close-red-main:
+    # The mirror of report-red-main: a green push run on main closes the open red-main issue(s) with a comment linking the run. Green is the
+    # aggregate `pr-checks` job succeeding, which covers the tool tests the issue is about and everything else. Only an issue about an
+    # older commit closes: a green run that finished after a newer red one must not close the newer issue (compared through the API).
+    needs: [pr-checks]
+    if: ${{ always() && github.event_name == 'push' && needs.pr-checks.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Close the red-main issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}   # no checkout in this job, so gh needs the repository named
+          HEAD_SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The title report-red-main files: "Tool tests red on <branch> @ <sha10>".
+          title="Tool tests red on ${BRANCH}"
+          gh issue list --state open --label Workflow --search "\"$title\" in:title" --json number,title \
+            --jq ".[] | select(.title | startswith(\"$title\")) | \"\(.number) \(.title)\"" | while read -r number rest; do
+            sha="${rest##*@ }"
+            # Fail closed: close only when the API says this commit is at or past the reported one, or that the reported sha is gone (404).
+            # An empty answer or any other API error leaves the issue open.
+            if status="$(gh api "repos/$GH_REPO/compare/${sha}...${HEAD_SHA}" --jq .status 2>&1)"; then
+              case "$status" in
+                ahead | identical) ;;
+                *) echo "issue #$number is about $sha, which this commit does not contain ($status): left open"; continue ;;
+              esac
+            else
+              case "$status" in
+                *"HTTP 404"*) ;;   # the reported sha no longer exists: nothing newer can be hiding behind it
+                *) echo "issue #$number: compare against $sha failed ($status): left open"; continue ;;
+              esac
+            fi
+            gh issue close "$number" --comment "Main is green again at ${HEAD_SHA:0:10}: ${RUN_URL}"
+            echo "closed issue #$number"
+          done
