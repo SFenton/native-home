@@ -14,7 +14,7 @@
 | See how a page, modal or component looks and moves today (all devices and states) | [design/mockups](design/mockups/README.md) (atlas: pages, modals, components, flows; `catalog.json`) |
 | Any visible choice: build up to 3 options, the Designer judges and records the pick | [workflow/propose-first.md](workflow/propose-first.md); look the surface up in the atlas first, update it with the change |
 | A design choice the owner hasn't made | [skills/design-decision](skills/design-decision/SKILL.md) |
-| Write or review SwiftUI | [.claude/skills/swiftui-pro](../.claude/skills/swiftui-pro/SKILL.md), applied per [workflow/swiftui-pro.md](workflow/swiftui-pro.md) |
+| Write or review SwiftUI | [.claude/skills/swiftui-pro](../.claude/skills/swiftui-pro/SKILL.md), applied per [workflow/change-loop.md](workflow/change-loop.md) |
 | Fix a reported issue | [skills/fix-reported-issue](skills/fix-reported-issue/SKILL.md) |
 | Report an Issue form, the request repo, the triage agent | [pages/settings/feedback.md](pages/settings/feedback.md), [workflow/triage-agent.md](workflow/triage-agent.md) |
 | Sign-in, tokens, Keychain | [platforms/apple/auth.md](platforms/apple/auth.md) |
@@ -29,6 +29,7 @@
 | Upload a build to TestFlight, privacy manifests, export compliance | [platforms/apple/testflight.md](platforms/apple/testflight.md) |
 | A check is red or queued, the runner, the IPA release, the nightly run and its `Nightly Fix` issues | [workflow/ci.md](workflow/ci.md) |
 | Edit these docs | [workflow/docs-conventions.md](workflow/docs-conventions.md) |
+| Levels, the owner-only set, house data, credentials | [workflow/autonomy.md](workflow/autonomy.md), [workflow/security.md](workflow/security.md) |
 
 ## By platform
 
@@ -43,7 +44,7 @@
 
 | Folder | Holds |
 |---|---|
-| [workflow/](workflow/README.md) | How we work: change loop, doc rules |
+| [workflow/](workflow/README.md) | The process rules, one home each |
 | [design/](design/README.md) | Per-platform HIG decisions and screen classification |
 | [platforms/](platforms/README.md) | Architecture, auth, connection lifecycle, build and run |
 | [pages/](pages/README.md) | One folder per web route: `spec.md` + per-platform notes |
