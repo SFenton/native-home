@@ -172,6 +172,22 @@ class OwnerRuleTests(Fixture):
         self.assertIn("bare rule (undated", md)
 
 
+class RuleSurfaceLineTests(Fixture):
+    def test_the_rule_surface_lines_are_report_only_and_optional(self):
+        """Fails if: the roll-up drops the rule-surface numbers when present, or needs them to render."""
+        self.assertNotIn("Rule surface", rw.render_md(self.doc()))
+        doc = self.doc()
+        doc["rule_surface"] = {"rule_surface_words": 900, "layers": {"core": {"files": 1, "words": 500}},
+                               "role_load": {".claude/agents/coder.md": 3000}}
+        md = rw.render_md(doc)
+        self.assertIn("Rule surface (report only): 900 words; core 500", md)
+        self.assertIn("coder 3000", md)
+
+    def test_no_contract_means_no_numbers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(rw.rule_surface(Path(tmp)), {})
+
+
 class RegressionTests(Fixture):
     def at(self, days_ago):
         return NOW - timedelta(days=days_ago)

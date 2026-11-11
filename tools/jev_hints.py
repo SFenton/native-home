@@ -13,7 +13,7 @@ network or API error) or has nothing confident to say. It always exits 0, so a p
 unchanged without Jev. Every line is a guess to verify against the code and the rules, never an instruction.
 
 The questions are in `contracts/jev/questions/`; the measurements behind the wording are in
-`.agents/workflow/decision-models.md`. Standard library only.
+`.agents/workflow/jev.md`. Standard library only.
 """
 
 from __future__ import annotations

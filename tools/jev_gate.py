@@ -23,7 +23,7 @@ that draw the same are not app UI (`rendered_ui_paths`, owner decisions 2026-11-
 The raise-only lines only raise. No key or an API error prints **nothing**, and silence never skips the Designer or
 lowers a level. It exits 0 when it ran, so a hint never stops work; a `--plan-file` that is missing or empty prints
 `jev_gate: cannot read <path>` to stderr and exits 2. Each answer is logged (no plan text) to `build/jev/gate.jsonl`.
-Every line is a guess to verify, never an instruction (`.agents/workflow/jev-corpus.md`,
+Every line is a guess to verify, never an instruction (`.agents/workflow/jev.md`,
 `.agents/workflow/agent-roster.md`). Standard library only.
 """
 

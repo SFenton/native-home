@@ -274,6 +274,17 @@ def build(records: Dict[str, Any], now: datetime, since: datetime) -> Dict[str, 
                 k: v for k, v in previous.items() if k != "tasks"}, "trend": trend}
 
 
+def rule_surface(repo: Path) -> Dict[str, Any]:
+    """Report-only: rule-surface words by layer and the per-role spawn load (``tools/rules_lint.py --report``); ``{}`` when the
+    repo has no contract or the lint cannot run."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import rules_lint
+        return rules_lint.report(repo) if (repo / rules_lint.CONTRACT).is_file() else {}
+    except Exception:  # noqa: BLE001 - a roll-up never fails on its report-only lines
+        return {}
+
+
 def render_md(doc: Dict[str, Any]) -> str:
     m = doc["metrics"]
     lines = [f"# Weekly retro metrics, {doc['date']}", "", f"Window: {doc['since']} to {doc['until']}.", ""]
@@ -293,6 +304,11 @@ def render_md(doc: Dict[str, Any]) -> str:
               f"- Self-change merges: {m['self_change_merges']}, reverts: {m['self_change_reverts']}",
               f"- Repeats of a rule the owner already gave: {m['owner_rule_repeats']}",
               f"- Retirements: {m['retirements_in_window']} this window, {doc['retirements_total']} in all"]
+    surface = doc.get("rule_surface") or {}
+    if surface:
+        lines += ["", f"- Rule surface (report only): {surface['rule_surface_words']} words; "
+                  + ", ".join(f"{name} {info['words']}" for name, info in sorted(surface["layers"].items())),
+                  "- Spawn load by role (words): " + ", ".join(f"{Path(rel).stem} {n}" for rel, n in sorted(surface["role_load"].items()))]
     singles = [r for r in m.get("owner_rules", []) if r["count"] < 2]
     if singles:
         lines += ["", "## Owner rules broken once", ""]
@@ -319,6 +335,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     repo = Path(args.repo)
     out = Path(args.out) if args.out else repo / "build" / "retro"
     document = build(collect(Path(args.archive), repo, None), now, parse_since(args.since, now))
+    document["rule_surface"] = rule_surface(repo)
     out.mkdir(parents=True, exist_ok=True)
     stem = out / f"weekly-{document['date']}"
     stem.with_suffix(".json").write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
