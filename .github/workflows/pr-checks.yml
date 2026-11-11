@@ -442,9 +442,9 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
 
   coverage-changed:
-    # The 95% per-PR gate (logic and UX) as a required check instead of the honour system: tools/apple_coverage.sh --changed runs the
-    # affected swift test suites with coverage (and, when UIKitPort sources changed, the diff's journeys on iPhone with an instrumented
-    # app), then gates only the changed source files. Its own job, not a step of macos-test: it cannot reuse the macos-build products
+    # The 95% per-PR logic gate as a required check instead of the honour system: tools/apple_coverage.sh --changed runs the
+    # affected swift test suites with coverage on the Mac host (no simulator; UX line coverage is not measured, owner 2026-11-10),
+    # then gates only the changed logic files. Its own job, not a step of macos-test: it cannot reuse the macos-build products
     # (it builds with coverage on, so its products key differs) and it must not lengthen the iPad leg. It needs only scope, so it starts
     # beside macos-build: build + coverage is 2 runners, then 3 legs + coverage is 4, never over the 5-concurrent macOS cap. Pull requests only.
     name: macOS - changed-file coverage
@@ -486,7 +486,7 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: Changed-file coverage (95% logic and UX)
+      - name: Changed-file coverage (95% logic)
         run: tools/apple_coverage.sh --changed
       - name: Keep the coverage logs
         if: ${{ failure() }}
@@ -496,7 +496,6 @@ jobs:
           include-hidden-files: true
           path: |
             apple/.build/coverage-class/**
-            apple/.build/coverage-ios/*.json
           if-no-files-found: ignore
 
   build-release:

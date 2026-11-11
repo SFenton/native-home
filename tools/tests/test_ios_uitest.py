@@ -324,7 +324,6 @@ class SkippedLedgerTests(unittest.TestCase):
         self.assertEqual(uitest_support.tally_verdict("xcodebuild_iphone 0 0\nxcodebuild_duo 0 0\nxcodebuild_ipad 1 0\n")[0], 0)
         text = SCRIPT.read_text()
         self.assertIn('echo "xcodebuild_$family 1 0" >> "$FENTON_TALLY"', text)
-        self.assertIn("--allow-empty --impact", (SCRIPT.parent / "apple_coverage.sh").read_text())
 
     def test_the_script_records_and_replays_skips(self):
         text = SCRIPT.read_text()

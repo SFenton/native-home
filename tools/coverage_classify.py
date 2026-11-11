@@ -18,7 +18,6 @@ Quarantine never lowers the 95% bar: ``coverage_gate.py`` is untouched and quara
     coverage_classify.py failed-ids LOG [LOG ...]
     coverage_classify.py phase-facts LOG
     coverage_classify.py swift-filters ID,ID
-    coverage_classify.py rerun-cmd hosted|journey ID,ID --script PATH
     coverage_classify.py classify --failed FILE --phases FILE --rerun-log LOG [LOG ...] [--quarantine FILE] [--offline]
 """
 
@@ -27,7 +26,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shlex
 import subprocess
 import sys
 from datetime import date
@@ -113,29 +111,6 @@ def phase_problems(lines: list[str]) -> tuple[list[str], bool]:
         if unexplained:
             problems.append(f"phase {name} counts {unexplained} more failure(s) than its log explains")
     return problems, timed_out
-
-
-def rerun_args(phase: str, ids: list[str]) -> tuple[dict[str, str], list[str]]:
-    """``(env, args)`` of the plain ``ios_uitest.sh`` rerun of failed ``Class/test`` ids (no ``--impact``).
-
-    Journeys use ``--tests Class/test,...`` (resolved against the UI test universe). Hosted tests are not in that
-    universe, so they run with ``--hosted`` and ``FENTON_HOSTED_FILTER`` naming their classes. ``--force`` keeps the
-    passed-run ledger from answering for a rerun.
-    """
-    base = ["--only", "iphone", "--plan", "Gate", "--force"]
-    if phase == "hosted":
-        classes = sorted({test_id.split("/", 1)[0] for test_id in ids})
-        return {"FENTON_HOSTED_FILTER": " ".join(classes)}, base + ["--hosted"]
-    if phase == "journey":
-        return {}, base + ["--tests", ",".join(sorted(ids))]
-    raise ValueError(f"no ios rerun for phase {phase!r}")
-
-
-def rerun_command(phase: str, ids: list[str], script: str) -> str:
-    """The shell-quoted rerun command line: ``env [VAR=value ...] SCRIPT ARGS``."""
-    env, words = rerun_args(phase, ids)
-    return " ".join(["env"] + [f"{k}={shlex.quote(v)}" for k, v in env.items()]
-                    + [shlex.quote(script)] + [shlex.quote(w) for w in words])
 
 
 def gh_issue_state(number: int) -> tuple[str, list[str]]:
@@ -258,10 +233,6 @@ def main(argv: list[str] | None = None) -> int:
     facts.add_argument("log")
     flt = sub.add_parser("swift-filters", help="print the swift test --filter regexes for failed ids")
     flt.add_argument("ids", help="comma separated ids")
-    rr = sub.add_parser("rerun-cmd", help="print the plain ios_uitest.sh rerun command line")
-    rr.add_argument("phase", choices=["hosted", "journey"])
-    rr.add_argument("ids", help="comma separated Class/test ids")
-    rr.add_argument("--script", required=True, help="path of ios_uitest.sh")
     cls = sub.add_parser("classify", help="print the digest and exit 1 when the run must fail")
     cls.add_argument("--failed", required=True, help="file: `KIND id` lines, the ids the instrumented run failed")
     cls.add_argument("--phases", required=True, help="file: `NAME STATUS NIDS` lines, one per phase run")
@@ -269,9 +240,6 @@ def main(argv: list[str] | None = None) -> int:
     cls.add_argument("--quarantine", default=str(QUARANTINE_DEFAULT))
     cls.add_argument("--offline", action="store_true", help="skip the open-issue check")
     args = parser.parse_args(argv)
-    if args.cmd == "rerun-cmd":
-        print(rerun_command(args.phase, [i for i in args.ids.split(",") if i], args.script))
-        return 0
     if args.cmd == "phase-facts":
         print(*phase_facts(Path(args.log).read_text(encoding="utf-8", errors="replace")))
         return 0

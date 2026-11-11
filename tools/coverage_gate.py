@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Fail when actual logic/UX line coverage misses its threshold. Ported from FestivalNativeApps."""
+"""Fail when actual logic line coverage misses its threshold. Ported from FestivalNativeApps.
+
+Only the categories named in ``thresholds`` of ``contracts/coverage-rules.json`` are gated (today ``logic``). Source
+under ``unmeasured`` (the UIKit and SwiftUI UX modules; owner, 2026-11-10) is classified so a new module still fails
+by name, but it is never reported or gated.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 FOREIGN_SOURCE = re.compile(r"/apple/(Sources|Apps|Tests)/")
 RULES = ROOT / "contracts" / "coverage-rules.json"
+#: The classification-only category: every file is sorted into it, but it has no threshold and no report.
+UNMEASURED = "unmeasured"
 
 
 def source_files(root: Path, patterns: list[str]) -> set[str]:
@@ -139,7 +146,8 @@ def classify(
         language: Language section to validate.
 
     Returns:
-        The files in each category (`logic`, `ux`), the excluded files and the classification errors.
+        The files in each category (each gated one, plus `unmeasured`), the excluded files and the
+        classification errors.
     """
     section = rules.get(language)
     if not isinstance(section, dict):
@@ -153,15 +161,17 @@ def classify(
     excluded = source_files(root, exclude_patterns)
     categories: dict[str, set[str]] = {}
     classified: set[str] = set()
-    for category in ("logic", "ux"):
+    thresholds = rules.get("thresholds", {})
+    if not isinstance(thresholds, dict) or not thresholds or UNMEASURED in thresholds:
+        return {}, excluded, [f"{language}: thresholds must name the gated categories (and never {UNMEASURED})"]
+    for category in (*thresholds, UNMEASURED):
         patterns = section.get(category)
-        threshold = rules.get("thresholds", {}).get(category)
+        threshold = thresholds.get(category)
         if (
             not isinstance(patterns, list)
             or not patterns
             or not all(isinstance(pattern, str) for pattern in patterns)
-            or type(threshold) is not int
-            or not 0 <= threshold <= 100
+            or (category != UNMEASURED and (type(threshold) is not int or not 0 <= threshold <= 100))
         ):
             errors.append(f"{language}.{category}: invalid patterns or threshold")
             continue
@@ -189,8 +199,8 @@ def classify(
     if unclassified:
         modules = sorted({module_of(name) for name in unclassified})
         errors.append(
-            f"{language}: {len(unclassified)} production source file(s) are not classified as logic or"
-            f" ux. Add a pattern for each (or its module: {', '.join(modules)}) to \"{language}\" in"
+            f"{language}: {len(unclassified)} production source file(s) are not classified as"
+            f" {', '.join(categories)}. Add a pattern for each (or its module: {', '.join(modules)}) to \"{language}\" in"
             f" {RULES.relative_to(ROOT).as_posix()}:{file_list(unclassified)}"
         )
     outside_roots = classified - production
@@ -224,6 +234,8 @@ def check_coverage(
             errors.append(f"{language}: executable source cannot be excluded: {name}")
     measured_modules = {module_of(name) for name in totals}
     for category, files in categories.items():
+        if category == UNMEASURED:
+            continue
         threshold = rules["thresholds"][category]
         missing = files - totals.keys()
         unmeasured = {name for name in missing if module_of(name) not in measured_modules}
@@ -265,10 +277,12 @@ def check_changed(
 ) -> list[str]:
     """Gate only the changed source files, for a per-PR run of the affected suites.
 
-    Without a baseline each category's changed files together must meet its threshold. With a baseline
-    (repository-relative path to the percent it had before) a file passes when it meets the threshold or
-    does not drop below its baseline, so touching a file that was already under the bar does not fail the PR
-    unless it gets worse. Files outside every category (tests, excluded sources, non-Swift) are ignored, and
+    Unmeasured files are skipped. Without a baseline each gated category's changed files together must
+    meet its threshold. With a baseline (repository-relative path to the percent it had before) a file
+    passes when it meets the threshold or does not drop below its baseline, so touching a file that was
+    already under the bar does not fail the PR unless it gets worse. Baseline entries for paths that are
+    not gated (an old file's `ux` entries) are never read. Files outside every gated category (tests,
+    excluded and unmeasured sources, non-Swift) are ignored, and
     a changed file with no LLVM record counts as 0 lines, as in the full gate.
 
     Args:
@@ -289,6 +303,8 @@ def check_changed(
     wanted = {Path(name).as_posix() for name in files}
     checked = 0
     for category, members in categories.items():
+        if category == UNMEASURED:
+            continue
         threshold = rules["thresholds"][category]
         changed = sorted(members & wanted)
         if not changed:

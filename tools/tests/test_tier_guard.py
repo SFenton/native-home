@@ -1,4 +1,4 @@
-"""``tools/hooks/tier_guard.py``: no unfiltered journey run or full coverage outside the nightly and release tiers."""
+"""``tools/hooks/tier_guard.py``: no unfiltered journey run outside the nightly and release tiers."""
 
 import io
 import json
@@ -23,9 +23,6 @@ BLOCKED = [
     "bash -c 'tools/ios_uitest.sh --only iphone'",
     "tools/ios_uitest.sh --plan Gate",
     "tools/ios_uitest.sh --full",
-    "tools/apple_coverage.sh",
-    "tools/bg_run.py cov -- tools/apple_coverage.sh --full",
-    "nohup tools/apple_coverage.sh > out.log 2>&1 &",
 ]
 ALLOWED = [
     "tools/ios_uitest.sh --changed",
@@ -35,8 +32,10 @@ ALLOWED = [
     "tools/ios_uitest.sh --only duo --plan Smoke",
     "tools/ios_uitest.sh --plan=Perf",
     "tools/bg_run.py uitest -- tools/ios_uitest.sh --changed --only iphone",
+    "tools/apple_coverage.sh",
     "tools/apple_coverage.sh --changed",
-    "tools/bg_run.py cov -- tools/apple_coverage.sh --changed",
+    "tools/bg_run.py cov -- tools/apple_coverage.sh",
+    "nohup tools/apple_coverage.sh > out.log 2>&1 &",
     "FENTON_TIER=nightly tools/ios_uitest.sh --only iphone",
     "FENTON_TIER=release tools/apple_coverage.sh",
     "tools/ios_uitest.sh --full  # full-ok: release candidate sign-off",
@@ -82,8 +81,9 @@ class TierGuardTests(unittest.TestCase):
         with mock.patch.object(sys, "stdin", io.StringIO(payload)), mock.patch.dict(os.environ, {"FENTON_TIER": "nightly"}):
             self.assertEqual(tier_guard.main(), 0)
 
-    def test_message_names_the_alternative_for_coverage(self):
-        self.assertIn("apple_coverage.sh --changed", run("tools/apple_coverage.sh")[1])
+    def test_the_coverage_script_is_no_longer_guarded(self):
+        """It is the host-only logic gate now (owner, 2026-11-10): no simulator, about ten minutes."""
+        self.assertEqual(run("tools/apple_coverage.sh"), (0, ""))
 
     def test_ignores_other_tools_and_bad_input(self):
         self.assertEqual(run("tools/ios_uitest.sh", tool="Read")[0], 0)

@@ -3,7 +3,7 @@
 You are the **orchestrator** of the Fenton Home nightly-fix agent (`.claude/agents/orchestrator.md`), running
 unattended on the owner's MacBook in a dedicated worktree of `{{PRODUCT_REPO}}` on branch `nightly/{{ISSUE}}` (based on
 `origin/{{BASE}}`). The nightly full run (`.github/workflows/nightly.yml`: every UI journey on iPhone, iPhone Duo and
-iPad, plus `apple_coverage.sh` and the 95% gate) failed in one area and filed this issue. Make that area pass again:
+iPad, plus `apple_coverage.sh` and the 95% logic gate) failed in one area and filed this issue. Make that area pass again:
 route it, get the cause found and fixed, open a pull request and land it. Nobody is watching this session, so don't ask
 questions: decide, say what you decided in the issue, and keep going.
 
@@ -51,8 +51,8 @@ brief states the objective, the output (files plus the status block), the source
 2. **Reproduce first** (a `coder` or `verifier` job). Area `journeys-<family>` means UI tests failed on that device family: run the failing tests
    with `tools/ios_uitest.sh --env shell --only <family> --force -only-testing:FentonHomeUITests/<Class>/<test>`
    (the script loads the Home Assistant credentials itself, in its own process: never print, copy or commit them). Area `coverage` means a unit test
-   failed or `tools/apple_coverage.sh` is under 95%: run `swift test --filter <suite>` in `apple/`, and add the missing
-   tests for uncovered logic. A failure that does not reproduce in two runs is flaky: find the race and fix the test
+   failed or `tools/apple_coverage.sh` is under 95% (the gate is logic only; UX line coverage is not measured): run
+   `swift test --filter <suite>` in `apple/`, and fix it with host tests for the uncovered logic. A failure that does not reproduce in two runs is flaky: find the race and fix the test
    or the code (never loosen an assertion or add a skip to make it pass). If it truly passes now, finish `no_changes`.
 3. **Say what you found early:** `{{HASS_TRIAGE}} comment {{ISSUE}} --kind root-cause --body-file <file>`.
 4. **Capacity and simulators.** Every simulator boot, device run and heavy compile goes through the machine-wide gate:

@@ -24,7 +24,7 @@ xcrun devicectl device process launch --device <UDID> --terminate-existing com.s
 
 ## Notes
 
-- Coverage gate: `tools/apple_coverage.sh` (95% logic / 95% UX). Device journeys: `tools/ios_uitest.sh` ([devices](../../testing/apple/devices.md)).
+- Coverage gate: `tools/apple_coverage.sh` (95% logic, Mac host only; UX line coverage is not measured, owner 2026-11-10). Device journeys: `tools/ios_uitest.sh` ([devices](../../testing/apple/devices.md)).
 - iPhone Duo APIs (`onHingeChange`, vertical bar) need the iOS 27.1 SDK; builds with an older SDK must add `FENTON_IOS_SDK_BEFORE_27_1` to `SWIFT_ACTIVE_COMPILATION_CONDITIONS`.
 - Boot, drive and build only inside a `tools/devcap.py` hold, which waits for machine-wide capacity ([capacity](capacity.md)); never reset another project's devices. Slim what you boot with `tools/sim_slim.sh UDID` inside the hold ([slim simulators](capacity.md#slim-simulators)).
 - Keep the `UILaunchScreen` key and the `LaunchBackground` color asset, or older runtimes fall back to legacy compatibility frames (FestivalNativeApps finding).
