@@ -12,6 +12,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hooks"))
 import tier_guard  # noqa: E402
 
+BODY = "tools/ios_uitest.sh"
 BLOCKED = [
     "tools/ios_uitest.sh",
     "tools/ios_uitest.sh --only iphone",
@@ -47,6 +48,75 @@ ALLOWED = [
     "bash -n tools/ios_uitest.sh",
     "swift test --filter Foo",
     "echo hello",
+    "FENTON_HOSTED_FILTER=UKHostedTests tools/bg_run.py hosted -- tools/ios_uitest.sh --hosted",
+]
+# A heredoc body that is only text, written to a file by a command that runs nothing.
+ALLOWED_PLAIN_WRITES = [
+    f"cat > f <<'EOF'\n{BODY}\nEOF\n",
+    "cat > f <<'EOF'\ntools/apple_coverage.sh\nEOF\n",
+    f"cat <<'EOF' > f\n{BODY}\nEOF\n",
+    f"cat >> f <<EOF\n{BODY}\nEOF\n",
+    f"cat <<EOF >f\n{BODY}\nEOF\n",
+    f"tee f <<EOF\n{BODY}\nEOF\n",
+    f"tee -a f <<'EOF' >> g\n{BODY}\nEOF\n",
+    f"cat > a <<EOF\n{BODY}\nEOF\ncat > b <<EOF\ntools/apple_coverage.sh\nEOF\n",
+]
+ALLOWED_HOSTED_FORMS = [
+    "FENTON_HOSTED_FILTER=A tools/ios_uitest.sh --hosted",
+    "FENTON_HOSTED_FILTER='A B' tools/ios_uitest.sh --hosted",
+    'FENTON_HOSTED_FILTER="A" tools/ios_uitest.sh --hosted',
+    "env FENTON_HOSTED_FILTER=A tools/ios_uitest.sh --hosted",
+    "export FENTON_HOSTED_FILTER=A\ntools/ios_uitest.sh --hosted",
+    "export FENTON_HOSTED_FILTER=A; tools/bg_run.py hosted -- tools/ios_uitest.sh --hosted",
+    "export FENTON_HOSTED_FILTER=A && tools/ios_uitest.sh --hosted",
+]
+# Each was blocked before heredoc bodies were skipped and must stay blocked.
+BLOCKED_HEREDOC_BYPASSES = [
+    f"bash <<EOF\n{BODY}\nEOF\n",
+    f"nohup {BODY} > out.log 2>&1 <<EOF\nnote\nEOF\n",
+    "cat > f <<'EOF'\nx\nEOF\ntools/apple_coverage.sh",
+    f'bash -c "$(cat <<EOF\n{BODY}\nEOF\n)"',
+    f'eval "$(cat <<EOF\n{BODY}\nEOF\n)"',
+    f"cat <<EOF |\n{BODY}\nEOF\nbash",
+    f"cat <<EOF | bash\n{BODY}\nEOF\n",
+    f"cat <<EOF \\\n| bash\n{BODY}\nEOF\n",
+    f"source /dev/stdin <<EOF\n{BODY}\nEOF\n",
+    f". /dev/stdin <<EOF\n{BODY}\nEOF\n",
+    f"python3 - <<EOF\nimport os; os.system('{BODY}')\nEOF\n",
+    f"xargs env <<EOF\n{BODY}\nEOF\n",
+    f"cat > run.sh <<EOF\n{BODY}\nEOF\nbash run.sh",
+    f"cat > run.sh <<EOF\n{BODY}\nEOF\n. ./run.sh",
+    f"cat > run.sh <<EOF && bash run.sh\n{BODY}\nEOF\n",
+    f"cat > run.sh <<EOF; bash run.sh\n{BODY}\nEOF\n",
+    f"cat > /dev/stdout <<EOF\n{BODY}\nEOF\n",
+    f"tee run.sh <<EOF | bash\n{BODY}\nEOF\n",
+    f"cat <<EOF\n{BODY}\nEOF\n",
+    f"cat <<EOF > >(bash)\n{BODY}\nEOF\n",
+]
+# Each is an empty, expanded or misplaced filter and must not count.
+BLOCKED_HOSTED_SPOOFS = [
+    "FENTON_HOSTED_FILTER= tools/ios_uitest.sh --hosted",
+    "FENTON_HOSTED_FILTER='' tools/ios_uitest.sh --hosted",
+    "FENTON_HOSTED_FILTER=' ' tools/ios_uitest.sh --hosted",
+    'FENTON_HOSTED_FILTER="  " tools/ios_uitest.sh --hosted',
+    "FENTON_HOSTED_FILTER=$EMPTY tools/ios_uitest.sh --hosted",
+    'FENTON_HOSTED_FILTER="$EMPTY" tools/ios_uitest.sh --hosted',
+    "FENTON_HOSTED_FILTER=`true` tools/ios_uitest.sh --hosted",
+    "tools/ios_uitest.sh --hosted # FENTON_HOSTED_FILTER=A",
+    "# FENTON_HOSTED_FILTER=A\ntools/ios_uitest.sh --hosted",
+    "true # note; export FENTON_HOSTED_FILTER=A\ntools/ios_uitest.sh --hosted",
+    "echo FENTON_HOSTED_FILTER=A; tools/ios_uitest.sh --hosted",
+    "echo 'export FENTON_HOSTED_FILTER=A'; tools/ios_uitest.sh --hosted",
+    "FENTON_HOSTED_FILTER=A true; tools/ios_uitest.sh --hosted",
+    "FENTON_HOSTED_FILTER=A true && tools/ios_uitest.sh --hosted",
+    "FENTON_HOSTED_FILTER=A tools/ios_uitest.sh --only iphone",
+    "tools/bg_run.py FENTON_HOSTED_FILTER=A -- tools/ios_uitest.sh --hosted",
+    "export FENTON_HOSTED_FILTER=A; unset FENTON_HOSTED_FILTER; tools/ios_uitest.sh --hosted",
+    "export FENTON_HOSTED_FILTER=; tools/ios_uitest.sh --hosted",
+    "export FENTON_HOSTED_FILTER=' '; tools/ios_uitest.sh --hosted",
+    "(export FENTON_HOSTED_FILTER=A); tools/ios_uitest.sh --hosted",
+    "tools/ios_uitest.sh --hosted; export FENTON_HOSTED_FILTER=A",
+    f"cat <<EOF\nexport FENTON_HOSTED_FILTER=A\nEOF\n{BODY} --hosted",
 ]
 
 
@@ -68,6 +138,26 @@ class TierGuardTests(unittest.TestCase):
                 self.assertEqual(status, 2, message)
                 self.assertIn("--changed", message)
                 self.assertIn("nightly", message)
+
+    def test_still_blocks_heredoc_bodies_that_could_reach_a_shell(self):
+        for command in BLOCKED_HEREDOC_BYPASSES:
+            with self.subTest(command=command):
+                self.assertEqual(run(command)[0], 2)
+
+    def test_blocks_empty_and_spoofed_hosted_filters(self):
+        for command in BLOCKED_HOSTED_SPOOFS:
+            with self.subTest(command=command):
+                self.assertEqual(run(command)[0], 2)
+
+    def test_allows_plain_heredoc_writes_to_files(self):
+        for command in ALLOWED_PLAIN_WRITES:
+            with self.subTest(command=command):
+                self.assertEqual(run(command)[0], 0)
+
+    def test_allows_valid_hosted_filter_forms(self):
+        for command in ALLOWED_HOSTED_FORMS:
+            with self.subTest(command=command):
+                self.assertEqual(run(command)[0], 0)
 
     def test_allows_filtered_nightly_and_overridden_runs(self):
         for command in ALLOWED:
