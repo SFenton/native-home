@@ -2152,6 +2152,13 @@
    "journeys": []
   },
   {
+   "prefix": "apple/Tests/HassUITests/HostedGate.swift",
+   "swift": [
+    "HassUITests"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Tests/HassTestSupport",
    "swift": [
     "HassCoreTests",
