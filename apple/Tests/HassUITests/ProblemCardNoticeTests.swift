@@ -22,9 +22,11 @@ struct ProblemCardNoticeTests {
         ProblemCardView(card: card, problem: try #require(card.problem), showsMark: showsMark)
     }
 
-    /// Every string the card's view tree holds, in reading order.
+    /// The strings the card's own lines hold, in reading order: its text, identifiers and labels, up to where the buttons
+    /// start carrying the whole card (they begin with its tag).
     private func strings(_ card: ActivityCard) throws -> [String] {
-        ControlProbe.all(String.self, in: try problemCard(card).body)
+        let all = ControlProbe.all(String.self, in: try problemCard(card).body)
+        return Array(all.prefix { $0 != card.attributes.tag })
     }
 
     /// The card's height when laid out 370 pt wide at a text size.
