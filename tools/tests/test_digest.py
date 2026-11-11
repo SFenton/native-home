@@ -208,6 +208,22 @@ class DigestTests(unittest.TestCase):
         self.assertIn("mod.A.test_a", out)
         self.assertIn("mod.B.test_b", out)
 
+    def test_devcap_slot_wait_timeout_is_infra_only_at_exit_75(self):
+        line = "devcap: gave up waiting for a free slot after 1200s\n"
+        out = log_digest.digest_text(line, exit_code=75)
+        self.assertIn("RESULT: INFRA", out)
+        self.assertIn("slot wait timeout", out)
+        self.assertNotIn("RESULT: INFRA", log_digest.digest_text(line, exit_code=1))
+        self.assertNotIn("RESULT: INFRA", log_digest.digest_text("note: devcap: gave up waiting\n", exit_code=75))
+
+    def test_python39_unittest_failures_in_one_class_stay_separate(self):
+        log = ("FAIL: test_a (mod.Cls)\nAssertionError\nFAIL: test_b (mod.Cls)\nAssertionError\n"
+               "FAILED (failures=2)\n")
+        out = log_digest.digest_text(log, exit_code=1)
+        self.assertIn("FAILED (2)", out)
+        self.assertIn("mod.Cls.test_a", out)
+        self.assertIn("mod.Cls.test_b", out)
+
     def test_unittest_failed_summary_without_ids_is_still_fail(self):
         self.assertIn("RESULT: FAIL", log_digest.digest_text("FAILED (failures=2)\n", exit_code=1))
 

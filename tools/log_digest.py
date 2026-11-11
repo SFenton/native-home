@@ -40,7 +40,11 @@ COMPILE_ERROR = re.compile(r"(?P<where>/?[^\s:]+\.swift:\d+):\d+: error: (?P<msg
 #: exited with `HOLD_TIMEOUT_EXITS`: a test that prints the words, or a log that quotes them, is not an infrastructure death.
 HOLD_TIMEOUT = re.compile(r"^(?:devcap: HOLD TIMEOUT:|bg_run: hold timeout)")
 HOLD_TIMEOUT_EXITS = (75, 124)
+#: devcap's slot-wait timeout line. Same rule: line start, and only when the run exited `SLOT_WAIT_EXIT` (devcap's EX_TEMPFAIL).
+SLOT_WAIT = re.compile(r"^devcap: gave up waiting")
+SLOT_WAIT_EXIT = 75
 #: unittest's own markers (tool tests): `FAIL: test_x (mod.Class.test_x)`, `ERROR: ...` and the `FAILED (failures=1)` summary.
+#: Python 3.9 prints the class (`test_x (mod.Class)`), later versions the full test id (`test_x (mod.Class.test_x)`).
 UT_FAILED = re.compile(r"^(?:FAIL|ERROR): (?P<name>\w+) \((?P<id>[\w.]+)\)\s*$")
 UT_SUMMARY = re.compile(r"^FAILED \((?:failures|errors)=\d+")
 
@@ -51,6 +55,7 @@ INFRA: List[Tuple[str, "re.Pattern[str]", str]] = [
     ("simulator unhealthy", re.compile(r"^INFRA: simulator unhealthy"), "bootstatus or a screenshot failed twice; `devcap.py status`, recreate the simulator"),
     ("credentials unavailable", re.compile(r"Live-server credentials unavailable"), "the runner's ~/.config/fenton-hass/env is missing or refused; fix the machine (tools/hass_creds.sh), rerun"),
     ("hold timeout", HOLD_TIMEOUT, "devcap killed a hung run; check `devcap.py status`, rerun once"),
+    ("slot wait timeout", SLOT_WAIT, "devcap gave up waiting for a free simulator slot (exit 75); `devcap.py status`, rerun when the holder finishes"),
     ("Device Hub pose", re.compile(r"DeviceHubError|Pressed the unfolded control"), "the Duo pose control did not take; rerun once, then `tools/duo_pose.py --sim <UDID>` inside a devcap hold"),
     ("simulator unavailable", re.compile(r"^GAP:", re.M), "a gap, not a pass; create the simulator"),
     ("simulator boot/launch", re.compile(r"Unable to boot|Invalid device state|Failed to launch|Early unexpected exit"), "simulator did not come up; rerun once"),
@@ -167,7 +172,8 @@ class Digest:
         elif match := ST_FAILED.search(line):
             self.failed.setdefault(match["name"].strip(), "failed")
         elif match := UT_FAILED.match(line):
-            self.failed.setdefault(match["id"], "failed (unittest)")
+            test_id = match["id"] if match["id"].endswith("." + match["name"]) else f"{match['id']}.{match['name']}"
+            self.failed.setdefault(test_id, "failed (unittest)")
         elif match := ST_PASSED.search(line):
             self.passed[match["name"].strip()] = None
         elif match := XC_SKIPPED.search(line):
@@ -248,6 +254,8 @@ class Digest:
         """Keep a "hold timeout" line as infra only when the run exited 75 or 124 (a killed hold); at any other status the run ended by itself."""
         if exit_code not in HOLD_TIMEOUT_EXITS:
             self.infra.pop("hold timeout", None)
+        if exit_code != SLOT_WAIT_EXIT:
+            self.infra.pop("slot wait timeout", None)
 
     def _verdict(self, exit_code: Optional[int]) -> str:
         failed_tests = (bool(self.failed) or self.suite_status == "failed" or self.runner_failed
