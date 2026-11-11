@@ -23,7 +23,7 @@ device class (``iphone``, ``duo``, ``ipad``) per round, marker ``<!-- sh:evidenc
 with nothing to show gets no comment. Other markers are ``<!-- sh:<kind>:<task>:<round> -->``.
 
 Header: every comment has its own heading line ``#### Step N · <Role> · round R · head <sha7> · HH:MMZ`` (head only when
-``--head`` is given), then a blank line and the body unchanged. ``N`` is ``--step`` or, when absent, the count of this task's distinct markers already posted or queued, plus one;
+``--head`` is given, 7 to 40 hex characters), then a blank line and the body unchanged. ``N`` is ``--step`` or, when absent, the count of this task's distinct markers already posted or queued, plus one;
 an edit keeps its number. The role is ``--as`` or the kind's usual role (Researcher, Designer, Coder, Verifier,
 Reviewer, Steward, Orchestrator). A body that starts with its own ``#`` heading keeps it first and the header follows;
 an app's ``@SFenton`` mention stays first. A comment in the older glued form is rewritten in the new one on its next post.
@@ -32,11 +32,14 @@ Behaviour:
 
 - A body hash is stored in the comment; an unchanged body is a no-op, a changed one edits the comment and adds
   "updated HH:MMZ" to its header line, a new marker posts a new comment.
-- Finding the PR: ``--pr N``; else ``--branch B`` (``gh pr list --head B``); else the branches of the task ledger
-  (``build/tasks/<task>.json``, directory ``--ledger-dir``, ``TASKS_DIR`` or this checkout's ``build/tasks``); else the
-  current branch. So a caller in another worktree finds the PR.
+- Finding the PR: ``--pr N``; else ``--branch B`` (``gh pr list --head B``); else the current branch's PR; else the branches
+  of the task ledger (``build/tasks/<task>.json``, directory ``--ledger-dir``, ``TASKS_DIR`` or this checkout's
+  ``build/tasks``). If the ledger lists two or more branches with an open PR and nothing else decided, the note is queued with
+  a message naming them (pass ``--pr`` or ``--branch``) rather than sent to the first.
 - With no PR yet the note is queued under ``~/hass-agents/pr-notes/<task>/queue/`` (``SH_PR_NOTES_DIR`` overrides the
-  folder; shared by every worktree) with its original time, and ``flush`` posts the queue in order once the PR exists
+  folder; shared by every worktree) with its original time, and ``flush`` posts the queue in order once the PR exists (a queued note whose marker is posted with the same body is dropped;
+  with a different body it is applied as an edit; one that is refused or fails stays queued, is reported, and the notes behind it
+  still go out)
   ("happened 11:32Z, posted when the PR opened"). ``flush``, ``init`` and ``post`` also move the old per-checkout queue
   ``build/pr-notes/<task>/queue/`` into the shared one first, keeping names (so time and order).
 - House data (first gate): before any body, line or file is posted or queued it goes through the house denylist with the
@@ -146,6 +149,13 @@ def redact(text: str) -> str:
     return _redact(text)
 
 
+def head_sha(value: str) -> str:
+    """Validate ``--head`` (7 to 40 hexadecimal characters)."""
+    if not re.fullmatch(r"[0-9a-fA-F]{7,40}", value):
+        raise argparse.ArgumentTypeError(f"bad head {value!r}: 7 to 40 hex characters")
+    return value.lower()
+
+
 def task_id(value: str) -> str:
     """Validate ``--task`` (letters, digits, ``.``, ``_``, ``-``; no ``..``)."""
     if not _TASK.match(value) or ".." in value:
@@ -168,9 +178,9 @@ def gh(args: List[str], stdin: Optional[str] = None) -> str:
     return done.stdout
 
 
-def pr_of_branch(branch: str) -> Optional[int]:
-    """The newest PR whose head is ``branch`` (open or not), else ``None``."""
-    rows = json.loads(gh(["pr", "list", "--head", branch, "--state", "all", "--limit", "1", "--json", "number"]) or "[]")
+def pr_of_branch(branch: str, state: str = "all") -> Optional[int]:
+    """The newest PR whose head is ``branch`` (``state``: ``open`` or ``all``), else ``None``."""
+    rows = json.loads(gh(["pr", "list", "--head", branch, "--state", state, "--limit", "1", "--json", "number"]) or "[]")
     return int(rows[0]["number"]) if rows else None
 
 
@@ -187,24 +197,37 @@ def ledger_branches(task: str, ledger_dir: Optional[str] = None) -> List[str]:
 
 def find_pr(explicit: Optional[str], branch: Optional[str] = None, task: Optional[str] = None,
             ledger_dir: Optional[str] = None) -> Optional[int]:
-    """The PR number: ``--pr``, else ``--branch``, else the ledger's branches, else the current branch's PR, else ``None``.
+    """The PR number: ``--pr``, else ``--branch``, else the current branch's PR, else the ledger's branches, else ``None``.
 
-    ``None`` means no PR yet. The first three let a caller in another worktree find the PR."""
+    ``None`` means no PR yet. The ledger comes last and only decides when exactly one of its branches has an open PR (else
+    the newest PR of the first branch that has one); two or more open PRs raise ``NoteError`` so the note is queued, not
+    sent to the wrong PR."""
     if explicit:
         return int(explicit)
-    candidates = ([branch] if branch else []) + (ledger_branches(task, ledger_dir) if task else [])
-    for name in candidates:
-        found = pr_of_branch(name)
+    if branch:
+        found = pr_of_branch(branch)
         if found is not None:
             return found
     try:
         return int(json.loads(gh(["pr", "view", "--json", "number"]))["number"])
     except NoteError as exc:
-        if "no pull requests found" in str(exc).lower():
-            return None
-        raise
+        if "no pull requests found" not in str(exc).lower():
+            raise
     except (ValueError, KeyError):
-        return None
+        pass
+    branches = ledger_branches(task, ledger_dir) if task else []
+    open_prs = {pr_of_branch(name, "open"): name for name in branches} if branches else {}
+    open_prs.pop(None, None)
+    if len(open_prs) > 1:
+        raise NoteError(f"task {task} has {len(open_prs)} branches with open pull requests "
+                        f"({', '.join(f'#{n}' for n in sorted(open_prs))}); pass --pr or --branch")
+    if open_prs:
+        return next(iter(open_prs))
+    for name in branches:
+        found = pr_of_branch(name)
+        if found is not None:
+            return found
+    return None
 
 
 def repo_slug() -> str:
@@ -442,12 +465,8 @@ _WARNED = []
 
 
 def denylist_required() -> bool:
-    """Whether ``tools/triage/config.json`` makes a missing denylist a refusal (``denylist_required`` is true)."""
-    try:
-        data = json.loads((ROOT / "tools" / "triage" / "config.json").read_text())
-    except (OSError, ValueError):
-        return False
-    return isinstance(data, dict) and data.get("denylist_required") is True
+    """Whether ``tools/triage/config.json`` makes a missing denylist a refusal (``house_scan.denylist_required``)."""
+    return house_scan.denylist_required(ROOT / "tools" / "triage" / "config.json")
 
 
 def house_gate(text: str, source: str) -> None:
@@ -476,7 +495,10 @@ def manifest_source(path: Path) -> Optional[str]:
     ``media`` list holds ``{path, source}``. ``live`` wins over any other entry for the same file; ``None`` when no entry names it."""
     target = path.resolve()
     sources: List[str] = []
+    root = ROOT.resolve()
     for folder in (path.resolve().parent, *path.resolve().parents):
+        if folder != path.resolve().parent and not folder.is_relative_to(root):
+            break  # never climb out of the checkout
         manifest = folder / "manifest.json"
         if manifest.is_file():
             try:
@@ -492,7 +514,7 @@ def manifest_source(path: Path) -> Optional[str]:
                 if isinstance(name, str) and isinstance(source, str) and target in {
                         (base / name).resolve() for base in (ROOT, folder)}:
                     sources.append(source)
-        if folder.parent.name == "evidence" or folder == folder.parent:
+        if folder.parent.name == "evidence" or folder == root or folder == folder.parent:
             break
     return "live" if "live" in sources else (sources[0] if sources else None)
 
@@ -770,27 +792,42 @@ def drop_queued(task: str, kind: str, cls: Optional[str], round_no: int) -> None
 
 
 def flush(task: str, pr: int) -> int:
-    """Post the queue in order (after draining the legacy one); stops at the first ``gh`` failure so order is kept.
+    """Post the queue in order (after draining the legacy one). Returns how many were posted.
 
-    A queued note is gated again before it goes out. One whose marker is already on the PR is dropped (the posted comment is
-    newer). A role whose app fails is posted with the ``gh`` login, so it never blocks the queue. Returns how many were posted."""
+    A queued note is gated again before it goes out. One whose marker is on the PR with the same body (hash) is dropped; with a
+    different body it is applied as an edit, so an update that failed once is not lost. A role whose app fails is posted with
+    the ``gh`` login. A note that is refused or fails stays queued, is reported on stderr, and the notes behind it still go
+    out; if any was refused, ``Refusal`` is raised at the end (exit 1)."""
     drain_legacy(task)
-    count = 0
+    count, refused = 0, []
     idents: Dict[Optional[str], Identity] = {}
+    comments = list_comments(pr)
     for path in queue_files(task):
-        n = json.loads(path.read_text())
-        tag = marker(n["kind"], task, n["round"], n.get("class"))
-        if any(has_tag(c, tag) for c in list_comments(pr)):
-            path.unlink()
+        try:
+            n = json.loads(path.read_text())
+            tag = marker(n["kind"], task, n["round"], n.get("class"))
+            same = body_hash(strip_markers(redact(n["body"])))
+            posted = next((_HASH.search(c["body"]) for c in comments if has_tag(c, tag)), None)
+            if posted and posted.group(1) == same:
+                path.unlink()
+                continue
+            gate(n["body"], f"queued note {path.name}", load_media(task))
+            role = n.get("as")
+            if role not in idents:
+                idents[role] = resolve_identity(role)
+            post_comment(pr, task, n["kind"], n["class"], n["round"], redact(n["body"]), happened=n["time"],
+                         ident=idents[role], role=role, step=n.get("step"), head=n.get("head"))
+        except Refusal as exc:
+            print(f"pr_note: queued note {path.name} refused and kept: {exc}", file=sys.stderr)
+            refused.append(path.name)
             continue
-        gate(n["body"], f"queued note {path.name}", load_media(task))
-        role = n.get("as")
-        if role not in idents:
-            idents[role] = resolve_identity(role)
-        post_comment(pr, task, n["kind"], n["class"], n["round"], redact(n["body"]), happened=n["time"],
-                     ident=idents[role], role=role, step=n.get("step"), head=n.get("head"))
+        except (NoteError, KeyError, ValueError) as exc:
+            print(f"pr_note: warning, queued note {path.name} not posted and kept: {exc}", file=sys.stderr)
+            continue
         path.unlink()
         count += 1
+    if refused:
+        raise Refusal(f"{len(refused)} queued note(s) refused and kept in the queue")
     return count
 
 
@@ -923,7 +960,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--round", type=int, required=True)
     s.add_argument("--body-file", required=True)
     s.add_argument("--step", type=int, help="step number (default: this task's markers posted or queued, plus one)")
-    s.add_argument("--head", help="head commit shown in the header (first 7 characters)")
+    s.add_argument("--head", type=head_sha, help="head commit shown in the header (7 to 40 hex characters; first 7 shown)")
     add("flush")
     add("init")
     add("timeline")

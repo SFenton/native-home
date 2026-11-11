@@ -453,6 +453,34 @@ class RoleKindTests(Base):
                      "--body-file", self.body_file("Built again."))
         self.assertNotIn('"list"', self.log.read_text())
 
+    def test_current_branch_beats_the_ledger_and_two_open_ledger_prs_refuse(self):
+        """Fails if: the ledger's first branch (another lane's PR) wins over the current branch's own PR, or a ledger with two
+        open PRs and no current-branch PR picks the first instead of queueing with a message naming both."""
+        ledger = Path(self.tmp.name) / "tasks"
+        ledger.mkdir()
+        (ledger / "T-x.json").write_text(json.dumps({"branches": ["agents/sibling", "agents/mine"]}))
+        self.set_state(pr=7, branches={"agents/sibling": 70, "agents/mine": 7})
+        self.assertEqual(pr_note.find_pr(None, None, "T-x", str(ledger)), 7)
+        self.assertEqual(pr_note.find_pr(None, "agents/sibling", "T-x", str(ledger)), 70)
+        self.set_state(pr=None)
+        with self.assertRaises(pr_note.NoteError) as ctx:
+            pr_note.find_pr(None, None, "T-x", str(ledger))
+        self.assertIn("#7", str(ctx.exception))
+        self.assertIn("#70", str(ctx.exception))
+        code, _out, err = self.run_cli("post", "build", "--task", "T-x", "--round", "1", "--ledger-dir", str(ledger),
+                                       "--body-file", self.body_file("Built."))
+        self.assertEqual(code, 0)
+        self.assertIn("pass --pr or --branch", err)
+        self.assertEqual(len(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))), 1)
+        self.assertEqual(self.get()["comments"], [])
+
+    def test_head_must_be_7_to_40_hex_characters(self):
+        """Fails if: ``--head`` accepts text that is not a commit id, or refuses a full 40-character sha."""
+        for bad in ("abc", "not-a-sha!", "g" * 8, "a" * 41):
+            with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                self.post("build", "x", "1", "--head", bad)
+        self.assertIn("posted", self.post("build", "x", "1", "--head", "a" * 40)[1])
+
     def test_pr_found_by_the_task_ledger(self):
         """Fails if: the ledger's ``branches`` are not tried, or an unreadable ledger breaks the run instead of falling back."""
         ledger = Path(self.tmp.name) / "tasks"
@@ -531,6 +559,23 @@ class GateTests(Base):
         self.assertEqual(code, 1)
         self.assertNotIn("zzhouseterm", out + err)
         self.assertEqual(self.get()["comments"], [])
+
+    def test_manifest_search_never_climbs_past_the_checkout(self):
+        """Fails if: a ``manifest.json`` above the checkout can mark a picture as demo, or ``denylist_required`` is read by a
+        second implementation instead of ``house_scan.denylist_required``."""
+        outer = Path(self.tmp.name) / "outer"
+        inner = outer / "checkout"
+        (inner / "shots").mkdir(parents=True)
+        (outer / "manifest.json").write_text(json.dumps({"media": [{"path": "checkout/shots/p.png", "source": "demo"}]}))
+        pic = inner / "shots" / "p.png"
+        pic.write_bytes(b"x")
+        with mock.patch.object(pr_note, "ROOT", inner):
+            self.assertIsNone(pr_note.manifest_source(pic))
+            (inner / "shots" / "manifest.json").write_text(json.dumps({"media": [{"path": "p.png", "source": "demo"}]}))
+            self.assertEqual(pr_note.manifest_source(pic), "demo")
+        with mock.patch.object(pr_note.house_scan, "denylist_required", return_value=True) as seen:
+            self.assertTrue(pr_note.denylist_required())
+        seen.assert_called_once()
 
     def test_missing_denylist_warns_once_and_goes_on_unless_required(self):
         """Fails if: a missing list blocks work by default, the warning repeats, or ``denylist_required`` does not refuse."""
@@ -691,17 +736,44 @@ class AppFailureTests(Base):
         self.assertEqual(kinds, ["research", "build", "review"])
         self.assertEqual(self.queue_files(), [])
 
-    def test_flush_drops_a_queued_note_whose_marker_is_already_posted(self):
-        """Fails if: a stale queued note is posted again, edits the newer comment, or stays in the queue."""
+    def test_flush_drops_a_queued_note_with_the_posted_body_and_applies_a_changed_one(self):
+        """Fails if: a queued note with the same body as the posted comment is posted again, or a queued edit (a different body for
+        a posted marker, queued after a failed post) is dropped instead of applied."""
         self.post("retro", "Old text.", "1")
         self.set_state(pr=None)
-        self.post("retro", "Queued again.", "1")
+        self.post("retro", "Old text.", "1")
         self.set_state(pr=7)
-        self.assertEqual(len(self.queue_files()), 1)
         self.assertIn("flushed 0", self.run_cli("flush", "--task", "T-x")[1])
         self.assertEqual(self.queue_files(), [])
+        self.set_state(fail=True)
+        self.post("retro", "Edited text.", "1")  # the edit fails and is queued
+        self.set_state(fail=False)
+        self.assertEqual(len(self.queue_files()), 1)
+        self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-x")[1])
+        self.assertEqual(self.queue_files(), [])
         self.assertEqual(len(self.get()["comments"]), 1)
-        self.assertIn("Old text.", self.get()["comments"][0]["body"])
+        self.assertIn("Edited text.", self.get()["comments"][0]["body"])
+
+    def test_a_refused_or_failing_queued_note_does_not_stop_the_ones_behind_it(self):
+        """Fails if: a queued note the gate refuses (or that cannot be read) stays first and blocks the later notes, is deleted, or
+        is not reported."""
+        self.set_state(pr=None)
+        self.post("pick", "ok one", "1")
+        self.post("verdict", "ok two", "1")
+        self.post("research", "ok three", "1")
+        first, second, _third = self.queue_files()
+        bad = json.loads(first.read_text())
+        bad["body"] = "zzhouseterm"
+        first.write_text(json.dumps(bad))
+        second.write_text("{}")
+        self.set_state(pr=7)
+        code, _out, err = self.run_cli("flush", "--task", "T-x")
+        self.assertEqual(code, 1)
+        self.assertNotIn("zzhouseterm", err)
+        self.assertIn(first.name, err)
+        self.assertIn(second.name, err)
+        self.assertEqual([c["body"].count("<!-- sh:research") for c in self.get()["comments"]], [1])
+        self.assertEqual(self.queue_files(), [first, second])
 
 
 class HeaderFormTests(Base):
