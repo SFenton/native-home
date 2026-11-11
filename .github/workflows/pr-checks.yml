@@ -469,7 +469,6 @@ jobs:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
       FENTON_AFFECTED_BASE: ${{ format('origin/{0}', github.base_ref) }}
-      FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:

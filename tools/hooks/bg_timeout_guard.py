@@ -5,7 +5,7 @@ The harness stops a ``run_in_background`` Bash call after 30 minutes unless the 
 at most 7200000). A full UI run takes about 50 minutes, so launched without one the job is killed mid-way and its
 children are orphaned. This guard denies a background call whose command runs ``ios_uitest.sh --full`` (also through
 ``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``) with no ``timeout`` of at least ``MIN_TIMEOUT_MS`` and says
-how to retry. ``apple_coverage.sh`` is not a long job since 2026-11-10: it is the host-only logic gate, about ten minutes.
+how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic gate, not a long job.
 
 A tripwire for a habit, not a wall: it reads the command text only, and it fails open on any error of its own (bad payload,
 unparsable command). Exit 2 sends the message back to the model.

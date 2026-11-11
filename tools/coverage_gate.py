@@ -2,7 +2,7 @@
 """Fail when actual logic line coverage misses its threshold. Ported from FestivalNativeApps.
 
 Only the categories named in ``thresholds`` of ``contracts/coverage-rules.json`` are gated (today ``logic``). Source
-under ``unmeasured`` (the UIKit and SwiftUI UX modules; owner, 2026-11-10) is classified so a new module still fails
+under ``unmeasured`` (the UIKit and SwiftUI UX modules) is classified so a new module still fails
 by name, but it is never reported or gated.
 """
 

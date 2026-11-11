@@ -179,9 +179,8 @@ if [[ -n "$IMPACT_DIR" ]]; then
 fi
 if [[ $HOSTED == 1 ]]; then
   # The app-hosted unit tests (FentonHomeTests: UIKit view controllers driven directly inside the app). With --impact their profile goes
-  # to DIR/FentonHomeTests.<pid>.%c.profraw (TEST_RUNNER_ variables reach the test host, which is the instrumented app) and
-  # tools/coverage_ios.py export merges it with the journeys' profiles. Takes seconds once the products are cached.
-  # Without --impact the hosted tests run plain (no profile): the coverage run's classification rerun (tools/coverage_classify.py).
+  # to DIR/FentonHomeTests.<pid>.%c.profraw (TEST_RUNNER_ variables reach the test host, which is the instrumented app). Without
+  # --impact they run plain (no profile).
   # FENTON_HOSTED_FILTER='Class1 Class2' runs only those hosted classes (bisecting a test that fails after another).
   if [[ -n "${FENTON_HOSTED_FILTER:-}" ]]; then for c in $FENTON_HOSTED_FILTER; do EXTRA+=(-only-testing:FentonHomeTests/$c); done; else EXTRA+=(-only-testing:FentonHomeTests); fi
   [[ -z "$IMPACT_DIR" ]] || export TEST_RUNNER_LLVM_PROFILE_FILE="$IMPACT_DIR/FentonHomeTests.%p.%c.profraw"

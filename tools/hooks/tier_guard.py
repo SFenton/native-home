@@ -6,7 +6,7 @@ Refuses (exit 2, the message goes back to the model):
 * ``tools/ios_uitest.sh`` with no filter: no ``--changed``, no ``-only-testing…`` and no ``--plan Smoke|Capture|Perf|Live``
   (``--plan Gate`` is the whole gate, so it is a full run and is refused too).
 
-``tools/apple_coverage.sh`` is not guarded: since 2026-11-10 it is the host-only logic gate (about ten minutes, no simulator).
+``tools/apple_coverage.sh`` is not guarded: it is the host-only logic gate and boots no simulator.
 
 Allowed anyway when the command carries ``FENTON_TIER=nightly`` or ``FENTON_TIER=release`` (the CI workflows and the release
 checklist set it; the hook process's own environment counts too), or ``--full`` together with a ``# full-ok: reason`` comment.

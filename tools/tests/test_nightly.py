@@ -251,6 +251,19 @@ class HostedWorkflowTests(unittest.TestCase):
         for simulator in ("FENTON_INSTALL_SIMSLIM", "sim_slim", "sim_settle", "ci_release_sims"):
             self.assertNotIn(simulator, coverage)
 
+    def test_the_whole_hosted_suite_has_a_nightly_leg_that_fails_the_run(self):
+        """Fails if: no scheduled job runs all of FentonHomeTests plain on iPhone, loses its headroom, drops out of the report's expectation, or cannot fail the run."""
+        hosted = self.TEXT.split("\n  hosted:\n", 1)[1].split("\n  live:\n", 1)[0]
+        self.assertIn("tools/ios_uitest.sh --only iphone --hosted --force", hosted)
+        self.assertNotIn("FENTON_HOSTED_FILTER", hosted)  # the whole suite, not a diff's classes
+        self.assertNotIn("--impact", hosted)
+        self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", hosted).group(1)), 90)
+        self.assertIn("--area hosted", hosted)
+        self.assertIn("name: nightly-hosted", hosted)  # matches the report job's nightly-* pattern
+        self.assertIn("steps.run.outputs.code != '0'", hosted.split("Fail the hosted run", 1)[1])
+        self.assertIn('expect="$expect,hosted=1"', self.TEXT)
+        self.assertIn("hosted: ${{ steps.plan.outputs.hosted }}", self.TEXT)
+
     def test_retired_self_hosted_scripts_are_gone(self):
         for name in ("nightly_dispatch.sh", "nightly_install.sh"):
             self.assertFalse((TOOLS / name).exists(), name)
@@ -319,7 +332,7 @@ class LiveJobTests(unittest.TestCase):
     def test_its_result_reaches_the_report_job(self):
         """Fails if: the report job stops needing live, or the digest artifact name or area drifts from the nightly-* pattern."""
         report = self.TEXT.split("\n  report:\n", 1)[1]
-        self.assertIn("needs: [plan, journeys, coverage, live]", report)
+        self.assertIn("needs: [plan, journeys, coverage, hosted, live]", report)
         self.assertIn("pattern: nightly-*", report)
         self.assertIn('--area "live-$FAMILY"', self.LIVE)
         self.assertIn("name: nightly-live-${{ matrix.family }}-${{ matrix.shard }}", self.LIVE)

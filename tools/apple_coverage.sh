@@ -22,6 +22,12 @@
 #   (each entry: id, issue, date; the issue must be an open Workflow issue). The 95% bar never changes and quarantined tests count.
 set -euo pipefail
 
+# -h / --help prints the header above and exits; nothing else starts.
+if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
+  sed -n '2,/^set -euo/{/^set -euo/!s/^# \{0,1\}//p;}' "$0"
+  exit 0
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CHANGED=0
 [[ "${1:-}" == --changed ]] && CHANGED=1  # "$@" stays intact: the script re-runs itself inside the devcap hold

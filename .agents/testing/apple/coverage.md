@@ -18,7 +18,7 @@
 
 ## `--changed`
 
-`tools/apple_coverage.sh --changed` runs the host suites the diff affects and gates only the changed files the rules class as `logic`. A diff that changes no logic file gates nothing and exits 0; a diff that maps to no host suite runs nothing. A changed logic file with no record fails loudly when records from another checkout's path were skipped. The script's header and `--help` carry the detail.
+`tools/apple_coverage.sh --changed` runs the host suites the diff affects and gates only the changed files the rules class as `logic`. A diff that changes no logic file gates nothing and exits 0; a diff that maps to no host suite runs nothing. A changed logic file with no record fails loudly when records from another checkout's path were skipped. `tools/apple_coverage.sh --help` prints the detail.
 
 ## Failures in a host test run are classified
 
