@@ -313,7 +313,11 @@ class PreReadTests(Base):
             text = self.render()
         self.assertIn(self.SECTION, text)
         self.assertLess(text.index("</issue-comments>"), text.index("## Pre-read"))
-        self.assertLess(text.index("## Pre-read"), text.index("## Rules you work under"))
+        # The section sits where the template puts it: before whatever heading follows the placeholder.
+        template = (ht.HERE / "prompts" / "worker.md").read_text(encoding="utf-8")
+        after = template.split("{{PREREAD}}", 1)[1]
+        following = next(line for line in after.splitlines() if line.startswith("## "))
+        self.assertLess(text.index("## Pre-read"), text.index(following))
         section.assert_called_once_with(self.cfg, "[Bug] Thing 9", "The Next run pill is cut off")
         self.assertNotIn("{{", text)
 
