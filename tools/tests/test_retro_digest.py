@@ -167,8 +167,9 @@ class TriggerTests(Base):
         self.assertNotIn("stopped_with_live_children", self.fired(self.run_digest()))
         self.write("build/runs/build-9.running", {"pid": os.getpid(), "label": "build-9"})
         evidence = self.fired(self.run_digest())["stopped_with_live_children"]
-        self.assertEqual(len(evidence), 1)
+        self.assertEqual(len(evidence), 2)
         self.assertIn("build-9", evidence[0])
+        self.assertIn("1 ci wait", evidence[-1])  # Fails if: the skipped ci wait is not noted beside a stray job
 
     def test_a_recorded_raise_to_the_gate_hint_is_not_an_override(self):
         """Fails if: a raise to the gate's own hint with a reason fires routing_override."""

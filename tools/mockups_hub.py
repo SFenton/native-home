@@ -226,8 +226,13 @@ def read_pair(name: str) -> dict:
 
 
 def would_replace_newer(published: dict, head: dict) -> bool:
-    """True when the published hub's commit is not an ancestor of (or equal to) this checkout's head."""
+    """True when the published hub came from a different branch and its commit is not an ancestor of (or equal to) the head.
+
+    The same named branch (a rebase or amend rewrote the commit) never refuses; ``detached`` names no branch.
+    """
     if not published or not head.get("sha") or published["sha"] == head["sha"]:
+        return False
+    if published.get("branch") == head.get("branch") and head.get("branch") != "detached":
         return False
     return git("merge-base", "--is-ancestor", published["sha"], head["sha"]).returncode != 0
 

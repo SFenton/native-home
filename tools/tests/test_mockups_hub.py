@@ -83,6 +83,15 @@ class HubStampTests(unittest.TestCase):
         self.assertIn("--allow-older", err)
         self.assertFalse((self.root / "build/mockups-hub.built.json").exists(), "a refused build must not touch the stamps")
 
+    def test_rebase_on_the_same_branch_is_not_refused(self):
+        """Fails if: a rebased or amended build on the same branch (published commit no longer an ancestor) is refused."""
+        self.git("checkout", "-q", "-b", "lane")
+        old = self.commit("lane")
+        self.git("reset", "-q", "--hard", "HEAD~1")
+        self.commit("lane2")
+        self.publish_from("lane", old)
+        self.assertEqual(self.run_main()[0], 0)
+
     def test_allow_older_passes(self):
         """Fails if: --allow-older still refuses."""
         self.git("checkout", "-q", "-b", "lane")

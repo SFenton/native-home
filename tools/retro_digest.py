@@ -272,9 +272,10 @@ def live_children(runs: Optional[Path]) -> List[str]:
     """``bg_run`` markers (``LABEL.running``) whose process is still alive.
 
     A ``ci-*`` marker is the orchestrator's sanctioned wait (``orchestrator.md``: start ``ci-<pr>`` and end the turn), so it
-    is not a stray job and is skipped.
+    is not a stray job and is skipped; when stray jobs are listed, a closing "N ci wait" line says how many were skipped.
     """
     live: List[str] = []
+    waits = 0
     try:
         markers = sorted(runs.glob("*.running")) if runs else []
     except OSError:
@@ -287,8 +288,11 @@ def live_children(runs: Optional[Path]) -> List[str]:
         except (TypeError, ValueError, OSError):
             continue
         if marker.stem.startswith("ci-"):
+            waits += 1
             continue
         live.append(f"{marker.stem} pid {pid} still running")
+    if live and waits:
+        live.append(f"{waits} ci wait (sanctioned, not counted)")
     return live
 
 
