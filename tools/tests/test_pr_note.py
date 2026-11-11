@@ -26,7 +26,9 @@ open(os.environ["FAKE_LOG"], "a").write(json.dumps(args) + "\n")
 if st.get("fail"):
     sys.stderr.write("HTTP 500 boom"); sys.exit(1)
 def save(): json.dump(st, open(state_path, "w"))
-if args[:2] == ["pr", "view"]:
+if args[:2] == ["pr", "view"] and args[-1] == "headRefName":
+    print(json.dumps({"headRefName": (st.get("heads") or {}).get(args[2], st.get("head", "agents/x"))}))
+elif args[:2] == ["pr", "view"]:
     if not st.get("pr"):
         sys.stderr.write("no pull requests found for branch"); sys.exit(1)
     if "number" in args[-1]: print(json.dumps({"number": st["pr"]}))
@@ -83,7 +85,7 @@ class Base(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, env)
         patcher.start()
         self.addCleanup(patcher.stop)
-        for target, value in (("NOTES_DIR", tmp / "notes"), ("ROOT", tmp)):
+        for target, value in (("NOTES_DIR", tmp / "notes"), ("ROOT", tmp), ("current_branch", lambda: "agents/x")):
             p = mock.patch.object(pr_note, target, value)
             p.start()
             self.addCleanup(p.stop)
@@ -376,7 +378,7 @@ class InitAndQueueIdentityTests(Base):
         self.set_state(pr=None)
         self.post("pick", "x")
         for f in self.queue_files():
-            f.write_text("{}")
+            f.write_text("not json")
         self.set_state(pr=7)
         code, _out, err = self.run_cli("flush", "--task", "T-x")
         self.assertEqual(code, 0)
@@ -499,7 +501,7 @@ class SharedQueueTests(Base):
     def entry(self, folder, stamp, kind, body):
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{stamp:020d}-{kind}-all-1.json").write_text(json.dumps(
-            {"kind": kind, "class": None, "round": 1, "body": body, "time": "11:32Z", "branch": "b", "as": None}))
+            {"kind": kind, "class": None, "round": 1, "body": body, "time": "11:32Z", "branch": "agents/x", "as": None}))
 
     def test_queue_goes_to_the_env_folder_and_legacy_is_drained_in_original_order(self):
         """Fails if: ``SH_PR_NOTES_DIR`` is ignored, the legacy queue is left behind, or the notes post in any order but their
@@ -554,7 +556,7 @@ class GateTests(Base):
         legacy = pr_note.ROOT / "build" / "pr-notes" / "T-x" / "queue"
         legacy.mkdir(parents=True)
         (legacy / f"{100:020d}-pick-all-1.json").write_text(json.dumps(
-            {"kind": "pick", "class": None, "round": 1, "body": "zzhouseterm", "time": "11:32Z", "branch": "b", "as": None}))
+            {"kind": "pick", "class": None, "round": 1, "body": "zzhouseterm", "time": "11:32Z", "branch": "agents/x", "as": None}))
         code, out, err = self.run_cli("flush", "--task", "T-x")
         self.assertEqual(code, 1)
         self.assertNotIn("zzhouseterm", out + err)
@@ -765,7 +767,7 @@ class AppFailureTests(Base):
         bad = json.loads(first.read_text())
         bad["body"] = "zzhouseterm"
         first.write_text(json.dumps(bad))
-        second.write_text("{}")
+        second.write_text("not json")
         self.set_state(pr=7)
         code, _out, err = self.run_cli("flush", "--task", "T-x")
         self.assertEqual(code, 1)
@@ -774,6 +776,66 @@ class AppFailureTests(Base):
         self.assertIn(second.name, err)
         self.assertEqual([c["body"].count("<!-- sh:research") for c in self.get()["comments"]], [1])
         self.assertEqual(self.queue_files(), [first, second])
+
+
+class BranchOwnershipTests(Base):
+    """A queued note goes only to the PR of the branch it was written from."""
+
+    def two_lanes(self):
+        """Two lanes of one task queue a note each before their PRs exist."""
+        self.set_state(pr=None)
+        with mock.patch.object(pr_note, "current_branch", lambda: "agents/lane-a"):
+            self.post("research", "Lane A note.", "1")
+        with mock.patch.object(pr_note, "current_branch", lambda: "agents/lane-b"):
+            self.post("build", "Lane B note.", "1")
+        self.set_state(pr=7, heads={"7": "agents/lane-a", "8": "agents/lane-b"})
+
+    def names(self, task="T-x"):
+        return sorted(p.name.split("-")[1] for p in (pr_note.NOTES_DIR / task / "queue").glob("*.json"))
+
+    def test_each_pull_request_gets_only_its_own_queued_note(self):
+        """Fails if: a flush for one lane's PR sends the other lane's queued note to it, or removes it from the queue."""
+        self.two_lanes()
+        self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-x", "--pr", "7")[1])
+        self.assertEqual([re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]], ["research"])
+        self.assertEqual(self.names(), ["build"])
+        self.set_state(comments=[])
+        self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-x", "--pr", "8")[1])
+        self.assertEqual([re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]], ["build"])
+        self.assertEqual(self.names(), [])
+
+    def test_the_branch_flag_is_what_is_recorded(self):
+        """Fails if: a note queued with ``--branch`` records the writer's current branch instead."""
+        self.set_state(pr=None)
+        self.run_cli("post", "build", "--task", "T-x", "--round", "1", "--branch", "agents/other", "--body-file", self.body_file("x"))
+        note = json.loads(next((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")).read_text())
+        self.assertEqual(note["branch"], "agents/other")
+
+    def test_a_legacy_note_without_a_branch_goes_only_with_exactly_one_ledger_branch(self):
+        """Fails if: a note with no recorded branch is sent although the ledger lists two branches (and is not reported), or is
+        held back when the ledger lists exactly one."""
+        self.set_state(pr=None)
+        self.post("research", "Old note.", "1")
+        f = next((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))
+        note = json.loads(f.read_text())
+        note.pop("branch")
+        f.write_text(json.dumps(note))
+        self.set_state(pr=7)
+        with mock.patch.object(pr_note, "ledger_branches", return_value=["agents/a", "agents/b"]):
+            _code, out, err = self.run_cli("flush", "--task", "T-x", "--pr", "7")
+        self.assertIn("flushed 0", out)
+        self.assertEqual(err.count("no recorded branch"), 1)
+        self.assertEqual(self.names(), ["research"])
+        with mock.patch.object(pr_note, "ledger_branches", return_value=["agents/a"]):
+            self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-x", "--pr", "7")[1])
+
+    def test_the_single_open_ledger_pull_request_is_named_when_used(self):
+        """Fails if: the ledger's only open PR is used silently, without saying which one and why."""
+        self.set_state(pr=None, branches={"agents/y": 9})
+        err = io.StringIO()
+        with mock.patch.object(pr_note, "ledger_branches", return_value=["agents/y"]), redirect_stderr(err):
+            self.assertEqual(pr_note.find_pr(None, None, "T-x"), 9)
+        self.assertIn("using #9 (agents/y)", err.getvalue())
 
 
 class HeaderFormTests(Base):
