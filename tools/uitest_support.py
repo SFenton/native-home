@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -31,9 +32,10 @@ TEST_FUNC = re.compile(r"^\s*func\s+(test\w*)\s*\(")
 UNKNOWN_CLASS = 10
 SECONDS_PER_TEST = 120
 HOLD_BASE, HOLD_FLOOR, HOLD_CAP = 300, 600, 7200
-#: The app-hosted unit tests (``--hosted``) take about 2.5 s each with an instrumented app (660 in 28 min, 2026-11-04); a fixed
-#: 1800 s hold ended that run part way and left its app running into the next one.
-HOSTED_SECONDS_PER_TEST, HOSTED_BASE, HOSTED_FLOOR = 6, 600, 1800
+#: The app-hosted unit tests (``--hosted``) take about 3.1 s each plain: 790 tests in 2,436 s (the full run ``hosted-full-1``,
+#: 2026-11-10). The hold is the measured time times 1.5 plus ten minutes, never under 900 s; the old fixed 1800 s ended the
+#: suite part way, and 6 s a test was twice the measured time.
+HOSTED_MEASURED_SECONDS, HOSTED_MARGIN, HOSTED_BASE, HOSTED_FLOOR = 3.1, 1.5, 600, 900
 
 
 def tests_by_class(root: Path = ROOT, directory: str = TEST_DIR) -> Dict[str, List[str]]:
@@ -189,11 +191,11 @@ def hold_for(tests: int) -> int:
 
 
 def hosted_hold(classes: List[str], root: Path = ROOT) -> int:
-    """Device hold for the app-hosted unit tests: all of them, or only `classes` (``FENTON_HOSTED_FILTER``). 6 s per test plus ten
-    minutes, never under 1800 s or over 7200 s; a class the sources do not have counts as ``UNKNOWN_CLASS`` tests."""
+    """Device hold for the app-hosted unit tests: all of them, or only `classes` (``FENTON_HOSTED_FILTER``). The measured 3.1 s a test
+    times 1.5 plus ten minutes, never under 900 s or over 7200 s; a class the sources do not have counts as ``UNKNOWN_CLASS`` tests."""
     found = tests_by_class(root, HOSTED_DIR)
     tests = sum(len(found.get(name, [])) or UNKNOWN_CLASS for name in classes) if classes else sum(map(len, found.values()))
-    return max(HOSTED_FLOOR, min(HOLD_CAP, HOSTED_SECONDS_PER_TEST * tests + HOSTED_BASE))
+    return max(HOSTED_FLOOR, min(HOLD_CAP, math.ceil(HOSTED_MEASURED_SECONDS * HOSTED_MARGIN * tests) + HOSTED_BASE))
 
 
 def git(*args: str, root: Path = ROOT) -> str:

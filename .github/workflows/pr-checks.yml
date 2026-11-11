@@ -335,7 +335,7 @@ jobs:
     needs: [scope, macos-build]
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    timeout-minutes: 90
+    timeout-minutes: 150
     strategy:
       fail-fast: false   # a red Duo must not hide the iPhone and iPad results
       matrix:
@@ -395,6 +395,15 @@ jobs:
         id: journeys
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: tools/ci_macos.sh journeys ${{ matrix.family }}
+      - name: Hosted tests the diff reaches on iphone
+        id: hosted
+        # The app-hosted unit tests (FentonHomeTests, apple/Apps/iOSTests): family-independent, so iPhone only, from the same products as the
+        # journeys. affected_tests.py --hosted picks the classes (the whole suite when a file cannot be placed). A failed step fails the job.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && matrix.family == 'iphone' }}
+        # A typical diff is 1 to 10 minutes of hosted time; the whole suite (a helper, UKContext, a file no rule places) is 40 to 60 on this runner.
+        # 75 keeps a hung suite from eating the job's budget (Smoke and the journeys run before it).
+        timeout-minutes: 75
+        run: tools/ci_macos.sh hosted iphone
       - name: Restore SwiftPM caches
         id: spm
         if: ${{ matrix.family == 'ipad' }}
@@ -417,14 +426,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: tools/ci_macos.sh summary
       - name: Simulator diagnostics
-        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
         continue-on-error: true
         run: |
           xcrun simctl list devices
           df -h / | tail -1
           log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
       - name: Keep the ${{ matrix.family }} results
-        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-${{ matrix.family }}
@@ -434,6 +443,8 @@ jobs:
           path: |
             apple/.build/uitest-${{ matrix.family }}.xcresult/**
             apple/.build/uitest-${{ matrix.family }}.log
+            apple/.build/uitest-${{ matrix.family }}-journeys.xcresult/**
+            apple/.build/uitest-${{ matrix.family }}-journeys.log
           if-no-files-found: ignore
       - name: Save SwiftPM caches (main only)
         if: ${{ matrix.family == 'ipad' && github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}

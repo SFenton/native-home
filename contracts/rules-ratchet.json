@@ -1241,8 +1241,8 @@
   },
   ".agents/testing/apple/README.md": {
    "forbidden": 39,
-   "long_lines": 34,
-   "over_words": 6484,
+   "long_lines": 33,
+   "over_words": 6482,
    "links": 1,
    "structure": 2
   },
