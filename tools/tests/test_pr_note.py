@@ -31,6 +31,8 @@ if args[:2] == ["pr", "view"]:
         sys.stderr.write("no pull requests found for branch"); sys.exit(1)
     if "number" in args[-1]: print(json.dumps({"number": st["pr"]}))
     else: print(json.dumps({"body": st["body"]}))
+elif args[:2] == ["pr", "list"]:
+    print(json.dumps([{"number": st["branches"][args[3]]}] if args[3] in st.get("branches", {}) else []))
 elif args[:2] == ["pr", "edit"]:
     st["body"] = sys.stdin.read(); save()
 elif args[:2] == ["pr", "comment"]:
@@ -39,7 +41,7 @@ elif args[:2] == ["pr", "comment"]:
         if a == "--attach":
             path = args[i + 1].split("#")[0]
             text = text.replace(path, "https://github.com/user-attachments/assets/x")
-    st["comments"].append({"id": len(st["comments"]) + 1, "body": text}); save()
+    st["comments"].append({"id": len(st["comments"]) + 1, "body": text, "html_url": "https://example.test/pull/7#issuecomment-%d" % (len(st["comments"]) + 1)}); save()
 elif args[:2] == ["api", "user"]:
     print("SFenton")
 elif args[0] == "api" and "DELETE" in args:
@@ -70,7 +72,13 @@ class Base(unittest.TestCase):
         self.state = tmp / "state.json"
         self.log = tmp / "log"
         self.set_state(pr=7, body="", comments=[])
-        env = {"PATH": f"{fake}:{os.environ['PATH']}", "FAKE_STATE": str(self.state), "FAKE_LOG": str(self.log)}
+        # a fixture picture other test files write here counts as demo data (the manifest rule)
+        (tmp / "manifest.json").write_text(json.dumps({"media": [{"path": "pic.png", "source": "demo"}]}))
+        self.denylist = tmp / "denylist.txt"
+        self.denylist.write_text("zzhouseterm\n")
+        self.denylist.chmod(0o600)
+        env = {"PATH": f"{fake}:{os.environ['PATH']}", "FAKE_STATE": str(self.state), "FAKE_LOG": str(self.log),
+               "SH_PR_NOTES_DIR": str(tmp / "notes"), "HOUSE_SCAN_DENYLIST": str(self.denylist)}
         patcher = mock.patch.dict(os.environ, env)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -86,6 +94,13 @@ class Base(unittest.TestCase):
 
     def get(self):
         return json.loads(self.state.read_text())
+
+    def atlas_picture(self, name="a.png", data=b"x"):
+        """A picture under the (temporary) checkout's mockup atlas folder, the one place any picture may come from without a manifest."""
+        pic = Path(self.tmp.name) / ".agents" / "design" / "mockups" / name
+        pic.parent.mkdir(parents=True, exist_ok=True)
+        pic.write_bytes(data)
+        return pic
 
     def body_file(self, text):
         f = Path(self.tmp.name) / "body.md"
@@ -150,8 +165,7 @@ class CommentTests(Base):
         self.assertNotIn("abcdefabcdef", self.get()["comments"][0]["body"])
 
     def test_local_media_is_attached_and_remembered(self):
-        pic = Path(self.tmp.name) / "a.png"
-        pic.write_bytes(b"x")
+        pic = self.atlas_picture()
         self.post("pick", f"**Designer** · pick\n\n![A]({pic})")
         calls = [json.loads(line) for line in self.log.read_text().splitlines()]
         comment = next(c for c in calls if c[:2] == ["pr", "comment"])
@@ -249,7 +263,7 @@ class SourceTests(unittest.TestCase):
     def test_only_pr_subcommands_view_edit_comment(self):
         source = (TOOLS / "pr_note.py").read_text()
         verbs = set(re.findall(r'gh\(\["pr", "(\w+)"', source))
-        self.assertEqual(verbs, {"view", "edit", "comment"})
+        self.assertEqual(verbs, {"view", "edit", "comment", "list"})
 
 
 class AgentLoginIdentityTests(Base):
@@ -296,22 +310,19 @@ class InitAndQueueIdentityTests(Base):
     def queue_files(self, task="T-x"):
         return sorted((pr_note.NOTES_DIR / task / "queue").glob("*.json"))
 
-    def test_init_prepends_sections_appends_blocks_keeps_review_and_flushes(self):
+    def test_init_appends_missing_blocks_only_keeps_review_and_flushes(self):
         self.set_state(pr=None)
         self.post("pick", "**Designer** · pick")
         self.set_state(pr=7, body="Old text\n" + REVIEW + "\ntail")
-        tmpl = Path(self.tmp.name) / "t.md"
-        tmpl.write_text("## What changed for you\nplain\n<!-- sh-status:start -->\n<!-- sh-status:end -->\n\n<details>x</details>")
-        with mock.patch.object(pr_note, "TEMPLATE", tmpl):
-            self.assertIn("body updated, flushed 1", self.run_cli("init", "--task", "T-x")[1])
+        self.assertIn("body updated, flushed 1", self.run_cli("init", "--task", "T-x")[1])
         body = self.get()["body"]
-        self.assertTrue(body.startswith("## What changed for you"))
+        self.assertTrue(body.startswith("Old text\n"))
         self.assertIn("Old text\n" + REVIEW + "\ntail", body)
         self.assertEqual(body.count("<!-- review:start -->"), 1)
-        self.assertIn("<!-- sh-devices:start -->", body)
+        for name in ("sh-devices", "sh-status", "sh-timeline"):
+            self.assertIn(f"<!-- {name}:start -->", body)
         self.assertEqual(len(self.get()["comments"]), 1)
-        with mock.patch.object(pr_note, "TEMPLATE", tmpl):
-            self.assertIn("body kept", self.run_cli("init", "--task", "T-x")[1])
+        self.assertIn("body kept", self.run_cli("init", "--task", "T-x")[1])
 
     def test_post_flushes_the_task_queue_first(self):
         self.set_state(pr=None)
@@ -350,8 +361,7 @@ class InitAndQueueIdentityTests(Base):
         self.assertEqual([n.rsplit("-", 1)[1] for n in names], ["2.json", "3.json", "4.json"])
 
     def test_identical_repost_with_media_is_a_no_op(self):
-        pic = Path(self.tmp.name) / "a.png"
-        pic.write_bytes(b"x")
+        pic = self.atlas_picture()
         self.post("pick", f"**D** · pick\n\n![A]({pic})")
         self.assertIn("unchanged", self.post("pick", f"**D** · pick\n\n![A]({pic})")[1])
 
@@ -376,6 +386,256 @@ class InitAndQueueIdentityTests(Base):
         self.assertIn("redact", err)
         self.assertEqual(self.get()["comments"], [])
         self.assertEqual(len(self.queue_files()), 1)
+
+
+class RoleKindTests(Base):
+    """The role kinds, their header, step numbers and where the PR is looked up."""
+
+    def comment_lines(self, index=0):
+        return self.get()["comments"][index]["body"].splitlines()
+
+    def test_each_new_kind_posts_with_its_header_and_marker(self):
+        """Fails if: research, build, review or retro is refused, lacks the marker for its kind, or starts with anything but
+        ``Step N · <Role> · round R · HH:MMZ``."""
+        for rnd, (kind, role) in enumerate((("research", "Researcher"), ("build", "Coder"), ("review", "Reviewer"),
+                                            ("retro", "Steward")), start=1):
+            self.assertIn("posted", self.post(kind, f"{role} did the work.", str(rnd))[1])
+            body = self.get()["comments"][-1]["body"]
+            self.assertRegex(body.splitlines()[0], rf"^Step {rnd} · {role} · round {rnd} · \d\d:\d\dZ$")
+            self.assertTrue(body.rstrip().endswith(f"<!-- sh:{kind}:T-x:{rnd} -->"))
+
+    def test_as_names_the_role_and_head_is_shortened(self):
+        """Fails if: ``--as`` does not set the role in the header, or ``--head`` is not shown as its first 7 characters."""
+        with mock.patch.dict(os.environ, {"FENTON_HASS_APPS_DIR": str(Path(self.tmp.name) / "no-apps")}):  # no key: the owner login posts
+            _code, _out, err = self.post("build", "Done.", "2", "--as", "coder", "--head", "8afc84d1234567")
+        self.assertIn("no app identity for coder", err)
+        self.assertRegex(self.comment_lines()[0], r"^Step 1 · Coder · round 2 · head 8afc84d · \d\d:\d\dZ$")
+
+    def test_legacy_header_shares_the_line_and_updated_is_appended(self):
+        """Fails if: a body that has its own ``**Role**`` first line gets a second header line, or an edit loses its step number."""
+        self.post("pick", "**Designer** (agent) · pick\n\nBody.")
+        self.post("pick", "**Designer** (agent) · pick 2\n\nBody.")
+        first = self.comment_lines()[0]
+        self.assertRegex(first, r"^Step 1 · Designer · round 1 · \d\d:\d\dZ · \*\*Designer\*\* \(agent\) · pick 2 · updated \d\d:\d\dZ$")
+
+    def test_step_numbers_count_distinct_markers_and_an_edit_keeps_its_number(self):
+        """Fails if: steps do not count up by distinct marker, a second post of one marker takes a new number, ``--step`` is
+        ignored, or a queued note is not counted."""
+        self.post("research", "One.", "1")
+        self.post("build", "Two.", "1")
+        self.post("build", "Two, changed.", "1")
+        self.post("review", "Nine.", "1", "--step", "9")
+        steps = [int(re.match(r"Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+        self.assertEqual(steps, [1, 2, 9])
+        self.set_state(pr=None, comments=[])
+        self.post("retro", "Q one.", "1", task="T-q")
+        self.post("retro", "Q two.", "2", task="T-q")
+        self.set_state(pr=7)
+        self.run_cli("flush", "--task", "T-q")
+        steps = [int(re.match(r"Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+        self.assertEqual(steps, [1, 2])
+
+    def test_pr_found_by_branch_from_another_directory(self):
+        """Fails if: ``--branch`` is ignored (the note would queue because the current branch has no PR), or it is looked up
+        when ``--pr`` is given."""
+        self.set_state(pr=None, branches={"agents/x": 7})
+        self.assertIn("posted", self.run_cli("post", "build", "--task", "T-x", "--round", "1", "--branch", "agents/x",
+                                             "--body-file", self.body_file("Built."))[1])
+        self.assertEqual(len(self.get()["comments"]), 1)
+        self.log.write_text("")
+        self.run_cli("post", "build", "--task", "T-x", "--round", "2", "--pr", "7", "--branch", "agents/x",
+                     "--body-file", self.body_file("Built again."))
+        self.assertNotIn('"list"', self.log.read_text())
+
+    def test_pr_found_by_the_task_ledger(self):
+        """Fails if: the ledger's ``branches`` are not tried, or an unreadable ledger breaks the run instead of falling back."""
+        ledger = Path(self.tmp.name) / "tasks"
+        ledger.mkdir()
+        (ledger / "T-x.json").write_text(json.dumps({"branches": ["agents/y", "agents/x"]}))
+        self.set_state(pr=None, branches={"agents/x": 7})
+        self.assertIn("posted", self.run_cli("post", "research", "--task", "T-x", "--round", "1", "--ledger-dir", str(ledger),
+                                             "--body-file", self.body_file("Found."))[1])
+        (ledger / "T-x.json").write_text("not json")
+        self.assertEqual(pr_note.ledger_branches("T-x", str(ledger)), [])
+
+
+class SharedQueueTests(Base):
+    """The queue lives in one shared folder; the old per-checkout queue is drained into it."""
+
+    def entry(self, folder, stamp, kind, body):
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{stamp:020d}-{kind}-all-1.json").write_text(json.dumps(
+            {"kind": kind, "class": None, "round": 1, "body": body, "time": "11:32Z", "branch": "b", "as": None}))
+
+    def test_queue_goes_to_the_env_folder_and_legacy_is_drained_in_original_order(self):
+        """Fails if: ``SH_PR_NOTES_DIR`` is ignored, the legacy queue is left behind, or the notes post in any order but their
+        original one."""
+        other = Path(self.tmp.name) / "elsewhere"
+        legacy = pr_note.ROOT / "build" / "pr-notes" / "T-x" / "queue"
+        with mock.patch.dict(os.environ, {"SH_PR_NOTES_DIR": str(other)}):
+            self.set_state(pr=None)
+            self.post("pick", "Mine.", "5")
+            self.assertEqual(len(list((other / "T-x" / "queue").glob("*.json"))), 1)
+            self.entry(legacy, 100, "research", "First.")
+            self.entry(legacy, 300, "retro", "Third.")
+            self.entry(other / "T-x" / "queue", 200, "build", "Second.")
+            self.set_state(pr=7)
+            self.assertIn("flushed 4", self.run_cli("flush", "--task", "T-x")[1])
+        kinds = [re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]]
+        self.assertEqual(kinds, ["research", "build", "retro", "pick"])
+        self.assertEqual(list(legacy.glob("*.json")), [])
+        self.assertRegex(self.get()["comments"][0]["body"].splitlines()[0], r"happened 11:32Z, posted when the PR opened")
+
+    def test_init_and_post_drain_the_legacy_queue_too(self):
+        """Fails if: ``init`` or ``post`` skips the legacy queue."""
+        legacy = pr_note.ROOT / "build" / "pr-notes" / "T-x" / "queue"
+        self.entry(legacy, 100, "research", "Old.")
+        self.assertIn("flushed 1", self.run_cli("init", "--task", "T-x")[1])
+        self.entry(legacy, 200, "retro", "Old two.")
+        self.post("build", "New.")
+        kinds = [re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]]
+        self.assertEqual(kinds, ["research", "retro", "build"])
+
+
+class GateTests(Base):
+    """House data never goes out; pictures follow the demo rule."""
+
+    def test_denylist_hit_refuses_with_exit_1_and_prints_no_term(self):
+        """Fails if: a body with a listed term is posted or queued, the exit code is not 1, or the term (or any line of the body)
+        appears in the output."""
+        code, out, err = self.post("build", "The panel at zzhouseterm is done. zzhouseterm again.")
+        self.assertEqual(code, 1)
+        self.assertNotIn("zzhouseterm", out + err)
+        self.assertIn("2 house-denylist hit(s) in body file body.md", err)
+        self.assertEqual(self.get()["comments"], [])
+        self.assertFalse((pr_note.NOTES_DIR / "T-x" / "queue").exists() and list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")))
+        self.set_state(body="x<!-- sh-status:start -->\n<!-- sh-status:end -->")
+        code, out, err = self.run_cli("status", "--task", "T-x", "--line", "zzhouseterm is up")
+        self.assertEqual(code, 1)
+        self.assertNotIn("zzhouseterm", out + err)
+        self.assertNotIn("zzhouseterm", self.get()["body"])
+
+    def test_queued_note_is_gated_when_it_is_flushed(self):
+        """Fails if: a note that reached the queue by another route (the old queue) goes out without the denylist."""
+        legacy = pr_note.ROOT / "build" / "pr-notes" / "T-x" / "queue"
+        legacy.mkdir(parents=True)
+        (legacy / f"{100:020d}-pick-all-1.json").write_text(json.dumps(
+            {"kind": "pick", "class": None, "round": 1, "body": "zzhouseterm", "time": "11:32Z", "branch": "b", "as": None}))
+        code, out, err = self.run_cli("flush", "--task", "T-x")
+        self.assertEqual(code, 1)
+        self.assertNotIn("zzhouseterm", out + err)
+        self.assertEqual(self.get()["comments"], [])
+
+    def test_missing_denylist_warns_once_and_goes_on_unless_required(self):
+        """Fails if: a missing list blocks work by default, the warning repeats, or ``denylist_required`` does not refuse."""
+        missing = {"HOUSE_SCAN_DENYLIST": str(Path(self.tmp.name) / "nope.txt")}
+        with mock.patch.dict(os.environ, missing), mock.patch.object(pr_note, "_WARNED", []):
+            code, _out, err = self.post("build", "One.", "1")
+            self.assertEqual(code, 0)
+            self.assertEqual(err.count("denylist not loaded"), 1)
+            self.assertEqual(self.post("build", "Two.", "2")[2].count("denylist not loaded"), 0)
+            config = pr_note.ROOT / "tools" / "triage" / "config.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"denylist_required": True}))
+            code, _out, err = self.post("build", "Three.", "3")
+            self.assertEqual(code, 1)
+            self.assertIn("denylist_required", err)
+        self.assertEqual(len(self.get()["comments"]), 2)
+
+    def manifest(self, source, name="shot.png", data=b"x"):
+        folder = pr_note.ROOT / "build" / "evidence" / "agents-x" / "pose"
+        folder.mkdir(parents=True, exist_ok=True)
+        pic = folder / name
+        pic.write_bytes(data)
+        entry = {"screenshots": [f"build/evidence/agents-x/pose/{name}"]}
+        if source:
+            entry["source"] = source
+        (folder.parent / "manifest.json").write_text(json.dumps({"poses": {"pose": entry}}))
+        return pic
+
+    def test_live_unlisted_and_unmanifested_pictures_are_refused(self):
+        """Fails if: a picture from live data, one with no manifest entry, or one outside the atlas is attached, or the refusal
+        does not name the file."""
+        live = self.manifest("live")
+        code, _out, err = self.post("build", f"![L]({live})")
+        self.assertEqual(code, 1)
+        self.assertIn("shot.png", err)
+        self.manifest(None)
+        self.assertEqual(self.post("build", f"![L]({live})")[0], 1)
+        stray = Path(self.tmp.name) / "stray.png"
+        stray.write_bytes(b"x")
+        code, _out, err = self.post("build", f"![S]({stray})")
+        self.assertEqual((code, "stray.png" in err), (1, True))
+        self.assertEqual(self.get()["comments"], [])
+
+    def test_demo_and_mockup_pictures_are_attached(self):
+        """Fails if: a manifest entry with source demo or mockup is not attached."""
+        for rnd, source in enumerate(("demo", "mockup"), start=1):
+            pic = self.manifest(source, name=f"{source}.png", data=source.encode())
+            self.assertEqual(self.post("build", f"![D]({pic})", str(rnd))[0], 0)
+        calls = [json.loads(line) for line in self.log.read_text().splitlines()]
+        self.assertEqual(sum(c.count("--attach") for c in calls if c[:2] == ["pr", "comment"]), 2)
+        self.assertEqual(len(self.get()["comments"]), 2)
+
+    def test_oversize_picture_is_refused_with_its_size(self):
+        """Fails if: a file over 10 MB is attached, or the refusal does not give its size."""
+        big = self.atlas_picture("big.mp4")
+        with big.open("r+b") as f:
+            f.truncate(11 * 1024 * 1024)
+        code, _out, err = self.post("build", f"![V]({big})")
+        self.assertEqual(code, 1)
+        self.assertIn("big.mp4 is 11.0 MB, over the 10 MB limit", err)
+
+    def test_a_duplicate_file_is_uploaded_once(self):
+        """Fails if: two files with the same bytes are both uploaded, in one comment or across comments, or the second is not
+        replaced by ``Same as <first caption>``."""
+        one, two = self.atlas_picture("one.png", b"same"), self.atlas_picture("two.png", b"same")
+        self.post("evidence", f"![iPhone Duo folded]({one})\n![iPad]({two})", "1", "--class", "duo")
+        self.post("evidence", f"![iPad again]({two})", "1", "--class", "ipad")
+        calls = [json.loads(line) for line in self.log.read_text().splitlines() if '"comment"' in line]
+        self.assertEqual(sum(c.count("--attach") for c in calls), 1)
+        first, second = (c["body"] for c in self.get()["comments"])
+        self.assertIn("Same as iPhone Duo folded", first)
+        self.assertIn("Same as iPhone Duo folded", second)
+        self.assertEqual(second.count("user-attachments"), 0)
+
+
+class TimelineTests(Base):
+    """The step index in the PR body."""
+
+    def test_timeline_lists_posted_steps_in_order_with_links(self):
+        """Fails if: a post does not refresh the index, lines are out of step order, a line lacks its link, the block is
+        duplicated, or other body text changes."""
+        self.set_state(body="Intro\n")
+        self.post("research", "Looked at prior art. More words follow.", "1")
+        self.post("build", "**Coder** · built\n\nBuilt the writer. Next bit.", "1")
+        self.post("review", "Reviewed the head.", "1", "--step", "7")
+        body = self.get()["body"]
+        self.assertTrue(body.startswith("Intro\n"))
+        self.assertEqual(body.count("<!-- sh-timeline:start -->"), 1)
+        block = body.split("<!-- sh-timeline:start -->\n")[1].split("\n<!-- sh-timeline:end -->")[0].splitlines()
+        self.assertEqual(block, [
+            "1. [Researcher, round 1: Looked at prior art.](https://example.test/pull/7#issuecomment-1)",
+            "2. [Coder, round 1: Built the writer.](https://example.test/pull/7#issuecomment-2)",
+            "7. [Reviewer, round 1: Reviewed the head.](https://example.test/pull/7#issuecomment-3)"])
+        self.assertIn("unchanged", self.run_cli("timeline", "--task", "T-x")[1])
+
+    def test_a_timeline_failure_only_warns(self):
+        """Fails if: a failing index update undoes or hides the post, or changes the exit code."""
+        with mock.patch.object(pr_note, "timeline", side_effect=pr_note.NoteError("boom")):
+            code, out, err = self.post("build", "Built.")
+        self.assertEqual((code, out.strip()), (0, "pr_note: posted"))
+        self.assertIn("timeline not updated", err)
+        self.assertEqual(len(self.get()["comments"]), 1)
+
+
+class InitNoPlaceholderTests(Base):
+    def test_init_adds_marker_blocks_and_no_text(self):
+        """Fails if: ``init`` puts any plain section or placeholder text into an empty body."""
+        self.run_cli("init", "--task", "T-x")
+        body = self.get()["body"]
+        self.assertNotRegex(re.sub(r"<!--.*?-->", "", body, flags=re.S).strip(), r"\S")
+        self.assertNotIn("What changed", body)
 
 
 if __name__ == "__main__":
