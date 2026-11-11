@@ -23,7 +23,7 @@ Custom scroll, blur, mask, material, list, header, sheet, paging or layout machi
 | 3. Pattern | Find the owning pattern with `tools/pattern_guard.py` and `contracts/components.json` before writing a view, modifier or helper. Extend the canonical component; write the rung-0 note before any machinery. |
 | 4. Visible? | Find the surface in the mockup atlas. A visible change goes through [propose-first](propose-first.md); the level comes from [autonomy](autonomy.md#levels). |
 | 5. Implement | Work in the lane's folders. Entity IDs live in `HassCore/Config`, never inline in views. |
-| 6. Test | Tests ship with the change. Run the per-change tier, not the full suite ([test tiers](../testing/apple/README.md#test-tiers)). |
+| 6. Test | Tests ship with the change and assert behavior, not only compilation. Run the per-change tier, not the full suite ([test tiers](../testing/apple/README.md#test-tiers)). |
 | 7. Self-review | Run the `swiftui-pro` skill on a SwiftUI diff; UIKit screens follow [uikit-port](../platforms/apple/uikit-port.md). The repo rule wins where the skill disagrees. |
 | 8. Verify | Check the result on the simulator against the mockup and update the mockup in the same change. Motion ships with signposts and a performance test. |
 | 9. Record | Put what the change taught in its home ([docs-conventions](docs-conventions.md#homes)). A pattern's doc changes in the same change as its code. |
