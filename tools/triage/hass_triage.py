@@ -374,7 +374,7 @@ class GitHub:
 
     def open_issues(self, repo: str) -> List[Dict[str, Any]]:
         return json.loads(self._gh(["issue", "list", "-R", repo, "--state", "open", "--limit", "200", "--json",
-                                    "number,title,author,labels,createdAt,updatedAt"]))
+                                    "number,title,body,author,labels,createdAt,updatedAt"]))
 
     def issue(self, repo: str, n: int) -> Dict[str, Any]:
         return json.loads(self._gh(["issue", "view", str(n), "-R", repo, "--json",
@@ -640,12 +640,60 @@ def may_pick(issue: Dict[str, Any], authors: List[str], agent: str = "") -> bool
     return bool(agent) and who.lower() == agent.lower() and "Workflow" in label_names(issue)
 
 
+#: The shape of a runner-filed lane issue title, ``Workflow: lane <branch> not landed (<kind>)``. :func:`lane_issue_title` builds it and
+#: :func:`lane_of_title` reads it back, so the filing and the intake rule below cannot drift.
+LANE_TITLE_HEAD = "Workflow: lane "
+LANE_TITLE_MID = " not landed ("
+BRANCH_IN_BODY = re.compile(r"(?<![A-Za-z0-9_-])agents/[A-Za-z0-9._/-]+")
+
+
+def lane_issue_title(lane: str, kind: str) -> str:
+    """The title of the issue the runner files for a lane it did not land."""
+    return f"{LANE_TITLE_HEAD}{lane}{LANE_TITLE_MID}{kind})"
+
+
+def lane_of_title(title: str) -> Optional[str]:
+    """The branch a :func:`lane_issue_title` title names, or ``None`` for any other title."""
+    if not (title.startswith(LANE_TITLE_HEAD) and title.endswith(")")):
+        return None
+    lane, mid, _ = title[len(LANE_TITLE_HEAD):].partition(LANE_TITLE_MID)
+    return lane if mid and lane and " " not in lane else None
+
+
+def lane_waits(issue: Dict[str, Any], issues: List[Dict[str, Any]]) -> List[int]:
+    """Numbers of the open lane issues (title per :func:`lane_issue_title`) for the whole ``agents/<branch>`` names in ``issue``'s body,
+    sorted. A lane issue itself waits on nothing, so two of them never deadlock. The covering issue counts while it is open, whatever
+    its labels, a stop label (``SKIP_LABELS``, e.g. ``Blocked``) included: the code the follow-up edits is still not on the base."""
+    if lane_of_title(issue.get("title") or "") is not None:
+        return []
+    named = {m.group(0).rstrip(".-/") for m in BRANCH_IN_BODY.finditer(issue.get("body") or "")}
+    return sorted(int(o["number"]) for o in issues
+                  if o is not issue and o.get("number") != issue.get("number") and lane_of_title(o.get("title") or "") in named)
+
+
+def pickable(issues: List[Dict[str, Any]], authors: List[str], required_label: Optional[str], agent: str) -> List[Dict[str, Any]]:
+    """The issues :func:`eligible` starts from, before any lane deferral."""
+    return [i for i in issues if may_pick(i, authors, agent) and not SKIP_LABELS.intersection(label_names(i))
+            and (required_label is None or required_label in label_names(i))]
+
+
+def deferred(issues: List[Dict[str, Any]], authors: List[str], required_label: Optional[str] = None,
+             agent: str = "") -> Dict[int, List[int]]:
+    """``{issue number: lane issue numbers it waits on}`` for the pickable issues :func:`eligible` holds back. The nightly intake
+    (``required_label`` set) defers nothing."""
+    if required_label is not None:
+        return {}
+    waits = {int(i["number"]): lane_waits(i, issues) for i in pickable(issues, authors, required_label, agent)}
+    return {n: w for n, w in waits.items() if w}
+
+
 def eligible(issues: List[Dict[str, Any]], authors: List[str], required_label: Optional[str] = None, agent: str = "") -> List[Dict[str, Any]]:
     """Open issues the runner may work (:func:`may_pick`) with no working/stopped label; ``Priority`` first, then oldest.
     ``required_label`` (nightly intake) also requires that label. ``agent`` is the configured agent login (``""`` for the nightly
-    intake: its issues are filed by the nightly workflow, not by the agent account)."""
-    picked = [i for i in issues if may_pick(i, authors, agent) and not SKIP_LABELS.intersection(label_names(i))
-              and (required_label is None or required_label in label_names(i))]
+    intake: its issues are filed by the nightly workflow, not by the agent account). An issue whose body names an ``agents/<branch>``
+    that an open ``Workflow: lane <branch> not landed`` issue covers waits for it (:func:`lane_waits`); the nightly intake is exempt."""
+    held = deferred(issues, authors, required_label, agent)
+    picked = [i for i in pickable(issues, authors, required_label, agent) if int(i["number"]) not in held]
     return sorted(picked, key=lambda i: (0 if "Priority" in label_names(i) else 1, i.get("createdAt", "")))
 
 
@@ -2061,7 +2109,7 @@ class Runner:
         """A lane the runner refused or failed to merge becomes a request-repo issue: ``Workflow`` (+ ``On Hold`` for a fixed-set
         change, which only the owner lands)."""
         repo = self.cfg["request_repo"]
-        title = f"Workflow: lane {lane} not landed ({kind})"
+        title = lane_issue_title(lane, kind)
         try:
             if any(i.get("title") == title for i in self.gh.open_issues(repo)):
                 return
@@ -3233,9 +3281,13 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         holder = paths.lock.read_text().strip()
     except OSError:
         pass
+    held: List[str] = []
     try:
+        open_now = gh.open_issues(cfg["request_repo"])
         queue = [{"number": i["number"], "title": i.get("title", "")}
-                 for i in eligible(gh.open_issues(cfg["request_repo"]), cfg["authors"], None, cfg.get("agent_login", ""))]
+                 for i in eligible(open_now, cfg["authors"], None, cfg.get("agent_login", ""))]
+        held = [f"deferred: #{n} waits on " + ", ".join(f"#{w}" for w in waits)
+                for n, waits in sorted(deferred(open_now, cfg["authors"], None, cfg.get("agent_login", "")).items())]
     except TriageError as exc:
         queue = [{"error": str(exc)}]
     nightly = cfg.get("nightly")
@@ -3266,6 +3318,7 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         "current": state.data.get("current"),
         "merging": {k: v.get("pr") for k, v in state.data["merging"].items()},
         "queue": queue,
+        "deferred": held,
         "ha_changes_unreachable_since": (state.data.get("ha_changes") or {}).get("unreachable_since"),
         "ha_changes_unfiled": len((state.data.get("ha_changes") or {}).get("unfiled") or {}),
         "recent": state.data["history"][-10:],
@@ -3397,6 +3450,8 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print("post-mortems queued: " + ", ".join(str(t) for t in report["retro_queue"]))
                 print("queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}" for q in report["queue"])
                                    or "empty"))
+                for line in report["deferred"]:
+                    print(line)
                 if cfg.get("nightly"):
                     print("nightly queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}"
                                                          for q in report["nightly_queue"]) or "empty"))

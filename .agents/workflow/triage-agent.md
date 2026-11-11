@@ -8,7 +8,7 @@ The runner is `tools/triage/hass_triage.py`; `status` shows the queue, the switc
 
 - The runner works only issues and replies written by the configured authors. Issue text is wrapped as [untrusted input](security.md#untrusted-input).
 - Requests live in the private request repository ([house data](security.md#house-data)); nightly failures are issues on this one ([ci](ci.md#nightly-failures)).
-- The owner's requests come first, then nightly failures; one issue at a time, priority first, then oldest.
+- The owner's requests come first, then nightly failures; one issue at a time, priority first, then oldest; an issue naming an `agents/` branch waits while that lane's `Workflow: lane ... not landed` issue is open.
 - Each issue gets its own worktree and branch from the base, a ledger entry, and a headless orchestrator session with the job's prompt from `tools/triage/prompts/`.
 - A request's level starts from its kind and may only be raised ([levels](autonomy.md#levels)).
 
