@@ -21,7 +21,7 @@ whose payload carries no background-job information, so this hook is not registe
 Assumed transcript format (unverified against future Claude Code versions; the hook fails open if it changes): JSON
 lines, each an object with ``message.role`` (or ``type``) and ``message.content`` as a string or a list of blocks
 (``text``, ``tool_use`` with ``id``/``name``/``input``, ``tool_result`` with ``tool_use_id``/``content``). A background
-``Agent`` call is "finished" when a user entry containing ``task-notification`` mentions its ``agentId``; if the
+``Agent`` call is "finished" when a non-assistant entry (user, queue-operation or attachment) containing ``task-notification`` mentions its ``agentId``; if the
 ``agentId`` cannot be read from the tool result the hook never blocks on it. A line that is not that shape is
 skipped, so the worst case is one missed block or one unneeded block (the second stop is always allowed).
 """
@@ -53,8 +53,9 @@ WAITING = re.compile(
 )
 
 BACKGROUND_REASON = (
-    "Background work you started is still running: {what}. Do not end the turn. Wait for its notification and "
-    "finish the work (read the digest, act on it). If you are truly blocked, say why and finish with a blocked status."
+    "Background work you started is still running: {what}. Ending the turn in a headless session kills it and no "
+    "notification will wake you. Use the time for the rest of the task. If nothing is left, commit a WIP and "
+    "finish blocked with blocked_reason \"waiting_bg: <label>\"."
 )
 WAITING_REASON = (
     "Your last message says you are waiting. A turn that ends waiting finishes nothing. If background work is "
@@ -128,7 +129,9 @@ def pending_agents(items: List[Dict[str, Any]]) -> List[str]:
                     launched[str(b["tool_use_id"])]["agent"] = found.group(1)
     if not launched:
         return []
-    notices = [json.dumps(blocks(e)) for e in items if role(e) == "user"]
+    # Claude Code stores a completion notice as a user entry, a ``queue-operation`` entry (string ``content`` with
+    # ``<task-id>ID</task-id>``) or an ``attachment`` entry: read every non-assistant entry, whole.
+    notices = [json.dumps(e) for e in items if role(e) != "assistant"]
     notices = [n for n in notices if "task-notification" in n or "task_notification" in n]
     pending = []
     for info in launched.values():
