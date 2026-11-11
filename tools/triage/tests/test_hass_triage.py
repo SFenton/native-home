@@ -1574,6 +1574,8 @@ class ParkTests(Base):
         status["decision"]["question"] = f"{question} {self.CANARY}"
         status["decision"]["options"][0]["summary"] = f"Inline {self.CANARY}"
         status["decision"]["recommendation"] = f"A {self.CANARY}"
+        status["screenshots"] = [{"kind": "image", "file": f"chip-{self.CANARY}.png", "url": "https://example.test/chip.png",
+                                  "caption": f"Inline {self.CANARY}"}]
         return status
 
     def park_canary(self, gh, n, nightly, question="Which chip layout?"):
@@ -1617,7 +1619,7 @@ class ParkTests(Base):
             with self.subTest(nightly=nightly), self.with_denylist(f"{self.CANARY}\n"):
                 gh = FakeGitHub([issue(n, labels=["Nightly Fix" if nightly else "Feature"])])
                 self.park_canary(gh, n, nightly, question="First question?")
-                gh.posts.clear()
+                first = len(gh.posts)  # a start index, never a clear: tearDown must still see the first park
                 clean = self.decision_status()
                 clean["decision"]["question"] = "Second question?"
                 runner = self.runner(gh, clean)
@@ -1629,7 +1631,66 @@ class ParkTests(Base):
                                 f"- {self.CANARY}", PRODUCT_PR)
                 self.assertEqual(len(self.pr_comments(gh)), 1)
                 self.assertEqual(len(self.issue_comments(gh, runner.repo, n)), 1)
-                self.assertTrue([p for p in gh.posts if p[1] == "edit"])
+                self.assertTrue([p for p in gh.posts[first:] if p[1] == "edit"])
+
+    def test_a_canary_only_in_a_screenshot_caption_or_file_name_stays_off_the_public_issue(self):
+        """Fails if the park checks a body without the screenshots part but posts it with them."""
+        n = 124
+        with self.with_denylist(f"{self.CANARY}\n"):
+            gh = FakeGitHub([issue(n, labels=["Nightly Fix"])])
+            gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+            status = self.decision_status(screenshots=self.canary_status()["screenshots"])
+            runner = self.runner(gh, status)
+            runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+            with mock.patch("sys.stdout", new=io.StringIO()) as out:
+                runner.park(n, status, status["decision"], "- A", PRODUCT_PR)
+            on_issue = self.issue_comments(gh, runner.repo, n)
+            self.assertEqual(len(on_issue), 1)
+            self.assertIn(PRODUCT_PR, on_issue[0]["body"])
+            self.assertNotIn("Which chip layout?", on_issue[0]["body"])
+            self.assertNotIn(self.CANARY, out.getvalue())
+
+    def test_a_nightly_decision_without_a_parkable_pull_request_never_leaks(self):
+        """Fails if the plain decision comment on the public product repository carries worker text that fails the check."""
+        for n, pr in ((125, ""), (126, PRODUCT_PR)):
+            with self.subTest(pr=pr), self.with_denylist(f"{self.CANARY}\n"):
+                gh = FakeGitHub([issue(n, labels=["Nightly Fix"])])
+                if pr:
+                    gh.pulls[PRODUCT_PR] = {"state": "CLOSED", "labels": []}
+                status = self.canary_status()
+                status["pr"] = pr
+                runner = self.runner(gh, status)
+                runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+                with mock.patch("sys.stdout", new=io.StringIO()) as out:
+                    self.assertEqual(runner.work(n), "needs_decision")
+                on_issue = self.issue_comments(gh, runner.repo, n)
+                self.assertEqual(len(on_issue), 1)
+                self.assertIn(ht.GENERIC_DECISION_ISSUE, on_issue[0]["body"])
+                self.assertNotIn(self.CANARY, out.getvalue())
+                self.assertIn("issue comment", out.getvalue())
+
+    def test_a_clean_nightly_decision_without_a_pull_request_keeps_its_text(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(127, labels=["Nightly Fix"])])
+            runner = self.runner(gh, self.decision_status(pr=""))
+            runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(runner.work(127), "needs_decision")
+            self.assertIn("Which chip layout?", self.issue_comments(gh, runner.repo, 127)[0]["body"])
+
+    def test_the_repository_match_ignores_case(self):
+        """Fails if a nightly repository spelled in another case skips the check."""
+        with self.with_denylist(f"{self.CANARY}\n"):
+            gh = FakeGitHub([issue(128, labels=["Nightly Fix"])])
+            gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+            status = self.canary_status()
+            runner = self.runner(gh, status)
+            runner.intake = self.cfg["nightly"]
+            runner.repo = self.cfg["nightly"]["repo"].upper()
+            self.assertNotEqual(runner.repo, self.cfg["nightly"]["repo"])
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                runner.park(128, status, status["decision"], "- A", PRODUCT_PR)
+            self.assertTrue([p for p in gh.posts if p[2].count(ht.GENERIC_PARK_ISSUE)])
 
     def test_a_marker_comment_by_another_author_is_ignored(self):
         with self.with_denylist():
