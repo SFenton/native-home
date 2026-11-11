@@ -269,8 +269,21 @@ class RuleTests(unittest.TestCase):
             self.assertIn(path, scope)
         self.assertIn("swift_full: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.swift_full }}", scope)
         step = jobs("pr-checks.yml")["macos-test"].split("name: swift test", 1)[1].split("run:", 1)[0]
-        self.assertIn("needs.scope.outputs.swift_full == 'true' && ''", step)  # an empty base makes ci_macos.sh run everything
+        # An empty base makes ci_macos.sh run everything; '' is falsy in an expression, so it must be the `||` fallback, never an `&& ''` arm.
+        self.assertIn("github.event_name == 'pull_request' && needs.scope.outputs.swift_full != 'true' && format('origin/{0}', github.base_ref) || ''", step)
         self.assertIn("FENTON_AFFECTED_BASE", step)
+
+    def test_no_workflow_uses_the_falsy_empty_string_and_or_pattern(self):
+        """`cond && '' || other` always yields `other` (an empty string is falsy), the bug that kept swift_full from ever running the full suite."""
+        for path in all_files():
+            self.assertNotRegex(path.read_text(encoding="utf-8"), r"&&\s*''\s*\|\|", path.name)
+
+    def test_the_red_main_closer_fails_closed(self):
+        body = jobs("pr-checks.yml")["close-red-main"]
+        self.assertIn("ahead | identical)", body)
+        self.assertNotIn('ahead | identical | ""', body)
+        self.assertIn('*"HTTP 404"*', body)
+        self.assertIn("left open", body)
 
     def test_the_changed_file_coverage_job_gates_pull_requests_and_fits_the_macos_cap(self):
         job = jobs("pr-checks.yml")["coverage-changed"]

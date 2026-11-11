@@ -408,7 +408,7 @@ jobs:
         # The full suite on main and on a PR that touches the Core or Design packages (scope swift_full); the affected suites otherwise.
         # ci_macos.sh runs everything when FENTON_AFFECTED_BASE is empty, so the step blanks it; the journeys keep the job's value.
         env:
-          FENTON_AFFECTED_BASE: ${{ needs.scope.outputs.swift_full == 'true' && '' || (github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '') }}
+          FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && needs.scope.outputs.swift_full != 'true' && format('origin/{0}', github.base_ref) || '' }}
         run: tools/ci_macos.sh swift-test
       - name: Timing summary
         if: ${{ !cancelled() }}
@@ -657,11 +657,19 @@ jobs:
           gh issue list --state open --label Workflow --search "\"$title\" in:title" --json number,title \
             --jq ".[] | select(.title | startswith(\"$title\")) | \"\(.number) \(.title)\"" | while read -r number rest; do
             sha="${rest##*@ }"
-            status="$(gh api "repos/$GH_REPO/compare/${sha}...${HEAD_SHA}" --jq .status 2> /dev/null || true)"
-            case "$status" in
-              ahead | identical | "") ;;   # this run is at or past the reported commit (or the sha is unknown to the API): close
-              *) echo "issue #$number is about $sha, which this commit does not contain ($status): left open"; continue ;;
-            esac
+            # Fail closed: close only when the API says this commit is at or past the reported one, or that the reported sha is gone (404).
+            # An empty answer or any other API error leaves the issue open.
+            if status="$(gh api "repos/$GH_REPO/compare/${sha}...${HEAD_SHA}" --jq .status 2>&1)"; then
+              case "$status" in
+                ahead | identical) ;;
+                *) echo "issue #$number is about $sha, which this commit does not contain ($status): left open"; continue ;;
+              esac
+            else
+              case "$status" in
+                *"HTTP 404"*) ;;   # the reported sha no longer exists: nothing newer can be hiding behind it
+                *) echo "issue #$number: compare against $sha failed ($status): left open"; continue ;;
+              esac
+            fi
             gh issue close "$number" --comment "Main is green again at ${HEAD_SHA:0:10}: ${RUN_URL}"
             echo "closed issue #$number"
           done
