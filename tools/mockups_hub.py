@@ -5,6 +5,12 @@
     python3 tools/mockups_hub.py --batches    # print the Artifact `files` lists (JSON), one per publish call
     python3 tools/mockups_hub.py --inline     # as above, but every mockup is one self-contained file (no shared kit)
     python3 tools/mockups_hub.py --mark-published   # after the Artifact publish succeeded
+    python3 tools/mockups_hub.py --allow-older      # build even though the published hub came from a newer commit
+
+Every build prints "built from <branch>@<sha7>, N pages" and records that pair in build/mockups-hub.built.json
+(--mark-published copies it to build/mockups-hub.published.json, beside the old mtime stamps the Stop hook reads).
+A build whose head does not contain the published hub's commit would replace a hub built from a newer commit or
+another branch, so it exits 1 unless --allow-older is given.
 
 A build writes build/mockups-hub.built; --mark-published writes build/mockups-hub.published. The Stop hook
 tools/hooks/mockup_hub_guard.py blocks a session that changed mockups unless both are newer than the change.
@@ -198,13 +204,55 @@ def stamp(name: str) -> None:
     path.write_text(datetime.now(timezone.utc).isoformat() + "\n", encoding="utf-8")
 
 
+def git(*args: str) -> subprocess.CompletedProcess:
+    """Run git in the checkout that runs this script (never in the caller's cwd)."""
+    return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
+
+
+def head_pair() -> dict:
+    """The branch and full head commit of this checkout; branch is ``detached`` off a branch, sha is empty outside git."""
+    sha = git("rev-parse", "HEAD").stdout.strip()
+    branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    return {"branch": "detached" if branch in ("", "HEAD") else branch, "sha": sha}
+
+
+def read_pair(name: str) -> dict:
+    """The ``{branch, sha}`` record in build/<name>, or {} when it is missing or unreadable."""
+    try:
+        data = json.loads((ROOT / "build" / name).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) and data.get("sha") else {}
+
+
+def would_replace_newer(published: dict, head: dict) -> bool:
+    """True when the published hub's commit is not an ancestor of (or equal to) this checkout's head."""
+    if not published or not head.get("sha") or published["sha"] == head["sha"]:
+        return False
+    return git("merge-base", "--is-ancestor", published["sha"], head["sha"]).returncode != 0
+
+
+def label(pair: dict) -> str:
+    return f"{pair.get('branch', '?')}@{str(pair.get('sha', ''))[:7]}"
+
+
 def main(argv: list[str]) -> int:
     if "--mark-published" in argv:
         stamp("mockups-hub.published")  # run after the Artifact publish succeeded
-        print("marked the hub as published")
+        pair = read_pair("mockups-hub.built.json") or head_pair()
+        (ROOT / "build" / "mockups-hub.published.json").write_text(json.dumps(pair) + "\n", encoding="utf-8")
+        print(f"marked the hub as published ({label(pair)})")
         return 0
+    head, published = head_pair(), read_pair("mockups-hub.published.json")
+    if "--allow-older" not in argv and would_replace_newer(published, head):
+        print(f"would replace a hub built from {label(published)} with {label(head)}; "
+              "pass --allow-older to continue, or rebuild from a checkout that contains that commit", file=sys.stderr)
+        return 1
     files = build("--inline" in argv)
     stamp("mockups-hub.built")
+    (ROOT / "build" / "mockups-hub.built.json").write_text(json.dumps(head) + "\n", encoding="utf-8")
+    pages = sum(1 for rel in files if rel.endswith(".html")) + 1
+    print(f"built from {label(head)}, {pages} pages", file=sys.stderr if "--batches" in argv else sys.stdout)
     (ROOT / "build" / "mockups-hub.published").unlink(missing_ok=True)  # a new build is unpublished until the Artifact is updated
     groups = batches(files)
     if "--batches" in argv:
