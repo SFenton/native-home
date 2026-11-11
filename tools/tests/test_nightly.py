@@ -262,11 +262,13 @@ class LiveJobTests(unittest.TestCase):
     LIVE = HostedWorkflowTests.job(HostedWorkflowTests, "live")
 
     def test_it_never_runs_on_a_pull_request(self):
+        """Fails if: a pull_request trigger is added to nightly.yml or the live job loses its event_name guard."""
         triggers = self.TEXT.split("\njobs:\n", 1)[0]
         self.assertNotIn("pull_request", triggers)
         self.assertIn("github.event_name != 'pull_request'", self.LIVE)
 
     def test_it_is_main_only_and_off_until_the_owner_switches_it_on(self):
+        """Fails if: the live job runs off main, without HASS_LIVE_NIGHTLY=on, or without the hass-test environment."""
         condition = re.search(r"(?m)^    if: (.*)$", self.LIVE).group(1)
         self.assertIn("github.ref == 'refs/heads/main'", condition)
         self.assertIn("vars.HASS_LIVE_NIGHTLY == 'on'", condition)
@@ -277,6 +279,7 @@ class LiveJobTests(unittest.TestCase):
         self.assertIn('[ "${LIVE_ON:-}" = "on" ] && [ "$GITHUB_REF" = "refs/heads/main" ]', plan_job)
 
     def test_it_targets_the_demo_instance_only(self):
+        """Fails if: the live step stops reading the HASS_TEST_* demo settings, loses the demo journey target, or uses a token."""
         for text in ("FENTON_HASS_SERVER: ${{ vars.HASS_TEST_SERVER }}", "FENTON_HASS_USERNAME: ${{ vars.HASS_TEST_USERNAME }}",
                      "FENTON_HASS_PASSWORD: ${{ secrets.HASS_TEST_PASSWORD }}",
                      "TEST_RUNNER_HASS_TEST_SERVER: ${{ vars.HASS_TEST_SERVER }}", "TEST_RUNNER_FENTON_JOURNEY_TARGET: demo",
@@ -285,6 +288,7 @@ class LiveJobTests(unittest.TestCase):
         self.assertNotIn("FENTON_HASS_TOKEN", self.LIVE)
 
     def test_the_secret_stays_in_one_step_and_is_never_echoed(self):
+        """Fails if: the password is used outside the run step, echoed, traced, exported, or the test output reaches the public log."""
         self.assertEqual(self.TEXT.count("secrets.HASS_TEST_PASSWORD"), 1)
         self.assertEqual(self.LIVE.count("secrets."), 1)
         for line in self.LIVE.splitlines():
@@ -299,6 +303,7 @@ class LiveJobTests(unittest.TestCase):
         self.assertNotIn("| tee \"$log\"", self.LIVE)
 
     def test_it_uploads_digests_only(self):
+        """Fails if: the live job uploads anything but the result digest (a log, screenshot or xcresult from a public repo)."""
         uploads = re.findall(r"upload-artifact@[0-9a-f]{40}[^\n]*\n(?:\s+with:\n(?:\s+[a-z-]+:[^\n]*\n)+)", self.LIVE)
         self.assertEqual(len(uploads), 1)
         self.assertIn("path: build/nightly/result-live-*.json", self.LIVE)
@@ -308,6 +313,7 @@ class LiveJobTests(unittest.TestCase):
             self.assertNotIn(banned, code)
 
     def test_its_result_reaches_the_report_job(self):
+        """Fails if: the report job stops needing live, or the digest artifact name or area drifts from the nightly-* pattern."""
         report = self.TEXT.split("\n  report:\n", 1)[1]
         self.assertIn("needs: [plan, journeys, coverage, live]", report)
         self.assertIn("pattern: nightly-*", report)
@@ -315,11 +321,13 @@ class LiveJobTests(unittest.TestCase):
         self.assertIn("name: nightly-live-${{ matrix.family }}-${{ matrix.shard }}", self.LIVE)
 
     def test_it_follows_the_journeys_and_keeps_a_slot_for_pull_requests(self):
+        """Fails if: live stops waiting for the journeys or its parallelism leaves no macOS slot for pull requests."""
         self.assertIn("needs: [plan, build, journeys]", self.LIVE)
         cap = int(re.search(r"max-parallel: (\d+)", self.LIVE).group(1))
         self.assertLessEqual(cap + 1, 4)  # the live legs plus the coverage job; the account allows 5 macOS jobs
 
     def test_the_planner_builds_the_live_matrix_and_expectation_per_family(self):
+        """Fails if: the Live plan has no tests or the planner stops giving each family its legs."""
         doc = nightly_plan.with_families(nightly_plan.plan(nightly_plan.scan_plans(["Live"]), 100), ["iphone", "duo", "ipad"])
         self.assertTrue(doc["include"])
         self.assertEqual({e["plan"] for e in doc["include"]}, {"Live"})
