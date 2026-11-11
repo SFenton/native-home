@@ -50,6 +50,11 @@ def without_target(real):
 
 
 class GateTests(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(gate, "route", return_value="session")  # ambient FENTON_HEADLESS, HASS_TRIAGE_ISSUE and the registry must not leak in
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def run_gate(self, visible, owner, *extra, target=None, target_file=False):
         """target_file=True keeps the repo's design.target_decided question; otherwise it is simulated absent."""
         fake = Fake(visible, owner, target)
@@ -173,12 +178,12 @@ class GateTests(unittest.TestCase):
 
 
 class AppUIGateTests(unittest.TestCase):
+    """The app-UI gate (owner, 2026-11-03): matches_request for request-driven work, app_wide for agent-initiated work."""
+
     def setUp(self):
         patcher = mock.patch.object(gate, "route", return_value="session")  # the route itself is pinned in RouteTests
         patcher.start()
         self.addCleanup(patcher.stop)
-
-    """The app-UI gate (owner, 2026-11-03): matches_request for request-driven work, app_wide for agent-initiated work."""
 
     REQUEST = "Owner's request: make the chips bigger\n\nPlan: chips grow to 44 pt."
     AGENT = "Plan: tidy the chip spacing."
