@@ -73,11 +73,7 @@
         "FeedbackJourneyTests/testFeedbackRowsPassAudit()",
         "FeedbackJourneyTests/testUnavailableRelayShowsSetupNotice()",
         "FlingFrameRateControlTests/testFlingLiveSettings()",
-        "FoodLiveJourneyTests/testLiveRecipesGrid()",
-        "FoodLiveJourneyTests/testLiveSuggestionsHub()",
-        "FoodLiveJourneyTests/testLiveSuggestionsIngredientsTab()",
-        "FoodLiveJourneyTests/testLiveSuggestionsInstructionsTab()",
-        "FoodLiveJourneyTests/testLiveSuggestionsRecipeGeneral()",
+        "FoodLiveJourneyTests",
         "HomeJourneyTests/testAirQualityOverviewAudit()",
         "HomeJourneyTests/testClimateDetailAudit()",
         "HomeJourneyTests/testClimateOverviewAudit()",
@@ -144,6 +140,7 @@
         "SettingsJourneyTests/testSignOutConfirmationPassesAudit()",
         "ShellJourneyTests",
         "SinglePageMotionJourneyTests",
+        "SpotlightJourneyTests",
         "VacationLiveJourneyTests",
         "WallpaperJourneyTests"
       ]

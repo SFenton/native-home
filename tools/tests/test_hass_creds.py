@@ -139,10 +139,25 @@ class LoaderTests(unittest.TestCase):
         rc, _, err = load(self.file, body="hass_require_creds || exit 1")
         self.assertNotEqual(rc, 0)
         self.assertIn("neither", err)
-        self.write("FENTON_HASS_PASSWORD=pw-fake-333\n")
+        self.write("FENTON_HASS_PASSWORD=pw-fake-333\nFENTON_HASS_SERVER=http://fake.invalid:8123\n")
         rc, _, err = load(self.file, body="hass_require_creds || exit 1")
         self.assertEqual(rc, 0)
         self.assertNotIn("pw-fake-333", err)
+
+    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
+    def test_require_creds_needs_the_server(self):
+        """Fails if: hass_require_creds passes with a token or password but no FENTON_HASS_SERVER, or prints a value."""
+        for key, val in (("FENTON_HASS_TOKEN", "tok-fake-111"), ("FENTON_HASS_PASSWORD", "pw-fake-333")):
+            self.write(f"{key}={val}\n")
+            rc, out, err = load(self.file, body="hass_require_creds || exit 1")
+            self.assertNotEqual(rc, 0)
+            self.assertIn("FENTON_HASS_SERVER is not set", err)
+            self.assertIn("devices.md", err)
+            self.assertNotIn(val, out + err)
+            self.write(f"{key}={val}\nFENTON_HASS_SERVER=http://fake.invalid:8123\n")
+            rc, out, err = load(self.file, body="hass_require_creds || exit 1")
+            self.assertEqual(rc, 0, err)
+            self.assertNotIn("fake.invalid", out + err)
 
     def test_nightly_fails_the_shard_when_credentials_are_missing(self):
         text = (REPO / ".github" / "workflows" / "nightly.yml").read_text()

@@ -16,7 +16,7 @@ Every test in apple/Apps/iOSUITests lands in exactly one of Gate, Capture, Perf 
   named ``*Capture*`` (``LightSheetCaptureTests``), and the Motion gallery sweep (``MotionJourneyTests`` methods whose name has
   ``Gallery``, ``EveryComponent`` or ``ToggleAll``). They write screenshots or walk a gallery; they assert little a Gate
   test does not.
-* **Live**: the test needs the real house: it calls ``FentonHomeApp.launchSignedIn(`` (directly or through a helper of its class),
+* **Live**: the test needs the real house: it calls ``FentonHomeApp.launchSignedIn(`` or ``FentonHomeApp.requireServer(`` (the token and password launch helpers; directly or through a helper of its class),
   its name starts ``testLive``, or its class is a camera class (``CameraJourneyTests``, ``CameraViewerFitJourneyTests``: WebRTC
   and HLS against the live cameras). Without ``TEST_RUNNER_FENTON_HASS_*`` credentials these skip anyway.
 * **Gate**: everything else (fixture galleries, signed-out screens): deterministic, no house, no media.
@@ -144,7 +144,7 @@ def scan_file(text: str) -> Dict[str, Dict[str, bool]]:
             if open_at < 0:
                 continue
             funcs[fn.group(1)] = body[open_at:match_brace(body, open_at)]
-        live: Set[str] = {name for name, src in funcs.items() if "launchSignedIn(" in src}
+        live: Set[str] = {name for name, src in funcs.items() if "launchSignedIn(" in src or "FentonHomeApp.requireServer(" in src}
         changed = True
         while changed:  # a helper that signs in makes every test that calls it live
             changed = False

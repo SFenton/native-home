@@ -84,7 +84,8 @@ hass_load_creds() {
   return $_rc
 }
 
-# Fails with a clear message unless a token or a password is set (a live run cannot sign in without one).
+# Fails with a clear message unless a token or a password is set and FENTON_HASS_SERVER is set (a live run cannot sign in
+# without a credential, and no server is compiled into the app, so a token launch without a server stays on the sign-in form).
 hass_require_creds() {
   local _xtrace=0 _rc=0
   case "$-" in *x*) _xtrace=1; set +x ;; esac
@@ -93,9 +94,16 @@ hass_require_creds() {
   return $_rc
 }
 _hass_require_creds() {
-  if [[ -n "${FENTON_HASS_TOKEN:-}" || -n "${FENTON_HASS_PASSWORD:-}" ]]; then return 0; fi
-  echo "hass_creds: neither FENTON_HASS_TOKEN nor FENTON_HASS_PASSWORD is set (looked in the environment and ${FENTON_HASS_CREDS_FILE:-$HOME/.config/fenton-hass/env})" >&2
-  return 1
+  local _file="${FENTON_HASS_CREDS_FILE:-$HOME/.config/fenton-hass/env}"
+  if [[ -z "${FENTON_HASS_TOKEN:-}" && -z "${FENTON_HASS_PASSWORD:-}" ]]; then
+    echo "hass_creds: neither FENTON_HASS_TOKEN nor FENTON_HASS_PASSWORD is set (looked in the environment and $_file)" >&2
+    return 1
+  fi
+  if [[ -z "${FENTON_HASS_SERVER:-}" ]]; then
+    echo "hass_creds: FENTON_HASS_SERVER is not set (looked in the environment and $_file); add it to that file, see .agents/testing/apple/devices.md" >&2
+    return 1
+  fi
+  return 0
 }
 
 # Prints which keys are set, yes or no, never a value.

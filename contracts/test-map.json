@@ -54,7 +54,8 @@
   ".github/",
   ".claude/",
   "build/",
-  "apple/Apps/iOS/Assets.xcassets"
+  "apple/Apps/iOS/Assets.xcassets",
+  "apple/TestPlans/"
  ],
  "rules": [
   {
