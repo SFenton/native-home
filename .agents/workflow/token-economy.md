@@ -43,7 +43,7 @@ Cost is turns times context; a turn that only waits costs as much as one that wo
 ## Capacity
 
 - Every simulator, physical device and heavy compile runs inside a `tools/devcap.py` hold. Never boot a simulator outside one ([capacity](../platforms/apple/capacity.md)).
-- `tools/ios_uitest.sh` and `tools/apple_coverage.sh` take the hold and slim the simulator themselves; a simulator booted any other way is slimmed with `tools/sim_slim.sh`.
+- `tools/ios_uitest.sh` takes the hold and slims the simulator itself; `tools/apple_coverage.sh` takes a build hold and boots none. A simulator booted any other way is slimmed with `tools/sim_slim.sh`.
 - A slot wait yields. An agent passes `--max-wait` to its hold; when the wait runs out it reports `blocked` with `blocked_reason: "slot_wait: <gate>"` and does not retry in a loop.
 - A process kill is scoped to the agent's own work; the machine is shared with other sessions, the CI runner and simulators.
 - Scroll cost is measured with `tools/ios_scrollcost.sh` ([performance](../testing/apple/performance.md)).

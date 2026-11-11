@@ -126,7 +126,7 @@ class ReportTests(unittest.TestCase):
         failed = report.make_result("journeys-iphone", FAIL_LOG, 65, 5, "s1")
         self.assertEqual(failed["status"], "fail")
         self.assertIn("RoomsJourneyTests.testOpen", failed["failed"])
-        infra = report.make_result("journeys-duo", "devcap: hold timeout after 3600s\n", 124, 5)
+        infra = report.make_result("journeys-duo", "devcap: HOLD TIMEOUT: held iphone longer than 1h; releasing.\n", 124, 5)
         self.assertEqual(infra["status"], "infra")
         build = report.make_result("journeys-ipad", "Foo.swift:3:4: error: boom\n** BUILD FAILED **\n", 65, 5)
         self.assertEqual(build["status"], "fail")
@@ -201,7 +201,7 @@ class HostedWorkflowTests(unittest.TestCase):
 
     def test_every_job_is_github_hosted(self):
         self.assertNotRegex(self.TEXT, r"(?m)^\s+runs-on:.*self-hosted")
-        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ", self.TEXT)), 6)
+        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ", self.TEXT)), 7)
         self.assertEqual(len(re.findall(r"(?m)^    runs-on: ubuntu-24\.04$", self.TEXT)), 2)  # plan and report: Python only
 
     def test_it_runs_on_a_schedule_off_the_hour_and_by_hand(self):
@@ -241,14 +241,28 @@ class HostedWorkflowTests(unittest.TestCase):
             head = self.TEXT.split(marker, 1)[0]
             self.assertIn("set +e", head.rsplit("run: |", 1)[1], marker)
 
-    def test_the_report_download_skips_the_products_and_coverage_fits_its_cap(self):
-        # Fails if: the products artifact name matches the report job's `nightly-*` pattern (a 209 MB download), or the coverage cap drops under the measured 250-270 minutes.
+    def test_the_report_download_skips_the_products_and_coverage_is_a_host_only_job(self):
+        # Fails if: the products artifact name matches the report job's `nightly-*` pattern (a 209 MB download), or the coverage job gets a simulator or a long cap back.
         names = re.findall(r"(?m)^          name: (\S+)$", self.TEXT)
         self.assertIn("test-products-nightly", names)
         self.assertFalse([n for n in names if n.startswith("nightly-") and "products" in n])
         coverage = self.TEXT.split("\n  coverage:\n", 1)[1].split("\n  report:\n", 1)[0]
-        self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 300)
-        self.assertLess(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 360)
+        self.assertLessEqual(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 60)
+        for simulator in ("FENTON_INSTALL_SIMSLIM", "sim_slim", "sim_settle", "ci_release_sims"):
+            self.assertNotIn(simulator, coverage)
+
+    def test_the_whole_hosted_suite_has_a_nightly_leg_that_fails_the_run(self):
+        """Fails if: no scheduled job runs all of FentonHomeTests plain on iPhone, loses its headroom, drops out of the report's expectation, or cannot fail the run."""
+        hosted = self.TEXT.split("\n  hosted:\n", 1)[1].split("\n  live:\n", 1)[0]
+        self.assertIn("tools/ios_uitest.sh --only iphone --hosted --force", hosted)
+        self.assertNotIn("FENTON_HOSTED_FILTER", hosted)  # the whole suite, not a diff's classes
+        self.assertNotIn("--impact", hosted)
+        self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", hosted).group(1)), 90)
+        self.assertIn("--area hosted", hosted)
+        self.assertIn("name: nightly-hosted", hosted)  # matches the report job's nightly-* pattern
+        self.assertIn("steps.run.outputs.code != '0'", hosted.split("Fail the hosted run", 1)[1])
+        self.assertIn('expect="$expect,hosted=1"', self.TEXT)
+        self.assertIn("hosted: ${{ steps.plan.outputs.hosted }}", self.TEXT)
 
     def test_retired_self_hosted_scripts_are_gone(self):
         for name in ("nightly_dispatch.sh", "nightly_install.sh"):
@@ -318,7 +332,7 @@ class LiveJobTests(unittest.TestCase):
     def test_its_result_reaches_the_report_job(self):
         """Fails if: the report job stops needing live, or the digest artifact name or area drifts from the nightly-* pattern."""
         report = self.TEXT.split("\n  report:\n", 1)[1]
-        self.assertIn("needs: [plan, journeys, coverage, live]", report)
+        self.assertIn("needs: [plan, journeys, coverage, hosted, live]", report)
         self.assertIn("pattern: nightly-*", report)
         self.assertIn('--area "live-$FAMILY"', self.LIVE)
         self.assertIn("name: nightly-live-${{ matrix.family }}-${{ matrix.shard }}", self.LIVE)

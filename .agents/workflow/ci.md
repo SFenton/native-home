@@ -6,7 +6,7 @@
 
 | Workflow | Runs on | Guards |
 |---|---|---|
-| `pr-checks.yml` | Every pull request and every push to `main`; hosted runners | Repository checks, tool tests, the house-data scan, the app build, Smoke on iPhone, Duo and iPad, the journeys and Swift suites the diff reaches, and the coverage floor on the changed files. Its aggregate job `pr-checks` is the required check. |
+| `pr-checks.yml` | Every pull request and every push to `main`; hosted runners | Repository checks, tool tests, the house-data scan, the app build, Smoke on iPhone, Duo and iPad, the journeys, hosted unit-test classes (iPhone) and Swift suites the diff reaches, and the coverage floor on the changed files. Its aggregate job `pr-checks` is the required check. |
 | `ios-release.yml` | Every push to `main`; hosted runners | Tags the next version, builds, signs and uploads it ([versioning](versioning.md)). It runs no tests and does not wait for `pr-checks`. |
 | `nightly.yml` | Daily and dispatch; hosted runners | The Gate journeys, one runner per family and shard, and the full coverage floor on one runner. |
 | `release-health.yml` | Daily | One issue per silent release failure class. |

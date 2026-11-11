@@ -2,10 +2,10 @@
 """PreToolUse hook for Bash: deny a long background job that the harness would kill after 30 minutes.
 
 The harness stops a ``run_in_background`` Bash call after 30 minutes unless the call passes ``timeout`` (milliseconds,
-at most 7200000). A full coverage run takes about 50 minutes and a full UI run is as long, so launched without one the
-job is killed mid-way and its children are orphaned. This guard denies a background call whose command runs
-``apple_coverage.sh`` or ``ios_uitest.sh --full`` (also through ``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``)
-with no ``timeout`` of at least ``MIN_TIMEOUT_MS`` and says how to retry.
+at most 7200000). A full UI run takes about 50 minutes, so launched without one the job is killed mid-way and its
+children are orphaned. This guard denies a background call whose command runs ``ios_uitest.sh --full`` (also through
+``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``) with no ``timeout`` of at least ``MIN_TIMEOUT_MS`` and says
+how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic gate, not a long job.
 
 A tripwire for a habit, not a wall: it reads the command text only, and it fails open on any error of its own (bad payload,
 unparsable command). Exit 2 sends the message back to the model.
@@ -19,7 +19,7 @@ import shlex
 import sys
 from typing import List, Optional
 
-#: 70 minutes: a 50-minute coverage run plus slack, under the harness maximum of 7200000.
+#: 70 minutes: a 50-minute full UI run plus slack, under the harness maximum of 7200000.
 MIN_TIMEOUT_MS = 4_200_000
 MAX_TIMEOUT_MS = 7_200_000
 
@@ -42,7 +42,7 @@ def _script(token: str) -> str:
 
 
 def long_job(command: str) -> Optional[str]:
-    """The long job ``command`` starts (``apple_coverage.sh`` or ``ios_uitest.sh --full``), or ``None``."""
+    """The long job ``command`` starts (``ios_uitest.sh --full``), or ``None``."""
     body = HEREDOC.sub("", command)
     for segment in SEPARATORS.split(body):
         try:
@@ -51,13 +51,13 @@ def long_job(command: str) -> Optional[str]:
             tokens = segment.split()
         for index, token in enumerate(tokens):
             name = _script(token)
-            if name not in ("apple_coverage.sh", "ios_uitest.sh"):
+            if name != "ios_uitest.sh":
                 continue
             before = tokens[index - 1] if index else ""
             if index and not (before in LAUNCHERS or ASSIGNMENT.match(before) or _script(before) in LAUNCHERS):
-                continue  # `grep apple_coverage.sh`, `git add tools/apple_coverage.sh`: a name, not a run
+                continue  # `grep ios_uitest.sh`, `git add tools/ios_uitest.sh`: a name, not a run
             rest = tokens[index + 1:]
-            if name == "ios_uitest.sh" and "--full" not in rest:
+            if "--full" not in rest:
                 continue
             return " ".join([token] + rest[:6]).strip()
     return None

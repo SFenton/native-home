@@ -101,21 +101,21 @@ class PhaseTests(unittest.TestCase):
     """Each phase run is judged on its own exit status and the ids it named."""
 
     def test_clean_and_named_failures_are_fine(self) -> None:
-        self.assertEqual(cc.phase_problems(["hosted 0 0", "journey-1 1 2", "swift 1 1"]), ([], False))
+        self.assertEqual(cc.phase_problems(["swift 0 0", "swift-2 1 2", "swift-3 1 1"]), ([], False))
 
     def test_silent_failure_is_a_problem(self) -> None:
-        problems, timed_out = cc.phase_problems(["journey-1 1 1", "journey-2 65 0"])
+        problems, timed_out = cc.phase_problems(["swift 1 1", "swift-2 65 0"])
         self.assertEqual(len(problems), 1)
-        self.assertIn("journey-2", problems[0])
+        self.assertIn("swift-2", problems[0])
         self.assertFalse(timed_out)
 
     def test_timeout_crash_and_signal(self) -> None:
-        problems, timed_out = cc.phase_problems(["journey-1 124 3", "swift 139 1", "hosted 125 0", "x 126 1"])
+        problems, timed_out = cc.phase_problems(["swift-1 124 3", "swift 139 1", "swift-3 125 0", "x 126 1"])
         self.assertEqual(len(problems), 4)
         self.assertTrue(timed_out)
 
     def test_crash_marker_and_unexplained_count(self) -> None:
-        problems, _ = cc.phase_problems(["swift 1 1 1 0", "journey-1 1 1 0 2", "ok 1 1 0 0"])
+        problems, _ = cc.phase_problems(["swift 1 1 1 0", "swift-2 1 1 0 2", "ok 1 1 0 0"])
         self.assertEqual(len(problems), 2)
         self.assertIn("crash marker", problems[0])
         self.assertIn("more failure(s)", problems[1])
@@ -204,31 +204,16 @@ class QuarantineTests(unittest.TestCase):
         self.assertEqual(cc.validate_quarantine(cc.load_quarantine(cc.QUARANTINE_DEFAULT), None), [])
 
 
-class RerunCommandTests(unittest.TestCase):
-    """The plain ios_uitest.sh rerun command lines are pinned: only flags the script accepts together."""
-
-    def test_journey_rerun_uses_tests_selector(self) -> None:
-        line = cc.rerun_command("journey", ["B/b", "A/a"], "/r/ios_uitest.sh")
-        self.assertEqual(line, "env /r/ios_uitest.sh --only iphone --plan Gate --force --tests A/a,B/b")
-        self.assertNotIn("--impact", line)
-
-    def test_hosted_rerun_filters_by_class_without_tests_or_impact(self) -> None:
-        line = cc.rerun_command("hosted", ["Z/z1", "A/a", "A/a2"], "/r/ios_uitest.sh")
-        self.assertEqual(line, "env FENTON_HOSTED_FILTER='A Z' /r/ios_uitest.sh --only iphone --plan Gate --force --hosted")
-        self.assertNotIn("--tests", line)
-        self.assertNotIn("--impact", line)
-
-    def test_unknown_phase_refused(self) -> None:
-        with self.assertRaises(ValueError):
-            cc.rerun_args("swift", ["A/a"])
+class ScriptWiringTests(unittest.TestCase):
+    """The host rerun keeps its --require-tests guard, and only the swift kind exists."""
 
     def test_script_wiring(self) -> None:
         root = Path(__file__).resolve().parents[2] / "tools"
         phases = (root / "coverage_phases.sh").read_text(encoding="utf-8")
-        self.assertIn("rerun-cmd hosted", phases)
-        self.assertIn("rerun-cmd journey", phases)
         self.assertIn("--require-tests", phases)
-        self.assertNotIn("--hosted --tests", phases)
+        for gone in ("rerun-cmd", "cov_rerun_ios", "hosted", "journey"):
+            self.assertNotIn(gone, phases)
+        self.assertFalse(hasattr(cc, "rerun_command"))
 
 
 class CommandLineTests(unittest.TestCase):
@@ -259,14 +244,12 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("CustomLightTests/testRamp", out.split())
         self.assertEqual(self.run_cli("failed-ids", self.write("ok.txt", "all good\n")), (0, ""))
 
-    def test_swift_filters_and_rerun_cmd_commands(self) -> None:
+    def test_swift_filters_command(self) -> None:
         self.assertEqual(self.run_cli("swift-filters", "A/a,sidesLayout"), (0, "A/a$\n/sidesLayout\\(\n"))
-        status, out = self.run_cli("rerun-cmd", "journey", "A/a", "--script", "x.sh")
-        self.assertEqual((status, out.strip()), (0, "env x.sh --only iphone --plan Gate --force --tests A/a"))
 
     def test_classify_split_with_quarantine_and_timeout(self) -> None:
-        failed = self.write("failed.txt", "swift A/a\nhosted B/b\n")
-        phases = self.write("phases.txt", "swift 1 1\nhosted 124 1\n")
+        failed = self.write("failed.txt", "swift A/a\nswift B/b\n")
+        phases = self.write("phases.txt", "swift 1 1\nswift-2 124 1\n")
         again = self.write("again.log", "Test Case '-[T.A a]' passed (1.0 seconds).\n")
         status, out = self.run_cli("classify", "--failed", failed, "--phases", phases, "--quarantine",
                                    self.quarantine("A/a"), "--offline", "--rerun-log", again)
@@ -310,7 +293,7 @@ class CommandLineTests(unittest.TestCase):
 
     def test_classify_clean_run(self) -> None:
         status, out = self.run_cli("classify", "--failed", self.write("f.txt", ""), "--phases",
-                                   self.write("p.txt", "hosted 0 0\nswift 0 0\n"), "--quarantine",
+                                   self.write("p.txt", "swift 0 0\nswift-2 0 0\n"), "--quarantine",
                                    self.write("q.json", "[]"), "--offline")
         self.assertEqual(status, 0)
         self.assertIn("real: none", out)

@@ -1,7 +1,7 @@
 name: nightly
 # The certification tier (FENTON_TIER=nightly, the tier tools/hooks/tier_guard.py leaves to CI), all on GitHub-hosted runners, nothing
 # on the owner's Macs (owner, 2026-11-10): the Gate test plan (apple/TestPlans, tools/test_plans.py) on iPhone, iPhone Duo and iPad,
-# plus the Capture plan on Sundays, and apple_coverage.sh with the >=95% gate. Each failing area becomes one `Nightly Fix` issue
+# plus the Capture plan on Sundays, the whole app-hosted suite, and apple_coverage.sh with the >=95% logic gate. Each failing area becomes one `Nightly Fix` issue
 # (tools/nightly_report.py) that the triage runner fixes; the next passing run closes it.
 # Layout (the pr-checks "build once, test many" layout, #57): `build` compiles the test products once and uploads them; `journeys` is a
 # matrix of family x shard (tools/nightly_plan.py --families), each leg a fresh runner that unpacks the products and runs one shard of
@@ -70,6 +70,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       expect: ${{ steps.plan.outputs.expect }}
       coverage: ${{ steps.plan.outputs.coverage }}
+      hosted: ${{ steps.plan.outputs.hosted }}
       live: ${{ steps.plan.outputs.live }}
       live_matrix: ${{ steps.plan.outputs.live_matrix }}
     steps:
@@ -123,6 +124,11 @@ jobs:
           [ "${COVERAGE:-true}" = "false" ] && run_coverage=false
           [ "$run_coverage" = "true" ] && expect="$expect,coverage=1"
           echo "coverage=$run_coverage" >> "$GITHUB_OUTPUT"
+          # The whole app-hosted suite (FentonHomeTests) is not a UI-test class, so the class filter does not apply to it: a filtered run skips it.
+          run_hosted=true
+          [ -n "${FILTER:-}" ] && run_hosted=false
+          [ "$run_hosted" = "true" ] && expect="$expect,hosted=1"
+          echo "hosted=$run_hosted" >> "$GITHUB_OUTPUT"
           echo "expect=$expect" >> "$GITHUB_OUTPUT"
           echo "plans: $plans; legs: $expect" >> "$GITHUB_STEP_SUMMARY"
 
@@ -300,6 +306,104 @@ jobs:
         if: steps.run.outputs.code != '0'
         run: exit 1
 
+  hosted:
+    # The whole app-hosted unit-test suite (FentonHomeTests) on iPhone, plain, as the pass or fail gate that a pull request runs for the classes its
+    # diff reaches (tools/ci_macos.sh hosted iphone). It starts after `coverage`, so the journeys (3) plus one more job stay under the macOS cap.
+    name: hosted iphone
+    needs: [plan, build, coverage]
+    if: ${{ !cancelled() && vars.HOSTED_MACOS == 'on' && needs.plan.outputs.hosted == 'true' && needs.build.result == 'success' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data and products paths
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Download the test products
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: test-products-nightly
+          path: ${{ runner.temp }}/products-download
+      - name: Unpack the test products
+        run: |
+          set -euo pipefail
+          mkdir -p "$FENTON_PRODUCTS_DIR"
+          tar -xzf "$RUNNER_TEMP/products-download/test-products.tar.gz" -C "$FENTON_PRODUCTS_DIR"
+          ls "$FENTON_PRODUCTS_DIR"
+      - name: Reuse the built products
+        run: |
+          set -o pipefail
+          tools/ci_macos.sh build 2>&1 | tee "$RUNNER_TEMP/products-reuse.log"
+          grep -q '^products: hit ' "$RUNNER_TEMP/products-reuse.log" || { echo "::error::the uploaded test products did not match this runner's key (see the log above)"; exit 1; }
+      - name: Slim and settle the iphone simulator
+        id: sim
+        run: |
+          set -uo pipefail
+          tools/ci_release_sims.sh || true
+          slim_rc=0
+          tools/ci_heartbeat.sh run -- tools/sim_slim.sh iphone || slim_rc=$?
+          if [ "$slim_rc" != 0 ]; then echo "slim=0" >> "$GITHUB_OUTPUT"; else echo "slim=1" >> "$GITHUB_OUTPUT"; fi
+          tools/ci_heartbeat.sh run -- tools/sim_settle.sh iphone || true
+      - name: Run FentonHomeTests (the whole suite)
+        id: run
+        env:
+          SLIM: ${{ steps.sim.outputs.slim }}
+        run: |
+          set -uo pipefail
+          # The step shell is `bash -e -o pipefail`: -e must go, or a failing run aborts before its exit code is recorded.
+          set +e
+          mkdir -p build/nightly
+          [ "${SLIM:-1}" = "0" ] && export FENTON_SIM_SLIM=0
+          start=$(date +%s)
+          tools/ios_uitest.sh --only iphone --hosted --force 2>&1 | tee build/nightly/log-hosted.txt
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Digest
+        if: always()
+        env:
+          CODE: ${{ steps.run.outputs.code }}
+          ELAPSED: ${{ steps.run.outputs.elapsed }}
+        run: |
+          set -uo pipefail
+          mkdir -p build/nightly
+          touch build/nightly/log-hosted.txt
+          python3 tools/nightly_report.py result --area hosted --log build/nightly/log-hosted.txt \
+            --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" --out build/nightly/result-hosted.json | tee "$RUNNER_TEMP/digest.txt"
+          { echo '```'; cat "$RUNNER_TEMP/digest.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: nightly-hosted
+          path: |
+            build/nightly/result-*.json
+            build/nightly/log-*.txt
+          retention-days: 14
+      - name: Keep the xcresult of a failed run
+        if: ${{ always() && steps.run.outputs.code != '0' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-hosted-iphone
+          include-hidden-files: true
+          path: apple/.build/uitest-iphone.xcresult/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Fail the hosted run
+        if: steps.run.outputs.code != '0'
+        run: exit 1
+
   live:
     # The Live plan against the DEMO instance, after the journeys (so it never competes with them for the macOS cap: at most 2 legs beside the
     # coverage job). Triggers are schedule and dispatch only (no pull_request anywhere in this file); the if: keeps it to main and to the owner's
@@ -414,14 +518,12 @@ jobs:
         run: exit 1
 
   coverage:
-    # Full tools/apple_coverage.sh with the 95% logic and UX gate: swift test and the instrumented iPhone Gate journeys, on one runner, so the
-    # verdict comes from one merged result. Trial 2 measured the hosted unit tests at about 44 min and Gate part 1 of 4 (157 tests) at about 38 min:
-    # about 250 to 270 min in all, so the cap is 330 (the job limit is 360). Splitting the parts across runners would need the profraw files
-    # shipped between jobs and a second instrumented build for the merge (FENTON_COV_IOS_PROFILES); that layout is untried, so it is a follow-up.
+    # Full tools/apple_coverage.sh with the 95% logic gate: swift test with coverage on the Mac host, no simulator and no products bundle.
+    # The journeys run in `journeys` and the whole app-hosted suite in `hosted`; both are pass or fail.
     needs: plan
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.plan.outputs.coverage == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    timeout-minutes: 330
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -430,8 +532,6 @@ jobs:
       - name: Derived data path
         run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        env:
-          FENTON_INSTALL_SIMSLIM: "1"
         run: |
           tools/ci_hosted_setup.sh
           sudo mdutil -a -i off || true
@@ -447,13 +547,7 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: Slim and settle the iPhone simulator
-        run: |
-          set -uo pipefail
-          tools/ci_release_sims.sh || true
-          tools/ci_heartbeat.sh run -- tools/sim_slim.sh iphone || true
-          tools/ci_heartbeat.sh run -- tools/sim_settle.sh iphone || true
-      - name: apple_coverage.sh (95% logic and UX gate)
+      - name: apple_coverage.sh (95% logic gate)
         id: run
         run: |
           set -uo pipefail
@@ -493,7 +587,7 @@ jobs:
 
   report:
     # Python and gh only, so Linux. The one job with issues: write; GITHUB_TOKEN files, updates and closes the Nightly Fix issues.
-    needs: [plan, journeys, coverage, live]
+    needs: [plan, journeys, coverage, hosted, live]
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15

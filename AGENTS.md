@@ -17,7 +17,7 @@
 - **Design authority.** Every UI decision cites its Apple HIG section; HIG wins over web parity, the departure recorded. The React dashboard `SFenton/ha-sfenton-react-dash` defines behavior and entity IDs: read it, never edit it, cite `repo@sha:path:line`.
 - **Pattern first.** A behavior on several screens has one record in [patterns](.agents/patterns/README.md) and one canonical component. Extend it; sweep its consumers.
 - **Mockup atlas.** Every surface has a current mockup for iPhone, Duo and iPad ([mockups](.agents/design/mockups/README.md)). Look it up before a change, update it in the same change, publish only through the hub ([mockup-hub](.agents/skills/mockup-hub/SKILL.md)).
-- **Tests and docs.** New logic ships with unit tests; a UI change with a UX and an accessibility test per affected family, each written for all three families. Certification needs 95% logic and UX line coverage ([testing](.agents/testing/apple/README.md)). Swift carries DocC `///` and `// MARK: -` regions.
+- **Tests and docs.** New logic ships with unit tests; a UI change with a UX and an accessibility test per affected family, each written for all three families. Certification needs 95% logic line coverage ([testing](.agents/testing/apple/README.md)). Swift carries DocC `///` and `// MARK: -` regions.
 
 ## Roles
 

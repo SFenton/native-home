@@ -1,30 +1,29 @@
 # command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).  A literal \n in a command is a newline.
 # A leading `@bg ` marks a run_in_background call; `@bg:MS ` also passes timeout MS (test_guard_tables.bash_input).
 # bg_timeout_guard is a TRIPWIRE on command text, not a wall: a script run through variables, an eval string or a wrapper that hides the name is not seen (it fails open).
-@bg tools/apple_coverage.sh	block	coverage in background, no timeout
-@bg:1800000 tools/apple_coverage.sh	block	coverage with the 30-minute default
-@bg:4199999 tools/apple_coverage.sh	block	one ms under the minimum
-@bg tools/apple_coverage.sh --changed	block	a --changed coverage run is still a long job
-@bg tools/bg_run.py cov -- tools/apple_coverage.sh	block	through bg_run
-@bg python3 tools/bg_run.py cov --timeout 7200 -- tools/apple_coverage.sh	block	bg_run --timeout is not the Bash timeout
-@bg tools/bg_run.py cov --expect-minutes 70 -- tools/apple_coverage.sh	block	--expect-minutes only warns, the Bash call still needs timeout
-@bg python3 tools/devcap.py run --sim U -- tools/apple_coverage.sh	block	inside a devcap hold
-@bg bash tools/apple_coverage.sh	block	through bash
-@bg bash -c tools/apple_coverage.sh	block	through bash -c with the bare path
-@bg cd apple && ../tools/apple_coverage.sh	block	after cd
-@bg FENTON_COV_IOS=skip tools/apple_coverage.sh	block	env assignment first
-@bg time /repo/tools/apple_coverage.sh	block	absolute path after time
+@bg tools/ios_uitest.sh --full	block	full UI run in background, no timeout
+@bg:1800000 tools/ios_uitest.sh --full	block	full UI run with the 30-minute default
+@bg:4199999 tools/ios_uitest.sh --full	block	one ms under the minimum
+@bg tools/bg_run.py cov -- tools/ios_uitest.sh --full	block	through bg_run
+@bg python3 tools/bg_run.py cov --timeout 7200 -- tools/ios_uitest.sh --full	block	bg_run --timeout is not the Bash timeout
+@bg tools/bg_run.py cov --expect-minutes 70 -- tools/ios_uitest.sh --full	block	--expect-minutes only warns, the Bash call still needs timeout
+@bg python3 tools/devcap.py run --sim U -- tools/ios_uitest.sh --full	block	inside a devcap hold
+@bg bash tools/ios_uitest.sh --full	block	through bash
+@bg bash -c tools/ios_uitest.sh --full	block	through bash -c with the bare path
+@bg cd apple && ../tools/ios_uitest.sh --full	block	after cd
+@bg FENTON_TIER=nightly tools/ios_uitest.sh --full	block	env assignment first
+@bg time /repo/tools/ios_uitest.sh --full	block	absolute path after time
 @bg tools/ios_uitest.sh --full	block	full UI run
 @bg tools/bg_run.py ui -- tools/ios_uitest.sh --env shell --full	block	full UI run via bg_run
 @bg:600000 tools/ios_uitest.sh --only ipad --full	block	full UI run, short timeout
 @bg nohup tools/ios_uitest.sh --full --parallel-families	block	nohup full UI run
-@bg git status; tools/apple_coverage.sh	block	second command of a list
+@bg git status; tools/ios_uitest.sh --full	block	second command of a list
 @bg true && tools/ios_uitest.sh --full	block	after &&
-@bg:4200000 tools/apple_coverage.sh	allow	exactly the minimum
-@bg:7200000 tools/bg_run.py cov -- tools/apple_coverage.sh	allow	the harness maximum
+@bg:4200000 tools/ios_uitest.sh --full	allow	exactly the minimum
+@bg:7200000 tools/bg_run.py cov -- tools/ios_uitest.sh --full	allow	the harness maximum
 @bg:5400000 tools/ios_uitest.sh --full	allow	full UI run with a long timeout
-@bg:4200000 python3 tools/devcap.py run --sim U -- tools/apple_coverage.sh	allow	long timeout in a hold
-tools/apple_coverage.sh	allow	foreground: the harness caps it at 10 minutes and tier_guard owns the rest
+@bg:4200000 python3 tools/devcap.py run --sim U -- tools/ios_uitest.sh --full	allow	long timeout in a hold
+tools/apple_coverage.sh	allow	foreground: the host-only logic gate is not guarded
 tools/ios_uitest.sh --full	allow	foreground full run belongs to another guard
 @bg tools/ios_uitest.sh --changed	allow	a --changed UI run is short
 @bg tools/ios_uitest.sh --only iphone --tests 'A/b'	allow	a filtered UI run is short
@@ -38,3 +37,6 @@ tools/ios_uitest.sh --full	allow	foreground full run belongs to another guard
 @bg cat <<'EOF'\ntools/apple_coverage.sh\nEOF	allow	a heredoc body is data
 @bg git commit -m 'tools/apple_coverage.sh docs'	allow	a name in a commit message
 @bg:abc tools/ios_uitest.sh --changed	allow	a malformed marker is just a command
+@bg tools/apple_coverage.sh	allow	host-only logic gate since 2026-11-10: not a long job
+@bg tools/bg_run.py cov -- tools/apple_coverage.sh --changed	allow	a --changed coverage run is short
+@bg:1800000 python3 tools/bg_run.py cov -- tools/apple_coverage.sh	allow	the 30-minute default is enough for the host gate
