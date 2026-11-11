@@ -85,13 +85,14 @@ final class UKHostedHouseLayoutRebuildTests: DemoHouseTestCase {
         XCTAssertFalse(chipIds.isEmpty, "the demo house has status chips")
         XCTAssertFalse(cameraIds.isEmpty, "the demo house has cameras")
         XCTAssertFalse(guestIds.isEmpty, "the demo house has guest toggles")
+        let firstChip = chipIds[0]  // read before the facades are emptied
         startWithoutADocument()
         let store = makeStore()
         let page = home(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
         XCTAssertNotNil(view("home.skeleton", in: page), "no document yet: the skeleton")
-        XCTAssertNil(view(chipIds[0], in: page), "built before the document: no chips yet")
+        XCTAssertNil(view(firstChip, in: page), "built before the document: no chips yet")
 
         await deliver(try document(hash: "h1"), store: store)
         for id in chipIds {
