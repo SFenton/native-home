@@ -105,14 +105,15 @@ final class UKHostedHouseLayoutRebuildTests: DemoHouseTestCase {
     }
 
     func testSecurityBuildsItsChipsCamerasAndGuestsWhenTheDocumentFirstArrives() async throws {
+        // Read the ids while the demo house is installed: ``startWithoutADocument()`` empties the facades.
+        let chips = HomeConfig.statusChips.filter { [.security, .contacts].contains($0.sheet) }.map { "security.chip.\($0.sheet.rawValue)" }
+        XCTAssertFalse(chips.isEmpty, "the demo house has Security chips")
         startWithoutADocument()
         let store = makeStore()
         let page = security(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
         XCTAssertNotNil(view("page.skeleton", in: page))
-        let chips = HomeConfig.statusChips.filter { [.security, .contacts].contains($0.sheet) }.map { "security.chip.\($0.sheet.rawValue)" }
-        XCTAssertFalse(chips.isEmpty, "the demo house has Security chips")
         XCTAssertNil(view(chips[0], in: page), "built before the document: no chips yet")
 
         await deliver(try document(hash: "h1"), store: store)
