@@ -30,12 +30,12 @@ Mechanisms: hosted tests in `HassUITests` for labels, traits and order; an XCUIT
 
 ## Certification gates (two, independent)
 
-1. **Line coverage:** ≥ 95% logic (`HassCore`, `HassTelemetry`, `FentonActivityModel`, `HassDemoHouse`), measured from real LLVM reports by `tools/apple_coverage.sh` (`contracts/coverage-rules.json`). Never exclude handwritten code to pass. The script exports one report across every `*Tests.xctest` binary: `swift test`'s own JSON export reads only one bundle, which silently dropped modules before 2026-10-10. UX line coverage (`HassDesign`, `HassUI`, `FentonActivityViews`) is not measured (owner, 2026-11-10; it was ≥ 95% from 2026-10-16): it is classified `unmeasured`. UX and accessibility tests are still owed with every UI change.
+1. **Line coverage:** ≥ 95% logic (`HassCore`, `HassTelemetry`, `FentonActivityModel`, `HassDemoHouse`), measured from real LLVM reports by `tools/apple_coverage.sh` (`contracts/coverage-rules.json`). Never exclude handwritten code to pass. The script exports one report across every `*Tests.xctest` binary. UX source (`HassDesign`, `HassUI`, `FentonActivityViews`) is classified `unmeasured` ([coverage](coverage.md)); UX and accessibility tests are still owed with every UI change.
 2. **Device journeys:** every journey passes on iPhone, iPhone Duo and iPad (`tools/ios_uitest.sh`). An unavailable simulator or pose is a gap, not a pass.
 
 See [coverage](coverage.md) for how the logic gate is measured and why UX is `unmeasured`.
 
-`tools/apple_coverage.sh` merges every test bundle's profiles and exports all bundles together: the swiftbuild backend builds one bundle per test target and `swift test --show-codecov-path` exports only one, which left every other module unmeasured until 2026-10-11.
+`tools/apple_coverage.sh` merges every test bundle's profiles and exports all bundles together: the swiftbuild backend builds one bundle per test target and `swift test --show-codecov-path` exports only one, which would leave every other module unmeasured.
 
 Every file under `apple/Sources` must match exactly one category in `contracts/coverage-rules.json`. The script checks that first (`coverage_gate.py --classify-only`, no build) and fails naming each unclassified file and its module; a new module gets a pattern before it merges (`HassTelemetry` had none until 2026-10-16, so the gate produced no number). A classified file with no LLVM record compiled to no instrumented code on the macOS host (declarations only, or `#if os(iOS)`): it counts as zero lines and the gate lists it. A whole module with no record is an error, because its test bundle was not exported.
 

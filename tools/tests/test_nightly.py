@@ -233,14 +233,15 @@ class HostedWorkflowTests(unittest.TestCase):
             head = self.TEXT.split(marker, 1)[0]
             self.assertIn("set +e", head.rsplit("run: |", 1)[1], marker)
 
-    def test_the_report_download_skips_the_products_and_coverage_fits_its_cap(self):
-        # Fails if: the products artifact name matches the report job's `nightly-*` pattern (a 209 MB download), or the coverage cap drops under the measured 250-270 minutes.
+    def test_the_report_download_skips_the_products_and_coverage_is_a_host_only_job(self):
+        # Fails if: the products artifact name matches the report job's `nightly-*` pattern (a 209 MB download), or the coverage job gets a simulator or a long cap back.
         names = re.findall(r"(?m)^          name: (\S+)$", self.TEXT)
         self.assertIn("test-products-nightly", names)
         self.assertFalse([n for n in names if n.startswith("nightly-") and "products" in n])
         coverage = self.TEXT.split("\n  coverage:\n", 1)[1].split("\n  report:\n", 1)[0]
-        self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 300)
-        self.assertLess(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 360)
+        self.assertLessEqual(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 60)
+        for simulator in ("FENTON_INSTALL_SIMSLIM", "sim_slim", "sim_settle", "ci_release_sims"):
+            self.assertNotIn(simulator, coverage)
 
     def test_retired_self_hosted_scripts_are_gone(self):
         for name in ("nightly_dispatch.sh", "nightly_install.sh"):

@@ -449,7 +449,7 @@ Where the build chose or departed from the text above, so the engine lane and re
   - AX5 layout;
   - reading order;
   - the expanded-island stand-in at the smallest and largest widths with an `H:MM:SS` value, asserting nothing is clipped (the trailing text's frame fits inside its region).
-- **Coverage** ≥ 95% logic (`tools/apple_coverage.sh`); UX line coverage is not measured (owner, 2026-11-10).
+- **Coverage** ≥ 95% logic (`tools/apple_coverage.sh`).
 - **Relay:** pytest green, plus HA's `ha core check` after the HACS update.
 - **Device checks (owner's phone; planner deploys):**
   1. Fan timer from the dashboard with the app closed → card. Stop → card gone, fan off.

@@ -27,7 +27,3 @@
 - A timeout, an infrastructure exit, a crash marker or a failure with no named test fails the run whatever the quarantine says.
 - Each named id reruns once without instrumentation, after the export. An id is `coverage-only` only when the rerun passed; anything else is `real`.
 - The run fails for any `real` id and for a `coverage-only` id missing from `apple/coverage-quarantine.json` (each entry names an open `Workflow` issue). The 95% bar never changes and quarantined tests still count.
-
-## Archive
-
-The earlier two-source UX measurement is in [the archive](../../archive/testing/coverage-baseline-2026-11-04.md).

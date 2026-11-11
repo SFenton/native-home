@@ -273,7 +273,7 @@ class RuleTests(unittest.TestCase):
 
     def test_only_the_macos_test_job_installs_simslim(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
-        self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 2)  # macos-test, and coverage-changed (its iOS phase boots iPhone)
+        self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 1)  # macos-test; coverage-changed is host-only and boots no simulator
 
     def test_manual_runs_with_different_dry_run_flags_do_not_cancel_each_other(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
@@ -319,6 +319,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("github.event_name == 'pull_request'", cond)
         self.assertIn("needs.scope.outputs.app == 'true'", cond)
         self.assertNotIn("continue-on-error", job)
+        self.assertNotIn("FENTON_INSTALL_SIMSLIM", job)  # host-only: no simulator
         self.assertIn("coverage-changed", jobs("pr-checks.yml")["pr-checks"].split("steps:")[0])
 
     def test_a_green_main_closes_the_red_main_issue(self):

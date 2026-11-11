@@ -5,7 +5,7 @@ import XCTest
 
 /// Hosted UIKit page tests: the test bundle runs inside the app, so a test can build a UIKit view controller with
 /// the gallery's fixture context (``UKGalleryChrome/context(store:caller:)``), put it in a window, lay it out and read what it
-/// drew, in seconds where a journey takes minutes. UX line coverage is not measured (owner, 2026-11-10); these check behaviour. Copy ``HostedPage`` for a new page; keep the asserts about what the user sees, not about line counts.
+/// drew, in seconds where a journey takes minutes. UX line coverage is not measured; these check behaviour. Copy ``HostedPage`` for a new page; keep the asserts about what the user sees, not about line counts.
 @MainActor
 enum HostedPage {
     /// Every window a hosted test opened through ``show(_:size:)`` or ``HostedScene``. A test that fails an assertion, or never

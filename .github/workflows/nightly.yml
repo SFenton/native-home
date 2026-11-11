@@ -274,14 +274,12 @@ jobs:
         run: exit 1
 
   coverage:
-    # Full tools/apple_coverage.sh with the 95% logic and UX gate: swift test and the instrumented iPhone Gate journeys, on one runner, so the
-    # verdict comes from one merged result. Trial 2 measured the hosted unit tests at about 44 min and Gate part 1 of 4 (157 tests) at about 38 min:
-    # about 250 to 270 min in all, so the cap is 330 (the job limit is 360). Splitting the parts across runners would need the profraw files
-    # shipped between jobs and a second instrumented build for the merge (FENTON_COV_IOS_PROFILES); that layout is untried, so it is a follow-up.
+    # Full tools/apple_coverage.sh with the 95% logic gate: swift test with coverage on the Mac host, no simulator and no products bundle.
+    # The journeys and hosted tests run in their own jobs and are pass or fail.
     needs: plan
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.plan.outputs.coverage == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    timeout-minutes: 330
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -290,8 +288,6 @@ jobs:
       - name: Derived data path
         run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        env:
-          FENTON_INSTALL_SIMSLIM: "1"
         run: |
           tools/ci_hosted_setup.sh
           sudo mdutil -a -i off || true
@@ -307,13 +303,7 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: Slim and settle the iPhone simulator
-        run: |
-          set -uo pipefail
-          tools/ci_release_sims.sh || true
-          tools/ci_heartbeat.sh run -- tools/sim_slim.sh iphone || true
-          tools/ci_heartbeat.sh run -- tools/sim_settle.sh iphone || true
-      - name: apple_coverage.sh (95% logic and UX gate)
+      - name: apple_coverage.sh (95% logic gate)
         id: run
         run: |
           set -uo pipefail

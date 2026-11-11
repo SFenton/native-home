@@ -457,9 +457,8 @@ jobs:
 
   coverage-changed:
     # The 95% per-PR logic gate as a required check instead of the honour system: tools/apple_coverage.sh --changed runs the
-    # affected swift test suites with coverage on the Mac host (no simulator; UX line coverage is not measured, owner 2026-11-10),
-    # then gates only the changed logic files. Its own job, not a step of macos-test: it cannot reuse the macos-build products
-    # (it builds with coverage on, so its products key differs) and it must not lengthen the iPad leg. It needs only scope, so it starts
+    # affected swift test suites with coverage on the Mac host (no simulator, no products bundle), then gates only the changed
+    # logic files. Its own job, not a step of macos-test: it builds with coverage on and it must not lengthen the iPad leg. It needs only scope, so it starts
     # beside macos-build: build + coverage is 2 runners, then 3 legs + coverage is 4, never over the 5-concurrent macOS cap. Pull requests only.
     name: macOS - changed-file coverage
     needs: scope
@@ -470,21 +469,15 @@ jobs:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
       FENTON_AFFECTED_BASE: ${{ format('origin/{0}', github.base_ref) }}
-      FENTON_HEALTH_SHOT_WALL: "180"
-      FENTON_HEALTH_BOOT_WALL: "300"
       FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Derived data and products paths
-        run: |
-          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
-          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Derived data path
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        env:
-          FENTON_INSTALL_SIMSLIM: "1"
         run: |
           tools/ci_hosted_setup.sh
           sudo mdutil -a -i off || true
