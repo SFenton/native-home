@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +26,14 @@ HOSTED = "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
 IMPACT = ["CLANG_ENABLE_CODE_COVERAGE=YES", "CLANG_COVERAGE_MAPPING=YES"]
 
 
+# The Linux runner has no xcodebuild: both sides get the same stub, so the key's Xcode word is fixed everywhere.
+STUB_DIR = tempfile.mkdtemp()
+_stub = Path(STUB_DIR) / "xcodebuild"
+_stub.write_text("#!/bin/sh\necho 'Xcode 99'\n")
+_stub.chmod(_stub.stat().st_mode | stat.S_IXUSR)
+pc.xcode_version = lambda: "Xcode 99\n"
+
+
 def coverage_key(env: dict) -> str:
     """Run the script's own function and return the key it prints."""
     function = re.search(r"^coverage_products_key\(\) \{.*?^\}$", SCRIPT, re.S | re.M)
@@ -31,7 +41,7 @@ def coverage_key(env: dict) -> str:
     base = {k: v for k, v in os.environ.items() if not k.startswith(("FENTON_", "RUNNER_"))}
     # Both sides hash the same tree and ask the same installed Xcode.
     code = f'ROOT="{ROOT}"\n{function.group(0)}\ncoverage_products_key'
-    out = subprocess.run(["bash", "-c", code], env={**base, **env}, capture_output=True, text=True, check=True)
+    out = subprocess.run(["bash", "-c", code], env={**base, "PATH": f"{STUB_DIR}:{base['PATH']}", **env}, capture_output=True, text=True, check=True)
     return out.stdout.strip()
 
 
