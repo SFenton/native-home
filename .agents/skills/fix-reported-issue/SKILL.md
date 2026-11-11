@@ -19,4 +19,4 @@ description: Orders the work for one reported bug or feature, from pinning inten
 5. **Test the behaviour shift.** Unit tests for logic; a UX journey and an accessibility audit on each affected device family ([testing](../../testing/apple/README.md)).
 6. **Record a rule only when one changed.** Apply the scope test ([docs-conventions](../../workflow/docs-conventions.md#scope-test)); a broad change rewrites the rule in its pattern, page or control doc. Everything else goes in the pull request description.
 7. **Land** with the [land-pr](../land-pr/SKILL.md) skill.
-8. **Report** in the issue: cause or approach first, then what changed, the tests and the screenshots per device. Reference the request with `Refs <request_repo>#N`; the runner closes it after the merge.
+8. **Report** in the issue: cause or approach first, then what changed, the tests and the screenshots per device. Reference the request with `Request: the private request repo's #N`; the runner closes it after the merge.

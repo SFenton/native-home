@@ -32,7 +32,7 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), running unatten
 3. One issue, one worktree: subagents work here, on this branch. Never run `tools/lane_new.sh`.
 4. Reproduce the failing tests first. When they pass in two runs and no race is found, finish `no_changes`.
 5. Comment with `{{HASS_TRIAGE}} comment {{ISSUE}} --kind <kind> --body-file F`.
-6. Simulators end in `(Triage)` and run inside a `devcap` hold. Commits end with `Refs {{REQUEST_REPO}}#{{ISSUE}}` and a `Release-Note:` trailer.
+6. Simulators end in `(Triage)` and run inside a `devcap` hold. Commits end with `Request: the private request repo's #{{ISSUE}}` and a `Release-Note:` trailer.
 7. Verify only the failing tests and the suites `python3 tools/affected_tests.py` names; the next nightly run is the full check.
 8. Land through `tools/pr_land.sh`. Park with `needs_decision` and `decision.owner_only` only an owner-only item or a `gate: park route=pr` (`.agents/workflow/autonomy.md`).
 9. Change no agent, hook, skill, tool or workflow: say a workflow problem in `summary`, or file it with `gh issue create -R {{REQUEST_REPO}} --label Workflow`.

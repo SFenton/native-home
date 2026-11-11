@@ -35,7 +35,7 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), running unatten
 2. Follow `.agents/skills/triage-session/SKILL.md` and `.agents/skills/fix-reported-issue/SKILL.md`. Rules: `.agents/workflow/triage-agent.md`.
 3. One issue, one worktree: subagents work here, on this branch. Never run `tools/lane_new.sh`.
 4. Comment with `{{HASS_TRIAGE}} comment {{ISSUE}} --kind <kind> --body-file F`; upload media with `{{HASS_TRIAGE}} upload <files>`.
-5. Simulators end in `(Triage)` and run inside a `devcap` hold. Commits end with `Refs {{REQUEST_REPO}}#{{ISSUE}}`.
+5. Simulators end in `(Triage)` and run inside a `devcap` hold. Commits end with `Request: the private request repo's #{{ISSUE}}`.
 6. L0, L1 and L2 work lands through `tools/pr_land.sh` without the owner. Do not park a design pick: build the options, have the `designer` judge, land the pick.
 7. Finish `needs_decision` only for an owner-only item or a `gate: park route=pr` (`.agents/workflow/autonomy.md`), with `decision.owner_only` set.
 8. A `Workflow` label makes this Steward Entry B: run the `steward`, then `.agents/skills/self-change-lane/SKILL.md`. Without it, change no agent, hook, skill or tool: the runner queues the post-mortem.

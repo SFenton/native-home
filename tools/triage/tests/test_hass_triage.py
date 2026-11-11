@@ -2244,9 +2244,20 @@ class PromptFileTests(Base):
                 if not rel.startswith(".agents/workflow/"):
                     self.assertTrue((root / rel).exists(), f"{path.name}: {rel}")
 
+    def test_commit_line_of_worker_and_nightly_prompts_omits_the_request_repo_name(self):
+        """Fails if: a rendered prompt tells the session to put the private request repo's name in a commit message (security#house-data)."""
+        name = self.cfg["request_repo"].split("/")[-1]
+        for template in ("worker.md", "nightly.md"):
+            text = ht.render_prompt(self.cfg, self.paths, issue(5), [], 1, None, ht.HERE / "hass_triage.py", template,
+                                    task="R-5", route="Route: x", level="L1")
+            lines = [line for line in text.splitlines() if "Commits end with" in line]
+            self.assertEqual(len(lines), 1, template)
+            self.assertIn("Request: the private request repo's #5", lines[0], template)
+            self.assertNotIn(name.lower(), lines[0].lower(), template)
+
     def test_worker_prompt_has_the_level_rules(self):
         text = (ht.HERE / "prompts" / "worker.md").read_text()
-        for part in ("L0", "L1", "L2", "needs_decision", "owner_only", "gate: park", "Do not park a design pick", "Refs "):
+        for part in ("L0", "L1", "L2", "needs_decision", "owner_only", "gate: park", "Do not park a design pick", "Request: "):
             self.assertIn(part, text)
 
 
