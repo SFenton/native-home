@@ -42,9 +42,11 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         return UKHomeViewController(context: homeContext(store: store), configuration: configuration)
     }
 
-    /// Answers the subscription once the store has made it (it subscribes a task after `start()`; an earlier answer is dropped).
-    private func emit(_ result: Result<Data, Error>) async {
-        _ = await FeatureHost.settleAsync(until: { self.transport.subscribeCount > 0 }, timeout: 4)
+    /// Sends the server's reply once the store has subscribed. ``HouseConfigStore/start()`` subscribes after it has read the
+    /// cache off the main thread, so a reply sent straight after `start()` has no handler yet and is dropped.
+    private func emit(_ result: Result<Data, Error>, file: StaticString = #filePath, line: UInt = #line) async {
+        let subscribed = await FeatureHost.settleAsync(until: { self.transport.subscribeCount > 0 }, timeout: 6)
+        XCTAssertTrue(subscribed, "the store subscribed", file: file, line: line)
         transport.emit(result)
     }
 

@@ -60,7 +60,7 @@ final class UKHostedHouseLayoutRebuildTests: DemoHouseTestCase {
 
     private func view(_ identifier: String, in page: UIViewController) -> UIView? { FeatureHost.view(identifier, in: page.view) }
 
-    /// The ids the demo house's facades name, read from the test bundle's own copy (filled by ``DemoHouseTestCase``).
+    /// The ids the demo house's facades name, read from the shared house that ``DemoHouseTestCase`` installs; ``startWithoutADocument()`` empties it, so read them first.
     private var chipIds: [String] { HomeConfig.statusChips.map { "home.chip.\($0.sheet.rawValue)" } }
     private var cameraIds: [String] { HomeConfig.cameras.map(\.rtcStreamId) }
     private var guestIds: [String] { HomeConfig.guestToggles.map { "guest.tile.\($0.entityId)" } }
