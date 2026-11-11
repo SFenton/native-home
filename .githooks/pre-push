@@ -2,7 +2,7 @@
 # Refuse a push whose new commits match the private house denylist (tools/prepush_denylist.py).
 # Git passes "<remote name> <url>" as arguments and "<local ref> <local sha> <remote ref> <remote sha>" lines on stdin.
 # Push, then review (owner, 2026-11-10): no reviewer pass is needed to push; the merge gate (pr-checks and ai-review on the exact head) is on GitHub.
-# Install with tools/setup.sh. See .agents/workflow/house-data-gate.md.
+# Install with tools/setup.sh. See .agents/workflow/security.md#house-data.
 root="$(cd "$(dirname "$0")/.." && pwd)" || exit 1
 command -v python3 >/dev/null 2>&1 || { echo "pre-push: python3 not found; refusing the push." >&2; exit 1; }
 refs="$(mktemp)" || exit 1

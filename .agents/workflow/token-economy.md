@@ -33,7 +33,8 @@ Cost is turns times context; a turn that only waits costs as much as one that wo
 
 ## Tests
 
-- Run the cheapest check that can fail first: a filtered unit run, then the journeys the change touches, on the families it affects.
+- Run the cheapest check that can fail first. Locally a change runs a filtered unit run on the touched suite, `tools/lint_motion.sh` and one journey class on the primary family.
+- CI runs the rest on every app pull request: Smoke on all three families, the journeys the diff reaches and the changed-file coverage. Run those locally only for a layout-sensitive change or to reproduce a red check.
 - After a family has a baseline, a fix round reruns only the failed tests and the changed journeys.
 - The full suite, full coverage and all-family runs belong to the nightly and release tiers ([test tiers](../testing/apple/README.md#test-tiers)). `tools/hooks/tier_guard.py` refuses an unfiltered run.
 - `tools/affected_tests.py` names the suites, journeys and families a diff needs.

@@ -1,13 +1,17 @@
 {
- "_about": "Per-file counts of forbidden hits, long lines and words over budget that layers with a ratchet may not exceed. Entries only fall (python3 tools/rules_lint.py --write-ratchet refuses a rise). Deleted when the reference layer is clean.",
+ "_about": "Per-file counts of forbidden hits, long lines, words over budget and links and structure findings that layers with a ratchet may not exceed. Entries only fall (python3 tools/rules_lint.py --write-ratchet refuses a rise). Deleted when the reference layer is clean.",
  "files": {
   ".agents/design/README.md": {
-   "forbidden": 13
+   "forbidden": 13,
+   "structure": 6
   },
   ".agents/design/action-navigation-tiles.md": {
    "forbidden": 22,
    "long_lines": 11,
    "over_words": 610
+  },
+  ".agents/design/apple/README.md": {
+   "structure": 1
   },
   ".agents/design/apple/duo.md": {
    "forbidden": 25,
@@ -42,7 +46,8 @@
   ".agents/design/direction-g.md": {
    "forbidden": 122,
    "long_lines": 51,
-   "over_words": 8581
+   "over_words": 8581,
+   "links": 1
   },
   ".agents/design/duo-widths.md": {
    "forbidden": 20,
@@ -66,7 +71,8 @@
    "over_words": 442
   },
   ".agents/design/mockups/components/bedroom/bed-side-tile/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/components/bedroom/bedroom-controls/README.md": {
    "forbidden": 1
@@ -90,7 +96,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/chips/status-rail/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/components/chores/chore-quick-links/README.md": {
    "forbidden": 3
@@ -102,31 +109,38 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/climate/climate-notice/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/climate/thermostat-hub-pill/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/controls/floating-action-bar/README.md": {
    "forbidden": 1
   },
   ".agents/design/mockups/components/controls/primary-button/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/controls/segmented-choice/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/controls/thermostat-dial/README.md": {
    "forbidden": 1
   },
   ".agents/design/mockups/components/devices/bathroom-fan-room-tile/README.md": {
-   "forbidden": 4
+   "forbidden": 4,
+   "links": 1
   },
   ".agents/design/mockups/components/devices/fan-timer-controls/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/feedback/feedback-attachment-strip/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/food/recipe-ingredient-row/README.md": {
    "forbidden": 1
@@ -138,7 +152,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/forms/schedule-date-fields/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/forms/settings-controls/README.md": {
    "forbidden": 1
@@ -153,10 +168,12 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/icons/symbol-map/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/images/remote-image/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/inventory/inventory-empty-state/README.md": {
    "forbidden": 1
@@ -189,19 +206,23 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/loading/content-gate/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/loading/pending-value-bar/README.md": {
    "forbidden": 1
   },
   ".agents/design/mockups/components/location/location-account-section/README.md": {
-   "forbidden": 3
+   "forbidden": 3,
+   "links": 1
   },
   ".agents/design/mockups/components/login/login-form-parts/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/login/login-header-mark/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/media/media-card-tile/README.md": {
    "forbidden": 4
@@ -213,7 +234,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/modals/filter-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/modals/hass-modal/README.md": {
    "forbidden": 1
@@ -229,31 +251,38 @@
   },
   ".agents/design/mockups/components/motion/header-edge-fade/README.md": {
    "forbidden": 13,
-   "long_lines": 1
+   "long_lines": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/motion/motion-tokens/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/navigation/house-backdrop/README.md": {
    "forbidden": 1
   },
   ".agents/design/mockups/components/navigation/navigation-flyout/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/components/navigation/profile-button/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/navigation/reconnecting-arc/README.md": {
    "forbidden": 2
   },
   ".agents/design/mockups/components/navigation/shell-header-items/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/navigation/tab-bar/README.md": {
-   "forbidden": 3
+   "forbidden": 3,
+   "links": 1
   },
   ".agents/design/mockups/components/rooms/guest-presence-section/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/rooms/light-group-tile/README.md": {
    "forbidden": 2
@@ -274,14 +303,17 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/security/security-door-tiles/README.md": {
-   "forbidden": 3
+   "forbidden": 3,
+   "links": 1
   },
   ".agents/design/mockups/components/settings/appearance-settings-section/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/settings/household-toggle-tile/README.md": {
    "forbidden": 2,
-   "long_lines": 1
+   "long_lines": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/settings/settings-link-row/README.md": {
    "forbidden": 1
@@ -290,7 +322,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/shell/scroll-fit/README.md": {
-   "forbidden": 4
+   "forbidden": 4,
+   "links": 1
   },
   ".agents/design/mockups/components/surfaces/info-box/README.md": {
    "forbidden": 1
@@ -302,7 +335,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/tiles/glass-tile/README.md": {
-   "forbidden": 3
+   "forbidden": 3,
+   "links": 1
   },
   ".agents/design/mockups/components/tiles/image-card/README.md": {
    "forbidden": 1
@@ -320,7 +354,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/vacation/vacation-date-fields/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/vacuums/vacuum-map-canvas/README.md": {
    "forbidden": 3
@@ -329,13 +364,16 @@
    "forbidden": 3
   },
   ".agents/design/mockups/components/weather/weather-highlights-tiles/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/weather/weather-hourly-panel/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/components/weather/weather-summary-card/README.md": {
-   "forbidden": 4
+   "forbidden": 4,
+   "links": 1
   },
   ".agents/design/mockups/components/widgets/camera-notification-content/README.md": {
    "forbidden": 2
@@ -350,13 +388,16 @@
    "forbidden": 1
   },
   ".agents/design/mockups/flows/flyout-navigation/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 2
   },
   ".agents/design/mockups/flows/launch-cold-signed-in/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/flows/launch-cold-signed-out/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/flows/notification-deep-link/README.md": {
    "forbidden": 1
@@ -365,10 +406,12 @@
    "forbidden": 2
   },
   ".agents/design/mockups/flows/push-pop-navigation/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 2
   },
   ".agents/design/mockups/flows/quick-links-to-page/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/flows/session-expired-welcome-back/README.md": {
    "forbidden": 1
@@ -377,16 +420,20 @@
    "forbidden": 1
   },
   ".agents/design/mockups/flows/sign-in-to-home-arrival/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/flows/sign-out/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/flows/tab-navigation/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 2
   },
   ".agents/design/mockups/flows/zoom-transition/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/modals/README.md": {
    "over_words": 191
@@ -401,19 +448,23 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/bedroom/bed-side-sheet/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 4
   },
   ".agents/design/mockups/modals/bedroom/bed-temperature-scope-sheet/README.md": {
    "forbidden": 1
   },
   ".agents/design/mockups/modals/bedroom/schedule-delete-dialog/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/bedroom/wake-light-editor/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/bedroom/wake-light-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/cameras/camera-photos-denied-alert/README.md": {
    "forbidden": 1
@@ -438,10 +489,12 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/climate/climate-automation-details/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/climate/climate-room-detail/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/climate/climate-sheet/README.md": {
    "forbidden": 1
@@ -456,10 +509,12 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/food/recipe-filter-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/food/recipe-sort-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/home/room-group-detail/README.md": {
    "forbidden": 1
@@ -480,7 +535,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/home/weather-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/inventory/inventory-delete-dialog/README.md": {
    "forbidden": 1
@@ -495,7 +551,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/inventory/inventory-sort-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/inventory/scan-item-sheet/README.md": {
    "forbidden": 1
@@ -507,13 +564,15 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/room-devices/air-purifier-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/room-devices/bathroom-fan-sheet/README.md": {
    "forbidden": 2
   },
   ".agents/design/mockups/modals/room-devices/grill-sheet/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/modals/room-devices/humidifier-activity-editor/README.md": {
    "forbidden": 1
@@ -531,19 +590,24 @@
    "forbidden": 4
   },
   ".agents/design/mockups/modals/settings/app-icon-picker-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/settings/auto-reset-sheet/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/modals/settings/feedback-discard-dialog/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/settings/feedback-form-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/settings/feedback-result-alerts/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/settings/ha-settings/README.md": {
    "forbidden": 1
@@ -552,10 +616,12 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/settings/presence-override-detail/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/settings/presence-overrides-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/shell/quick-links-rooms/README.md": {
    "forbidden": 1
@@ -568,13 +634,16 @@
    "long_lines": 1
   },
   ".agents/design/mockups/modals/shell/sign-out-alert/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/shell/sign-out-failed-alert/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/shell/your-summary/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/sprinklers/sprinkler-controller-sheet/README.md": {
    "forbidden": 1
@@ -586,13 +655,15 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/vacation/solo-trip-editor-sheet/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/modals/vacation/vacation-confirmation-sheet/README.md": {
    "forbidden": 1
   },
   ".agents/design/mockups/modals/vacation/vacation-disable-alert/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/modals/vacuums/vacuum-area-editor/README.md": {
    "forbidden": 4
@@ -634,13 +705,16 @@
    "forbidden": 2
   },
   ".agents/design/mockups/pages/food/food-hub/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/pages/food/recipes/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/pages/home/home/README.md": {
-   "forbidden": 3
+   "forbidden": 3,
+   "links": 1
   },
   ".agents/design/mockups/pages/inventory/inventory-space/README.md": {
    "forbidden": 1
@@ -667,7 +741,8 @@
   },
   ".agents/design/mockups/pages/settings/household-admin/README.md": {
    "forbidden": 2,
-   "long_lines": 1
+   "long_lines": 1,
+   "links": 1
   },
   ".agents/design/mockups/pages/settings/household-car/README.md": {
    "forbidden": 2
@@ -685,19 +760,23 @@
    "forbidden": 2
   },
   ".agents/design/mockups/pages/shell/placeholder-screen/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 2
   },
   ".agents/design/mockups/pages/sprinklers/sprinklers/README.md": {
    "forbidden": 2
   },
   ".agents/design/mockups/pages/vacation/solo-trip/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/pages/vacation/vacation-chooser/README.md": {
-   "forbidden": 1
+   "forbidden": 1,
+   "links": 1
   },
   ".agents/design/mockups/pages/vacation/vacation-mode/README.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/design/mockups/pages/vacuums/vacuums/README.md": {
    "forbidden": 2
@@ -706,7 +785,8 @@
    "forbidden": 1
   },
   ".agents/design/mockups/proposals/selection-tiles/README.md": {
-   "forbidden": 3
+   "forbidden": 3,
+   "links": 1
   },
   ".agents/design/mockups/proposals/tile-rollout-settings-more/README.md": {
    "forbidden": 1,
@@ -768,6 +848,9 @@
   ".agents/design/weather-chevron-contrast.md": {
    "forbidden": 3,
    "long_lines": 1
+  },
+  ".agents/pages/README.md": {
+   "structure": 13
   },
   ".agents/pages/chores/ios.md": {
    "forbidden": 34,
@@ -921,7 +1004,8 @@
   ".agents/patterns/header-edge-fade.md": {
    "forbidden": 42,
    "long_lines": 4,
-   "over_words": 1132
+   "over_words": 1132,
+   "links": 1
   },
   ".agents/patterns/hinge-avoidance.md": {
    "forbidden": 21,
@@ -1020,7 +1104,8 @@
   },
   ".agents/patterns/swipe-row.md": {
    "forbidden": 4,
-   "long_lines": 7
+   "long_lines": 7,
+   "links": 1
   },
   ".agents/patterns/tap-feedback.md": {
    "forbidden": 2,
@@ -1049,10 +1134,12 @@
   },
   ".agents/patterns/weather.md": {
    "forbidden": 1,
-   "long_lines": 6
+   "long_lines": 6,
+   "links": 1
   },
   ".agents/platforms/apple/README.md": {
-   "forbidden": 3
+   "forbidden": 3,
+   "structure": 14
   },
   ".agents/platforms/apple/app-name.md": {
    "forbidden": 6,
@@ -1074,7 +1161,8 @@
   ".agents/platforms/apple/capacity.md": {
    "forbidden": 12,
    "long_lines": 10,
-   "over_words": 858
+   "over_words": 858,
+   "links": 2
   },
   ".agents/platforms/apple/connection-lifecycle.md": {
    "forbidden": 18,
@@ -1083,7 +1171,8 @@
   },
   ".agents/platforms/apple/decision-uikit-replaces-swiftui.md": {
    "forbidden": 5,
-   "long_lines": 1
+   "long_lines": 1,
+   "links": 1
   },
   ".agents/platforms/apple/ha-operations.md": {
    "forbidden": 4,
@@ -1125,7 +1214,8 @@
   ".agents/platforms/apple/testflight.md": {
    "forbidden": 11,
    "long_lines": 17,
-   "over_words": 1037
+   "over_words": 1037,
+   "links": 1
   },
   ".agents/platforms/apple/uikit-port-design-lists.md": {
    "forbidden": 1,
@@ -1136,7 +1226,8 @@
    "long_lines": 3
   },
   ".agents/platforms/apple/uikit-port-feature-lane.md": {
-   "forbidden": 2
+   "forbidden": 2,
+   "links": 1
   },
   ".agents/platforms/apple/uikit-port-shell.md": {
    "forbidden": 3,
@@ -1145,12 +1236,15 @@
   ".agents/platforms/apple/uikit-port.md": {
    "forbidden": 22,
    "long_lines": 14,
-   "over_words": 826
+   "over_words": 826,
+   "links": 1
   },
   ".agents/testing/apple/README.md": {
-   "forbidden": 42,
-   "long_lines": 33,
-   "over_words": 6395
+   "forbidden": 41,
+   "long_lines": 34,
+   "over_words": 6484,
+   "links": 1,
+   "structure": 2
   },
   ".agents/testing/apple/accessibility.md": {
    "forbidden": 32,
@@ -1173,7 +1267,8 @@
   ".agents/testing/apple/devices.md": {
    "forbidden": 14,
    "long_lines": 8,
-   "over_words": 80
+   "over_words": 205,
+   "links": 1
   },
   ".agents/testing/apple/ha-companion.md": {
    "forbidden": 1
@@ -1189,14 +1284,16 @@
   ".agents/testing/apple/performance.md": {
    "forbidden": 27,
    "long_lines": 33,
-   "over_words": 8133
+   "over_words": 8133,
+   "structure": 3
   },
   ".agents/testing/apple/strategy.md": {
    "forbidden": 7,
    "long_lines": 4
   },
   ".agents/testing/apple/suites.md": {
-   "long_lines": 2
+   "long_lines": 2,
+   "links": 1
   },
   ".agents/testing/apple/test-speed-roadmap.md": {
    "forbidden": 31,

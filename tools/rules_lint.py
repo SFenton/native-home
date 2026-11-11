@@ -8,7 +8,8 @@ present-tense default: no date, no attribution, no PR or commit reference, no wo
 another home (the refusal message names it): a decision record, the PR description, ``PROGRESS.md``, a tool's config or ``--help``.
 
 Checks (each a function with a stable id): ``forbidden``, ``budget``, ``role_load``, ``one_home``, ``links``, ``structure``,
-``decisions``, and ``ratchet`` for layers that carry one. There is **no inline ignore comment and no per-line allow-list**;
+``decisions``, and ``ratchet`` for layers that carry one (there ``forbidden``, budget, ``links`` and ``structure`` are per-file
+counts that may only fall). There is **no inline ignore comment and no per-line allow-list**;
 exemptions exist only by layer, in the contract, and the contract is owner-protected.
 
 Output: ``path:line: [check] message -> home`` per finding and a summary; exit 1 when there is any finding. ``--stdin-path``
@@ -257,6 +258,9 @@ def check_budget(s: Surface) -> List[Finding]:
 
 # MARK: - Ratchet
 
+#: Tree checks whose findings in a ratcheted layer are per-file counts that may only fall, like the text kinds.
+RATCHETED_TREE_CHECKS = ("links", "structure")
+
 def load_ratchet(s: Surface) -> Dict[str, Dict[str, int]]:
     for cfg in s.contract["layers"].values():
         if cfg.get("ratchet"):
@@ -267,12 +271,34 @@ def load_ratchet(s: Surface) -> Dict[str, Dict[str, int]]:
     return {}
 
 
-def measure_ratcheted(s: Surface) -> Dict[str, Dict[str, int]]:
-    """Nonzero counts for every file of a ratcheted layer."""
+def in_ratchet(s: Surface, rel: str) -> bool:
+    """True when ``rel`` is a file of a layer that carries a ratchet."""
+    return rel in s.files and ratcheted(s.contract, s.files[rel][0])
+
+
+def outside_ratchet(s: Surface, found: List[Finding]) -> List[Finding]:
+    """``found`` without the findings of ratcheted files: those are counted by :func:`check_ratchet` instead."""
+    return [f for f in found if not in_ratchet(s, f.path)]
+
+
+def ratcheted_tree_findings(s: Surface) -> Dict[str, List[Finding]]:
+    """The ``links`` and ``structure`` findings of ratcheted files, by file."""
+    out: Dict[str, List[Finding]] = {}
+    for f in link_findings(s) + structure_findings(s):
+        if in_ratchet(s, f.path):
+            out.setdefault(f.path, []).append(f)
+    return out
+
+
+def measure_ratcheted(s: Surface, tree: Optional[Dict[str, List[Finding]]] = None) -> Dict[str, Dict[str, int]]:
+    """Nonzero counts for every file of a ratcheted layer: the text kinds of :func:`hit_counts` plus ``links`` and ``structure``."""
+    tree = ratcheted_tree_findings(s) if tree is None else tree
     out = {}
     for rel, (layer, text) in s.files.items():
         if ratcheted(s.contract, layer):
             counts = hit_counts(s.contract, layer, rel, text)
+            for kind in RATCHETED_TREE_CHECKS:
+                counts[kind] = sum(1 for f in tree.get(rel, []) if f.check == kind)
             if any(counts.values()):
                 out[rel] = {k: v for k, v in counts.items() if v}
     return out
@@ -281,14 +307,15 @@ def measure_ratcheted(s: Surface) -> Dict[str, Dict[str, int]]:
 def check_ratchet(s: Surface) -> List[Finding]:
     """A ratcheted file may not exceed its entry; an unlisted file must be clean; an entry above the measured count must fall."""
     entries = load_ratchet(s)
-    measured = measure_ratcheted(s)
+    tree = ratcheted_tree_findings(s)
+    measured = measure_ratcheted(s, tree)
     found: List[Finding] = []
     for rel, (layer, text) in s.files.items():
         if not ratcheted(s.contract, layer):
             continue
         now, entry = measured.get(rel, {}), entries.get(rel)
         if entry is None:
-            found += text_findings(s.contract, layer, rel, text)
+            found += text_findings(s.contract, layer, rel, text) + tree.get(rel, [])
             continue
         for kind in sorted(set(now) | set(entry)):
             have, allowed = now.get(kind, 0), entry.get(kind, 0)
@@ -315,8 +342,8 @@ def write_ratchet(s: Surface) -> Tuple[bool, str]:
             for kind, value in counts.items():
                 if value > old.get(rel, {}).get(kind, 0):
                     return False, f"refused: {rel} {kind} would rise to {value} (ratchet {old.get(rel, {}).get(kind, 0)}); fix the file instead"
-    body = {"_about": "Per-file counts of forbidden hits, long lines and words over budget that layers with a ratchet may not exceed. "
-                      "Entries only fall (python3 tools/rules_lint.py --write-ratchet refuses a rise). Deleted when the reference layer is clean.",
+    body = {"_about": "Per-file counts of forbidden hits, long lines, words over budget and links and structure findings that layers "
+                      "with a ratchet may not exceed. Entries only fall (python3 tools/rules_lint.py --write-ratchet refuses a rise). Deleted when the reference layer is clean.",
             "files": {rel: measured[rel] for rel in sorted(measured)}}
     path.write_text(json.dumps(body, indent=1) + "\n", encoding="utf-8")
     return True, f"wrote {target} ({len(measured)} files)"
@@ -383,6 +410,12 @@ def path_tokens(text: str, ignore: Tuple[str, ...] = ()) -> List[Tuple[int, str]
 
 
 def check_links(s: Surface) -> List[Finding]:
+    """Link findings outside ratcheted layers (a ratcheted file's are per-file counts in :func:`check_ratchet`)."""
+    return outside_ratchet(s, link_findings(s))
+
+
+def link_findings(s: Surface) -> List[Finding]:
+    """Every broken link, anchor and backticked path in the tree."""
     found: List[Finding] = []
     anchor_cache: Dict[str, Set[str]] = {}
 
@@ -413,6 +446,12 @@ def check_links(s: Surface) -> List[Finding]:
 # MARK: - Structure
 
 def check_structure(s: Surface) -> List[Finding]:
+    """Structure findings outside ratcheted layers (a ratcheted file's are per-file counts in :func:`check_ratchet`)."""
+    return outside_ratchet(s, structure_findings(s))
+
+
+def structure_findings(s: Surface) -> List[Finding]:
+    """Every title, layer file-set, record-link and router finding in the tree."""
     found: List[Finding] = []
     contract = s.contract
     for rel, (layer, text) in s.files.items():

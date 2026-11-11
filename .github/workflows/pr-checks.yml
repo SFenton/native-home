@@ -234,7 +234,7 @@ jobs:
           STRICT: ${{ vars.DENYLIST_STRICT }}
         run: |
           set +e
-          # main's `house_scan.py denylist` (house-data-gate.md) does the scan. Only its count line is shown: the hit list (path:line) stays out of
+          # main's `house_scan.py denylist` (security.md#house-data) does the scan. Only its count line is shown: the hit list (path:line) stays out of
           # the log. A pull request is judged against its base commit with the base's own config (never the tree under review); a push to
           # main counts every hit and only warns. DENYLIST_STRICT=on counts every hit and fails on any, on every event.
           args=(--root . --required true)

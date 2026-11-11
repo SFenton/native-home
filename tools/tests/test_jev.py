@@ -697,7 +697,7 @@ class GeneratedQuestionTests(Isolated):
             if path != "none":
                 self.assertTrue((REPO / path).is_file(), path)
         self.assertNotIn(".agents/design/mockups", " ".join(criteria))
-        self.assertIn(".agents/workflow/decision-models.md", criteria)
+        self.assertIn(".agents/workflow/jev.md", criteria)
 
     def test_release_impact_covers_services_hakit_and_frameworks(self):
         criteria = jev.load_questions()["research.release_impact"].data["criteria"]

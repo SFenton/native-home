@@ -29,7 +29,6 @@
 
 # The rule-surface lint: its budgets and patterns, so growing the surface is an owner-visible diff
 /contracts/rules-surface.json @SFenton
-/contracts/rules-ratchet.json @SFenton
 /tools/rules_lint.py @SFenton
 
 # Jev contracts and evals

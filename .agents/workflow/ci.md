@@ -6,7 +6,7 @@
 
 | Workflow | Runs on | Guards |
 |---|---|---|
-| `pr-checks.yml` | Every pull request and every push to `main`; hosted runners | Repository checks, tool tests, the house-data scan, the app build, Smoke on iPhone, Duo and iPad, and the journeys the diff reaches. Its aggregate job `pr-checks` is the required check. |
+| `pr-checks.yml` | Every pull request and every push to `main`; hosted runners | Repository checks, tool tests, the house-data scan, the app build, Smoke on iPhone, Duo and iPad, the journeys and Swift suites the diff reaches, and the coverage floor on the changed files. Its aggregate job `pr-checks` is the required check. |
 | `ios-release.yml` | Every push to `main`; hosted runners | Tags the next version, builds, signs and uploads it ([versioning](versioning.md)). It runs no tests and does not wait for `pr-checks`. |
 | `nightly.yml` | Dispatch only; the self-hosted Macs | The full device journeys on all three families and the coverage floor. |
 | `release-health.yml` | Daily | One issue per silent release failure class. |
@@ -27,7 +27,9 @@ Job names, runner labels, repository variables and schedules live in the workflo
 - A hosted job uses plain `pull_request`, never `pull_request_target`; actions are pinned by commit SHA; top-level permissions are read-only and a job widens them only when it must. `tools/tests/test_hosted_workflows.py` lints these rules.
 - Every job on a hosted Mac image carries the one repository-variable switch the same test checks.
 - A tool-test failure already present on the pull request's base does not fail the pull request; only a new failure does (`tools/ci_new_failures.py`).
-- Red tool tests on `main` file or update one workflow issue (job `report-red-main`).
+- Red tool tests on `main` file or update one workflow issue (job `report-red-main`); the next green run on `main` closes it (job `close-red-main`).
+- A pull request that touches the Core or Design packages runs every Swift suite; any other app pull request runs the suites its diff reaches.
+- A run on `main` is never cancelled by a newer run; a pull request's newer run cancels its older one.
 - Every self-hosted job starts with the disk preflight of `tools/ci_hygiene.py`, and every compile or simulator run there takes a capacity hold ([capacity](token-economy.md#capacity)).
 - A change under `.github/` waits for the owner's approval ([landing](pr-lifecycle.md#landing)).
 

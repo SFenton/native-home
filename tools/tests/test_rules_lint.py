@@ -199,7 +199,7 @@ class StructureTests(Tree):
         self.write(".agents/workflow/README.md", "# W\n")
         self.write(".agents/workflow/stray.md", "# S\n\nSee [why](../decisions/2026-11-10-x.md) and `.agents/archive/old.md`.\n")
         self.write(".agents/decisions/2026-11-10-x.md", "# X\n")
-        found = self.messages("structure")
+        found = self.messages("structure") + self.messages("ratchet")  # the patterns router is in a ratcheted layer and unlisted
         joined = "\n".join(found)
         self.assertIn("line 1 must be `# Title`", joined)
         self.assertIn("does not link b.md", joined)
@@ -287,6 +287,54 @@ class RatchetTests(Tree):
         self.write(".agents/design/mockups/x/notes.md", self.DIRTY)  # not a README: not in any layer
         self.ratchet({".agents/design/mockups/x/README.md": {"forbidden": 2}})
         self.assertEqual(self.checks("ratchet"), [])
+
+    def tree_with_a_broken_router(self):
+        """A ratcheted router with one broken link and one sibling it does not link."""
+        self.write(".agents/patterns/README.md", "# P\n\n[a](a.md) [gone](gone.md)\n")
+        self.write(".agents/patterns/a.md", "# A\n")
+        self.write(".agents/patterns/b.md", "# B\n")
+
+    def test_links_and_structure_in_a_ratcheted_layer_are_counts_not_findings(self):
+        """Fails if: a ratcheted file's links and structure findings are reported twice, or an unlisted file's are dropped."""
+        self.tree_with_a_broken_router()
+        self.assertEqual(self.messages("links"), [])
+        self.assertEqual(self.messages("structure"), [])
+        self.ratchet({})
+        self.assertEqual(sorted(f.check for f in self.checks("ratchet")), ["links", "structure"])  # unlisted: must be clean
+        self.ratchet({".agents/patterns/README.md": {"links": 1, "structure": 1}})
+        self.assertEqual(self.messages("ratchet"), [])
+
+    def test_links_and_structure_counts_may_only_fall(self):
+        """Fails if: a links or structure count may exceed its entry, or an entry may stay above the measured count."""
+        self.tree_with_a_broken_router()
+        self.ratchet({".agents/patterns/README.md": {"links": 1}})
+        [found] = self.checks("ratchet")
+        self.assertIn("structure is 1, the ratchet allows 0", found.message)
+        self.ratchet({".agents/patterns/README.md": {"links": 2, "structure": 1}})
+        [found] = self.checks("ratchet")
+        self.assertIn("links is 1 but the ratchet says 2", found.message)
+        self.ratchet({".agents/patterns/README.md": {"links": 1, "structure": 1}})
+        self.write(".agents/patterns/README.md", "# P\n\n[a](a.md) [gone](gone.md) `tools/missing.py`\n")
+        [found] = self.checks("ratchet")
+        self.assertIn("links is 2, the ratchet allows 1", found.message)
+
+    def test_a_file_outside_the_ratchet_still_reports_links_and_structure(self):
+        self.write(".agents/workflow/README.md", "# W\n\n[gone](gone.md)\n")
+        self.write(".agents/workflow/ci.md", "# C\n")
+        self.assertEqual(len(self.checks("links")), 1)
+        self.assertTrue(any("does not link ci.md" in m for m in self.messages("structure")))
+        self.assertEqual(self.checks("ratchet"), [])
+
+    def test_write_ratchet_records_links_and_structure_and_refuses_their_rise(self):
+        self.tree_with_a_broken_router()
+        self.assertTrue(rl.write_ratchet(rl.load_surface(self.root))[0])
+        data = json.loads((self.root / "contracts/rules-ratchet.json").read_text())
+        self.assertEqual(data["files"][".agents/patterns/README.md"], {"links": 1, "structure": 1})
+        self.assertEqual(self.checks("ratchet"), [])
+        self.write(".agents/patterns/c.md", "# C\n")  # one more unlinked sibling
+        ok, message = rl.write_ratchet(rl.load_surface(self.root))
+        self.assertFalse(ok)
+        self.assertIn("structure would rise to 2", message)
 
     def test_write_ratchet_creates_lowers_and_refuses_a_rise(self):
         self.write(".agents/patterns/a.md", self.DIRTY)

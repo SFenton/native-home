@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Does the live ruleset on main make GitHub the merge gate? Auto-merge is armed only when it does (fails closed).
 
-The gate is the ruleset `main-checks` (.agents/workflow/ci.md#merge-gate): a pull request is required (squash allowed, any approval count:
+The gate is the ruleset `main-checks` (.agents/workflow/ci.md#the-merge-gate): a pull request is required (squash allowed, any approval count:
 review happens before the push, see ``tools/review_verdict.py``), the required check `pr-checks` comes from GitHub Actions, and nothing bypasses it.
 ``tools/ship.sh`` and ``tools/hooks/merge_guard.py`` arm or allow the pinned auto-merge (squash, matched to the reviewed head) only while all of
 that is live on the branch; if `gh api` fails, or any of it is missing, nothing is armed.

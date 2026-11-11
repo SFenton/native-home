@@ -24,7 +24,7 @@
 #             that is not the agent's own `record.py` command which tools/hooks/review_guard.py reserves for the reviewer, and the check is only as green
 #             as the recorded verdict.
 #   The Jev question list must be current before any push: `python3 tools/jev_ask.py sync --check` (CI runs it too) blocks the push when stale.
-#   Push, then review (owner, 2026-11-10; ci.md#merge-gate): the branch is pushed and the draft PR opened without a reviewer pass, so CI runs while the
+#   Push, then review (owner, 2026-11-10; ci.md#the-merge-gate): the branch is pushed and the draft PR opened without a reviewer pass, so CI runs while the
 #   Reviewer reads the exact head. On `changes` fix and push again (`--update` after an amend); on `pass` the orchestrator arms the PR (tools/pr_land.sh N).
 #   Git's pre-push hook (.githooks/pre-push) still runs the house denylist on every push; this file only checks that the hook is installed.
 #   After the PR opens ship.sh runs tools/pr_land.py N on native-home: it runs the gates GitHub cannot (kill switch, app-UI gate, denylist, author and fork,
