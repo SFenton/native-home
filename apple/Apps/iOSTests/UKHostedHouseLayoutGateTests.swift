@@ -26,6 +26,22 @@ final class StubHouseTransport: HouseConfigTransport {
 final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
     private let source = HouseConfigSource()
     private let transport = StubHouseTransport()
+    /// The gates ``gated(_:role:size:)`` made, kept for the test as a page keeps its own (`UKPageViewController.houseGate`): the
+    /// message's action holds its gate weakly, so a gate nobody keeps does nothing when the button is pressed.
+    private var gates: [UKHouseLayoutGate] = []
+
+    override func tearDown() async throws {
+        gates.removeAll()
+        try await super.tearDown()
+    }
+
+    /// Sends the server's reply once the store has subscribed. ``HouseConfigStore/start()`` subscribes after it has read the
+    /// cache off the main thread, so a reply sent straight after `start()` has no handler yet and is dropped.
+    private func emit(_ result: Result<Data, Error>, file: StaticString = #filePath, line: UInt = #line) async {
+        let subscribed = await FeatureHost.settleAsync(until: { self.transport.subscribeCount > 0 }, timeout: 6)
+        XCTAssertTrue(subscribed, "the store subscribed", file: file, line: line)
+        transport.emit(result)
+    }
 
     private func makeStore(timeout: Duration = .seconds(60)) -> HouseConfigStore {
         let cache = HouseConfigCache(fileURL: FileManager.default.temporaryDirectory.appending(path: "gate-\(UUID()).json"))
@@ -77,6 +93,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         page.contentView.addSubview(marker)
         let window = HostedPage.show(page, size: size)
         let gate = UKHouseLayoutGate(page: page, kind: .page, forced: forced, role: role)
+        gates.append(gate)
         HostedPage.wait(0.3)
         return (page, gate, window, host)
     }
@@ -96,7 +113,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         XCTAssertEqual(page.contentView.alpha, 0, "the content waits behind the skeleton, still built")
         XCTAssertFalse(has("houseConfig.state", in: page))
 
-        transport.emit(.success(try document()))
+        await emit(.success(try document()))
         await expectWait("home.skeleton", in: page, present: false, "the document arrived: the skeleton goes")
         _ = await FeatureHost.settleAsync(until: { page.contentView.alpha == 1 }, timeout: 4)
         XCTAssertEqual(page.contentView.alpha, 1)
@@ -117,7 +134,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         defer { window.isHidden = true }
         await expectWait("page.skeleton", in: page)
         XCTAssertEqual(FeatureHost.view("page.skeleton", in: page.view)?.accessibilityLabel, "Getting your home from Home Assistant")
-        transport.emit(.success(try document()))
+        await emit(.success(try document()))
         await expectWait("page.skeleton", in: page, present: false)
     }
 
@@ -144,7 +161,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         let page = home(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
-        transport.emit(.success(Data(#"{"configured": false}"#.utf8)))
+        await emit(.success(Data(#"{"configured": false}"#.utf8)))
         _ = await FeatureHost.settleAsync(until: { store.status == .notConfigured }, timeout: 4)
         XCTAssertEqual(store.status, .notConfigured)
         XCTAssertFalse(has("home.skeleton", in: page) || has("houseConfig.state", in: page), "a saved layout always wins")
@@ -253,7 +270,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
         await expectWait("houseConfig.state", in: page, "10 s with no answer, shortened: the message")
-        transport.emit(.success(try document()))
+        await emit(.success(try document()))
         await expectWait("houseConfig.state", in: page, present: false, "the message goes without anyone tapping")
         _ = await FeatureHost.settleAsync(until: { page.contentView.alpha == 1 }, timeout: 4)
         XCTAssertEqual(page.contentView.alpha, 1)
@@ -270,10 +287,13 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         let page = UKHomeViewController(context: context, configuration: UKHomeConfiguration(parts: .statusRail))
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
-        let pills = HostedPage.descendants(of: page.view).compactMap { $0 as? UKStatusPillView }
-        XCTAssertFalse(pills.isEmpty, "the chips are still there")
-        XCTAssertTrue(pills.contains { ($0.accessibilityValue ?? "").contains("Unavailable") }, "a missing entity reads Unavailable")
-        XCTAssertFalse(pills.contains { $0.accessibilityValue == "Loading" })
+        // The rail's chips are `UKStatusChipView` (`UKStatusRail`), one element each, labelled "<title>, <summary>".
+        let chips = HostedPage.descendants(of: page.view).compactMap { $0 as? UKStatusChipView }
+        XCTAssertEqual(chips.count, HomeConfig.statusChips.count, "the chips are still there")
+        XCTAssertFalse(chips.isEmpty, "the demo house has status chips")
+        XCTAssertTrue(chips.allSatisfy { !$0.isHidden && $0.alpha > 0 })
+        XCTAssertTrue(chips.contains { ($0.accessibilityLabel ?? "").hasSuffix(", Unavailable") }, "a missing entity reads Unavailable")
+        XCTAssertFalse(chips.contains { ($0.accessibilityLabel ?? "").contains("Loading") })
     }
 
     // MARK: - The modal's House Layout row
@@ -334,15 +354,21 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
 
     func testAMissingLightIsAnUnavailableBrightnessTileThatStaysPut() throws {
         let entities = storeLackingTheHouse()
+        // Manual control on and the Custom mode picked: the page shows its light tiles only then, and a hidden grid has no frames
+        // worth comparing.
+        entities.apply([EntityState(entityId: CustomLightsConfig.manualControlEntityId, state: "on"),
+                        EntityState(entityId: CustomLightsConfig.modeEntityId, state: CustomLightsConfig.customMode)])
         var context = UKGalleryChrome.context(store: entities, caller: GalleryServiceRecorder(store: entities))
         context.valuesPending = false
         let page = UKCustomLightsViewController(context: context)
-        let window = HostedPage.show(page, size: CGSize(width: 393, height: 1600))
+        // Under its navigation bar, as the app shows it. As a bare window root the first rows sit inside the top safe area, where a
+        // row's padding follows the safe area and its measured height changes by a point on every layout pass.
+        let window = HostedPage.show(UKGalleryChrome.wrap(page, context: context), size: CGSize(width: 393, height: 1600))
         defer { window.isHidden = true }
         let tiles = HostedPage.descendants(of: page.view).compactMap { $0 as? UKBrightnessTileView }
         XCTAssertFalse(tiles.isEmpty, "the brightness tiles are drawn")
         XCTAssertTrue(tiles.allSatisfy(\.isUnavailable), "a missing light is an unavailable tile")
-        XCTAssertTrue(tiles.allSatisfy { !$0.isHidden && $0.alpha > 0 })
+        XCTAssertTrue(tiles.allSatisfy { HostedDriver.isShown($0) && $0.bounds.width > 0 }, "on screen, in a grid that is showing")
         let before = tiles.map { $0.convert($0.bounds, to: page.view) }
         entities.apply(CustomLightsConfig.lights.map { EntityState(entityId: $0.entityId, state: "on", attributes: ["brightness": .number(128)]) })
         HostedPage.wait(0.4)
