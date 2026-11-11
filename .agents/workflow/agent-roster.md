@@ -49,7 +49,7 @@ A guard is a tripwire for accident and habit. Answer a refusal by changing the w
 | `signing_guard.py`, `owner_prompt_log.py`, `owner_prompt_guard.py` | [Credentials](security.md#credentials) and the owner's typed requests |
 | `orchestrator_guard.py`, `research_write_guard.py`, `agent_model.py`, `subagent_report.py` | Role scope, spawn models, the status block |
 | `no_poll.py`, `bg_timeout_guard.py`, `stop_continue_guard.py`, `tier_guard.py` | [Waiting](token-economy.md#waiting) and test tiers |
-| `kill_guard.py` | A process kill is scoped to the agent's own work |
+| `kill_guard.py` | Process kills ([capacity](token-economy.md#capacity)) |
 | `mockup_hub_guard.py` | A session with mockup changes ends with a hub publish |
 | `triage_session.py`, `triage_deny.py` | A headless session's deny list ([triage-agent](triage-agent.md)) |
 
