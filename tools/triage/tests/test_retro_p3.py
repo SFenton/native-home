@@ -1025,6 +1025,26 @@ class SharedBaseTests(LandBase):
         self.assertEqual(self.issues(self.gh), [])
         self.assertEqual(json.loads(self.runner_.base_record().read_text())["main"], g(self.dev, "rev-parse", "origin/main"))
 
+    def test_the_land_test_settings_in_the_config_reach_the_lander(self):
+        seen, calls = {}, []
+
+        def land(lane, base, **kw):
+            seen.update(kw)
+            calls.append(1)
+            n = len(calls)
+            parent = self.push_main(f"pr-for-settings-{n}")
+            self.gh.commit_table[parent] = [merged_pr(parent)]
+            return {"merge": self.push_main(f"settings-merge-{n}"), "parent": parent}
+
+        for cfg, want in (({"land_test_timeout": 900, "land_test_workers": 2}, (900.0, 2)), ({}, (ht.lane_land.LAND_TEST_TIMEOUT, 4))):
+            seen.clear()
+            self.runner_.cfg.pop("land_test_timeout", None)
+            self.runner_.cfg.pop("land_test_workers", None)
+            self.runner_.cfg.update(cfg)
+            with mock.patch.object(ht.lane_land, "land", land), mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(self.runner_.land_lane("agents/x", "main", "lbl"), "merged")
+            self.assertEqual((seen["test_timeout"], seen["test_workers"]), want)
+
     def test_a_non_pull_request_parent_after_landing_still_pauses(self):
         def land(lane, base, **kw):
             parent = self.push_main("direct")

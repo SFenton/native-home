@@ -463,6 +463,7 @@ class GoPublicGuardTests(unittest.TestCase):
                             "git push git@github.com:SFenton/pub.git HEAD:agents/x", "git push --repo=pub", "git push --repo pub", "git push git@github.com:owner/private-app.git HEAD", "git push /tmp/elsewhere.git HEAD",
                             "git -C ../other push origin HEAD", "git push '$R' HEAD", "git push web agents/z"):
                 cwd = repo
+                label = command
                 if command.startswith("git -C ../other"):
                     other = Path(name) / "other"
                     other.mkdir()
@@ -470,7 +471,9 @@ class GoPublicGuardTests(unittest.TestCase):
                     g(other, "remote", "add", "origin", "https://github.com/SFenton/pub.git")
                     cwd = repo
                     command = f"git -C {other} push origin HEAD"
-                with self.subTest(command=command):
+                # The subtest id is the label, so it names no temporary directory: a failing id must read the same on every run
+                # (the lander compares failing ids with the base's, and a random path would make a known failure look new).
+                with self.subTest(command=label):
                     self.assertIn("going public", self.why(command, cwd) or "", command)
             for command in ("git push origin agents/x", "git push", "git push -u origin HEAD:agents/y", "git fetch pub",
                             "git push --dry-run origin agents/x", "git push --force-with-lease origin agents/x"):
