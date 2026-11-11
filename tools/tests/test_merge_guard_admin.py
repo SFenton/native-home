@@ -12,6 +12,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "hooks"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from session_markers import pin as setUpModule, unpin as tearDownModule  # noqa: E402,F401  (no agent session markers)
 import merge_guard  # noqa: E402
 
 REPO = "repos/SFenton/native-home"

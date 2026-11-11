@@ -18,6 +18,8 @@ from unittest import mock
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS / "hooks"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import session_markers  # noqa: E402
 import lane_land  # noqa: E402
 import merge_guard  # noqa: E402
 
@@ -36,6 +38,7 @@ _REGISTRY = []
 
 
 def setUpModule():
+    session_markers.pin()
     import tempfile
     import triage_session
     folder = tempfile.mkdtemp(prefix="empty-t3-registry-")
@@ -45,6 +48,7 @@ def setUpModule():
 
 def tearDownModule():
     _REGISTRY.pop().stop()
+    session_markers.unpin()
 
 
 class Repo(unittest.TestCase):
@@ -1359,9 +1363,9 @@ class PrLandMatchesBaseTests(unittest.TestCase):
         env = mock.patch.dict(os.environ, {"FENTON_HEADLESS": "1"})
         env.start()
         self.addCleanup(env.stop)
-        bases = mock.patch.object(merge_guard, "base_refs", return_value=["main", "claude/uikit-port"])
-        bases.start()
-        self.addCleanup(bases.stop)
+        self.bases = mock.patch.object(merge_guard, "base_refs", return_value=["main", "claude/uikit-port"])
+        self.bases.start()
+        self.addCleanup(self.bases.stop)
 
     def why(self, command="tools/pr_land.sh 5", cwd=None, **kw):
         return merge_guard.reason(command, str(cwd or self.repo), **kw)
@@ -1404,8 +1408,7 @@ class PrLandMatchesBaseTests(unittest.TestCase):
 
     def test_the_bases_come_from_the_triage_config(self):
         cfg = json.loads((TOOLS / "triage" / "config.json").read_text())
-        self.addCleanup(mock.patch.stopall)
-        mock.patch.stopall()
+        self.bases.stop()  # only this class's stub: stopall would also stop the module's pinned session environment
         self.assertEqual(merge_guard.base_refs(), list(dict.fromkeys([cfg["product_base"], cfg["workflow_base"]])))
 
 

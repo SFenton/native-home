@@ -10,6 +10,8 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hooks"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from session_markers import pin as setUpModule, unpin as tearDownModule  # noqa: E402,F401  (no agent session markers)
 import stop_continue_guard as guard  # noqa: E402
 
 

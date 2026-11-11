@@ -18,6 +18,7 @@ from unittest import mock
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from session_markers import pin as setUpModule, unpin as tearDownModule  # noqa: E402,F401  (no agent session markers)
 import go_public_gate  # noqa: E402
 import house_scan  # noqa: E402
 import pr_land  # noqa: E402
@@ -350,7 +351,7 @@ class GoPublicGateTests(unittest.TestCase):
         cases = {"encoding_header": header,
                  "insteadOf": lambda snap: git(snap, "config", "url.https://example.org/.insteadOf", "https://github.com/"),
                  "credential": lambda snap: git(snap, "config", "credential.helper", "store"),
-                 "include": lambda snap: git(snap, "config", "include.path", "/tmp/x")}
+                 "include": lambda snap: git(snap, "config", "include.path", str(Path(snap) / "no-such-file.cfg"))}  # not /tmp/x: another session may have written that
         for name, mutate in cases.items():
             with self.subTest(name=name):
                 code, out = self.gate(mutate=mutate)

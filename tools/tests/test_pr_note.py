@@ -40,6 +40,8 @@ from unittest import mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from session_markers import pin as setUpModule, unpin as tearDownModule  # noqa: E402,F401  (no agent session markers)
 import pr_note  # noqa: E402
 
 FAKE_GH = r'''#!/usr/bin/env python3

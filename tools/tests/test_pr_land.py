@@ -20,6 +20,8 @@ TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS / "hooks"))
 sys.path.insert(0, str(TOOLS / "review"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import session_markers  # noqa: E402
 import merge_guard  # noqa: E402
 import pr_land  # noqa: E402
 import record  # noqa: E402
@@ -34,6 +36,7 @@ _REGISTRY = []
 
 
 def setUpModule():
+    session_markers.pin()
     import tempfile
     import triage_session
     folder = tempfile.mkdtemp(prefix="empty-t3-registry-")
@@ -43,6 +46,7 @@ def setUpModule():
 
 def tearDownModule():
     _REGISTRY.pop().stop()
+    session_markers.unpin()
 
 
 class KillSwitchTests(unittest.TestCase):
