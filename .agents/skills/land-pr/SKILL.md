@@ -17,7 +17,7 @@ description: Ships a finished branch as a pull request, gets it reviewed, record
    5. Post no review or comment with `gh pr review`.
 5. **Fix.** On a failing check or a `changes` verdict, fix in small commits and push to the same branch. CI restarts and the new head needs its own review. `python3 tools/jev_hints.py findings build/review/<branch>.json` groups the findings into a checklist.
 6. **Arm.** After a `pass`, run `tools/pr_land.sh N` (`--dry-run` prints the decision without acting). It arms auto-merge pinned to the reviewed head; GitHub merges when the required checks pass on that head.
-7. **Report** the last line `pr_land.sh` printed, as it is: `merged`, `armed`, `blocked` with a reason, or `failed` with a reason. When it also prints commands for the owner, report them and do not run them.
+7. **Report** the last line `pr_land.sh` printed, as it is: `merged`, `armed`, `blocked` with a reason, or `failed` with a reason. When it also prints commands for the owner, report them and do not run them. A line "carries #A, #B" means those pull requests close as included once this one merges; "do not merge; included in #M" means merge #M instead and run no commands for this one.
 
 ## When a step refuses
 
