@@ -63,7 +63,7 @@ class RuleTests(unittest.TestCase):
                 self.assertIsNotNone(condition, "%s/%s is a hosted Mac job without an if:" % (path.name, job))
                 self.assertIn(MACOS_GUARD, condition.group(1), "%s/%s lacks the HOSTED_MACOS guard" % (path.name, job))
                 self.assertNotIn("repository.private", condition.group(1), "%s/%s keys a Mac job on visibility" % (path.name, job))
-        self.assertEqual(found, 6)  # macos-build, macos-test, coverage-changed, build-release, runtimes smoke, ios-release ipa
+        self.assertEqual(found, 10)  # macos-build, macos-test, coverage-changed, build-release, runtimes smoke, ios-release ipa, nightly build, journeys, coverage and live
 
     def test_the_runner_label_variable_is_validated(self):
         for path in all_files():

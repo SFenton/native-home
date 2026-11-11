@@ -266,22 +266,23 @@ class AsRoleTests(Base):
         _c, out, _e = self.post("verdict", "### V\ntwo", "1", "--as", "verifier")
         self.assertEqual(out.strip(), "pr_note: unchanged")
         self.assertEqual(len(self.comments()), 1)
-        self.assertIn("updated", self.comments()[0]["body"])
+        self.assertIn("- two", self.comments()[0]["body"])
 
     def test_handoff_and_owner_start_with_the_mention_but_other_kinds_do_not(self):
         self.post("handoff", "### Handoff\nneeds you", "1", "--as", "verifier")
         self.post("owner", "### Owner\nlook", "1", "--as", "verifier")
         self.post("pick", "### Pick\nB", "1", "--as", "verifier")
         bodies = [c["body"] for c in self.comments()]
-        self.assertTrue(bodies[0].startswith("@SFenton\n\n#### Step 1 · Verifier"))
-        self.assertIn("\n\n### Handoff\nneeds you", bodies[0])
-        self.assertTrue(bodies[1].startswith("@SFenton\n\n#### Step"))
-        self.assertIn("\n\n### Owner\nlook", bodies[1])
-        self.assertTrue(bodies[2].startswith("### Pick\n#### Step"))
+        self.assertTrue(bodies[0].startswith("@SFenton\n\n## Verifier\n\n### Actions Taken\n"))
+        self.assertIn("\n- needs you\n", bodies[0])
+        self.assertTrue(bodies[1].startswith("@SFenton\n\n## Verifier\n\n### Actions Taken\n"))
+        self.assertIn("\n- look\n", bodies[1])
+        self.assertTrue(bodies[2].startswith("## Verifier\n\n### Actions Taken\n"))
         self.assertNotIn("@SFenton", bodies[2])
 
     def test_mention_is_not_doubled_and_not_added_for_the_owner_login(self):
-        self.post("handoff", "@SFenton already here", "1", "--as", "verifier")
+        self.post("handoff", "@SFenton\n\n### Actions Taken\n- Sent it.\n\n### Result\n- Waiting.\n\n### Next Steps\n- Approve it.\n",
+                  "1", "--as", "verifier")
         self.assertEqual(self.comments()[0]["body"].count("@SFenton"), 1)
         self.post("handoff", "### Handoff\nx", "2")
         self.assertNotIn("@SFenton", self.comments()[1]["body"])

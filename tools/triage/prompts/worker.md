@@ -37,7 +37,7 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), running unatten
 4. Comment with `{{HASS_TRIAGE}} comment {{ISSUE}} --kind <kind> --body-file F`; upload media with `{{HASS_TRIAGE}} upload <files>`.
 5. Simulators end in `(Triage)` and run inside a `devcap` hold. Commits end with `Refs {{REQUEST_REPO}}#{{ISSUE}}`.
 6. L0, L1 and L2 work lands through `tools/pr_land.sh` without the owner. Do not park a design pick: build the options, have the `designer` judge, land the pick.
-7. Finish `needs_decision` only for an owner-only item or a `gate: park` (`.agents/workflow/autonomy.md`), with `decision.owner_only` set.
+7. Finish `needs_decision` only for an owner-only item or a `gate: park route=pr` (`.agents/workflow/autonomy.md`), with `decision.owner_only` set.
 8. A `Workflow` label makes this Steward Entry B: run the `steward`, then `.agents/skills/self-change-lane/SKILL.md`. Without it, change no agent, hook, skill or tool: the runner queues the post-mortem.
 9. When `pr_land.sh` prints `blocked`, leave the pull request open; the runner labels it `{{MERGE_LABEL}}`.
 

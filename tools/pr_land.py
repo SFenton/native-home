@@ -7,8 +7,12 @@ On SFenton/native-home GitHub is the merge gate: ruleset ``main-checks`` require
 owner-kept set), the house denylist, the author and fork check, an independent reviewer pass for that head
 (:func:`review_verdict.has_pass`), the live ruleset (:mod:`ruleset_gate`) and the ``main`` base. ``tools/ship.sh`` calls it after the PR opens.
 
-A PR that touches a CODEOWNERS path needs the owner's approval (the ruleset sets ``require_code_owner_review``); :func:`owner_recipe`
-prints the three ``gh`` commands that land it, for the owner only.
+A PR that touches a CODEOWNERS path, the owner-kept set, or that the app-UI gate parks, is the owner's to clear (a missing design record or a contradicting ``Gate:`` line is the agent's to fix): the owner approves this pull request on
+GitHub (their review of this exact head) and merges it there. There is no override flag. :func:`owner_recipe` prints the three ``gh``
+commands for that, for the owner only. :func:`owner_approval` reads that approval from GitHub on every call: when the lander is run again, the
+approval of the exact head answers an app-UI park and the ``Needs Decision`` label and nothing else (the owner-kept set, a missing design
+record, the denylist, the review pass and the ruleset still refuse). Nothing runs the lander on an approval by itself; without a rerun,
+the owner approves and merges on GitHub.
 """
 
 from __future__ import annotations
@@ -125,64 +129,19 @@ def run(args: List[str], check: bool = True) -> subprocess.CompletedProcess:
     return proc
 
 
-
-def _triage_session() -> Any:
-    """``tools/hooks/triage_session.py``, loaded by path (the registry of T3-launched triage sessions)."""
-    import importlib.util
-    if "triage_session" in sys.modules:
-        return sys.modules["triage_session"]
-    spec = importlib.util.spec_from_file_location("triage_session", Path(__file__).resolve().parent / "hooks" / "triage_session.py")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["triage_session"] = module  # a dataclass in the module looks itself up here while it loads
-    try:
-        spec.loader.exec_module(module)
-    except BaseException:
-        sys.modules.pop("triage_session", None)
-        raise
-    return module
-
-
-def triage_session_env() -> Optional[Dict[str, str]]:
-    """The record's env when this process is inside a T3-launched triage session, else None. Fails closed: an unloadable module is a
-    headless session."""
-    try:
-        return _triage_session().session_env()
-    except Exception:  # noqa: BLE001
-        return {"FENTON_HEADLESS": "1"}
-
-
-def owner_session(environ: Optional[Dict[str, str]] = None, tty: Optional[bool] = None) -> bool:
-    """Is this the owner at an interactive terminal (what ``ack-base`` demands)? Never a runner or agent session."""
-    env = os.environ if environ is None else environ
-    if env.get("FENTON_HEADLESS") == "1" or env.get("HASS_TRIAGE_ISSUE"):
-        return False
-    if environ is None and triage_session_env() is not None:  # a T3-launched triage session, whatever its environment holds
-        return False
-    return sys.stdin.isatty() if tty is None else tty
-
-
+#: The exit status ``lane_land.py gate`` uses for a park (``lane_land.PARK_EXIT``; this file loads no other pinned module, a test keeps the two equal).
+PARK_EXIT = 3
 GATE_TIMEOUT = 1800.0  # Jev may take a while; the gate itself fails closed on its own errors
 
 
-def confirm_head_on_tty(number: str, head: str, tty_path: str = "/dev/tty") -> bool:
-    """``--owner-ack`` asks the owner to type the PR head SHA at the terminal (``/dev/tty``, not stdin or an environment
-    variable), so a script cannot answer it by accident. True only when the typed text is the full head SHA."""
-    try:
-        with open(tty_path, "a") as out:
-            out.write(f"--owner-ack skips the app-UI gate for #{number}. Type the head SHA ({head}) to confirm: ")
-            out.flush()
-        with open(tty_path) as tty:
-            return tty.readline().strip().lower() == head.lower() != ""
-    except OSError:
-        return False
-
-
 class GateRefused(Exception):
-    """The app-UI gate said no, or could not run (always a block)."""
+    """The app-UI gate said no, or could not run (always a block). ``park`` is the gate's typed answer that this is a question for
+    the owner (the model says app-wide or unsure, the request is not confirmed, or the model is unavailable)."""
 
-    def __init__(self, message: str, kind: str = "gate"):
+    def __init__(self, message: str, kind: str = "gate", park: bool = False):
         super().__init__(message)
         self.kind = kind
+        self.park = park
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
@@ -276,7 +235,8 @@ def ui_gate(number: str, info: Dict[str, Any]) -> str:
         proc = subprocess.run([sys.executable, "-I", str(script), "gate", "--pr", number, "--head", head, "--root", str(root), "--lock-held"],
                               capture_output=True, text=True, timeout=GATE_TIMEOUT, env=env, cwd=os.getcwd())
     if proc.returncode != 0:
-        raise GateRefused((proc.stderr or proc.stdout).strip().replace("lane_land gate: ", "")[:600] or f"gate exit {proc.returncode}")
+        raise GateRefused((proc.stderr or proc.stdout).strip().replace("lane_land gate: ", "")[:600] or f"gate exit {proc.returncode}",
+                          park=proc.returncode == PARK_EXIT)
     return (proc.stdout.strip().splitlines() or ["app-UI gate passed"])[-1]
 
 
@@ -316,6 +276,43 @@ def arm(number: str, head: str) -> Tuple[int, str]:
     return 2, f"failed #{number}: gh pr merge returned but the pull request is neither merged nor armed"
 
 
+def owner_approval(number: str, head: str) -> bool:
+    """Whether the owner's latest review of pull request ``number`` is an approval of exactly ``head``, read from GitHub now.
+
+    ``gh api repos/<product repo>/pulls/N/reviews --paginate``; the latest review per login counts, and only the owner's login
+    (:data:`agent_login.OWNER`, never the agent login or an app) with state ``APPROVED`` and ``commit_id`` equal to the full ``head``
+    (a push after the review, a dismissal or a later review of any state ends it). Any API error or malformed answer is ``False``.
+    Nothing an agent can write is read: no labels, comments, files or environment."""
+    if not re.fullmatch(r"[0-9a-f]{40}", head or "") or not str(number).isdigit():
+        return False
+    try:
+        proc = run(["gh", "api", f"repos/{PRODUCT_REPO}/pulls/{number}/reviews", "--paginate"], check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if proc.returncode:
+        return False
+    text, decoder, at, reviews = (proc.stdout or "").strip(), json.JSONDecoder(), 0, []
+    try:
+        while at < len(text):  # --paginate prints one JSON array per page
+            page, at = decoder.raw_decode(text, at)
+            if not isinstance(page, list):
+                return False
+            reviews += page
+            while at < len(text) and text[at].isspace():
+                at += 1
+    except ValueError:
+        return False
+    latest: Dict[str, Dict[str, Any]] = {}
+    for review in reviews:
+        user = review.get("user") if isinstance(review, dict) else None
+        login = user.get("login") if isinstance(user, dict) else None
+        if not isinstance(login, str) or not login:
+            return False
+        latest[login.lower()] = review
+    mine = latest.get(agent_login.OWNER.lower())
+    return bool(mine) and mine.get("state") == "APPROVED" and mine.get("commit_id") == head
+
+
 def owner_recipe(number: str, info: Dict[str, Any]) -> List[str]:
     """The owner-only landing recipe for a PR that touches a CODEOWNERS path, else ``[]``.
 
@@ -326,7 +323,7 @@ def owner_recipe(number: str, info: Dict[str, Any]) -> List[str]:
         return []
     head = str(info.get("headRefOid") or "")
     why = "; ".join(pr_blockers.blockers(info))
-    return [f"owner-only: #{number} touches CODEOWNERS paths ({why}); the owner lands it from their own terminal (agents never run these):",
+    return [f"owner-only: #{number} touches CODEOWNERS paths ({why}); the owner approves this pull request on GitHub (their review of this exact head) and merges it there; the same steps as commands (agents never run these):",
             f"  gh pr ready {number} -R {PRODUCT_REPO}",
             f"  gh pr review {number} -R {PRODUCT_REPO} --approve",
             f"  gh pr merge {number} -R {PRODUCT_REPO} --squash --match-head-commit {head}"]
@@ -343,12 +340,9 @@ def print_owner_recipe(number: str, info: Dict[str, Any]) -> None:
         print(line)
 
 
-def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_worktree: bool = False,
-         owner_ack: bool = False) -> Tuple[int, str]:
+def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_worktree: bool = False) -> Tuple[int, str]:
     """Run the gates GitHub cannot, then arm auto-merge on the exact head. Returns ``(exit code, one line)``: 0 for ``armed``, ``merged``
     and ``would arm``, 1 for ``blocked``, 2 for ``failed``. ``review_path`` and ``keep_worktree`` are accepted and ignored (old callers)."""
-    if owner_ack and not owner_session():
-        return 2, f"failed #{number}: --owner-ack is owner-only: run it from your own terminal, never from an agent or runner session"
     paused = kill_switch()
     if paused:
         return 1, f"blocked #{number}: landing paused ({paused})"
@@ -356,9 +350,15 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
                            "state,isDraft,headRefName,headRefOid,mergeable,reviewDecision,baseRefName,labels,files,body,title,author,isCrossRepository"]).stdout)
     if info["state"] != "OPEN":
         return 1, f"blocked #{number}: pull request is {info['state'].lower()}"
-    if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
-           for label in info.get("labels") or []):
-        return 1, f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park), so the owner decides first (reply on the issue, or merge the PR to accept)"
+    head = str(info.get("headRefOid") or "")
+    approved: List[bool] = []
+    notes: List[str] = []  # what the owner's approval answered, said on the final line
+
+    def approval() -> bool:
+        """The owner's approval of this head, read once per run, and only once the review pass, ruleset and gate have run."""
+        if not approved:
+            approved.append(owner_approval(number, head))
+        return approved[0]
     if info.get("mergeable") == "CONFLICTING":
         return 1, f"blocked #{number}: merge conflicts with {info.get('baseRefName', 'main')}"
     login = info["author"].get("login") if isinstance(info.get("author"), dict) else None
@@ -367,35 +367,40 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
     base_name = str(info.get("baseRefName") or "")
     if base_name not in ALLOWED_BASES:
         return 1, f"blocked #{number}: the base is {base_name or '?'}, not {', '.join(ALLOWED_BASES)}"
-    head = str(info.get("headRefOid") or "")
     if not review_verdict.has_pass(head):
         return 1, f"blocked #{number}: no independent pass for {head[:12]} (record.py --lane {info.get('headRefName')} before the push)"
     ruleset = ruleset_gate.check(PRODUCT_REPO, base_name)
     if ruleset:
         return 1, f"blocked #{number}: {ruleset[0]}"
-    if owner_ack:
-        if not confirm_head_on_tty(number, head):
-            return 1, f"blocked #{number}: --owner-ack needs the PR head SHA ({head}) typed at the terminal"
-        gate = "app-UI gate skipped by --owner-ack (head SHA confirmed at the terminal)"
-    else:
-        try:
-            gate = ui_gate(number, info)
-        except GateRefused as exc:
+    try:
+        gate = ui_gate(number, info)
+    except GateRefused as exc:
+        if not (exc.park and approval()):  # only a park is answered; the owner-kept set, a missing record and the rest stay refused
             if OWNER_KEPT in str(exc):
                 print_owner_recipe(number, info)
-            return 1, f"blocked #{number}: app-UI gate ({exc.kind}): {exc}"
-        except (RuntimeError, ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
-            return 1, f"blocked #{number}: app-UI gate failed closed: {exc}"
+            return 1, (f"blocked #{number}: app-UI gate ({exc.kind}): {exc}" + (
+                "; the owner's approval of this exact head on GitHub answers this park, then the lander is run again" if exc.park else ""))
+        gate = f"app-UI gate answered by the owner's approval of {head[:8]}"
+        notes.append(gate)
+    except (RuntimeError, ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
+        return 1, f"blocked #{number}: app-UI gate failed closed: {exc}"
+    if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
+           for label in info.get("labels") or []):
+        if not approval():
+            return 1, (f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park): the owner approves this pull "
+                       "request on GitHub (their review of this exact head), which also lifts this label, and then the lander is run again; or replies on the issue to pick an option")
+        notes.append(f"Needs Decision lifted by the owner's approval of {head[:8]}")
     refused = denylist_gate(number, head, load_config().get("denylist_required") is True, base_name)
     if refused:
         return 1, f"blocked #{number}: {refused}"
     if pr_blockers.owner_only(info):  # every gate of ours passed; what is left is the owner's alone
         print_owner_recipe(number, info)
     if dry_run:
-        return 0, f"would arm #{number} at {head[:8]} ({gate})"
+        return 0, f"would arm #{number} at {head[:8]} ({'; '.join(([] if gate in notes else [gate]) + notes)})"
     if info.get("isDraft"):
         run(["gh", "pr", "ready", number, "-R", PRODUCT_REPO])
-    return arm(number, head)
+    code, line = arm(number, head)
+    return code, line + (f" ({'; '.join(notes)})" if notes and code == 0 else "")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -403,12 +408,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("number")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--review", help="accepted and ignored (the reviewer's pass is read from the trusted store)")
-    parser.add_argument("--owner-ack", action="store_true",
-                        help="owner only (interactive terminal): skip the app-UI gate for this pull request")
     parser.add_argument("--keep-worktree", action="store_true", help="accepted and ignored (worktrees are reaped by ci_hygiene.py)")
     args = parser.parse_args(argv)
     try:
-        code, line = land(args.number.lstrip("#"), args.dry_run, args.review, args.keep_worktree, args.owner_ack)
+        code, line = land(args.number.lstrip("#"), args.dry_run, args.review, args.keep_worktree)
     except (RuntimeError, ValueError, KeyError, OSError) as exc:
         code, line = 2, f"failed #{args.number}: {exc}"
     print(line)

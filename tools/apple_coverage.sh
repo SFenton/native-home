@@ -27,6 +27,17 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# The products key ios_uitest.sh built the instrumented journeys with: its --impact settings, plus (hosted CI only, the same condition as
+# ios_uitest.sh's CI_HOSTED) the workflow's FENTON_HOSTED_BUILD_SETTINGS. The key sorts its settings, so their order does not matter.
+coverage_products_key() {
+  local settings=(CLANG_ENABLE_CODE_COVERAGE=YES CLANG_COVERAGE_MAPPING=YES) arg
+  if [[ "${FENTON_CI_HOSTED:-}" == 1 && "${RUNNER_ENVIRONMENT:-}" == github-hosted && -n "${FENTON_HOSTED_BUILD_SETTINGS:-}" ]]; then
+    for arg in $FENTON_HOSTED_BUILD_SETTINGS; do [[ "$arg" =~ ^[A-Z_][A-Z0-9_]*= ]] && settings+=("$arg"); done
+  fi
+  python3 "$ROOT/tools/products_cache.py" key "${settings[@]}"
+}
+
 CHANGED=0
 [[ "${1:-}" == --changed ]] && CHANGED=1  # "$@" stays intact: the script re-runs itself inside the devcap hold
 # Resolve the lane's base once (gh pr view is a network call); affected_tests, the journeys and the summary all reuse it.
@@ -125,7 +136,7 @@ if [[ ",${DEVCAP_HELD:-}," != *",build,"* && "${FENTON_COV_IOS:-}" != skip ]]; t
     fi
     # Failed ids rerun once without instrumentation (no --impact): only those tests, same family, each run in its own hold.
     if [[ -z "${FENTON_COV_IOS_PROFILES:-}" ]]; then cov_rerun_ios; fi
-    PRODUCTS_KEY="$(python3 "$ROOT/tools/products_cache.py" key CLANG_ENABLE_CODE_COVERAGE=YES CLANG_COVERAGE_MAPPING=YES)"
+    PRODUCTS_KEY="$(coverage_products_key)"
     PRODUCTS="${FENTON_PRODUCTS_DIR:-$HOME/Library/Caches/fenton/testproducts}/$PRODUCTS_KEY.xctestproducts"
     mkdir -p "$COV_DIR"
     python3 "$ROOT/tools/coverage_ios.py" export "$PROFILES_DIR" --products "$PRODUCTS" --out "$COV_DIR/ios.json"

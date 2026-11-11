@@ -2,8 +2,7 @@
 
 import io
 import json
-import os
-import subprocess
+import re
 import sys
 import tempfile
 import unittest
@@ -195,44 +194,164 @@ class ReportTests(unittest.TestCase):
         self.assertIn("`T.t` m", text)
 
 
-class DispatchTests(unittest.TestCase):
-    """tools/nightly_dispatch.sh against a stub `gh` and `caffeinate` on PATH."""
+class HostedWorkflowTests(unittest.TestCase):
+    """The shape of .github/workflows/nightly.yml (hosted since 2026-11-10; no self-hosted label, no launchd job)."""
 
-    def run_script(self, tmp, kill=False):
-        bin_dir = Path(tmp) / "bin"
-        bin_dir.mkdir()
-        calls = Path(tmp) / "calls.txt"
-        (bin_dir / "gh").write_text('#!/bin/sh\necho "gh $*" >> "%s"\n' % calls)
-        (bin_dir / "caffeinate").write_text('#!/bin/sh\necho "caffeinate $*" >> "%s"\nshift; exec "$@"\n' % calls)
-        for stub in bin_dir.iterdir():
-            stub.chmod(0o755)
-        kill_file = Path(tmp) / "NO_NIGHTLY"
-        if kill:
-            kill_file.write_text("")
-        env = dict(os.environ, PATH="%s:%s" % (bin_dir, os.environ["PATH"]), HASS_NIGHTLY_KILL_FILE=str(kill_file),
-                   HASS_NIGHTLY_WATCH="0", HOME=tmp)
-        proc = subprocess.run(["bash", str(TOOLS / "nightly_dispatch.sh")], env=env, capture_output=True, text=True)
-        return proc, calls.read_text() if calls.exists() else ""
+    TEXT = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
 
-    def test_dispatches_nightly_on_main_under_caffeinate(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            proc, calls = self.run_script(tmp)
-            self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn("caffeinate -i gh workflow run nightly.yml --repo SFenton/native-home --ref main", calls)
+    def test_every_job_is_github_hosted(self):
+        self.assertNotRegex(self.TEXT, r"(?m)^\s+runs-on:.*self-hosted")
+        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ", self.TEXT)), 6)
+        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ubuntu-24\.04$", self.TEXT)), 2)  # plan and report: Python only
 
-    def test_kill_file_stops_it(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            proc, calls = self.run_script(tmp, kill=True)
-            self.assertEqual(proc.returncode, 0)
-            self.assertIn("paused", proc.stdout)
-            self.assertEqual(calls, "")
+    def test_it_runs_on_a_schedule_off_the_hour_and_by_hand(self):
+        self.assertRegex(self.TEXT, r"(?m)^  schedule:\n(?:    #.*\n)*    - cron: '(?!0 )\d+ \d+ \* \* \*'")
+        self.assertIn("workflow_dispatch:", self.TEXT)
+        for name in ("filter:", "families:", "plans:"):
+            self.assertIn("      %s" % name, self.TEXT)
 
-    def test_install_dry_run_renders_a_two_am_plist(self):
-        proc = subprocess.run(["bash", str(TOOLS / "nightly_install.sh"), "--dry-run"], capture_output=True, text=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("com.sfenton.hass-nightly", proc.stdout)
-        self.assertIn("<key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer>", proc.stdout)
-        self.assertIn("nightly_dispatch.sh", proc.stdout)
+    def test_the_journey_matrix_is_family_by_shard_and_leaves_a_slot_for_pull_requests(self):
+        self.assertIn("fromJSON(needs.plan.outputs.matrix)", self.TEXT)
+        self.assertIn("--families", self.TEXT)
+        self.assertIn("fail-fast: false", self.TEXT)
+        cap = int(re.search(r"max-parallel: (\d+)", self.TEXT).group(1))
+        self.assertLessEqual(cap + 1, 4)  # the journeys plus the coverage job; the account allows 5 macOS jobs
+
+    def test_the_scheduled_default_has_no_live_plan(self):
+        # Live is its own gated job, never part of the default plans or the journeys matrix.
+        self.assertEqual(nightly_plan.DEFAULT_PLANS, ["Gate"])
+        plan_job = self.TEXT.split("\n  plan:\n", 1)[1].split("\n  build:\n", 1)[0]
+        self.assertIn('plans="Gate"', plan_job)
+        self.assertNotIn("Live", self.job("journeys"))
+
+    def job(self, name):
+        """The text of one job of nightly.yml."""
+        body = self.TEXT.split("\njobs:\n", 1)[1]
+        return re.split(r"(?m)^  [a-z-]+:\n", body.split("\n  %s:\n" % name, 1)[1], maxsplit=1)[0]
+
+    def test_the_report_job_files_issues_with_the_workflow_token(self):
+        report = self.TEXT.split("\n  report:\n", 1)[1]
+        self.assertIn("issues: write", report)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", report)
+        self.assertNotIn("contents: write", self.TEXT)
+
+    def test_steps_that_record_an_exit_code_clear_errexit(self):
+        # Fails if: a step that pipes a test run through tee loses `set +e`; the step shell is `bash -e`, so a red run aborts before its code is recorded (trial 1).
+        for marker in ("--force $FILTERS 2>&1 | tee", "tools/apple_coverage.sh 2>&1 | tee"):
+            head = self.TEXT.split(marker, 1)[0]
+            self.assertIn("set +e", head.rsplit("run: |", 1)[1], marker)
+
+    def test_the_report_download_skips_the_products_and_coverage_fits_its_cap(self):
+        # Fails if: the products artifact name matches the report job's `nightly-*` pattern (a 209 MB download), or the coverage cap drops under the measured 250-270 minutes.
+        names = re.findall(r"(?m)^          name: (\S+)$", self.TEXT)
+        self.assertIn("test-products-nightly", names)
+        self.assertFalse([n for n in names if n.startswith("nightly-") and "products" in n])
+        coverage = self.TEXT.split("\n  coverage:\n", 1)[1].split("\n  report:\n", 1)[0]
+        self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 300)
+        self.assertLess(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 360)
+
+    def test_retired_self_hosted_scripts_are_gone(self):
+        for name in ("nightly_dispatch.sh", "nightly_install.sh"):
+            self.assertFalse((TOOLS / name).exists(), name)
+
+
+class LiveJobTests(unittest.TestCase):
+    """The Live plan runs against the demo instance, only nightly on main, behind the owner's switch and the hass-test environment."""
+
+    TEXT = HostedWorkflowTests.TEXT
+    LIVE = HostedWorkflowTests.job(HostedWorkflowTests, "live")
+
+    def test_it_never_runs_on_a_pull_request(self):
+        """Fails if: a pull_request trigger is added to nightly.yml or the live job loses its event_name guard."""
+        triggers = self.TEXT.split("\njobs:\n", 1)[0]
+        self.assertNotIn("pull_request", triggers)
+        self.assertIn("github.event_name != 'pull_request'", self.LIVE)
+
+    def test_it_is_main_only_and_off_until_the_owner_switches_it_on(self):
+        """Fails if: the live job runs off main, without HASS_LIVE_NIGHTLY=on, or without the hass-test environment."""
+        condition = re.search(r"(?m)^    if: (.*)$", self.LIVE).group(1)
+        self.assertIn("github.ref == 'refs/heads/main'", condition)
+        self.assertIn("vars.HASS_LIVE_NIGHTLY == 'on'", condition)
+        self.assertIn("vars.HOSTED_MACOS == 'on'", condition)
+        # a cancelled run must not start Live legs with the demo password in env
+        self.assertNotIn("always()", condition)
+        self.assertIn("!cancelled()", condition)
+        self.assertIn("environment: hass-test", self.LIVE)
+        # the planner agrees: no Live legs unless the switch is on and the ref is main
+        plan_job = self.TEXT.split("\n  plan:\n", 1)[1].split("\n  build:\n", 1)[0]
+        self.assertIn('[ "${LIVE_ON:-}" = "on" ] && [ "$GITHUB_REF" = "refs/heads/main" ]', plan_job)
+
+    def test_it_targets_the_demo_instance_only(self):
+        """Fails if: the live step stops reading the HASS_TEST_* demo settings, loses the demo journey target, or uses a token."""
+        for text in ("FENTON_HASS_SERVER: ${{ vars.HASS_TEST_SERVER }}", "FENTON_HASS_USERNAME: ${{ vars.HASS_TEST_USERNAME }}",
+                     "FENTON_HASS_PASSWORD: ${{ secrets.HASS_TEST_PASSWORD }}",
+                     "TEST_RUNNER_HASS_TEST_SERVER: ${{ vars.HASS_TEST_SERVER }}", "TEST_RUNNER_FENTON_JOURNEY_TARGET: demo",
+                     "--env shell", "--plan Live"):
+            self.assertIn(text, self.LIVE)
+        self.assertNotIn("FENTON_HASS_TOKEN", self.LIVE)
+
+    def test_the_secret_stays_in_one_step_and_is_never_echoed(self):
+        """Fails if: the password is used outside the run step, echoed, traced, exported, or the test output reaches the public log."""
+        self.assertEqual(self.TEXT.count("secrets.HASS_TEST_PASSWORD"), 1)
+        self.assertEqual(self.LIVE.count("secrets."), 1)
+        for line in self.LIVE.splitlines():
+            code = line.split("#", 1)[0]
+            self.assertNotRegex(code, r"echo[^\n]*(PASSWORD|HASS_TEST)", line)
+            if "PASSWORD" in code:
+                self.assertNotIn("GITHUB_ENV", code)
+        self.assertNotRegex(self.LIVE, r"\bset -[a-z]*x")
+        self.assertNotIn("export FENTON_HASS", self.LIVE)
+        # the test output goes to a file, never the public Actions log
+        self.assertRegex(self.LIVE, r'--force \$FILTERS > "\$log" 2>&1')
+        self.assertNotIn("| tee \"$log\"", self.LIVE)
+
+    def test_it_uploads_digests_only(self):
+        """Fails if: the live job uploads anything but the result digest (a log, screenshot or xcresult from a public repo)."""
+        uploads = re.findall(r"upload-artifact@[0-9a-f]{40}[^\n]*\n(?:\s+with:\n(?:\s+[a-z-]+:[^\n]*\n)+)", self.LIVE)
+        self.assertEqual(len(uploads), 1)
+        self.assertIn("path: build/nightly/result-live-*.json", self.LIVE)
+        step = self.LIVE.split("name: Upload the result digest", 1)[1].split("      - name:", 1)[0]
+        code = "\n".join(line for line in step.splitlines() if not line.lstrip().startswith("#"))
+        for banned in ("xcresult", "screenshot", ".png", "log-live-*.txt", "include-hidden-files"):
+            self.assertNotIn(banned, code)
+
+    def test_its_result_reaches_the_report_job(self):
+        """Fails if: the report job stops needing live, or the digest artifact name or area drifts from the nightly-* pattern."""
+        report = self.TEXT.split("\n  report:\n", 1)[1]
+        self.assertIn("needs: [plan, journeys, coverage, live]", report)
+        self.assertIn("pattern: nightly-*", report)
+        self.assertIn('--area "live-$FAMILY"', self.LIVE)
+        self.assertIn("name: nightly-live-${{ matrix.family }}-${{ matrix.shard }}", self.LIVE)
+
+    def test_it_follows_the_journeys_and_keeps_a_slot_for_pull_requests(self):
+        """Fails if: live stops waiting for the journeys or its parallelism leaves no macOS slot for pull requests."""
+        self.assertIn("needs: [plan, build, journeys]", self.LIVE)
+        cap = int(re.search(r"max-parallel: (\d+)", self.LIVE).group(1))
+        self.assertLessEqual(cap + 1, 4)  # the live legs plus the coverage job; the account allows 5 macOS jobs
+
+    def test_the_planner_builds_the_live_matrix_and_expectation_per_family(self):
+        """Fails if: the Live plan has no tests or the planner stops giving each family its legs."""
+        doc = nightly_plan.with_families(nightly_plan.plan(nightly_plan.scan_plans(["Live"]), 100), ["iphone", "duo", "ipad"])
+        self.assertTrue(doc["include"])
+        self.assertEqual({e["plan"] for e in doc["include"]}, {"Live"})
+        self.assertEqual({e["family"] for e in doc["include"]}, {"iphone", "duo", "ipad"})
+        self.assertTrue(all(e["filters"].startswith("-only-testing:") for e in doc["include"]))
+
+
+class FamilyMatrixTests(unittest.TestCase):
+    def test_each_shard_repeats_per_family_shard_major(self):
+        doc = nightly_plan.plan({"Gate": {"A": ["a"] * 40, "B": ["b"] * 40}}, 60)
+        out = nightly_plan.with_families(doc, ["iphone", "duo", "ipad"])["include"]
+        self.assertEqual([(i["shard"], i["family"]) for i in out],
+                         [(1, "iphone"), (1, "duo"), (1, "ipad"), (2, "iphone"), (2, "duo"), (2, "ipad")])
+        self.assertEqual({i["filters"] for i in out if i["shard"] == 1}, {doc["include"][0]["filters"]})
+
+    def test_main_takes_families_and_refuses_an_unknown_one(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(nightly_plan.main(["--filter", "Bedroom", "--plans", "Gate", "--families", "duo,ipad"]), 0)
+        self.assertEqual([i["family"] for i in json.loads(out.getvalue())["include"]], ["duo", "ipad"])
+        self.assertEqual(nightly_plan.main(["--plans", "Gate", "--families", "mac"]), 2)
 
 
 if __name__ == "__main__":

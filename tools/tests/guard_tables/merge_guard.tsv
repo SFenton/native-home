@@ -50,3 +50,52 @@ grep -n '{FLAG}' notes.md	allow	read-only grep naming the sign-off flag
 gh pr create --title t --body-file - <<'EOF'\nCloses the gap. gh pr merge 12 stays blocked.\nEOF	allow	heredoc text naming the merge command is prose
 cat > f <<'EOF'\n`git push origin main` and `gh pr merge 1`\nEOF	allow	quoted heredoc body is not expanded
 gh pr merge 12 -R SFenton/native-home --disable-auto	allow	disarming auto-merge is the one allowed pr merge
+cat > note.md <<'EOF'\nrun tools/pr_land.sh 5 {FLAG} later\nEOF	allow	land words inside a quoted heredoc body are text	agent
+cat > note.md <<'EOF'\nrun tools/pr_land.sh 5 {FLAG}\nEOF\ngit status	allow	text after the heredoc is still read; pr_land only in the body	agent
+gh pr comment 5 --body "do not use {FLAG} with pr_land"	allow	quoted body of gh pr comment	agent
+gh issue create --title t --body 'pr_land {FLAG}'	allow	quoted body of gh issue create	agent
+printf 'pr_land {FLAG}' > f	allow	quoted printf text	agent
+echo 'pr_land {FLAG}' | tee f	allow	quoted echo piped to tee	agent
+tools/pr_land.sh 5 {FLAG}	block	the real owner flag	agent
+echo hi; tools/pr_land.sh 5 {FLAG}	block	owner flag after a data command	agent
+bash -c 'tools/pr_land.sh 1 {FLAG}'	block	a shell string is executed	agent
+eval 'tools/pr_land.sh 1 {FLAG}'	block	eval string	agent
+python3 -c 'import os; os.system("tools/pr_land.sh 1 {FLAG}")'	block	python -c string	agent
+echo "$(tools/pr_land.sh 1 {FLAG})"	block	substitution inside double quotes runs	agent
+echo `tools/pr_land.sh 1 {FLAG}`	block	backticks run	agent
+bash <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF	block	a heredoc fed to a shell	agent
+bash <<EOF\ntools/pr_land.sh 1\nEOF	block	pr_land in a shell heredoc body	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | sh	block	text piped into a shell	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | python3 -	block	text piped into an interpreter	agent
+cat > f <<EOF\n$(tools/pr_land.sh 1 {FLAG})\nEOF	block	an expanding body runs its substitution	agent
+env FENTON_HEADLESS=0 tools/pr_land.sh 5	block	env tampering	agent
+unset FENTON_HEADLESS; echo 'x'	block	env tampering with a data command	agent
+HASS_TRIAGE_ISSUE=1 printf 'a' > f	block	HASS_TRIAGE assignment	agent
+sudo tools/pr_land.sh 5	block	pr_land behind a wrapper	agent
+FOO=1 tools/pr_land.sh 5	block	pr_land behind a prefix	agent
+echo 'tools/pr_land.sh 1 {FLAG}' |& sh	block	pipe-and into a shell	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | (sh)	block	pipe into a subshell holding a shell	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | { sh; }	block	pipe into a brace group holding a shell	agent
+echo 'tools/pr_land.sh 1 {FLAG}' |\npython3 -	block	pipe then newline then an interpreter	agent
+echo $'\'' ;tools/pr_land.sh 1 {FLAG} #'	block	ANSI-C quote moves the quote edges	agent
+echo '<<EOF'\npython3 tools/triage/hass_triage.py ack-verified\nEOF	block	a quoted heredoc marker hides the next lines	agent
+echo '<<EOF'\ntools/lane_land.py 5 {FLAG}\nEOF	block	a quoted heredoc marker hides a lane_land call	agent
+cat > f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\nbash f.txt	block	write then run with bash	agent
+cat > f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\n. f.txt	block	write then source with a dot	agent
+cat > f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\nsource f.txt	block	write then source	agent
+cat > f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\npython3 f.txt	block	write then run with python	agent
+printf -v X 'pr_land {FLAG}'; eval "$X"	block	printf -v assigns a variable that is run later	agent
+gh issue create --title t --body-file notes.md	allow	body-file of gh issue create	agent
+echo hi # <<EOF\ntools/lane_land.py 5 {FLAG}\nEOF	block	a heredoc marker in a comment is not read by the shell	agent
+echo \<<EOF\ntools/lane_land.py 5 {FLAG}\nEOF	block	an escaped marker is a redirect, not a heredoc	agent
+cat > f <<E"OF"\nok\nEOF\ntools/lane_land.py 5 {FLAG}\nE	block	a partly quoted delimiter ends the body elsewhere	agent
+cat > f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\n"bash" f.txt	block	write then run through a quoted runner	agent
+cat > /tmp/f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\nchmod +x /tmp/f.txt\n/tmp/f.txt	block	write then run a direct path	agent
+cat > f.sh <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\nfind . -name f.sh -exec sh {} \\;	block	write then find -exec sh	agent
+cat > f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\ncaffeinate -i sh f.txt	block	write then run through an unlisted wrapper	agent
+cat > f.txt <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\nstdbuf -o0 sh f.txt	block	write then run through stdbuf	agent
+cat > .git/hooks/pre-commit <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF\ngit commit -m x	block	write a git hook then commit	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | tcsh	block	pipe into tcsh	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | s''h	block	pipe into a split-quoted shell	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | $SHELL	block	pipe into the SHELL variable	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | tclsh	block	pipe into tclsh	agent
