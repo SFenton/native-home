@@ -173,6 +173,119 @@ ACK_VERIFIED_FORM = re.compile(r"^python3\s+(?:[\w./~+-]*/)?hass_triage\.py\s+ac
 INTERPRETERS = re.compile(r"^(?:python[\d.]*|bash|sh|zsh|dash|source|\.)$")
 
 
+# MARK: - Command words (match the landing words in commands, not in text a command only carries)
+
+#: Programs whose arguments are data: they print, write or search what they are given and run none of it.
+DATA_PROGRAMS = {"cat", "printf", "echo", "tee", "head", "tail", "grep", "rg", "wc", "ls"}
+#: ``gh`` subcommands that carry a message body (``gh pr comment N --body "..."``) and never run it.
+DATA_GH = {("pr", "comment"), ("pr", "create"), ("pr", "edit"), ("pr", "view"), ("pr", "list"),
+           ("issue", "comment"), ("issue", "create"), ("issue", "edit"), ("issue", "view"), ("issue", "list")}
+#: Anything in a segment that could run what it holds: substitution, process substitution, ``rg --pre``.
+RUNS_TEXT = re.compile(r"`|\$\(|[<>]\(|--pre\b")
+HEREDOC_OPEN = re.compile(r"<<(?!<)(-?)\s*(['\"]?)(\w+)\2")
+
+
+def data_segment(segment: str) -> bool:
+    """Is the simple command text ``segment`` a data program (``cat``, ``printf``, ``echo``, ``tee``, ``gh pr comment``, ``git commit``...)
+    whose quoted arguments run nothing? A leading ``VAR=``, a wrapper, a quoted program word or any substitution says no."""
+    if RUNS_TEXT.search(segment):
+        return False
+    head = segment.split(None, 3)
+    if not head or re.search(r"['\"\\$=]", head[0]):
+        return False
+    program = os.path.basename(head[0])
+    if program in DATA_PROGRAMS:
+        return True
+    rest = [re.sub(r"['\"]", "", word) for word in head[1:3]]
+    if program == "gh":
+        return tuple(rest) in DATA_GH
+    return program == "git" and rest[:1] == ["commit"]
+
+
+def split_simple(text: str) -> Optional[List[str]]:
+    """``text`` cut into simple commands and the operators between them (alternating, operators as their own items), quote-aware; ``None``
+    when a quote is left open."""
+    out: List[str] = []
+    buf: List[str] = []
+    quote = ""
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            buf.append(ch)
+            if ch == "\\" and quote == '"' and i + 1 < len(text):
+                i += 1
+                buf.append(text[i])
+            elif ch == quote:
+                quote = ""
+        elif ch == "\\" and i + 1 < len(text):
+            buf.append(ch + text[i + 1])
+            i += 1
+        elif ch in "'\"":
+            quote = ch
+            buf.append(ch)
+        elif ch in ";&|\n(){}":
+            out.append("".join(buf))
+            out.append(ch)
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    if quote:
+        return None
+    out.append("".join(buf))
+    return out
+
+
+def blank_quotes(segment: str) -> str:
+    """``segment`` with every quoted span emptied (``'..'`` and ``".."`` become ``""``)."""
+    return re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", '""', segment)
+
+
+def drop_data_heredocs(command: str) -> Optional[str]:
+    """``command`` without the bodies of heredocs fed to data programs (``cat > f <<'EOF'``, ``gh pr comment --body-file - <<EOF``). A body
+    the shell would expand (unquoted delimiter) with a substitution in it, a heredoc fed to anything else (a shell, ``python3``, ``xargs``),
+    a body never closed or a line that does not lex keeps the text as it was: ``None``."""
+    lines = command.split("\n")
+    kept: List[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        mark = HEREDOC_OPEN.search(line)
+        if not lexes(line):
+            return None
+        if mark:
+            parts = split_simple(line)
+            if parts is None or not all(data_segment(p) for p in parts[0::2] if p.strip()):
+                return None
+            start = i
+            while i < len(lines) and (lines[i].strip() if mark.group(1) else lines[i]) != mark.group(3):
+                i += 1
+            if i >= len(lines):
+                return None
+            if not mark.group(2) and RUNS_TEXT.search("\n".join(lines[start:i])):
+                return None
+            i += 1
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def command_words(command: str) -> str:
+    """``command`` as far as the landing words go: heredoc bodies and quoted arguments of data programs are removed, so ``cat > f <<'EOF'``
+    with ``pr_land`` in its text, ``gh pr comment 5 --body "..."`` and ``printf '...' > f`` do not match. Anything that could run its text
+    (``bash -c``, ``sh``, ``eval``, ``python3 -c``, a substitution, a heredoc fed to a shell or piped into one) is left whole, as is
+    any command this cannot read to its end."""
+    if PIPE_TO_SHELL.search(command) or HERE_TO_SHELL.search(command):
+        return command
+    text = drop_data_heredocs(command)
+    parts = split_simple(command if text is None else text)
+    if parts is None or any(op == "|" and nxt.strip() and not data_segment(nxt) for op, nxt in zip(parts[1::2], parts[2::2])):
+        return command  # unreadable, or text piped into something that may run it (an interpreter, `xargs`)
+    return "".join(blank_quotes(p) if i % 2 == 0 and data_segment(p) else p for i, p in enumerate(parts))
+
+
+
 def runs_pr_land(command: str) -> bool:
     """Does a simple command of ``command`` execute ``pr_land.sh``/``pr_land.py`` (directly, or through an interpreter)?"""
     for _op, words in _tokenize(command):
@@ -257,11 +370,12 @@ def headless_land_reason(command: str) -> Optional[str]:
     and only when this checkout's ``pr_land.sh`` and ``pr_land.py`` equal the base branch's; nothing may take the session markers
     away, and no pty wrapper may run the landing tools. ``--owner-ack`` (and any abbreviation of an ``--owner*`` option given to
     ``pr_land`` or ``lane_land``) is the owner's, never an agent's."""
-    if re.search(r"owner[-_]ack", command) or (OWNER_OPTION.search(command) and re.search(r"pr_land|lane_land", command)):
+    words = command_words(command)
+    if re.search(r"owner[-_]ack", words) or (OWNER_OPTION.search(words) and re.search(r"pr_land|lane_land", words)):
         return "owner-ack: --owner-ack is the owner's, never an agent session's"
     if any(pattern.search(command) for pattern in ENV_TAMPER):
         return "landing: the session markers FENTON_HEADLESS, HASS_TRIAGE_*, T3CODE_*, CLAUDE_PROJECT_DIR and CLAUDE_ENV_FILE are not for a command to unset or change"
-    if PTY_WRAPPER.search(command) and LAND_WORDS.search(command):
+    if PTY_WRAPPER.search(command) and LAND_WORDS.search(words):
         return "landing: script/expect/unbuffer around pr_land, lane_land, ack-base or ack-verified (a pty would fake a terminal)"
     lane = runs_script(command, "lane_land")
     if lane and not re.search(r"ack[-_]?base", command) and not pr_land_matches_base(command, lane):  # ack-base has its own refusal
@@ -1217,11 +1331,12 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
         return public
     if PIPE_TO_SHELL.search(command) or HERE_TO_SHELL.search(command):
         return "script piped into a shell"
-    if headless() and re.search(r"ack[-_]?base", command):
+    words = command_words(command)
+    if headless() and re.search(r"ack[-_]?base", words):
         return "ack-base in a headless session (headless: only the owner accepts a moved base)"
-    if re.search(r"ack[-_]?verified", command) and headless():
+    if re.search(r"ack[-_]?verified", words) and headless():
         return "ack-verified in a headless session (headless: the runner's own sessions cannot clear their own pause)"
-    if ACK_VERIFIED.search(command):
+    if ACK_VERIFIED.search(words):
         if PTY_WRAPPER.search(command):
             return "ack-verified: no pty wrapper around it (a pty would fake a terminal)"
         if not ACK_VERIFIED_FORM.match(command.strip()):

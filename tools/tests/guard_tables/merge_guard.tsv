@@ -50,3 +50,26 @@ grep -n '{FLAG}' notes.md	allow	read-only grep naming the sign-off flag
 gh pr create --title t --body-file - <<'EOF'\nCloses the gap. gh pr merge 12 stays blocked.\nEOF	allow	heredoc text naming the merge command is prose
 cat > f <<'EOF'\n`git push origin main` and `gh pr merge 1`\nEOF	allow	quoted heredoc body is not expanded
 gh pr merge 12 -R SFenton/native-home --disable-auto	allow	disarming auto-merge is the one allowed pr merge
+cat > note.md <<'EOF'\nrun tools/pr_land.sh 5 {FLAG} later\nEOF	allow	land words inside a quoted heredoc body are text	agent
+cat > note.md <<'EOF'\nrun tools/pr_land.sh 5 {FLAG}\nEOF\ngit status	allow	text after the heredoc is still read; pr_land only in the body	agent
+gh pr comment 5 --body "do not use {FLAG} with pr_land"	allow	quoted body of gh pr comment	agent
+gh issue create --title t --body 'pr_land {FLAG}'	allow	quoted body of gh issue create	agent
+printf 'pr_land {FLAG}\\n' > f	allow	quoted printf text	agent
+echo 'pr_land {FLAG}' | tee f	allow	quoted echo piped to tee	agent
+tools/pr_land.sh 5 {FLAG}	block	the real owner flag	agent
+echo hi; tools/pr_land.sh 5 {FLAG}	block	owner flag after a data command	agent
+bash -c 'tools/pr_land.sh 1 {FLAG}'	block	a shell string is executed	agent
+eval 'tools/pr_land.sh 1 {FLAG}'	block	eval string	agent
+python3 -c 'import os; os.system("tools/pr_land.sh 1 {FLAG}")'	block	python -c string	agent
+echo "$(tools/pr_land.sh 1 {FLAG})"	block	substitution inside double quotes runs	agent
+echo `tools/pr_land.sh 1 {FLAG}`	block	backticks run	agent
+bash <<'EOF'\ntools/pr_land.sh 1 {FLAG}\nEOF	block	a heredoc fed to a shell	agent
+bash <<EOF\ntools/pr_land.sh 1\nEOF	block	pr_land in a shell heredoc body	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | sh	block	text piped into a shell	agent
+echo 'tools/pr_land.sh 1 {FLAG}' | python3 -	block	text piped into an interpreter	agent
+cat > f <<EOF\n$(tools/pr_land.sh 1 {FLAG})\nEOF	block	an expanding body runs its substitution	agent
+env FENTON_HEADLESS=0 tools/pr_land.sh 5	block	env tampering	agent
+unset FENTON_HEADLESS; echo 'x'	block	env tampering with a data command	agent
+HASS_TRIAGE_ISSUE=1 printf 'a' > f	block	HASS_TRIAGE assignment	agent
+sudo tools/pr_land.sh 5	block	pr_land behind a wrapper	agent
+FOO=1 tools/pr_land.sh 5	block	pr_land behind a prefix	agent
