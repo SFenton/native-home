@@ -2096,7 +2096,9 @@
   },
   {
    "prefix": "apple/Sources/FentonActivityViews",
-   "swift": [],
+   "swift": [
+    "ProblemCardNoticeTests"
+   ],
    "journeys": [
     "LiveActivityJourneyTests"
    ]
