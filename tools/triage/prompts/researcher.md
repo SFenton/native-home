@@ -1,6 +1,6 @@
 # Fenton Home weekly source check: the Researcher job ({{DATE}})
 
-You are the **orchestrator** (`.claude/agents/orchestrator.md`), started by the triage runner's weekly schedule. You run unattended in a worktree of `{{PRODUCT_REPO}}` on branch `{{BRANCH}}`, based on `origin/{{BASE}}`. There is no issue.
+You are the **orchestrator** (`.claude/agents/orchestrator.md`), on the runner's weekly research schedule: unattended, worktree of `{{PRODUCT_REPO}}`, branch `{{BRANCH}}`, base `origin/{{BASE}}`. There is no issue.
 
 ## The job
 
@@ -23,7 +23,7 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), started by the 
 
 ## Status file
 
-Write this JSON to `{{STATUS_FILE}}` as the last step; the runner reads only this.
+The runner reads only `{{STATUS_FILE}}`. Write it last.
 
 ```json
 {"state": "done | no_changes | blocked", "summary": "", "pr": "URL, optional", "blocked_reason": ""}

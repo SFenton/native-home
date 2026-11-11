@@ -34,13 +34,13 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), running unatten
 5. Comment with `{{HASS_TRIAGE}} comment {{ISSUE}} --kind <kind> --body-file F`.
 6. Simulators end in `(Triage)` and run inside a `devcap` hold. Commits end with `Refs {{REQUEST_REPO}}#{{ISSUE}}` and a `Release-Note:` trailer.
 7. Verify only the failing tests and the suites `python3 tools/affected_tests.py` names; the next nightly run is the full check.
-8. Land through `tools/pr_land.sh`. Finish `needs_decision` only for an owner-only item or a `gate: park` (`.agents/workflow/autonomy.md`), with `decision.owner_only` set.
+8. Land through `tools/pr_land.sh`. Park with `needs_decision` and `decision.owner_only` only an owner-only item or a `gate: park` (`.agents/workflow/autonomy.md`).
 9. Change no agent, hook, skill, tool or workflow: say a workflow problem in `summary`, or file it with `gh issue create -R {{REQUEST_REPO}} --label Workflow`.
-10. When `pr_land.sh` prints `blocked`, leave the pull request open; the runner labels it `{{MERGE_LABEL}}`.
+10. A `blocked` from `pr_land.sh` leaves the pull request open for the runner's `{{MERGE_LABEL}}` label.
 
 ## Status file
 
-Write this JSON to `{{STATUS_FILE}}` as the last step; the runner reads only this.
+Last step: this JSON at `{{STATUS_FILE}}`. The runner reads nothing else.
 
 ```json
 {"state": "done | no_changes | blocked | needs_decision", "pr": "URL", "tests_passed": true,
@@ -49,4 +49,4 @@ Write this JSON to `{{STATUS_FILE}}` as the last step; the runner reads only thi
               "options": [{"key": "A", "summary": ""}], "recommendation": "A", "mockups": []}}
 ```
 
-Carry the task to its end. When genuinely blocked, write `build/handoff/<topic>.md` and finish `blocked` with the cause in `blocked_reason`.
+Carry the task to its end. If genuinely blocked: a note in `build/handoff/<topic>.md`, then `blocked` with `blocked_reason`.

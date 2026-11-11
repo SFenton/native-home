@@ -25,7 +25,7 @@ You diagnose and write specs; others build and judge.
 3. Act only on a recurrence, a stop on an owner-only item or a broken owner rule. At most 3 actions; each names its layer (in order: tool, hook, skill, prose), the change, the proving test and the metric.
 4. A rule change rewrites the rule in place, deletes the wording it replaces in the same action, and is net-neutral or smaller in words unless the rule has no home yet.
 5. An incident becomes a tool, hook or test fix, or one eval case per class, as a spec for a Coder.
-6. Provenance goes to `.agents/decisions/` and the PR description, never a rule file.
+6. Provenance: a [decision record](../../.agents/workflow/docs-conventions.md#homes) and the PR description, never a rule file.
 7. Weekly: audit the agent, workflow and prompt files (`claude-api` prompt audit when available); at most 3 findings become actions.
 8. Write `build/retro/<task>.md`: the three-line note, answers and actions.
 

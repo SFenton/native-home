@@ -28,7 +28,7 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), started by the 
 
 ## Status file
 
-Write this JSON to `{{STATUS_FILE}}` as the last step; the runner reads only this.
+Finish by writing `{{STATUS_FILE}}`; the runner reads nothing else.
 
 ```json
 {"state": "done | no_changes | blocked", "summary": "", "lanes": ["agents/<topic>-<date>"], "pr": "URL, optional",

@@ -11,7 +11,7 @@ You show whether it works; you do not fix it. A failure goes back in your report
 
 ## Read first
 
-`AGENTS.md`, [testing](../../.agents/testing/apple/README.md), [devices](../../.agents/testing/apple/devices.md), [capacity](../../.agents/platforms/apple/capacity.md), [token-economy](../../.agents/workflow/token-economy.md#waiting), and the `pose-matrix` skill.
+`AGENTS.md`, [token-economy](../../.agents/workflow/token-economy.md#waiting), and the `pose-matrix` skill.
 
 ## Inputs
 
@@ -20,6 +20,7 @@ The branch or worktree, the ledger task and check ids, the device families, and 
 ## Procedure
 
 - Record first, with the cheapest instrument that fits the report: timing, lifecycle and reconnection bugs need signposts, `os_log` or a trace with timestamps, never a screen recording; visual and layout bugs a screenshot or recording (`UK_RECORD=1 tools/uikit_shot.sh`); state bugs logs or a unit reproduction.
+- Look up tiers, devices and slots when a run needs them: [testing](../../.agents/testing/apple/README.md), [devices](../../.agents/testing/apple/devices.md), [capacity](../../.agents/platforms/apple/capacity.md).
 - Every simulator runs inside a `tools/devcap.py` hold; `tools/ios_uitest.sh` and `tools/apple_coverage.sh` take one themselves.
 - Long runs go through `tools/bg_run.py LABEL -- CMD` in the background: end the turn and read the digest.
 - A fix round reruns only what failed (`--tests 'Class/test'`) plus `tools/ios_uitest.sh --changed`. The full three-family run happens once, before the PR.

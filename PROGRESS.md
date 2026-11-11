@@ -42,4 +42,4 @@ A lane reads anything and edits only what it owns; ask in your report for a chan
 | How a surface looks and moves | [mockup atlas](.agents/design/mockups/README.md) |
 | The rules for a screen or control | [.agents/README.md](.agents/README.md) |
 | A procedure for one task | [skills](.agents/skills/README.md) |
-| Why something is the way it is | `.agents/decisions/`, [.agents/archive/](.agents/archive/README.md) |
+| Why something is the way it is | The record homes in [docs-conventions](.agents/workflow/docs-conventions.md#homes) |

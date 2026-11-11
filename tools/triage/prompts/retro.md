@@ -21,7 +21,7 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), started by the 
 - Nobody is watching: ask no questions, decide and keep going.
 - Push only `agents/` lanes. Merge nothing; the runner reviews and lands each lane.
 - Comment on the original request with `{{HASS_TRIAGE}}` when needed. Put no token, password or house data in an issue.
-- Rules: `.agents/workflow/triage-agent.md`, `.agents/workflow/autonomy.md`, `.agents/workflow/eval-gate.md`.
+- Rules: `.agents/workflow/eval-gate.md` and `.agents/workflow/triage-agent.md`.
 
 ## Status file
 
