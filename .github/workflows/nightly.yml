@@ -380,9 +380,9 @@ jobs:
           log="build/nightly/log-live-$FAMILY-$SHARD.txt"
           start=$(date +%s)
           # The log goes to a file, not the public Actions log; only the digest below is printed.
+          code=0
           # shellcheck disable=SC2086
-          tools/ios_uitest.sh --env shell --only "$FAMILY" --plan Live --force $FILTERS > "$log" 2>&1
-          code=$?
+          tools/ios_uitest.sh --env shell --only "$FAMILY" --plan Live --force $FILTERS > "$log" 2>&1 || code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
           exit 0
