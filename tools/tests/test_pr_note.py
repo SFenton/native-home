@@ -418,8 +418,8 @@ class InitAndQueueIdentityTests(Base):
         self.assertTrue(body.startswith("Old text\n"))
         self.assertIn("Old text\n" + REVIEW + "\ntail", body)
         self.assertEqual(body.count("<!-- review:start -->"), 1)
-        for name in ("sh-devices", "sh-status"):
-            self.assertIn(f"<!-- {name}:start -->", body)
+        self.assertIn("<!-- sh-status:start -->", body)
+        self.assertNotIn("sh-devices", body)
         self.assertNotIn("sh-timeline", body)
         self.assertEqual(len(self.get()["comments"]), 1)
         self.assertIn("body kept", self.run_cli("init", "--task", "T-x")[1])
@@ -812,6 +812,14 @@ class TimelineTests(Base):
 
 
 class ElsewhereCommentTests(Base):
+    def test_the_eight_live_comments_of_pr_81_pass_the_comment_gate(self):
+        """Fails if: any of the eight step comments on pull request 81 (fixtures copied from the live pull request) is refused
+        by the comment form gate, for its form or for pointing elsewhere."""
+        comments = json.loads((Path(__file__).parent / "pr81_comments.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(comments), 8)
+        for text in comments:
+            pr_note.form_gate(text, "fixture")
+
     """A comment that sends the reader to a fix made elsewhere names the repository and its state, as a description does."""
 
     def test_a_comment_without_a_name_is_refused_and_one_with_a_name_is_posted(self):

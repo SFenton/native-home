@@ -142,9 +142,10 @@ class BodyTests(unittest.TestCase):
         shown = re.sub(r"<!--.*?-->", "", text, flags=re.S)
         for word in ("Drafting", "Review verdict", "<details", "Status", "Waiting on", "Generated with"):
             self.assertNotIn(word, shown)
-        for name in ("sh-devices", "sh-status", "review"):
+        for name in ("sh-status", "review"):
             self.assertIn(f"<!-- {name}:start -->\n<!-- {name}:end -->", text)
         self.assertNotIn("sh-timeline", text)
+        self.assertNotIn("sh-devices", text)
 
     def test_bare_old_template_fails(self):
         """Fails if: the old pull request template, unfilled, passes body-check."""
@@ -579,12 +580,12 @@ class ElsewhereTests(unittest.TestCase):
         """Fails if: any of the phrases the owner listed is let through when nothing names the place."""
         for phrase in ("That fix is in a different repository.", "That fix is in another repository.",
                        "That fix is in a separate pull request.", "That fix is made elsewhere.",
-                       "That fix is in the server engine."):
+                       "That fix is made upstream.", "That fix comes in a follow-up."):
             text = body(summary=f"The card shows the reason. {phrase}")
             self.assertTrue(pr_text.elsewhere_problems(text), phrase)
 
     def test_a_name_without_a_state_is_refused(self):
-        """Fails if: a section that names the repository but not where the change stands passes."""
+        """Fails if: text that names the repository but not where the change stands passes."""
         text = body(summary="The card shows the reason. That fix is in a different repository, `SFenton/ha-fenton-home`.")
         problems = pr_text.elsewhere_problems(text)
         self.assertTrue(problems)
@@ -592,28 +593,62 @@ class ElsewhereTests(unittest.TestCase):
         self.assertNotIn("no repository", problems[0])
 
     def test_a_state_without_a_name_is_refused(self):
-        """Fails if: a section that gives a state but names no repository or pull request passes."""
+        """Fails if: text that gives a state but names no repository or pull request passes."""
         text = body(summary="The card shows the reason. That fix is in a different repository and is not pushed.")
         problems = pr_text.elsewhere_problems(text)
         self.assertTrue(problems)
         self.assertIn("no repository or pull request named", problems[0])
 
-    def test_name_and_state_in_the_section_pass(self):
-        """Fails if: an ``owner/repo`` name or a pull request link, with a state, is refused, or a file path counts as a name."""
+    def test_name_and_state_pass_and_paths_and_and_or_are_not_names(self):
+        """Fails if: an ``owner/repo`` name or a pull request or issue link, with a state, is refused, or a file path or
+        "and/or" counts as a name."""
         named = "That fix is in a different repository, `SFenton/ha-fenton-home` (files `custom_components/fenton_home/engine.py`). It is not pushed."
         linked = "That fix is in a separate pull request, https://github.com/SFenton/ha-fenton-home/pull/12, which is open."
-        self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {named}")), [])
-        self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {linked}")), [])
+        issue = "That fix is in a separate pull request, https://github.com/SFenton/ha-fenton-home/issues/3, which is open."
+        for ok in (named, linked, issue):
+            self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {ok}")), [], ok)
         path_only = "That fix is made elsewhere, in tools/pr_note.py and custom_components/fenton_home/engine.py, and is merged."
         self.assertTrue(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {path_only}")))
         and_or = "That fix is made elsewhere, in and/or out of this change, and is merged."
         self.assertTrue(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {and_or}")))
 
-    def test_the_name_must_be_in_the_same_section(self):
-        """Fails if: a repository named under Tests excuses a sentence under Summary."""
-        text = ("## Summary\nThe card shows the reason. That fix is in a different repository.\n\n"
-                "## Tests\n- `SFenton/ha-fenton-home` is merged and passes.\n")
-        self.assertTrue(pr_text.elsewhere_problems(text))
+    def test_the_whole_text_counts_not_one_section(self):
+        """Fails if: a repository and state given in a later section or bullet do not excuse the sentence that points elsewhere,
+        or the sentence alone (the owner's quoted one) is let through."""
+        alone = body(summary=OLD_SENTENCE)
+        self.assertTrue(pr_text.elsewhere_problems(alone))
+        later = ("## Summary\n" + OLD_SENTENCE + "\n\n## Tests\n- The fix is in `SFenton/ha-fenton-home` and is not pushed.\n")
+        self.assertEqual(pr_text.elsewhere_problems(later), [])
+        bullet = "## Summary\n" + OLD_SENTENCE + "\n- Later: `SFenton/ha-fenton-home`, built, not installed.\n"
+        self.assertEqual(pr_text.elsewhere_problems(bullet), [])
+
+    def test_the_server_engine_alone_does_not_point_elsewhere(self):
+        """Fails if: a phrase that names a part of the system, not another place, is refused ("the server engine", "in a pull
+        request comment"), or a plain "nothing else changes" is."""
+        for text in ("Read the server engine that starts, updates and ends each activity.",
+                     "The pictures are in a pull request comment.", "Nothing else changes."):
+            self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {text}")), [], text)
+
+    def test_the_eight_live_comments_of_pr_81_pass(self):
+        """Fails if: any of the eight step comments posted on pull request 81 (fixtures copied from the live pull request)
+        draws an elsewhere problem or is refused by the comment form gate of ``pr_note``."""
+        comments = json.loads((TOOLS / "tests" / "pr81_comments.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(comments), 8)
+        for text in comments:
+            self.assertEqual(pr_text.elsewhere_problems(text), [], text[:40])
+
+    def test_a_linked_pull_request_needs_a_state_beside_it(self):
+        """Fails if: a description that links a pull request (web address or owner/repo#N) with no state word in the same
+        paragraph or item passes ``--strict``, one with a state is refused, or the address itself counts as a state."""
+        bare = body(summary="The card shows the reason. The end fix is https://github.com/SFenton/ha-fenton-home/pull/14 for the server.")
+        self.assertTrue(pr_text.linked_state_problems(bare))
+        self.assertTrue(any("no state" in w for w in warnings_of(bare)))
+        short = body(summary="The card shows the reason.\n- The server fix is SFenton/ha-fenton-home#14.\n- It is built.")
+        self.assertTrue(pr_text.linked_state_problems(short))
+        for ok in ("The server fix is https://github.com/SFenton/ha-fenton-home/pull/14, which is open.",
+                   "The server fix is SFenton/ha-fenton-home#14, merged."):
+            self.assertEqual(pr_text.linked_state_problems(body(summary=f"The card shows the reason. {ok}")), [], ok)
+        self.assertEqual(pr_text.linked_state_problems(PR_81_BODY), [])
 
     def test_phrases_live_in_the_data_file(self):
         """Fails if: the phrases or state words are back in code (an edited word list does not change the result)."""

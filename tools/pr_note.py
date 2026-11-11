@@ -99,7 +99,7 @@ Behaviour:
   ``gh pr edit --attach`` from a temporary folder under neutral names, so no local path is ever in the text sent; the
   URLs GitHub returns are remembered so an edit keeps them. An edit cannot upload: a changed comment with a picture that is
   not uploaded yet is posted anew (same step and marker) and the old copy removed, result ``replaced``.
-- ``init`` (run once, right after ``ship.sh`` opens the PR) appends any missing ``sh-devices`` / ``sh-status`` /
+- ``init`` (run once, right after ``ship.sh`` opens the PR) appends any missing ``sh-status`` /
   review marker block to the PR body, existing text untouched and no placeholder text added; then it
   flushes the task's queue. ``post`` also flushes the task's queue first and drops queued entries for a marker it just
   posted (those with this PR as their target), so a stale queued note never overwrites a newer comment.
@@ -1504,8 +1504,7 @@ def _filled_timeline(body: str) -> bool:
 
 #: Kept for callers that name it; the body no longer copies text from the template.
 TEMPLATE = ROOT / ".github" / "pull_request_template.md"
-_BLOCKS = (("sh-devices", "<!-- sh-devices:start -->\n<!-- sh-devices:end -->"),
-           ("sh-status", "<!-- sh-status:start -->\n<!-- sh-status:end -->"),
+_BLOCKS = (("sh-status", "<!-- sh-status:start -->\n<!-- sh-status:end -->"),
            ("review", "<!-- review:start -->\n<!-- review:end -->"))
 
 

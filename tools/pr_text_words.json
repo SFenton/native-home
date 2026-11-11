@@ -9,13 +9,11 @@
     "(?i)generated\\s+(?:with|by)\\b[^\\n]*claude"
   ],
   "elsewhere_phrases": [
-    "(?i)\\b(?:a|an|the)\\s+(?:different|another|other|separate)\\s+(?:repo|repository|project|codebase)\\b",
-    "(?i)\\b(?:another|a\\s+different|a\\s+separate|the\\s+other|a\\s+second|a\\s+follow-?up)\\s+(?:pull\\s+request|PR)\\b",
+    "(?i)\\b(?:another|(?:a|the)\\s+(?:different|other|separate))\\s+(?:repo|repository)\\b",
+    "(?i)\\b(?:another|a\\s+different|a\\s+separate|the\\s+other)\\s+(?:pull\\s+request|PR)\\b",
     "(?i)\\belsewhere\\b",
-    "(?i)\\bthe\\s+server\\s+engine\\b",
-    "(?i)\\bthe\\s+(?:server|backend|back-end|integration)\\s+(?:side|repo|repository)\\b",
-    "(?i)\\boutside\\s+(?:of\\s+)?this\\s+(?:repo|repository|pull\\s+request|change)\\b",
-    "(?i)\\bin\\s+(?:a|another)\\s+(?:pull\\s+request|repo|repository)\\b"
+    "(?i)\\bupstream\\b",
+    "(?i)\\bin\\s+a\\s+follow-?up\\b"
   ],
   "elsewhere_state_words": [
     "merged", "unmerged", "open", "opened", "closed", "draft", "pushed", "installed", "deployed", "released",

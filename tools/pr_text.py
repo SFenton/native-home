@@ -15,7 +15,7 @@ The rules come from the pull-request timeline proposal: a title is one plain sen
 ``compose`` writes only the hidden marker pairs other tools find (``sh-status``, ``review``); a body carries no step list. An
 ``## Evidence`` section is for pictures of its own (an image, a gif or a video): one that only links to pictures in the
 comments is refused. A body that carries a generated-by footer is refused, and under ``--strict`` so is a sentence that sends
-the reader to a fix made elsewhere (another repository, another pull request) when its section does not name it: the
+the reader to a fix made elsewhere (another repository, another pull request) when nothing in the description names it: the
 ``owner/repo`` or a pull request link, and its state. The banned words, the internal-label patterns and
 the path-to-area table live in ``tools/pr_text_words.json``, which the owner can edit. Exit codes: 0 clean, 1 a problem (or a
 warning under ``--strict``), 2 bad usage. Standard library only.
@@ -198,12 +198,10 @@ def footer_problems(body: str, words: dict) -> list:
     return []
 
 
-#: A heading of level two or three: the unit "the same section" means for a description (``##``) and a comment (``###``).
-PART_HEADING = re.compile(r"^#{2,3}[ \t]+.*$", re.M)
 #: An ``owner/repo`` name, not part of a longer path or a web address.
 REPO_NAME = re.compile(r"(?<![\w/.:-])([A-Za-z0-9][\w-]*)/([A-Za-z0-9][\w.-]*?)\.?(?![\w/-])")
 #: A link to a repository or to one of its pull requests.
-REPO_LINK = re.compile(r"https?://github\.com/[\w.-]+/[\w.-]+", re.I)
+REPO_LINK = re.compile(r"https?://github\.com/[\w.-]+/[\w.-]+(?:/(?:pull|issues)/\d+)?", re.I)
 
 
 def names_repository(text: str, words: dict) -> bool:
@@ -230,34 +228,48 @@ def states_progress(text: str, words: dict) -> bool:
 
 
 def elsewhere_problems(text: str, words: Optional[dict] = None) -> list:
-    """One line for each section that sends the reader to a fix made somewhere else without saying where and how it stands.
+    """One line when ``text`` sends the reader to a fix made somewhere else and nothing in the whole text says where and how it stands.
 
-    A sentence with a phrase from ``elsewhere_phrases`` ("a different repository", "elsewhere", "the server engine") is
-    allowed only when its section (up to the next ``##`` or ``###`` heading) names the place, as an ``owner/repo`` or a pull
-    request link, and says the state of the change there. The line tells the writer what to add."""
+    A sentence with a phrase from ``elsewhere_phrases`` ("a different repository", "a separate pull request", "elsewhere",
+    "upstream", "in a follow-up") is allowed when the text, anywhere, holds a concrete name (an ``owner/repo`` or a pull
+    request or issue link) and a state word (``elsewhere_state_words``). The line tells the writer what to add."""
     words = words or load_words()
     clean = COMMENT.sub("", FENCE.sub("", text))
-    marks = list(PART_HEADING.finditer(clean))
-    starts = [0] + [m.end() for m in marks]
-    ends = [m.start() for m in marks] + [len(clean)]
+    hit = None
+    for _, unit in units(clean, keep_code=True):
+        for sentence in sentences(unit):
+            found = next(filter(None, (re.search(p, sentence) for p in words["elsewhere_phrases"])), None)
+            if found and not hit:
+                hit = (sentence, found)
+    if not hit:
+        return []
+    lacks = [label for label, ok in (("no repository or pull request named", names_repository(clean, words)),
+                                     ("no state given", states_progress(clean, words))) if not ok]
+    if not lacks:
+        return []
+    sentence, found = hit
+    return [f"{sentence[:60]!r} sends the reader elsewhere ({found.group(0)!r}) and the text has {' and '.join(lacks)}; "
+            f"add the repository (owner/repo or a pull request link), the files, what changes there, and its "
+            f"state (merged, open, not pushed, not installed)"]
+
+
+#: A link to a pull request: a web address, or ``owner/repo#N``.
+PR_LINK = re.compile(r"https?://github\.com/[\w.-]+/[\w.-]+/pull/\d+|(?<![\w/.-])[A-Za-z0-9][\w-]*/[A-Za-z0-9][\w.-]*#\d+")
+
+
+def linked_state_problems(text: str, words: Optional[dict] = None) -> list:
+    """One line for each paragraph or list item that links a pull request without a state word beside the link.
+
+    The state words are ``elsewhere_state_words`` (merged, open, closed, not pushed ...); the link's own address is not read.
+    Whether the state is still true is for the session that sees it change (pr-form.md, "Linked pull requests")."""
+    words = words or load_words()
+    clean = COMMENT.sub("", FENCE.sub("", text))
+    blocks = re.split(r"\n\s*\n|\n(?=\s*(?:[-*+]|\d+[.)])\s)", clean)
     out = []
-    for start, end in zip(starts, ends):
-        part = clean[start:end]
-        hit = None
-        for _, unit in units(part, keep_code=True):
-            for sentence in sentences(unit):
-                found = next(filter(None, (re.search(p, sentence) for p in words["elsewhere_phrases"])), None)
-                if found and not hit:
-                    hit = (sentence, found)
-        if not hit:
-            continue
-        lacks = [label for label, ok in (("no repository or pull request named", names_repository(part, words)),
-                                         ("no state given", states_progress(part, words))) if not ok]
-        if lacks:
-            sentence, found = hit
-            out.append(f"{sentence[:60]!r} sends the reader elsewhere ({found.group(0)!r}) and the section has {' and '.join(lacks)}; "
-                       f"add the repository (owner/repo or a pull request link), the files, what changes there, and its "
-                       f"state (merged, open, not pushed, not installed)")
+    for block in blocks:
+        links = PR_LINK.findall(block)
+        if links and not states_progress(PR_LINK.sub(" ", block), words):
+            out.append(f"{links[0]!r} links a pull request with no state beside it; say its state (merged, open, closed, not pushed)")
     return out
 
 
@@ -349,6 +361,7 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
     errors += placeholder_problems(body, words)
     errors += footer_problems(body, words)
     warnings += elsewhere_problems(strip_unlinted(body, words), words)
+    warnings += linked_state_problems(strip_unlinted(body, words), words)
     first = first_summary_sentence(body, words)
     if first:
         for hit in label_hits(first, words):

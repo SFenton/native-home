@@ -18,6 +18,9 @@ def git(cwd, *args):
     return subprocess.run(["git", *args], cwd=cwd, env=ENV, capture_output=True, text=True, check=True).stdout.strip()
 
 
+GOOD_BODY = "## Summary\nPages load faster on iPhone. Nothing else changes.\n\n## Tests\n- unit (HassCore): cache test (pass)"
+
+
 def make_repo(tmp):
     """A clone of a bare origin whose ``tools/`` holds the scripts under test; returns (clone, origin)."""
     origin = Path(tmp) / "origin.git"
@@ -25,7 +28,7 @@ def make_repo(tmp):
     clone = Path(tmp) / "clone"
     git(tmp, "clone", "-q", str(origin), str(clone))
     (clone / "tools").mkdir()
-    for name in ("lane_new.sh", "ship.sh", "ship_guard.sh", "review_verdict.py", "lane_check.py"):
+    for name in ("lane_new.sh", "ship.sh", "ship_guard.sh", "review_verdict.py", "lane_check.py", "pr_text.py", "pr_text_words.json"):
         shutil.copy(TOOLS / name, clone / "tools" / name)
     (clone / ".gitignore").write_text("*.env\n.claude/worktrees/\n")
     (clone / "README.md").write_text("hi\n")
@@ -155,16 +158,57 @@ class ShipTests(unittest.TestCase):
             gh.write_text('#!/bin/sh\n[ "$2" = create ] && printf "%s\\n" "$@" > "$GH_LOG"\nexit 0\n')
             gh.chmod(gh.stat().st_mode | stat.S_IEXEC)
             log = Path(tmp) / "gh.log"
-            done = self.ship(clone, "Add a", "--pr", "--draft", "--body", "Why", extra_env={"GH_LOG": str(log)}, path_prefix=str(fake))
+            done = self.ship(clone, "Add a", "--pr", "--draft", "--body", GOOD_BODY, extra_env={"GH_LOG": str(log)}, path_prefix=str(fake))
             self.assertEqual(done.returncode, 0, done.stderr)
             args = log.read_text().splitlines()
             self.assertEqual(args[:2], ["pr", "create"])
             self.assertIn("--draft", args)
             self.assertEqual(args[args.index("--assignee") + 1], "SFenton")
-            body = args[args.index("--body") + 1]
-            self.assertTrue(body.startswith("Why"))
-            self.assertEqual(body, "Why")
+            body = "\n".join(args[args.index("--body") + 1:args.index("--assignee")])
+            self.assertEqual(body, GOOD_BODY)
             self.assertNotIn("Generated with", "\n".join(args))
+
+    def refused_ship(self, *args):
+        """Ship with ``--pr`` against a fake ``gh``; returns (result, whether gh was called to create, commits added)."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "switch", "-q", "-c", "claude/x")
+            (clone / "a.txt").write_text("x")
+            fake = Path(tmp) / "bin"
+            fake.mkdir()
+            gh = fake / "gh"
+            gh.write_text('#!/bin/sh\n[ "$2" = create ] && printf "%s\\n" "$@" > "$GH_LOG"\nexit 0\n')
+            gh.chmod(gh.stat().st_mode | stat.S_IEXEC)
+            log = Path(tmp) / "gh.log"
+            done = self.ship(clone, *args, extra_env={"GH_LOG": str(log)}, path_prefix=str(fake))
+            return done, log.exists(), git(clone, "rev-list", "--count", "main..HEAD")
+
+    def test_pr_with_a_refused_description_stops_before_commit_and_push(self):
+        """Fails if: ``ship.sh --pr`` opens a pull request or commits when ``body-check --strict`` refuses the description (no
+        sections, a generated-by footer, a fix sent elsewhere without a name), or the refusal hides the checker's line."""
+        footer = GOOD_BODY + "\n\n\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)\n"
+        elsewhere = GOOD_BODY.replace("Nothing else changes.", "That fix is in a different repository.")
+        for body in ("Why", footer, elsewhere):
+            done, created, commits = self.refused_ship("Add a", "--pr", "--body", body)
+            self.assertEqual(done.returncode, 1, body)
+            self.assertIn("the description was refused", done.stderr)
+            self.assertFalse(created)
+            self.assertEqual(commits, "0")
+        self.assertIn("footer", self.refused_ship("Add a", "--pr", "--body", footer)[0].stderr)
+        self.assertIn("different repository", self.refused_ship("Add a", "--pr", "--body", elsewhere)[0].stderr)
+
+    def test_pr_with_a_refused_title_or_no_body_stops(self):
+        """Fails if: a title longer than 70 characters or an empty description reaches ``gh pr create``."""
+        done, created, commits = self.refused_ship("A" * 80, "--pr", "--body", GOOD_BODY)
+        self.assertEqual((done.returncode, created, commits), (1, False, "0"))
+        self.assertIn("the title was refused", done.stderr)
+        done, created, _ = self.refused_ship("Add a", "--pr")
+        self.assertEqual((done.returncode, created), (1, False))
+
+    def test_a_push_without_a_pull_request_is_not_checked(self):
+        """Fails if: the description check runs on a ship that opens no pull request."""
+        done, _created, commits = self.refused_ship("Add a", "--no-push")
+        self.assertEqual((done.returncode, commits), (0, "1"))
 
     def test_nothing_to_commit_still_pushes(self):
         with TemporaryDirectory() as tmp:
@@ -263,7 +307,7 @@ class ShipArmTests(unittest.TestCase):
             log, arm_log = Path(tmp) / "gh.log", Path(tmp) / "arm.log"
             env = {**ENV, "PATH": f"{fake}{os.pathsep}{ENV['PATH']}", "GH_LOG": str(log), "GH_REPO_NAME": repo, "HOME": str(home),
                    "PRLAND_LOG": str(arm_log), "PRLAND_RC": arm_rc}
-            done = subprocess.run(["bash", "tools/ship.sh", "Add a", "--pr"], cwd=clone, env=env, capture_output=True, text=True)
+            done = subprocess.run(["bash", "tools/ship.sh", "Add a", "--pr", "--body", GOOD_BODY], cwd=clone, env=env, capture_output=True, text=True)
             return done, log.read_text() if log.exists() else "", arm_log.read_text() if arm_log.exists() else ""
 
     def test_ship_runs_pr_land_with_the_pr_number_after_the_pr_opens(self):

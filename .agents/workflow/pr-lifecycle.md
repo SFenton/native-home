@@ -4,7 +4,7 @@
 
 ## Worktrees
 
-- Every session works in its own linked worktree, never in the shared primary checkout. `tools/hooks/worktree_guard.py` refuses edits, commits and branch changes there.
+- Every session works in its own linked worktree, never in the shared primary checkout. `tools/hooks/worktree_guard.py` refuses edits, commits and branch changes there; reading and fetching stay allowed.
 - A lane is cut with `tools/lane_new.sh` and started with `tools/lane_check.py start`, which refuses a lane that overlaps an open pull request or a recent commit. Join the existing work; never open a parallel pull request.
 - Nothing is merged, cherry-picked or committed onto a local copy of the base branch; `tools/base_drift.py` lists local-only commits.
 - A base merge into a pull-request branch runs in that branch's own worktree.
@@ -13,7 +13,7 @@
 ## Shipping
 
 - A session ends with `tools/ship.sh`, the review and a merge. `ship.sh` commits with the release-note trailer ([versioning](versioning.md#release-notes)) and the co-author trailer, pushes the branch and opens a draft pull request.
-- Commits are small. `tools/hooks/commit_guard.py` refuses `--no-verify` and runs `tools/ship_guard.sh` on every commit and push.
+- Commits are small and cohesive. `tools/hooks/commit_guard.py` refuses `--no-verify` and runs `tools/ship_guard.sh` on every commit and push.
 - `tools/lane_check.py check` passes before the push; a squash uses `tools/lane_check.py squash`, never a reset onto the remote base.
 - An amended or rebased lane branch is pushed with `tools/ship.sh --update`, never a hand-typed force push.
 
@@ -45,4 +45,4 @@
 - A change is followed from its pull request alone: the description is the living view, comments are point-in-time events.
 - `tools/pr_note.py` is the only writer of both. Notes written before the pull request exists queue and post when it opens.
 - Each role posts as its own identity with `--as <role>`: the Verifier posts evidence, the Designer the pick and verdict, the orchestrator handoff, owner and shipped notes and the status line.
-- The review summary in the description belongs to `tools/review/record.py`. The form of titles, descriptions and step comments is in [pr-form](pr-form.md).
+- The review summary in the description belongs to `tools/review/record.py`. Titles, descriptions and comments follow [pr-form](pr-form.md).
