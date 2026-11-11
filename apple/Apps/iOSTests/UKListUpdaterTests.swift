@@ -483,7 +483,7 @@ final class UKListUpdaterTests: XCTestCase {
         removalPlaying(updater, shown: &shown, held: &held)
         XCTAssertTrue(updater.isAnimating)
         var last: Snapshot?
-        updater.redraw(where: { $0 == "a" }, current: { snapshot(["a"]) }, hasWindow: true, perform: { next, _, done in
+        updater.redraw(where: { $0 == "a" }, current: { self.snapshot(["a"]) }, hasWindow: true, perform: { next, _, done in
             last = next
             done()
         })
@@ -503,8 +503,8 @@ final class UKListUpdaterTests: XCTestCase {
             last = next
             done()
         }
-        updater.redraw(where: { $0 == "a" }, current: { snapshot(["a"]) }, hasWindow: true, perform: record)
-        updater.run(snapshot(["a", "c"]), current: { snapshot(["a"]) }, cause: .live, hasWindow: true, perform: record)
+        updater.redraw(where: { $0 == "a" }, current: { self.snapshot(["a"]) }, hasWindow: true, perform: record)
+        updater.run(snapshot(["a", "c"]), current: { self.snapshot(["a"]) }, cause: .live, hasWindow: true, perform: record)
         held.forEach { $0() }
         XCTAssertEqual(last?.itemIdentifiers, ["a", "c"], "the snapshot that arrived later is the list")
         XCTAssertEqual(last?.reconfiguredItemIdentifiers, ["a"], "and the earlier redraw is still in it")
