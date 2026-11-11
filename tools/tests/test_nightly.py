@@ -126,7 +126,7 @@ class ReportTests(unittest.TestCase):
         failed = report.make_result("journeys-iphone", FAIL_LOG, 65, 5, "s1")
         self.assertEqual(failed["status"], "fail")
         self.assertIn("RoomsJourneyTests.testOpen", failed["failed"])
-        infra = report.make_result("journeys-duo", "devcap: hold timeout after 3600s\n", 124, 5)
+        infra = report.make_result("journeys-duo", "devcap: HOLD TIMEOUT: held iphone longer than 1h; releasing.\n", 124, 5)
         self.assertEqual(infra["status"], "infra")
         build = report.make_result("journeys-ipad", "Foo.swift:3:4: error: boom\n** BUILD FAILED **\n", 65, 5)
         self.assertEqual(build["status"], "fail")
