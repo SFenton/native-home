@@ -19,9 +19,13 @@ final class UKHostedSharedInventorySheetsTests: DemoHouseTestCase {
         return (page, model, window)
     }
 
+    /// Opens a bar sheet once the last one is gone. The page clears its sheet state when a dismissal ends, so a press during one opens
+    /// nothing; how long a dismissal takes depends on the machine, so this waits on it rather than for a fixed time.
     private func openSheet(_ fab: String, on page: UKInventoryViewController) throws -> UIViewController {
+        XCTAssertTrue(HostedPage.until { page.shownSheet == nil }, "the last sheet is gone before the next opens")
         XCTAssertTrue(FeatureHost.press(fab, in: page.view))
-        FeatureHost.settle(0.8)
+        XCTAssertTrue(HostedPage.until { page.shownSheet.map { !$0.isBeingPresented } ?? false }, "\(fab) opens its sheet")
+        FeatureHost.settle(0.3)
         return try XCTUnwrap(page.shownSheet)
     }
 
@@ -34,7 +38,6 @@ final class UKHostedSharedInventorySheetsTests: DemoHouseTestCase {
         FeatureHost.settle(0.3)
         XCTAssertEqual(model.sortMode, .title, "choosing does not sort until Apply")
         XCTAssertTrue(FeatureHost.press("filterSheet.apply", in: sheet.view))
-        FeatureHost.settle(0.6)
         XCTAssertEqual(model.sortMode, .expiry)
         XCTAssertEqual(model.sortDirection, .descending)
         XCTAssertTrue(model.sortActive)
@@ -58,7 +61,6 @@ final class UKHostedSharedInventorySheetsTests: DemoHouseTestCase {
         FeatureHost.settle(0.3)
         XCTAssertEqual(model.filterMode, .all, "choosing does not filter until Apply")
         XCTAssertTrue(FeatureHost.press("filterSheet.apply", in: sheet.view))
-        FeatureHost.settle(0.6)
         XCTAssertEqual(model.filterMode, .expired)
 
         sheet = try openSheet("fab.inventory.filter", on: page)

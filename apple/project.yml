@@ -281,12 +281,12 @@ targets:
       - path: Apps/iOSTests
     dependencies:
       - target: FentonHome
-      - package: FentonHomeApple
-        product: HassDesign
+      # HassUI only. It is the one dynamic framework the host app and this bundle share, and it carries HassCore, HassDesign and
+      # HassDemoHouse. Listing HassDesign or HassDemoHouse here as well links a second static copy of them (and of HassCore) into
+      # the bundle: two `HouseConfigSource.shared`, and an `@Observable` write made by test code never reaches a screen that
+      # observes it, because each copy has its own key paths (`.agents/testing/apple/README.md`, "Hosted tests share one copy").
       - package: FentonHomeApple
         product: HassUI
-      - package: FentonHomeApple
-        product: HassDemoHouse
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.home.tests
