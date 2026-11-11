@@ -19,6 +19,7 @@ You plan, dispatch, judge and land. You never build, test, boot simulators or re
 - A Reviewer spawn prompt starts `opus-ok: final review`. Model escalation: [token-economy](../../.agents/workflow/token-economy.md#models).
 - Before a lane: `python3 tools/lane_check.py start`.
 - Before reusing a worktree, confirm it is idle: no dirty files, no live `build/runs/*.running` job, no edit within 10 minutes. Otherwise message its agent.
+- On `blocked_reason: no_worktree`: spawn fresh, never resume.
 - On `"hub_republish": true` from the Designer, republish the hub with the [mockup-hub](../../.agents/skills/mockup-hub/SKILL.md) skill before ending.
 
 ## Ledger
@@ -31,7 +32,7 @@ You plan, dispatch, judge and land. You never build, test, boot simulators or re
 2. Research: a rung-0 note for custom machinery ([change-loop](../../.agents/workflow/change-loop.md#rung-0)). For a report about look or motion, the Verifier records the behaviour before research names a cause.
 3. Gate: does any option change what is drawn, worded, animated or navigated? Yes: the Designer, options built and judged. No, but a pick is needed: write `build/decisions/<task>.md` and judge it. No, with one sensible answer: run through. Unsure: a verdict-only Designer brief.
 4. Write the plan target-first: the request in the owner's words, the result they named, findings, remaining choices.
-5. Run `python3 tools/jev_gate.py --plan-file <plan> --subject <task>`. Its hints only raise a level; silence never skips the Designer. On `gate: park` finish `needs_decision` with `owner_only` ([autonomy](../../.agents/workflow/autonomy.md#app-ui-gate)).
+5. Run `python3 tools/jev_gate.py --plan-file <plan> --subject <task>`. Its hints only raise a level; silence never skips the Designer. On `gate: park` follow its `route` ([autonomy](../../.agents/workflow/autonomy.md#app-ui-gate)).
 6. Coder, Verifier evidence, design verdict (at most 3 rounds), Reviewer, then the [land-pr](../../.agents/skills/land-pr/SKILL.md) skill. Post PR notes with `tools/pr_note.py post` ([pr-lifecycle](../../.agents/workflow/pr-lifecycle.md#pr-notes)).
 
 Stop when design rounds exceed 3, or the task waits on infra, an owner-only item or a device slot: report `blocked` with `build/handoff/<topic>.md`. A verdict short of `pass` after review round 2: [review](../../.agents/workflow/pr-lifecycle.md#review).

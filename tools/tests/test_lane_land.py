@@ -1779,7 +1779,7 @@ class PrGateTests(Repo):
         self.assertEqual([c[0] for c in self.calls], ["design.app_wide"])
 
     def test_an_interactive_pr_is_never_vouched_by_its_own_text_or_author(self):
-        # Agents open PRs under the owner's login with text they wrote: that is not an owner request. The owner uses --owner-ack.
+        # Agents open PRs under the owner's login with text they wrote: that is not an owner request. The owner approves and merges on GitHub.
         for author in ("SFenton", "stranger"):
             with self.subTest(author=author):
                 self.calls.clear()
@@ -2003,6 +2003,34 @@ class PrGateTests(Repo):
     def test_a_forged_gate_line_still_has_to_agree_with_jev(self):
         info = self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD.replace("app_wide=no", "app_wide=yes")})
         self.assertIn("must agree", self.refuses(info, "gate", p_yes=0.05, env=self.AGENT))
+
+    def test_only_a_park_carries_the_park_flag_and_exit_status(self):
+        """Fails if: a forged gate line or a missing design record is marked a park (the owner's approval would answer it), or a park loses its flag."""
+        bare = self.GOOD.replace("Gate: app_wide=no\n", "")
+        for p_yes, word in ((0.5, "unsure"), (0.9, "app-wide"), (None, "unavailable")):
+            with self.subTest(word):
+                info = self.pr({self.VIEW: "x\n", self.RECORD: bare})
+                with self.assertRaises(lane_land.Refused) as cm:
+                    self.gate(info, p_yes=p_yes, env=self.AGENT)
+                self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", True))
+        forged = self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD.replace("app_wide=no", "app_wide=yes")})
+        with self.assertRaises(lane_land.Refused) as cm:
+            self.gate(forged, p_yes=0.05, env=self.AGENT)
+        self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", False))
+        for p_yes in (0.5, 0.9):  # `Gate: app_wide=no` against an unsure or app-wide answer is a contradiction, never a park
+            with self.subTest(f"contradiction at {p_yes}"):
+                with self.assertRaises(lane_land.Refused) as cm:
+                    self.gate(self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD}), p_yes=p_yes, env=self.AGENT)
+                self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", False))
+                self.assertIn("must agree", str(cm.exception))
+        for refusal in (lane_land.Refused("no record", "design"), lane_land.Refused("must agree", "gate"),
+                        lane_land.Refused("owner-only set", "paths")):
+            self.assertFalse(refusal.park)
+        out = io.StringIO()
+        for raised, code in ((lane_land.Refused("q", "gate", park=True), lane_land.PARK_EXIT), (lane_land.Refused("q", "gate"), 2)):
+            with mock.patch.object(lane_land, "pr_gate", side_effect=raised), redirect_stderr(out), \
+                    mock.patch.object(lane_land.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=json.dumps({}), stderr="")):
+                self.assertEqual(lane_land.main(["gate", "--pr", "7"]), code)
 
     def test_the_cli_reports_the_exit_code(self):
         out = io.StringIO()

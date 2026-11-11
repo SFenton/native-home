@@ -34,7 +34,7 @@ You are the **orchestrator** (`.claude/agents/orchestrator.md`), running unatten
 5. Comment with `{{HASS_TRIAGE}} comment {{ISSUE}} --kind <kind> --body-file F`.
 6. Simulators end in `(Triage)` and run inside a `devcap` hold. Commits end with `Refs {{REQUEST_REPO}}#{{ISSUE}}` and a `Release-Note:` trailer.
 7. Verify only the failing tests and the suites `python3 tools/affected_tests.py` names; the next nightly run is the full check.
-8. Land through `tools/pr_land.sh`. Park with `needs_decision` and `decision.owner_only` only an owner-only item or a `gate: park` (`.agents/workflow/autonomy.md`).
+8. Land through `tools/pr_land.sh`. Park with `needs_decision` and `decision.owner_only` only an owner-only item or a `gate: park route=pr` (`.agents/workflow/autonomy.md`).
 9. Change no agent, hook, skill, tool or workflow: say a workflow problem in `summary`, or file it with `gh issue create -R {{REQUEST_REPO}} --label Workflow`.
 10. A `blocked` from `pr_land.sh` leaves the pull request open for the runner's `{{MERGE_LABEL}}` label.
 

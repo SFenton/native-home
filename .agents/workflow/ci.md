@@ -8,7 +8,7 @@
 |---|---|---|
 | `pr-checks.yml` | Every pull request and every push to `main`; hosted runners | Repository checks, tool tests, the house-data scan, the app build, Smoke on iPhone, Duo and iPad, the journeys and Swift suites the diff reaches, and the coverage floor on the changed files. Its aggregate job `pr-checks` is the required check. |
 | `ios-release.yml` | Every push to `main`; hosted runners | Tags the next version, builds, signs and uploads it ([versioning](versioning.md)). It runs no tests and does not wait for `pr-checks`. |
-| `nightly.yml` | Dispatch only; the self-hosted Macs | The full device journeys on all three families and the coverage floor. |
+| `nightly.yml` | Daily and dispatch; hosted runners | The Gate journeys, one runner per family and shard, and the full coverage floor on one runner. |
 | `release-health.yml` | Daily | One issue per silent release failure class. |
 | `runtimes.yml` | Weekly | Smoke on the older supported iOS runtimes; advisory. |
 
@@ -31,6 +31,7 @@ Job names, runner labels, repository variables and schedules live in the workflo
 - Red tool tests on `main` file or update one workflow issue (job `report-red-main`); the next green run on `main` closes it (job `close-red-main`).
 - A pull request that touches the Core or Design packages runs every Swift suite; any other app pull request runs the suites its diff reaches.
 - A run on `main` is never cancelled by a newer run; a pull request's newer run cancels its older one.
+- The nightly caps its journeys matrix so one of the account's five macOS slots stays free for pull requests.
 - Every self-hosted job starts with the disk preflight of `tools/ci_hygiene.py`, and every compile or simulator run there takes a capacity hold ([capacity](token-economy.md#capacity)).
 - A change under `.github/` waits for the owner's approval ([landing](pr-lifecycle.md#landing)).
 

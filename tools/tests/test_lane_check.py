@@ -496,5 +496,114 @@ class OverlapCheckTests(unittest.TestCase):
             self.assertIn("other change", done.stderr)
 
 
+class ScopeCheckTests(unittest.TestCase):
+    def lane_declaring(self, tmp, *paths):
+        """A lane on agents/x that declared ``paths`` at start."""
+        clone, _ = make_repo(tmp)
+        git(clone, "switch", "-q", "-c", "agents/x")
+        env = fake_gh(tmp, [])
+        self.assertEqual(start(clone, env, *paths).returncode, 0)
+        return clone, env
+
+    def test_a_stray_file_fails_and_is_named_while_declared_files_pass(self):
+        """Fails if: a file outside the declared paths passes `check --only scope`, is not named, or a declared file/dir/glob is flagged."""
+        with TemporaryDirectory() as tmp:
+            clone, env = self.lane_declaring(tmp, "tools/lane_check.py", "tools/tests", "docs/*.md")
+            commit(clone, "tools/lane_check.py", "x\n", "in scope")
+            commit(clone, "tools/tests/t.py", "x\n", "in dir")
+            commit(clone, "docs/a.md", "x\n", "in glob")
+            self.assertEqual(lane(clone, "check", "--only", "scope", env=env).returncode, 0)
+            commit(clone, "tools/test_devcap.py", "x\n", "stray")
+            done = lane(clone, "check", "--only", "scope", env=env)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("tools/test_devcap.py", done.stderr)
+            self.assertNotIn("docs/a.md", done.stderr)
+
+    def test_an_uncommitted_stray_file_fails(self):
+        """Fails if: an untracked file outside the declared paths escapes the check."""
+        with TemporaryDirectory() as tmp:
+            clone, env = self.lane_declaring(tmp, "tools/")
+            (clone / "stray.txt").write_text("x\n")
+            done = lane(clone, "check", "--only", "scope", env=env)
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("stray.txt", done.stderr)
+
+    def test_ack_scope_passes_prints_and_is_recorded(self):
+        """Fails if: --ack-scope still fails, omits the reason, or a later plain `check` fails again."""
+        with TemporaryDirectory() as tmp:
+            clone, env = self.lane_declaring(tmp, "tools/")
+            commit(clone, "stray.txt", "x\n", "stray")
+            done = lane(clone, "check", "--only", "scope", "--ack-scope", "needed for the fixture", env=env)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertIn("needed for the fixture", done.stdout)
+            self.assertEqual(lane(clone, "check", "--only", "scope", env=env).returncode, 0)
+
+    def test_a_synced_jev_question_file_is_exempt(self):
+        """Fails if: a contracts/jev/questions file, which `jev_ask.py sync` writes, counts as out of scope."""
+        with TemporaryDirectory() as tmp:
+            clone, env = self.lane_declaring(tmp, "tools/")
+            commit(clone, "contracts/jev/questions/learning.json", "{}\n", "sync")
+            done = lane(clone, "check", "--only", "scope", env=env)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_an_ack_covers_only_the_files_it_named(self):
+        """Fails if: after one --ack-scope, a stray file added later passes, or the acked file stops passing."""
+        with TemporaryDirectory() as tmp:
+            clone, env = self.lane_declaring(tmp, "tools/")
+            commit(clone, "stray.txt", "x\n", "stray")
+            self.assertEqual(lane(clone, "check", "--only", "scope", "--ack-scope", "why", env=env).returncode, 0)
+            commit(clone, "second.txt", "x\n", "another stray")
+            done = lane(clone, "check", "--only", "scope", env=env)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("second.txt", done.stderr)
+            self.assertNotIn("stray.txt,", done.stderr)
+
+    def test_untracked_files_in_a_subdirectory_are_repo_relative(self):
+        """Fails if: running from a subdirectory reports an untracked file relative to it, so a declared file looks stray or a stray looks declared."""
+        with TemporaryDirectory() as tmp:
+            clone, env = self.lane_declaring(tmp, "tools/")
+            (clone / "tools").mkdir(exist_ok=True)
+            (clone / "tools" / "new.py").write_text("x\n")
+            self.assertEqual(lane(clone / "tools", "check", "--only", "scope", env=env).returncode, 0)
+            (clone / "docs").mkdir()
+            (clone / "docs" / "n.md").write_text("x\n")
+            done = lane(clone / "docs", "check", "--only", "scope", env=env)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("docs/n.md", done.stderr)
+
+    def test_files_that_arrive_from_a_newer_main_do_not_count(self):
+        """Fails if: after merging a newer origin/main into the lane, main's files are reported as strays."""
+        with TemporaryDirectory() as tmp:
+            clone, env = self.lane_declaring(tmp, "tools/")
+            commit(clone, "tools/mine.py", "x\n", "mine")
+            other = Path(tmp) / "other"
+            git(other, "pull", "-q")
+            commit(other, "unrelated/from_main.txt", "x\n", "main moves")
+            git(other, "push", "-q", "origin", "main")
+            git(clone, "fetch", "-q", "origin")
+            git(clone, "merge", "-q", "--no-edit", "origin/main")
+            done = lane(clone, "check", "--only", "scope", env=env)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_a_lane_branch_without_start_gets_a_loud_warning_but_passes(self):
+        """Fails if: an agents/* branch with no lane base fails, or only gets the quiet note instead of WARNING."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "switch", "-q", "-c", "agents/y")
+            done = lane(clone, "check", "--only", "scope")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertIn("WARNING", done.stderr)
+
+    def test_no_lane_base_fails_open_with_a_note(self):
+        """Fails if: a checkout with no recorded lane base fails the scope check, or says nothing."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "switch", "-q", "-c", "scratch/x")
+            commit(clone, "stray.txt", "x\n", "stray")
+            done = lane(clone, "check", "--only", "scope")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertIn("scope check skipped", done.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
