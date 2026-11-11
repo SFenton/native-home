@@ -9,10 +9,10 @@ from unittest import mock
 SCRIPT = Path(__file__).resolve().parents[1] / "ci_macos.sh"
 
 #: Logs its arguments; fails when STUB_FAIL names the script (e.g. "settle").
-STUB = '#!/bin/bash\necho "$(basename "$0") $*${FENTON_SIM_SLIM:+ [FENTON_SIM_SLIM=$FENTON_SIM_SLIM]}" >> "$STUB_LOG"\n[ "$STUB_FAIL" = "$(basename "$0")" ] && exit "${STUB_RC:-1}"\nexit 0\n'
+STUB = '#!/bin/bash\necho "$(basename "$0") $*${FENTON_SIM_SLIM:+ [FENTON_SIM_SLIM=$FENTON_SIM_SLIM]}${FENTON_HOSTED_FILTER:+ [FENTON_HOSTED_FILTER=$FENTON_HOSTED_FILTER]}" >> "$STUB_LOG"\n[ "$STUB_FAIL" = "$(basename "$0")" ] && exit "${STUB_RC:-1}"\nexit 0\n'
 HEARTBEAT = '#!/bin/bash\necho "heartbeat $*" >> "$STUB_LOG"\nshift 2\nexec "$@"\n'
-#: A selection tool: prints STUB_RUNNABLE for a --plan Gate call and STUB_ALL otherwise.
-AFFECTED = '#!/bin/bash\nfor a in "$@"; do [ "$a" = Gate ] && { echo -n "$STUB_RUNNABLE"; exit "${STUB_AFFECTED_RC:-0}"; }; done\necho -n "$STUB_ALL"\n'
+#: A selection tool: prints STUB_HOSTED (exit STUB_HOSTED_RC) for --hosted, STUB_RUNNABLE for a --plan Gate call and STUB_ALL otherwise.
+AFFECTED = '#!/bin/bash\nfor a in "$@"; do [ "$a" = --hosted ] && { echo -n "$STUB_HOSTED"; exit "${STUB_HOSTED_RC:-0}"; }; done\nfor a in "$@"; do [ "$a" = Gate ] && { echo -n "$STUB_RUNNABLE"; exit "${STUB_AFFECTED_RC:-0}"; }; done\necho -n "$STUB_ALL"\n'
 
 
 class CiMacosTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class CiMacosTests(unittest.TestCase):
     def run_script(self, *args, **extra):
         env = {"CI_MACOS_UITEST": str(self.dir / "uitest"), "CI_MACOS_SETTLE": str(self.dir / "settle"), "CI_MACOS_SLIM": str(self.dir / "slim"),
                "CI_MACOS_HEARTBEAT": str(self.dir / "heartbeat"), "CI_MACOS_AFFECTED": str(self.dir / "affected"),
-               "CI_MACOS_TIMINGS": str(self.timings), "CI_MACOS_RELEASE": str(self.dir / "release"), "CI_MACOS_SWIFT": str(self.dir / "swift"), "FENTON_AFFECTED_BASE": "", "STUB_LOG": str(self.log), "STUB_FAIL": "", "STUB_RUNNABLE": "", "STUB_ALL": "",
+               "CI_MACOS_TIMINGS": str(self.timings), "CI_MACOS_RELEASE": str(self.dir / "release"), "CI_MACOS_SWIFT": str(self.dir / "swift"), "FENTON_AFFECTED_BASE": "", "STUB_LOG": str(self.log), "STUB_FAIL": "", "STUB_RUNNABLE": "", "STUB_ALL": "", "STUB_HOSTED": "", "STUB_HOSTED_RC": "0",
                "GITHUB_STEP_SUMMARY": str(self.dir / "summary")}
         env.update(extra)
         with mock.patch.dict("os.environ", env):
@@ -97,6 +97,11 @@ class CiMacosTests(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("uitest --only iphone --changed --force", log)
 
+    def test_the_journeys_step_leaves_the_hosted_classes_to_the_hosted_step(self):
+        out, log = self.run_script("journeys", "iphone", STUB_RUNNABLE="A", STUB_ALL="A")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("uitest --only iphone --changed --force --no-hosted", log)  # otherwise the classes run twice and a pick fails this step
+
     def test_journeys_skip_when_gate_runs_none_of_the_ones_the_diff_reaches(self):
         out, log = self.run_script("journeys", "duo", STUB_RUNNABLE="", STUB_ALL="LiveOnly")
         self.assertEqual(out.returncode, 0)
@@ -114,6 +119,43 @@ class CiMacosTests(unittest.TestCase):
         out, log = self.run_script("journeys", "ipad", STUB_RUNNABLE="", STUB_ALL="", STUB_AFFECTED_RC="3")
         self.assertEqual(out.returncode, 0)
         self.assertIn("uitest --only ipad --changed --force", log)
+
+    def test_hosted_runs_the_diffs_classes_plain_on_iphone_and_is_timed(self):
+        out, log = self.run_script("hosted", "iphone", STUB_HOSTED="UKHostedAATests UKHostedBBTests")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("uitest --only iphone --hosted --force [FENTON_HOSTED_FILTER=UKHostedAATests UKHostedBBTests]", log)
+        self.assertNotIn("--changed", log)
+        self.assertNotIn("--impact", log)
+        self.assertEqual([p[0] for p in self.phases()], ["hosted-iphone"])
+
+    def test_hosted_skips_when_the_diff_reaches_no_hosted_class(self):
+        out, log = self.run_script("hosted", "iphone", STUB_HOSTED="")
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("skipped: no hosted class the diff reaches", out.stdout)
+        self.assertNotIn("uitest", log)
+
+    def test_hosted_runs_the_whole_suite_when_a_file_cannot_be_placed(self):
+        out, log = self.run_script("hosted", "iphone", STUB_HOSTED="UKHostedAATests", STUB_HOSTED_RC="3", FENTON_HOSTED_FILTER="stale")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("running every hosted class", out.stdout)
+        self.assertIn("uitest --only iphone --hosted --force", log)
+        self.assertNotIn("FENTON_HOSTED_FILTER", log)  # no filter, not even the caller's: the whole suite
+
+    def test_a_crash_of_the_selection_tool_fails_the_hosted_step(self):
+        out, log = self.run_script("hosted", "iphone", STUB_HOSTED_RC="2")
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("uitest", log)
+
+    def test_a_failed_hosted_run_fails_the_step(self):
+        out, _ = self.run_script("hosted", "iphone", STUB_HOSTED="UKHostedAATests", STUB_FAIL="uitest")
+        self.assertEqual(out.returncode, 1)
+        self.assertEqual(self.phases()[-1][2], "1")
+
+    def test_hosted_is_iphone_only(self):
+        for family in ("duo", "ipad", "all"):
+            out, log = self.run_script("hosted", family, STUB_HOSTED="UKHostedAATests")
+            self.assertEqual(out.returncode, 2, family)
+            self.assertNotIn("uitest", log)
 
     def test_a_crash_of_the_selection_tool_fails_the_step(self):
         out, _ = self.run_script("journeys", "iphone", STUB_AFFECTED_RC="2")
