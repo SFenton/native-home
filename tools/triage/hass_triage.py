@@ -62,6 +62,12 @@ API = "https://api.github.com"
 UPLOADS = "https://uploads.github.com/user-attachments/assets"
 MAX_MEDIA_BYTES = 10 * 1024 * 1024
 ATTACHMENT_URL = re.compile(r"https://github\.com/user-attachments/(?:assets|files)/[A-Za-z0-9-]+(?:/[^\s)\"'<>]*)?")
+#: The comment the runner posts on the public pull request when the worker's text fails the house-data check.
+GENERIC_PULL_QUESTION = ("An owner decision is needed before this pull request can land. "
+                         "The question and options are on the request issue.")
+#: The last line of the pull request question: only what works today (nothing reads replies or approvals there yet).
+PULL_DECIDE_LINE = ("To decide: reply on the request issue with your pick, or approve and merge this pull request "
+                    "to accept the recommendation.")
 RUNNER_MARKER = re.compile(r"<!-- hass-triage:\d+:[a-z-]+ -->")
 MISSING_LABEL = re.compile(r"'([^']+)' not found")
 #: Lines of the worker log kept in the evidence archive.
@@ -2702,24 +2708,56 @@ class Runner:
         self.state.record(n, "parked", pr)
         return "parked"
 
-    def post_pull_question(self, pr: str, decision: Dict[str, Any], options: str) -> None:
-        """Post the parked question once on the pull request itself, with the runner's ``decision-needed`` marker.
+    def public_safe(self, text: str) -> bool:
+        """May ``text`` go to the public product repository? Fails closed: ``False`` on any house-data hit (``tools/house_scan.py``
+        with the owner's denylist), the private request repository's name or an issue link into it, a denylist that is not
+        loaded, or any checker error. Counts only are printed, never a matched term."""
+        try:
+            import house_scan
+            deny = house_scan.load_denylist()
+            if not deny:
+                print("pull request question: denylist not loaded; posting the generic comment")
+                return False
+            hits = house_scan.scan_text("pull-comment.md", text, house_scan.load_config(), deny)
+            name = str(self.cfg.get("request_repo") or "").strip()
+            leaked = bool(name) and any(part.lower() in text.lower() for part in {name, name.split("/")[-1]} if part)
+            if hits or leaked:
+                print(f"pull request question: {len(hits) + int(leaked)} house-data hit(s); posting the generic comment")
+                return False
+            return True
+        except Exception as exc:  # noqa: BLE001  a checker that cannot run must never let text through
+            print(f"pull request question: house-data check failed ({type(exc).__name__}); posting the generic comment")
+            return False
 
-        The owner decides where the pull request is, so the question, the numbered options and how to answer are there too.
-        Fail safe (a failed read or post is logged and the park goes on) and idempotent (a pull request that already carries
-        the marker gets nothing new). The issue comment is unchanged; nothing here reads replies."""
+    def post_pull_question(self, pr: str, decision: Dict[str, Any], options: str) -> None:
+        """Post the parked question on the pull request itself, as the runner's ``decision-needed`` marker comment.
+
+        The pull request is on the public product repository, so the worker's text is posted only after :meth:`public_safe`
+        passes; otherwise the comment is the fixed :data:`GENERIC_PULL_QUESTION` with no worker text. A second park edits the
+        runner's own marker comment in place when the text changed and does nothing when it did not; a marker comment by anyone
+        else is ignored. Nothing reads replies or approvals on the pull request yet, so the last line names only what works.
+        Fail safe: any failure is logged and the park goes on. The issue comment is unchanged."""
         try:
             number = int(pr.rstrip("/").rsplit("/", 1)[1])
             repo = self.cfg["product_repo"]
-            tag = marker(number, "decision-needed")
-            if not self.gh.dry_run and any(tag in (c.get("body") or "") for c in self.gh.comments(repo, number)):
-                return
             numbered = "\n".join(f"{i}. **{o.get('key', i)}**: {o.get('summary', '')}" if isinstance(o, dict) else f"{i}. {o}"
                                  for i, o in enumerate(decision.get("options") or [], 1)) or options
             text = (f"{decision.get('question', '')}\n\n{numbered}\n\nRecommended: **{decision.get('recommendation', '?')}**.\n\n"
-                    "Reply `1`, `2` or `3` here, or approve this pull request to accept the recommendation.")
-            self.gh.create_comment(repo, number, render_update(number, "decision-needed", text, []))
-        except (TriageError, ValueError, IndexError) as exc:
+                    f"{PULL_DECIDE_LINE}")
+            body = render_update(number, "decision-needed", text, [])
+            if not self.public_safe(body):
+                body = render_update(number, "decision-needed", GENERIC_PULL_QUESTION, [])
+            if self.gh.dry_run:
+                return
+            tag = marker(number, "decision-needed")
+            own = {x.lower() for x in [*self.authors, str(self.cfg.get("agent_login") or "")] if x}
+            for comment in self.gh.comments(repo, number):
+                if tag in (comment.get("body") or "") and author(comment).lower() in own:
+                    if (comment.get("body") or "").strip() != body.strip():
+                        self.gh.edit_comment(repo, int(comment["id"]), body)
+                    return
+            self.gh.create_comment(repo, number, body)
+        except Exception as exc:  # noqa: BLE001  the question on the pull request is a courtesy; the park must stay intact
             print(f"{pr}: could not post the question on the pull request: {redact(str(exc))[:200]}")
 
     def finish_done(self, n: int, status: Dict[str, Any], pr: str) -> str:

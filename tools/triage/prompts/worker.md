@@ -115,7 +115,7 @@ checks pass` on the result comment (shadow: it does not gate, but fill it in hon
      request is not confirmed as matching, or agent-initiated work is app-wide or unsure, or Jev is unavailable) means
      build nothing beyond what shows the owner the options and finish `needs_decision` with `"decision"."owner_only"` set
      to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; with an open `pr` the runner parks it and posts the
-     question, with the numbered options, on the pull request and on the issue, otherwise it posts it on the issue. A `needs_decision` without `owner_only` for a design or policy pick is sent straight back to
+     question, with the numbered options, on the issue and on the pull request, otherwise only on the issue. The pull request is on the public repository, so the runner checks that text for house data and the private repository's name first, and posts a generic comment instead when anything matches: write the question and options without entity ids, names, addresses or links to the request repository. Owners decide on the request issue (or by merging the pull request to accept your recommendation); nothing reads replies on the pull request. A `needs_decision` without `owner_only` for a design or policy pick is sent straight back to
      you to judge and land.
 5. **Reproduce** on the reported device family first (a `coder` or `verifier` job): a unit test, a hosted render, or the
    app on a simulator signed in to the live Home Assistant with `tools/ios_uitest.sh --env shell --only iphone|duo|ipad`

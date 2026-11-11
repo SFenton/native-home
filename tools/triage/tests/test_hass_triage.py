@@ -1493,16 +1493,109 @@ class ParkTests(Base):
         self.assertEqual(runner.state.attempts(80), 0)
         self.assertFalse([c for c in self.commands if "worktree" in c and "remove" in c])
 
+    def pr_comments(self, gh):
+        return [c for c in gh.comment_store.get(PR_NUMBER, []) if ht.marker(PR_NUMBER, "decision-needed") in c["body"]]
+
+    def with_denylist(self, terms="zzfixtureterm\n"):
+        path = Path(tempfile.mkdtemp()) / "deny.txt"
+        path.write_text(terms)
+        path.chmod(0o600)
+        return mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": str(path)})
+
+    def park_with(self, question="Which chip layout?", option="Inline", n=90, gh=None, repo=""):
+        gh = gh or FakeGitHub([issue(n, labels=["Feature"])])
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        status = self.decision_status()
+        status["decision"]["question"] = question
+        status["decision"]["options"][0]["summary"] = option
+        runner = self.runner(gh, status)
+        if repo:
+            runner.cfg["request_repo"] = repo
+        with mock.patch("sys.stdout", new=io.StringIO()) as out:
+            runner.park(n, status, status["decision"], "- A", PRODUCT_PR)
+        return gh, runner, out.getvalue()
+
     def test_park_asks_once_on_the_pull_request_and_once_on_the_issue(self):
-        gh, runner, _ = self.park()
-        on_pr = [c for c in gh.comment_store[PR_NUMBER] if ht.marker(PR_NUMBER, "decision-needed") in c["body"]]
+        with self.with_denylist():
+            gh, runner, _ = self.park()
+            on_pr = self.pr_comments(gh)
+            self.assertEqual(len(on_pr), 1)
+            for part in ("Which chip layout?", "1. **A**: Inline", "2. **B**: Stacked", "Recommended: **A**",
+                         "To decide: reply on the request issue with your pick, or approve and merge this pull request "
+                         "to accept the recommendation."):
+                self.assertIn(part, on_pr[0]["body"])
+            self.assertTrue(on_pr[0]["body"].split("\n\n<!--")[0].endswith("to accept the recommendation."))
+            self.assertNotIn("Reply `1`", on_pr[0]["body"])
+            self.assertEqual(len([c for c in gh.comment_store[80] if ht.marker(80, "decision-needed") in c["body"]]), 1)
+            before = len(gh.calls)
+            runner.park(80, self.decision_status(), self.decision_status()["decision"], "- A", PRODUCT_PR)  # identical repeat
+            self.assertEqual(len(gh.comment_store[PR_NUMBER]), 1)
+            self.assertFalse([c for c in gh.calls[before:] if c[0] == "edit" and c[1] == on_pr[0]["id"]])
+
+    def test_a_second_park_with_new_text_edits_the_runners_comment_in_place(self):
+        with self.with_denylist():
+            gh, _, _ = self.park_with()
+            gh, _, _ = self.park_with(question="Which toggle style?", gh=gh)
+            on_pr = self.pr_comments(gh)
+            self.assertEqual(len(on_pr), 1)
+            self.assertIn("Which toggle style?", on_pr[0]["body"])
+            self.assertNotIn("Which chip layout?", on_pr[0]["body"])
+
+    def test_a_marker_comment_by_another_author_is_ignored(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(91, labels=["Feature"])])
+            tag = ht.marker(PR_NUMBER, "decision-needed")
+            gh.comment_store[PR_NUMBER] = [{"id": 5, "body": tag, "user": {"login": "stranger"}}]
+            gh, _, _ = self.park_with(gh=gh, n=91)
+            self.assertEqual(gh.comment_store[PR_NUMBER][0]["body"], tag)
+            self.assertEqual(len(gh.comment_store[PR_NUMBER]), 2)
+            self.assertIn("Which chip layout?", gh.comment_store[PR_NUMBER][1]["body"])
+
+    def assert_generic(self, gh, out, secret):
+        on_pr = self.pr_comments(gh)
         self.assertEqual(len(on_pr), 1)
-        for part in ("Which chip layout?", "1. **A**: Inline", "2. **B**: Stacked", "Recommended: **A**",
-                     "Reply `1`, `2` or `3` here, or approve this pull request to accept the recommendation."):
-            self.assertIn(part, on_pr[0]["body"])
-        self.assertEqual(len([c for c in gh.comment_store[80] if ht.marker(80, "decision-needed") in c["body"]]), 1)
-        runner.park(80, self.decision_status(), self.decision_status()["decision"], "- A", PRODUCT_PR)  # a repeat tick
-        self.assertEqual(len(gh.comment_store[PR_NUMBER]), 1)
+        self.assertIn(ht.GENERIC_PULL_QUESTION, on_pr[0]["body"])
+        self.assertNotIn("Which chip layout?", on_pr[0]["body"])
+        self.assertNotIn(secret, on_pr[0]["body"])
+        self.assertNotIn(secret, out)
+
+    def test_a_denylisted_term_posts_the_generic_comment_and_prints_no_term(self):
+        with self.with_denylist("zzfixtureterm\n"):
+            gh, _, out = self.park_with(option="uses zzfixtureterm lamp")
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("hit(s)", out)
+
+    def test_the_private_repository_name_or_an_issue_link_posts_the_generic_comment(self):
+        repo = "Fixture/zzprivate-requests"
+        for n, leak in ((92, "zzprivate-requests"), (93, f"https://github.com/{repo}/issues/12")):
+            with self.with_denylist():
+                gh, _, out = self.park_with(option=f"see {leak}", n=n, repo=repo)
+            self.assert_generic(gh, out, "zzprivate-requests")
+
+    def test_an_unloaded_denylist_posts_the_generic_comment(self):
+        with mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": str(Path(tempfile.mkdtemp()) / "none.txt")}):
+            gh, _, out = self.park_with()
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("denylist not loaded", out)
+
+    def test_a_checker_error_posts_the_generic_comment(self):
+        with self.with_denylist(), mock.patch("house_scan.scan_text", side_effect=RuntimeError("boom zzfixtureterm")):
+            gh, _, out = self.park_with()
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("check failed", out)
+
+    def test_any_post_failure_leaves_the_park_intact(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(94, labels=["Feature"])])
+            real = gh.comments
+
+            def comments(repo, n):
+                if n == PR_NUMBER:
+                    raise AttributeError("odd")
+                return real(repo, n)
+            gh.comments = comments
+            gh2, runner, _ = self.park_with(gh=gh, n=94)
+            self.assertIn("94", runner.state.data["parked"])
 
     def test_a_failing_pull_request_post_never_stops_the_park(self):
         gh = FakeGitHub([issue(86, labels=["Feature"])])
