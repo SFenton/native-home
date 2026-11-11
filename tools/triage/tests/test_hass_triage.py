@@ -772,6 +772,7 @@ class NightlyIntakeTests(Base):
 
 
 PRODUCT_PR = "https://github.com/SFenton/native-home/pull/70"
+PR_NUMBER = 70
 
 
 class LabelRetryTests(Base):
@@ -1491,6 +1492,32 @@ class ParkTests(Base):
         self.assertEqual(runner.state.data["parked"]["80"]["pr"], PRODUCT_PR)
         self.assertEqual(runner.state.attempts(80), 0)
         self.assertFalse([c for c in self.commands if "worktree" in c and "remove" in c])
+
+    def test_park_asks_once_on_the_pull_request_and_once_on_the_issue(self):
+        gh, runner, _ = self.park()
+        on_pr = [c for c in gh.comment_store[PR_NUMBER] if ht.marker(PR_NUMBER, "decision-needed") in c["body"]]
+        self.assertEqual(len(on_pr), 1)
+        for part in ("Which chip layout?", "1. **A**: Inline", "2. **B**: Stacked", "Recommended: **A**",
+                     "Reply `1`, `2` or `3` here, or approve this pull request to accept the recommendation."):
+            self.assertIn(part, on_pr[0]["body"])
+        self.assertEqual(len([c for c in gh.comment_store[80] if ht.marker(80, "decision-needed") in c["body"]]), 1)
+        runner.park(80, self.decision_status(), self.decision_status()["decision"], "- A", PRODUCT_PR)  # a repeat tick
+        self.assertEqual(len(gh.comment_store[PR_NUMBER]), 1)
+
+    def test_a_failing_pull_request_post_never_stops_the_park(self):
+        gh = FakeGitHub([issue(86, labels=["Feature"])])
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        create = gh.create_comment
+
+        def failing(repo, n, body):
+            if n == PR_NUMBER:
+                raise ht.TriageError("denied")
+            create(repo, n, body)
+        gh.create_comment = failing
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(self.runner(gh, self.decision_status()).work(86), "parked")
+        self.assertIn(("label_pull", PRODUCT_PR, "Needs Decision", ""), gh.calls)
+        self.assertEqual(len([c for c in gh.comment_store[86] if ht.marker(86, "decision-needed") in c["body"]]), 1)
 
     def test_a_design_pick_is_not_parked_it_is_sent_back_to_be_judged(self):
         gh = FakeGitHub([issue(85, labels=["Feature"])])

@@ -24,7 +24,7 @@ Owner clarification (2026-11-03): "app UI changes" that need the owner are **bro
 2. **Agent-initiated work** (no owner request: retro and Steward lanes, nightly fixes): Jev `design.app_wide` (state `change` = the plan). Autonomous only on a confident no (p < 0.3: the change is local to a screen); yes or unsure counts as app-wide: park.
 3. **Jev unavailable or a question file missing**: park (fail safe).
 
-Parking is `needs_decision` with `decision.owner_only` set to `app_wide` (agent-initiated), `unmatched` (request not confirmed) or `gate_unavailable`. The gate is a hint for the orchestrator's own judgement of the same two questions, not a replacement; when it parks, nothing is built beyond what is needed to show the owner the options.
+On `gate: park route=session` an interactive session does not finish `needs_decision`: it shows the options and has the owner type the pick ([agent-roster](agent-roster.md#questions)). On `route=pr`, parking is `needs_decision` with `decision.owner_only` set to `app_wide` (agent-initiated), `unmatched` (request not confirmed) or `gate_unavailable`. The gate is a hint for the orchestrator's own judgement of the same two questions, not a replacement; when it parks, nothing is built beyond what is needed to show the owner the options.
 
 ## Timing and defaults are not visible
 
@@ -51,6 +51,6 @@ Every page, modal, component and flow has a mockup on iPhone, Duo and iPad in [.
 
 ## What still waits for the owner
 
-Only `needs_decision` with `owner_only` set: the fixed set ([agent-roster](agent-roster.md#autonomy-levels)) and a `gate: park` from the app-UI gate above. The runner parks that PR (`Needs Decision`, `pr_land.sh` refuses it). A design or policy pick that finishes `needs_decision` without `owner_only` is sent back to be judged and landed.
+Only `needs_decision` with `owner_only` set: the fixed set ([agent-roster](agent-roster.md#autonomy-levels)) and a `gate: park route=pr` from the app-UI gate above (`route=session` is decided in the session). The runner parks that PR (`Needs Decision`, `pr_land.sh` refuses it). A design or policy pick that finishes `needs_decision` without `owner_only` is sent back to be judged and landed.
 
 **Questions to the owner (2026-11-04).** `AskUserQuestion` is for owner-only decisions only; see [agent-roster](agent-roster.md#questions).

@@ -78,10 +78,8 @@ brief states the objective, the output (files plus the status block), the source
    `{{MERGE_LABEL}}` for the owner.
 8. Post `{{HASS_TRIAGE}} comment {{ISSUE}} --kind resolution --body-file <file>` with what changed.
 9. **L2 (rare for a nightly fix).** If the only fix is a new pattern, layout, copy or motion with no owner decision on
-   record, have the `designer` write mockups plus a recommendation, have the `coder` build the recommended option, push
-   and open the pull request, and **do not land it**: finish `needs_decision` with `"pr"` and `"decision"` (`question`,
-   `options`, `recommendation`, `mockups`). The runner labels the pull request `Needs Decision` and waits for the
-   owner's pick (a reply, which restarts you on the same branch) or for the owner to merge it.
+   record, L2 does not park: build up to 3 options, have the `designer` judge them and record the pick, and land it
+   (`.agents/workflow/propose-first.md`). Only an owner-only `gate: park route=pr` finishes `needs_decision`.
 10. Never: print or commit a token or password; change signing, CI secrets, workflows or other repositories; touch the
    owner's checkouts under `~/repos`; force-push; merge except through `tools/pr_land.sh` (product); never run `lane_land.py`. Stop any servers, watchers
    or simulators you started.

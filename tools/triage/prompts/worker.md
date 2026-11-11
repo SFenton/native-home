@@ -111,11 +111,11 @@ checks pass` on the result comment (shadow: it does not gate, but fill it in hon
      needed only for broad, app-wide changes they did not explicitly request: run
      `python3 tools/jev_gate.py --plan-file <plan> --subject {{TASK}}` on a plan whose first lines are
      `Owner's request: <their words>` (the issue text; leave the line out only when no owner request exists) and read its
-     last `gate:` line. `gate: autonomous` means build up to 3 options, judge, record and land. `gate: park` (the owner's
+     last `gate:` line. `gate: autonomous` means build up to 3 options, judge, record and land. `gate: park route=pr` (you are headless, so it is always `pr`; the owner's
      request is not confirmed as matching, or agent-initiated work is app-wide or unsure, or Jev is unavailable) means
      build nothing beyond what shows the owner the options and finish `needs_decision` with `"decision"."owner_only"` set
-     to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; with an open `pr` the runner parks it, otherwise it
-     posts the question. A `needs_decision` without `owner_only` for a design or policy pick is sent straight back to
+     to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; with an open `pr` the runner parks it and posts the
+     question, with the numbered options, on the pull request and on the issue, otherwise it posts it on the issue. A `needs_decision` without `owner_only` for a design or policy pick is sent straight back to
      you to judge and land.
 5. **Reproduce** on the reported device family first (a `coder` or `verifier` job): a unit test, a hosted render, or the
    app on a simulator signed in to the live Home Assistant with `tools/ios_uitest.sh --env shell --only iphone|duo|ipad`

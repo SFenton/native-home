@@ -2689,6 +2689,7 @@ class Runner:
             text += f"\n\nMockups:\n{mockups}"
         text += (f"\n\nPull request: {pr}\n\nReply with your pick, or merge the PR to accept the recommendation.")
         post_update(self.gh, self.repo, n, "decision-needed", text, status.get("screenshots") or [])
+        self.post_pull_question(pr, decision, options)
         self.gh.label_pull(pr, "Needs Decision")
         try:  # a coder's pull request is a draft (ship.sh): ready it so the owner can merge it to accept
             if self.gh.pull(pr).get("isDraft"):
@@ -2700,6 +2701,26 @@ class Runner:
         self.state.set_attempts(n, 0)
         self.state.record(n, "parked", pr)
         return "parked"
+
+    def post_pull_question(self, pr: str, decision: Dict[str, Any], options: str) -> None:
+        """Post the parked question once on the pull request itself, with the runner's ``decision-needed`` marker.
+
+        The owner decides where the pull request is, so the question, the numbered options and how to answer are there too.
+        Fail safe (a failed read or post is logged and the park goes on) and idempotent (a pull request that already carries
+        the marker gets nothing new). The issue comment is unchanged; nothing here reads replies."""
+        try:
+            number = int(pr.rstrip("/").rsplit("/", 1)[1])
+            repo = self.cfg["product_repo"]
+            tag = marker(number, "decision-needed")
+            if not self.gh.dry_run and any(tag in (c.get("body") or "") for c in self.gh.comments(repo, number)):
+                return
+            numbered = "\n".join(f"{i}. **{o.get('key', i)}**: {o.get('summary', '')}" if isinstance(o, dict) else f"{i}. {o}"
+                                 for i, o in enumerate(decision.get("options") or [], 1)) or options
+            text = (f"{decision.get('question', '')}\n\n{numbered}\n\nRecommended: **{decision.get('recommendation', '?')}**.\n\n"
+                    "Reply `1`, `2` or `3` here, or approve this pull request to accept the recommendation.")
+            self.gh.create_comment(repo, number, render_update(number, "decision-needed", text, []))
+        except (TriageError, ValueError, IndexError) as exc:
+            print(f"{pr}: could not post the question on the pull request: {redact(str(exc))[:200]}")
 
     def finish_done(self, n: int, status: Dict[str, Any], pr: str) -> str:
         parts = [str(status.get("summary", "")).strip()]
