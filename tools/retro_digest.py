@@ -269,8 +269,13 @@ def wait_minutes(raw: str) -> Tuple[int, str]:
 
 
 def live_children(runs: Optional[Path]) -> List[str]:
-    """``bg_run`` markers (``LABEL.running``) whose process is still alive."""
+    """``bg_run`` markers (``LABEL.running``) whose process is still alive.
+
+    A ``ci-*`` marker is the orchestrator's sanctioned wait (``orchestrator.md``: start ``ci-<pr>`` and end the turn), so it
+    is not a stray job and is skipped; when stray jobs are listed, a closing "N ci wait" line says how many were skipped.
+    """
     live: List[str] = []
+    waits = 0
     try:
         markers = sorted(runs.glob("*.running")) if runs else []
     except OSError:
@@ -282,7 +287,12 @@ def live_children(runs: Optional[Path]) -> List[str]:
             os.kill(int(pid), 0)
         except (TypeError, ValueError, OSError):
             continue
+        if marker.stem.startswith("ci-"):
+            waits += 1
+            continue
         live.append(f"{marker.stem} pid {pid} still running")
+    if live and waits:
+        live.append(f"{waits} ci wait (sanctioned, not counted)")
     return live
 
 
@@ -444,9 +454,20 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     history = ledger.get("level_history") if isinstance(ledger.get("level_history"), list) else []
     final_level = ledger.get("level")
     hint = gate_hint(gate)
-    override = [f"{h.get('from')} -> {h.get('to')}: {h.get('reason', '')}" for h in history if isinstance(h, dict)]
+    override = []
+    for h in history:
+        if not isinstance(h, dict):
+            continue
+        reason = str(h.get("reason") or "").strip()
+        if hint and h.get("to") == hint and reason:
+            continue  # a recorded raise (or move) onto the gate's own hint is sanctioned, not an override
+        lowered = h.get("from") in LEVELS and h.get("to") in LEVELS and LEVELS.index(h["to"]) < LEVELS.index(h["from"])
+        override.append(f"{h.get('from')} -> {h.get('to')}: {reason}" + ("" if reason or not lowered else " (lowered with no reason recorded)"))
     if hint and final_level in LEVELS and hint != final_level:
-        override.append(f"gate routed to {hint}, final level {final_level}")
+        text = f"gate routed to {hint}, final level {final_level}"
+        if LEVELS.index(final_level) < LEVELS.index(hint) and not any(str(h.get("reason") or "").strip() for h in history if isinstance(h, dict)):
+            text += ": lowered with no reason recorded"
+        override.append(text)
     if override:
         fire("routing_override", *override)
 
