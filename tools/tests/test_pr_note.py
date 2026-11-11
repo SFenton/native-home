@@ -1613,6 +1613,24 @@ class PictureRuleTests(PictureBase):
             self.assertNotIn(self.url(b"this checkout"), body)
             self.assertNotIn("lane-worktree", body)
 
+    def test_a_queued_notes_picture_file_is_forgotten_before_the_next_note(self):
+        """Fails if: in one send of the queue, a note that names a picture by its relative path attaches the file an earlier
+        note's absolute path named in another worktree, instead of this checkout's file."""
+        other = Path(self.tmp.name) / "lane-worktree"
+        rel = "build/evidence/agents-x/iphone/home.png"
+        self.evidence("iphone/home.png", b"this checkout")
+        there = self.evidence("iphone/home.png", b"the lane worktree", root=other)
+        with mock.patch.object(pr_note, "checkouts", lambda: [pr_note.ROOT, other]):
+            self.set_state(pr=None)
+            self.assertIn("queued", self.post("build", f"Shot.\n![Lane]({there})", "1", task="T-q")[1])
+            self.assertIn("queued", self.post("review", f"Seen.\n![Here]({rel})", "1", task="T-q")[1])
+            self.set_state(pr=7)
+            self.assertIn("flushed 2", self.run_cli("flush", "--task", "T-q")[1])
+        first, second = self.bodies()
+        self.assertIn(self.img(b"the lane worktree", "Lane"), first)
+        self.assertIn(self.img(b"this checkout", "Here"), second)
+        self.assertNotIn(self.url(b"the lane worktree"), second)
+
     def test_manifest_three_shapes(self):
         """Fails if: a picture is refused or attached differently depending on the manifest shape that names it (path strings
         with a pose-level ``source``, ``{path, source}`` objects, a top-level ``media`` list), a ``live`` entry in any shape

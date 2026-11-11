@@ -1384,6 +1384,7 @@ def flush(task: str, pr: int, head: str, named: bool = False, ledger_dir: Option
                 if stale:
                     comments, stale = list_comments(pr), False
                 stepped = by_step(n)
+                _NAMED.clear()  # a file one note named is not the next note's: each brings its own
                 for ref, named in (n.get("pictures") or {}).items():  # the files its absolute paths named when it was queued
                     if isinstance(named, str) and checkout_of(Path(named)) is not None:
                         _NAMED[ref] = named
