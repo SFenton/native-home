@@ -50,6 +50,8 @@ from typing import Any, Callable
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
+sys.path.insert(0, str(HERE))
+import evidence_manifest  # noqa: E402
 
 # MARK: - Constants
 
@@ -178,19 +180,15 @@ def read_pack(pack: Path) -> dict[str, dict[str, Any]]:
     manifest's ``ax_tree`` path when it names a file. Screenshots are the ``*.png`` files there, keyed by the full
     file stem (``home--scrolled--uikit-inner``), so a scrolled shot never pairs with an unscrolled one. A pose absent from the manifest and the folders is missing from the result.
     """
-    manifest: dict[str, Any] = {}
-    try:
-        manifest = json.loads((pack / "manifest.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        pass
+    manifest = evidence_manifest.read(pack / "manifest.json")
     out: dict[str, dict[str, Any]] = {}
-    for key, entry in (manifest.get("poses") or {}).items():
+    for key, entry in evidence_manifest.poses(manifest).items():
         pid = pose_id(key)
         if not pid:
             continue
-        info = out.setdefault(pid, {"result": (entry or {}).get("result", "pass"), "trees": {}, "shots": {},
-                                    "unchanged": (entry or {}).get("changed") is False or (entry or {}).get("unchanged") is True})
-        named = (entry or {}).get("ax_tree")
+        info = out.setdefault(pid, {"result": entry.get("result", "pass"), "trees": {}, "shots": {},
+                                    "unchanged": entry.get("changed") is False or entry.get("unchanged") is True})
+        named = entry.get("ax_tree")
         if isinstance(named, str):
             for candidate in (Path(named), pack / named, ROOT / named):
                 if candidate.is_file():
@@ -207,6 +205,15 @@ def read_pack(pack: Path) -> dict[str, dict[str, Any]]:
             info["trees"][path.name[:-len(".ax.txt")]] = parse_tree(path.read_text(encoding="utf-8", errors="replace"))
         for path in sorted((pack / key).rglob("*.png")):
             info["shots"].setdefault(path.stem, str(path))
+    # screenshots the manifest names (any of its shapes, read by evidence_manifest); a file in the pose folder wins
+    for shot in evidence_manifest.media_entries(manifest):
+        pid = pose_id(shot["pose"] or "")
+        if not pid or pid not in out or not shot["path"].lower().endswith(".png"):
+            continue
+        for candidate in (pack / shot["path"], ROOT / shot["path"], Path(shot["path"])):
+            if candidate.is_file():
+                out[pid]["shots"].setdefault(candidate.stem, str(candidate))
+                break
     return out
 
 

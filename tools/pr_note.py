@@ -7,7 +7,7 @@ sections J and K.6.
 
 Commands::
 
-    pr_note.py post KIND --task T [--class C] --round N --body-file F [--pr N] [--branch B] [--as ROLE] [--step N] [--head SHA]
+    pr_note.py post KIND --task T [--class C] --round N --body-file F [--pr N] [--branch B] [--as ROLE] [--step N [--now]] [--head SHA]
     pr_note.py flush --task T [--pr N] [--as ROLE]
     pr_note.py status --task T --line TEXT [--pr N]
     pr_note.py devices --task T --file F [--pr N]
@@ -19,8 +19,18 @@ Every command also takes ``--branch B`` and ``--ledger-dir D`` (see "Finding the
 
 Kinds are ``pick``, ``evidence``, ``verdict``, ``owner``, ``handoff``, ``shipped`` and, one for each role that had none,
 ``research`` (Researcher), ``build`` (Coder), ``review`` (Reviewer) and ``retro`` (Steward). An ``evidence`` comment is per
-device class (``iphone``, ``duo``, ``ipad``) per round, marker ``<!-- sh:evidence:<task>:<class>:<round> -->``; a class
-with nothing to show gets no comment. Other markers are ``<!-- sh:<kind>:<task>:<round> -->``.
+device class (``iphone``, ``duo`` for iPhone Duo, ``ipad``); a class with nothing to show gets no comment.
+
+Which comment a post means (the marker): with ``--step N`` it is the kind plus the step, ``<!-- sh:<kind>:<task>:s<N> -->``
+(evidence: ``<!-- sh:evidence:<task>:<class>:s<N> -->``), so two notes of one kind in one round are two comments and
+``--round`` is only the text in the header. Without ``--step`` it is the older form, the kind plus the round
+(``<!-- sh:<kind>:<task>:<round> -->``, ``<!-- sh:evidence:<task>:<class>:<round> -->``). Both forms are read on every
+pull request: a post by step also finds the round-form comment of its kind whose header shows that step, a post by round
+also finds the single step-form comment of its kind with that round, and an edit keeps the marker the comment has.
+
+Step order: a new comment with ``--step N`` is held in the queue (result ``held ...``, exit 0) while a step below N is not
+on the pull request, and goes out right after its predecessors (the next ``post``, ``flush`` or ``init``), so the page reads
+in step order. ``--now`` sends it at once with one warning line. An edit is never held.
 
 Header: every comment has its own heading line ``#### Step N · <Role> · round R · head <sha7> · HH:MMZ`` (head only when
 ``--head`` is given, 7 to 40 hex characters), then a blank line and the body unchanged. ``N`` is ``--step`` or, when absent, the count of this task's distinct markers already posted or queued, plus one;
@@ -31,7 +41,8 @@ an app's ``@SFenton`` mention stays first. A comment in the older glued form is 
 Behaviour:
 
 - A body hash is stored in the comment; an unchanged body is a no-op, a changed one edits the comment and adds
-  "updated HH:MMZ" to its header line, a new marker posts a new comment.
+  "updated HH:MMZ" to its header line, a new marker posts a new comment. The hash counts each local picture by its bytes, so
+  a retaken or corrected picture is a change and the same picture under another name is not.
 - Finding the PR: ``--pr N``; else ``--branch B`` (``gh pr list --head B``; nothing else is tried when B has none yet); else
   the current branch's PR; else, only when the task ledger (``build/tasks/<task>.json``, directory ``--ledger-dir``, ``TASKS_DIR``
   or this checkout's ``build/tasks``) lists branches and the current branch is not one of them, the single open PR among them
@@ -58,15 +69,25 @@ Behaviour:
   ``"source": "demo"`` or ``"mockup"``. Manifest shape, extending ``pose-matrix``: a pose entry may carry ``"source"``
   that covers its ``screenshots``, ``recordings`` and ``videos``; a top-level ``"media"`` list holds ``{"path", "source"}``
   entries. ``"live"`` or no entry refuses the post (exit 1, names the file), as does a file over 10 MB (names its size).
-  The SHA-256 of each file posted for a PR is kept next to the URL cache; a second file with the same hash is not uploaded:
-  its image becomes ``Same as <first caption or file name>``.
+  Every manifest shape is read by ``tools/evidence_manifest.py`` (path strings, ``{"path", "source"}`` objects, the
+  ``"media"`` list); a pose that did not run names no picture.
+- The picture rule (``resolve_picture``): a body names a picture by a path relative to the checkout or to the branch's
+  evidence folder (``build/evidence/<branch>/``); it is looked for in this checkout and in the repository's other worktrees
+  (evidence stays in the worktree that captured it). An absolute path under one of those checkouts is rewritten to the
+  relative one before the house denylist reads the text; an absolute path anywhere else is refused (exit 1) and the message
+  never shows the path. A picture is its bytes: the URL cache (``media.json``) and the posted-file list (``hashes.json``)
+  are keyed by SHA-256, and a file takes the URL at its own place in the posted comment, never by counting over the comment.
+  The same bytes are uploaded once per PR: in any later comment, class or path the image becomes
+  ``Same as <first caption or file name>``; a picture that differs is uploaded.
 - ``status`` and ``devices`` replace only the text between their own ``sh-status`` / ``sh-devices`` markers in the PR
   body. Everything else, including the reviewer's block, is left byte for byte.
 - ``timeline`` rewrites the text between ``<!-- sh-timeline:start -->`` and ``<!-- sh-timeline:end -->`` (appended when
   missing) with one line per posted step, in order: ``N. [Role, round R: first sentence](comment url)``. ``post``
   runs it after a post that changed something; a failure there only warns.
 - Local images and videos referenced as markdown paths are attached with ``gh pr comment --attach`` /
-  ``gh pr edit --attach``; the URLs GitHub returns are remembered so an edit keeps them.
+  ``gh pr edit --attach`` from a temporary folder under neutral names, so no local path is ever in the text sent; the
+  URLs GitHub returns are remembered so an edit keeps them. An edit cannot upload: a changed comment with a picture that is
+  not uploaded yet is posted anew (same step and marker) and the old copy removed, result ``replaced``.
 - ``init`` (run once, right after ``ship.sh`` opens the PR) appends any missing ``sh-devices`` / ``sh-status`` /
   ``sh-timeline`` / review marker block to the PR body, existing text untouched and no placeholder text added; then it
   flushes the task's queue. ``post`` also flushes the task's queue first and drops queued entries for a marker it just
@@ -91,6 +112,7 @@ Behaviour:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -98,10 +120,11 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -110,6 +133,7 @@ try:
 except ImportError:  # pragma: no cover - redact ships in the repo
     _redact = None
 import agent_login  # noqa: E402
+import evidence_manifest  # noqa: E402
 import house_scan  # noqa: E402
 import prepush_denylist  # noqa: E402
 import gh_app_token  # noqa: E402
@@ -134,6 +158,9 @@ _HEADER = re.compile(r"Step (\d+) · ([A-Za-z]+) · round (\d+)(?: · head [0-9a
 _MEDIA = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
 _TASK = re.compile(r"^[A-Za-z0-9._-]+$")
 _HASH = re.compile(r"<!-- sh-hash:([0-9a-f]+) -->")
+_SHA = re.compile(r"^[0-9a-f]{64}$")
+#: Extensions GitHub shows as a player, not as an image reference.
+VIDEO = (".mp4", ".mov", ".webm")
 
 
 class NoteError(Exception):
@@ -383,11 +410,15 @@ def with_mention(kind: str, body: str, ident: Identity) -> str:
 
 # MARK: - Text
 
-def marker(kind: str, task: str, round_no: int, cls: Optional[str] = None) -> str:
-    """The comment marker; evidence carries its device class."""
+def marker(kind: str, task: str, round_no: int, cls: Optional[str] = None, step: Optional[int] = None) -> str:
+    """The comment marker: kind (evidence: kind and device class) plus the step, ``s<step>``, when ``step`` is given.
+
+    Without ``step`` it is the older form keyed by the round, which is still written for a post that names no step and
+    still read on every pull request that carries it."""
+    key = f"s{step}" if step is not None else str(round_no)
     if kind == "evidence":
-        return f"<!-- sh:evidence:{task}:{cls}:{round_no} -->"
-    return f"<!-- sh:{kind}:{task}:{round_no} -->"
+        return f"<!-- sh:evidence:{task}:{cls}:{key} -->"
+    return f"<!-- sh:{kind}:{task}:{key} -->"
 
 
 def body_hash(body: str) -> str:
@@ -422,7 +453,7 @@ def compose(body: str, tag: str, note: Optional[str] = None, digest: Optional[st
             header: Optional[str] = None) -> str:
     """The final comment text: header (with ``note`` appended), body, hash and marker.
 
-    ``digest`` is the hash of the raw body (before upload URLs were substituted) so a re-post compares equal. ``header`` is
+    ``digest`` is ``digest_of`` the body (each local picture counted by its bytes) so a re-post compares equal. ``header`` is
     its own line, ``#### Step N · ...``, then a blank line, then the body unchanged. A body that starts with its own ``#``
     heading keeps it first and gets the header as the next line; an ``@SFenton`` mention stays first, the header follows it."""
     clean = strip_markers(body)
@@ -441,13 +472,99 @@ def compose(body: str, tag: str, note: Optional[str] = None, digest: Optional[st
     return f"{text.rstrip()}\n\n<!-- sh-hash:{digest or body_hash(clean)} -->\n{tag}\n"
 
 
-def _local(path: str) -> Optional[Path]:
-    if path.startswith(("http://", "https://")):
-        return None
-    for candidate in (Path(path), ROOT / path):
+# MARK: - Pictures
+
+_CHECKOUTS: Dict[str, List[Path]] = {}
+
+
+def checkouts() -> List[Path]:
+    """This checkout first, then the other worktrees of the same repository (``git worktree list``), remembered for the run.
+
+    Evidence is git-ignored and lives in the worktree that captured it, so a picture is looked for in all of them."""
+    key = str(ROOT)
+    if key not in _CHECKOUTS:
+        found = [ROOT]
+        try:
+            out = subprocess.run(["git", "worktree", "list", "--porcelain"], capture_output=True, text=True,
+                                 timeout=TIMEOUT, cwd=ROOT)
+            lines = out.stdout.splitlines() if out.returncode == 0 else []
+        except (OSError, subprocess.SubprocessError):
+            lines = []
+        for line in lines:
+            path = Path(line[len("worktree "):]) if line.startswith("worktree ") else None
+            if path and path.is_dir() and path.resolve() != ROOT.resolve():
+                found.append(path)
+        _CHECKOUTS[key] = found
+    return _CHECKOUTS[key]
+
+
+def checkout_of(path: Path) -> Optional[Path]:
+    """The checkout (``checkouts``) that holds ``path``, else ``None``. Worktrees can sit inside one another (a lane worktree
+    under the primary checkout), so the deepest one wins."""
+    best: Optional[Path] = None
+    for form in (Path(os.path.abspath(path)), path.resolve()):
+        for root in checkouts():
+            for base in (root, root.resolve()):
+                if form.is_relative_to(base) and (best is None or len(base.parts) > len(best.parts)):
+                    best = base
+    return best
+
+
+def evidence_slug() -> str:
+    """The evidence folder name of the current branch (``/`` replaced by ``-``), ``""`` with no branch."""
+    branch = current_branch()
+    return "" if branch in ("", "HEAD") else branch.replace("/", "-")
+
+
+def resolve_picture(ref: str, position: int = 0) -> "tuple[str, Optional[Path]]":
+    """The one picture rule: ``(the reference the text keeps, the local file or None)`` for a markdown image target.
+
+    A URL is kept and is not local. A relative path is looked for under this checkout, the working directory, this branch's
+    evidence folder (``build/evidence/<branch>/``), then the same repository's other worktrees, then as a path inside exactly
+    one evidence folder of any of them; the text keeps it as written. An absolute path under one of the checkouts is
+    rewritten to the path relative to that checkout, whether or not the file exists, so a home folder name never reaches
+    the denylist or the comment. An absolute path anywhere else is refused (``Refusal``) with a message that names its
+    ``position`` in the text and never the path."""
+    if re.match(r"^(https?:|data:|mailto:|#)", ref):
+        return ref, None
+    if ref.startswith(("file:", "~")) or os.path.isabs(ref):
+        path = Path("/" + ref[len("file:"):].lstrip("/")) if ref.startswith("file:") else Path(ref).expanduser()
+        root = checkout_of(path)
+        if root is None:
+            raise Refusal(f"picture {position or 1} of the text has an absolute path outside this repository's checkouts; "
+                          "name it relative to the evidence folder or the checkout, not posting")
+        form = next(f for f in (Path(os.path.abspath(path)), path.resolve()) if f.is_relative_to(root))
+        return form.relative_to(root).as_posix(), (form if form.is_file() else None)
+    name = ref[2:] if ref.startswith("./") else ref
+    roots = checkouts()
+    for candidate in (roots[0] / name, Path(name)):
         if candidate.is_file():
-            return candidate
-    return None
+            return ref, candidate
+    slug = evidence_slug()
+    candidates = [roots[0] / "build" / "evidence" / slug / name] if slug else []
+    candidates += [root / name for root in roots[1:]]
+    candidates += [root / "build" / "evidence" / slug / name for root in roots[1:]] if slug else []
+    for candidate in candidates:
+        if candidate.is_file():
+            return ref, candidate
+    inside = [folder / name for root in roots for folder in sorted((root / "build" / "evidence").glob("*"))
+              if (folder / name).is_file()]
+    return ref, (inside[0] if len(inside) == 1 else None)
+
+
+def normalize_pictures(text: str) -> str:
+    """``text`` with every picture reference in the form ``resolve_picture`` keeps (absolute paths made relative)."""
+    count = [0]
+
+    def swap(m: "re.Match[str]") -> str:
+        count[0] += 1
+        return f"![{m.group(1)}]({resolve_picture(m.group(2), count[0])[0]})"
+    return _MEDIA.sub(swap, text)
+
+
+def _local(path: str) -> Optional[Path]:
+    """The local file a picture reference names (``resolve_picture``), ``None`` for a URL or a missing file."""
+    return resolve_picture(path)[1]
 
 
 def local_media(text: str) -> List[str]:
@@ -455,14 +572,19 @@ def local_media(text: str) -> List[str]:
     return [p for _a, p in _MEDIA.findall(text) if _local(p)]
 
 
-def attach_args(text: str) -> List[str]:
-    """``--attach file#alt`` arguments for every local media reference."""
-    out: List[str] = []
-    for alt, path in _MEDIA.findall(text):
-        found = _local(path)
-        if found:
-            out += ["--attach", f"{found}#{alt or found.name}"]
-    return out
+def file_hash(path: Path) -> str:
+    """SHA-256 of the file's bytes: the identity of a picture."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def digest_of(body: str) -> str:
+    """The hash an "unchanged" check compares: the body with each local picture reference replaced by its file's SHA-256.
+
+    A picture swapped for another file, or the same path with new bytes, changes it; the same bytes under another name do not."""
+    def swap(m: "re.Match[str]") -> str:
+        found = _local(m.group(2))
+        return f"![{m.group(1)}](sha256:{file_hash(found)})" if found else m.group(0)
+    return body_hash(strip_markers(_MEDIA.sub(swap, body)))
 
 
 # MARK: - Gates
@@ -497,29 +619,21 @@ def house_gate(text: str, source: str) -> None:
 
 def manifest_source(path: Path) -> Optional[str]:
     """The ``source`` an evidence ``manifest.json`` gives ``path``: looked up in the file's folder and its parents up to
-    ``build/evidence/<branch>/``. A pose entry's ``source`` covers its ``screenshots``, ``recordings`` and ``videos``; a top-level
-    ``media`` list holds ``{path, source}``. ``live`` wins over any other entry for the same file; ``None`` when no entry names it."""
+    ``build/evidence/<branch>/``, never above the checkout that holds the file. Every manifest shape is read by
+    ``evidence_manifest.media_entries`` (path strings with a pose-level ``source``, ``{path, source}`` objects, a top-level
+    ``media`` list). ``live`` wins over any other entry for the same file; ``None`` when no entry names it."""
     target = path.resolve()
     sources: List[str] = []
-    root = ROOT.resolve()
-    for folder in (path.resolve().parent, *path.resolve().parents):
-        if folder != path.resolve().parent and not folder.is_relative_to(root):
+    root = (checkout_of(path) or ROOT).resolve()
+    for folder in (target.parent, *target.parents):
+        if folder != target.parent and not folder.is_relative_to(root):
             break  # never climb out of the checkout
         manifest = folder / "manifest.json"
         if manifest.is_file():
-            try:
-                data = json.loads(manifest.read_text())
-            except (OSError, ValueError):
-                data = {}
-            entries = [(m.get("path"), m.get("source")) for m in data.get("media", []) if isinstance(m, dict)]
-            for pose in (data.get("poses") or {}).values():
-                if isinstance(pose, dict):
-                    for key in ("screenshots", "recordings", "videos"):
-                        entries += [(f, pose.get("source")) for f in pose.get(key) or [] if isinstance(f, str)]
-            for name, source in entries:
-                if isinstance(name, str) and isinstance(source, str) and target in {
-                        (base / name).resolve() for base in (ROOT, folder)}:
-                    sources.append(source)
+            for entry in evidence_manifest.media_entries(evidence_manifest.read(manifest)):
+                if isinstance(entry["source"], str) and target in {
+                        (base / entry["path"]).resolve() for base in (root, folder)}:
+                    sources.append(entry["source"])
         if folder.parent.name == "evidence" or folder == root or folder == folder.parent:
             break
     return "live" if "live" in sources else (sources[0] if sources else None)
@@ -528,12 +642,12 @@ def manifest_source(path: Path) -> Optional[str]:
 def media_gate(text: str, known: Optional[Dict[str, str]] = None) -> None:
     """Refuse (``Refusal``) a local picture or video that is not an atlas render or a demo/mockup manifest entry, or is over 10 MB.
 
-    Paths already uploaded (``known``) were checked when they went up."""
-    atlas = (ROOT / ATLAS).resolve()
-    for _alt, ref in _MEDIA.findall(text):
-        found = _local(ref)
-        if not found or ref in (known or {}):
+    Files whose bytes were uploaded before (``known``, keyed by SHA-256) were checked when they went up."""
+    for position, (_alt, ref) in enumerate(_MEDIA.findall(text), start=1):
+        found = resolve_picture(ref, position)[1]
+        if not found or file_hash(found) in (known or {}):
             continue
+        atlas = ((checkout_of(found) or ROOT) / ATLAS).resolve()
         under_atlas = found.resolve().is_relative_to(atlas)
         if not under_atlas and manifest_source(found) not in ("demo", "mockup"):
             raise Refusal(f"picture {found.name} is not an atlas render or a demo/mockup entry of an evidence manifest, not posting")
@@ -546,6 +660,15 @@ def gate(text: str, source: str, known: Optional[Dict[str, str]] = None) -> None
     """Everything that must pass before text is posted or queued: the house denylist first, then the picture rules."""
     house_gate(text, source)
     media_gate(text, known)
+
+
+def prepare(text: str, source: str, known: Optional[Dict[str, str]] = None) -> str:
+    """``text`` made fit to post or queue: picture paths in their kept form first (``normalize_pictures``), then ``gate``.
+
+    Returns the text to use from here on; raises ``Refusal`` as ``gate`` does."""
+    text = normalize_pictures(text)
+    gate(text, source, known)
+    return text
 
 
 # MARK: - Media memory
@@ -562,68 +685,203 @@ def task_dir(task: str) -> Path:
     return path
 
 
+def _read_json(path: Path) -> Dict[str, Any]:
+    """A JSON object from ``path``; ``{}`` when it is missing, unreadable or not an object."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def load_media(task: str) -> Dict[str, str]:
-    """Local path to uploaded URL, remembered so an edit keeps the pictures."""
-    f = task_dir(task) / "media.json"
-    return json.loads(f.read_text()) if f.is_file() else {}
+    """File SHA-256 to uploaded URL, remembered so an edit keeps the pictures.
 
-
-def apply_media(text: str, media: Dict[str, str]) -> str:
-    """Swap known local paths for their uploaded URLs."""
-    return _MEDIA.sub(lambda m: f"![{m.group(1)}]({media[m.group(2)]})" if m.group(2) in media else m.group(0), text)
+    Entries an older version keyed by path are not trusted (a later picture could carry an earlier one's URL): they are
+    ignored and go at the next write, so such a picture is uploaded once more."""
+    data = _read_json(task_dir(task) / "media.json")
+    return {key: url for key, url in data.items() if _SHA.match(key) and isinstance(url, str)}
 
 
 def load_hashes(task: str) -> Dict[str, Dict[str, Dict[str, str]]]:
-    """``{pr: {sha256: {path, caption}}}`` of the files posted so far, next to the URL cache."""
-    f = task_dir(task) / "hashes.json"
-    return json.loads(f.read_text()) if f.is_file() else {}
+    """``{pr: {sha256: {path, caption, owner}}}`` of the files posted so far, next to the URL cache. ``owner`` is the marker
+    of the comment (or the block of the description) that shows the picture; ``path`` is only the reference it was named by."""
+    return _read_json(task_dir(task) / "hashes.json")
 
 
-def file_hash(path: Path) -> str:
-    """SHA-256 of the file's bytes."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+class Rendered:
+    """A text made fit to send: ``text`` (uploaded pictures as their URLs, repeated ones as ``Same as``, new files under their
+    staged names ``<sha256><suffix>``), ``new`` (staged name to local file) and ``pics`` (hash, caption and reference of each
+    picture the text shows)."""
+
+    def __init__(self, text: str, new: Dict[str, Path], pics: List[Dict[str, str]]) -> None:
+        self.text = text
+        self.new = new
+        self.pics = pics
 
 
-def dedupe_media(text: str, pr: int, task: str) -> str:
-    """Replace the image of a file whose bytes were already posted for this PR (under another path) with ``Same as <caption>``."""
-    seen: Dict[str, Dict[str, str]] = dict(load_hashes(task).get(str(pr), {}))
+def _owned(prior: Dict[str, str], owner: str, ref: str, found: Path) -> bool:
+    """Whether the remembered picture ``prior`` is shown by ``owner`` itself (an entry from an older version: by its path)."""
+    if "owner" in prior:
+        return prior["owner"] == owner
+    old = prior.get("path") or ""
+    return old == ref or (bool(old) and os.path.abspath(old) == os.path.abspath(found))
+
+
+def render(text: str, pr: int, task: str, owner: str) -> Rendered:
+    """Resolve every local picture of ``text`` by its bytes, for the comment or block ``owner``.
+
+    A file another owner shows on this PR, or that appears earlier in this text, becomes ``Same as <first caption>``: the
+    same picture for iPhone, iPhone Duo and iPad is posted once whatever its path or class. A file with a remembered URL
+    becomes that URL. Any other file is new: its reference becomes the staged name ``<sha256><suffix>`` for ``staged``."""
+    seen = load_hashes(task).get(str(pr), {})
     media = load_media(task)
+    here: Dict[str, str] = {}
+    new: Dict[str, Path] = {}
+    pics: List[Dict[str, str]] = []
 
     def swap(m: "re.Match[str]") -> str:
-        found = _local(m.group(2))
-        if not found or m.group(2) in media:
+        alt, ref = m.group(1), m.group(2)
+        found = _local(ref)
+        if not found:
             return m.group(0)
-        first = seen.setdefault(file_hash(found), {"path": str(found), "caption": m.group(1) or found.name})
-        return m.group(0) if first["path"] == str(found) else f"Same as {first['caption']}"
-    return _MEDIA.sub(swap, text)
+        sha = file_hash(found)
+        if sha in here:
+            return f"Same as {here[sha]}"
+        prior = seen.get(sha)
+        if isinstance(prior, dict) and not _owned(prior, owner, ref, found):
+            return f"Same as {prior.get('caption') or found.name}"
+        here[sha] = alt or found.name
+        pics.append({"sha": sha, "caption": alt or found.name, "path": ref})
+        if sha in media:
+            return f"![{alt}]({media[sha]})"
+        name = sha + found.suffix.lower()
+        new[name] = found
+        return f"![{alt}]({name})"
+    return Rendered(_MEDIA.sub(swap, text), new, pics)
 
 
-def remember_hashes(pr: int, task: str, sent: str) -> None:
-    """After a post, remember the hash of every local file it attached (the first caption wins)."""
+@contextlib.contextmanager
+def staged(text: str, new: Dict[str, Path]) -> "Iterator[tuple[List[str], Optional[str]]]":
+    """``(gh arguments, stdin)`` that send ``text`` with its ``new`` files (``render``) attached.
+
+    With no new file the text goes over stdin. Otherwise the files are copied under their staged names into a temporary
+    folder next to the body file and passed with ``--attach``: ``gh`` reads the paths in a body file relative to its
+    folder, so each reference is rewritten to its own uploaded asset, and no local path is in the text at any point."""
+    if not new:
+        yield ["--body-file", "-"], text
+        return
+    with tempfile.TemporaryDirectory(prefix="pr-note-") as tmp:
+        folder = Path(tmp).resolve()  # one spelling of the folder, so the reference and the attached file are the same path
+        args = ["--body-file", str(folder / "body.md")]
+        for name, source in new.items():
+            shutil.copyfile(source, folder / name)
+            args += ["--attach", str(folder / name)]
+        (folder / "body.md").write_text(text)
+        yield args, None
+
+
+def remember_hashes(pr: int, task: str, owner: str, pics: List[Dict[str, str]]) -> None:
+    """After a post, remember each picture it shows by its hash, with its caption and ``owner`` (the first one wins)."""
+    if not pics:
+        return
     stored = load_hashes(task)
     mine = stored.setdefault(str(pr), {})
-    for alt, ref in _MEDIA.findall(sent):
-        found = _local(ref)
-        if found:
-            mine.setdefault(file_hash(found), {"path": str(found), "caption": alt or found.name})
+    for pic in pics:
+        entry = mine.setdefault(pic["sha"], {"path": pic["path"], "caption": pic["caption"], "owner": owner})
+        entry.setdefault("owner", owner)
     (task_dir(task) / "hashes.json").write_text(json.dumps(stored, indent=1, sort_keys=True))
 
 
-def remember_media(pr: int, task: str, tag: str, sent: str) -> None:
-    """After an attach upload, map each local path to the URL GitHub rewrote it to."""
-    paths = local_media(sent)
-    posted = next((c for c in reversed(list_comments(pr)) if has_tag(c, tag)), None)
-    if not paths or not posted:
-        return
-    urls = [u for _a, u in _MEDIA.findall(posted["body"]) if u.startswith("http")]
-    media = load_media(task)
-    media.update(dict(zip(paths, urls)))
+def _images(text: str) -> List[str]:
+    """The targets of the image references of ``text`` in order (a video is shown as a player, not as a reference)."""
+    return [ref for _alt, ref in _MEDIA.findall(text) if not ref.lower().endswith(VIDEO)]
+
+
+def remember_media(task: str, sent: str, posted: str, new: Dict[str, Path]) -> int:
+    """After an upload, remember the URL of each new file by its hash. Returns how many were learned.
+
+    The i-th image of the text that was sent is the i-th image of what GitHub now shows, so a file takes the URL at its own
+    place and never one that belongs to an earlier picture. When the two do not line up nothing is remembered (the file
+    is uploaded again next time) and one line says so."""
+    if not new:
+        return 0
+    mine, theirs = _images(sent), _images(posted)
+    if len(mine) != len(theirs):
+        print("pr_note: warning, the posted pictures do not line up with the sent ones; their URLs were not remembered",
+              file=sys.stderr)
+        return 0
+    media, learned = load_media(task), 0
+    for ref, url in zip(mine, theirs):
+        if ref in new and url.startswith("https://"):
+            media[Path(ref).stem] = url
+            learned += 1
+        elif ref in new:
+            print(f"pr_note: warning, picture {Path(ref).suffix or ref} was not attached by gh", file=sys.stderr)
     (task_dir(task) / "media.json").write_text(json.dumps(media, indent=1, sort_keys=True))
+    return learned
 
 
 # MARK: - Steps
 
 _TAG = re.compile(r"<!-- (sh:[a-z]+:[^ ]+) -->$")
+
+
+def tag_parts(inner: str, task: str) -> "Optional[tuple[str, Optional[str], str]]":
+    """``(kind, class, key)`` of a marker's inner text (``sh:pick:T:1``, ``sh:evidence:T:duo:s4``), ``None`` when it is not
+    one of ``task``. The key is ``s<step>`` in the step form and the round number in the older form."""
+    head, sep, rest = inner.partition(f":{task}:")
+    if not sep or not head.startswith("sh:"):
+        return None
+    kind, parts = head[3:], rest.split(":")
+    if kind == "evidence":
+        return (kind, parts[0], parts[1]) if len(parts) == 2 else None
+    return (kind, None, parts[0]) if len(parts) == 1 else None
+
+
+def find_matches(comments: List[Dict[str, Any]], task: str, kind: str, cls: Optional[str], round_no: int,
+                 step: Optional[int] = None) -> "tuple[str, List[Dict[str, Any]]]":
+    """``(marker, comments that carry it)`` for one note: by step when ``step`` is given, else by round.
+
+    The exact marker wins. Otherwise the other form is read, so no posted comment is orphaned: a post by step finds the
+    comment of its kind (and class) in the older round form whose header shows that step; a post by round finds the single
+    comment of its kind in the step form whose header shows that round (two or more such comments decide nothing). The
+    marker returned is the one the comment carries, so an edit keeps it."""
+    exact = marker(kind, task, round_no, cls, step)
+    hits = [c for c in comments if has_tag(c, exact)]
+    if hits:
+        return exact, hits
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for c in comments:
+        inner = comment_tag(c, task)
+        parts = tag_parts(inner, task) if inner else None
+        header = header_of(c)
+        if not parts or not header or parts[:2] != (kind, cls if kind == "evidence" else None):
+            continue
+        stepped = parts[2].startswith("s")
+        if (step is not None and not stepped and int(header.group(1)) == step) or (
+                step is None and stepped and int(header.group(3)) == round_no):
+            groups.setdefault(str(inner), []).append(c)
+    if len(groups) == 1:
+        inner, hits = groups.popitem()
+        return f"<!-- {inner} -->", hits
+    return exact, []
+
+
+def missing_steps(comments: List[Dict[str, Any]], task: str, step: int) -> List[int]:
+    """The steps below ``step`` that no comment of ``task`` on the PR shows yet."""
+    have = {step_of(c) for c in comments if comment_tag(c, task)}
+    return [n for n in range(1, step) if n not in have]
+
+
+def note_tag(note: Dict[str, Any], task: str) -> str:
+    """The marker of a queued note: by its step when it was queued with ``--step``, else by its round."""
+    return marker(note["kind"], task, note["round"], note.get("class"), note.get("step") if by_step(note) else None)
+
+
+def by_step(note: Dict[str, Any]) -> bool:
+    """Whether a queued note is identified by its step (queued with ``--step``); notes from an older version are not."""
+    return note.get("ident") == "step" and isinstance(note.get("step"), int)
 
 
 def comment_tag(comment: Dict[str, Any], task: str) -> Optional[str]:
@@ -650,7 +908,7 @@ def next_step(comments: List[Dict[str, Any]], task: str, tag: str, queued: bool 
         for path in queue_files(task):
             try:
                 n = json.loads(path.read_text())
-                seen.add(marker(n["kind"], task, n["round"], n.get("class"))[5:-4])
+                seen.add(note_tag(n, task)[5:-4])
             except (OSError, ValueError, KeyError):
                 continue
     seen.discard(tag[5:-4])
@@ -661,54 +919,62 @@ def next_step(comments: List[Dict[str, Any]], task: str, tag: str, queued: bool 
 
 def post_comment(pr: int, task: str, kind: str, cls: Optional[str], round_no: int, body: str,
                  happened: Optional[str] = None, ident: Optional[Identity] = None, role: Optional[str] = None,
-                 step: Optional[int] = None, head: Optional[str] = None) -> str:
-    """Post or edit the comment for this marker; returns ``posted``, ``edited``, ``replaced`` or ``unchanged``.
+                 step: Optional[int] = None, head: Optional[str] = None, stepped: bool = False) -> str:
+    """Post or edit the comment for this note; returns ``posted``, ``edited``, ``replaced`` or ``unchanged``.
 
-    Comments are found by marker whoever wrote them. The identity's own is edited; one by another author is
-    replaced (new comment first, then the old one removed) because an app cannot edit the owner's comment. The header shows
-    ``step`` (an edit keeps its own), the role, the round, ``head`` and the time (``happened`` for a queued note).
-    When the role's app call fails, one stderr line names the reason and the note is posted with the ``gh`` login instead."""
+    The comment is found by ``find_matches`` (by ``step`` when ``stepped``, else by round) whoever wrote it. The identity's
+    own is edited; one by another author is replaced (new comment first, then the old one removed) because an app cannot
+    edit the owner's comment, and so is the identity's own when the new text has a picture that is not uploaded yet (an edit
+    cannot upload). The header shows ``step`` (an edit keeps its own), the role, the round, ``head`` and the time
+    (``happened`` for a queued note). When the role's app call fails, one stderr line names the reason and the note is
+    posted with the ``gh`` login instead."""
     ident = ident or _ACTIVE
     try:
-        return _post_as(ident, pr, task, kind, cls, round_no, body, happened, role, step, head)
+        return _post_as(ident, pr, task, kind, cls, round_no, body, happened, role, step, head, stepped)
     except AppFailed as exc:
         print(f"pr_note: {ident.role} app failed ({exc}); posted with the gh login", file=sys.stderr)
-        return _post_as(OWNER, pr, task, kind, cls, round_no, body, happened, role, step, head)
+        return _post_as(OWNER, pr, task, kind, cls, round_no, body, happened, role, step, head, stepped)
 
 
 def _post_as(ident: Identity, pr: int, task: str, kind: str, cls: Optional[str], round_no: int, body: str,
-             happened: Optional[str], role: Optional[str], step: Optional[int], head: Optional[str]) -> str:
+             happened: Optional[str], role: Optional[str], step: Optional[int], head: Optional[str],
+             stepped: bool = False) -> str:
     """``post_comment`` for one identity; raises ``AppFailed`` when that identity is an app whose call failed."""
-    tag = marker(kind, task, round_no, cls)
     body = with_mention(kind, body, ident)
-    digest = body_hash(strip_markers(body))
+    digest = digest_of(body)  # after the pictures are resolved: a changed or corrected picture is a changed body
     comments = list_comments(pr)
-    matches = [c for c in comments if has_tag(c, tag)]
-    shown = dedupe_media(apply_media(body, load_media(task)), pr, task)
-    if local_media(shown):  # an installation token cannot upload: this post goes out under the owner's login
+    tag, matches = find_matches(comments, task, kind, cls, round_no, step if stepped else None)
+    shown = render(body, pr, task, tag)
+    if shown.new:  # an installation token cannot upload: this post goes out under the owner's login
         ident = OWNER
     own = next((c for c in matches if ident.mine(c)), None)
     foreign = [c for c in matches if not ident.mine(c) and ident.replaceable(c)]
     label = role_label(kind, role)
+    note = f"happened {happened}, posted when the PR opened" if happened else None
     if own:
         m = _HASH.search(own["body"])
         if m and m.group(1) == digest and "#### Step " in own["body"]:  # an older, glued header is rewritten
             return "unchanged"
         number = step_of(own) or step or next_step(comments, task, tag)
-        header = header_line(number, label, round_no, head, now_z())
-        ident.edit(own["id"], compose(shown, tag, f"updated {now_z()}", digest, header))
-        remember_hashes(pr, task, shown)
-        return "edited"
+        if not shown.new:
+            header = header_line(number, label, round_no, head, now_z())
+            ident.edit(own["id"], compose(shown.text, tag, f"updated {now_z()}", digest, header))
+            remember_hashes(pr, task, tag, shown.pics)
+            return "edited"
+        step, note, foreign = number, f"updated {now_z()}", [own, *foreign]  # a new file: post anew, then drop the old copy
     number = step or next((step_of(c) for c in matches if step_of(c)), None) or next_step(comments, task, tag, happened is None)
     header = header_line(number, label, round_no, head, happened or now_z())
-    note = f"happened {happened}, posted when the PR opened" if happened else None
-    text = compose(shown, tag, note, digest, header)
+    text = compose(shown.text, tag, note, digest, header)
     if ident.role:
         ident.create(pr, text)
     else:
-        gh(["pr", "comment", str(pr), "--body-file", "-", *attach_args(text)], text)
-        remember_media(pr, task, tag, text)
-    remember_hashes(pr, task, text)
+        with staged(text, shown.new) as (body_args, stdin):
+            gh(["pr", "comment", str(pr), *body_args], stdin)
+        if shown.new:
+            posted = next((c for c in reversed(list_comments(pr)) if has_tag(c, tag)), None)
+            if posted:
+                remember_media(task, text, posted["body"], shown.new)
+    remember_hashes(pr, task, tag, shown.pics)
     for old in foreign:
         try:
             remove_comment(old["id"])
@@ -720,8 +986,7 @@ def _post_as(ident: Identity, pr: int, task: str, kind: str, cls: Optional[str],
 def resolve_handoff(pr: int, task: str, round_no: int, text: str, ident: Optional[Identity] = None) -> str:
     """Make the round's handoff start with ``**Resolved:**`` (another author's comment is edited as the owner)."""
     ident = ident or _ACTIVE
-    tag = marker("handoff", task, round_no)
-    matches = [c for c in list_comments(pr) if has_tag(c, tag)]
+    _tag, matches = find_matches(list_comments(pr), task, "handoff", None, round_no)
     comment = next((c for c in matches if ident.mine(c)), matches[0] if matches else None)
     if not comment:
         return "no handoff"
@@ -770,14 +1035,17 @@ def drain_legacy(task: str) -> int:
 
 
 def queue_note(task: str, kind: str, cls: Optional[str], round_no: int, body: str, target: "tuple[Optional[int], str]",
-               role: Optional[str] = None, step: Optional[int] = None, head: Optional[str] = None) -> Path:
+               role: Optional[str] = None, step: Optional[int] = None, head: Optional[str] = None,
+               stepped: bool = False, now: bool = False) -> Path:
     """Write the note to the task's queue with its original time and its ``target`` (``queue_target``); names are unique and
-    sort in posting order."""
+    sort in posting order. ``stepped``: the note was given ``--step`` and is identified by it (``"ident": "step"``);
+    ``now``: it is not held back for lower steps."""
     folder = queue_root(task)
     stamp = unique_stamp(folder)
     path = folder / f"{stamp:020d}-{kind}-{cls or 'all'}-{round_no}.json"
     path.write_text(json.dumps({"kind": kind, "class": cls, "round": round_no, "body": body, "time": now_z(),
-                                "pr": target[0], "branch": target[1], "as": role, "step": step, "head": head}))
+                                "pr": target[0], "branch": target[1], "as": role, "step": step, "head": head,
+                                "ident": "step" if stepped and step is not None else "round", "now": bool(now)}))
     return path
 
 
@@ -857,60 +1125,90 @@ def report_left(task: str, pr: Optional[int], head: str = "", waiting: str = "wa
     return len(left)
 
 
-def drop_queued(task: str, kind: str, cls: Optional[str], round_no: int, pr: int, head: str) -> None:
-    """Remove queued notes for a marker that was just posted to PR ``pr`` (head ``head``): only those whose target is that PR."""
+def drop_queued(task: str, kind: str, cls: Optional[str], round_no: int, pr: int, head: str,
+                step: Optional[int] = None, stepped: bool = False) -> None:
+    """Remove queued notes for the note that was just posted to PR ``pr`` (head ``head``): only those whose target is that PR
+    and that are the same note (same kind and class, and the same step when ``stepped``, else the same round)."""
     for path in queue_files(task):
         try:
             n = json.loads(path.read_text())
-            if (n["kind"], n["class"], n["round"]) == (kind, cls, round_no) and is_for(n, pr, head):
+            same = (by_step(n) and n["step"] == step) if stepped else (not by_step(n) and n["round"] == round_no)
+            if (n["kind"], n["class"]) == (kind, cls) and same and is_for(n, pr, head):
                 path.unlink()
         except (OSError, KeyError, ValueError):
             continue
 
 
-def flush(task: str, pr: int, head: str, named: bool = False, ledger_dir: Optional[str] = None, quiet: bool = False) -> int:
+def flush(task: str, pr: int, head: str, named: bool = False, ledger_dir: Optional[str] = None, quiet: bool = False,
+          only: Optional[set] = None, keep_why: bool = False) -> int:
     """Post the queued notes whose target is PR ``pr`` (head branch ``head``), in order. Returns how many were posted.
 
     Every other note stays queued untouched. A note with no target (older version) goes only when the run named its PR (``named``:
     ``--pr`` or ``--branch``) and the ledger lists at most one branch. A queued note is gated again before it goes out. One whose
-    marker is on the PR with the same body (hash) is dropped; with a different body it is applied as an edit, so an update that
+    comment is on the PR with the same body (hash) is dropped; with a different body it is applied as an edit, so an update that
     failed once is not lost. A role whose app fails is posted with the ``gh`` login. A note that is refused or fails stays queued
-    and the notes behind it still go out. Unless ``quiet``, it ends with one stderr line per note left queued (``report_left``);
-    if any was refused, ``Refusal`` is raised after that (exit 1)."""
+    and the notes behind it still go out.
+
+    Step order: a note queued with ``--step N`` (and without ``--now``) whose comment is not on the PR waits while a step
+    below N is not posted there; the queue is passed over again after every pass that sent something, so it goes out right
+    after its predecessors and the page reads in step order. ``only`` limits the run to those file names; ``keep_why`` keeps
+    the reasons an earlier flush of this run recorded. Unless ``quiet``, it ends with one stderr line per note left queued
+    (``report_left``); if any was refused, ``Refusal`` is raised after that (exit 1)."""
     drain_legacy(task)
-    _WHY.clear()
+    if not keep_why:
+        _WHY.clear()
     if not head:  # sending only the notes recorded by number would post them out of order
         raise NoteError(f"the head branch of #{pr} could not be read, queue not flushed")
     count, refused = 0, []
     idents: Dict[Optional[str], Identity] = {}
     comments = list_comments(pr)
     untargeted = named and len(ledger_branches(task, ledger_dir)) <= 1
-    for path in queue_files(task):
-        try:
-            n = json.loads(path.read_text())
-            if not (is_for(n, pr, head) or (untargeted and not (n.get("pr") or n.get("branch")))):
+    tried: set = set()
+    progressed, stale = True, False
+    while progressed:
+        progressed = False
+        for path in queue_files(task):
+            if path.name in tried or (only is not None and path.name not in only):
                 continue
-            tag = marker(n["kind"], task, n["round"], n.get("class"))
-            same = body_hash(strip_markers(redact(n["body"])))
-            posted = next((_HASH.search(c["body"]) for c in comments if has_tag(c, tag)), None)
-            if posted and posted.group(1) == same:
-                path.unlink()
+            try:
+                n = json.loads(path.read_text())
+                if not (is_for(n, pr, head) or (untargeted and not (n.get("pr") or n.get("branch")))):
+                    continue
+                if stale:
+                    comments, stale = list_comments(pr), False
+                stepped = by_step(n)
+                body = normalize_pictures(n["body"])
+                _tag, matches = find_matches(comments, task, n["kind"], n.get("class"), n["round"],
+                                             n["step"] if stepped else None)
+                posted = next((_HASH.search(c["body"]) for c in matches), None)
+                if posted and posted.group(1) == digest_of(redact(body)):
+                    path.unlink()
+                    continue
+                if stepped and not matches and not n.get("now"):
+                    missing = missing_steps(comments, task, n["step"])
+                    if missing:
+                        _WHY[path.name] = f"held until step {missing[0]} is posted (--now sends it at once)"
+                        continue
+                tried.add(path.name)
+                gate(body, f"queued note {path.name}", load_media(task))
+                role = n.get("as")
+                if role not in idents:
+                    idents[role] = resolve_identity(role)
+                post_comment(pr, task, n["kind"], n["class"], n["round"], redact(body), happened=n["time"],
+                             ident=idents[role], role=role, step=n.get("step"), head=n.get("head"), stepped=stepped)
+            except Refusal as exc:
+                _WHY[path.name] = f"refused: {exc}"
+                refused.append(path.name)
+                tried.add(path.name)
                 continue
-            gate(n["body"], f"queued note {path.name}", load_media(task))
-            role = n.get("as")
-            if role not in idents:
-                idents[role] = resolve_identity(role)
-            post_comment(pr, task, n["kind"], n["class"], n["round"], redact(n["body"]), happened=n["time"],
-                         ident=idents[role], role=role, step=n.get("step"), head=n.get("head"))
-        except Refusal as exc:
-            _WHY[path.name] = f"refused: {exc}"
-            refused.append(path.name)
-            continue
-        except (NoteError, KeyError, ValueError) as exc:
-            _WHY[path.name] = f"send failed: {exc}"
-            continue
-        path.unlink()
-        count += 1
+            except (NoteError, KeyError, ValueError) as exc:
+                _WHY[path.name] = f"send failed: {exc}"
+                tried.add(path.name)
+                continue
+            path.unlink()
+            _WHY.pop(path.name, None)
+            count += 1
+            progressed = stale = True
     if not quiet:
         report_left(task, pr, head)
     if refused:
@@ -931,20 +1229,26 @@ def replace_block(body: str, name: str, content: str) -> Optional[str]:
 
 
 def update_block(pr: int, name: str, content: str, task: Optional[str] = None, add_missing: bool = False) -> str:
-    """Write one block of the PR body; returns ``updated``, ``unchanged`` or ``no markers`` (``add_missing`` appends the block)."""
+    """Write one block of the PR body; returns ``updated``, ``unchanged`` or ``no markers`` (``add_missing`` appends the block).
+
+    With ``task`` the block's local pictures follow the picture rule (``render``, owner ``body:<name>``): uploaded ones keep
+    their URL, new ones are attached and remembered by their bytes."""
     body = json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or ""
-    new = replace_block(body, name, content)
+    owner = f"body:{name}"
+    shown = render(content, pr, task, owner) if task else Rendered(content, {}, [])
+    new = replace_block(body, name, shown.text)
     if new is None and add_missing:
-        new = body.rstrip("\n") + f"\n\n<!-- {name}:start -->\n{content.strip(chr(10))}\n<!-- {name}:end -->\n"
+        new = body.rstrip("\n") + f"\n\n<!-- {name}:start -->\n{shown.text.strip(chr(10))}\n<!-- {name}:end -->\n"
     if new is None:
         return "no markers"
     if new == body:
         return "unchanged"
+    with staged(new, shown.new) as (body_args, stdin):
+        gh(["pr", "edit", str(pr), *body_args], stdin)
     if task:
-        new = dedupe_media(apply_media(new, load_media(task)), pr, task)
-    gh(["pr", "edit", str(pr), "--body-file", "-", *attach_args(new)], new)
-    if task:
-        remember_hashes(pr, task, new)
+        if shown.new:
+            remember_media(task, new, json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or "", shown.new)
+        remember_hashes(pr, task, owner, shown.pics)
     return "updated"
 
 
@@ -1046,7 +1350,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--class", dest="cls", choices=CLASSES)
     s.add_argument("--round", type=int, required=True)
     s.add_argument("--body-file", required=True)
-    s.add_argument("--step", type=int, help="step number (default: this task's markers posted or queued, plus one)")
+    s.add_argument("--step", type=int, help="step number; it identifies the comment (default: this task's markers posted "
+                   "or queued, plus one, and the comment is then identified by its round)")
+    s.add_argument("--now", action="store_true", help="with --step: send at once even when a lower step is not posted yet")
     s.add_argument("--head", type=head_sha, help="head commit shown in the header (7 to 40 hex characters; first 7 shown)")
     add("flush")
     add("init")
@@ -1075,14 +1381,16 @@ def _lookup(args: argparse.Namespace) -> "tuple[Optional[int], str]":
 
 
 def _post(args: argparse.Namespace) -> str:
-    """``post``: gate, find the PR, flush, post, then refresh the timeline.
+    """``post``: prepare the body (picture paths, gates), find the PR, flush, post, then refresh the timeline.
 
     With no PR yet, or when ``gh`` fails, the note is queued with its one target (``queue_target``, which refuses a write that
-    names none). Every run ends with one stderr line per note left queued."""
-    body = Path(args.body_file).read_text()
-    gate(body, f"body file {Path(args.body_file).name}", load_media(args.task))
+    names none). A new comment with ``--step N`` is held in the queue (result ``held ...``) while a step below N is not on the
+    PR, unless ``--now``; after a post the notes held behind it are sent. Every run ends with one stderr line per note left
+    queued."""
+    body = prepare(Path(args.body_file).read_text(), f"body file {Path(args.body_file).name}", load_media(args.task))
     named = bool(args.pr or args.branch)
-    pr, head, failed, result = (int(args.pr) if args.pr else None), "", None, ""
+    stepped = args.step is not None
+    pr, head, failed, result, held = (int(args.pr) if args.pr else None), "", None, "", None
     try:
         pr, head = _lookup(args)
         if pr is not None:
@@ -1092,21 +1400,40 @@ def _post(args: argparse.Namespace) -> str:
                 flush(args.task, pr, head, named, args.ledger_dir, quiet=True)
             except (NoteError, Refusal) as exc:
                 print(f"pr_note: warning, queue not flushed: {exc}", file=sys.stderr)
-            result = post_comment(pr, args.task, args.kind, args.cls, args.round, redact(body), role=args.role,
-                                  step=args.step, head=args.head)
-            drop_queued(args.task, args.kind, args.cls, args.round, pr, head)
+            if stepped:
+                comments = list_comments(pr)
+                if not find_matches(comments, args.task, args.kind, args.cls, args.round, args.step)[1]:
+                    missing = missing_steps(comments, args.task, args.step)
+                    if missing and args.now:
+                        print(f"pr_note: warning, step {args.step} posted before step {missing[0]}; the page is out of step "
+                              f"order", file=sys.stderr)
+                    elif missing:
+                        held = missing[0]
+            if held is None:
+                result = post_comment(pr, args.task, args.kind, args.cls, args.round, redact(body), role=args.role,
+                                      step=args.step, head=args.head, stepped=stepped)
+                drop_queued(args.task, args.kind, args.cls, args.round, pr, head, args.step, stepped)
+                waiting = {name for name, why in _WHY.items() if why.startswith("held")}
+                if waiting and result != "unchanged":
+                    try:
+                        flush(args.task, pr, head, named, args.ledger_dir, quiet=True, only=waiting, keep_why=True)
+                    except (NoteError, Refusal) as exc:
+                        print(f"pr_note: warning, held notes not sent: {exc}", file=sys.stderr)
     except NoteError as exc:
         failed = exc
-    if pr is None or failed:
+    if pr is None or failed or held is not None:
         target = queue_target(args.task, pr, head, args.branch, args.ledger_dir)
         step = args.step
         if not (step or failed):
             step = next_step([], args.task, marker(args.kind, args.task, args.round, args.cls), queued=True)
-        name = queue_note(args.task, args.kind, args.cls, args.round, body, target, args.role, step, args.head).name
+        name = queue_note(args.task, args.kind, args.cls, args.round, body, target, args.role, step, args.head,
+                          stepped, args.now).name
+        if held is not None:
+            _WHY[name] = f"held until step {held} is posted (--now sends it at once)"
         report_left(args.task, pr, head)
         if failed:
             raise failed
-        return f"queued {name}"
+        return f"held {name}: step {held} is not posted yet" if held is not None else f"queued {name}"
     report_left(args.task, pr, head)
     if result != "unchanged":
         try:
@@ -1127,7 +1454,7 @@ def _run(args: argparse.Namespace) -> str:
     if args.cmd == "status":
         gate(args.line, "the status line")
     elif args.cmd == "devices":
-        gate(Path(args.file).read_text(), f"file {Path(args.file).name}", load_media(args.task))
+        devices = prepare(Path(args.file).read_text(), f"file {Path(args.file).name}", load_media(args.task))
     elif args.cmd == "resolve":
         gate(args.text, "the resolve text")
     if args.cmd in ("init", "flush"):
@@ -1152,7 +1479,7 @@ def _run(args: argparse.Namespace) -> str:
     if args.cmd == "status":
         return update_block(pr, "sh-status", redact(args.line))
     if args.cmd == "devices":
-        return update_block(pr, "sh-devices", redact(Path(args.file).read_text()), args.task)
+        return update_block(pr, "sh-devices", redact(devices), args.task)
     return resolve_handoff(pr, args.task, args.round, redact(args.text))
 
 

@@ -50,6 +50,28 @@ open(os.environ["FAKE_LOG"], "a").write(json.dumps(args) + "\n")
 if st.get("fail") or any(k in args for k in st.get("fail_on", [])):
     sys.stderr.write("HTTP 500 boom"); sys.exit(1)
 def save(): json.dump(st, open(state_path, "w"))
+def sent():
+    """The body as GitHub shows it: every reference to an attached file (relative to the body file's folder, as gh reads
+    it) becomes that file's own asset URL; an attached file the body does not reference is appended."""
+    import hashlib, re
+    source = args[args.index("--body-file") + 1]
+    text = sys.stdin.read() if source == "-" else open(source).read()
+    base = os.getcwd() if source == "-" else os.path.dirname(os.path.abspath(source))
+    for i, a in enumerate(args):
+        if a != "--attach":
+            continue
+        path = os.path.abspath(args[i + 1].split("#")[0])
+        url = "https://github.com/user-attachments/assets/" + hashlib.sha256(open(path, "rb").read()).hexdigest()[:12]
+        hit = [0]
+        def swap(m):
+            if os.path.abspath(os.path.join(base, m.group(2))) != path:
+                return m.group(0)
+            hit[0] += 1
+            return "![%s](%s)" % (m.group(1), url)
+        text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", swap, text)
+        if not hit[0]:
+            text += "\n![%s](%s)" % (os.path.basename(path), url)
+    return text
 if args[:2] == ["pr", "view"] and args[-1] == "headRefName":
     print(json.dumps({"headRefName": (st.get("heads") or {}).get(args[2], st.get("head", "agents/x"))}))
 elif args[:2] == ["pr", "view"]:
@@ -60,14 +82,12 @@ elif args[:2] == ["pr", "view"]:
 elif args[:2] == ["pr", "list"]:
     print(json.dumps([{"number": st["branches"][args[3]]}] if args[3] in st.get("branches", {}) else []))
 elif args[:2] == ["pr", "edit"]:
-    st["body"] = sys.stdin.read(); save()
+    st["body"] = sent(); save()
 elif args[:2] == ["pr", "comment"]:
-    text = sys.stdin.read()
-    for i, a in enumerate(args):
-        if a == "--attach":
-            path = args[i + 1].split("#")[0]
-            text = text.replace(path, "https://github.com/user-attachments/assets/x")
-    st["comments"].append({"id": len(st["comments"]) + 1, "body": text, "html_url": "https://example.test/pull/7#issuecomment-%d" % (len(st["comments"]) + 1)}); save()
+    text = sent()
+    cid = max([st.get("last_id", 0), len(st["comments"])] + [c["id"] for c in st["comments"]]) + 1  # an id is never reused
+    st["last_id"] = cid
+    st["comments"].append({"id": cid, "body": text, "html_url": "https://example.test/pull/7#issuecomment-%d" % cid}); save()
 elif args[:2] == ["api", "user"]:
     print("SFenton")
 elif args[0] == "api" and "DELETE" in args:
@@ -463,11 +483,11 @@ class RoleKindTests(Base):
 
     def test_step_numbers_count_distinct_markers_and_an_edit_keeps_its_number(self):
         """Fails if: steps do not count up by distinct marker, a second post of one marker takes a new number, ``--step`` is
-        ignored, or a queued note is not counted."""
+        ignored, or a queued note is not counted. (Step 9 skips steps, so it needs ``--now``: see ``StepTests``.)"""
         self.post("research", "One.", "1")
         self.post("build", "Two.", "1")
         self.post("build", "Two, changed.", "1")
-        self.post("review", "Nine.", "1", "--step", "9")
+        self.post("review", "Nine.", "1", "--step", "9", "--now")
         steps = [int(re.match(r"#### Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
         self.assertEqual(steps, [1, 2, 9])
         self.set_state(pr=None, comments=[])
@@ -702,7 +722,7 @@ class TimelineTests(Base):
         self.set_state(body="Intro\n")
         self.post("research", "Looked at prior art. More words follow.", "1")
         self.post("build", "Built the writer. Next bit.", "1")
-        self.post("review", "Reviewed the head.", "1", "--step", "7")
+        self.post("review", "Reviewed the head.", "1", "--step", "7", "--now")  # skips steps: sent at once only with --now
         body = self.get()["body"]
         self.assertTrue(body.startswith("Intro\n"))
         self.assertEqual(body.count("<!-- sh-timeline:start -->"), 1)
@@ -1301,3 +1321,293 @@ class InitNoPlaceholderTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PictureBase(Base):
+    """Helpers for the picture rule: evidence pictures listed the way the Verifier writes them (``{path, source}`` objects)."""
+
+    def evidence(self, rel, data=b"x", source="demo", root=None, result="pass"):
+        """A picture ``build/evidence/agents-x/<rel>`` under ``root`` (default: the checkout), named in that folder's manifest
+        under the pose ``rel`` starts with."""
+        folder = (root or pr_note.ROOT) / "build" / "evidence" / "agents-x"
+        pic = folder / rel
+        pic.parent.mkdir(parents=True, exist_ok=True)
+        pic.write_bytes(data)
+        manifest = folder / "manifest.json"
+        listed = json.loads(manifest.read_text()) if manifest.exists() else {"poses": {}}
+        pose = listed["poses"].setdefault(rel.split("/")[0], {"result": result, "screenshots": []})
+        pose["screenshots"].append({"path": f"build/evidence/agents-x/{rel}", "source": source})
+        manifest.write_text(json.dumps(listed))
+        return pic
+
+    def attached(self):
+        """How many files were attached to comments so far."""
+        calls = [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+        return sum(c.count("--attach") for c in calls if c[:2] == ["pr", "comment"])
+
+    def bodies(self):
+        return [c["body"] for c in self.get()["comments"]]
+
+    @staticmethod
+    def url(data):
+        """The asset URL the fake ``gh`` gives a file with these bytes."""
+        import hashlib
+        return "https://github.com/user-attachments/assets/" + hashlib.sha256(data).hexdigest()[:12]
+
+    def media(self, task="T-x"):
+        return json.loads((pr_note.NOTES_DIR / task / "media.json").read_text())
+
+
+class PictureRuleTests(PictureBase):
+    """One picture rule: relative path, identity by bytes, a URL per file, "unchanged" judged after the pictures are resolved."""
+
+    def test_new_picture_after_known_picture(self):
+        """Fails if: in a body with a known-URL picture first and a new local one second, the second picture's URL equals the
+        first's, ``media.json`` maps two files to one URL or is keyed by anything but the file hash, or an entry an older
+        version keyed by path is still used."""
+        before, after = self.evidence("iphone/before.png", b"before"), self.evidence("iphone/after.png", b"after")
+        notes = pr_note.NOTES_DIR / "T-x"
+        notes.mkdir(parents=True)
+        (notes / "media.json").write_text(json.dumps({str(before): "https://example.test/old-wrong-url"}))
+        self.assertIn("posted", self.post("build", f"Shots.\n\n![Before]({before})")[1])
+        self.assertNotIn("old-wrong-url", self.bodies()[0])
+        _code, out, _err = self.post("build", f"Shots.\n\n![Before]({before})\n\n![After]({after})")
+        self.assertIn("replaced", out)
+        self.assertEqual(len(self.bodies()), 1)
+        body = self.bodies()[0]
+        self.assertIn(f"![Before]({self.url(b'before')})", body)
+        self.assertIn(f"![After]({self.url(b'after')})", body)
+        media = self.media()
+        self.assertEqual(len(set(media.values())), 2)
+        self.assertEqual(sorted(media), sorted(pr_note.file_hash(f) for f in (before, after)))
+        self.assertEqual(media[pr_note.file_hash(after)], self.url(b"after"))
+        # a later text-only change is an edit in place that keeps each picture's own URL
+        self.assertIn("edited", self.post("build", f"Shots, again.\n\n![Before]({before})\n\n![After]({after})")[1])
+        self.assertIn(f"![After]({self.url(b'after')})", self.bodies()[0])
+        self.assertEqual(self.attached(), 2)
+
+    def test_edit_uploads_new_picture(self):
+        """Fails if: after an edit of a posted comment with a new local file the posted text still contains the local path (in
+        its absolute or relative form), the picture was not uploaded, the comment is doubled, or it loses its step number."""
+        self.post("research", "Step one.")
+        self.post("verdict", "Looks right.")
+        pic = self.evidence("iphone/home.png", b"home")
+        _code, out, _err = self.post("verdict", f"Looks right.\n\n![Home]({pic})")
+        self.assertIn("replaced", out)
+        bodies = self.bodies()
+        self.assertEqual(len(bodies), 2)
+        self.assertNotIn(str(pic), bodies[1])
+        self.assertNotIn("build/evidence", bodies[1])
+        self.assertNotIn("home.png", bodies[1])
+        self.assertIn(f"![Home]({self.url(b'home')})", bodies[1])
+        self.assertRegex(bodies[1].splitlines()[0], r"^#### Step 2 · Designer · round 1 · .* · updated \d\d:\d\dZ$")
+        self.assertEqual(self.attached(), 1)
+
+    def test_corrected_link_is_an_edit(self):
+        """Fails if: the same body with one picture replaced by a different file (another path, or the same path with new
+        bytes) is ``unchanged``, or the same bytes under another name are not."""
+        wrong, right = self.evidence("iphone/wrong.png", b"wrong"), self.evidence("iphone/right.png", b"right")
+        self.post("build", f"After.\n\n![After]({wrong})")
+        _code, out, _err = self.post("build", f"After.\n\n![After]({right})")
+        self.assertNotIn("unchanged", out)
+        self.assertIn(self.url(b"right"), self.bodies()[0])
+        self.assertNotIn(self.url(b"wrong"), self.bodies()[0])
+        right.write_bytes(b"right, retaken")
+        self.assertNotIn("unchanged", self.post("build", f"After.\n\n![After]({right})")[1])
+        self.assertIn(self.url(b"right, retaken"), self.bodies()[0])
+        copy = self.evidence("iphone/copy.png", b"right, retaken")
+        self.assertIn("unchanged", self.post("build", f"After.\n\n![After]({copy})")[1])
+        self.assertEqual(len(self.bodies()), 1)
+
+    def test_absolute_path_rewritten(self):
+        """Fails if: an absolute picture path under the checkout (below a home folder whose name is on the denylist) trips the
+        denylist or reaches the comment or the queue, or the refusal of an absolute path outside every checkout contains
+        the path."""
+        home = Path(self.tmp.name) / "Users" / "zzhouseterm"
+        with mock.patch.object(pr_note, "ROOT", home / "repo"):
+            pic = self.evidence("iphone/home.png", b"home")
+            self.assertIn("zzhouseterm", str(pic))
+            code, out, err = self.post("build", f"Done.\n\n![Home]({pic})")
+            self.assertEqual((code, out.strip()), (0, "pr_note: posted"), err)
+            self.assertNotIn("zzhouseterm", out + err + self.bodies()[0])
+            self.assertIn(self.url(b"home"), self.bodies()[0])
+            self.assertEqual(pr_note.normalize_pictures(f"![a]({home}/repo/build/evidence/agents-x/gone.png)"),
+                             "![a](build/evidence/agents-x/gone.png)")
+            self.set_state(pr=None)
+            self.assertIn("queued", self.post("build", f"Later.\n\n![Home]({pic})", "2")[1])
+            queued = next((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")).read_text()
+            self.assertNotIn("zzhouseterm", queued)
+            self.assertIn("build/evidence/agents-x/iphone/home.png", queued)
+            outside = home / "Pictures" / "private.png"
+            outside.parent.mkdir(parents=True)
+            outside.write_bytes(b"p")
+            code, out, err = self.post("build", f"![P]({outside})", "3")
+            self.assertEqual(code, 1)
+            self.assertIn("picture 1", err)
+            for leak in ("zzhouseterm", "private.png", "Pictures"):
+                self.assertNotIn(leak, out + err)
+            self.assertEqual(len(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))), 1)
+
+    def test_relative_paths_are_found_in_the_evidence_folder_and_in_another_worktree(self):
+        """Fails if: a path relative to the checkout, to the branch's evidence folder, or to another worktree of the same
+        repository (where the evidence was captured) is not attached, or a file in another worktree skips the manifest rule."""
+        self.evidence("iphone/here.png", b"here")
+        other = Path(self.tmp.name) / "other-worktree"
+        self.evidence("duo-folded/there.png", b"there", root=other)
+        self.evidence("duo-folded/live.png", b"live", source="live", root=other)
+        with mock.patch.object(pr_note, "checkouts", lambda: [pr_note.ROOT, other]):
+            self.post("build", "A.\n\n![Here](build/evidence/agents-x/iphone/here.png)", "1")
+            self.post("build", "B.\n\n![Here](iphone/here.png)\n\n![There](build/evidence/agents-x/duo-folded/there.png)", "2")
+            code, _out, err = self.post("build", "C.\n\n![L](build/evidence/agents-x/duo-folded/live.png)", "3")
+            self.assertEqual(pr_note.normalize_pictures(f"![a]({other}/build/evidence/agents-x/duo-folded/there.png)"),
+                             "![a](build/evidence/agents-x/duo-folded/there.png)")
+        self.assertEqual((code, "live.png" in err), (1, True))
+        first, second = self.bodies()
+        self.assertIn(self.url(b"here"), first)
+        self.assertIn("Same as Here", second)
+        self.assertIn(f"![There]({self.url(b'there')})", second)
+        self.assertEqual(self.attached(), 2)
+
+    def test_manifest_three_shapes(self):
+        """Fails if: a picture is refused or attached differently depending on the manifest shape that names it (path strings
+        with a pose-level ``source``, ``{path, source}`` objects, a top-level ``media`` list), a ``live`` entry in any shape
+        is attached, or a pose that did not run yields a picture."""
+        folder = pr_note.ROOT / "build" / "evidence" / "agents-x"
+        (folder / "iphone").mkdir(parents=True)
+        pic = folder / "iphone" / "home.png"
+        pic.write_bytes(b"home")
+        rel = "build/evidence/agents-x/iphone/home.png"
+
+        def shapes(source, result="pass"):
+            return ({"poses": {"iphone": {"result": result, "source": source, "screenshots": [rel]}}},
+                    {"poses": {"iphone": {"result": result, "screenshots": [{"path": rel, "source": source}]}}},
+                    {"poses": {"iphone": {"result": result}}, "media": [{"path": rel, "source": source, "pose": "iphone"}]})
+        for source, want in (("demo", "demo"), ("mockup", "mockup"), ("live", "live")):
+            for manifest in shapes(source):
+                (folder / "manifest.json").write_text(json.dumps(manifest))
+                self.assertEqual(pr_note.manifest_source(pic), want, manifest)
+        for manifest in shapes("live"):
+            (folder / "manifest.json").write_text(json.dumps(manifest))
+            code, _out, err = self.post("build", f"![Home]({pic})")
+            self.assertEqual((code, "home.png" in err), (1, True), manifest)
+        for manifest in shapes("demo", result="not_run"):
+            (folder / "manifest.json").write_text(json.dumps(manifest))
+            self.assertIsNone(pr_note.manifest_source(pic), manifest)
+            self.assertEqual(self.post("build", f"![Home]({pic})")[0], 1, manifest)
+        self.assertEqual((self.bodies(), self.attached()), ([], 0))
+        (folder / "manifest.json").write_text(json.dumps(shapes("demo")[1]))
+        self.assertIn("posted", self.post("build", f"![Home]({pic})")[1])
+
+    def test_same_picture_three_classes(self):
+        """Fails if: the same bytes for the evidence classes ``iphone``, ``duo`` (iPhone Duo) and ``ipad`` cause more than one
+        upload, the second or third class carries a picture instead of ``Same as <caption>``, or different bytes on ``duo``
+        do not upload."""
+        shots = {"iphone": self.evidence("iphone/card.png", b"card"), "duo": self.evidence("duo-folded/card.png", b"card"),
+                 "ipad": self.evidence("ipad-portrait/card.png", b"card")}
+        for step, (cls, pic) in enumerate(shots.items(), start=1):
+            self.assertIn("posted", self.post("evidence", f"Card.\n\n![{cls} card]({pic})", "1", "--class", cls,
+                                              "--step", str(step))[1])
+        self.assertEqual(self.attached(), 1)
+        first, second, third = self.bodies()
+        self.assertIn(f"![iphone card]({self.url(b'card')})", first)
+        for body in (second, third):
+            self.assertIn("Same as iphone card", body)
+            self.assertNotIn("user-attachments", body)
+            self.assertNotIn("card.png", body)
+        # a re-post of the first class keeps its picture, and is the same note
+        self.assertIn("unchanged", self.post("evidence", f"Card.\n\n![iphone card]({shots['iphone']})", "1", "--class",
+                                             "iphone", "--step", "1")[1])
+        differs = self.evidence("duo-partial-fold/card.png", b"card, half open")
+        self.post("evidence", f"Card.\n\n![duo half open]({differs})", "2", "--class", "duo", "--step", "4")
+        self.assertEqual(self.attached(), 2)
+        self.assertIn(f"![duo half open]({self.url(b'card, half open')})", self.bodies()[3])
+
+
+class StepTests(Base):
+    """A comment is identified by its kind and step; the older kind and round markers are still read; page order is step order."""
+
+    def steps(self):
+        return [int(re.match(r"(?:@SFenton\n\n)?#### Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+
+    def markers(self):
+        return [re.search(r"<!-- (sh:[^ ]+) -->\s*$", c["body"]).group(1) for c in self.get()["comments"]]
+
+    def old_comment(self, cid, kind, step, rnd, text="Old.", task="T"):
+        return {"id": cid, "html_url": f"https://example.test/pull/7#issuecomment-{cid}",
+                "body": f"#### Step {step} · Designer · round {rnd} · 10:00Z\n\n{text}\n\n<!-- sh-hash:0 -->\n"
+                        f"<!-- sh:{kind}:{task}:{rnd} -->\n"}
+
+    def test_two_notes_one_kind_one_round(self):
+        """Fails if: a second note of one kind in the same round with another step edits the first (``pick`` and ``evidence``),
+        a re-post of a step makes a new comment, or an old-marker comment (``sh:pick:T:1``) on the PR is no longer found by
+        an old-form re-post or by a post that names its step, or loses its marker when edited."""
+        self.assertIn("posted", self.post("pick", "Options.", "1", "--step", "1")[1])
+        self.assertIn("posted", self.post("pick", "The pick.", "1", "--step", "2")[1])
+        self.assertIn("posted", self.post("evidence", "Recorded.", "1", "--class", "duo", "--step", "3")[1])
+        self.assertIn("posted", self.post("evidence", "Captured.", "1", "--class", "duo", "--step", "4")[1])
+        self.assertEqual(self.markers(), ["sh:pick:T-x:s1", "sh:pick:T-x:s2", "sh:evidence:T-x:duo:s3", "sh:evidence:T-x:duo:s4"])
+        self.assertIn("Options.", self.get()["comments"][0]["body"])
+        self.assertIn("unchanged", self.post("pick", "The pick.", "1", "--step", "2")[1])
+        self.assertIn("edited", self.post("pick", "The pick, revised.", "3", "--step", "2")[1])
+        self.assertEqual((len(self.get()["comments"]), self.steps()), (4, [1, 2, 3, 4]))
+        self.assertRegex(self.get()["comments"][1]["body"].splitlines()[0], r"^#### Step 2 · Designer · round 3 · ")
+        # the comments an older version left on a pull request: kind and round markers
+        self.set_state(comments=[self.old_comment(1, "pick", 1, 1), self.old_comment(2, "verdict", 2, 0),
+                                 self.old_comment(3, "pick", 3, 0)])
+        self.assertIn("edited", self.post("pick", "Re-posted the old way.", "1", task="T")[1])
+        self.assertIn("edited", self.post("verdict", "Re-posted by its step.", "1", "--step", "2", task="T")[1])
+        self.assertIn("edited", self.post("pick", "Second pick by its step.", "1", "--step", "3", task="T")[1])
+        comments = self.get()["comments"]
+        self.assertEqual([c["id"] for c in comments], [1, 2, 3])
+        self.assertEqual(self.markers(), ["sh:pick:T:1", "sh:verdict:T:0", "sh:pick:T:0"])
+        for comment, text in zip(comments, ("Re-posted the old way.", "Re-posted by its step.", "Second pick by its step.")):
+            self.assertIn(text, comment["body"])
+        self.assertEqual(self.steps(), [1, 2, 3])
+
+    def test_a_post_by_round_finds_the_single_step_form_comment_of_that_round(self):
+        """Fails if: a post that names no step doubles the one comment of its kind and round that was posted with ``--step``,
+        or picks one of two such comments."""
+        self.post("build", "Built.", "1", "--step", "1")
+        self.assertIn("edited", self.post("build", "Built, more.", "1")[1])
+        self.assertEqual(len(self.get()["comments"]), 1)
+        self.post("build", "Built again.", "1", "--step", "2")
+        self.assertIn("posted", self.post("build", "Which one?", "1")[1])
+        self.assertEqual(self.markers(), ["sh:build:T-x:s1", "sh:build:T-x:s2", "sh:build:T-x:1"])
+
+    def test_step_order_hold(self):
+        """Fails if: after step 3 is posted before step 2 the page order (creation order) is 3 then 2, a held step is lost or
+        sent twice, the hold is not reported, ``--now`` does not send at once with a warning, or an edit of a posted step
+        is held."""
+        self.post("research", "One.", "1", "--step", "1")
+        code, out, err = self.post("review", "Three.", "1", "--step", "3")
+        self.assertEqual(code, 0)
+        self.assertIn("held", out)
+        self.assertIn("held until step 2 is posted", err)
+        self.assertEqual(self.steps(), [1])
+        self.assertIn("flushed 0", self.run_cli("flush", "--task", "T-x")[1])
+        self.assertEqual(self.steps(), [1])
+        self.assertIn("posted", self.post("build", "Two.", "1", "--step", "2")[1])
+        self.assertEqual(self.steps(), [1, 2, 3])
+        self.assertEqual(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")), [])
+        self.assertIn("flushed 0", self.run_cli("flush", "--task", "T-x")[1])
+        self.assertEqual(len(self.get()["comments"]), 3)
+        code, out, err = self.post("retro", "Six.", "1", "--step", "6", "--now")
+        self.assertIn("posted", out)
+        self.assertIn("step 6 posted before step 4", err)
+        self.assertIn("edited", self.post("retro", "Six, changed.", "1", "--step", "6")[1])
+        self.assertEqual(self.steps(), [1, 2, 3, 6])
+
+    def test_flush_sends_a_queue_in_step_order(self):
+        """Fails if: notes queued before the PR exists as steps 3, 2, 1 appear on the page in any order but 1, 2, 3 after one
+        ``flush``, or a step whose predecessor never arrives is sent instead of staying queued and reported."""
+        self.set_state(pr=None)
+        for step, text in ((3, "Three."), (2, "Two."), (1, "One."), (5, "Five.")):
+            self.assertIn("queued", self.post("build", text, "1", "--step", str(step))[1])
+        self.set_state(pr=7)
+        _code, out, err = self.run_cli("flush", "--task", "T-x")
+        self.assertIn("flushed 3", out)
+        self.assertEqual(self.steps(), [1, 2, 3])
+        self.assertIn("held until step 4 is posted", err)
+        self.assertEqual(len(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))), 1)
+        self.assertIn("posted", self.post("review", "Four.", "1", "--step", "4")[1])
+        self.assertEqual(self.steps(), [1, 2, 3, 4, 5])
