@@ -423,6 +423,62 @@ class ReviewRoundTests(Fixture):
         self.assertEqual(self.bash(command + " tracked.txt", self.primary)[0], 2)
 
 
+class SubagentSessionTests(Fixture):
+    """A subagent (payload carries ``agent_id``) may not switch branches, set up or edit in a ``t3/*`` session worktree."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.session = cls.root / "session"
+        git(cls.primary, "worktree", "add", "-q", "-b", "t3/x", str(cls.session))
+        cls.lane = cls.root / "lane"
+        git(cls.primary, "worktree", "add", "-q", "-b", "agents/lane", str(cls.lane))
+
+    def call(self, command, cwd, agent=True):
+        payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
+        if agent:
+            payload["agent_id"] = "a1"
+        return self.run_hook(payload)
+
+    def test_branch_changes_are_denied_for_a_subagent(self):
+        for command in ("git switch y", "git switch -c y", "git checkout y", "git checkout -b y", "git -C . switch y"):
+            code, _, err = self.call(command, self.session)
+            self.assertEqual(code, 2, command)
+            self.assertIn("blocked_reason no_worktree", err)
+
+    def test_file_restores_pass(self):
+        for command in ("git checkout -- f", "git checkout HEAD -- f", "git checkout", "git status"):
+            self.assertEqual(self.call(command, self.session)[0], 0, command)
+
+    def test_setup_is_denied_for_a_subagent(self):
+        for command in ("tools/setup.sh", "bash tools/setup.sh", "cd . && ./setup.sh"):
+            self.assertEqual(self.call(command, self.session)[0], 2, command)
+
+    def test_the_orchestrator_passes(self):
+        for command in ("git switch y", "git checkout -b y", "tools/setup.sh"):
+            self.assertEqual(self.call(command, self.session, agent=False)[0], 0, command)
+
+    def test_a_subagent_in_a_lane_worktree_passes(self):
+        for command in ("git switch y", "git checkout -b y", "tools/setup.sh"):
+            self.assertEqual(self.call(command, self.lane)[0], 0, command)
+
+    def test_a_subagent_may_write_ignored_files_in_a_session_worktree(self):
+        (self.session / ".gitignore").write_text("build/\n")
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(self.session / "build" / "retro" / "n.md")},
+                   "cwd": str(self.session), "agent_id": "a1"}
+        self.assertEqual(self.run_hook(payload)[0], 0)
+
+    def test_detach_is_denied_and_a_detached_head_is_not_guarded(self):
+        self.assertEqual(self.call("git checkout --detach", self.session)[0], 2)
+        git(self.primary, "worktree", "add", "-q", "--detach", str(self.root / "det"))
+        worktree_guard._RAW_CACHE.clear()
+        self.assertEqual(self.call("git switch y", self.root / "det")[0], 0)
+
+    def test_a_subdirectory_cwd_is_still_the_session_worktree(self):
+        (self.session / "src").mkdir(exist_ok=True)
+        self.assertEqual(self.call("git switch y", self.session / "src")[0], 2)
+
+
 class ScriptTests(Fixture):
     def test_runs_as_a_script_from_any_directory(self):
         script = str(HOOKS / "worktree_guard.py")

@@ -19,6 +19,7 @@ You plan, dispatch, judge and land. You never build, test, boot simulators or re
 - A Reviewer spawn prompt starts `opus-ok: final review`. Model escalation: [token-economy](../../.agents/workflow/token-economy.md#models).
 - Before a lane: `python3 tools/lane_check.py start`.
 - Before reusing a worktree, confirm it is idle: no dirty files, no live `build/runs/*.running` job, no edit within 10 minutes. Otherwise message its agent.
+- On `blocked_reason: no_worktree`: spawn fresh, never resume.
 - On `"hub_republish": true` from the Designer, republish the hub with the [mockup-hub](../../.agents/skills/mockup-hub/SKILL.md) skill before ending.
 
 ## Ledger
