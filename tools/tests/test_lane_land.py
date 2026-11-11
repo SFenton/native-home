@@ -1779,7 +1779,7 @@ class PrGateTests(Repo):
         self.assertEqual([c[0] for c in self.calls], ["design.app_wide"])
 
     def test_an_interactive_pr_is_never_vouched_by_its_own_text_or_author(self):
-        # Agents open PRs under the owner's login with text they wrote: that is not an owner request. The owner uses --owner-ack.
+        # Agents open PRs under the owner's login with text they wrote: that is not an owner request. The owner approves and merges on GitHub.
         for author in ("SFenton", "stranger"):
             with self.subTest(author=author):
                 self.calls.clear()

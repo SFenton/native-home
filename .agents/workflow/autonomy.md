@@ -30,7 +30,7 @@ The owner alone decides and merges changes to:
 | The review record | The verdict recorder, its reader, its guard, the Reviewer's agent file |
 | Session deny lists | The guards enforcing a headless session's deny list |
 | Git plumbing | Git's own configuration and hooks directories |
-| Owner acknowledgements | The commands that accept an unverified base or skip a gate for one PR |
+| Owner acknowledgements | The command that accepts an unverified base |
 | App-wide UI | A broad, app-wide visible change the owner did not request |
 
 - The path list is `DEFAULT_PROTECTED` in `tools/lane_land.py`, plus `protected_paths` in `tools/triage/config.json` and the release closure from `tools/release_closure.py`. `tools/pr_land.sh` and `tools/lane_land.py` refuse a change that touches it.

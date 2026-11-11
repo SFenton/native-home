@@ -304,7 +304,7 @@ def changed_paths(clone: Path, base: str, sha: str) -> List[Tuple[str, str, str,
 
 
 #: Appended to a pull-request refusal of the owner-only set: the only way past it.
-OWNER_ONLY_HINT = "; only the owner lands it, from their own terminal with the owner acknowledgement (see pr-lifecycle.md)"
+OWNER_ONLY_HINT = "; the owner approves this pull request on GitHub (their review of this exact head) and merges it there (see pr-lifecycle.md)"
 
 
 def protected_set(root: Path, cfg: Optional[dict] = None) -> List[str]:
@@ -1456,7 +1456,7 @@ def live_request_reader(gh: GH, cfg: dict) -> RequestReader:
     issue, the pull request's own text and anything unreadable count as nothing: agents use the owner's login or, once configured,
     the agent login (which :func:`read_config` drops from ``authors``, so it never vouches), so only the request repo (where
     agent-filed issues carry ``Workflow``) can show an owner's request. The owner's way around is
-    ``--owner-ack``."""
+    to approve the pull request on GitHub (their review of this exact head) and merge it there."""
     authors = list(cfg.get("authors") or [])
     repo = str(cfg.get("request_repo") or "")
 
