@@ -285,28 +285,67 @@ class ComposeTests(unittest.TestCase):
     def test_worked_examples_have_no_errors(self):
         """Fails if: a composed worked example (PR #57 rewrite, the Duo visual PR) has any body-check error."""
         for summary, tests, evidence in ((SUMMARY_57, TESTS_57, ""), (SUMMARY_DUO, TESTS_DUO, EVIDENCE_DUO)):
-            text = pr_text.compose(summary, tests, evidence, status="Ready · Waiting on: owner approval")
+            text = pr_text.compose(summary, tests, evidence)
             self.assertEqual(errors_of(text), [])
 
     def test_shape_headings_and_markers(self):
-        """Fails if: Evidence appears without a file, a marker block or the closed review details is missing, or placeholder text appears."""
+        """Fails if: Evidence appears without a file, a hidden marker pair other tools find is missing, or placeholder text appears."""
         text = pr_text.compose(SUMMARY_57, TESTS_57)
         self.assertEqual(text.count("\n## "), 1)
         self.assertTrue(text.startswith("## Summary\n"))
         self.assertNotIn("## Evidence", text)
-        for marker in ("<!-- sh-timeline:start -->", "<!-- sh-timeline:end -->", "<!-- sh-status:start -->",
-                       "<!-- sh-status:end -->", "<!-- review:start -->", "<!-- review:end -->",
-                       "<details><summary>Review verdict</summary>"):
-            self.assertIn(marker, text)
-        self.assertNotIn("<details open", text)
+        for pair in ("<!-- sh-timeline:start -->\n<!-- sh-timeline:end -->", "<!-- sh-status:start -->\n<!-- sh-status:end -->",
+                     "<!-- review:start -->\n<!-- review:end -->"):
+            self.assertIn(pair, text)
         self.assertNotIn("- [ ]", text)
         self.assertEqual(pr_text.placeholder_problems(text, pr_text.load_words()), [])
         self.assertIn("## Evidence", pr_text.compose(SUMMARY_DUO, TESTS_DUO, EVIDENCE_DUO))
 
-    def test_status_text_sits_between_its_markers(self):
-        """Fails if: the status text is outside the sh-status block."""
-        text = pr_text.compose(SUMMARY_57, TESTS_57, status="Ready · Waiting on: nobody")
-        self.assertIn("<!-- sh-status:start -->\nReady · Waiting on: nobody\n<!-- sh-status:end -->", text)
+    def test_no_status_text_and_no_review_block_is_shown(self):
+        """Fails if: a composed body shows status text ("Drafting" or any other), a "Review verdict" details block or anything
+        else below Tests, ``compose`` still takes a status, or a body without those is refused by body-check."""
+        for evidence in ("", EVIDENCE_DUO):
+            text = pr_text.compose(SUMMARY_DUO, TESTS_DUO, evidence)
+            seen = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+            for word in ("Drafting", "Review verdict", "<details", "Status", "Waiting on"):
+                self.assertNotIn(word, seen)
+            self.assertEqual(seen.split("## Tests\n")[1].split("## Evidence\n")[0].strip(), TESTS_DUO.strip())
+            self.assertEqual(errors_of(text), [])
+        with self.assertRaises(TypeError):
+            pr_text.compose(SUMMARY_57, TESTS_57, status="Ready")
+        with TemporaryDirectory() as tmp:
+            s, t = Path(tmp) / "s.md", Path(tmp) / "t.md"
+            s.write_text(SUMMARY_57, encoding="utf-8")
+            t.write_text(TESTS_57, encoding="utf-8")
+            with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+                pr_text.main(["compose", "--summary-file", str(s), "--tests-file", str(t), "--status", "Drafting"])
+
+    def test_evidence_needs_a_picture_of_its_own(self):
+        """Fails if: an ``## Evidence`` section that only links to pictures in the comments (or holds only words, or a picture
+        only inside an HTML comment) passes body-check or is composed, or one with an image, an ``<img>`` tag, a ``<video>``
+        tag or an uploaded asset on its own line is refused."""
+        linked = ["See the pictures in [the Verifier's comment](https://github.com/o/r/pull/7#issuecomment-1).",
+                  "- Before and after are in the comments.", "<!-- ![hidden](a.png) -->\nPictures are in the comments."]
+        own = [EVIDENCE_DUO, '<img src="https://github.com/user-attachments/assets/ab-1" alt="After, iPhone" width="280">',
+               '<video src="https://github.com/user-attachments/assets/ab-2" width="280" controls></video>',
+               "https://github.com/user-attachments/assets/ab-3"]
+        for evidence in linked:
+            text = body() + f"\n## Evidence\n{evidence}\n"
+            self.assertTrue(any("holds no picture of its own" in e for e in errors_of(text)), evidence)
+        for evidence in own:
+            self.assertEqual(errors_of(body() + f"\n## Evidence\n{evidence}\n"), [], evidence)
+        self.assertEqual(errors_of(body()), [])
+        with TemporaryDirectory() as tmp:
+            s, t, e = Path(tmp) / "s.md", Path(tmp) / "t.md", Path(tmp) / "e.md"
+            s.write_text(SUMMARY_57, encoding="utf-8")
+            t.write_text(TESTS_57, encoding="utf-8")
+            e.write_text(linked[0], encoding="utf-8")
+            code, out, _ = run_cli("compose", "--summary-file", str(s), "--tests-file", str(t), "--evidence-file", str(e))
+            self.assertEqual((code, out), (1, ""))
+            e.write_text(own[1], encoding="utf-8")
+            code, out, _ = run_cli("compose", "--summary-file", str(s), "--tests-file", str(t), "--evidence-file", str(e))
+            self.assertEqual(code, 0)
+            self.assertIn("## Evidence\n" + own[1], out)
 
     def test_request_lines_match_what_the_gate_reads(self):
         """Fails if: the quote or trailer lines do not match lane_land's OWNER_QUOTE and OWNER_REQUEST patterns."""

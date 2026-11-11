@@ -32,16 +32,25 @@ Step order: a new comment with ``--step N`` is held in the queue (result ``held 
 on the pull request, and goes out right after its predecessors (the next ``post``, ``flush`` or ``init``), so the page reads
 in step order. ``--now`` sends it at once with one warning line. An edit is never held.
 
-Header: every comment has its own heading line ``#### Step N · <Role> · round R · head <sha7> · HH:MMZ`` (head only when
-``--head`` is given, 7 to 40 hex characters), then a blank line and the body unchanged. ``N`` is ``--step`` or, when absent, the count of this task's distinct markers already posted or queued, plus one;
-an edit keeps its number. The role is ``--as`` or the kind's usual role (Researcher, Designer, Coder, Verifier,
-Reviewer, Steward, Orchestrator). A body that starts with its own ``#`` heading keeps it first and the header follows;
-an app's ``@SFenton`` mention stays first. A comment in the older glued form is rewritten in the new one on its next post.
+Comment form: what people see is ``## <Role>`` and the body file as written, nothing else: no step number, round, head
+commit or time. The body file is three bullet lists under ``### Actions Taken``, ``### Result`` and ``### Next Steps``, in that
+order; pictures (image lines or a table of them) may follow a list. Any other body is refused with one line (exit 1). The role
+is ``--as`` or the kind's usual role (Researcher, Designer, Coder, Verifier, Reviewer, Steward, Orchestrator); an app's
+``@SFenton`` mention stays the first line. The step (``--step``, or the count of this task's distinct markers posted or queued
+plus one; an edit keeps its own), the round and ``--head`` (7 to 40 hex characters, 7 kept) live in a hidden line,
+``<!-- sh-meta:step=N round=R head=<sha7> -->``, between the hash and the marker. A comment that records no step (one edited by
+hand) counts by its place on the page; one with the visible header of an older version is rewritten on its next post.
+
+Scaled pictures: every attached picture or gif is written ``<img src="URL" alt="caption" width="N">`` and a video
+``<video src="URL" width="N" controls></video>``, never the full-size ``![]()`` form: 280 wide for a portrait capture (and
+for a video or a file whose size cannot be read), 480 for a landscape one, 260 each in a table row or when two or more
+stand alone on one line (they become a table under their captions). The body file names a picture as ``![caption](path)``;
+a new file is uploaded with that reference and the comment is then rewritten with the scaled tag.
 
 Behaviour:
 
-- A body hash is stored in the comment; an unchanged body is a no-op, a changed one edits the comment and adds
-  "updated HH:MMZ" to its header line, a new marker posts a new comment. The hash counts each local picture by its bytes, so
+- A body hash is stored in the comment; an unchanged body is a no-op, a changed one edits the comment in place, a new
+  marker posts a new comment. The hash counts each local picture by its bytes, so
   a retaken or corrected picture is a change and the same picture under another name is not.
 - Finding the PR: ``--pr N``; else ``--branch B`` (``gh pr list --head B``; nothing else is tried when B has none yet); else
   the current branch's PR; else, only when the task ledger (``build/tasks/<task>.json``, directory ``--ledger-dir``, ``TASKS_DIR``
@@ -56,8 +65,7 @@ Behaviour:
 - With no PR yet the note is queued under ``~/hass-agents/pr-notes/<task>/queue/`` (``SH_PR_NOTES_DIR`` overrides the
   folder; shared by every worktree) with its original time, and ``flush`` posts the queue in order once the PR exists (a queued note whose marker is posted with the same body is dropped;
   with a different body it is applied as an edit; one that is refused or fails stays queued, is reported, and the notes behind it
-  still go out)
-  ("happened 11:32Z, posted when the PR opened"). ``flush``, ``init`` and ``post`` also move the old per-checkout queue
+  still go out). ``flush``, ``init`` and ``post`` also move the old per-checkout queue
   ``build/pr-notes/<task>/queue/`` into the shared one first, keeping names (so time and order).
 - House data (first gate): before any body, line or file is posted or queued it goes through the house denylist with the
   push gate's own rules (``tools/house_scan.py``, matcher of ``tools/prepush_denylist.py``). A hit refuses the post:
@@ -82,7 +90,7 @@ Behaviour:
 - ``status`` and ``devices`` replace only the text between their own ``sh-status`` / ``sh-devices`` markers in the PR
   body. Everything else, including the reviewer's block, is left byte for byte.
 - ``timeline`` rewrites the text between ``<!-- sh-timeline:start -->`` and ``<!-- sh-timeline:end -->`` (appended when
-  missing) with one line per posted step, in order: ``N. [Role, round R: first sentence](comment url)``. ``post``
+  missing) with one line per posted step, in order: ``N. [Role: first action](comment url)``. ``post``
   runs it after a post that changed something; a failure there only warns.
 - Local images and videos referenced as markdown paths are attached with ``gh pr comment --attach`` /
   ``gh pr edit --attach`` from a temporary folder under neutral names, so no local path is ever in the text sent; the
@@ -114,10 +122,12 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hashlib
+import html
 import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -158,6 +168,12 @@ _HEADER = re.compile(r"Step (\d+) · ([A-Za-z]+) · round (\d+)(?: · head [0-9a
 _MEDIA = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
 _TASK = re.compile(r"^[A-Za-z0-9._-]+$")
 _HASH = re.compile(r"<!-- sh-hash:([0-9a-f]+) -->")
+_META = re.compile(r"<!-- sh-meta:([^>]*?) -->")
+#: The three headings of a comment body, in order; each holds a bullet list.
+SECTIONS = ("Actions Taken", "Result", "Next Steps")
+#: Display widths: a portrait capture, a landscape one, and each of two side by side in a table.
+WIDTH_PORTRAIT, WIDTH_LANDSCAPE, WIDTH_PAIR = 280, 480, 260
+_ASSET = re.compile(r"https://github\.com/user-attachments/assets/[\w-]+")
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 #: Extensions GitHub shows as a player, not as an image reference.
 VIDEO = (".mp4", ".mov", ".webm")
@@ -432,44 +448,93 @@ def now_z() -> str:
 
 
 def strip_markers(body: str) -> str:
-    """Remove any sh marker or hash line a renderer already put in."""
-    return re.sub(r"\n?<!-- sh(?:-hash)?:[^>]*-->[ \t]*", "", body).strip()
+    """Remove any sh marker, hash or meta line a renderer put in."""
+    return re.sub(r"\n?<!-- sh(?:-hash|-meta)?:[^>]*-->[ \t]*", "", body).strip()
 
 
 def role_label(kind: str, role: Optional[str]) -> str:
-    """The role named in the header: ``--as`` (capitalised) or the kind's usual role."""
+    """The role named in the comment heading: ``--as`` (capitalised) or the kind's usual role."""
     return role.capitalize() if role else KIND_ROLE.get(kind, "Orchestrator")
 
 
-def header_line(step: int, role: str, round_no: int, head: Optional[str], when: str) -> str:
-    """``Step N · Role · round R · head <sha7> · HH:MMZ`` (head left out when unknown)."""
-    parts = [f"Step {step}", role, f"round {round_no}"]
-    if head:
-        parts.append(f"head {head[:7]}")
-    return " · ".join([*parts, when])
+_BULLET = re.compile(r"^\s*[-*]\s+\S")
+_PICTURE_LINE = re.compile(r"^\s*(!\[|<img\b|<video\b|\||Same as\b)")
 
 
-def compose(body: str, tag: str, note: Optional[str] = None, digest: Optional[str] = None,
-            header: Optional[str] = None) -> str:
-    """The final comment text: header (with ``note`` appended), body, hash and marker.
+def form_problem(body: str) -> Optional[str]:
+    """What keeps ``body`` from the comment form, in a few words; ``None`` when it fits.
 
-    ``digest`` is ``digest_of`` the body (each local picture counted by its bytes) so a re-post compares equal. ``header`` is
-    its own line, ``#### Step N · ...``, then a blank line, then the body unchanged. A body that starts with its own ``#``
-    heading keeps it first and gets the header as the next line; an ``@SFenton`` mention stays first, the header follows it."""
+    The form: ``### Actions Taken``, ``### Result`` and ``### Next Steps`` in that order and nothing else at heading level
+    three, each followed by a bullet list. After a list a section may hold pictures (image lines or a table of them). A first
+    ``@SFenton`` line and a first ``## <Role>`` line are let through (the tool writes both itself)."""
+    lines = strip_markers(body).splitlines()
+    while lines and (not lines[0].strip() or lines[0].startswith(MENTION) or re.match(r"^##\s+\S", lines[0])):
+        lines.pop(0)
+    found: List[str] = []
+    bullets = 0
+    for line in lines:
+        heading = re.match(r"^###\s+(.+?)\s*$", line)
+        if heading:
+            if found and not bullets:
+                return f"'### {found[-1]}' has no bullet list"
+            found.append(heading.group(1))
+            bullets = 0
+            if tuple(found) != SECTIONS[:len(found)]:
+                return f"heading '### {heading.group(1)}' is not expected there"
+        elif not line.strip():
+            continue
+        elif not found:
+            return "text before '### Actions Taken'"
+        elif _BULLET.match(line):
+            bullets += 1
+        elif bullets and (line[:1] in " \t" or _PICTURE_LINE.match(line)):
+            continue
+        else:
+            return f"'### {found[-1]}' holds text that is not a bullet or a picture"
+    if tuple(found) != SECTIONS:
+        return f"'### {SECTIONS[len(found)]}' is missing"
+    return None if bullets else f"'### {found[-1]}' has no bullet list"
+
+
+def form_gate(body: str, source: str) -> None:
+    """Refuse (``Refusal``, one line) a comment body that is not three bullet lists under the three headings."""
+    problem = form_problem(body)
+    if problem:
+        raise Refusal(f"{source} is not in the comment form (bullet lists under '### Actions Taken', '### Result' and "
+                      f"'### Next Steps'): {problem}; not posting")
+
+
+def meta_line(step: int, round_no: int, head: Optional[str]) -> str:
+    """The hidden line that keeps what people do not need to see: the step, the round and the head commit."""
+    return f"<!-- sh-meta:step={step} round={round_no}" + (f" head={head[:7]}" if head else "") + " -->"
+
+
+def meta_of(comment: Dict[str, Any]) -> Dict[str, str]:
+    """The ``sh-meta`` values of a comment (``step``, ``round``, ``head``); empty when it has none."""
+    m = _META.search(comment.get("body") or "")
+    return dict(part.split("=", 1) for part in m.group(1).split() if "=" in part) if m else {}
+
+
+def compose(body: str, tag: str, digest: Optional[str] = None, role: Optional[str] = None,
+            meta: Optional[str] = None) -> str:
+    """The final comment text: ``## <Role>``, the body, then the hidden hash, meta and marker lines.
+
+    Nothing else is shown: no step number, round, head or time. ``digest`` is ``digest_of`` the body (each local picture
+    counted by its bytes) so a re-post compares equal. A ``## `` heading the body starts with is replaced by the role's;
+    an ``@SFenton`` mention stays first. With no ``role`` the body is kept as it is."""
     clean = strip_markers(body)
     lines = clean.split("\n")
-    if header is None:
-        if note:
-            lines[0] = f"{lines[0]} · {note}"
-        return f"{chr(10).join(lines)}\n\n<!-- sh-hash:{digest or body_hash(clean)} -->\n{tag}\n"
-    shown = f"#### {header}" + (f" · {note}" if note else "")
-    if clean.startswith(MENTION):
-        text = f"{lines[0]}\n\n{shown}\n\n" + "\n".join(lines[1:]).lstrip("\n")
-    elif lines[0].startswith("#"):  # a heading stays the first line
-        text = f"{lines[0]}\n{shown}\n\n" + "\n".join(lines[1:]).lstrip("\n")
-    else:
-        text = f"{shown}\n\n{clean}"
-    return f"{text.rstrip()}\n\n<!-- sh-hash:{digest or body_hash(clean)} -->\n{tag}\n"
+    lead = ""
+    if lines and lines[0].startswith(MENTION):
+        lead, lines = f"{lines[0]}\n\n", lines[1:]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if role and lines and re.match(r"^##\s+\S", lines[0]):
+        lines.pop(0)
+    text = "\n".join(lines).strip("\n")
+    shown = f"{lead}## {role}\n\n{text}" if role else f"{lead}{text}"
+    hidden = f"<!-- sh-hash:{digest or body_hash(clean)} -->\n" + (f"{meta}\n" if meta else "")
+    return f"{shown.rstrip()}\n\n{hidden}{tag}\n"
 
 
 # MARK: - Pictures
@@ -710,9 +775,9 @@ def load_hashes(task: str) -> Dict[str, Dict[str, Dict[str, str]]]:
 
 
 class Rendered:
-    """A text made fit to send: ``text`` (uploaded pictures as their URLs, repeated ones as ``Same as``, new files under their
-    staged names ``<sha256><suffix>``), ``new`` (staged name to local file) and ``pics`` (hash, caption and reference of each
-    picture the text shows)."""
+    """A text made fit to send: ``text`` (uploaded pictures as scaled ``<img>`` tags, repeated ones as ``Same as``, new files
+    as ``![caption](<sha256><suffix>)`` under their staged names), ``new`` (staged name to local file) and ``pics`` (hash,
+    caption and reference of each picture the text shows)."""
 
     def __init__(self, text: str, new: Dict[str, Path], pics: List[Dict[str, str]]) -> None:
         self.text = text
@@ -728,37 +793,104 @@ def _owned(prior: Dict[str, str], owner: str, ref: str, found: Path) -> bool:
     return old == ref or (bool(old) and os.path.abspath(old) == os.path.abspath(found))
 
 
+def picture_size(path: Path) -> "Optional[tuple[int, int]]":
+    """``(width, height)`` in pixels of a PNG, GIF or JPEG file, ``None`` for anything else (a video, a broken file)."""
+    try:
+        with path.open("rb") as f:
+            head = f.read(32)
+            if head.startswith(b"\x89PNG\r\n\x1a\n") and head[12:16] == b"IHDR":
+                return struct.unpack(">II", head[16:24])
+            if head[:6] in (b"GIF87a", b"GIF89a"):
+                return struct.unpack("<HH", head[6:10])
+            if head[:2] == b"\xff\xd8":
+                f.seek(2)
+                while True:
+                    mark = f.read(4)
+                    if len(mark) < 4 or mark[0] != 0xFF:
+                        return None
+                    size = struct.unpack(">H", mark[2:4])[0]
+                    if 0xC0 <= mark[1] <= 0xCF and mark[1] not in (0xC4, 0xC8, 0xCC):
+                        height, width = struct.unpack(">HH", f.read(5)[1:5])
+                        return width, height
+                    f.seek(size - 2, 1)
+    except (OSError, struct.error):
+        return None
+    return None
+
+
+def display_width(path: Optional[Path], paired: bool = False) -> int:
+    """How wide a picture is shown: 260 beside another one, else 480 for a landscape capture and 280 for a portrait one (or
+    when the size cannot be read)."""
+    if paired:
+        return WIDTH_PAIR
+    size = picture_size(path) if path else None
+    return WIDTH_LANDSCAPE if size and size[0] > size[1] else WIDTH_PORTRAIT
+
+
+def picture_tag(url: str, caption: str, width: int, video: bool = False) -> str:
+    """The scaled form GitHub renders: ``<img src alt width>``, or ``<video src width controls>`` for a video (a player has
+    no alt text). Never the full-size ``![]()`` form."""
+    if video:
+        return f'<video src="{html.escape(url, quote=True)}" width="{width}" controls></video>'
+    return f'<img src="{html.escape(url, quote=True)}" alt="{html.escape(caption, quote=True)}" width="{width}">'
+
+
+def _pair_table(line: str) -> Optional[List[str]]:
+    """The captions of a line that holds two or more pictures and nothing else, else ``None`` (such a line becomes a table)."""
+    found = _MEDIA.findall(line)
+    if len(found) < 2 or line.lstrip().startswith("|") or _MEDIA.sub("", line).strip():
+        return None
+    return [alt for alt, _ref in found]
+
+
 def render(text: str, pr: int, task: str, owner: str) -> Rendered:
-    """Resolve every local picture of ``text`` by its bytes, for the comment or block ``owner``.
+    """Resolve every picture of ``text`` by its bytes and write it scaled, for the comment or block ``owner``.
 
     A file another owner shows on this PR, or that appears earlier in this text, becomes ``Same as <first caption>``: the
     same picture for iPhone, iPhone Duo and iPad is posted once whatever its path or class. A file with a remembered URL
-    becomes that URL. Any other file is new: its reference becomes the staged name ``<sha256><suffix>`` for ``staged``."""
+    becomes ``picture_tag`` (as does an uploaded-asset URL written as ``![]()``). Any other file is new: its reference
+    becomes the staged name ``<sha256><suffix>`` for ``staged`` and is written scaled once its URL is known (``finalize``).
+    Pictures in a table row, or two or more alone on one line (they become a table under their captions), are 260 wide;
+    one on its own is 280 (portrait) or 480 (landscape)."""
     seen = load_hashes(task).get(str(pr), {})
     media = load_media(task)
     here: Dict[str, str] = {}
     new: Dict[str, Path] = {}
     pics: List[Dict[str, str]] = []
 
-    def swap(m: "re.Match[str]") -> str:
-        alt, ref = m.group(1), m.group(2)
-        found = _local(ref)
-        if not found:
-            return m.group(0)
-        sha = file_hash(found)
-        if sha in here:
-            return f"Same as {here[sha]}"
-        prior = seen.get(sha)
-        if isinstance(prior, dict) and not _owned(prior, owner, ref, found):
-            return f"Same as {prior.get('caption') or found.name}"
-        here[sha] = alt or found.name
-        pics.append({"sha": sha, "caption": alt or found.name, "path": ref})
-        if sha in media:
-            return f"![{alt}]({media[sha]})"
-        name = sha + found.suffix.lower()
-        new[name] = found
-        return f"![{alt}]({name})"
-    return Rendered(_MEDIA.sub(swap, text), new, pics)
+    def one(line: str, paired: bool) -> str:
+        def swap(m: "re.Match[str]") -> str:
+            alt, ref = m.group(1), m.group(2)
+            if _ASSET.fullmatch(ref):
+                return picture_tag(ref, alt, display_width(None, paired))
+            found = _local(ref)
+            if not found:
+                return m.group(0)
+            sha = file_hash(found)
+            if sha in here:
+                return f"Same as {here[sha]}"
+            prior = seen.get(sha)
+            if isinstance(prior, dict) and not _owned(prior, owner, ref, found):
+                return f"Same as {prior.get('caption') or found.name}"
+            here[sha] = alt or found.name
+            pics.append({"sha": sha, "caption": alt or found.name, "path": ref})
+            if sha in media:
+                return picture_tag(media[sha], alt or found.name, display_width(found, paired),
+                                   found.suffix.lower() in VIDEO)
+            name = sha + found.suffix.lower()
+            new[name] = found
+            return f"![{alt}]({name})"
+        return _MEDIA.sub(swap, line)
+
+    out: List[str] = []
+    for line in text.split("\n"):
+        captions = _pair_table(line)
+        if captions:
+            cells = [one(m.group(0), True) for m in _MEDIA.finditer(line)]
+            out += ["| " + " | ".join(captions) + " |", "|" + "---|" * len(cells), "| " + " | ".join(cells) + " |"]
+        else:
+            out.append(one(line, line.lstrip().startswith("|")))
+    return Rendered("\n".join(out), new, pics)
 
 
 @contextlib.contextmanager
@@ -802,22 +934,27 @@ def remember_media(task: str, sent: str, posted: str, new: Dict[str, Path]) -> i
     """After an upload, remember the URL of each new file by its hash. Returns how many were learned.
 
     The i-th image of the text that was sent is the i-th image of what GitHub now shows, so a file takes the URL at its own
-    place and never one that belongs to an earlier picture. When the two do not line up nothing is remembered (the file
-    is uploaded again next time) and one line says so."""
+    place and never one that belongs to an earlier picture. A video comes back as a bare asset URL: the asset URLs that
+    were not in the sent text are matched, in order, to the videos that were sent. When either does not line up nothing of
+    that kind is remembered (the file is uploaded again next time) and one line says so."""
     if not new:
         return 0
-    mine, theirs = _images(sent), _images(posted)
-    if len(mine) != len(theirs):
-        print("pr_note: warning, the posted pictures do not line up with the sent ones; their URLs were not remembered",
-              file=sys.stderr)
-        return 0
     media, learned = load_media(task), 0
-    for ref, url in zip(mine, theirs):
-        if ref in new and url.startswith("https://"):
+    mine, theirs = _images(sent), _images(posted)
+    if len(mine) == len(theirs):
+        for ref, url in zip(mine, theirs):
+            if ref in new and url.startswith("https://"):
+                media[Path(ref).stem] = url
+                learned += 1
+    clips = [ref for _alt, ref in _MEDIA.findall(sent) if ref in new and ref.lower().endswith(VIDEO)]
+    fresh = [url for url in _ASSET.findall(posted) if url not in sent and url not in theirs]
+    if clips and len(clips) == len(fresh):
+        for ref, url in zip(clips, fresh):
             media[Path(ref).stem] = url
             learned += 1
-        elif ref in new:
-            print(f"pr_note: warning, picture {Path(ref).suffix or ref} was not attached by gh", file=sys.stderr)
+    if learned != len(new):
+        print("pr_note: warning, the posted pictures do not line up with the sent ones; "
+              f"{len(new) - learned} URL(s) were not remembered", file=sys.stderr)
     (task_dir(task) / "media.json").write_text(json.dumps(media, indent=1, sort_keys=True))
     return learned
 
@@ -844,23 +981,23 @@ def find_matches(comments: List[Dict[str, Any]], task: str, kind: str, cls: Opti
     """``(marker, comments that carry it)`` for one note: by step when ``step`` is given, else by round.
 
     The exact marker wins. Otherwise the other form is read, so no posted comment is orphaned: a post by step finds the
-    comment of its kind (and class) in the older round form whose header shows that step; a post by round finds the single
-    comment of its kind in the step form whose header shows that round (two or more such comments decide nothing). The
+    comment of its kind (and class) in the older round form that holds that step (``steps_of``); a post by round finds the
+    single comment of its kind in the step form that records that round (two or more such comments decide nothing). The
     marker returned is the one the comment carries, so an edit keeps it."""
     exact = marker(kind, task, round_no, cls, step)
     hits = [c for c in comments if has_tag(c, exact)]
     if hits:
         return exact, hits
     groups: Dict[str, List[Dict[str, Any]]] = {}
+    steps = steps_of(comments, task)
     for c in comments:
         inner = comment_tag(c, task)
         parts = tag_parts(inner, task) if inner else None
-        header = header_of(c)
-        if not parts or not header or parts[:2] != (kind, cls if kind == "evidence" else None):
+        if not parts or parts[:2] != (kind, cls if kind == "evidence" else None):
             continue
         stepped = parts[2].startswith("s")
-        if (step is not None and not stepped and int(header.group(1)) == step) or (
-                step is None and stepped and int(header.group(3)) == round_no):
+        if (step is not None and not stepped and steps.get(c.get("id")) == step) or (
+                step is None and stepped and round_of(c, task) == round_no):
             groups.setdefault(str(inner), []).append(c)
     if len(groups) == 1:
         inner, hits = groups.popitem()
@@ -870,7 +1007,7 @@ def find_matches(comments: List[Dict[str, Any]], task: str, kind: str, cls: Opti
 
 def missing_steps(comments: List[Dict[str, Any]], task: str, step: int) -> List[int]:
     """The steps below ``step`` that no comment of ``task`` on the PR shows yet."""
-    have = {step_of(c) for c in comments if comment_tag(c, task)}
+    have = set(steps_of(comments, task).values())
     return [n for n in range(1, step) if n not in have]
 
 
@@ -891,14 +1028,36 @@ def comment_tag(comment: Dict[str, Any], task: str) -> Optional[str]:
 
 
 def header_of(comment: Dict[str, Any]) -> "Optional[re.Match[str]]":
-    """The step header match in the first lines of a comment, else ``None``."""
+    """The visible step header an older version wrote in the first lines of a comment, else ``None``."""
     return _HEADER.search("\n".join((comment.get("body") or "").splitlines()[:6]))
 
 
 def step_of(comment: Dict[str, Any]) -> Optional[int]:
-    """The step number in a comment's header, else ``None``."""
+    """The step a comment records: its hidden ``sh-meta`` line, else the visible header of an older version, else ``None``."""
+    step = meta_of(comment).get("step", "")
+    if step.isdigit():
+        return int(step)
     m = header_of(comment)
     return int(m.group(1)) if m else None
+
+
+def round_of(comment: Dict[str, Any], task: str) -> Optional[int]:
+    """The round a comment records: ``sh-meta``, else an older visible header, else the key of a round-form marker."""
+    value = meta_of(comment).get("round", "")
+    if value.isdigit():
+        return int(value)
+    m = header_of(comment)
+    if m:
+        return int(m.group(3))
+    parts = tag_parts(comment_tag(comment, task) or "", task)
+    return int(parts[2]) if parts and parts[2].isdigit() else None
+
+
+def steps_of(comments: List[Dict[str, Any]], task: str) -> Dict[Any, int]:
+    """``{comment id: step}`` for the comments of ``task``. A comment that records no step (one edited by hand into the
+    plain form) takes its place on the page among the task's comments."""
+    mine = [c for c in comments if comment_tag(c, task)]
+    return {c.get("id"): step_of(c) or place for place, c in enumerate(mine, start=1)}
 
 
 def next_step(comments: List[Dict[str, Any]], task: str, tag: str, queued: bool = False) -> int:
@@ -925,8 +1084,9 @@ def post_comment(pr: int, task: str, kind: str, cls: Optional[str], round_no: in
     The comment is found by ``find_matches`` (by ``step`` when ``stepped``, else by round) whoever wrote it. The identity's
     own is edited; one by another author is replaced (new comment first, then the old one removed) because an app cannot
     edit the owner's comment, and so is the identity's own when the new text has a picture that is not uploaded yet (an edit
-    cannot upload). The header shows ``step`` (an edit keeps its own), the role, the round, ``head`` and the time
-    (``happened`` for a queued note). When the role's app call fails, one stderr line names the reason and the note is
+    cannot upload). The comment is ``## <Role>`` and the body; ``step`` (an edit keeps its own), the round and ``head``
+    go into the hidden ``sh-meta`` line. ``happened`` marks a queued note (its step was counted when it was queued) and is
+    not shown. When the role's app call fails, one stderr line names the reason and the note is
     posted with the ``gh`` login instead."""
     ident = ident or _ACTIVE
     try:
@@ -950,21 +1110,22 @@ def _post_as(ident: Identity, pr: int, task: str, kind: str, cls: Optional[str],
     own = next((c for c in matches if ident.mine(c)), None)
     foreign = [c for c in matches if not ident.mine(c) and ident.replaceable(c)]
     label = role_label(kind, role)
-    note = f"happened {happened}, posted when the PR opened" if happened else None
+    steps = steps_of(comments, task)
     if own:
         m = _HASH.search(own["body"])
-        if m and m.group(1) == digest and "#### Step " in own["body"]:  # an older, glued header is rewritten
+        if m and m.group(1) == digest and not header_of(own):  # a visible header of an older version is rewritten
             return "unchanged"
-        number = step_of(own) or step or next_step(comments, task, tag)
+        number = steps.get(own.get("id")) or step or next_step(comments, task, tag)
         if not shown.new:
-            header = header_line(number, label, round_no, head, now_z())
-            ident.edit(own["id"], compose(shown.text, tag, f"updated {now_z()}", digest, header))
+            meta = meta_line(number, round_no, head or meta_of(own).get("head"))
+            ident.edit(own["id"], compose(shown.text, tag, digest, label, meta))
             remember_hashes(pr, task, tag, shown.pics)
             return "edited"
-        step, note, foreign = number, f"updated {now_z()}", [own, *foreign]  # a new file: post anew, then drop the old copy
-    number = step or next((step_of(c) for c in matches if step_of(c)), None) or next_step(comments, task, tag, happened is None)
-    header = header_line(number, label, round_no, head, happened or now_z())
-    text = compose(shown.text, tag, note, digest, header)
+        step, foreign = number, [own, *foreign]  # a new file: post anew, then drop the old copy
+    number = (step or next((steps[c.get("id")] for c in matches if c.get("id") in steps), None)
+              or next_step(comments, task, tag, happened is None))
+    meta = meta_line(number, round_no, head)
+    text = compose(shown.text, tag, digest, label, meta)
     if ident.role:
         ident.create(pr, text)
     else:
@@ -972,8 +1133,13 @@ def _post_as(ident: Identity, pr: int, task: str, kind: str, cls: Optional[str],
             gh(["pr", "comment", str(pr), *body_args], stdin)
         if shown.new:
             posted = next((c for c in reversed(list_comments(pr)) if has_tag(c, tag)), None)
-            if posted:
-                remember_media(task, text, posted["body"], shown.new)
+            if posted and remember_media(task, text, posted["body"], shown.new) == len(shown.new):
+                remember_hashes(pr, task, tag, shown.pics)
+                # every URL is known now: write the pictures scaled, never in the full-size form gh left
+                try:
+                    patch_comment(posted["id"], compose(render(body, pr, task, tag).text, tag, digest, label, meta))
+                except NoteError as exc:
+                    print(f"pr_note: warning, the pictures were posted but not scaled: {exc}", file=sys.stderr)
     remember_hashes(pr, task, tag, shown.pics)
     for old in foreign:
         try:
@@ -992,7 +1158,7 @@ def resolve_handoff(pr: int, task: str, round_no: int, text: str, ident: Optiona
         return "no handoff"
     if comment["body"].lstrip().startswith("**Resolved:**"):
         return "unchanged"
-    new = f"**Resolved:** {text} (as of {now_z()})\n\n{comment['body']}"
+    new = f"**Resolved:** {text}\n\n{comment['body']}"
     (ident if ident.mine(comment) else OWNER).edit(comment["id"], new)
     return "resolved"
 
@@ -1191,6 +1357,7 @@ def flush(task: str, pr: int, head: str, named: bool = False, ledger_dir: Option
                         continue
                 tried.add(path.name)
                 gate(body, f"queued note {path.name}", load_media(task))
+                form_gate(body, f"queued note {path.name}")
                 role = n.get("as")
                 if role not in idents:
                     idents[role] = resolve_identity(role)
@@ -1246,44 +1413,53 @@ def update_block(pr: int, name: str, content: str, task: Optional[str] = None, a
     with staged(new, shown.new) as (body_args, stdin):
         gh(["pr", "edit", str(pr), *body_args], stdin)
     if task:
-        if shown.new:
-            remember_media(task, new, json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or "", shown.new)
         remember_hashes(pr, task, owner, shown.pics)
+        if shown.new:
+            posted = json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or ""
+            if remember_media(task, new, posted, shown.new) == len(shown.new):
+                final = replace_block(posted, name, render(content, pr, task, owner).text)
+                if final and final != posted:  # every URL is known now: the pictures are written scaled
+                    gh(["pr", "edit", str(pr), "--body-file", "-"], final)
     return "updated"
 
 
 # MARK: - Timeline
 
-def first_sentence(comment: Dict[str, Any]) -> str:
-    """The first sentence of a step comment's text (140 characters at most), without its header, mention and markers.
-
-    The header is its own line; an older comment has the text on the header line, which is read too."""
+def first_action(comment: Dict[str, Any]) -> str:
+    """The first bullet under ``### Actions Taken`` of a step comment (140 characters at most). A comment of an older form
+    gives its first line of text instead, without the old header, a mention or the markers."""
+    lines = [ln.strip() for ln in strip_markers(comment.get("body") or "").splitlines()]
     text = ""
-    for ln in (x.strip() for x in strip_markers(comment.get("body") or "").splitlines()):
-        if _HEADER.search(ln):
-            ln = _HEADER.sub("", ln)
-            ln = re.sub(r" · (?:updated|happened) [^·]*", "", ln).replace("·", " ")
-            ln = ln.replace("####", "")
-        if ln.strip() and not ln.startswith(("@", "<")):
-            text = ln
-            break
-    lead = re.sub(r"^\*\*[^*]+\*\*\s*", "", text)  # a bold lead-in such as "**What I did.**" is a label, not the sentence
-    text = re.sub(r"[*#`>]+|^\s*[-\d.]+\s+", "", lead if lead.strip() else text).strip()
-    sentence = re.split(r"(?<=[.!?])\s", " ".join(text.split()), maxsplit=1)[0]
-    return sentence[:140].rstrip()
+    if f"### {SECTIONS[0]}" in lines:
+        text = next((ln for ln in lines[lines.index(f"### {SECTIONS[0]}") + 1:] if _BULLET.match(ln)), "")
+    else:
+        for ln in lines:
+            if _HEADER.search(ln):
+                ln = re.sub(r" · (?:updated|happened) [^·]*", "", _HEADER.sub("", ln)).replace("·", " ").replace("####", "")
+            if ln.strip() and not ln.startswith(("@", "<", "#")):
+                text = ln
+                break
+    text = re.sub(r"[*#`>]+|^\s*[-\d.]+\s+", "", text).strip()
+    return " ".join(text.split())[:140].rstrip()
+
+
+def role_of(comment: Dict[str, Any]) -> str:
+    """The role a step comment names: its ``## <Role>`` heading, else the role in an older visible header, else ``""``."""
+    for ln in (comment.get("body") or "").splitlines()[:6]:
+        m = re.match(r"^##\s+([A-Za-z]+)\s*$", ln)
+        if m:
+            return m.group(1)
+    m = header_of(comment)
+    return m.group(2) if m else ""
 
 
 def timeline_lines(comments: List[Dict[str, Any]], task: str) -> List[str]:
-    """``N. [Role, round R: first sentence](url)`` for each step posted for ``task``, in step order."""
-    rows = []
-    for c in comments:
-        if comment_tag(c, task):
-            m = header_of(c)
-            if m:
-                rows.append((int(m.group(1)), c.get("id") or 0, m.group(2), int(m.group(3)), c))
+    """``N. [Role: first action](url)`` for each step posted for ``task``, in step order (no round, head or time)."""
+    steps = steps_of(comments, task)
+    rows = [(steps[c.get("id")], c.get("id") or 0, c) for c in comments if comment_tag(c, task) and role_of(c)]
     out = []
-    for number, _id, role, round_no, c in sorted(rows, key=lambda r: r[:2]):
-        label = f"{role}, round {round_no}: {first_sentence(c)}".rstrip(": ")
+    for number, _id, c in sorted(rows, key=lambda r: r[:2]):
+        label = f"{role_of(c)}: {first_action(c)}".rstrip(": ")
         out.append(f"{number}. [{label}]({c['html_url']})" if c.get("html_url") else f"{number}. {label}")
     return out
 
@@ -1388,6 +1564,7 @@ def _post(args: argparse.Namespace) -> str:
     PR, unless ``--now``; after a post the notes held behind it are sent. Every run ends with one stderr line per note left
     queued."""
     body = prepare(Path(args.body_file).read_text(), f"body file {Path(args.body_file).name}", load_media(args.task))
+    form_gate(body, f"body file {Path(args.body_file).name}")  # after the house gate, which is always first
     named = bool(args.pr or args.branch)
     stepped = args.step is not None
     pr, head, failed, result, held = (int(args.pr) if args.pr else None), "", None, "", None

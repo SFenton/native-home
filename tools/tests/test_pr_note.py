@@ -30,6 +30,7 @@ import json
 import os
 import re
 import stat
+import struct
 import sys
 import tempfile
 import unittest
@@ -67,6 +68,8 @@ def sent():
             if os.path.abspath(os.path.join(base, m.group(2))) != path:
                 return m.group(0)
             hit[0] += 1
+            if path.endswith((".mp4", ".mov")):
+                return url  # a video comes back as a bare asset URL (a player), with no alt text
             return "![%s](%s)" % (m.group(1), url)
         text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", swap, text)
         if not hit[0]:
@@ -102,6 +105,21 @@ elif args[0] == "api":
     if st.get("slug") and st["slug"] not in args[1]: sys.exit(0)  # a renamed repository lists nothing
     for c in st["comments"]: print(json.dumps(c))
 '''
+
+def formed(text, result="Done.", following="Nothing."):
+    """``text`` in the comment form: each line of words is one action, picture lines go below the result, and the three
+    headings each hold a bullet list. Tests that are not about the form write one line and get a valid body."""
+    words, pictures = [], []
+    for line in text.splitlines():
+        if line.strip().startswith(("![", "|", "<img")):
+            pictures.append(line)
+        elif line.strip() and not line.startswith("<!--"):
+            words.append("- " + line.strip().lstrip("#").strip())
+    marks = [line for line in text.splitlines() if line.startswith("<!--")]
+    parts = ["### Actions Taken", *(words or ["- Did it."]), "", "### Result", f"- {result}", *([""] + pictures if pictures else []),
+             "", "### Next Steps", f"- {following}", *([""] + marks if marks else [])]
+    return "\n".join(parts) + "\n"
+
 
 REVIEW = "<!-- review:start -->\n### Review: pass (round 2)\n- a *b*  \tx\n<!-- review:end -->"
 
@@ -162,7 +180,7 @@ class Base(unittest.TestCase):
 
     def body_file(self, text):
         f = Path(self.tmp.name) / "body.md"
-        f.write_text(text)
+        f.write_text(text if "### Actions Taken" in text or text.startswith("**What I did.**") else formed(text))
         return str(f)
 
     def run_cli(self, *argv):
@@ -170,6 +188,14 @@ class Base(unittest.TestCase):
         with redirect_stdout(out), redirect_stderr(err):
             code = pr_note.main(list(argv))
         return code, out.getvalue(), err.getvalue()
+
+    def visible(self, index=0):
+        """What people see of a comment: its text without the hidden marker lines."""
+        return re.sub(r"<!--.*?-->", "", self.get()["comments"][index]["body"], flags=re.S).strip()
+
+    def meta(self, index=0):
+        """The hidden ``sh-meta`` values of a comment."""
+        return pr_note.meta_of(self.get()["comments"][index])
 
     def post(self, kind, text, rnd="1", *extra, task="T-x"):
         return self.run_cli("post", kind, "--task", task, "--round", rnd, "--body-file", self.body_file(text), *extra)
@@ -185,7 +211,8 @@ class CommentTests(Base):
         self.assertIn("edited", self.post("verdict", "**Designer** (agent) · changes\n\nNo.")[1])
         comments = self.get()["comments"]
         self.assertEqual(len(comments), 1)
-        self.assertRegex(comments[0]["body"].splitlines()[0], r"^#### Step 1 · Designer · round 1 · \d\d:\d\dZ · updated \d\d:\d\dZ$")
+        self.assertEqual(comments[0]["body"].splitlines()[0], "## Designer")
+        self.assertEqual(self.meta(), {"step": "1", "round": "1"})
 
     def test_new_round_is_a_new_comment(self):
         self.post("verdict", "**Designer** (agent) · pass", "1")
@@ -245,7 +272,7 @@ class QueueTests(Base):
         self.assertIn("flushed 3", self.run_cli("flush", "--task", "T-x")[1])
         bodies = [c["body"] for c in self.get()["comments"]]
         self.assertEqual(["sh:pick", "sh:verdict", "sh:evidence"], [re.search(r"<!-- (sh:\w+)", b).group(1) for b in bodies])
-        self.assertRegex(bodies[0].splitlines()[0], r"happened \d\d:\d\dZ, posted when the PR opened")
+        self.assertNotRegex(self.visible(), r"\d\d:\d\dZ|happened|posted when")  # no time is shown, also for a queued note
         self.assertEqual(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")), [])
 
     def test_failed_post_is_queued_and_exits_zero(self):
@@ -456,30 +483,35 @@ class RoleKindTests(Base):
 
     def test_each_new_kind_posts_with_its_header_and_marker(self):
         """Fails if: research, build, review or retro is refused, lacks the marker for its kind, or starts with anything but
-        ``#### Step N · <Role> · round R · HH:MMZ`` on its own line."""
+        ``## <Role>`` on its own line, or does not keep its step and round in the hidden line."""
         for rnd, (kind, role) in enumerate((("research", "Researcher"), ("build", "Coder"), ("review", "Reviewer"),
                                             ("retro", "Steward")), start=1):
             self.assertIn("posted", self.post(kind, f"{role} did the work.", str(rnd))[1])
             body = self.get()["comments"][-1]["body"]
-            self.assertRegex(body.splitlines()[0], rf"^#### Step {rnd} · {role} · round {rnd} · \d\d:\d\dZ$")
-            self.assertEqual(body.splitlines()[1], "")
+            self.assertEqual(body.splitlines()[:3], [f"## {role}", "", "### Actions Taken"])
+            self.assertEqual(self.meta(-1), {"step": str(rnd), "round": str(rnd)})
             self.assertTrue(body.rstrip().endswith(f"<!-- sh:{kind}:T-x:{rnd} -->"))
 
     def test_as_names_the_role_and_head_is_shortened(self):
-        """Fails if: ``--as`` does not set the role in the header, or ``--head`` is not shown as its first 7 characters."""
+        """Fails if: ``--as`` does not set the role in the heading, ``--head`` is not kept as its first 7 characters in the hidden
+        line, or the head is shown to people."""
         with mock.patch.dict(os.environ, {"FENTON_HASS_APPS_DIR": str(Path(self.tmp.name) / "no-apps")}):  # no key: the owner login posts
             _code, _out, err = self.post("build", "Done.", "2", "--as", "coder", "--head", "8afc84d1234567")
         self.assertIn("no app identity for coder", err)
-        self.assertRegex(self.comment_lines()[0], r"^#### Step 1 · Coder · round 2 · head 8afc84d · \d\d:\d\dZ$")
+        self.assertEqual(self.comment_lines()[0], "## Coder")
+        self.assertEqual(self.meta(), {"step": "1", "round": "2", "head": "8afc84d"})
+        self.assertNotIn("8afc84d", self.visible())
 
-    def test_header_is_its_own_line_and_updated_is_appended(self):
-        """Fails if: the header shares a line with a body that starts with ``**Role**``, the blank line or the body is lost, or an
-        edit loses its step number."""
-        self.post("pick", "**Designer** (agent) · pick\n\nBody.")
-        self.post("pick", "**Designer** (agent) · pick 2\n\nBody.")
-        lines = self.comment_lines()
-        self.assertRegex(lines[0], r"^#### Step 1 · Designer · round 1 · \d\d:\d\dZ · updated \d\d:\d\dZ$")
-        self.assertEqual(lines[1:3], ["", "**Designer** (agent) · pick 2"])
+    def test_heading_is_its_own_line_and_an_edit_keeps_its_step(self):
+        """Fails if: the role heading shares a line with the body, the blank line or the body is lost, an edit loses its step
+        number, or an edit shows "updated" or a time."""
+        self.post("research", "First.")
+        self.post("pick", "Body.")
+        self.post("pick", "Body, changed.")
+        lines = self.comment_lines(1)
+        self.assertEqual(lines[:4], ["## Designer", "", "### Actions Taken", "- Body, changed."])
+        self.assertEqual(self.meta(1)["step"], "2")
+        self.assertNotRegex(self.visible(1), r"updated|\d\d:\d\dZ")
 
     def test_step_numbers_count_distinct_markers_and_an_edit_keeps_its_number(self):
         """Fails if: steps do not count up by distinct marker, a second post of one marker takes a new number, ``--step`` is
@@ -488,14 +520,14 @@ class RoleKindTests(Base):
         self.post("build", "Two.", "1")
         self.post("build", "Two, changed.", "1")
         self.post("review", "Nine.", "1", "--step", "9", "--now")
-        steps = [int(re.match(r"#### Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+        steps = [pr_note.step_of(c) for c in self.get()["comments"]]
         self.assertEqual(steps, [1, 2, 9])
         self.set_state(pr=None, comments=[])
         self.post("retro", "Q one.", "1", task="T-q")
         self.post("retro", "Q two.", "2", task="T-q")
         self.set_state(pr=7)
         self.run_cli("flush", "--task", "T-q")
-        steps = [int(re.match(r"#### Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+        steps = [pr_note.step_of(c) for c in self.get()["comments"]]
         self.assertEqual(steps, [1, 2])
 
     def test_pr_found_by_branch_from_another_directory(self):
@@ -561,7 +593,7 @@ class SharedQueueTests(Base):
     def entry(self, folder, stamp, kind, body):
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{stamp:020d}-{kind}-all-1.json").write_text(json.dumps(
-            {"kind": kind, "class": None, "round": 1, "body": body, "time": "11:32Z", "branch": "agents/x", "as": None}))
+            {"kind": kind, "class": None, "round": 1, "body": formed(body), "time": "11:32Z", "branch": "agents/x", "as": None}))
 
     def test_queue_goes_to_the_env_folder_and_legacy_is_drained_in_original_order(self):
         """Fails if: ``SH_PR_NOTES_DIR`` is ignored, the legacy queue is left behind, or the notes post in any order but their
@@ -580,7 +612,7 @@ class SharedQueueTests(Base):
         kinds = [re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]]
         self.assertEqual(kinds, ["research", "build", "retro", "pick"])
         self.assertEqual(list(legacy.glob("*.json")), [])
-        self.assertRegex(self.get()["comments"][0]["body"].splitlines()[0], r"happened 11:32Z, posted when the PR opened")
+        self.assertNotIn("11:32Z", self.get()["comments"][0]["body"])
 
     def test_init_and_post_drain_the_legacy_queue_too(self):
         """Fails if: ``init`` or ``post`` skips the legacy queue."""
@@ -717,26 +749,32 @@ class TimelineTests(Base):
     """The step index in the PR body."""
 
     def test_timeline_lists_posted_steps_in_order_with_links(self):
-        """Fails if: a post does not refresh the index, lines are out of step order, a line lacks its link, the block is
-        duplicated, or other body text changes."""
+        """Fails if: a post does not refresh the index, lines are out of step order, a line lacks its link, a line is anything
+        but ``N. [Role: first action](url)`` (a round, a head or a time is shown), the block is duplicated, or other body
+        text changes."""
         self.set_state(body="Intro\n")
-        self.post("research", "Looked at prior art. More words follow.", "1")
-        self.post("build", "Built the writer. Next bit.", "1")
+        self.post("research", "Looked at prior art.\nRead two more notes.", "1")
+        self.post("build", "Built the writer.", "1")
         self.post("review", "Reviewed the head.", "1", "--step", "7", "--now")  # skips steps: sent at once only with --now
         body = self.get()["body"]
         self.assertTrue(body.startswith("Intro\n"))
         self.assertEqual(body.count("<!-- sh-timeline:start -->"), 1)
         block = body.split("<!-- sh-timeline:start -->\n")[1].split("\n<!-- sh-timeline:end -->")[0].splitlines()
         self.assertEqual(block, [
-            "1. [Researcher, round 1: Looked at prior art.](https://example.test/pull/7#issuecomment-1)",
-            "2. [Coder, round 1: Built the writer.](https://example.test/pull/7#issuecomment-2)",
-            "7. [Reviewer, round 1: Reviewed the head.](https://example.test/pull/7#issuecomment-3)"])
+            "1. [Researcher: Looked at prior art.](https://example.test/pull/7#issuecomment-1)",
+            "2. [Coder: Built the writer.](https://example.test/pull/7#issuecomment-2)",
+            "7. [Reviewer: Reviewed the head.](https://example.test/pull/7#issuecomment-3)"])
         self.assertIn("unchanged", self.run_cli("timeline", "--task", "T-x")[1])
 
-    def test_a_bold_lead_in_label_is_not_the_step_sentence(self):
-        """Fails if: a step whose body starts ``**What I did.** I read it.`` is listed as just ``What I did.``."""
-        self.post("research", "**What I did.** I read it. More.", "1")
-        self.assertIn("1. [Researcher, round 1: I read it.](", self.get()["body"])
+    def test_older_and_hand_edited_comments_stay_in_the_step_list(self):
+        """Fails if: a comment with the visible header of an older version, or one edited by hand into the plain form (no step
+        recorded anywhere), drops out of the step list, is listed with a round, or is listed out of page order."""
+        old = "#### Step 1 · Researcher · round 1 · 10:00Z\n\nRead the report. More.\n\n<!-- sh-hash:0 -->\n<!-- sh:research:T-x:1 -->\n"
+        plain = "## Designer\n\n" + formed("Wrote two options.") + "\n<!-- sh-hash:0 -->\n<!-- sh:pick:T-x:1 -->\n"
+        self.set_state(comments=[{"id": 1, "body": old, "html_url": "u1"}, {"id": 2, "body": plain, "html_url": "u2"}])
+        self.assertIn("updated", self.run_cli("timeline", "--task", "T-x")[1])
+        block = self.get()["body"].split("<!-- sh-timeline:start -->\n")[1].split("\n<!-- sh-timeline:end -->")[0].splitlines()
+        self.assertEqual(block, ["1. [Researcher: Read the report. More.](u1)", "2. [Designer: Wrote two options.](u2)"])
 
     def test_a_timeline_failure_only_warns(self):
         """Fails if: a failing index update undoes or hides the post, or changes the exit code."""
@@ -779,7 +817,7 @@ class AppFailureTests(Base):
         self.assertNotIn(self.SECRET, err)
         self.assertNotIn("AppError", err)
         self.assertEqual(len(self.get()["comments"]), 1)
-        self.assertRegex(self.get()["comments"][0]["body"], r"^#### Step 1 · Steward · round 1")
+        self.assertRegex(self.get()["comments"][0]["body"], r"^## Steward\n")
         self.assertEqual(self.queue_files(), [])
 
     def test_a_queued_note_for_a_failing_role_does_not_block_later_posts(self):
@@ -1025,7 +1063,7 @@ class TargetRuleTests(TargetBase):
         """A queued note with no target, as an older version wrote it."""
         self.queue_dir().mkdir(parents=True, exist_ok=True)
         (self.queue_dir() / f"{stamp:020d}-{kind}-all-{rnd}.json").write_text(json.dumps(
-            {"kind": kind, "class": None, "round": rnd, "body": body, "time": "11:32Z", "as": None}))
+            {"kind": kind, "class": None, "round": rnd, "body": formed(body), "time": "11:32Z", "as": None}))
 
     # the reproductions from the review rounds
     def test_regression_note_to_a_sibling_pull_request(self):
@@ -1258,31 +1296,105 @@ class TargetRuleTests(TargetBase):
 
 
 class HeaderFormTests(Base):
-    """The step header is its own heading line; the two exceptions keep their first line."""
+    """The comment form: ``## <Role>``, three bullet lists, and nothing about steps, rounds, heads or times in sight."""
 
-    def test_old_glued_comment_is_rewritten_in_the_new_form_in_place(self):
-        """Fails if: a comment whose body hash is unchanged keeps its older glued header, or the rewrite adds a second comment."""
-        old = ("Step 1 · Steward · round 1 · 01:38Z · **What I did.** I read it.\n\n"
-               f"<!-- sh-hash:{pr_note.body_hash('**What I did.** I read it.')} -->\n<!-- sh:retro:T-x:1 -->\n")
+    BODY = ("### Actions Taken\n- Read the report.\n- Read the code.\n\n### Result\n- Found the cause.\n\n"
+            "### Next Steps\n- The Coder corrects it.\n")
+
+    def test_comment_is_role_heading_three_lists_and_hidden_step_data(self):
+        """Fails if: a posted comment is anything but ``## <Role>`` then the body as written, shows a step number, a round, a
+        head or a time, or does not keep step, round and head in the hidden line."""
+        self.post("research", self.BODY, "3", "--head", "8afc84d1234567")
+        body = self.get()["comments"][0]["body"]
+        self.assertEqual(self.visible(), "## Researcher\n\n" + self.BODY.strip())
+        self.assertNotRegex(self.visible(), r"Step \d|round|8afc84d|\d\d:\d\dZ")
+        self.assertTrue(body.endswith("<!-- sh-meta:step=1 round=3 head=8afc84d -->\n<!-- sh:research:T-x:3 -->\n"), body)
+        self.assertIn("unchanged", self.post("research", self.BODY, "3")[1])
+
+    def test_body_must_be_three_bullet_lists(self):
+        """Fails if: a body that lacks one of the three headings, has them out of order, has a paragraph where a list belongs,
+        has an empty section, an extra heading, or is in the older ``**What I did.**`` form is posted or queued, the exit
+        code is not 1, or the refusal is more than one line. Fails also if a valid body with pictures below a list is refused."""
+        good = self.BODY
+        bad = {
+            "no Next Steps": good.split("### Next Steps")[0],
+            "out of order": "### Result\n- a\n\n### Actions Taken\n- b\n\n### Next Steps\n- c\n",
+            "a paragraph": good.replace("- Found the cause.", "Found the cause."),
+            "an empty section": good.replace("- Found the cause.\n", ""),
+            "an extra heading": good + "\n### Notes\n- more\n",
+            "text first": "Hello.\n\n" + good,
+            "the older form": "**What I did.** I read it.\n\n**What I found.** A cause.\n\n**Next.** The Coder.\n",
+        }
+        for name, body in bad.items():
+            for pr in (7, None):
+                self.set_state(pr=pr)
+                code, out, err = self.post("research", body)
+                self.assertEqual((code, out, len(err.strip().splitlines())), (1, "", 1), name)
+                self.assertIn("not in the comment form", err, name)
+        self.assertEqual(self.get()["comments"], [])
+        self.assertFalse(list((pr_note.NOTES_DIR / "T-x").glob("queue/*.json")))
+        self.set_state(pr=7)
+        pic = self.atlas_picture()
+        with_pictures = good.replace("- Found the cause.\n", f"- Found the cause.\n  It was the hash.\n\n![Shot]({pic})\n")
+        for body in (good, "## Researcher\n\n" + good, with_pictures):
+            self.assertEqual(self.post("research", body)[0], 0, body)
+        self.assertIsNone(pr_note.form_problem(good.replace("- Found the cause.", "* Found the cause.\n\n| A | B |\n|---|---|\n| <img src=\"u\" alt=\"a\" width=\"260\"> | Same as a |")))
+
+    def test_comment_with_an_older_visible_header_is_rewritten_in_place(self):
+        """Fails if: a comment whose body hash is unchanged keeps the visible ``Step N · Role · round R`` header of an older
+        version, loses its step number, or the rewrite adds a second comment."""
+        old = ("#### Step 4 · Steward · round 1 · 01:38Z\n\n" + self.BODY +
+               f"\n<!-- sh-hash:{pr_note.digest_of(self.BODY)} -->\n<!-- sh:retro:T-x:1 -->\n")
         self.set_state(comments=[{"id": 1, "body": old, "html_url": "https://example.test/pull/7#issuecomment-1"}])
-        self.assertIn("edited", self.post("retro", "**What I did.** I read it.", "1")[1])
+        self.assertIn("edited", self.post("retro", self.BODY, "1")[1])
         comments = self.get()["comments"]
         self.assertEqual(len(comments), 1)
-        lines = comments[0]["body"].splitlines()
-        self.assertRegex(lines[0], r"^#### Step 1 · Steward · round 1 · \d\d:\d\dZ · updated \d\d:\d\dZ$")
-        self.assertEqual(lines[1:3], ["", "**What I did.** I read it."])
-        self.assertIn("unchanged", self.post("retro", "**What I did.** I read it.", "1")[1])
+        self.assertEqual(self.visible(), "## Steward\n\n" + self.BODY.strip())
+        self.assertEqual(self.meta()["step"], "4")
+        self.assertIn("unchanged", self.post("retro", self.BODY, "1")[1])
 
-    def test_a_body_heading_stays_first_and_a_mention_stays_first(self):
-        """Fails if: the header goes above the body's own ``#`` heading or above an ``@SFenton`` mention."""
-        tag = "<!-- sh:retro:T-x:1 -->"
-        head = "Step 2 · Steward · round 1 · 01:00Z"
-        self.assertEqual(pr_note.compose("# Title\n\nText.", tag, None, "abc", head).splitlines()[:4],
-                         ["# Title", "#### " + head, "", "Text."])
-        self.assertEqual(pr_note.compose("@SFenton\n\nText.", tag, None, "abc", head).splitlines()[:5],
-                         ["@SFenton", "", "#### " + head, "", "Text."])
-        self.assertEqual(pr_note.compose("@SFenton look\nText.", tag, "updated 02:00Z", "abc", head).splitlines()[:5],
-                         ["@SFenton look", "", "#### " + head + " · updated 02:00Z", "", "Text."])
+    def test_role_heading_replaces_a_body_heading_and_a_mention_stays_first(self):
+        """Fails if: a ``## `` heading the body starts with is kept beside the role's, an ``@SFenton`` mention is not the first
+        line, or the hidden lines are not hash, meta, marker in that order at the end."""
+        tag, meta = "<!-- sh:retro:T-x:1 -->", pr_note.meta_line(2, 1, "abcdef0123")
+        self.assertEqual(pr_note.compose("## Someone\n\n" + self.BODY, tag, "abc", "Steward", meta).splitlines()[:3],
+                         ["## Steward", "", "### Actions Taken"])
+        text = pr_note.compose("@SFenton\n\n" + self.BODY, tag, "abc", "Orchestrator", meta)
+        self.assertEqual(text.splitlines()[:5], ["@SFenton", "", "## Orchestrator", "", "### Actions Taken"])
+        self.assertEqual(text.splitlines()[-3:], ["<!-- sh-hash:abc -->", "<!-- sh-meta:step=2 round=1 head=abcdef0 -->", tag])
+
+    def test_hand_edited_comments_are_edited_in_place_and_keep_their_look(self):
+        """Fails if: comments edited by hand into the plain form (round markers, no step recorded, scaled ``<img>`` tags, a
+        picture table) are doubled or replaced by a re-post, lose their marker, get a step number, a round or a time in
+        sight, or have their ``<img>`` lines changed; or a post by step does not find the comment at that place on the page."""
+        table = ('| Before | After |\n|---|---|\n| <img src="https://github.com/user-attachments/assets/aa-1" alt="Before" width="280"> '
+                 '| <img src="https://github.com/user-attachments/assets/bb-2" alt="After" width="280"> |')
+        single = '<img src="https://github.com/user-attachments/assets/cc-3" alt="The card, on iPhone" width="220">'
+
+        def body(action, picture):
+            return f"### Actions Taken\n- {action}\n\n### Result\n- Seen.\n\n{picture}\n\n### Next Steps\n- Go on.\n"
+        hand = [("research", 1, body("Read it.", single)), ("evidence", 0, body("Recorded it.", single)),
+                ("verdict", 1, body("Compared.", table))]
+        comments = []
+        for cid, (kind, rnd, text) in enumerate(hand, start=1):
+            key = f"iphone:{rnd}" if kind == "evidence" else str(rnd)
+            role = pr_note.KIND_ROLE[kind]
+            comments.append({"id": cid, "html_url": f"u{cid}",
+                             "body": f"## {role}\n\n{text}\n<!-- sh-hash:feedfacecafe -->\n<!-- sh:{kind}:R-9:{key} -->\n"})
+        self.set_state(comments=comments)
+        self.assertIn("edited", self.post("research", body("Read it again.", single), "1", task="R-9")[1])
+        self.assertIn("edited", self.post("evidence", body("Recorded it again.", single), "0", "--class", "iphone", task="R-9")[1])
+        self.assertIn("edited", self.post("verdict", body("Compared again.", table), "5", "--step", "3", task="R-9")[1])
+        after = self.get()["comments"]
+        self.assertEqual([c["id"] for c in after], [1, 2, 3])
+        for index, (kind, rnd, text) in enumerate(hand):
+            role = pr_note.KIND_ROLE[kind]
+            want = f"## {role}\n\n" + text.replace("it.", "it again.").replace("Compared.", "Compared again.").strip()
+            self.assertEqual(self.visible(index), want)
+            self.assertEqual(self.meta(index)["step"], str(index + 1))
+        self.assertTrue(after[1]["body"].endswith("<!-- sh:evidence:R-9:iphone:0 -->\n"))
+        self.assertTrue(after[2]["body"].endswith("<!-- sh:verdict:R-9:1 -->\n"))
+        self.assertIn("unchanged", self.post("verdict", body("Compared again.", table), "5", "--step", "3", task="R-9")[1])
 
 
 class RepoPathTests(Base):
@@ -1300,7 +1412,7 @@ class RepoPathTests(Base):
         body = self.get()["body"]
         self.assertEqual(len(self.get()["comments"]), 2)
         self.assertEqual(body.count("<!-- sh-timeline:start -->"), 1)
-        self.assertIn("2. [Coder, round 1: Built.]", body)
+        self.assertIn("2. [Coder: Built.]", body)
         self.assertNotIn("Stale/Repo", self.log.read_text())
 
     def test_an_empty_step_list_after_a_post_warns_with_its_reason(self):
@@ -1317,10 +1429,6 @@ class InitNoPlaceholderTests(Base):
         body = self.get()["body"]
         self.assertNotRegex(re.sub(r"<!--.*?-->", "", body, flags=re.S).strip(), r"\S")
         self.assertNotIn("What changed", body)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PictureBase(Base):
@@ -1354,6 +1462,10 @@ class PictureBase(Base):
         import hashlib
         return "https://github.com/user-attachments/assets/" + hashlib.sha256(data).hexdigest()[:12]
 
+    def img(self, data, caption, width=280):
+        """The scaled tag a posted picture with these bytes and caption is written as."""
+        return f'<img src="{self.url(data)}" alt="{caption}" width="{width}">'
+
     def media(self, task="T-x"):
         return json.loads((pr_note.NOTES_DIR / task / "media.json").read_text())
 
@@ -1375,15 +1487,15 @@ class PictureRuleTests(PictureBase):
         self.assertIn("replaced", out)
         self.assertEqual(len(self.bodies()), 1)
         body = self.bodies()[0]
-        self.assertIn(f"![Before]({self.url(b'before')})", body)
-        self.assertIn(f"![After]({self.url(b'after')})", body)
+        self.assertIn(self.img(b"before", "Before"), body)
+        self.assertIn(self.img(b"after", "After"), body)
         media = self.media()
         self.assertEqual(len(set(media.values())), 2)
         self.assertEqual(sorted(media), sorted(pr_note.file_hash(f) for f in (before, after)))
         self.assertEqual(media[pr_note.file_hash(after)], self.url(b"after"))
         # a later text-only change is an edit in place that keeps each picture's own URL
         self.assertIn("edited", self.post("build", f"Shots, again.\n\n![Before]({before})\n\n![After]({after})")[1])
-        self.assertIn(f"![After]({self.url(b'after')})", self.bodies()[0])
+        self.assertIn(self.img(b"after", "After"), self.bodies()[0])
         self.assertEqual(self.attached(), 2)
 
     def test_edit_uploads_new_picture(self):
@@ -1399,8 +1511,8 @@ class PictureRuleTests(PictureBase):
         self.assertNotIn(str(pic), bodies[1])
         self.assertNotIn("build/evidence", bodies[1])
         self.assertNotIn("home.png", bodies[1])
-        self.assertIn(f"![Home]({self.url(b'home')})", bodies[1])
-        self.assertRegex(bodies[1].splitlines()[0], r"^#### Step 2 · Designer · round 1 · .* · updated \d\d:\d\dZ$")
+        self.assertIn(self.img(b"home", "Home"), bodies[1])
+        self.assertEqual((bodies[1].splitlines()[0], self.meta(1)["step"]), ("## Designer", "2"))
         self.assertEqual(self.attached(), 1)
 
     def test_corrected_link_is_an_edit(self):
@@ -1465,7 +1577,7 @@ class PictureRuleTests(PictureBase):
         first, second = self.bodies()
         self.assertIn(self.url(b"here"), first)
         self.assertIn("Same as Here", second)
-        self.assertIn(f"![There]({self.url(b'there')})", second)
+        self.assertIn(self.img(b"there", "There"), second)
         self.assertEqual(self.attached(), 2)
 
     def test_manifest_three_shapes(self):
@@ -1509,7 +1621,7 @@ class PictureRuleTests(PictureBase):
                                               "--step", str(step))[1])
         self.assertEqual(self.attached(), 1)
         first, second, third = self.bodies()
-        self.assertIn(f"![iphone card]({self.url(b'card')})", first)
+        self.assertIn(self.img(b"card", "iphone card"), first)
         for body in (second, third):
             self.assertIn("Same as iphone card", body)
             self.assertNotIn("user-attachments", body)
@@ -1520,14 +1632,14 @@ class PictureRuleTests(PictureBase):
         differs = self.evidence("duo-partial-fold/card.png", b"card, half open")
         self.post("evidence", f"Card.\n\n![duo half open]({differs})", "2", "--class", "duo", "--step", "4")
         self.assertEqual(self.attached(), 2)
-        self.assertIn(f"![duo half open]({self.url(b'card, half open')})", self.bodies()[3])
+        self.assertIn(self.img(b"card, half open", "duo half open"), self.bodies()[3])
 
 
 class StepTests(Base):
     """A comment is identified by its kind and step; the older kind and round markers are still read; page order is step order."""
 
     def steps(self):
-        return [int(re.match(r"(?:@SFenton\n\n)?#### Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+        return [pr_note.step_of(c) for c in self.get()["comments"]]
 
     def markers(self):
         return [re.search(r"<!-- (sh:[^ ]+) -->\s*$", c["body"]).group(1) for c in self.get()["comments"]]
@@ -1550,7 +1662,7 @@ class StepTests(Base):
         self.assertIn("unchanged", self.post("pick", "The pick.", "1", "--step", "2")[1])
         self.assertIn("edited", self.post("pick", "The pick, revised.", "3", "--step", "2")[1])
         self.assertEqual((len(self.get()["comments"]), self.steps()), (4, [1, 2, 3, 4]))
-        self.assertRegex(self.get()["comments"][1]["body"].splitlines()[0], r"^#### Step 2 · Designer · round 3 · ")
+        self.assertEqual(self.meta(1), {"step": "2", "round": "3"})
         # the comments an older version left on a pull request: kind and round markers
         self.set_state(comments=[self.old_comment(1, "pick", 1, 1), self.old_comment(2, "verdict", 2, 0),
                                  self.old_comment(3, "pick", 3, 0)])
@@ -1611,3 +1723,88 @@ class StepTests(Base):
         self.assertEqual(len(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))), 1)
         self.assertIn("posted", self.post("review", "Four.", "1", "--step", "4")[1])
         self.assertEqual(self.steps(), [1, 2, 3, 4, 5])
+
+
+def png(width, height, salt=b""):
+    """The start of a PNG file of this size (enough for its size to be read), made unique by ``salt``."""
+    return b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", width, height) + b"\x08\x06\x00\x00\x00" + salt
+
+
+class PictureScaleTests(PictureBase):
+    """Every attached picture, gif or video is written scaled: ``<img src alt width>`` (a video as a player of the same width)."""
+
+    BODY = "### Actions Taken\n- Captured.\n\n### Result\n- Seen.\n\n{pictures}\n\n### Next Steps\n- Go on.\n"
+
+    def post_pictures(self, pictures, *extra, kind="build", rnd="1"):
+        return self.post(kind, self.BODY.format(pictures=pictures), rnd, *extra)
+
+    def test_a_picture_is_an_img_tag_with_a_width_for_its_shape(self):
+        """Fails if: a posted picture is left in the full-size ``![]()`` form, a portrait capture is not 280 wide, a landscape one
+        (PNG or gif) not 480, a file whose size cannot be read not 280, the caption is not the ``alt`` text, or a quote in a
+        caption breaks the tag."""
+        tall = self.evidence("iphone/tall.png", png(1179, 2556))
+        wide = self.evidence("ipad-landscape/wide.png", png(2732, 2048))
+        gif = self.evidence("ipad-landscape/move.gif", b"GIF89a" + struct.pack("<HH", 800, 600) + b"x")
+        odd = self.evidence("iphone/odd.png", b"not a picture")
+        self.assertIn("posted", self.post_pictures(
+            f'![The card, on iPhone]({tall})\n\n![iPad "on its side"]({wide})\n\n![Moving]({gif})\n\n![Odd]({odd})')[1])
+        body = self.bodies()[0]
+        self.assertIn(self.img(png(1179, 2556), "The card, on iPhone", 280), body)
+        self.assertIn(f'<img src="{self.url(png(2732, 2048))}" alt="iPad &quot;on its side&quot;" width="480">', body)
+        self.assertIn(self.img(b"GIF89a" + struct.pack("<HH", 800, 600) + b"x", "Moving", 480), body)
+        self.assertIn(self.img(b"not a picture", "Odd", 280), body)
+        self.assertNotIn("![", body)
+        self.assertEqual((len(self.bodies()), self.attached()), (1, 4))
+        self.assertEqual(pr_note.picture_size(tall), (1179, 2556))
+        jpeg = Path(self.tmp.name) / "p.jpg"
+        jpeg.write_bytes(b"\xff\xd8\xff\xe0\x00\x04ab\xff\xc0\x00\x11\x08" + struct.pack(">HH", 600, 800) + b"rest")
+        self.assertEqual(pr_note.picture_size(jpeg), (800, 600))
+        # the same pictures again, with other words: an edit in place that keeps the scaled tags
+        self.assertIn("edited", self.post_pictures(f"![The card, on iPhone]({tall})\n\n![Odd]({odd})")[1])
+        self.assertIn(self.img(png(1179, 2556), "The card, on iPhone", 280), self.bodies()[0])
+        self.assertNotIn("![", self.bodies()[0])
+
+    def test_two_pictures_side_by_side_are_a_table_at_260_each(self):
+        """Fails if: two pictures alone on one line are not one table row under their captions at 260 each, pictures in a table
+        the body wrote are not 260 each, or a single picture takes the table width."""
+        before, after = self.evidence("iphone/before.png", png(1179, 2556, b"b")), self.evidence("iphone/after.png", png(1179, 2556, b"a"))
+        self.post_pictures(f"![Before]({before}) ![After]({after})")
+        b, a = self.img(png(1179, 2556, b"b"), "Before", 260), self.img(png(1179, 2556, b"a"), "After", 260)
+        self.assertIn(f"| Before | After |\n|---|---|\n| {b} | {a} |", self.bodies()[0])
+        left, right = self.evidence("duo-folded/left.png", png(10, 20, b"l")), self.evidence("duo-folded/right.png", png(10, 20, b"r"))
+        self.post_pictures(f"| Option B (selected) | Option C |\n|---|---|\n| ![B]({left}) | ![C]({right}) |", rnd="2")
+        want = f"| Option B (selected) | Option C |\n|---|---|\n| {self.img(png(10, 20, b'l'), 'B', 260)} | {self.img(png(10, 20, b'r'), 'C', 260)} |"
+        self.assertIn(want, self.bodies()[1])
+        for body in self.bodies():
+            self.assertNotIn("![", body)
+
+    def test_a_video_is_a_player_of_the_same_width_and_an_asset_link_is_scaled_too(self):
+        """Fails if: an attached video is left as a bare full-size link or as ``![]()`` instead of ``<video src width controls>``,
+        its URL is taken from a picture beside it, or an uploaded-asset URL written as ``![]()`` is not written scaled."""
+        clip = self.evidence("duo-partial-fold/fold.mp4", b"a clip")
+        shot = self.evidence("duo-partial-fold/shot.png", png(20, 10))
+        asset = "https://github.com/user-attachments/assets/11111111-aaaa"
+        self.post_pictures(f"![Shot]({shot})\n\n![Folding]({clip})\n\n![Earlier]({asset})")
+        body = self.bodies()[0]
+        self.assertIn(f'<video src="{self.url(b"a clip")}" width="280" controls></video>', body)
+        self.assertIn(self.img(png(20, 10), "Shot", 480), body)
+        self.assertIn(f'<img src="{asset}" alt="Earlier" width="280">', body)
+        self.assertNotIn("![", body)
+        self.assertEqual(re.findall(r"^https://\S+$", body, re.M), [])
+        self.assertEqual(self.media()[pr_note.file_hash(clip)], self.url(b"a clip"))
+
+    def test_a_picture_in_the_device_block_of_the_description_is_scaled(self):
+        """Fails if: a picture in the ``sh-devices`` block of the description stays in the full-size form, or text outside the
+        block changes."""
+        shot = self.evidence("ipad-portrait/home.png", png(2048, 2732))
+        self.set_state(body="Intro\n<!-- sh-devices:start -->\n<!-- sh-devices:end -->\nTail\n")
+        f = Path(self.tmp.name) / "devices.md"
+        f.write_text(f"| iPad | ![Home]({shot}) |")
+        self.assertIn("updated", self.run_cli("devices", "--task", "T-x", "--file", str(f))[1])
+        body = self.get()["body"]
+        self.assertEqual(body, "Intro\n<!-- sh-devices:start -->\n| iPad | " + self.img(png(2048, 2732), "Home", 260)
+                         + " |\n<!-- sh-devices:end -->\nTail\n")
+
+
+if __name__ == "__main__":
+    unittest.main()
