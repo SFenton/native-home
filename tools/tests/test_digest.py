@@ -175,7 +175,41 @@ class DigestTests(unittest.TestCase):
 
     def test_gap_and_hold_timeout_are_infra(self):
         self.assertIn("RESULT: INFRA", log_digest.digest_text("GAP: no available simulator named 'iPhone Duo'\n", exit_code=1))
-        self.assertIn("hold timeout", log_digest.digest_text("devcap: hold timeout after 3600s\n", exit_code=124))
+        real = "\ndevcap: HOLD TIMEOUT: held iphone longer than 3600s; killing the command\n"
+        out = log_digest.digest_text(real, exit_code=124)
+        self.assertIn("RESULT: INFRA", out)
+        self.assertIn("hold timeout", out)
+        self.assertIn("RESULT: INFRA", log_digest.digest_text("bg_run: hold timeout, killed after 1800s\n", exit_code=124))
+        self.assertIn("RESULT: INFRA", log_digest.digest_text(real, exit_code=75))
+
+    def test_a_printed_hold_timeout_line_does_not_hide_failed_tests(self):
+        """A test fixture that prints the words 'hold timeout' and then fails reads FAIL with the id, not INFRA."""
+        log = ("test_hold_timeout_is_labelled (test_devcap.HoldTests.test_hold_timeout_is_labelled) ...\n"
+               "devcap: HOLD TIMEOUT: held x longer than 1s\n"
+               "bg_run: hold timeout, killed after 5s\n"
+               "devcap: hold timeout after 5s\n"
+               "FAIL: test_hold_timeout_is_labelled (test_devcap.HoldTests.test_hold_timeout_is_labelled)\n"
+               "AssertionError: 1 != 2\n"
+               "FAILED (failures=1)\n")
+        out = log_digest.digest_text(log, exit_code=1)
+        self.assertIn("RESULT: FAIL", out)
+        self.assertIn("test_devcap.HoldTests.test_hold_timeout_is_labelled", out)
+        self.assertNotIn("INFRA (not a test failure)", out)
+
+    def test_hold_timeout_text_at_an_ordinary_exit_or_mid_line_is_not_infra(self):
+        self.assertNotIn("RESULT: INFRA", log_digest.digest_text("devcap: HOLD TIMEOUT: held x\n", exit_code=1))
+        self.assertNotIn("RESULT: INFRA", log_digest.digest_text("the hold timeout docs say devcap: HOLD TIMEOUT: x\n", exit_code=124))
+
+    def test_unittest_failures_and_errors_are_failed_tests(self):
+        log = ("ERROR: test_b (mod.B.test_b)\nTraceback (most recent call last):\nValueError: x\n"
+               "FAIL: test_a (mod.A.test_a)\nAssertionError\nFAILED (failures=1, errors=1)\n")
+        out = log_digest.digest_text(log, exit_code=1)
+        self.assertIn("RESULT: FAIL", out)
+        self.assertIn("mod.A.test_a", out)
+        self.assertIn("mod.B.test_b", out)
+
+    def test_unittest_failed_summary_without_ids_is_still_fail(self):
+        self.assertIn("RESULT: FAIL", log_digest.digest_text("FAILED (failures=2)\n", exit_code=1))
 
     def test_credentials_unavailable_line_is_infra(self):
         """The line the live lane writes when its credentials are missing classifies as infra (the line lives in the workflow that runs Live)."""

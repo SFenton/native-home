@@ -36,13 +36,21 @@ ST_RUN_ISSUES = re.compile(r"Test run with \d+ tests?.*? with (?P<n>\d+) issues?
 ST_RUN = re.compile(r"[✔✘] Test run with (?P<n>\d+) tests?.*?(?P<state>passed|failed)")
 COMPILE_ERROR = re.compile(r"(?P<where>/?[^\s:]+\.swift:\d+):\d+: error: (?P<msg>.*)")
 
+#: The two lines devcap and bg_run print when they kill a run. They count only at the start of a line and only when the run
+#: exited with `HOLD_TIMEOUT_EXITS`: a test that prints the words, or a log that quotes them, is not an infrastructure death.
+HOLD_TIMEOUT = re.compile(r"^(?:devcap: HOLD TIMEOUT:|bg_run: hold timeout)")
+HOLD_TIMEOUT_EXITS = (75, 124)
+#: unittest's own markers (tool tests): `FAIL: test_x (mod.Class.test_x)`, `ERROR: ...` and the `FAILED (failures=1)` summary.
+UT_FAILED = re.compile(r"^(?:FAIL|ERROR): (?P<name>\w+) \((?P<id>[\w.]+)\)\s*$")
+UT_SUMMARY = re.compile(r"^FAILED \((?:failures|errors)=\d+")
+
 #: (label, pattern, advice). The first match wins, so list the most specific first.
 INFRA: List[Tuple[str, "re.Pattern[str]", str]] = [
     ("hung", re.compile(r"^INFRA: hung \(no output"), "tools/xc_watch.py killed a run that printed nothing; the `sample` of it is in the log; rerun once"),
     ("slow exit", re.compile(r"^INFRA: slow exit"), "xcodebuild did not exit after the suite finished and was killed; the result is the suite's own"),
     ("simulator unhealthy", re.compile(r"^INFRA: simulator unhealthy"), "bootstatus or a screenshot failed twice; `devcap.py status`, recreate the simulator"),
     ("credentials unavailable", re.compile(r"Live-server credentials unavailable"), "the runner's ~/.config/fenton-hass/env is missing or refused; fix the machine (tools/hass_creds.sh), rerun"),
-    ("hold timeout", re.compile(r"hold timeout|gave up waiting"), "devcap killed a hung run; check `devcap.py status`, rerun once"),
+    ("hold timeout", HOLD_TIMEOUT, "devcap killed a hung run; check `devcap.py status`, rerun once"),
     ("Device Hub pose", re.compile(r"DeviceHubError|Pressed the unfolded control"), "the Duo pose control did not take; rerun once, then `tools/duo_pose.py --sim <UDID>` inside a devcap hold"),
     ("simulator unavailable", re.compile(r"^GAP:", re.M), "a gap, not a pass; create the simulator"),
     ("simulator boot/launch", re.compile(r"Unable to boot|Invalid device state|Failed to launch|Early unexpected exit"), "simulator did not come up; rerun once"),
@@ -113,6 +121,7 @@ class Digest:
         self.st_issues = 0  # the issue count of the Swift Testing run line
         self.issue_lines = 0  # `recorded an issue` lines (Swift Testing) and `error: -[…]` lines (XCTest) the log itself shows
         self.infra: "OrderedDict[str, int]" = OrderedDict()
+        self.unittest_failed = False  # a unittest `FAILED (failures=N)` summary: tool tests failed
         self.markers: "OrderedDict[str, None]" = OrderedDict()  # `INFRA: …` lines xc_watch.py and ios_uitest.sh print
         self.products: "OrderedDict[str, None]" = OrderedDict()  # `products: hit|built KEY …` from tools/products_cache.py
         self.tail: List[str] = []
@@ -157,6 +166,8 @@ class Digest:
             self.failed[name] = f"{short(match['msg'], 140)} ({match['where'].split('/')[-1]})"
         elif match := ST_FAILED.search(line):
             self.failed.setdefault(match["name"].strip(), "failed")
+        elif match := UT_FAILED.match(line):
+            self.failed.setdefault(match["id"], "failed (unittest)")
         elif match := ST_PASSED.search(line):
             self.passed[match["name"].strip()] = None
         elif match := XC_SKIPPED.search(line):
@@ -179,6 +190,8 @@ class Digest:
             self.build_status = "failed"
         elif "** BUILD SUCCEEDED **" in line:
             self.build_status = "succeeded"
+        if UT_SUMMARY.match(line):
+            self.unittest_failed = True
         if line.startswith("products: "):
             self.products.setdefault(short(line, 150), None)
         if RUNNER_FAILED.search(line):
@@ -219,6 +232,7 @@ class Digest:
 
     def verdict(self, exit_code: Optional[int]) -> str:
         """``PASS``, ``FLAKY`` (passed after a retry), ``MISMATCH`` (exit 0 but the log failed), ``EMPTY`` (a pass that ran no test), ``FAIL`` (tests or build), ``INFRA`` (died of the machine) or ``UNKNOWN``."""
+        self._gate_hold_timeout(exit_code)
         verdict = self._verdict(exit_code)
         if self.allow_empty or self.allow_in_log:
             return verdict
@@ -230,10 +244,15 @@ class Digest:
             return "EMPTY"
         return verdict
 
+    def _gate_hold_timeout(self, exit_code: Optional[int]) -> None:
+        """Keep a "hold timeout" line as infra only when the run exited 75 or 124 (a killed hold); at any other status the run ended by itself."""
+        if exit_code not in HOLD_TIMEOUT_EXITS:
+            self.infra.pop("hold timeout", None)
+
     def _verdict(self, exit_code: Optional[int]) -> str:
         failed_tests = (bool(self.failed) or self.suite_status == "failed" or self.runner_failed
                         or bool(self.st_run and self.st_run[1] == "failed")
-                        or self.unnamed_failures() > 0)
+                        or self.unittest_failed or self.unnamed_failures() > 0)
         build_failed = self.build_status == "failed" or bool(self.build_errors and not self.passed)
         if exit_code == 0 and (failed_tests or build_failed):
             # The status says success and the log says otherwise (a wrapper such as `cmd || echo X` or `;` dropped the real
