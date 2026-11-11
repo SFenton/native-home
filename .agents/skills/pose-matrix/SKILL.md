@@ -1,10 +1,10 @@
 ---
 name: pose-matrix
-description: Runs a UI change through every device pose and writes the evidence pack at build/evidence/<branch>/manifest.json. Use as the Verifier, before a design verdict or a review of any visible change.
+description: Runs a UI change through every device pose and writes the evidence pack. Use as the Verifier, before a design verdict or a review of a visible change.
 ---
 # Pose matrix
 
-> **What:** how the Verifier checks a visible change in every pose and records the evidence pack. **Read when:** a change touches layout, sizing, a sheet, a split or navigation chrome. Reference: [devices](../../testing/apple/devices.md), [capacity](../../platforms/apple/capacity.md).
+> **What:** how the Verifier checks a visible change in every pose and records the evidence pack. **Read when:** a change touches layout, sizing, a sheet, a split or navigation chrome. Reference: [devices](../../testing/apple/devices.md).
 
 ## Poses
 
@@ -38,7 +38,7 @@ Tree first, then screenshots; never judge from one alone.
    - targets: 44 by 44 pt;
    - split gap and hinge ([split-view](../../design/apple/split-view.md), [hinge-avoidance](../../patterns/hinge-avoidance.md));
    - sheet placement, on the sheet frame ([modal-sheet](../../patterns/modal-sheet.md)).
-3. **Screenshots,** for colour, material and motion end states: set `TEST_RUNNER_FENTON_CAPTURE_DIR` and `TEST_RUNNER_FENTON_REDACT_PRIVATE=1`, answer each `<name>.ready` with a `simctl io` screenshot, then write `<name>.done`. Motion needs a short sequence. Keep everything under `build/evidence/`, uncommitted.
+3. **Screenshots,** for colour, material and motion end states: set `TEST_RUNNER_FENTON_CAPTURE_DIR` and `TEST_RUNNER_FENTON_REDACT_PRIVATE=1`, answer each `<name>.ready` with a `simctl io` screenshot, then write `<name>.done`. Keep everything under `build/evidence/`, uncommitted.
 
 ## Evidence pack
 
@@ -46,7 +46,7 @@ Tree first, then screenshots; never judge from one alone.
 
 ## Clips for the pull request
 
-1. `python3 tools/pr_visual.py select --branch <branch> --task <task> --round <N>` writes `selection.json`: the clips and pairs each device class shows.
+1. `python3 tools/pr_visual.py select --branch <branch> --task <task> --round <N>` writes `selection.json`.
 2. For a class marked `needs_evidence: "unknown"`, look at its screenshot pairs and decide.
 3. Record only the chosen clips, inside a hold: `xcrun simctl io <udid> recordVideo --codec=h264 <name>.mov`, stopped with SIGINT. One round trip per edge, 8 to 12 seconds.
 4. Shrink each under 8 MB with `avconvert --preset PresetMediumQuality`.
