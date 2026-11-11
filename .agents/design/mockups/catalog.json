@@ -9245,6 +9245,20 @@
       "mockup": "proposals/house-config-states/house-config-states.html",
       "shippedIn": "#357",
       "note": "Owner request 2026-11-06 (server textbox). Decided 2026-11-06: sign-in A (Server row in the module), missing layout A (state message per page), skeleton on first sign-in, saved layout always wins."
+    },
+    {
+      "id": "live-activity-problem-notice",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "Failure notice on the Live Activity problem card",
+      "path": "proposals/live-activity-problem-notice",
+      "sources": [
+        "apple/Sources/FentonActivityViews/ProblemCardView.swift",
+        "apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift"
+      ],
+      "status": "proposed",
+      "mockup": "proposals/live-activity-problem-notice/live-activity-problem-notice.html",
+      "note": "R-43 (agent-initiated, gate autonomous, local to one card). Options B (in place of the instruction) and C (own line) go to build and capture; A (beside the buttons) is drawn as not viable. The Designer picks from the Verifier's captures; the pick then moves into live-activity-problem-card. Brief: build/design/R-43-notice-brief.md."
     }
   ]
 }

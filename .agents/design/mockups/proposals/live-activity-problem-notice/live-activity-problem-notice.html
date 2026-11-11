@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Failure notice on the Live Activity problem card · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../components/live-activity/_widgets-liveactivity.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  function px(n) { return n + 'px'; }
+
+  /* ---------------------------------------------------------------- fixtures (demo data; the two the build spec adds to HomeActivityFixtures) */
+  var SERVER = "Couldn't resume. Try again.", APP = "Couldn't reach Home";
+  /** problem-notice: the amber clean-water card (Resume, Done; two-line instruction) with the server's notice.
+      problem-notice-stuck: the red stuck card (Resume, Dock, Done) with the app's notice. */
+  function fx(name) {
+    var f = LA.fx(name === 'problem-notice-stuck' ? 'problem-navigation-stuck' : 'problem-mop-clean_water_empty');
+    f = JSON.parse(JSON.stringify(f)); f.name = name;
+    f.state.notice = name === 'problem-notice-stuck' ? APP : SERVER;
+    return f;
+  }
+  function plain(name) { var f = fx(name); f.state.notice = null; return f; }
+  function pending(name) { var f = plain(name); f.state.pending = { control: 'resume', label: 'Resuming…' }; return f; }
+
+  /* ---------------------------------------------------------------- local helper: the problem card with the notice (promote to LA.problemCard once one option is picked) */
+  /** variant: 'today' (no notice drawn), 'B' (in place of the instruction), 'C' (own line under a one-line instruction), 'A' (beside the buttons; not for build). */
+  function card(name, variant, ctx, o) {
+    var f = fx(name), node = LA.problemCard(f, Object.assign({ ctx: ctx }, o));
+    if (variant === 'today') return node;
+    var ax = LA.isAX(ctx), inn = node.querySelector('.la-in'), top = inn.children[0], btns = inn.children[1], col = top.children[1], msg = col.children[1];
+    var text = f.state.notice;
+    function notice(style) {
+      return h('div', { dataset: { id: 'liveactivity.notice' }, style: Object.assign({ fontSize: px(LA.size(ctx, 'sub')), fontWeight: 600, color: '#fff', lineHeight: 1.25, minWidth: 0 }, style) }, text);
+    }
+    if (variant === 'B') {
+      // The notice takes the instruction's place for that update, like the job card's notice takes the value's. Nothing else moves.
+      col.replaceChild(notice({ marginTop: '2px' }), msg);
+    } else if (variant === 'C') {
+      // The instruction gives up its second line (default sizes only) and the notice takes the line under it.
+      if (!ax) msg.style.WebkitLineClamp = 1;
+      col.appendChild(notice(ax ? { marginTop: '2px' } : { marginTop: '2px', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }));
+    } else if (variant === 'A' && btns) {
+      var small = { fontSize: px(LA.size(ctx, 'foot')), lineHeight: 1.3 };
+      if (ax) btns.insertBefore(notice(Object.assign(small, { textAlign: 'right' })), btns.firstChild);
+      else {
+        var sp = btns.querySelector('.sp');
+        var n = notice(Object.assign(small, { flex: '1 1 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }));
+        if (sp) btns.replaceChild(n, sp); else btns.insertBefore(n, btns.firstChild);
+      }
+    }
+    node.setAttribute('aria-label', node.getAttribute('aria-label') + ' ' + text);
+    return node;
+  }
+  var NAMES = ['problem-notice', 'problem-notice-stuck'];
+  var LABEL = { today: 'Today', B: 'Option B', C: 'Option C', A: 'Option A (not for build)' };
+  function pair(variant, ctx, o) { return NAMES.map(function (n) { return LA.fig(card(n, variant, ctx, o), LABEL[variant] + ' · ' + n); }); }
+  function lock(variant) { return function (ctx) { return LA.lockScreen(ctx, [card('problem-notice', variant, ctx)]); }; }
+
+  /** The expanded island's problem block with the notice as a third line (spec item I-1; one layout, no options). */
+  function island(name, withNotice, ctx, o) {
+    var f = fx(name), node = LA.islandExpanded(withNotice ? f : plain(name), Object.assign({ ctx: ctx }, o));
+    if (!withNotice) return node;
+    var col = node.lastChild.firstChild;
+    col.appendChild(h('div.la-clamp', { dataset: { id: 'liveactivity.notice' }, style: { fontSize: px(LA.size(ctx, 'foot', true)), fontWeight: 600, color: '#fff', WebkitLineClamp: 2, marginTop: '1px' } }, f.state.notice));
+    return node;
+  }
+
+  function widths(ctx) {
+    var W = [[371, 'iPhone 393 pt screen'], [408, 'iPhone 430 pt screen'], [425, 'iPad 425 pt'], [500, 'iPad 500 pt (1366 x 1024)']];
+    var kids = [LA.note('The card is fluid: one layout at every width (HIG Live Activities, Specifications: Lock Screen 371 or 408 pt on iPhone, 425 or 500 pt on iPad, 84 to 160 pt tall). iPhone Duo is not in that table and has not been run; it gets the same layout at whatever width the system gives.')];
+    ['B', 'C'].forEach(function (v) { W.forEach(function (w) { kids.push(LA.fig(card('problem-notice', v, ctx, { width: w[0] }), LABEL[v] + ' · ' + w[0] + ' pt', w[1])); }); });
+    return LA.stage(kids);
+  }
+
+  Mock.mount({
+    kind: 'proposal', id: 'live-activity-problem-notice', title: 'Failure notice on the Live Activity problem card', area: 'proposals', status: 'proposed', frame: false,
+    summary: 'A failed Resume on a problem card comes back to the buttons with no reason; the job card already shows a one-update notice. Two placements go to build and capture (B: in place of the instruction; C: its own line under a one-line instruction); A (beside the buttons) is drawn to show why it is not built. The Designer picks from the Verifier\'s captures (R-43); existing words only.',
+    source: ['apple/Sources/FentonActivityViews/ProblemCardView.swift', 'apple/Sources/FentonActivityViews/ActivityButtons.swift', 'apple/Sources/FentonActivityViews/ActivityValueLine.swift',
+      'apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift', 'apple/Sources/FentonActivityModel/HomeActivityFixtures.swift'],
+    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    patterns: [],
+    hig: ['Live Activities'],
+    entities: ['fenton_home content-state `notice` (spec section 3, section 7.3)'],
+    devices: ['iphone', 'duo-folded', 'ipad-portrait'],
+    states: {
+      'default': { title: 'Compare: today, B and C', note: 'amber card with the server\'s words (two buttons), red card with the app\'s words (three buttons)', render: function (ctx) {
+        return LA.stage([LA.note('Today the notice is in the content but not drawn. B swaps the instruction for the notice: the card is never taller, and one line (about 20 pt) shorter when the instruction had two lines. C keeps the first line of the instruction and adds the notice under it; with a two-line instruction the card stays the same height, with a one-line instruction it grows one line (about 22 pt, to the 160 pt limit).')]
+          .concat(pair('today', ctx), pair('B', ctx), pair('C', ctx))); } },
+      today: { title: 'Today on the Lock Screen', note: 'after a failed Resume: buttons back, no reason', render: lock('today') },
+      'option-b': { title: 'Option B on the Lock Screen', note: 'the notice in place of the instruction for that update', render: lock('B') },
+      'option-c': { title: 'Option C on the Lock Screen', note: 'the notice on its own line; the instruction keeps one line', render: lock('C') },
+      'option-a': { title: 'Option A: beside the buttons (not for build)', note: 'where "Not confirmed" sits; drawn to show the fit', render: function (ctx) {
+        return LA.stage([LA.note('Beside two buttons the notice has about 160 pt and wraps to two lines. Beside three buttons (Resume, Dock, Done: the five stopped-vacuum rows) it has about 88 pt on a 393 pt iPhone; "Couldn\'t resume." alone needs about 104 pt, so the sentence is cut at two lines. A chip ("Error 88") takes the same room. That is why A is not sent to build.')]
+          .concat(pair('A', ctx))); } },
+      widths: { title: 'Widths: iPhone and iPad', note: 'one layout; wider cards reflow the instruction', render: widths },
+      standby: { title: 'StandBy', note: 'the same card with the corner mark dropped, scaled by the system (scale illustrative)', render: function (ctx) {
+        function sb(v) { return h('div', { role: 'group', 'aria-label': 'StandBy, landscape, ' + LABEL[v], style: { width: '640px', height: '300px', borderRadius: '34px', background: '#000', boxShadow: '0 0 0 2px #3a3a3e inset, 0 0 0 8px #000', display: 'grid', placeItems: 'center', overflow: 'hidden', flex: 'none', margin: '8px' } },
+          h('div', { style: { transform: 'scale(1.45)' } }, card('problem-notice', v, ctx, { fullscreen: true, mark: false }))); }
+        return h('div', { style: { padding: '8px 4px', display: 'flex', flexWrap: 'wrap', gap: '8px' } }, LA.fig(sb('B'), 'Option B · StandBy'), LA.fig(sb('C'), 'Option C · StandBy')); } },
+      island: { title: 'Dynamic Island', note: 'expanded gains the line (one layout, spec item I-1); compact and minimal do not change', render: function (ctx) {
+        return LA.stage([
+          LA.note('Expanded has the same Resume button, so it gets the notice as a third line under the problem (footnote, semibold, white, up to two lines; the problem line keeps one line while it shows). Compact and minimal stay the severity shape and one word: a sentence does not fit there.'),
+          LA.fig(island('problem-notice-stuck', false, ctx), 'Expanded today', 'buttons back, no reason'),
+          LA.fig(island('problem-notice-stuck', true, ctx), 'Expanded with the notice', 'problem-notice-stuck'),
+          LA.fig(island('problem-notice', true, ctx), 'Expanded with the notice', 'problem-notice'),
+          LA.fig(LA.islandCompact(fx('problem-notice'), { ctx: ctx }), 'Compact', 'unchanged'),
+          LA.fig(LA.islandMinimal(fx('problem-notice'), { ctx: ctx }), 'Minimal', 'unchanged'),
+        ]); } },
+      ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'B makes the card shorter (the notice is shorter than the instruction); C adds the notice\'s lines above the stacked buttons', render: function (ctx) {
+        return LA.stage(['today', 'B', 'C'].map(function (v) { return LA.fig(card('problem-notice', v, ctx), LABEL[v] + ' · problem-notice'); })); } },
+    },
+    motion: [
+      { id: 'resume-fails', what: 'Resume gives way to "Resuming…"; when the press fails the buttons return and the notice shows for that update (Option B drawn)', token: 'system content update (ActivityKit default)',
+        source: 'apple/Sources/FentonActivityViews/ProblemCardView.swift', reduce: 'No app animation; the system update transition applies.', state: 'option-b',
+        play: function (stage) {
+          var ctx = Mock.current;
+          function swap(node) { var old = stage.querySelector('.la-card.problem'); if (old) old.parentNode.replaceChild(node, old); }
+          swap(LA.problemCard(plain('problem-notice'), { ctx: ctx }));
+          return Mock.sleep(700).then(function () { swap(LA.problemCard(pending('problem-notice'), { ctx: ctx })); return Mock.sleep(1500); })
+            .then(function () { swap(card('problem-notice', 'B', ctx)); return Mock.sleep(1500); });
+        } },
+    ],
+    a11y: [
+      { rule: 'Reading order', note: 'The problem phrase (liveactivity.problem, unchanged), then the notice as its own static text (liveactivity.notice), then the buttons. The same order as the job card: title, notice, buttons.' },
+      { rule: 'Not colour alone', note: 'The notice is white and semibold, not the job card\'s amber (#FFD59A): that amber is the warning card\'s problem-line colour, so on a problem card it would read as a second problem line or a second severity. The words carry the meaning.' },
+      { rule: 'Dynamic Type', note: 'At accessibility sizes the notice wraps without a line limit, like the instruction. B never adds height (the card gets shorter while the notice stands); C adds the notice\'s lines and moves the stacked buttons down by that much.' },
+      { rule: 'Targets', note: 'No new control. The buttons keep their 44 pt targets and names ("Resume Main Floor Vacuum").' },
+      { rule: 'Contrast', note: 'White on the severity gradient is above 4.5:1 (the 82% white instruction already passes there, ActivityStyleTests).' },
+    ],
+    reviews: {
+      date: '2026-11-10',
+      hig: [
+        { by: 'apple-hig skill', rule: 'Live Activities, Best practices: "Focus on important information people need at a glance."', verdict: 'pass', note: 'After a failed press the reason is the important information; B and C both show it in the text block at subheadline semibold.' },
+        { by: 'apple-hig skill', rule: 'Live Activities, Best practices: "Ensure text is easy to read": large, medium weight or heavier; use small text sparingly.', verdict: 'pass', note: 'B and C draw 15 pt semibold. A would draw 13 pt in the button row and cut it; one more reason it is not built.' },
+        { by: 'apple-hig skill', rule: 'Live Activities, Specifications: Lock Screen 371 or 408 x 84-160 pt (iPhone), 425 or 500 x 84-160 pt (iPad)', verdict: 'pass', note: 'The tallest card today is about 158 pt (two-line instruction and buttons). B never adds height (it can drop one line). C trades the instruction\'s second line for the notice and tops out at about 160 pt; the journey test holds it to 160.' },
+        { by: 'apple-hig skill', rule: 'Live Activities, Creating layouts: "Dynamically change height on the Lock Screen and in expanded to fit the available information."', verdict: 'pass', note: 'B drops a line when the instruction had two; C grows a one-line-instruction card by one line; the expanded island grows by one footnote line. All stay inside 84 to 160 pt.' },
+        { by: 'apple-hig skill', rule: 'Live Activities, Interactivity: "Focus on simple, direct actions." Prefer a single interactive element.', verdict: 'pass', note: 'No new interactive element in any option. The notice is static text; the existing buttons return.' },
+        { by: 'apple-hig skill', rule: 'Live Activities, Compact: "Focus on the most important information"; keep content narrow and snug.', verdict: 'pass', note: 'Compact and minimal keep the severity shape and one word; no notice there.' },
+      ],
+      swiftui: [
+        { by: 'swiftui-pro skill', rule: 'accessibility.md: Dynamic Type reflows, never truncates', verdict: 'pass', note: 'The notice takes no line limit at accessibility sizes (the job card\'s lineLimit(2) is not copied).' },
+        { by: 'swiftui-pro skill', rule: 'design.md: semantic colors', verdict: 'departure', note: 'Fixed white on the always-dark severity gradient, as the rest of the card (ActivityStyle.primaryText; live-activities-per-job.md section 8).' },
+      ],
+    },
+    notes: [
+      'In flight for R-43, branch t3/a9f9c831: nothing here is on main. The shipped mockup components/live-activity/live-activity-problem-card stays as it is until one option is picked and built; the pick then moves into that mockup and this page becomes its record.',
+      'Brief and build spec: build/design/R-43-notice-brief.md (heights, per-presentation table, fixtures, tests).',
+      '"Not confirmed" is already drawn on the problem card: ActivityButtons draws it beside the buttons on every card (ActivityButtons.swift:32-58). Only `notice` is missing.',
+      'Heights quoted are computed from the SwiftUI text styles (headline 22 pt, subheadline 20 pt lines); the mock\'s own line heights differ by a point or two. The Verifier\'s captures are the measure.',
+      'Local helper in this file: card() and island() add the notice to LA.problemCard and LA.islandExpanded. Promote to components/live-activity/_widgets-liveactivity.js when the pick lands.',
+      'Demo data only: fixture names and wording from HomeActivityFixtures and the engine\'s existing notice strings.',
+    ],
+    changelog: [{ date: '2026-11-10', note: 'Proposed: options B and C for build and capture, A drawn as not viable, island and StandBy shown once.' }],
+  });
+})();
+</script></body></html>

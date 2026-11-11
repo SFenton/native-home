@@ -204,6 +204,27 @@ struct ActivityCardTests {
         #expect(ActivityCard(attributes: failed.attributes, state: blank, now: now).notice == nil)
     }
 
+    @Test func aProblemCardCarriesANoticeAndKeepsItsControls() throws {
+        let amber = try card("problem-notice")
+        #expect(amber.notice == "Couldn't resume. Try again." && amber.pendingLabel == nil && amber.state.pending == nil)
+        #expect(amber.buttons.map(\.id) == ["resume", "done"] && amber.problem?.severity == .warning)
+        let red = try card("problem-notice-stuck")
+        #expect(red.notice == "Couldn't reach Home" && red.pendingLabel == nil && red.state.pending == nil)
+        #expect(red.buttons.map(\.id) == ["resume", "dock", "done"] && red.problem?.severity == .critical)
+        for name in ["problem-notice", "problem-notice-stuck"] {
+            #expect(HomeActivityFixtures.stateNames.contains(name) && HomeActivityFixtures.allNames.contains(name), Comment(rawValue: name))
+        }
+        #expect(try card("problem-navigation-stuck").notice == nil)
+    }
+
+    @Test func aNoticeDoesNotChangeTheProblemCardsSpokenSummary() throws {
+        let plain = try card("problem-mop-clean_water_empty")
+        let noticed = try card("problem-notice")
+        #expect(plain.problem == noticed.problem)
+        #expect(plain.spokenSummary == noticed.spokenSummary, "VoiceOver still hears the instruction")
+        #expect(noticed.spokenSummary.contains("Refill the clean water tank"))
+    }
+
     // MARK: Bar
 
     @Test func theBarAppearsOnlyWhenThereIsProgress() throws {
