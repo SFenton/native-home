@@ -22,6 +22,12 @@ Modes (the hook JSON is read from stdin; bad input or a git failure fails open: 
   ``/dev/*`` and file descriptors are fine. ``$PWD``, ``$(pwd)``, ``$HOME``, ``~`` and ``$CLAUDE_PROJECT_DIR`` expand
   first (``$PWD`` follows a ``cd``). ``bash -c`` and ``eval`` strings are scanned too.
 
+Subagents in a session worktree: a payload with ``agent_id`` is a subagent (the main session never carries one). When
+its worktree's HEAD branch is ``t3/*`` it is in the parent session's worktree, usually because its isolation worktree was
+cleaned after it ended with no changes and a resume ran it in the parent's cwd. There ``git switch``, ``git checkout
+<branch>``, ``git checkout -b`` (not ``git checkout -- f`` or ``git checkout <rev> -- f``), and ``tools/setup.sh`` are denied
+with ``NO_WORKTREE_MESSAGE``. File edits are not: a subagent without a worktree may write git-ignored ``build/`` files.
+
 Override: a real comment ``# worktree-ok: reason`` (not quoted, not in a heredoc body).
 
 Not stopped: aliases and shell functions, a command or path held in a variable (``$cmd``, ``cd $DIR``), ``eval`` built
@@ -50,6 +56,18 @@ MESSAGE = (
     "edit and commit there. Reading, `git fetch`, `gh pr view|create` and Agents with isolation \"worktree\" are fine from here. If this "
     "really is the intent, add `# worktree-ok: reason` to the command. See .agents/workflow/pr-lifecycle.md."
 )
+NO_WORKTREE_MESSAGE = (
+    "You are in the parent session's worktree, probably because your isolation worktree was cleaned after you ended "
+    "with no changes. Stop and report blocked with blocked_reason no_worktree; the orchestrator spawns you fresh."
+)
+#: The HEAD branches of the orchestrator's T3 session worktrees.
+SESSION_BRANCH = re.compile(r"^t3/")
+
+
+class SessionDenied(str):
+    """A denial reason that is answered with ``NO_WORKTREE_MESSAGE`` instead of the primary-checkout ``MESSAGE``."""
+
+
 OVERRIDE = re.compile(r"#\s*worktree-ok:\s*\S")
 FILE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 GIT_MUTATING = {
@@ -193,6 +211,18 @@ def first_blocked(paths: List[str]) -> Optional[Tuple[int, str]]:
             if real not in ignored and (best is None or index < best[0]):
                 best = (index, top)
     return best
+
+
+def in_session_worktree(directory: Optional[str]) -> bool:
+    """Whether ``directory`` is in a linked worktree of the project whose HEAD branch is ``t3/*``."""
+    if not directory:
+        return False
+    real, _ = nearest_dir(directory)
+    raw = raw_repo(real)
+    if not raw or raw[1] == raw[2] or (_SCOPE and raw[2] != _SCOPE):
+        return False
+    proc = git(real, "symbolic-ref", "--short", "-q", "HEAD")
+    return bool(proc and proc.returncode == 0 and SESSION_BRANCH.match(proc.stdout.strip()))
 
 
 def primary_dir(directory: Optional[str]) -> Optional[str]:
@@ -357,7 +387,8 @@ CONDITIONAL = re.compile(r"\[\[.*?\]\]")
 class Analyzer:
     """Walks one command line, keeping the effective directory, and records the first problem."""
 
-    def __init__(self, cwd: str, project: str, home: str) -> None:
+    def __init__(self, cwd: str, project: str, home: str, subagent: bool = False) -> None:
+        self.subagent = subagent
         self.project = project
         self.home = home
         self.initial = cwd
@@ -425,6 +456,9 @@ class Analyzer:
         if i >= len(args):
             return
         sub, rest = args[i], args[i + 1:]
+        if self.subagent and not self.why and self.branch_change(sub, rest) and in_session_worktree(directory):
+            self.why = SessionDenied(f"git {sub} by a subagent in a session worktree")
+            return
         if sub == "worktree":
             if rest[:1] == ["add"]:
                 made = next(iter(positionals(rest[1:], {"-b", "-B", "--reason"})), "")
@@ -452,6 +486,17 @@ class Analyzer:
         if top:
             self.why = f"git {sub} in the primary checkout {top}"
 
+    @staticmethod
+    def branch_change(sub: str, rest: List[str]) -> bool:
+        """Whether ``git <sub> <rest>`` switches or creates a branch (not a file restore: ``checkout [<rev>] -- f``)."""
+        if "--help" in rest or "-h" in rest:
+            return False
+        if sub == "switch":
+            return True
+        if sub != "checkout" or "--" in rest:
+            return False
+        return any(a in ("-b", "-B", "--orphan", "--detach", "-d") for a in rest) or bool(positionals(rest, {"--conflict"}))
+
     # -- one simple command
     def simple(self, words: List[str], cur: Optional[str], depth: int) -> Optional[str]:
         """Check one simple command; returns the directory after it (``cd`` changes it)."""
@@ -475,7 +520,11 @@ class Analyzer:
         if program == "popd":
             return None
         ships = program == "ship.sh" or (program in SHELLS and next((os.path.basename(a) for a in args if not a.startswith("-")), "") == "ship.sh")
-        if ships:
+        first_arg = next((os.path.basename(a) for a in args if not a.startswith("-")), "")
+        runs_setup = program == "setup.sh" or (program in SHELLS and first_arg == "setup.sh")
+        if runs_setup and self.subagent and in_session_worktree(cur):
+            self.why = SessionDenied("tools/setup.sh by a subagent in a session worktree")
+        elif ships:
             top = self.primary(cur)
             if top:
                 self.why = f"tools/ship.sh from the primary checkout {top}"
@@ -542,11 +591,11 @@ class Analyzer:
         flush()
 
 
-def bash_reason(command: str, cwd: str) -> Optional[str]:
+def bash_reason(command: str, cwd: str, subagent: bool = False) -> Optional[str]:
     """Why ``command`` changes a primary checkout, or ``None``."""
     if find_override(command, OVERRIDE):
         return None
-    analyzer = Analyzer(cwd, os.environ.get("CLAUDE_PROJECT_DIR", ""), os.environ.get("HOME", ""))
+    analyzer = Analyzer(cwd, os.environ.get("CLAUDE_PROJECT_DIR", ""), os.environ.get("HOME", ""), subagent)
     analyzer.walk(command, os.path.realpath(cwd) if cwd else None)
     return analyzer.finish()
 
@@ -585,11 +634,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             why = file_reason(payload)
         elif tool == "Bash":
             command = str((payload.get("tool_input") or {}).get("command", ""))
-            why = bash_reason(command, str(payload.get("cwd") or os.getcwd()))
+            why = bash_reason(command, str(payload.get("cwd") or os.getcwd()), bool(payload.get("agent_id")))
     except Exception:  # a hook must never break the session: fail open
         return 0
     if why:
-        print(f"{MESSAGE} (matched: {why})", file=sys.stderr)
+        reply = NO_WORKTREE_MESSAGE if isinstance(why, SessionDenied) else MESSAGE
+        print(f"{reply} (matched: {why})", file=sys.stderr)
         return 2
     return 0
 

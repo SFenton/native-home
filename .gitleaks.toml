@@ -1,7 +1,7 @@
 # gitleaks config for `gitleaks dir`, `gitleaks git` and tools/history_secret_scan.sh (auto-discovered at the repo root).
 # Extends the default rules; no rule is switched off or allowlisted globally. Each entry below names one file and the rule(s)
 # that fired on it, all triaged as fake test fixtures (placeholder, generated or fixed test literals).
-# Triage and reasoning: .agents/workflow/secret-scan-triage.md
+# Triage procedure: .agents/skills/secret-scan-triage/SKILL.md (rule: .agents/workflow/security.md#secret-scans)
 # Unlike .gitleaksignore, paths here survive a fresh orphan snapshot (fingerprints include the commit sha).
 
 title = "Fenton HASS Native"
@@ -9,43 +9,43 @@ title = "Fenton HASS Native"
 [extend]
 useDefault = true
 
-# Mockup note text: an item key slug, not a credential (secret-scan-triage.md).
+# Mockup note text: an item key slug, not a credential (skill secret-scan-triage).
 [[allowlists]]
 description = "mockup item key slug"
 targetRules = ["generic-api-key"]
 paths = ['''^\.agents/design/mockups/proposals/tile-rollout-rooms-media/tile-rollout-rooms-media\.html$''']
 
-# Fixed idempotency-key literals asserted in a unit test (secret-scan-triage.md).
+# Fixed idempotency-key literals asserted in a unit test (skill secret-scan-triage).
 [[allowlists]]
 description = "idempotency key test literals"
 targetRules = ["generic-api-key"]
 paths = ['''^apple/Tests/HassCoreTests/ScanItemModelTests\.swift$''']
 
-# Sequential placeholder key in a test (secret-scan-triage.md).
+# Sequential placeholder key in a test (skill secret-scan-triage).
 [[allowlists]]
 description = "placeholder cache key"
 targetRules = ["generic-api-key"]
 paths = ['''^tools/tests/test_products_cache\.py$''']
 
-# Fake key/token strings fed to the redactor under test (secret-scan-triage.md).
+# Fake key/token strings fed to the redactor under test (skill secret-scan-triage).
 [[allowlists]]
 description = "jev sections redaction fixture"
 targetRules = ["generic-api-key"]
 paths = ['''^tools/tests/test_jev_sections\.py$''']
 
-# Commit-message text in a test, not a credential (secret-scan-triage.md).
+# Commit-message text in a test, not a credential (skill secret-scan-triage).
 [[allowlists]]
 description = "ha_change test commit text"
 targetRules = ["generic-api-key"]
 paths = ['''^tools/tests/test_ha_change\.py$''']
 
-# Fake PEM, JWT and Basic-auth fixtures for the redaction tests (secret-scan-triage.md).
+# Fake PEM, JWT and Basic-auth fixtures for the redaction tests (skill secret-scan-triage).
 [[allowlists]]
 description = "redactor test fixtures"
 targetRules = ["private-key", "jwt", "curl-auth-header"]
 paths = ['''^tools/tests/test_redact\.py$''']
 
-# Placeholder token argument in a triage test (secret-scan-triage.md).
+# Placeholder token argument in a triage test (skill secret-scan-triage).
 [[allowlists]]
 description = "triage test placeholder token"
 targetRules = ["generic-api-key"]

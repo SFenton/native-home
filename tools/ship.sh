@@ -104,7 +104,7 @@ if [[ -f "$JA" ]]; then
 fi
 LC="$(dirname "$0")/lane_check.py"
 if [[ -f "$LC" ]]; then
-  python3 "$LC" check --base "$BASE" --only scan --only revert --only shape \
+  python3 "$LC" check --base "$BASE" --only scan --only revert --only shape --only scope \
     || { echo "ship: lane_check failed (above); nothing was pushed. Fix it and ship again." >&2; exit 1; }
 fi
 

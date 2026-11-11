@@ -1,0 +1,3 @@
+Decision: The owner chose gates at the pull request, not the terminal. The terminal override on `tools/pr_land.py` is retired; a pull request it refuses is approved by the owner on GitHub (their review of that exact head) and merged there. Options judged: keep the flag; remove the flag only (chosen); remove the gate. Removing the gate was rejected because the owner-kept set and the app-UI gate still protect the paths the owner reserved. The `merge_guard` and deny-rule tripwires and their tests stay.
+Replaces: the autonomy.md Owner-only row for owner acknowledgements, which named commands that skip a gate for one pull request.
+Rule home: .agents/workflow/autonomy.md

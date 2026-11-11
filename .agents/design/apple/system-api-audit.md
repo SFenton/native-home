@@ -1,6 +1,6 @@
 # System API audit (2026-10-28)
 
-> **What:** one-time audit of the custom UI machinery against what the system and OSS already offer ([rung 0](../../workflow/change-loop.md#rung-0-system-api-first)). **Read when:** touching any component below, or before adding a similar one. Deployment target is iOS 17; "26" means Liquid Glass era APIs. Reasons are taken from each file's header comments; where a number is quoted it was measured by the author of that file and has not been re-measured here.
+> **What:** one-time audit of the custom UI machinery against what the system and OSS already offer ([rung 0](../../workflow/change-loop.md#rung-0)). **Read when:** touching any component below, or before adding a similar one. Deployment target is iOS 17; "26" means Liquid Glass era APIs. Reasons are taken from each file's header comments; where a number is quoted it was measured by the author of that file and has not been re-measured here.
 
 Verdicts: **keep** (the reason holds), **replace** (a follow-up, filed as a request, not done here), **keep, shrink** (keep for iOS 17, retire the part newer OSes cover). No Swift changed by this audit.
 

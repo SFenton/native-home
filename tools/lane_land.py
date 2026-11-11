@@ -304,7 +304,7 @@ def changed_paths(clone: Path, base: str, sha: str) -> List[Tuple[str, str, str,
 
 
 #: Appended to a pull-request refusal of the owner-only set: the only way past it.
-OWNER_ONLY_HINT = "; only the owner lands it, from their own terminal with the owner acknowledgement (see pr-lifecycle.md)"
+OWNER_ONLY_HINT = "; the owner approves this pull request on GitHub (their review of this exact head) and merges it there (see pr-lifecycle.md)"
 
 
 def protected_set(root: Path, cfg: Optional[dict] = None) -> List[str]:
@@ -1079,9 +1079,12 @@ APP_UI_PATHS: Tuple[str, ...] = (
     "apple/Apps/**", "**/*.xcassets/**", ".agents/design/mockups/**")
 #: Under APP_UI_PATHS but not app UI: test targets and privacy manifests.
 APP_UI_EXCLUDED: Tuple[str, ...] = ("apple/Apps/*Tests/**", "apple/Apps/**/*.xcprivacy")
-DESIGN_RECORDS = ".agents/design/*.md"
+#: Where a design pick is recorded: a new file, dated by its name, with a ``Decision:`` front line (``.agents/decisions/README.md``).
+DESIGN_RECORDS = ".agents/decisions/*.md"
+DECISION_FILE = re.compile(r"^\.agents/decisions/\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$")
+#: Records already on the base that a lane may cite with ``Design: <path>``.
+CITABLE_PREFIXES = (".agents/design/", ".agents/patterns/", ".agents/decisions/")
 DECISION_LINE = re.compile(r"^[\s>*_-]*Decision\*{0,2}:\*{0,2}.*$", re.M | re.I)
-DECISION_DATE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
 DECISION_OPTIONS = re.compile(r"\boptions?\s+[A-C]\b|\b[A-C]\s*(?:,|and|/|vs\.?)\s*[A-C]\b", re.I)
 #: The recorded app-UI gate outcome (``tools/jev_gate.py``), a line in the design record. Agent-initiated work (every
 #: ``agents/*`` lane) needs ``app_wide=no``; work from an owner request needs ``matches_request=yes`` and the commit
@@ -1137,8 +1140,8 @@ DESIGN_CITE = re.compile(r"^Design: *(\S+)\s*$", re.M)
 
 
 def has_decision(text: str) -> bool:
-    """A ``Decision:`` line that carries a date and names the judged options (``Option B``, ``A, B and C``)."""
-    return any(DECISION_DATE.search(m.group(0)) and DECISION_OPTIONS.search(m.group(0)) for m in DECISION_LINE.finditer(text))
+    """A ``Decision:`` line that names the judged options (``Option B``, ``A, B and C``). The date is the file name's."""
+    return any(DECISION_OPTIONS.search(m.group(0)) for m in DECISION_LINE.finditer(text))
 
 
 def app_ui_paths(rows: Sequence[Tuple[str, str, str, str]]) -> List[str]:
@@ -1377,12 +1380,13 @@ def check_design_record(clone: Path, base: str, sha: str, rows: Sequence[Tuple[s
                         trusted_for: Optional[Callable[[], Path]] = None, ask: JevAsk = ask_jev,
                         reader: RequestReader = no_request, extra_log: str = "",
                         prompts: Optional[Callable[[str], Optional[str]]] = None) -> None:
-    """A lane that changes app UI adds or updates a design decision record, or cites an existing one (``Design: <path>``),
+    """A lane that changes app UI adds a design decision record, or cites an existing one (``Design: <path>``),
     and Jev is asked about it either way (:func:`verify_gate`; the lane's ``Gate:`` line only documents the answer).
 
-    The record is ``.agents/design/*.md`` in which **this lane added** a dated ``Decision:`` line naming the judged options
-    (an old record the lane merely touches does not count). A lane that only fixes a bug back to documented design may cite a
-    record or pattern doc that exists on ``origin/<base>`` (``Design: <path>``; never a file the lane adds); Jev still judges
+    The record is a **new** file ``.agents/decisions/<YYYY-MM-DD>-<slug>.md`` whose ``Decision:`` line names the judged options
+    (a line added to a design doc, or an old record the lane merely touches, does not count). A lane that only fixes a bug back
+    to documented design may cite a decision, design or pattern doc that exists on ``origin/<base>`` (``Design: <path>``; never a
+    file the lane adds); Jev still judges
     the diff. Closes the gap where app UI landed without the Designer's recorded pick or the app-wide check.
 
     ``extra_log`` is more text read like commit messages (``Owner-Request:`` and ``Design:`` lines): a product PR passes its
@@ -1394,20 +1398,20 @@ def check_design_record(clone: Path, base: str, sha: str, rows: Sequence[Tuple[s
     if extra_log:
         log += "\n" + extra_log
     for status, path, _old, new in rows:
-        if status == "D" or not matches(path, (DESIGN_RECORDS,)):
+        if status != "A" or not DECISION_FILE.match(path):
             continue
         added = added_lines(clone, base, sha, path)
         if has_decision(added):
             verify_gate(path, gate_input(clone, base, sha, ui, added), log, trusted_for, ask, reader, record=added, prompts=prompts)
             return
     for cited in DESIGN_CITE.findall(log):
-        if cited.startswith((".agents/design/", ".agents/patterns/")) and _exists(clone, f"refs/remotes/origin/{base}", cited):
+        if cited.startswith(CITABLE_PREFIXES) and _exists(clone, f"refs/remotes/origin/{base}", cited):
             verify_gate(cited, gate_input(clone, base, sha, ui, f"(cites {cited} on the base; no new record)"), log,
                         trusted_for, ask, reader, prompts=prompts)
             return
-    raise Refused(f"the lane changes app UI ({ui[0]}) without a design decision record: add or update "
-                  f"{DESIGN_RECORDS} with a dated `Decision:` line naming the judged options, or cite an existing "
-                  "record or pattern on the base in a commit message (`Design: <path>`)", "design")
+    raise Refused(f"the lane changes app UI ({ui[0]}) without a design decision record: add "
+                  "a new file .agents/decisions/<YYYY-MM-DD>-<slug>.md with a `Decision:` line naming the judged options (a line in a design doc "
+                  "does not count), or cite an existing record or pattern on the base in a commit message (`Design: <path>`)", "design")
 
 
 # MARK: - The same gate for product pull requests
@@ -1452,7 +1456,7 @@ def live_request_reader(gh: GH, cfg: dict) -> RequestReader:
     issue, the pull request's own text and anything unreadable count as nothing: agents use the owner's login or, once configured,
     the agent login (which :func:`read_config` drops from ``authors``, so it never vouches), so only the request repo (where
     agent-filed issues carry ``Workflow``) can show an owner's request. The owner's way around is
-    ``--owner-ack``."""
+    to approve the pull request on GitHub (their review of this exact head) and merge it there."""
     authors = list(cfg.get("authors") or [])
     repo = str(cfg.get("request_repo") or "")
 

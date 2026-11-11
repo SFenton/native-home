@@ -78,6 +78,10 @@
           },
           {
             "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/rules_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/signing_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
           },
           {

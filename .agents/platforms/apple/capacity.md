@@ -14,7 +14,7 @@ Many lanes (this repo's and FestivalNativeApps') run on one Mac. Every simulator
 | `simulator` | RAM / 16 GB, 1–6 (4 on the MacBook; owner asked for more parallel lanes, 2026-10-15; 1 on the Mac mini) | `--sim UDID`: one per simulator in use |
 | `build` | cores / 4, 1–4 (2 on the MacBook; 1 on the Mac mini, set in its `config.json` because two compiles swap on 8 GB) | `--pool build`: `xcodebuild build-for-testing`, `swift build`/`swift test` |
 
-Override a count with `DEVCAP_SLOTS_SIMULATOR=2` or `~/.devcap/config.json` (`{"simulator": 2}`); lowering it only affects new holders. Slots are per machine: the Mac mini (`<ci-host>`, the `host` CI runner) has its own `~/.devcap` and does not share holds with the MacBook ([ci](../../workflow/ci.md#the-runners)).
+Override a count with `DEVCAP_SLOTS_SIMULATOR=2` or `~/.devcap/config.json` (`{"simulator": 2}`); lowering it only affects new holders. Slots are per machine: the Mac mini (`<ci-host>`, the `host` CI runner) has its own `~/.devcap` and does not share holds with the MacBook ([ci](../../workflow/ci.md#rules-for-workflows)).
 
 ## Commands
 
@@ -48,7 +48,7 @@ devcap itself creates, resets and deletes pool simulators (owner-approved 2026-1
 
 ## Disk reaper
 
-Pool simulators and worktrees fill the disk, so the CI pre-flight (`python3 tools/ci_hygiene.py preflight`) reaps when free space is under 30 GB: merged worktrees (`prune-worktrees`), then idle pool simulators, old results and orphaned DerivedData ([ci](../../workflow/ci.md#disk-hygiene)). For capacity this means:
+Pool simulators and worktrees fill the disk, so the CI pre-flight (`python3 tools/ci_hygiene.py preflight`) reaps when free space is under 30 GB: merged worktrees (`prune-worktrees`), then idle pool simulators, old results and orphaned DerivedData ([ci](../../workflow/ci.md#rules-for-workflows)). For capacity this means:
 
 - A simulator is reaped only when it is a `(pool N)` member that devcap's `sims.json` registry names as created by devcap (kind pool or ephemeral), is shut down, and its `device-<udid>` gate has no holder and no waiter. Hold a device (`devcap.py run --sim`) for as long as you rely on its state; a warm but unheld, shut-down pool member can be deleted between runs and `pick-sim` recreates it stock (and un-slimmed, so `sim_slim.sh` runs again in your hold). Nothing is ever erased automatically.
 - A worktree is reaped only when a devcap holder's `cwd` is not inside it, so run long jobs through `devcap.py run` from the worktree they belong to. Merged (including squash-merged), clean, idle (3 days), unlocked and without a `build/handoff/*.md` are also required; `git worktree lock` a lane you want kept. Removal deletes ignored files in it.
