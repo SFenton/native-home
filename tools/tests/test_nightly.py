@@ -2,8 +2,7 @@
 
 import io
 import json
-import os
-import subprocess
+import re
 import sys
 import tempfile
 import unittest
@@ -195,44 +194,73 @@ class ReportTests(unittest.TestCase):
         self.assertIn("`T.t` m", text)
 
 
-class DispatchTests(unittest.TestCase):
-    """tools/nightly_dispatch.sh against a stub `gh` and `caffeinate` on PATH."""
+class HostedWorkflowTests(unittest.TestCase):
+    """The shape of .github/workflows/nightly.yml (hosted since 2026-11-10; no self-hosted label, no launchd job)."""
 
-    def run_script(self, tmp, kill=False):
-        bin_dir = Path(tmp) / "bin"
-        bin_dir.mkdir()
-        calls = Path(tmp) / "calls.txt"
-        (bin_dir / "gh").write_text('#!/bin/sh\necho "gh $*" >> "%s"\n' % calls)
-        (bin_dir / "caffeinate").write_text('#!/bin/sh\necho "caffeinate $*" >> "%s"\nshift; exec "$@"\n' % calls)
-        for stub in bin_dir.iterdir():
-            stub.chmod(0o755)
-        kill_file = Path(tmp) / "NO_NIGHTLY"
-        if kill:
-            kill_file.write_text("")
-        env = dict(os.environ, PATH="%s:%s" % (bin_dir, os.environ["PATH"]), HASS_NIGHTLY_KILL_FILE=str(kill_file),
-                   HASS_NIGHTLY_WATCH="0", HOME=tmp)
-        proc = subprocess.run(["bash", str(TOOLS / "nightly_dispatch.sh")], env=env, capture_output=True, text=True)
-        return proc, calls.read_text() if calls.exists() else ""
+    TEXT = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
 
-    def test_dispatches_nightly_on_main_under_caffeinate(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            proc, calls = self.run_script(tmp)
-            self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn("caffeinate -i gh workflow run nightly.yml --repo SFenton/native-home --ref main", calls)
+    def test_every_job_is_github_hosted(self):
+        self.assertNotRegex(self.TEXT, r"(?m)^\s+runs-on:.*self-hosted")
+        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ", self.TEXT)), 5)
+        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ubuntu-24\.04$", self.TEXT)), 2)  # plan and report: Python only
 
-    def test_kill_file_stops_it(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            proc, calls = self.run_script(tmp, kill=True)
-            self.assertEqual(proc.returncode, 0)
-            self.assertIn("paused", proc.stdout)
-            self.assertEqual(calls, "")
+    def test_it_runs_on_a_schedule_off_the_hour_and_by_hand(self):
+        self.assertRegex(self.TEXT, r"(?m)^  schedule:\n(?:    #.*\n)*    - cron: '(?!0 )\d+ \d+ \* \* \*'")
+        self.assertIn("workflow_dispatch:", self.TEXT)
+        for name in ("filter:", "families:", "plans:"):
+            self.assertIn("      %s" % name, self.TEXT)
 
-    def test_install_dry_run_renders_a_two_am_plist(self):
-        proc = subprocess.run(["bash", str(TOOLS / "nightly_install.sh"), "--dry-run"], capture_output=True, text=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("com.sfenton.hass-nightly", proc.stdout)
-        self.assertIn("<key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer>", proc.stdout)
-        self.assertIn("nightly_dispatch.sh", proc.stdout)
+    def test_the_journey_matrix_is_family_by_shard_and_leaves_a_slot_for_pull_requests(self):
+        self.assertIn("fromJSON(needs.plan.outputs.matrix)", self.TEXT)
+        self.assertIn("--families", self.TEXT)
+        self.assertIn("fail-fast: false", self.TEXT)
+        cap = int(re.search(r"max-parallel: (\d+)", self.TEXT).group(1))
+        self.assertLessEqual(cap + 1, 4)  # the journeys plus the coverage job; the account allows 5 macOS jobs
+
+    def test_the_scheduled_default_has_no_live_plan(self):
+        self.assertNotIn("Live", self.TEXT.split("\njobs:\n", 1)[1])
+        self.assertEqual(nightly_plan.DEFAULT_PLANS, ["Gate"])
+
+    def test_the_report_job_files_issues_with_the_workflow_token(self):
+        report = self.TEXT.split("\n  report:\n", 1)[1]
+        self.assertIn("issues: write", report)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", report)
+        self.assertNotIn("contents: write", self.TEXT)
+
+    def test_steps_that_record_an_exit_code_clear_errexit(self):
+        # Fails if: a step that pipes a test run through tee loses `set +e`; the step shell is `bash -e`, so a red run aborts before its code is recorded (trial 1).
+        for marker in ("--force $FILTERS 2>&1 | tee", "tools/apple_coverage.sh 2>&1 | tee"):
+            head = self.TEXT.split(marker, 1)[0]
+            self.assertIn("set +e", head.rsplit("run: |", 1)[1], marker)
+
+    def test_the_report_download_skips_the_products_and_coverage_fits_its_cap(self):
+        # Fails if: the products artifact name matches the report job's `nightly-*` pattern (a 209 MB download), or the coverage cap drops under the measured 250-270 minutes.
+        names = re.findall(r"(?m)^          name: (\S+)$", self.TEXT)
+        self.assertIn("test-products-nightly", names)
+        self.assertFalse([n for n in names if n.startswith("nightly-") and "products" in n])
+        coverage = self.TEXT.split("\n  coverage:\n", 1)[1].split("\n  report:\n", 1)[0]
+        self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 300)
+        self.assertLess(int(re.search(r"timeout-minutes: (\d+)", coverage).group(1)), 360)
+
+    def test_retired_self_hosted_scripts_are_gone(self):
+        for name in ("nightly_dispatch.sh", "nightly_install.sh"):
+            self.assertFalse((TOOLS / name).exists(), name)
+
+
+class FamilyMatrixTests(unittest.TestCase):
+    def test_each_shard_repeats_per_family_shard_major(self):
+        doc = nightly_plan.plan({"Gate": {"A": ["a"] * 40, "B": ["b"] * 40}}, 60)
+        out = nightly_plan.with_families(doc, ["iphone", "duo", "ipad"])["include"]
+        self.assertEqual([(i["shard"], i["family"]) for i in out],
+                         [(1, "iphone"), (1, "duo"), (1, "ipad"), (2, "iphone"), (2, "duo"), (2, "ipad")])
+        self.assertEqual({i["filters"] for i in out if i["shard"] == 1}, {doc["include"][0]["filters"]})
+
+    def test_main_takes_families_and_refuses_an_unknown_one(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(nightly_plan.main(["--filter", "Bedroom", "--plans", "Gate", "--families", "duo,ipad"]), 0)
+        self.assertEqual([i["family"] for i in json.loads(out.getvalue())["include"]], ["duo", "ipad"])
+        self.assertEqual(nightly_plan.main(["--plans", "Gate", "--families", "mac"]), 2)
 
 
 if __name__ == "__main__":

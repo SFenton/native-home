@@ -159,10 +159,12 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(rc, 0, err)
             self.assertNotIn("fake.invalid", out + err)
 
-    def test_nightly_fails_the_shard_when_credentials_are_missing(self):
+    def test_nightly_never_ignores_a_failed_credentials_load(self):
+        # The hosted nightly runs Gate only and loads no credentials; the live lane adds them and must fail the shard when they are missing.
         text = (REPO / ".github" / "workflows" / "nightly.yml").read_text()
-        self.assertIn("hass_require_creds", text)
         self.assertNotIn("hass_load_creds || true", text)
+        if "hass_load_creds" in text:
+            self.assertIn("hass_require_creds", text)
 
     def test_missing_file_is_not_an_error(self):
         rc, out, _ = load(self.tmp / "absent")

@@ -177,12 +177,10 @@ class DigestTests(unittest.TestCase):
         self.assertIn("RESULT: INFRA", log_digest.digest_text("GAP: no available simulator named 'iPhone Duo'\n", exit_code=1))
         self.assertIn("hold timeout", log_digest.digest_text("devcap: hold timeout after 3600s\n", exit_code=124))
 
-    def test_nightly_credentials_line_is_infra(self):
-        """The exact line nightly.yml writes when the runner's credentials are missing classifies as infra."""
-        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/nightly.yml").read_text()
-        match = re.search(r'echo "(Live-server credentials unavailable[^"]*)"', workflow)
-        self.assertIsNotNone(match, "nightly.yml no longer writes the credentials line")
-        out = log_digest.digest_text(match.group(1) + "\n", exit_code=1)
+    def test_credentials_unavailable_line_is_infra(self):
+        """The line the live lane writes when its credentials are missing classifies as infra (the line lives in the workflow that runs Live)."""
+        line = "Live-server credentials unavailable: missing or refused on this runner (tools/hass_creds.sh)"
+        out = log_digest.digest_text(line + "\n", exit_code=1)
         self.assertIn("RESULT: INFRA", out)
         self.assertIn("INFRA (not a test failure): credentials unavailable", out)
 
