@@ -69,9 +69,11 @@ class ArmTests(unittest.TestCase):
                 "baseRefName": "main", "labels": [], "files": [], "body": "", "title": "t", "author": {"login": "SFenton"},
                 "isCrossRepository": False, **extra}
 
-    def land(self, info=None, dry=False, kill=None, passed=True, ruleset=None, gate=None, denylist=None, merges=None, after=None):
+    def land(self, info=None, dry=False, kill=None, passed=True, ruleset=None, gate=None, denylist=None, merges=None, after=None,
+             reviews=None):
         """Run ``land`` and return ``((code, line), gh calls)``. ``merges`` is the list of ``(returncode, text)`` the successive
-        ``gh pr merge`` calls answer; ``after`` is the pull request JSON the post-arm ``pr view`` returns."""
+        ``gh pr merge`` calls answer; ``after`` is the pull request JSON the post-arm ``pr view`` returns; ``reviews`` is the list of
+        pages ``gh api .../reviews --paginate`` prints (default: GitHub has no review)."""
         calls = []
         answers = list(merges if merges is not None else [(0, "")])
 
@@ -83,6 +85,8 @@ class ArmTests(unittest.TestCase):
             if args[:3] == ["gh", "pr", "merge"]:
                 code, text = answers.pop(0)
                 return mock.Mock(returncode=code, stdout="", stderr=text)
+            if args[:2] == ["gh", "api"]:
+                return mock.Mock(returncode=0, stdout="".join(json.dumps(page) for page in reviews or [[]]), stderr="")
             return mock.Mock(returncode=0, stdout="", stderr="")
 
         def ui(number, info):
@@ -252,6 +256,65 @@ class ArmTests(unittest.TestCase):
         self.assertTrue(line.startswith(f"would arm #7 at {self.HEAD[:8]}"), line)
         self.assertEqual([c[:3] for c in calls], [["gh", "pr", "view"]])
 
+    APPROVAL = [[{"user": {"login": "SFenton"}, "state": "APPROVED", "commit_id": HEAD}]]
+    PARK = pr_land.GateRefused("Jev answered design.app_wide=unsure", park=True)
+
+    def test_an_approval_of_the_head_answers_a_park_and_the_arm_stays_pinned(self):
+        """Fails if: an approved park still blocks, the note omits the head, or the arm loses --match-head-commit."""
+        (code, line), _ = self.land(gate=self.PARK, reviews=self.APPROVAL, dry=True)
+        self.assertEqual(code, 0, line)
+        self.assertIn(f"app-UI gate answered by the owner's approval of {self.HEAD[:8]}", line)
+        (code, line), calls = self.land(gate=self.PARK, reviews=self.APPROVAL,
+                                        after={"state": "OPEN", "autoMergeRequest": {"enabledBy": {"login": "SFenton"}}})
+        self.assertEqual(code, 0, line)
+        self.assertEqual(self.merge_calls(calls)[0][-2:], ["--match-head-commit", self.HEAD])
+        (code, line), calls = self.land(gate=self.PARK)
+        self.assertEqual(code, 1, line)
+        self.assertIn("app-UI gate (gate)", line)
+        self.assertFalse(self.merge_calls(calls))
+
+    def test_an_approval_of_the_head_lifts_the_needs_decision_label_only(self):
+        """Fails if: the label blocks an approved head, or stops blocking an unapproved one (or one approved at an older commit)."""
+        labelled = self.info(labels=[{"name": "Needs Decision"}])
+        (code, line), _ = self.land(info=labelled, reviews=self.APPROVAL, dry=True)
+        self.assertEqual(code, 0, line)
+        older = [[{"user": {"login": "SFenton"}, "state": "APPROVED", "commit_id": "a" * 40}]]
+        for reviews in (None, older):
+            (code, line), calls = self.land(info=labelled, reviews=reviews, dry=True)
+            self.assertEqual((code, "Needs Decision" in line), (1, True), line)
+
+    def test_an_approval_never_answers_anything_but_a_park_or_the_label(self):
+        """Fails if: an approval answers the owner-only path set, a missing design record, a contradicting Gate line, the denylist, a
+        missing review pass, a ruleset problem, the author and fork check, a conflict, another base, a closed PR or the kill switch."""
+        rows = {
+            "owner-only set": ({"gate": pr_land.GateRefused("the pull request changes the owner-only set: tools/pr_land.py", "paths")}, "owner-only set"),
+            "missing design record": ({"gate": pr_land.GateRefused("no design decision record", "design")}, "(design)"),
+            "contradicting gate line": ({"gate": pr_land.GateRefused("records Gate: app_wide=no but Jev answered yes")}, "Gate:"),
+            "gate crash": ({"gate": OSError("disk")}, "failed closed"),
+            "denylist": ({"denylist": "denylist: 1 new hit"}, "denylist: 1 new hit"),
+            "no review pass": ({"passed": False}, "no independent pass"),
+            "ruleset": ({"ruleset": ["the ruleset allows a bypass"]}, "the ruleset allows a bypass"),
+            "foreign author": ({"info": self.info(author={"login": "mallory"})}, "not a pull request by"),
+            "fork": ({"info": self.info(isCrossRepository=True)}, "not a pull request by"),
+            "conflicts": ({"info": self.info(mergeable="CONFLICTING", labels=[{"name": "Needs Decision"}])}, "merge conflicts"),
+            "base": ({"info": self.info(baseRefName="release")}, "the base is release"),
+            "kill switch": ({"kill": "/x/NO_LAND"}, "landing paused"),
+            "closed": ({"info": self.info(state="CLOSED")}, "pull request is closed"),
+        }
+        for name, (kwargs, text) in rows.items():
+            with self.subTest(name):
+                (code, line), calls = self.land(reviews=self.APPROVAL, **kwargs)
+                self.assertEqual(code, 1, line)
+                self.assertIn(text, line)
+                self.assertFalse(self.merge_calls(calls))
+
+    def test_the_approval_is_read_from_github_for_this_pull_request_only_when_needed(self):
+        """Fails if: the reviews are asked for when nothing needs an answer, or for another pull request."""
+        _, calls = self.land(dry=True)
+        self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [])
+        _, calls = self.land(gate=self.PARK, reviews=self.APPROVAL, dry=True)
+        self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [["gh", "api", "repos/SFenton/native-home/pulls/7/reviews", "--paginate"]])
+
     OWNED_FILES = [{"path": "tools/ci_wait.py"}, {"path": ".github/workflows/pr-checks.yml"}]
 
     def printed(self, **kw):
@@ -326,6 +389,90 @@ class ArmTests(unittest.TestCase):
                      "cleanup", "safe_cleanup", "MAX_ROUNDS", "reviewer_identity_problem"):
             self.assertFalse(hasattr(pr_land, name), name)
         self.assertTrue(callable(pr_land.review_file_name))  # jev_miss still imports it
+
+
+class OwnerApprovalTests(unittest.TestCase):
+    """``pr_land.owner_approval`` reads the owner's review of the exact head from GitHub, and ``ui_gate`` marks a park by the gate's exit status."""
+
+    HEAD = "b" * 40
+    OLD = "c" * 40
+
+    @staticmethod
+    def review(login="SFenton", state="APPROVED", commit="b" * 40):
+        return {"user": {"login": login}, "state": state, "commit_id": commit}
+
+    def read(self, answer, code=0, head=None):
+        """``owner_approval`` against a fake ``gh api`` that prints ``answer`` (JSON pages joined as ``--paginate`` does)."""
+        text = answer if isinstance(answer, str) else "".join(json.dumps(page) for page in answer)
+        with mock.patch.object(pr_land, "run", return_value=mock.Mock(returncode=code, stdout=text, stderr="boom")):
+            return pr_land.owner_approval("7", head or self.HEAD)
+
+    def test_the_owner_approving_the_exact_head_counts(self):
+        """Fails if: the owner's approval of the head is not recognised (the login compares without case)."""
+        self.assertTrue(self.read([[self.review()]]))
+        self.assertTrue(self.read([[self.review("sfenton")]]))
+
+    def test_paged_reviews_are_read_and_the_latest_per_login_wins(self):
+        """Fails if: a second page is dropped, an earlier review outweighs a later one, or another login's review ends the owner's."""
+        self.assertTrue(self.read([[self.review("someone", "COMMENTED")], [self.review()]]))
+        self.assertTrue(self.read([[self.review("SFenton", "CHANGES_REQUESTED", self.OLD)], [self.review()]]))
+        self.assertTrue(self.read([[self.review(), self.review("sfenton-agent", "CHANGES_REQUESTED")]]))
+
+    def test_anything_but_a_live_approval_of_the_head_is_not_an_approval(self):
+        """Fails if: an older commit, another login, an app, a dismissal, a later review, an API error or a malformed answer counts."""
+        rows = {
+            "older commit": [[self.review(commit=self.OLD)]],
+            "agent login": [[self.review("sfenton-agent")]],
+            "app": [[self.review("s-h-coder[bot]")]],
+            "dismissed": [[self.review(state="DISMISSED")]],
+            "changes requested after": [[self.review(), self.review(state="CHANGES_REQUESTED")]],
+            "commented after": [[self.review()], [self.review(state="COMMENTED")]],
+            "commented only": [[self.review(state="COMMENTED")]],
+            "no reviews": [[]],
+            "no commit": [[{"user": {"login": "SFenton"}, "state": "APPROVED"}]],
+            "review without a user": [[{"state": "APPROVED", "commit_id": self.HEAD}, self.review()]],
+            "not a list": [{"message": "Not Found"}],
+            "not json": "<html>",
+            "empty output": "",
+            "half a page": json.dumps([self.review()]) + "[{",
+        }
+        for name, answer in rows.items():
+            with self.subTest(name):
+                self.assertFalse(self.read(answer))
+        self.assertFalse(self.read([[self.review()]], code=1))
+        self.assertFalse(self.read([[self.review()]], head=self.HEAD[:8]))
+        self.assertFalse(pr_land.owner_approval("7", ""))
+        self.assertFalse(pr_land.owner_approval("7; rm", self.HEAD))
+        with mock.patch.object(pr_land, "run", side_effect=OSError("no gh")):
+            self.assertFalse(pr_land.owner_approval("7", self.HEAD))
+
+    def test_it_asks_the_reviews_api_for_the_product_repo_and_nothing_else(self):
+        """Fails if: owner_approval reads anything an agent can write (labels, comments, files, process settings) or another repository."""
+        calls = []
+        with mock.patch.object(pr_land, "run", side_effect=lambda args, check=True: calls.append(args) or mock.Mock(returncode=0, stdout="[]")):
+            pr_land.owner_approval("7", self.HEAD)
+        self.assertEqual(calls, [["gh", "api", "repos/SFenton/native-home/pulls/7/reviews", "--paginate"]])
+        source = inspect.getsource(pr_land.owner_approval).split('"""')[2]  # the code, not its docstring
+        for needle in ("environ", "labels", "comments", "read_text", "open("):
+            self.assertNotIn(needle, source)
+
+    def test_the_park_exit_status_matches_the_lander(self):
+        """Fails if: pr_land and lane_land disagree on the exit status that marks a park."""
+        import lane_land
+        self.assertEqual(pr_land.PARK_EXIT, lane_land.PARK_EXIT)
+
+    def test_ui_gate_marks_only_the_park_exit_as_a_park(self):
+        """Fails if: a refusal other than the gate's typed park (exit 3) is marked a park, or the message text decides."""
+        cases = ((3, "refused (gate): Jev answered", True), (2, "refused (gate): Jev answered", False),
+                 (2, "refused (gate): app-wide or unsure and no owner request", False), (1, "boom", False))
+        with mock.patch.object(pr_land, "trusted_gate_clone", return_value=Path("/trusted/repo")), \
+                mock.patch.object(pr_land, "gate_lock", mock.MagicMock()), mock.patch.object(Path, "is_file", return_value=True):
+            for code, text, park in cases:
+                with self.subTest(code=code, text=text), mock.patch.object(
+                        pr_land.subprocess, "run", return_value=mock.Mock(returncode=code, stdout="", stderr="lane_land gate: " + text)):
+                    with self.assertRaises(pr_land.GateRefused) as cm:
+                        pr_land.ui_gate("9", {"baseRefName": "main", "headRefOid": "a" * 40})
+                    self.assertEqual(cm.exception.park, park)
 
 
 class LaneWorktreeReapTests(unittest.TestCase):

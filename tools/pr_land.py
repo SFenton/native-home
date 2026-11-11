@@ -9,7 +9,9 @@ owner-kept set), the house denylist, the author and fork check, an independent r
 
 A PR that touches a CODEOWNERS path, the owner-kept set, or that the app-UI gate parks, is the owner's to clear (a missing design record or a contradicting ``Gate:`` line is the agent's to fix): the owner approves this pull request on
 GitHub (their review of this exact head) and merges it there. There is no override flag. :func:`owner_recipe` prints the three ``gh``
-commands for that, for the owner only.
+commands for that, for the owner only. :func:`owner_approval` reads that approval from GitHub on every call; it answers an app-UI park
+and the ``Needs Decision`` label and nothing else (the owner-kept set, a missing design record, the denylist, the review pass and the
+ruleset still refuse).
 """
 
 from __future__ import annotations
@@ -126,15 +128,19 @@ def run(args: List[str], check: bool = True) -> subprocess.CompletedProcess:
     return proc
 
 
+#: The exit status ``lane_land.py gate`` uses for a park (``lane_land.PARK_EXIT``; this file loads no other pinned module, a test keeps the two equal).
+PARK_EXIT = 3
 GATE_TIMEOUT = 1800.0  # Jev may take a while; the gate itself fails closed on its own errors
 
 
 class GateRefused(Exception):
-    """The app-UI gate said no, or could not run (always a block)."""
+    """The app-UI gate said no, or could not run (always a block). ``park`` is the gate's typed answer that this is a question for
+    the owner (the model says app-wide or unsure, the request is not confirmed, or the model is unavailable)."""
 
-    def __init__(self, message: str, kind: str = "gate"):
+    def __init__(self, message: str, kind: str = "gate", park: bool = False):
         super().__init__(message)
         self.kind = kind
+        self.park = park
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
@@ -228,7 +234,8 @@ def ui_gate(number: str, info: Dict[str, Any]) -> str:
         proc = subprocess.run([sys.executable, "-I", str(script), "gate", "--pr", number, "--head", head, "--root", str(root), "--lock-held"],
                               capture_output=True, text=True, timeout=GATE_TIMEOUT, env=env, cwd=os.getcwd())
     if proc.returncode != 0:
-        raise GateRefused((proc.stderr or proc.stdout).strip().replace("lane_land gate: ", "")[:600] or f"gate exit {proc.returncode}")
+        raise GateRefused((proc.stderr or proc.stdout).strip().replace("lane_land gate: ", "")[:600] or f"gate exit {proc.returncode}",
+                          park=proc.returncode == PARK_EXIT)
     return (proc.stdout.strip().splitlines() or ["app-UI gate passed"])[-1]
 
 
@@ -268,6 +275,43 @@ def arm(number: str, head: str) -> Tuple[int, str]:
     return 2, f"failed #{number}: gh pr merge returned but the pull request is neither merged nor armed"
 
 
+def owner_approval(number: str, head: str) -> bool:
+    """Whether the owner's latest review of pull request ``number`` is an approval of exactly ``head``, read from GitHub now.
+
+    ``gh api repos/<product repo>/pulls/N/reviews --paginate``; the latest review per login counts, and only the owner's login
+    (:data:`agent_login.OWNER`, never the agent login or an app) with state ``APPROVED`` and ``commit_id`` equal to the full ``head``
+    (a push after the review, a dismissal or a later review of any state ends it). Any API error or malformed answer is ``False``.
+    Nothing an agent can write is read: no labels, comments, files or environment."""
+    if not re.fullmatch(r"[0-9a-f]{40}", head or "") or not str(number).isdigit():
+        return False
+    try:
+        proc = run(["gh", "api", f"repos/{PRODUCT_REPO}/pulls/{number}/reviews", "--paginate"], check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if proc.returncode:
+        return False
+    text, decoder, at, reviews = (proc.stdout or "").strip(), json.JSONDecoder(), 0, []
+    try:
+        while at < len(text):  # --paginate prints one JSON array per page
+            page, at = decoder.raw_decode(text, at)
+            if not isinstance(page, list):
+                return False
+            reviews += page
+            while at < len(text) and text[at].isspace():
+                at += 1
+    except ValueError:
+        return False
+    latest: Dict[str, Dict[str, Any]] = {}
+    for review in reviews:
+        user = review.get("user") if isinstance(review, dict) else None
+        login = user.get("login") if isinstance(user, dict) else None
+        if not isinstance(login, str) or not login:
+            return False
+        latest[login.lower()] = review
+    mine = latest.get(agent_login.OWNER.lower())
+    return bool(mine) and mine.get("state") == "APPROVED" and mine.get("commit_id") == head
+
+
 def owner_recipe(number: str, info: Dict[str, Any]) -> List[str]:
     """The owner-only landing recipe for a PR that touches a CODEOWNERS path, else ``[]``.
 
@@ -305,8 +349,16 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
                            "state,isDraft,headRefName,headRefOid,mergeable,reviewDecision,baseRefName,labels,files,body,title,author,isCrossRepository"]).stdout)
     if info["state"] != "OPEN":
         return 1, f"blocked #{number}: pull request is {info['state'].lower()}"
+    head = str(info.get("headRefOid") or "")
+    approved: List[bool] = []
+
+    def approval() -> bool:
+        """The owner's approval of this head, read once per run."""
+        if not approved:
+            approved.append(owner_approval(number, head))
+        return approved[0]
     if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
-           for label in info.get("labels") or []):
+           for label in info.get("labels") or []) and not approval():
         return 1, f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park): the owner approves this pull request on GitHub (their review of this exact head) and merges it there, or replies on the issue to pick an option"
     if info.get("mergeable") == "CONFLICTING":
         return 1, f"blocked #{number}: merge conflicts with {info.get('baseRefName', 'main')}"
@@ -316,7 +368,6 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
     base_name = str(info.get("baseRefName") or "")
     if base_name not in ALLOWED_BASES:
         return 1, f"blocked #{number}: the base is {base_name or '?'}, not {', '.join(ALLOWED_BASES)}"
-    head = str(info.get("headRefOid") or "")
     if not review_verdict.has_pass(head):
         return 1, f"blocked #{number}: no independent pass for {head[:12]} (record.py --lane {info.get('headRefName')} before the push)"
     ruleset = ruleset_gate.check(PRODUCT_REPO, base_name)
@@ -325,9 +376,11 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
     try:
         gate = ui_gate(number, info)
     except GateRefused as exc:
-        if OWNER_KEPT in str(exc):
-            print_owner_recipe(number, info)
-        return 1, f"blocked #{number}: app-UI gate ({exc.kind}): {exc}"
+        if not (exc.park and approval()):  # only a park is answered; the owner-kept set, a missing record and the rest stay refused
+            if OWNER_KEPT in str(exc):
+                print_owner_recipe(number, info)
+            return 1, f"blocked #{number}: app-UI gate ({exc.kind}): {exc}"
+        gate = f"app-UI gate answered by the owner's approval of {head[:8]}"
     except (RuntimeError, ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
         return 1, f"blocked #{number}: app-UI gate failed closed: {exc}"
     refused = denylist_gate(number, head, load_config().get("denylist_required") is True, base_name)

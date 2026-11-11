@@ -101,11 +101,14 @@ DEFAULT_APPEND_ONLY: Tuple[str, ...] = (
 
 
 class Refused(Exception):
-    """A gate said no (exit 2). ``kind`` tells the runner what to file."""
+    """A gate said no (exit 2). ``kind`` tells the runner what to file. ``park`` is true only for the app-UI gate's question to the
+    owner (Jev says app-wide or unsure, the request is not confirmed, or Jev is unavailable): the one refusal the owner's approval of
+    the pull request answers at merge (:mod:`pr_land`)."""
 
-    def __init__(self, message: str, kind: str = "other"):
+    def __init__(self, message: str, kind: str = "other", park: bool = False):
         super().__init__(message)
         self.kind = kind
+        self.park = park
 
 
 class LandFailed(Exception):
@@ -1364,12 +1367,12 @@ def verify_gate(path: str, change: str, log: str, trusted_for: Callable[[], Path
         qid, key, prompt = "design.app_wide", "app_wide", change
     p_yes = ask(trusted, qid, prompt)
     if p_yes is None:
-        raise Refused(f"Jev is unavailable for {qid}: app UI cannot land unattended; the owner decides", "gate")
+        raise Refused(f"Jev is unavailable for {qid}: app UI cannot land unattended; the owner decides", "gate", park=True)
     word = "yes" if p_yes >= YES_ABOVE else "no" if p_yes < NO_BELOW else "unsure"
     if (key == "matches_request" and word != "yes") or (key == "app_wide" and word != "no"):
         raise Refused(f"Jev answered {qid}={word} (p={p_yes:.2f}) for the app-UI change ({path}): "
                       + ("it is not confirmed to match the owner's request" if text else "it is app-wide or unsure and no owner "
-                         "request is on record for this session") + "; the owner decides", "gate")
+                         "request is on record for this session") + "; the owner decides", "gate", park=True)
     forged = [g.lower() for g in GATE_LINE.findall(record) if g.lower().startswith(key + "=") and g.lower() != f"{key}={word}"]
     if forged:
         raise Refused(f"{path} records `Gate: {forged[0]}` but Jev answered {qid}={word} (p={p_yes:.2f}); the lane's gate line "
@@ -1665,9 +1668,13 @@ def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: C
     return f"app-UI gate passed ({len(rendered_ui_paths(clone, rows))} app-UI file(s))"
 
 
+#: Exit status of ``gate`` for a park (:attr:`Refused.park`): a typed answer, so ``pr_land`` never reads message text.
+PARK_EXIT = 3
+
+
 def gate_main(argv: List[str]) -> int:
     """``python3 -I <trusted clone>/tools/lane_land.py gate --pr N``: run :func:`pr_gate` on a pull request; exit 0 passed (or no
-    app UI), 2 refused. ``tools/pr_land.sh`` starts it from the PR's base branch, never from the PR's own checkout."""
+    app UI), 2 refused, :data:`PARK_EXIT` for a park. ``tools/pr_land.sh`` starts it from the PR's base branch, never from the PR's own checkout."""
     parser = argparse.ArgumentParser(prog="lane_land.py gate", allow_abbrev=False,
                                      description="Run the app-UI gate on a product pull request.")
     parser.add_argument("--pr", required=True)
@@ -1693,7 +1700,7 @@ def gate_main(argv: List[str]) -> int:
         note = pr_gate(args.pr, info, root=Path(args.root), cfg=cfg, gh=gh, origin=lambda: product_origin(cfg), locked=args.lock_held)
     except Refused as exc:
         print(f"lane_land gate: refused ({exc.kind}): {exc}", file=sys.stderr)
-        return 2
+        return PARK_EXIT if exc.park else 2
     except (RuntimeError, ValueError, OSError) as exc:
         print(f"lane_land gate: failed closed: {exc}", file=sys.stderr)
         return 2
