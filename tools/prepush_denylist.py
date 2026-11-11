@@ -205,11 +205,15 @@ def new_commits(local: str, remote: str, advertised: Sequence[str]) -> List[str]
 
 
 def commit_hits(sha: str, matcher: Matcher) -> List[str]:
-    """``sha8:message`` / ``sha8:author`` locations of hits in one commit's message and identities."""
+    """``sha8:message`` / ``sha8:author`` locations of hits in one commit's message and identities.
+
+    The message also hits on the private request repository's name (:data:`house_scan.REPO_NAME`; none configured: no such hit).
+    Only the location is reported, never the matched text.
+    """
     out = git("log", "-1", "--format=%an%x00%ae%x00%cn%x00%ce%x00%B", sha).decode("utf-8", "replace")
     *identity, message = out.split("\x00", 4)
     found = []
-    if matcher.text(message):
+    if matcher.text(message) or (house_scan.REPO_NAME is not None and house_scan.REPO_NAME.search(message)):
         found.append(f"{sha[:8]}:message")
     if matcher.text("\n".join(identity)):
         found.append(f"{sha[:8]}:author")
@@ -370,7 +374,7 @@ def main(argv: Optional[List[str]] = None, stdin=None) -> int:
     for hit in hits:
         print(f"  {hit} denylist")
     if hits and public:
-        print("pre-push: refusing the push. Remove the house data from the commits (rewrite them), then push again.", file=sys.stderr)
+        print("pre-push: refusing the push. Remove the house data from the commits (rewrite them; reword a ':message' hit, the request repo's name included), then send them again (`tools/ship.sh --update` for a rewritten lane branch).", file=sys.stderr)
         return 1
     if hits:
         print("pre-push: warning: hits above are allowed for a non-public remote.", file=sys.stderr)

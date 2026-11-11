@@ -34,7 +34,7 @@ def denylist_only_hook():
         (root / "tools").mkdir()
         (root / ".githooks" / "pre-push").write_bytes(HOOK.read_bytes())
         (root / ".githooks" / "pre-push").chmod(0o755)
-        for name in ("prepush_denylist.py", "house_scan.py"):
+        for name in ("prepush_denylist.py", "house_scan.py", "request_repo.py"):
             (root / "tools" / name).write_bytes((ROOT / "tools" / name).read_bytes())
     return Path(_MIRROR[0].name) / ".githooks" / "pre-push"
 
@@ -413,6 +413,31 @@ class PrePushTests(unittest.TestCase):
         done = self.repo.push(self.repo.git("rev-parse", "HEAD"), self.base)
         self.assertEqual(done.returncode, 1)
         self.assertIn("u.txt:", done.stdout)
+
+    def message_push(self, message, repo_env):
+        """Push one commit with ``message`` to the public repo; ``repo_env`` configures the request repo (or removes it)."""
+        self.repo.env.pop("FENTON_REQUEST_REPO", None)
+        self.repo.env.update(repo_env)
+        head = self.repo.commit("m.txt", "clean\n", message)
+        return self.repo.push(head, self.base)
+
+    def test_commit_message_naming_the_request_repo_is_refused_without_printing_it(self):
+        """Fails if: a message carrying the configured request repo name passes, or the refusal prints the name."""
+        done = self.message_push("fix it\n\nRefs owner/secret-requests#5", {"FENTON_REQUEST_REPO": "owner/secret-requests"})
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"[0-9a-f]{8}:message denylist")
+        self.assertNotIn("secret-requests", (done.stdout + done.stderr).lower())
+        self.assertIn("reword", done.stderr)
+
+    def test_commit_message_pointing_at_the_request_without_its_name_passes(self):
+        done = self.message_push("fix it\n\nRequest: the private request repo's #5", {"FENTON_REQUEST_REPO": "owner/secret-requests"})
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("0 hit(s)", done.stdout)
+
+    def test_no_configured_request_repo_adds_no_message_hit(self):
+        done = self.message_push("fix it\n\nRefs owner/secret-requests#5", {})
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("0 hit(s)", done.stdout)
 
     def test_large_file_is_scanned_to_its_last_line(self):
         Path(self.repo.work, "big.json").write_text("line of filler text\n" * 150000 + "zorblax9\n")
