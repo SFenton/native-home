@@ -51,6 +51,7 @@ A guard is a tripwire for accident and habit. Answer a refusal by changing the w
 | `no_poll.py`, `bg_timeout_guard.py`, `stop_continue_guard.py`, `tier_guard.py` | [Waiting](token-economy.md#waiting) and test tiers |
 | `kill_guard.py` | Process kills ([capacity](token-economy.md#capacity)) |
 | `mockup_hub_guard.py` | A session with mockup changes ends with a hub publish |
+| `rules_guard.py` | [What a rule is](docs-conventions.md#what-a-rule-is), at write time |
 | `triage_session.py`, `triage_deny.py` | A headless session's deny list ([triage-agent](triage-agent.md)) |
 
 A change to a guard hook ships with block and allow rows in `tools/tests/guard_tables/`, and its brief says whether the guard is a tripwire or a wall.

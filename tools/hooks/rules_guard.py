@@ -6,6 +6,12 @@ counts forbidden hits, over-long lines and words over the file budget (``tools/r
 violations: an edit that leaves every count at or below what the file has now is allowed, so a file can be cleaned step by step.
 Otherwise it exits 2 with the rule in one line, up to five hits and the home for each kind of content.
 
+Coverage is closed: a markdown file that matches no layer and no glob of the contract's ``unchecked`` list is refused with
+"add it to a layer", unless git ignores the path (scratch notes under an ignored folder are not part of the repository).
+
+A tripwire, not a wall: it reads only the Edit, Write and MultiEdit payloads, so a file written by a shell command or a script is
+not seen here; ``tools/rules_lint.py`` in ``pr-checks`` is the check that cannot be skipped.
+
 An Edit whose replacement cannot be applied to the file on disk is allowed (the tool itself will report it). The hook fails open:
 a crash prints a warning and allows the write (it is a style guard, not a security one).
 """
@@ -26,17 +32,41 @@ import rules_lint  # noqa: E402
 RULE = ("Blocked: rule-surface text states what is done by default, in the present tense; it carries no date, attribution, PR or "
         "commit reference, word of change, status, or line over the word limit, and stays inside its file budget.")
 KINDS = ("forbidden", "long_lines", "over_words", "over_lines")
+UNLAYERED = ("Blocked: {rel} is markdown outside every layer of contracts/rules-surface.json, so nothing would check it. Add it to a "
+             "layer: put it in a folder a layer glob covers (a new folder under .agents/ takes the reference rules), or, when it is "
+             "not rule text, the owner adds a glob with a reason to the contract's `unchecked` list.")
 
 
-def root_of(cwd: str) -> Path:
-    """The git toplevel of ``cwd`` (``cwd`` itself when git cannot say)."""
+def ignored(root: Path, rel: str) -> bool:
+    """True when git ignores ``rel`` in ``root`` (false when git cannot say: the write is then judged)."""
     try:
-        out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=10)
+        return subprocess.run(["git", "-C", str(root), "check-ignore", "-q", "--", rel], capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def toplevel(folder: str) -> Optional[Path]:
+    """The git toplevel of ``folder``, or ``None`` when git cannot say."""
+    try:
+        out = subprocess.run(["git", "-C", folder, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=10)
         if out.returncode == 0 and out.stdout.strip():
             return Path(os.path.realpath(out.stdout.strip()))
     except (OSError, subprocess.SubprocessError):
         pass
-    return Path(os.path.realpath(cwd))
+    return None
+
+
+def root_of(cwd: str, target: Optional[Path] = None) -> Path:
+    """The checkout that judges a write: the git toplevel of the nearest existing folder above ``target`` (so a file in another
+    worktree is judged by that worktree), else the toplevel of ``cwd``, else ``cwd`` itself."""
+    if target is not None:
+        folder = target.parent
+        while not folder.is_dir() and folder != folder.parent:
+            folder = folder.parent
+        found = toplevel(str(folder))
+        if found is not None:
+            return found
+    return toplevel(cwd) or Path(os.path.realpath(cwd))
 
 
 def resulting_text(tool: str, tool_input: Dict[str, Any], current: Optional[str]) -> Optional[str]:
@@ -75,8 +105,8 @@ def judge(contract: Dict[str, Any], layer: str, rel: str, before: str, after: st
     return lines
 
 
-def main() -> int:
-    """Read the hook payload from stdin; exit 2 with the message to block."""
+def main(argv: Optional[List[str]] = None) -> int:
+    """Read the hook payload from stdin; exit 2 with the message to block. ``argv`` is unused (the guard-table replay passes one)."""
     try:
         payload = json.load(sys.stdin)
     except ValueError:
@@ -89,16 +119,21 @@ def main() -> int:
     if not path or not path.endswith(".md"):
         return 0
     cwd = str(payload.get("cwd") or os.getcwd())
-    root = root_of(cwd)
     full = Path(os.path.realpath(path if os.path.isabs(path) else os.path.join(cwd, path)))
+    root = root_of(cwd, full)
     try:
         rel = full.relative_to(root).as_posix()
     except ValueError:
         return 0
+    if not (root / rules_lint.CONTRACT).is_file():
+        return 0  # another repository: its markdown is not this rule surface
     contract = rules_lint.load_contract(root)
     layer = rules_lint.layer_of(contract, rel)
     if layer is None:
-        return 0
+        if rules_lint.unchecked(contract, rel) or ignored(root, rel):
+            return 0
+        print(UNLAYERED.format(rel=rel), file=sys.stderr)
+        return 2
     current = full.read_text(encoding="utf-8", errors="replace") if full.is_file() else None
     after = resulting_text(str(tool), tool_input, current)
     if after is None:

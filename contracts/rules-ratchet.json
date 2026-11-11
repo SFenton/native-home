@@ -35,7 +35,7 @@
    "long_lines": 6
   },
   ".agents/design/controller-bound-controls.md": {
-   "forbidden": 4,
+   "forbidden": 5,
    "long_lines": 2
   },
   ".agents/design/direction-g-plan.md": {
@@ -44,13 +44,13 @@
    "over_words": 1974
   },
   ".agents/design/direction-g.md": {
-   "forbidden": 122,
+   "forbidden": 125,
    "long_lines": 51,
    "over_words": 8581,
    "links": 1
   },
   ".agents/design/duo-widths.md": {
-   "forbidden": 20,
+   "forbidden": 21,
    "long_lines": 17,
    "over_words": 2027
   },
@@ -59,7 +59,7 @@
    "long_lines": 2
   },
   ".agents/design/house-config-states.md": {
-   "forbidden": 10,
+   "forbidden": 13,
    "long_lines": 17,
    "over_words": 1496
   },
@@ -250,7 +250,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/motion/header-edge-fade/README.md": {
-   "forbidden": 13,
+   "forbidden": 12,
    "long_lines": 1,
    "links": 1
   },
@@ -361,7 +361,7 @@
    "forbidden": 3
   },
   ".agents/design/mockups/components/vacuums/vacuum-status-chip/README.md": {
-   "forbidden": 3
+   "forbidden": 4
   },
   ".agents/design/mockups/components/weather/weather-highlights-tiles/README.md": {
    "forbidden": 1,
@@ -432,7 +432,7 @@
    "links": 2
   },
   ".agents/design/mockups/flows/zoom-transition/README.md": {
-   "forbidden": 2,
+   "forbidden": 3,
    "links": 1
   },
   ".agents/design/mockups/modals/README.md": {
@@ -672,7 +672,7 @@
    "forbidden": 2
   },
   ".agents/design/mockups/modals/vacuums/vacuum-sheet/README.md": {
-   "forbidden": 5
+   "forbidden": 6
   },
   ".agents/design/mockups/modals/vacuums/vacuum-switch-dialog/README.md": {
    "forbidden": 3
@@ -802,12 +802,12 @@
    "over_words": 1481
   },
   ".agents/design/motion.md": {
-   "forbidden": 19,
+   "forbidden": 20,
    "long_lines": 8,
    "over_words": 2184
   },
   ".agents/design/profile-badge.md": {
-   "forbidden": 15,
+   "forbidden": 14,
    "long_lines": 2
   },
   ".agents/design/profile-photos.md": {
@@ -819,7 +819,7 @@
    "long_lines": 2
   },
   ".agents/design/section-sides.md": {
-   "forbidden": 23,
+   "forbidden": 26,
    "long_lines": 24,
    "over_words": 2719
   },
@@ -827,7 +827,7 @@
    "forbidden": 5
   },
   ".agents/design/setup-flow.md": {
-   "forbidden": 14,
+   "forbidden": 15,
    "long_lines": 5
   },
   ".agents/design/sheet-bottom-gap.md": {
@@ -890,7 +890,7 @@
    "long_lines": 8
   },
   ".agents/pages/inventory/spec.md": {
-   "forbidden": 1,
+   "forbidden": 2,
    "long_lines": 5
   },
   ".agents/pages/media/ios.md": {
@@ -913,7 +913,7 @@
    "long_lines": 2
   },
   ".agents/pages/settings/household.md": {
-   "forbidden": 4,
+   "forbidden": 5,
    "long_lines": 2
   },
   ".agents/pages/settings/ios.md": {
@@ -948,7 +948,7 @@
    "long_lines": 2
   },
   ".agents/pages/vacuums/spec.md": {
-   "forbidden": 2,
+   "forbidden": 3,
    "long_lines": 4
   },
   ".agents/patterns/README.md": {
@@ -981,7 +981,7 @@
    "long_lines": 3
   },
   ".agents/patterns/content-gate.md": {
-   "forbidden": 7,
+   "forbidden": 8,
    "long_lines": 5
   },
   ".agents/patterns/design-tokens.md": {
@@ -993,7 +993,7 @@
    "over_words": 12
   },
   ".agents/patterns/entity-tile.md": {
-   "forbidden": 27,
+   "forbidden": 28,
    "long_lines": 18,
    "over_words": 1221
   },
@@ -1002,7 +1002,7 @@
    "long_lines": 5
   },
   ".agents/patterns/header-edge-fade.md": {
-   "forbidden": 42,
+   "forbidden": 41,
    "long_lines": 4,
    "over_words": 1132,
    "links": 1
@@ -1039,7 +1039,7 @@
    "long_lines": 4
   },
   ".agents/patterns/motion.md": {
-   "forbidden": 11,
+   "forbidden": 12,
    "long_lines": 6,
    "over_words": 225
   },
@@ -1142,7 +1142,7 @@
    "structure": 14
   },
   ".agents/platforms/apple/app-name.md": {
-   "forbidden": 6,
+   "forbidden": 7,
    "long_lines": 5
   },
   ".agents/platforms/apple/architecture.md": {
@@ -1155,7 +1155,7 @@
    "over_words": 536
   },
   ".agents/platforms/apple/badge.md": {
-   "forbidden": 1,
+   "forbidden": 2,
    "long_lines": 2
   },
   ".agents/platforms/apple/capacity.md": {
@@ -1165,12 +1165,12 @@
    "links": 2
   },
   ".agents/platforms/apple/connection-lifecycle.md": {
-   "forbidden": 18,
+   "forbidden": 19,
    "long_lines": 23,
    "over_words": 2003
   },
   ".agents/platforms/apple/decision-uikit-replaces-swiftui.md": {
-   "forbidden": 5,
+   "forbidden": 6,
    "long_lines": 1,
    "links": 1
   },
@@ -1180,16 +1180,16 @@
    "over_words": 812
   },
   ".agents/platforms/apple/live-activities-ha-automations.md": {
-   "forbidden": 10,
+   "forbidden": 11,
    "long_lines": 3
   },
   ".agents/platforms/apple/live-activities-per-job.md": {
-   "forbidden": 37,
+   "forbidden": 38,
    "long_lines": 13,
    "over_words": 6224
   },
   ".agents/platforms/apple/live-activities.md": {
-   "forbidden": 33,
+   "forbidden": 34,
    "long_lines": 15,
    "over_words": 4252
   },
@@ -1207,12 +1207,12 @@
    "long_lines": 1
   },
   ".agents/platforms/apple/push.md": {
-   "forbidden": 26,
+   "forbidden": 27,
    "long_lines": 13,
    "over_words": 1191
   },
   ".agents/platforms/apple/testflight.md": {
-   "forbidden": 11,
+   "forbidden": 8,
    "long_lines": 17,
    "over_words": 1037,
    "links": 1
@@ -1240,7 +1240,7 @@
    "links": 1
   },
   ".agents/testing/apple/README.md": {
-   "forbidden": 41,
+   "forbidden": 39,
    "long_lines": 34,
    "over_words": 6484,
    "links": 1,
@@ -1296,7 +1296,7 @@
    "links": 1
   },
   ".agents/testing/apple/test-speed-roadmap.md": {
-   "forbidden": 31,
+   "forbidden": 38,
    "long_lines": 11,
    "over_words": 3870
   }

@@ -1,6 +1,6 @@
 # Derived Jev questions: measurements (2026-11-01)
 
-> **What:** how well Jev (`jev-1.13.0`) answers the derived questions and four planned ones against labels I wrote from this project's own text. **Read when:** deciding whether a question may move from shadow to hint ([jev-corpus](../../../.agents/workflow/jev.md)).
+> **What:** how well Jev (`jev-1.13.0`) answers the derived questions and four planned ones against labels I wrote from this project's own text. **Read when:** deciding whether a question may move from shadow to hint ([jev-corpus](../../../.agents/workflow/jev-corpus.md)).
 
 ## Method and honesty notes
 
@@ -54,7 +54,7 @@ The question files are being written by `ar-jev-tools`; the wording below is min
 
 ## Decision-gate corpus (2026-11-02)
 
-The questions for the post-research gate ([agent-roster](../../../.agents/workflow/agent-roster.md#roles)): is a change visible in the owner's sense, and does it need the owner's pick? Owner rule of 2026-11-02: a change only to when or how often an existing state appears is not visible ([propose-first](../../../.agents/workflow/propose-first.md#what-is-visible)).
+The questions for the post-research gate ([agent-roster](../../../.agents/workflow/agent-roster.md#the-loop)): is a change visible in the owner's sense, and does it need the owner's pick? Owner rule of 2026-11-02: a change only to when or how often an existing state appears is not visible ([propose-first](../../../.agents/workflow/propose-first.md#timing-and-defaults-are-not-visible)).
 
 ### Method
 
@@ -97,7 +97,7 @@ Its misses are in the dangerous direction and confident. A plan where one option
 - **One test item shaped the rule.** home-05 is the camera-grace case from the dry run that prompted the owner's rule and the v2 wording. It sits in the test split. One item does not move the AUC, but it is not strictly unseen.
 - **State shape differs from production.** The probes sent the scenario text as a lone `body` field (`design.user_visible`) or `plan` field. Production sends `title`, `body` and `files` for `design.user_visible`, and `jev_gate.py` passes a title when the orchestrator gives one. Expect small shifts.
 - **Re-measure source.** Active questions do not write `shadow.jsonl`. `tools/jev_gate.py` and the runner's intake raise append each answer (question, subject, value, p, whether a hint was printed; no text) to `build/jev/gate.jsonl`, and raises land in the ledger's `level_history`. Re-measure against the owner's decisions on the first 30 real gate plans.
-- **The defaults clause is the orchestrator's, not yet the owner's.** The labels apply it ([propose-first](../../../.agents/workflow/propose-first.md#what-is-visible)). If the owner rejects it, relabel the 10 default items and re-measure.
+- **The defaults clause is the orchestrator's, not yet the owner's.** The labels apply it ([propose-first](../../../.agents/workflow/propose-first.md#timing-and-defaults-are-not-visible)). If the owner rejects it, relabel the 10 default items and re-measure.
 
 ## Target-decided corpus (2026-11-02)
 

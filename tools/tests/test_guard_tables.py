@@ -99,9 +99,19 @@ def bash_input(command):
     return tool_input
 
 
+def tool_payload(command):
+    """The tool call a table row stands for. ``@write PATH TEXT`` is a Write of TEXT to PATH (relative to the repository; nothing is
+    written, the guard only judges the payload), for a guard that reads file writes (``rules_guard``); any other row is a Bash command."""
+    match = re.match(r"@write (\S+) (.*)\Z", command, re.S)
+    if match:
+        path = match.group(1)
+        return {"tool_name": "Write", "tool_input": {"file_path": path if path.startswith("/") else str(ROOT / path), "content": match.group(2)}}
+    return {"tool_name": "Bash", "tool_input": bash_input(command)}
+
+
 def replay(module, command, agent, home):
-    """The exit code of the guard's real ``main`` for a Bash payload carrying ``command``, as a main or an agent session."""
-    payload = {"tool_name": "Bash", "tool_input": bash_input(command), "cwd": str(ROOT)}
+    """The exit code of the guard's real ``main`` for the tool call of a row (:func:`tool_payload`), as a main or an agent session."""
+    payload = {**tool_payload(command), "cwd": str(ROOT)}
     if agent:
         payload.update({"agent_type": "coder", "agent_id": "a1"})
     env = {"PATH": os.environ.get("PATH", ""), "HOME": home, "LANG": "C"}

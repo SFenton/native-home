@@ -75,6 +75,66 @@ class ForbiddenTests(Tree):
                                 "Colors like #336699 and ids like #1 stay. Words like release9 are not hashes.\n")
         self.assertEqual(self.messages("forbidden"), [])
 
+    #: One failing and one passing line per pattern added or narrowed: ``(pattern id, text that is refused, ordinary text that is not)``.
+    PAIRS = (
+        ("date", "The cap holds since 2026/11/10.", "The ratio is 16/9 and the path is a/b/c."),
+        ("date", "Measured on 11/10/2026.", "Run shard 1/4 of the tool tests."),
+        ("date_words", "Lanes land by pull request (Nov 10, 2026).", "The limit is 10 rows; May a session retry? No."),
+        ("date_words", "The cap holds from 10 November 2026.", "At most 10 options are listed in March-style order."),
+        ("date_words", "In force since November 2026.", "The version is 2611.10.01 and the port is 2026."),
+        ("date_words", "Unlocked on 10 Nov.", "The Nov job runs 10 times."),
+        ("date_words", "Budget set in 2026-11.", "The id is 2026-x and the range is 2026-2030."),
+        ("reference", "Lanes land as PR 72 does.", "A PR waits for its checks."),
+        ("reference", "See pull request 72.", "A pull request needs 2 checks."),
+        ("reference", "Tracked in issue 12.", "One issue at a time; an issue with 3 labels waits."),
+        ("attribution", "The owner decided that lanes land by pull request.", "The owner decides and merges the owner-only set."),
+        ("attribution", "The owner approved this route.", "A CODEOWNERS path waits for the owner's approval."),
+        ("attribution", "The owner asked for two rounds.", "Ask the owner only for an owner-only decision."),
+        ("attribution", "The owner said two rounds.", "The owner replies on the issue."),
+        ("attribution", "The owner wanted fewer words.", "The owner wants nothing here; agents decide."),
+        ("attribution", "The owner requested a cap.", "Work requested by the owner comes first."),
+        ("attribution", "Per the owner, the cap is two.", "One lane per owner request."),
+        ("attribution", "This is the owner's decision.", "The owner's requests come first."),
+        ("attribution", "By the owner's request the cap is two.", "The owner's typed requests are logged."),
+        ("attribution", "It is the owner's call.", "The owner calls nothing; agents decide."),
+        ("change", "Lanes merge as decided.", "The Designer decides and records the pick."),
+        ("change", "We decided to cap rounds.", "The agents decide every other choice."),
+        ("change", "We changed the route.", "A change to a hook ships with rows."),
+        ("change", "We moved the rule here.", "A case moves to the retired folder."),
+        ("change", "We switched to squash merges.", "The switch pauses landing."),
+        ("change", "Lanes originally merged directly.", "The original request is quoted."),
+        ("change", "The file formerly held the cap.", "The former and the latter differ."),
+        ("change", "The gate is temporarily off.", "A temporary branch is deleted after the merge."),
+        ("change", "Going forward the runner lands.", "The runner goes forward only on a pass."),
+        ("change", "From now on the runner lands.", "The runner lands from the land clone."),
+        ("change", "It landed on main.", "A landed lane is reaped; the runner lands it."),
+        ("change", "The fix has landed.", "Nothing is landed without a pass."),
+        ("change", "True as of 2026.", "The base as of the fetch is the one compared."),
+        ("change", "True as of today.", "As often as needed."),
+        ("change_label", "Old: two rounds.", "The threshold: 2 rounds."),
+        ("change_label", "New: three rounds.", "A brand-new: entry is refused."),
+    )
+
+    def test_each_added_or_narrowed_pattern_has_a_failing_and_a_passing_line(self):
+        """Fails if: a natural date, PR reference, attribution or change phrase passes, or an ordinary rule word beside it is refused
+        (retired, landed as a state, as of, the owner's requests)."""
+        for kind, bad, good in self.PAIRS:
+            with self.subTest(kind=kind, bad=bad):
+                self.write("AGENTS.md", f"# T\n\n{bad}\n")
+                self.assertTrue(any(f"({kind})" in m for m in self.messages("forbidden")), (bad, self.messages("forbidden")))
+            with self.subTest(kind=kind, good=good):
+                self.write("AGENTS.md", f"# T\n\n{good}\n")
+                self.assertEqual(self.messages("forbidden"), [], good)
+
+    def test_the_sentence_the_review_wrote_is_refused(self):
+        self.write("AGENTS.md", "# T\n\nThe owner decided on Nov 10, 2026 that lanes land by PR 72.\n")
+        kinds = {rl.re.search(r"\((\w+)\) -> ", m).group(1) for m in self.messages("forbidden")}
+        self.assertEqual(kinds, {"attribution", "date_words", "reference"})
+
+    def test_ordinary_words_narrowed_out_of_the_change_pattern_pass(self):
+        self.write("AGENTS.md", "# T\n\nA case leaves service by moving to the retired folder. A lane is landed by the runner.\n")
+        self.assertEqual(self.messages("forbidden"), [])
+
     def test_state_and_record_layers_allow_dates(self):
         self.write("PROGRESS.md", "# Plan\n\nShipped 2026-11-02 (owner, previously phase 2).\n")
         self.write(".agents/archive/old.md", "# Old\n\n2026-10-01 landed.\n")
@@ -216,6 +276,56 @@ class StructureTests(Tree):
         self.assertEqual(self.messages("structure"), [])
 
 
+class CoverageTests(Tree):
+    """No markdown is outside a layer: every tracked file is in one, or in the contract's ``unchecked`` list with a reason."""
+
+    DIRTY = "# N\n\nDecided 2026-11-10 (owner, 2026-11-10) in PR #123.\n"
+
+    def test_the_three_unlayered_shapes_are_checked_as_reference(self):
+        """Fails if: a new folder under .agents, a subfolder of the rules folder or a second file in a skill folder escapes the lint."""
+        for rel in (".agents/notes/x.md", ".agents/workflow/extra/y.md", ".agents/skills/land-pr/notes.md"):
+            with self.subTest(rel=rel):
+                self.write(rel, self.DIRTY)
+                found = [f for f in rl.run(self.root) if f.path == rel]
+                self.assertGreaterEqual(len(found), 3, rel)
+                self.assertEqual(rl.layer_of(rl.load_contract(self.root), rel), "reference")
+                (self.root / rel).unlink()
+
+    def test_a_new_agents_folder_needs_a_router(self):
+        self.write(".agents/notes/x.md", "# X\n")
+        self.assertTrue(any("no README.md router" in m for m in self.messages("structure")))
+
+    def test_markdown_outside_every_layer_fails_structure(self):
+        for rel in ("docs/guide.md", "apple/Notes.md", ".claude/notes.md", "tools/NOTES.md", "contracts/x.md"):
+            with self.subTest(rel=rel):
+                self.write(rel, "# T\n")
+                [found] = [f for f in self.checks("structure") if f.path == rel]
+                self.assertIn("add it to a layer", found.message)
+                (self.root / rel).unlink()
+
+    def test_unchecked_globs_are_skipped_and_each_has_a_reason(self):
+        for rel in (".claude/skills/swiftui-pro/references/api.md", "evals/agents/README.md", "contracts/jev/derived/measurements.md",
+                    ".agents/design/mockups/_kit/AUTHORING.md", "README.md", ".github/pull_request_template.md", "tools/test_ha/README.md"):
+            self.write(rel, self.DIRTY)
+        self.assertEqual(rl.run(self.root), [])
+        for entry in rl.load_contract(ROOT)["unchecked"]:
+            self.assertTrue(entry["glob"] and len(entry["reason"].split()) >= 4, entry)
+
+    def test_a_git_checkout_lists_tracked_and_new_files_but_not_ignored_ones(self):
+        git = lambda *a: subprocess.run(["git", "-C", str(self.root), "-c", "user.email=t@t", "-c", "user.name=t", *a], capture_output=True, text=True, check=True)  # noqa: E731
+        git("init", "-q", "-b", "main")
+        self.write(".gitignore", "build/\n")
+        self.write("build/notes.md", self.DIRTY)
+        self.write("docs/tracked.md", "# T\n")
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        self.write("docs/new.md", "# T\n")
+        self.assertEqual([f.path for f in self.checks("structure")], ["docs/new.md", "docs/tracked.md"])
+
+    def test_every_markdown_file_in_the_real_tree_is_in_a_layer_or_unchecked(self):
+        self.assertEqual(rl.load_surface(ROOT).unlayered, ())
+
+
 class DecisionsTests(Tree):
     GOOD = "# T\n\nDecision: a\nReplaces: none\nRule home: x\n"
 
@@ -256,6 +366,24 @@ class DecisionsTests(Tree):
         self.git("commit", "-q", "--allow-empty", "-m", "x")
         [found] = self.checks("decisions", base="nope")
         self.assertIn("cannot compare with base", found.message)
+
+    def test_every_append_only_folder_of_the_contract_is_held(self):
+        """Fails if: `append_only` on the record layer is read by nothing, so an archived file can be edited or deleted."""
+        self.assertEqual(rl.append_only_folders(rl.load_contract(self.root)), [".agents/decisions", ".agents/archive"])
+        self.git("init", "-q", "-b", "main")
+        self.write(".agents/archive/specs/old.md", "# Old\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "base")
+        self.git("checkout", "-qb", "lane")
+        self.write(".agents/archive/specs/new.md", "# New\n")
+        self.write(".agents/archive/README.md", "# changed\n")
+        self.assertEqual(self.checks("decisions", base="main"), [])
+        self.write(".agents/archive/specs/old.md", "# Old\n\nedited\n")
+        [found] = self.checks("decisions", base="main")
+        self.assertEqual((found.path, "append-only" in found.message), (".agents/archive/specs/old.md", True))
+        (self.root / ".agents/archive/specs/old.md").unlink()
+        [found] = self.checks("decisions", base="main")
+        self.assertIn("(D against main)", found.message)
 
 
 class RatchetTests(Tree):
@@ -354,6 +482,95 @@ class RatchetTests(Tree):
         self.assertFalse(rl.write_ratchet(rl.load_surface(self.root))[0])
 
 
+class RatchetBaseTests(Tree):
+    """Under ``--base`` the ratchet falls by construction: a hand-raised or new entry is refused whatever the tree measures."""
+
+    DIRTY = "# R\n\nDecided 2026-11-02 and again 2026-11-03.\n"
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", str(self.root), "-c", "user.email=t@t", "-c", "user.name=t", *args], capture_output=True, text=True, check=True)
+
+    def ratchet(self, files):
+        self.write("contracts/rules-ratchet.json", json.dumps({"files": files}))
+
+    def base(self, files=None):
+        self.git("init", "-q", "-b", "main")
+        self.write(".agents/patterns/README.md", "# P\n\n[a](a.md) [b](b.md)\n")
+        self.write(".agents/patterns/a.md", self.DIRTY)
+        self.write(".agents/patterns/b.md", "# B\n")
+        if files is not None:
+            self.ratchet(files)
+        self.git("add", "-A")
+        self.git("commit", "-qm", "base")
+        self.git("checkout", "-qb", "lane")
+
+    def found(self):
+        return [f.render() for f in rl.run(self.root, base="main")]
+
+    def test_an_unchanged_or_lowered_ratchet_passes(self):
+        self.base({".agents/patterns/a.md": {"forbidden": 2}})
+        self.assertEqual(self.found(), [])
+        self.write(".agents/patterns/a.md", "# R\n\nDecided 2026-11-02.\n")
+        self.ratchet({".agents/patterns/a.md": {"forbidden": 1}})
+        self.assertEqual(self.found(), [])
+        self.write(".agents/patterns/a.md", "# R\n")
+        self.ratchet({})
+        self.assertEqual(self.found(), [])
+
+    def test_a_hand_raised_entry_is_refused_though_the_tree_matches_it(self):
+        """Fails if: adding hits to a file and raising its entry by hand gives 0 findings (the hole the review found)."""
+        self.base({".agents/patterns/a.md": {"forbidden": 2}})
+        self.write(".agents/patterns/a.md", self.DIRTY + "\nAnd 2026-11-04, 2026-11-05, 2026-11-06.\n")
+        self.ratchet({".agents/patterns/a.md": {"forbidden": 5}})
+        self.assertEqual(rl.CHECKS["ratchet"](rl.load_surface(self.root)), [])  # the tree agrees with the raised file
+        [line] = self.found()
+        self.assertIn("forbidden rose from 2 at main to 5: entries only fall", line)
+
+    def test_a_new_kind_on_an_existing_entry_is_a_rise(self):
+        self.base({".agents/patterns/a.md": {"forbidden": 2}})
+        self.write(".agents/patterns/a.md", self.DIRTY + "word " * 70 + "\n")
+        self.ratchet({".agents/patterns/a.md": {"forbidden": 2, "long_lines": 1}})
+        [line] = self.found()
+        self.assertIn("long_lines rose from 0 at main to 1", line)
+
+    def test_a_new_entry_is_refused_for_an_old_file_and_for_a_new_one(self):
+        self.base({".agents/patterns/a.md": {"forbidden": 2}})
+        self.write(".agents/patterns/b.md", "# B\n\n2026-11-04\n")  # clean at the base, dirtied here
+        self.write(".agents/patterns/c.md", "# C\n\n2026-11-04\n")  # new here
+        self.write(".agents/patterns/README.md", "# P\n\n[a](a.md) [b](b.md) [c](c.md)\n")
+        self.ratchet({".agents/patterns/a.md": {"forbidden": 2}, ".agents/patterns/b.md": {"forbidden": 1}, ".agents/patterns/c.md": {"forbidden": 1}})
+        lines = self.found()
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(all("new ratchet entry" in line for line in lines), lines)
+
+    def test_the_change_that_introduces_the_ratchet_file_is_allowed(self):
+        self.base(None)  # the base has no ratchet file
+        self.ratchet({".agents/patterns/a.md": {"forbidden": 2}})
+        self.assertEqual(self.found(), [])
+
+    def test_an_unreadable_base_fails_closed(self):
+        self.base({".agents/patterns/a.md": {"forbidden": 2}})
+        found = [f.render() for f in rl.ratchet_base_findings(rl.load_surface(self.root), "nope")]
+        self.assertTrue(found and "cannot compare with base" in found[0], found)
+        self.git("checkout", "-q", "main")
+        self.write("contracts/rules-ratchet.json", "not json")
+        self.git("commit", "-qam", "broken")
+        self.git("checkout", "-q", "lane")
+        self.git("merge", "-q", "-X", "ours", "main", "-m", "m")
+        self.ratchet({".agents/patterns/a.md": {"forbidden": 2}})
+        self.assertTrue(any("cannot read contracts/rules-ratchet.json at base" in line for line in self.found()))
+
+    def test_the_cli_flag_runs_the_base_check(self):
+        self.base({".agents/patterns/a.md": {"forbidden": 2}})
+        self.write(".agents/patterns/a.md", self.DIRTY + "\n2026-11-04\n")
+        self.ratchet({".agents/patterns/a.md": {"forbidden": 3}})
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(rl.main(["--root", str(self.root), "--base", "main"]), 1)
+            self.assertEqual(rl.main(["--root", str(self.root)]), 0)  # without a base only the tree is compared
+        self.assertIn("entries only fall", out.getvalue())
+
+
 class CliTests(Tree):
     def run_main(self, *argv, stdin=""):
         out, err = io.StringIO(), io.StringIO()
@@ -385,7 +602,11 @@ class CliTests(Tree):
         self.assertIn("AGENTS.md:3", out)
         self.assertEqual(self.run_main("--stdin-path", "AGENTS.md", stdin=CLEAN)[0], 0)
         self.assertEqual(self.run_main("--stdin-path", "PROGRESS.md", stdin="# P\n\n2026-11-02 landed\n")[0], 0)
-        self.assertEqual(self.run_main("--stdin-path", "apple/x.md", stdin="2026-11-02")[0], 0)  # not a rule-surface file
+        self.assertEqual(self.run_main("--stdin-path", "evals/x.md", stdin="2026-11-02")[0], 0)  # unchecked by the contract
+        code, out, _err = self.run_main("--stdin-path", "apple/x.md", stdin="# A\n")
+        self.assertEqual(code, 1)  # markdown outside every layer
+        self.assertIn("add it to a layer", out)
+        self.assertEqual(self.run_main("--stdin-path", "tools/x.py", stdin="2026-11-02")[0], 0)  # not markdown
 
     def test_report_gives_words_per_layer_and_role_load(self):
         self.write("AGENTS.md", CLEAN)
@@ -430,7 +651,7 @@ class HookTests(Tree):
 
     def test_a_clean_write_and_other_files_pass(self):
         self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "AGENTS.md"), content=CLEAN))[0], 0)
-        self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "apple/x.md"), content="2026-11-02"))[0], 0)
+        self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "evals/x.md"), content="2026-11-02"))[0], 0)
         self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "tools/x.py"), content="2026-11-02"))[0], 0)
         self.assertEqual(self.run_hook(self.payload("Read", file_path=str(self.root / "AGENTS.md")))[0], 0)
         self.assertEqual(self.run_hook(self.payload("Write", file_path="/elsewhere/AGENTS.md", content="2026-11-02"))[0], 0)
@@ -444,6 +665,36 @@ class HookTests(Tree):
         self.assertEqual(code, 2)
         code, _err = self.run_hook(self.payload("Edit", file_path=path, old_string="here.", new_string="here."))
         self.assertEqual(code, 0)  # equal
+
+    def test_markdown_outside_every_layer_is_refused_unless_unchecked_or_ignored(self):
+        code, err = self.run_hook(self.payload("Write", file_path=str(self.root / "docs/guide.md"), content=CLEAN))
+        self.assertEqual(code, 2)
+        self.assertIn("Add it to a layer", err)
+        self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "README.md"), content="2026-11-02"))[0], 0)
+        subprocess.run(["git", "-C", str(self.root), "init", "-q"], check=True)
+        self.write(".gitignore", "build/\n")
+        self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "build/notes/x.md"), content="2026-11-02"))[0], 0)
+        self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "docs/guide.md"), content=CLEAN))[0], 2)
+
+    def test_a_new_file_in_a_new_agents_folder_takes_the_reference_rules(self):
+        path = str(self.root / ".agents/notes/x.md")
+        self.assertEqual(self.run_hook(self.payload("Write", file_path=path, content="# N\n\nDecided 2026-11-10 in PR 123.\n"))[0], 2)
+        self.assertEqual(self.run_hook(self.payload("Write", file_path=path, content=CLEAN))[0], 0)
+
+    def test_a_file_is_judged_by_the_checkout_that_holds_it(self):
+        """Fails if: a session whose cwd is another checkout writes a dirty rule file into this one unjudged."""
+        subprocess.run(["git", "-C", str(self.root), "init", "-q"], check=True)
+        with tempfile.TemporaryDirectory() as elsewhere:
+            payload = {"tool_name": "Write", "cwd": elsewhere, "tool_input": {"file_path": str(self.root / "AGENTS.md"), "content": "# A\n\n2026-11-02\n"}}
+            self.assertEqual(self.run_hook(payload)[0], 2)
+
+    def test_another_repository_is_not_judged(self):
+        with tempfile.TemporaryDirectory() as other:
+            subprocess.run(["git", "-C", other, "init", "-q"], check=True)
+            payload = {"tool_name": "Write", "cwd": str(self.root), "tool_input": {"file_path": str(Path(other) / "AGENTS.md"), "content": "2026-11-02"}}
+            self.assertEqual(self.run_hook(payload)[0], 0)
+            payload["tool_input"]["file_path"] = str(Path(other) / "docs/x.md")
+            self.assertEqual(self.run_hook(payload)[0], 0)
 
     def test_an_edit_that_cannot_apply_is_allowed(self):
         self.write("AGENTS.md", CLEAN)
@@ -491,6 +742,9 @@ class ContractTests(unittest.TestCase):
         for name, layer in contract["layers"].items():
             self.assertIn("globs", layer, name)
             self.assertIn("forbidden", layer, name)
+        self.assertEqual(len({p["id"] for p in contract["forbidden"]}), len(contract["forbidden"]))
+        for entry in contract["unchecked"]:
+            self.assertEqual(sorted(entry), ["glob", "reason"])
         for pattern in contract["forbidden"]:
             rl.re.compile(pattern["regex"])
             self.assertTrue(pattern["why"] and pattern["home"], pattern["id"])

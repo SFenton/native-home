@@ -16,7 +16,7 @@ A lane reads anything and edits only what it owns; ask in your report for a chan
 
 ## 2. Now
 
-- **Rules reset (T-rules-reset, 2026-11-10):** the rule surface is re-layered with one home per rule, budgets and a lint. Lane A rewrites `AGENTS.md`, `.agents/workflow`, the agent files, triage prompts, skills and this file; lane B sweeps the reference docs.
+- **Rules reset (T-rules-reset, 2026-11-10):** the rule surface is re-layered with one home per rule, budgets and a lint. Lane A rewrites `AGENTS.md`, `.agents/workflow`, the agent files, triage prompts, skills and this file; lane B sweeps the reference docs. Open, owner-only: `.githooks/pre-push` does not run `tools/rules_lint.py` yet and its comment names a deleted doc. Open, separate changes: the deleted docs still named in the tab-bar mockup and in `contracts/jev/derived/` (`candidates.json`, `measurements.md`).
 - **House config at runtime:** the schema, store and transport are in `HassCore/Config/HouseConfig*.swift` and `AppSession` reads the store. Open: the mockups scrub, and renaming the house-bound names in code and tests with schema v2.
 - **Release pipeline:** a push to `main` bumps the version and builds a signed IPA on a hosted runner (`ios-release.yml`). Owner steps: [checklist](.agents/platforms/apple/testflight.md#release-pipeline-owner-checklist).
 

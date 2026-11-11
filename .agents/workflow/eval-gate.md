@@ -7,8 +7,11 @@
 - A change to agents, skills, hooks, tools or decision-model questions passes the eval gate (`tools/agent_eval.py`) and an independent review before it merges. Run the gate yourself before pushing.
 - A self-change lane is a branch `agents/<topic>-<date>` cut from the workflow base.
 - The session that wrote a self-change never reviews it and never records its verdict.
-- A headless session pushes only its lanes and lists them in its status file as `lanes`; the runner reviews each exact head and merges it through `tools/lane_land.py` ([triage-agent](triage-agent.md)).
-- One change touches agent behavior (agents, skills, hooks, questions) or the evals, labels, splits and thresholds that grade it, never both. `tools/lane_land.py` refuses the mix.
+- A headless session pushes only its lanes and lists them in its status file as `lanes`; it never lands one.
+- A lane with a pull request lands as any pull request does ([landing](pr-lifecycle.md#landing)). A lane without one lands through `tools/lane_land.py`, which runs the gate and the tool tests on the passed head, merges that head into the workflow base and pushes the base.
+- The runner calls `lane_land.py` for a headless session's lanes, with a Reviewer it launches from a trusted checkout ([triage-agent](triage-agent.md)); an interactive session calls it after a recorded `pass`.
+- A merge or push the remote refuses lands nothing; the tool reports it and the runner files a workflow issue.
+- One change touches agent behavior (agents, skills, hooks, questions) or the evals, labels, splits and thresholds that grade it, never both. `tools/lane_land.py` refuses the mix in a lane.
 - The gate cannot be changed by the change it grades: the harness, the cases and the measuring code run from the trusted base, never from the lane.
 - Decision-model thresholds may only tighten in a lane, and a new question starts in shadow ([jev](jev.md)).
 

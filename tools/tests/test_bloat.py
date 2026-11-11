@@ -27,7 +27,7 @@ class RuleSurfaceLintTests(unittest.TestCase):
 ROUND_FACTS: Dict[str, Tuple[str, ...]] = {
     "design round cap": (r"design(?: verdict| rounds?)?[^.;\n]{0,12}?(?:at most|≤|exceed|>)\s*(\d)",
                          r"numbered changes \(at most (\d) rounds"),
-    "review round cap": (r"reviewer \((?:at most|≤) ?(\d)", r"review round (\d)"),
+    "review round cap": (r"reviewer \((?:at most|≤) ?(\d)", r"review round (\d)", r"review runs (\d) rounds", r"blocks after round (\d)"),
 }
 #: Every kill-switch path the docs may name; any other `~/...PAUSED` is a contradiction.
 KILL_SWITCHES = {"~/.config/hass-triage/PAUSED", "~/.local/state/hass-triage/PAUSED"}
@@ -37,7 +37,8 @@ L3_ITEMS = {"credentials": r"credential", "signing": r"signing", "physical devic
 
 
 def doc_files() -> Dict[str, str]:
-    paths = sorted((ROOT / ".claude" / "agents").glob("*.md")) + [ROOT / ".agents" / "workflow" / "agent-roster.md"]
+    paths = sorted((ROOT / ".claude" / "agents").glob("*.md")) + [ROOT / ".agents" / "workflow" / "agent-roster.md",
+                                                                  ROOT / ".agents" / "workflow" / "pr-lifecycle.md"]
     return {str(p.relative_to(ROOT)): p.read_text(encoding="utf-8") for p in paths}
 
 
@@ -90,7 +91,10 @@ class ContradictionTests(unittest.TestCase):
         for fact, patterns in ROUND_FACTS.items():
             hits = [m for text in docs.values() for p in patterns for m in re.finditer(p, text, re.I)]
             self.assertGreaterEqual(len(hits), 2, fact)
-        self.assertIn("~/.config/hass-triage/PAUSED", "\n".join(docs.values()))
+        # The kill-switch paths live in the tools; the one doc that needs them names the command that lists the set ones.
+        self.assertFalse(any(token in text for text in docs.values() for token in KILL_SWITCHES))
+        skill = (ROOT / ".agents" / "skills" / "self-change-lane" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("hass_triage.py status", skill)
         self.assertTrue(fixed_set_items(docs[".agents/workflow/agent-roster.md"]))
 
     def test_two_round_caps_are_flagged(self):

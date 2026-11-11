@@ -8,8 +8,6 @@
   "criteria": {
     "AGENTS.md": "S+H native: agent entry point: product and architecture invariants, the roles, the rules router. (read when: first; then [.agents/README.md](.agents/README.md) and [PROGRESS.md](PROGRESS.md).)",
     ".agents/README.md": "Agent knowledge router: the entry map for `.agents`. (read when: always, right after [AGENTS.md](../AGENTS.md); jump straight to the one file your task needs.)",
-    ".agents/decisions/2026-11-10-rules-surface-reset.md": "Rules surface reset",
-    ".agents/decisions/README.md": "Decisions: why and when a rule changed, one file per decision. (read when: you record a decision; never required reading.)",
     ".agents/design/README.md": "Design: per-platform design decisions. (read when: making any visual or navigation choice.)",
     ".agents/design/action-navigation-tiles.md": "Action and navigation tiles: the decided convention for tiles that do something, tiles that open something, and tiles that only show state, plus the motion of their action buttons. (read when: adding, changing or reviewing any tile with an action, a chevron, or no action at all; building the action...",
     ".agents/design/apple/README.md": "Apple design: HIG-backed decisions per Apple form factor. (read when: changing layout, navigation or presentation on an Apple device.)",

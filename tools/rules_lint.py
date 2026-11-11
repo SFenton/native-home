@@ -14,7 +14,11 @@ exemptions exist only by layer, in the contract, and the contract is owner-prote
 
 Output: ``path:line: [check] message -> home`` per finding and a summary; exit 1 when there is any finding. ``--stdin-path``
 lints text from stdin as if it were that file (the write-time hook uses :func:`hit_counts`). ``--report`` prints words per layer and
-the per-role spawn load as JSON. ``--base REF`` also checks that existing decision files were not edited (append-only).
+the per-role spawn load as JSON. ``--base REF`` also compares with the merge base of ``REF``: files of an append-only layer were
+not edited or deleted, and no ratchet entry rose or was added (the ratchet file itself may be new).
+
+Coverage is closed: every markdown file git tracks (or would track) belongs to a layer or matches a glob of the contract's
+``unchecked`` list, which gives a reason for each; anything else is a ``structure`` finding.
 """
 
 from __future__ import annotations
@@ -30,8 +34,8 @@ from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
 
 REPO = Path(__file__).resolve().parents[1]
 CONTRACT = "contracts/rules-surface.json"
-#: Where the walk looks for markdown (the rule surface lives nowhere else).
-SURFACE_ROOTS = ("AGENTS.md", "PROGRESS.md", ".claude/agents", ".agents", "tools/triage/prompts")
+#: Folders the fallback walk skips when ``root`` is not a git checkout (git's own ignore rules apply otherwise).
+WALK_SKIP = (".git", "node_modules", ".build", "build", "DerivedData")
 PATH_PREFIXES = ("tools/", "contracts/", ".agents/", ".claude/", ".github/", "apple/")
 DECISION_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$")
 FRONT_LINES = ("Decision", "Replaces", "Rule home")
@@ -51,11 +55,13 @@ class Finding(NamedTuple):
 
 
 class Surface(NamedTuple):
-    """The loaded tree: contract, root and ``{relative path: (layer, text)}`` for every markdown file in a layer."""
+    """The loaded tree: contract, root, ``{relative path: (layer, text)}`` for every markdown file in a layer, and ``unlayered``:
+    the markdown files that match neither a layer nor the contract's ``unchecked`` list."""
 
     root: Path
     contract: Dict[str, Any]
     files: Dict[str, Tuple[str, str]]
+    unlayered: Tuple[str, ...] = ()
 
 
 # MARK: - Contract and globs
@@ -97,26 +103,39 @@ def layer_of(contract: Dict[str, Any], rel: str) -> Optional[str]:
     return None
 
 
-def iter_markdown(root: Path) -> Iterable[str]:
-    for entry in SURFACE_ROOTS:
-        base = root / entry
-        if base.is_file():
-            yield entry
-        elif base.is_dir():
-            for dirpath, _dirs, names in os.walk(base):
-                for name in sorted(names):
-                    if name.endswith(".md"):
-                        yield (Path(dirpath) / name).relative_to(root).as_posix()
+def unchecked(contract: Dict[str, Any], rel: str) -> bool:
+    """True when ``rel`` matches a glob of the contract's ``unchecked`` list (markdown that is deliberately outside every layer)."""
+    return matches(rel, [str(entry.get("glob", "")) for entry in contract.get("unchecked", [])])
+
+
+def tracked_markdown(root: Path) -> List[str]:
+    """Every markdown file under ``root`` that git tracks or would track (untracked and not ignored). When ``root`` is not a git
+    checkout: every markdown file in the tree outside :data:`WALK_SKIP`."""
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-co", "--exclude-standard", "-z", "--", "*.md"],
+                             capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        out = None
+    if out is not None and out.returncode == 0:
+        return sorted(name for name in set(out.stdout.split("\0")) if name and (root / name).is_file())
+    found = []
+    for dirpath, dirs, names in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in WALK_SKIP]
+        found += [(Path(dirpath) / name).relative_to(root).as_posix() for name in names if name.endswith(".md")]
+    return sorted(found)
 
 
 def load_surface(root: Path) -> Surface:
     contract = load_contract(root)
     files: Dict[str, Tuple[str, str]] = {}
-    for rel in sorted(set(iter_markdown(root))):
+    unlayered: List[str] = []
+    for rel in tracked_markdown(root):
         layer = layer_of(contract, rel)
         if layer:
             files[rel] = (layer, (root / rel).read_text(encoding="utf-8", errors="replace"))
-    return Surface(root, contract, files)
+        elif not unchecked(contract, rel):
+            unlayered.append(rel)
+    return Surface(root, contract, files, tuple(unlayered))
 
 
 # MARK: - Text helpers
@@ -184,7 +203,7 @@ def forbidden_hits(contract: Dict[str, Any], layer: str, text: str) -> List[Tupl
     masked = mask_code(lines)
     hits = []
     for pattern in contract["forbidden"]:
-        if pattern["id"] == "date" and cfg.get("dates"):
+        if pattern["id"].startswith("date") and cfg.get("dates"):
             continue
         flags = re.I if pattern.get("ignorecase") else 0
         regex = re.compile(pattern["regex"], flags)
@@ -326,6 +345,46 @@ def check_ratchet(s: Surface) -> List[Finding]:
                                      "(python3 tools/rules_lint.py --write-ratchet)", "contracts/rules-ratchet.json"))
     for rel in sorted(set(entries) - set(s.files)):
         found.append(Finding(rel, 1, "ratchet", "the ratchet lists a file that no longer exists: lower the ratchet", "contracts/rules-ratchet.json"))
+    return found
+
+
+def git_out(root: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=60)
+
+
+def ratchet_base_findings(s: Surface, base: str) -> List[Finding]:
+    """The ratchet falls by construction: against the merge base of ``base`` no count is higher and no entry is new. A ratchet
+    file that the merge base lacks is allowed once (the change that introduces it); after that a new or risen entry is refused,
+    whatever the tree measures, so the file cannot be raised by hand."""
+    target = next((c["ratchet"] for c in s.contract["layers"].values() if c.get("ratchet")), None)
+    if not target or not (s.root / target).is_file():
+        return []
+    merge = git_out(s.root, "merge-base", base, "HEAD")
+    if merge.returncode != 0:
+        return [Finding(target, 1, "ratchet", f"cannot compare with base `{base}`: {merge.stderr.strip()[:120]}", "fetch the base ref")]
+    sha = merge.stdout.strip()
+    listed = git_out(s.root, "ls-tree", "--name-only", sha, "--", target)
+    if listed.returncode != 0:
+        return [Finding(target, 1, "ratchet", f"cannot read {target} at base `{base}`: {listed.stderr.strip()[:120]}", "fetch the base ref")]
+    if not listed.stdout.strip():
+        return []  # the base has no ratchet file: this change introduces it
+    shown = git_out(s.root, "show", f"{sha}:{target}")
+    try:
+        old = json.loads(shown.stdout).get("files", {}) if shown.returncode == 0 else None
+    except ValueError:
+        old = None
+    if not isinstance(old, dict):
+        return [Finding(target, 1, "ratchet", f"cannot read {target} at base `{base}`", "fetch the base ref")]
+    found: List[Finding] = []
+    for rel, entry in sorted(load_ratchet(s).items()):
+        if rel not in old:
+            found.append(Finding(rel, 1, "ratchet", f"new ratchet entry (the copy at {base} has none): a file enters a ratcheted layer clean",
+                                 "fix the file; entries are never added"))
+            continue
+        for kind, value in sorted(entry.items()):
+            if value > old[rel].get(kind, 0):
+                found.append(Finding(rel, 1, "ratchet", f"{kind} rose from {old[rel].get(kind, 0)} at {base} to {value}: entries only fall",
+                                     "fix the file; never raise the ratchet"))
     return found
 
 
@@ -479,6 +538,9 @@ def structure_findings(s: Surface) -> List[Finding]:
                 if word.startswith((".agents/decisions", ".agents/archive")) and not (
                         rel in contract.get("decision_link_allowed", []) or os.path.basename(rel) == "README.md"):
                     found.append(Finding(rel, number, "structure", f"names {word}, which is never required reading", "state the rule here"))
+    for rel in s.unlayered:
+        found.append(Finding(rel, 1, "structure", "markdown outside every layer: add it to a layer",
+                             f"a layer glob in {CONTRACT}, or its `unchecked` list with a reason"))
     found += router_findings(s)
     return found
 
@@ -530,25 +592,38 @@ def check_decisions(s: Surface, base: Optional[str] = None) -> List[Finding]:
             if not re.search(rf"^[*_ ]*{key}[*_]*:", head, re.M):
                 found.append(Finding(rel, 1, "decisions", f"missing the front line `{key}:` in the first 12 lines", ".agents/decisions/README.md"))
     if base:
-        found += append_only_findings(s.root, base)
+        found += append_only_findings(s.root, base, append_only_folders(s.contract))
     return found
 
 
-def append_only_findings(root: Path, base: str) -> List[Finding]:
-    """Existing decision files may not be edited, renamed or deleted against ``base`` (new files are fine)."""
-    def git(*args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=60)
+def append_only_folders(contract: Dict[str, Any]) -> List[str]:
+    """The folders of every layer the contract marks ``append_only`` (each glob up to its first wildcard)."""
+    folders: List[str] = []
+    for cfg in contract["layers"].values():
+        if cfg.get("append_only"):
+            for glob in cfg["globs"]:
+                folder = re.split(r"[*?]", glob, 1)[0].rstrip("/")
+                if folder and folder not in folders:
+                    folders.append(folder)
+    return folders
 
-    merge = git("merge-base", base, "HEAD")
+
+def append_only_findings(root: Path, base: str, folders: Iterable[str] = (".agents/decisions",)) -> List[Finding]:
+    """Existing files under an append-only folder may not be edited, renamed or deleted against ``base`` (new files are fine;
+    a folder's ``README.md`` router may change)."""
+    folders = list(folders)
+    if not folders:
+        return []
+    merge = git_out(root, "merge-base", base, "HEAD")
     if merge.returncode != 0:
-        return [Finding(".agents/decisions", 1, "decisions", f"cannot compare with base `{base}`: {merge.stderr.strip()[:120]}", "fetch the base ref")]
-    diff = git("diff", "--name-status", "--no-renames", merge.stdout.strip(), "--", ".agents/decisions")
+        return [Finding(folders[0], 1, "decisions", f"cannot compare with base `{base}`: {merge.stderr.strip()[:120]}", "fetch the base ref")]
+    diff = git_out(root, "diff", "--name-status", "--no-renames", merge.stdout.strip(), "--", *folders)
     found = []
     for line in diff.stdout.splitlines():
         status, _, path = line.partition("\t")
-        if status != "A" and not path.endswith("README.md"):
-            found.append(Finding(path, 1, "decisions", f"decision files are append-only ({status} against {base})",
-                                 "write a new decision that names what it replaces"))
+        if status != "A" and path.endswith(".md") and not path.endswith("README.md"):
+            found.append(Finding(path, 1, "decisions", f"record files are append-only ({status} against {base})",
+                                 "write a new record that names what it replaces"))
     return found
 
 
@@ -681,6 +756,8 @@ def run(root: Path, paths: Optional[List[str]] = None, base: Optional[str] = Non
     for check in CHECKS.values():
         found += check(s)
     found += check_decisions(s, base)
+    if base:
+        found += ratchet_base_findings(s, base)
     if paths:
         wanted = {(os.path.relpath(p, root) if os.path.isabs(p) else os.path.normpath(p)).replace(os.sep, "/") for p in paths}
         found = [f for f in found if f.path in wanted]
@@ -710,7 +787,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default=str(REPO), help="repository root (default: this repo)")
     ap.add_argument("--paths", nargs="+", help="report only findings in these files")
-    ap.add_argument("--base", help="also check that existing decision files are not edited against this ref (append-only)")
+    ap.add_argument("--base", help="also compare with the merge base of this ref: append-only layers are not edited, the ratchet only falls")
     ap.add_argument("--report", action="store_true", help="print words per layer and per-role load as JSON")
     ap.add_argument("--write-ratchet", action="store_true", help="rewrite the ratchet from the tree; refused when any count would rise")
     ap.add_argument("--stdin-path", help="lint text from stdin as if it were this repo-relative file (forbidden and budgets only)")
@@ -727,7 +804,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         contract = load_contract(root)
         rel = args.stdin_path
         layer = layer_of(contract, rel)
-        found = text_findings(contract, layer, rel, sys.stdin.read()) if layer else []
+        if layer:
+            found = text_findings(contract, layer, rel, sys.stdin.read())
+        elif rel.endswith(".md") and not unchecked(contract, rel):
+            found = [Finding(rel, 1, "structure", "markdown outside every layer: add it to a layer",
+                             f"a layer glob in {CONTRACT}, or its `unchecked` list with a reason")]
+        else:
+            found = []
     else:
         found = run(root, args.paths, args.base)
     for f in found:

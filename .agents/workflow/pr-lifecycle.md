@@ -25,19 +25,20 @@
 - The Reviewer edits nothing, runs no lane code, and runs the whole checklist in its agent file every round.
 - A missing test is a major finding. Rung-0 severities are in [change-loop](change-loop.md#rung-0).
 - On `changes` or a failing check, fix with small commits and push to the same branch; the new head gets its own review.
-- Review runs at most 2 rounds. At the cap a `changes` verdict with no blocker merges; `record.py` refuses a further round without a stated reason, and a blocker that remains stops the pull request for a decision.
+- Review runs 2 rounds; the round rises when the head moves after `changes`. `record.py` records a later round only as a confirmation `pass` with a stated reason.
+- A finding that still blocks after round 2 ends the task `needs_decision`; [levels](autonomy.md#levels) say who decides. The decided fix lands on a confirmation `pass`.
 
 ## Landing
 
-- Nothing reaches `main` without an independent `pass` recorded for the exact head. A later commit voids the pass.
-- No agent lands its own work: the author of a change never reviews it or records its verdict.
-- `tools/pr_land.sh N` is the only merge route. It runs the gates GitHub cannot, then arms a squash merge pinned to the reviewed head; GitHub enforces the required checks ([ci](ci.md)). `tools/hooks/merge_guard.py` refuses every other merge, a push to `main`, and edits to the repository's merge rules.
-- A kill-switch file stops landing; `pr_land.sh` names it when set.
-- A pull request that touches a path in `.github/CODEOWNERS` waits for the owner's approval. `pr_land.sh` prints the owner's commands; the agent reports them and does not run them.
-- A change in the [owner-only](autonomy.md#owner-only) set is never merged by an agent.
-- The session reports one line, exactly as `pr_land.sh` printed it: `merged`, `armed`, `blocked` or `failed`, with the pull-request number and reason.
-- An `armed` pull request waits on CI as in [ci](ci.md#waiting-on-ci).
-- A headless session's self-change lanes are merged by the runner ([eval-gate](eval-gate.md#self-change)).
+- Nothing reaches `main` without an independent `pass` recorded for the exact head, at any round; a later commit voids it. `pr_land.sh`, `lane_land.py` and the `ai-review` check accept nothing else.
+- The author of a change never reviews it or records its verdict.
+- A pull request lands through `tools/pr_land.sh N`: it runs the gates GitHub cannot, then arms a squash merge pinned to the reviewed head; GitHub enforces the required checks ([ci](ci.md#merge-gate)).
+- A self-change lane without a pull request lands through `tools/lane_land.py` ([eval-gate](eval-gate.md#self-change)).
+- `tools/hooks/merge_guard.py` refuses an agent command that merges any other way, pushes to `main` or edits the repository's merge rules.
+- A kill-switch file stops landing; the tool names it.
+- A pull request that touches a path in `.github/CODEOWNERS` waits for the owner's approval. `pr_land.sh` prints the owner's commands; the agent reports them and never runs them.
+- A change in the [owner-only](autonomy.md#owner-only) set is never merged by an agent; both landing tools refuse it.
+- The session reports the one line `pr_land.sh` printed: `merged`, `armed`, `blocked` or `failed`, with the number and reason. An `armed` pull request waits as in [ci](ci.md#waiting-on-ci).
 
 ## PR notes
 

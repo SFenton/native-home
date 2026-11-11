@@ -697,6 +697,8 @@ class GeneratedQuestionTests(Isolated):
             if path != "none":
                 self.assertTrue((REPO / path).is_file(), path)
         self.assertNotIn(".agents/design/mockups", " ".join(criteria))
+        self.assertNotIn(".agents/decisions", " ".join(criteria))  # the record is never a home for a rule
+        self.assertNotIn(".agents/archive", " ".join(criteria))
         self.assertIn(".agents/workflow/jev.md", criteria)
 
     def test_release_impact_covers_services_hakit_and_frameworks(self):
@@ -730,6 +732,9 @@ class GeneratedQuestionTests(Isolated):
             (root / ".agents/design/mockups").mkdir(parents=True)
             (root / ".agents/workflow/a.md").write_text("# Doc A\n\n> **What:** does a. **Read when:** touching a.\n")
             (root / ".agents/design/mockups/m.md").write_text("# Mock\n")
+            for record in ("decisions", "archive"):
+                (root / ".agents" / record).mkdir()
+                (root / ".agents" / record / "2026-11-10-x.md").write_text("# Record\n")
             (root / "AGENTS.md").write_text("# Agents\n\n> **What:** the entry point.\n")
             (root / "apple/Sources/X").mkdir(parents=True)
             (root / "apple/Sources/X/B.swift").write_text('import WidgetKit\n')

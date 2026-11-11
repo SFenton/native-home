@@ -19,7 +19,7 @@ When unsure, treat the change as visible.
 Nothing here waits for the owner; what does is in [autonomy](autonomy.md#owner-only).
 
 1. **State the cause or goal** with measured evidence.
-2. **Build up to 3 options** that are different answers, starting from the surface's mockup. One build is enough when the fix is unambiguous or the owner asked for one specific result. An option that adds custom machinery carries its [rung-0](change-loop.md#rung-0) note.
+2. **Build up to 3 options** that are different answers, starting from the surface's mockup. One build is enough when the fix is unambiguous or the request names one specific result. An option that adds custom machinery carries its [rung-0](change-loop.md#rung-0) note.
 3. **Capture evidence** of each option on every affected family, at the default and an accessibility text size, and in the states that break it: long text, empty, error, offline ([pose-matrix](../skills/pose-matrix/SKILL.md)).
 4. **The Designer judges** from the evidence, the HIG, the existing patterns and the decisions on record, in that order of authority after an explicit owner choice. It picks one option and says why the others lost. Decision-model answers are hints ([jev](jev.md)).
 5. **Record the pick** (below).

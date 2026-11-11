@@ -16,8 +16,9 @@ Job names, runner labels, repository variables and schedules live in the workflo
 
 ## Merge gate
 
-- The ruleset on `main` requires a pull request, a squash merge, and two checks on the exact head: `pr-checks` from CI and `ai-review` from the Reviewer. Nobody bypasses it. `tools/ruleset_gate.py` reads the live ruleset and `tools/pr_land.sh` arms nothing when it is weaker.
-- The Reviewer posts `ai-review` only for a head with a recorded pass, so a new push leaves the pull request blocked while its head is unreviewed ([landing](pr-lifecycle.md#landing)).
+- GitHub merges a pull request into `main`. `tools/ruleset_gate.py` reads the live ruleset, and `tools/pr_land.sh` arms nothing unless it requires a pull request, allows a squash merge, requires `pr-checks` from GitHub Actions and gives the caller no bypass.
+- `tools/review/record.py` posts the `ai-review` check only for a head with a recorded pass ([review](pr-lifecycle.md#review)).
+- `tools/hooks/merge_guard.py`, which holds the [landing](pr-lifecycle.md#landing) rule for agent commands, is a tripwire, not a wall; its docstring names what passes it.
 - `pr-checks` fails a pull request from a fork or from an author outside the configured logins.
 - A skipped job passes the aggregate only when its scope allows the skip; `tools/ci_aggregate.py` decides.
 

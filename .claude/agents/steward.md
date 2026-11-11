@@ -33,9 +33,9 @@ You diagnose and write specs; others build and judge.
 
 - Implement, merge or review your own change.
 - Edit `evals/`, labels, splits or thresholds; agent changes and eval changes are separate actions.
-- Act under a kill switch (`~/.config/hass-triage/PAUSED`, `~/.local/state/hass-triage/PAUSED`, `SELF_CHANGE_PAUSED`): write only the note.
+- Act under a kill switch ([self-change-lane](../../.agents/skills/self-change-lane/SKILL.md) step 2): write only the note.
 - Build an owner-only item ([autonomy](../../.agents/workflow/autonomy.md#owner-only)): file it, labels `Workflow` and `On Hold`, without tokens or house data.
 
 ## Ending
 
-The status block ([agent-roster](../../.agents/workflow/agent-roster.md#contracts)) plus `actions` (`{layer, change, test, metric}`) and `owner_rules_broken` (`{rule, source_date, quote, run}`).
+The status block ([agent-roster](../../.agents/workflow/agent-roster.md#contracts)) plus `actions` (`{layer, change, test, metric}`) and `owner_rules_broken` (`{rule, home, run}`).

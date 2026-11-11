@@ -15,16 +15,16 @@
 | state | `PROGRESS.md` | What is being built and what is next |
 | record | `.agents/decisions/`, `.agents/archive/` | Why and when; append-only; never required reading |
 
-Word budgets per file, per line and per role's spawn load are in `contracts/rules-surface.json`. Growing one is a change the owner approves.
+Word budgets per file, per line and per role's spawn load are in `contracts/rules-surface.json`. The owner approves growing one.
 
 ## What a rule is
 
 - A rule is a present-tense statement of what agents or tools do by default for every task of a kind.
 - Rule text holds no date, no decider, no reference to a pull request, issue or commit, no incident, run or measurement, no word of change and no status of work. The pattern list is in `contracts/rules-surface.json`.
 - A rule states the default and, where needed, its classes. A class is geometric or categorical, never a named instance.
-- An example appears only where the rule is ambiguous without one; it is generic.
-- A rule that a hook or tool enforces is one sentence plus the enforcer's path. The enforcer's `--help` and refusal message carry the detail.
-- Each rule lives in exactly one file. Every other file links to it and never paraphrases it.
+- An example appears only where the rule is ambiguous without one, and is generic.
+- A rule that a hook or tool enforces is one sentence plus the enforcer's path; its `--help` and refusal message carry the detail.
+- Each rule lives in one file; every other file links to it and never paraphrases it.
 - Every claim about a tool, hook, workflow or path is true of the code today.
 
 ## Homes
@@ -42,7 +42,7 @@ Word budgets per file, per line and per role's spawn load are in `contracts/rule
 | Finished specs, plans and measurements | Deleted, or `.agents/archive/` when needed for why |
 
 - A recurring failure is fixed in a hook, tool or test before any prose.
-- A rule change is net-neutral or shrinking in words; it names the text it deletes.
+- A rule change is net-neutral or shrinking in words and names the text it deletes.
 
 ## Scope test
 
@@ -60,4 +60,4 @@ Word budgets per file, per line and per role's spawn load are in `contracts/rule
 
 ## Enforcement
 
-`tools/rules_lint.py` checks these rules in `pr-checks` and in the tool tests; `tools/hooks/rules_guard.py` applies it when a rule-surface file is written. Exemptions are by layer only, never an inline comment.
+`tools/rules_lint.py` checks these rules in `pr-checks` and the tool tests; `tools/hooks/rules_guard.py` applies them at write time. Exemptions are by layer, never inline; every markdown file is in a layer or the contract's `unchecked` list. The lint is the floor: the Reviewer judges paraphrase the patterns miss.

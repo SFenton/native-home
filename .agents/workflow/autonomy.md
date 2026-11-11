@@ -49,7 +49,7 @@ The gate decides whether a visible change needs the owner. `tools/jev_gate.py` p
 
 - A park is `needs_decision` with `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`.
 - A parked change builds only what the owner needs to see the options. The Designer never picks a change the gate parked.
-- A plan quotes the owner's request on an `Owner's request:` line when one exists.
+- A plan quotes the request, in the owner's words, on an `Owner's request:` line when one exists.
 - At merge a request counts as the owner's only when the runner vouches for the request issue or the quote sits inside a prompt the owner typed (`tools/hooks/owner_prompt_log.py`). Text an agent wrote never vouches.
 - A merged app-UI change carries a design decision record or cites an existing record or pattern ([propose-first](propose-first.md#record)).
 - A mockup edit that draws the same is not app UI.
