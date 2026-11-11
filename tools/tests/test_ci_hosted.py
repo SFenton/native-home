@@ -99,11 +99,15 @@ class DevcapStandInTests(unittest.TestCase):
 
     def test_the_command_line_runs_through_without_a_hold(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = clean_env(DEVCAP_DIR=tmp, HOME=tmp)
+            devcap_dir, home = Path(tmp) / "devcap", Path(tmp) / "home"
+            devcap_dir.mkdir()
+            home.mkdir()
+            env = clean_env(DEVCAP_DIR=str(devcap_dir), HOME=str(home))
             out = subprocess.run([sys.executable, str(TOOLS / "ci_hosted.py"), "devcap", "run", "--pool", "build", "--hold", "60", "--", "echo", "ran"],
                                  env=env, capture_output=True, text=True)
             self.assertEqual((out.returncode, out.stdout.strip()), (0, "ran"), out.stderr)
-            self.assertEqual(list(Path(tmp).iterdir()), [], "hosted mode must not create devcap gates or state")
+            # Only the devcap directory must stay empty; the interpreter may create e.g. ~/Library in HOME.
+            self.assertEqual(list(devcap_dir.iterdir()), [], "hosted mode must not create devcap gates or state")
 
     def test_the_vendored_devcap_is_not_hosted_aware(self):
         self.assertNotIn("ci_hosted", (TOOLS / "devcap.py").read_text(encoding="utf-8"))
