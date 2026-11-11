@@ -175,31 +175,14 @@ INTERPRETERS = re.compile(r"^(?:python[\d.]*|bash|sh|zsh|dash|source|\.)$")
 
 # MARK: - Command words (match the landing words in commands, not in text a command only carries)
 
-#: Programs whose arguments are data: they print, write or search what they are given and run none of it.
-DATA_PROGRAMS = {"cat", "printf", "echo", "tee", "head", "tail", "grep", "rg", "wc", "ls"}
-#: ``gh`` subcommands that carry a message body (``gh pr comment N --body "..."``) and never run it.
-DATA_GH = {("pr", "comment"), ("pr", "create"), ("pr", "edit"), ("pr", "view"), ("pr", "list"),
-           ("issue", "comment"), ("issue", "create"), ("issue", "edit"), ("issue", "view"), ("issue", "list")}
-#: Anything in a segment that could run what it holds: substitution, process substitution, ``rg --pre``.
-RUNS_TEXT = re.compile(r"`|\$\(|[<>]\(|--pre\b")
-HEREDOC_OPEN = re.compile(r"<<(?!<)(-?)\s*(['\"]?)(\w+)\2")
-
-
-def data_segment(segment: str) -> bool:
-    """Is the simple command text ``segment`` a data program (``cat``, ``printf``, ``echo``, ``tee``, ``gh pr comment``, ``git commit``...)
-    whose quoted arguments run nothing? A leading ``VAR=``, a wrapper, a quoted program word or any substitution says no."""
-    if RUNS_TEXT.search(segment) or re.search(r"\bprintf\s+-v\b", segment):
-        return False
-    head = segment.split(None, 3)
-    if not head or re.search(r"['\"\\$=]", head[0]):
-        return False
-    program = os.path.basename(head[0])
-    if program in DATA_PROGRAMS:
-        return True
-    rest = [re.sub(r"['\"]", "", word) for word in head[1:3]]
-    if program == "gh":
-        return tuple(rest) in DATA_GH
-    return program == "git" and rest[:1] == ["commit"]
+#: ``<<WORD``, ``<<-WORD`` and the quoted forms, read the way the shell does: the delimiter is one whole word.
+HEREDOC_OPEN = re.compile(r"<<(-?)[ \t]*(?:'(\w+)'|\"(\w+)\"|(\w+))(?=[\s;&|<>]|$)")
+#: What may stay in a line once its quoted text is set aside: anything else could expand, comment out, group or escape.
+UNSURE_TEXT = re.compile(r"[\\$`#'\"(){}]|[<>]\(")
+#: Quoted text with nothing in it the shell would expand (single quotes, or double quotes without ``$``, a backtick or a backslash).
+SAFE_QUOTED = re.compile(r"'[^']*'|\"[^\"\\$`]*\"")
+#: The operators that join data commands: sequence, pipe and ``&&``/``||`` (the lexer reports ``&`` and ``|`` one at a time).
+DATA_OPS = {";", "|", "&"}
 
 
 def split_simple(text: str) -> Optional[List[str]]:
@@ -239,11 +222,11 @@ def split_simple(text: str) -> Optional[List[str]]:
 
 def blank_quotes(segment: str) -> str:
     """``segment`` with every quoted span emptied (``'..'`` and ``".."`` become ``""``)."""
-    return re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", '""', segment)
+    return SAFE_QUOTED.sub('""', segment)
 
 
-def heredoc_mark(line: str) -> Optional["re.Match[str]"]:
-    """The heredoc marker on ``line`` when its ``<<`` sits outside quotes (``echo '<<EOF'`` has none), else ``None``."""
+def heredoc_at(line: str) -> Optional[int]:
+    """Index of the first ``<<`` in ``line`` that sits outside quotes, or ``None``."""
     quote = ""
     for i, ch in enumerate(line):
         if quote:
@@ -251,75 +234,91 @@ def heredoc_mark(line: str) -> Optional["re.Match[str]"]:
         elif ch in "'\"":
             quote = ch
         elif line.startswith("<<", i):
-            return HEREDOC_OPEN.match(line, i)
+            return i
     return None
 
 
-#: Programs that run text or files: a shell, an interpreter, ``source``/``.``/``eval``, or a wrapper that starts one.
-RUNNERS = {"sh", "bash", "zsh", "dash", "ksh", "source", ".", "eval", "exec", "xargs", "env", "sudo", "time", "nohup", "command", "builtin",
-           "nice", "timeout", "gtimeout", "perl", "ruby", "node", "php", "awk", "osascript"}
-RUNNER_WORD = re.compile(r"(?<![\w./-])(?:sh|bash|zsh|dash|ksh|source|eval|exec|xargs|env|python[\d.]*|perl|ruby|node|php|awk)(?![\w./-])")
+def bad_target(word: str) -> bool:
+    """Is ``word`` a file name that could hold a hook or climb out of the checkout (``.git``, ``..``)?"""
+    return ".git" in word or ".." in word
 
 
-def runs_something(parts: List[str]) -> bool:
-    """Does a simple command among ``parts`` (see :func:`split_simple`) start a shell, an interpreter, ``source``/``.``/``eval`` or a wrapper?"""
-    for segment in parts[0::2]:
-        words = segment.split()
-        while words and re.match(r"^\w+=", words[0]):
-            words.pop(0)
-        if words:
-            program = os.path.basename(words[0])
-            if program in RUNNERS or re.match(r"^python[\d.]*$", program) or words[0].startswith("./"):
-                return True
-    return False
+def data_words(words: List[str]) -> bool:
+    """Is this one simple command, as words, a listed data or read-only program with arguments that cannot run anything? The list is
+    :func:`exempt_words` plus ``tee``, ``gh issue`` and ``gh pr edit`` message commands. A redirect or ``tee`` target in ``.git`` or with
+    ``..`` is no, as is ``printf -v``."""
+    if not words or "/" in words[0]:
+        return False
+    for index, word in enumerate(words):
+        target = re.match(r"^\d*>>?(.*)$", word)
+        if target and bad_target(target.group(1) or (words[index + 1] if index + 1 < len(words) else ".git")):
+            return False
+    program, args = words[0], words[1:]
+    if program == "printf":
+        return "-v" not in args
+    if program == "tee":
+        return not any(bad_target(a) for a in args)
+    if program == "gh" and args[:2] in (["issue", "create"], ["issue", "comment"], ["issue", "edit"], ["issue", "view"], ["issue", "list"],
+                                        ["pr", "edit"]):
+        return not any(a in ("-R", "--repo") or a.startswith("--repo=") for a in args)
+    return exempt_words(words, _CWD)
 
 
-def drop_data_heredocs(command: str) -> Optional[str]:
-    """``command`` without the bodies of heredocs fed to data programs (``cat > f <<'EOF'``, ``gh pr comment --body-file - <<EOF``). A body
-    the shell would expand (unquoted delimiter) with a substitution in it, a heredoc fed to anything else (a shell, ``python3``, ``xargs``),
-    a body never closed or a line that does not lex keeps the text as it was: ``None``."""
+def data_line(line: str) -> Optional[str]:
+    """``line`` (one command line, its heredoc marker already cut) with quoted arguments emptied when every command in it is a data command
+    joined by ``; | &``; else ``None``."""
+    rest = SAFE_QUOTED.sub("\x00", line)
+    if UNSURE_TEXT.search(rest):
+        return None
+    parts = split_simple(line)
+    if parts is None:
+        return None
+    for index, part in enumerate(parts):
+        if index % 2:
+            if part not in DATA_OPS:
+                return None
+        elif part.strip():
+            try:
+                if not data_words(shlex.split(part)):
+                    return None
+            except ValueError:
+                return None
+    return "".join(blank_quotes(part) if index % 2 == 0 else part for index, part in enumerate(parts))
+
+
+def command_words(command: str) -> str:
+    """``command`` as far as the landing words go. Only when every command in the whole input is a listed data or read-only program (see
+    :func:`data_words`) and nothing could run, expand, comment out or escape text, are heredoc bodies and quoted arguments removed, so
+    ``cat > f <<'EOF'`` with ``pr_land`` in its text, ``gh pr comment 5 --body "..."`` and ``printf '...' > f`` do not match. Anything
+    else (a runner or wrapper, a path command, ``find``, a function, a substitution, an unread heredoc marker, an unreadable line) is
+    returned whole, so the old full-text match decides (owner decision in ``build/decisions/T-autonomy-p4-merge-guard-allowlist.md``)."""
     lines = command.split("\n")
     kept: List[str] = []
     i = 0
     while i < len(lines):
         line = lines[i]
         i += 1
-        mark = heredoc_mark(line)
-        if not lexes(line):
-            return None
-        if mark:
-            parts = split_simple(line)
-            if parts is None or not all(data_segment(p) for p in parts[0::2] if p.strip()):
-                return None
-            start = i
-            while i < len(lines) and (lines[i].strip() if mark.group(1) else lines[i]) != mark.group(3):
+        at = heredoc_at(line)
+        if at is not None:
+            mark = HEREDOC_OPEN.match(line, at)
+            if not mark:
+                return command
+            word = mark.group(2) or mark.group(3) or mark.group(4)
+            body: List[str] = []
+            while i < len(lines) and (lines[i].lstrip("\t") if mark.group(1) else lines[i]) != word:
+                body.append(lines[i])
                 i += 1
-            if i >= len(lines):
-                return None
-            if not mark.group(2) and RUNS_TEXT.search("\n".join(lines[start:i])):
-                return None
+            if i >= len(lines) or (mark.group(4) and re.search(r"[$`\\]", "\n".join(body))):
+                return command  # never closed, or a body the shell expands
             i += 1
-        kept.append(line)
+            line = line[:at] + " " + line[mark.end():]
+            if heredoc_at(line) is not None:
+                return command
+        cleaned = data_line(line)
+        if cleaned is None:
+            return command
+        kept.append(cleaned)
     return "\n".join(kept)
-
-
-def command_words(command: str) -> str:
-    """``command`` as far as the landing words go: heredoc bodies and quoted arguments of data programs are removed, so ``cat > f <<'EOF'``
-    with ``pr_land`` in its text, ``gh pr comment 5 --body "..."`` and ``printf '...' > f`` do not match. Anything that could run its text
-    (``bash -c``, ``sh``, ``eval``, ``python3 -c``, a substitution, a heredoc fed to a shell or piped into one) is left whole, as is
-    any command this cannot read to its end."""
-    if PIPE_TO_SHELL.search(command) or HERE_TO_SHELL.search(command):
-        return command
-    text = drop_data_heredocs(command)
-    parts = split_simple(command if text is None else text)
-    if parts is None or "$'" in command or '$"' in command:
-        return command  # unreadable, or ANSI-C quotes (their escapes move the quote edges)
-    if runs_something(parts):
-        return command  # a shell, interpreter, `source`, `.` or `eval` may run a file or text written in the same command
-    if "|" in command and RUNNER_WORD.search((text or command).split("|", 1)[1]):
-        return command  # anything after a pipe (`|&`, `| (sh)`, `| { sh; }`, a newline) that names a shell or interpreter
-    return "".join(blank_quotes(p) if i % 2 == 0 and data_segment(p) else p for i, p in enumerate(parts))
-
 
 
 def runs_pr_land(command: str) -> bool:
