@@ -692,13 +692,13 @@ def doc_summary(path: Path, root: Path) -> tuple[str, str]:
 
 
 def learning_criteria(root: Path = ROOT) -> dict[str, str]:
-    """One criterion per durable doc a learning can live in: `AGENTS.md` and `.agents/**/*.md` (no archive, no mockups).
+    """One criterion per durable doc a learning can live in: `AGENTS.md` and `.agents/**/*.md` (no archive, no decisions, no mockups).
 
-    Mockups and the archive are not homes for rules; `none` stands for "no existing document fits".
+    Mockups, the archive and decision records are not homes for rules; `none` stands for "no existing document fits".
     """
     paths = [root / "AGENTS.md"] if (root / "AGENTS.md").is_file() else []
     base = root / ".agents"
-    paths += sorted(p for p in base.rglob("*.md") if not {"archive", "mockups"} & set(p.relative_to(base).parts))
+    paths += sorted(p for p in base.rglob("*.md") if not {"archive", "decisions", "mockups"} & set(p.relative_to(base).parts))
     out = dict(doc_summary(p, root) for p in paths)
     out["none"] = "No existing document fits: the learning needs a new document, or is a one-off that should not be recorded"
     return out

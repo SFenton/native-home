@@ -52,6 +52,7 @@
   "tools/",
   "contracts/",
   ".github/",
+  ".gitleaks.toml",
   ".claude/",
   "build/",
   "apple/Apps/iOS/Assets.xcassets",
