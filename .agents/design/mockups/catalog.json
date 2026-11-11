@@ -9261,7 +9261,7 @@
       "status": "decided",
       "mockup": "proposals/live-activity-problem-notice/live-activity-problem-notice.html",
       "note": "R-43 (agent-initiated, gate app_wide=no). Decided 2026-11-10: judged B (in place of the instruction) and C (own line) from captures; picked B. A (beside the buttons) was not built. Current design: live-activity-problem-card, state notice.",
-      "decision": ".agents/design/live-activity-problem-notice.md"
+      "decision": ".agents/decisions/2026-11-10-problem-card-notice.md"
     }
   ]
 }

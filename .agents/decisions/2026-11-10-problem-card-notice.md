@@ -1,6 +1,6 @@
 # Problem card failure notice
 
-Decision: the Live Activity problem card shows the one-update failure notice in place of the instruction; options judged: A beside the buttons, B in place of the instruction (`replace`), C on its own line under a one-line instruction (`line`); picked B. Gate: app_wide=no, local to one card.
+Decision: the Live Activity problem card shows the one-update failure notice in place of the instruction; options A, B and C judged (A beside the buttons, B in place of the instruction, C on its own line under a one-line instruction); picked B. Gate: app_wide=no, local to one card.
 Replaces: a problem card that drew no notice, so a failed Resume came back to Resume and Done with no reason.
 Rule home: `.agents/design/live-activity-problem-notice.md`.
 
