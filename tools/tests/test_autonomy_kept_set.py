@@ -69,7 +69,7 @@ class PrLandRouteTests(tll.PrGateTests):
                 refused = self.refuses(self.pr({rel: "x\n"}, number=number), "paths", number=str(number))
                 self.assertIn("owner-only set", refused)
                 self.assertIn(rel, refused)
-                self.assertIn("only the owner lands it", refused)
+                self.assertIn(lane_land.OWNER_ONLY_HINT, refused)
         self.assertEqual(self.calls, [])
 
     def test_a_delete_or_a_rename_away_of_a_kept_file_is_refused_from_the_real_diff(self):

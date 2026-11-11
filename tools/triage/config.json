@@ -9,8 +9,12 @@
   "root": "~/hass-agents",
   "agent": {
     "command": "claude",
-    "model": "claude-opus-5-5",
-    "effort": "high",
+    "model": "claude-fable-5-2",
+    "effort": "medium",
+    "reviewer": {
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
     "permission_mode": "auto",
     "disallowed_tools": [
       "Artifact",
@@ -24,6 +28,7 @@
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(*ack-base*)",
+      "Bash(*ack-verified*)",
       "Bash(gh repo delete*)",
       "Bash(gh secret*)",
       "Bash(xcrun simctl boot*)",
@@ -133,6 +138,29 @@
       "Edit(//**/owner-prompts/**)"
     ],
     "agent": "orchestrator",
+    "launcher": "claude",
+    "t3": {
+      "version": "0.3.0",
+      "provider": "claudeAgent",
+      "checkout": "current",
+      "permission": "full-access",
+      "mode": "build",
+      "workspace_mode": "repo",
+      "project_policy": "create",
+      "interrupt_grace_seconds": 60,
+      "needs_attention_retries": 3,
+      "extra_denied": [
+        "Bash(*t3code*)",
+        "Bash(*npx*t3*)",
+        "Bash(*CLAUDE_ENV_FILE*)",
+        "Bash(*.claude/settings*)",
+        "Write(~/.claude/**)",
+        "Edit(~/.claude/**)",
+        "Write(~/hass-agents/tools/t3code/**)",
+        "Edit(~/hass-agents/tools/t3code/**)",
+        "AskUserQuestion"
+      ]
+    },
     "timeout_minutes": 300,
     "max_attempts": 2,
     "allowed_tools": [

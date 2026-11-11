@@ -4437,7 +4437,7 @@
       "mockup": "modals/shell/your-summary/your-summary.html",
       "status": "shipped",
       "presentation": "sheet (form, large, tabbed)",
-      "deviceNote": "Form sheet on iPad, full height. Opens on Overdue Chores for residents. Title 'Your Summary' vs 'Summary'.",
+      "deviceNote": "Form sheet on iPad, full height. Opens on Profile for everyone. Title 'Your Summary' vs 'Summary'.",
       "note": "Four tabs are four screens: mockup each as a state. Chores tabs reuse TodoListSection; Expired Food reuses InventoryRow.",
       "weight": 3
     },

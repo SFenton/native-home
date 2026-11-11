@@ -14,11 +14,11 @@ from tempfile import TemporaryDirectory
 from tools import coverage_gate
 
 RULES = {
-    "thresholds": {"logic": 95, "ux": 95},
+    "thresholds": {"logic": 95},
     "swift": {
         "sourceRoots": ["apple/Sources/**/*.swift"],
-        "logic": ["apple/Sources/Core/**/*.swift"],
-        "ux": ["apple/Sources/UI/**/*.swift"],
+        "logic": ["apple/Sources/Core/**/*.swift", "apple/Sources/Model/**/*.swift"],
+        "unmeasured": ["apple/Sources/UI/**/*.swift"],
         "exclude": [],
     },
 }
@@ -95,12 +95,11 @@ class CoverageGateTests(unittest.TestCase):
         self.assertIn("swift.logic: 96/100 lines = 96.00% across 2 files", out)
 
     def test_module_with_no_records_is_an_error(self) -> None:
-        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift")
+        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/Model/M.swift")
         report = self.report({"apple/Sources/Core/A.swift": (96, 100)})
-        status, out, err = self.run_gate("--report", str(report))
+        status, _, err = self.run_gate("--report", str(report))
         self.assertEqual(status, 1)
-        self.assertIn("no coverage records for module(s) apple/Sources/UI", err)
-        self.assertIn("swift.logic: 96/100", out)
+        self.assertIn("no coverage records for module(s) apple/Sources/Model", err)
 
     def test_low_coverage_fails_with_the_number(self) -> None:
         self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift")
@@ -108,7 +107,61 @@ class CoverageGateTests(unittest.TestCase):
         status, out, err = self.run_gate("--report", str(report))
         self.assertEqual(status, 1)
         self.assertIn("swift.logic: 90.00% is below 95%", err)
-        self.assertIn("swift.ux: 9/10 lines = 90.00%", out)
+        self.assertNotIn("swift.ux", out)
+        self.assertNotIn("swift.unmeasured", out)
+
+    def test_unmeasured_file_never_fails_or_is_reported(self) -> None:
+        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift", "apple/Sources/UI/C.swift")
+        # B is at 0% and C has no record at all; the module has records, so neither is an error or a line.
+        report = self.report({"apple/Sources/Core/A.swift": (96, 100), "apple/Sources/UI/B.swift": (0, 50)})
+        status, out, err = self.run_gate("--report", str(report))
+        self.assertEqual((status, err), (0, ""))
+        self.assertIn("swift.logic: 96/100", out)
+        self.assertNotIn("UI/", out)
+        self.assertNotIn("unmeasured", out)
+
+    def test_unmeasured_module_with_no_records_is_not_an_error(self) -> None:
+        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift")
+        report = self.report({"apple/Sources/Core/A.swift": (96, 100)})
+        status, _, err = self.run_gate("--report", str(report))
+        self.assertEqual((status, err), (0, ""))
+
+    def test_logic_is_still_gated_beside_unmeasured_source(self) -> None:
+        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift")
+        report = self.report({"apple/Sources/Core/A.swift": (94, 100), "apple/Sources/UI/B.swift": (10, 10)})
+        status, _, err = self.run_gate("--report", str(report))
+        self.assertEqual(status, 1)
+        self.assertIn("swift.logic: 94.00% is below 95%", err)
+
+    def test_files_on_only_unmeasured_files_has_nothing_to_gate(self) -> None:
+        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift")
+        report = self.report({"apple/Sources/Core/A.swift": (1, 100), "apple/Sources/UI/B.swift": (0, 20)})
+        status, out, err = self.run_gate("--report", str(report), "--files", "apple/Sources/UI/B.swift")
+        self.assertEqual((status, err), (0, ""))
+        self.assertIn("swift: no changed file is subject to coverage; nothing to gate", out)
+
+    def test_baseline_ux_entries_from_an_old_file_are_ignored(self) -> None:
+        self.write_sources("apple/Sources/Core/Z.swift", "apple/Sources/UI/B.swift")
+        report = self.report({"apple/Sources/Core/Z.swift": (50, 100), "apple/Sources/UI/B.swift": (1, 20)})
+        baseline = self.root / "baseline.json"
+        baseline.write_text(json.dumps({"apple/Sources/Core/Z.swift": 50.0, "apple/Sources/UI/B.swift": 90.0}), encoding="utf-8")
+        args = ("--report", str(report), "--baseline", str(baseline), "--files")
+        self.assertEqual(self.run_gate(*args, "apple/Sources/Core/Z.swift", "apple/Sources/UI/B.swift")[0], 0)
+
+    def test_new_unclassified_folder_fails_classification_by_name(self) -> None:
+        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift", "apple/Sources/NewKit/N.swift")
+        status, _, err = self.run_gate("--classify-only")
+        self.assertEqual(status, 1)
+        self.assertIn("apple/Sources/NewKit", err)
+        self.assertIn("not classified as logic, unmeasured", err)
+
+    def test_unmeasured_must_not_carry_a_threshold(self) -> None:
+        self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift")
+        RULES["thresholds"]["unmeasured"] = 95
+        self.addCleanup(RULES["thresholds"].pop, "unmeasured")
+        status, _, err = self.run_gate("--classify-only")
+        self.assertEqual(status, 1)
+        self.assertIn("never unmeasured", err)
 
     def test_files_gates_only_the_changed_files(self) -> None:
         self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/Core/Z.swift", "apple/Sources/UI/B.swift")

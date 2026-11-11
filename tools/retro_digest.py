@@ -153,8 +153,12 @@ def parse_time(text: Any) -> Optional[datetime]:
 # MARK: - The claude -p log
 
 def parse_log(path: Optional[Path]) -> Dict[str, Any]:
-    """From a stream-json log: the final ``result`` object, the last assistant text, background launches and raw text."""
-    info: Dict[str, Any] = {"result": None, "last_text": "", "background": 0, "raw": ""}
+    """From a stream-json log: the final ``result`` object, the last assistant text, background launches and raw text.
+
+    A T3 launch (``agent.launcher: "t3code"``) logs ``t3_launch`` then ``t3_thread`` lines instead: the last assistant message becomes
+    ``last_text``, tool outputs are appended to ``raw`` one per line (the ``devcap: still waiting`` scan reads them), there is no
+    ``result`` (T3 reports no cost) and ``launcher`` is ``"t3code"`` so the digest says cost ``unknown`` rather than zero."""
+    info: Dict[str, Any] = {"result": None, "last_text": "", "background": 0, "raw": "", "launcher": "claude"}
     if not path:
         return info
     try:
@@ -174,6 +178,15 @@ def parse_log(path: Optional[Path]) -> Dict[str, Any]:
             continue
         if event.get("type") == "result":
             info["result"] = event
+        elif event.get("type") == "t3_thread":
+            info["launcher"] = "t3code"
+            thread = (event.get("data") or {}).get("thread")
+            thread = thread if isinstance(thread, dict) else (event.get("data") or {})
+            texts = [str(m.get("text") or "") for m in thread.get("messages") or [] if isinstance(m, dict) and m.get("role") == "assistant"]
+            info["last_text"] = next((t for t in reversed(texts) if t.strip()), info["last_text"])
+            info["raw"] += "\n" + "\n".join(str(c.get("output")) for c in thread.get("toolCalls") or [] if isinstance(c, dict) and c.get("output"))
+        elif t3_launch_seen(event):
+            info["launcher"] = "t3code"
         elif event.get("type") == "assistant":
             content = (event.get("message") or {}).get("content")
             if isinstance(content, str):
@@ -189,6 +202,11 @@ def parse_log(path: Optional[Path]) -> Dict[str, Any]:
     if not info["last_text"] and isinstance(info["result"], dict):
         info["last_text"] = str(info["result"].get("result") or "")
     return info
+
+
+def t3_launch_seen(event: Dict[str, Any]) -> bool:
+    """Is ``event`` the first line a T3 launch writes to the log (``t3_launch``, or ``t3_launch_failed`` when it never started)?"""
+    return event.get("type") in ("t3_launch", "t3_launch_failed")
 
 
 # MARK: - Collection
@@ -251,8 +269,13 @@ def wait_minutes(raw: str) -> Tuple[int, str]:
 
 
 def live_children(runs: Optional[Path]) -> List[str]:
-    """``bg_run`` markers (``LABEL.running``) whose process is still alive."""
+    """``bg_run`` markers (``LABEL.running``) whose process is still alive.
+
+    A ``ci-*`` marker is the orchestrator's sanctioned wait (``orchestrator.md``: start ``ci-<pr>`` and end the turn), so it
+    is not a stray job and is skipped; when stray jobs are listed, a closing "N ci wait" line says how many were skipped.
+    """
     live: List[str] = []
+    waits = 0
     try:
         markers = sorted(runs.glob("*.running")) if runs else []
     except OSError:
@@ -264,7 +287,12 @@ def live_children(runs: Optional[Path]) -> List[str]:
             os.kill(int(pid), 0)
         except (TypeError, ValueError, OSError):
             continue
+        if marker.stem.startswith("ci-"):
+            waits += 1
+            continue
         live.append(f"{marker.stem} pid {pid} still running")
+    if live and waits:
+        live.append(f"{waits} ci wait (sanctioned, not counted)")
     return live
 
 
@@ -426,9 +454,20 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     history = ledger.get("level_history") if isinstance(ledger.get("level_history"), list) else []
     final_level = ledger.get("level")
     hint = gate_hint(gate)
-    override = [f"{h.get('from')} -> {h.get('to')}: {h.get('reason', '')}" for h in history if isinstance(h, dict)]
+    override = []
+    for h in history:
+        if not isinstance(h, dict):
+            continue
+        reason = str(h.get("reason") or "").strip()
+        if hint and h.get("to") == hint and reason:
+            continue  # a recorded raise (or move) onto the gate's own hint is sanctioned, not an override
+        lowered = h.get("from") in LEVELS and h.get("to") in LEVELS and LEVELS.index(h["to"]) < LEVELS.index(h["from"])
+        override.append(f"{h.get('from')} -> {h.get('to')}: {reason}" + ("" if reason or not lowered else " (lowered with no reason recorded)"))
     if hint and final_level in LEVELS and hint != final_level:
-        override.append(f"gate routed to {hint}, final level {final_level}")
+        text = f"gate routed to {hint}, final level {final_level}"
+        if LEVELS.index(final_level) < LEVELS.index(hint) and not any(str(h.get("reason") or "").strip() for h in history if isinstance(h, dict)):
+            text += ": lowered with no reason recorded"
+        override.append(text)
     if override:
         fire("routing_override", *override)
 
@@ -525,7 +564,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         },
         "durations": {"minutes": minutes, "api_minutes": round(float(result.get("duration_api_ms") or 0) / 60000, 1),
                       "slot_wait_minutes": waited},
-        "cost": {"total_cost_usd": result.get("total_cost_usd"), "tokens": tokens, "usage": usage,
+        "cost": {"total_cost_usd": result.get("total_cost_usd"), "tokens": None if log["launcher"] == "t3code" else tokens, "usage": usage,
                  "modelUsage": result.get("modelUsage") if isinstance(result.get("modelUsage"), dict) else {}},
         "outcome": outcome or state or None,
         "level": {"initial": initial, "final": final_level, "gate_hint": hint},

@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,12 @@ class FakeGitHub(ht.GitHub):
         self.pull_files: Dict[str, Dict[str, Any]] = {}
         self.variables: Dict[str, str] = {}
         self.next_id = 100
+        self.branch_pull_list: List[Dict[str, Any]] = []
+        #: Every comment created or edited, as ``(repo, kind, body)``; ``kind`` is ``create`` or ``edit``.
+        self.posts: List[tuple] = []
+        FakeGitHub.created.append(self)
+
+    created: List["FakeGitHub"] = []
 
     def token(self) -> str:
         return "ghp_" + "x" * 30
@@ -66,16 +73,25 @@ class FakeGitHub(ht.GitHub):
 
     def create_comment(self, repo, n, body):
         self.calls.append(("comment", n, body))
+        self.posts.append((repo, "create", body))
         self.next_id += 1
         self.comment_store.setdefault(n, []).append({"id": self.next_id, "body": body, "user": {"login": "SFenton"},
                                                      "created_at": "2026-10-13T12:00:00Z"})
 
     def edit_comment(self, repo, comment_id, body):
         self.calls.append(("edit", comment_id, body))
+        self.posts.append((repo, "edit", body))
         for items in self.comment_store.values():
             for c in items:
                 if c["id"] == comment_id:
                     c["body"] = body
+
+    def branch_pulls(self, repo, branch):
+        self.calls.append(("branch_pulls", branch))
+        return self.branch_pull_list
+
+    def disarm_pull(self, url):
+        self.calls.append(("disarm", url))
 
     def close(self, repo, n, not_planned=False):
         self.calls.append(("close", n, not_planned))
@@ -139,12 +155,27 @@ class Base(unittest.TestCase):
         self.with_tasks = False  # does a new worktree hold tools/tasks.py?
         self.check_rc = 0
         self.new_rc: List[int] = []
+        FakeGitHub.created = []
         self.home = Path(tempfile.mkdtemp(prefix="hass-triage-test-"))
         self.cfg = ht.load_config(self.home)
         self.paths = ht.Paths(self.cfg, self.home)
 
+    #: An invented stand-in for house data (never a real term). Tests that park put it in the worker's text and in the denylist.
+    CANARY = "zzcanaryhouse"
+
+    def assertNoPublicLeak(self):
+        """Fails if the canary is in any comment, created or edited, that a fake GitHub received for the public product repository."""
+        public = self.cfg["product_repo"]
+        for gh in FakeGitHub.created:
+            for repo, kind, body in gh.posts:
+                if repo == public:
+                    self.assertNotIn(self.CANARY, body, f"house-data canary reached a {kind} on the public repository")
+
     def tearDown(self):
-        shutil.rmtree(self.home, ignore_errors=True)
+        try:
+            self.assertNoPublicLeak()
+        finally:
+            shutil.rmtree(self.home, ignore_errors=True)
 
     def runner(self, gh: FakeGitHub, status: Optional[Dict[str, Any]] = None, code: int = 0, **kw) -> ht.Runner:
         def launch(n, worktree, prompt, log):
@@ -304,7 +335,11 @@ class PreReadTests(Base):
             text = self.render()
         self.assertIn(self.SECTION, text)
         self.assertLess(text.index("</issue-comments>"), text.index("## Pre-read"))
-        self.assertLess(text.index("## Pre-read"), text.index("## Rules you work under"))
+        # The section sits where the template puts it: before whatever heading follows the placeholder.
+        template = (ht.HERE / "prompts" / "worker.md").read_text(encoding="utf-8")
+        after = template.split("{{PREREAD}}", 1)[1]
+        following = next(line for line in after.splitlines() if line.startswith("## "))
+        self.assertLess(text.index("## Pre-read"), text.index(following))
         section.assert_called_once_with(self.cfg, "[Bug] Thing 9", "The Next run pill is cut off")
         self.assertNotIn("{{", text)
 
@@ -634,7 +669,7 @@ class InstallTests(Base):
         (self.paths.config_dir / "config.json").write_text(json.dumps({"agent": {"effort": "max"}}))
         cfg = ht.load_config(self.home)
         self.assertEqual(cfg["agent"]["effort"], "max")
-        self.assertEqual(cfg["agent"]["model"], "claude-opus-5-5")
+        self.assertEqual(cfg["agent"]["model"], "claude-fable-5-2")
 
 
 class NightlyIntakeTests(Base):
@@ -764,6 +799,7 @@ class NightlyIntakeTests(Base):
 
 
 PRODUCT_PR = "https://github.com/SFenton/native-home/pull/70"
+PR_NUMBER = 70
 
 
 class LabelRetryTests(Base):
@@ -1386,9 +1422,10 @@ class LevelRaiseTests(Base):
 
 
 class AgentFlagTests(Base):
-    def argv(self, agent_cfg):
+    def argv(self, agent_cfg, agent_override=None):
         self.cfg["agent"].update(agent_cfg)
         runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: None)
+        runner.agent_override = agent_override
         runner.state.data["current"] = {"issue": 1}
         captured: list = []
 
@@ -1412,6 +1449,24 @@ class AgentFlagTests(Base):
         self.argv({})
         self.assertEqual(self.launch_env["FENTON_HEADLESS"], "1")
         self.assertEqual(self.launch_env["FENTON_DEVCAP_MAX_WAIT"], "1200")
+
+    def test_worker_runs_fable_medium_and_the_reviewer_keeps_opus_high(self):
+        """Fails if the reviewer inherits the worker's Fable model or medium effort."""
+        argv = self.argv({})
+        self.assertEqual((argv[argv.index("--model") + 1], argv[argv.index("--effort") + 1]), ("claude-fable-5-2", "medium"))
+        argv = self.argv({}, agent_override="reviewer")
+        self.assertEqual((argv[argv.index("--model") + 1], argv[argv.index("--effort") + 1]), ("claude-opus-5-5", "high"))
+        self.assertEqual(argv[argv.index("--agent") + 1], "reviewer")
+
+    def test_reviewer_without_model_config_does_not_inherit_worker(self):
+        """Fails if an absent or partial reviewer config falls back to Fable medium."""
+        for reviewer in (None, {}, {"model": "claude-opus-5-5"}, {"effort": "high"}):
+            with self.subTest(reviewer=reviewer):
+                self.cfg["agent"].pop("reviewer", None)
+                config = {} if reviewer is None else {"reviewer": reviewer}
+                argv = self.argv(config, agent_override="reviewer")
+                self.assertEqual(argv[argv.index("--model") + 1], "claude-opus-5-5")
+                self.assertEqual(argv[argv.index("--effort") + 1], "high")
 
     def test_orchestrator_agent_is_on_by_default_and_can_be_turned_off(self):
         self.assertEqual(ht.load_config(self.home)["agent"]["agent"], "orchestrator")
@@ -1464,6 +1519,249 @@ class ParkTests(Base):
         self.assertEqual(runner.state.data["parked"]["80"]["pr"], PRODUCT_PR)
         self.assertEqual(runner.state.attempts(80), 0)
         self.assertFalse([c for c in self.commands if "worktree" in c and "remove" in c])
+
+    def pr_comments(self, gh):
+        return [c for c in gh.comment_store.get(PR_NUMBER, []) if ht.marker(PR_NUMBER, "decision-needed") in c["body"]]
+
+    def with_denylist(self, terms="zzfixtureterm\n"):
+        path = Path(tempfile.mkdtemp()) / "deny.txt"
+        path.write_text(terms)
+        path.chmod(0o600)
+        return mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": str(path)})
+
+    def park_with(self, question="Which chip layout?", option="Inline", n=90, gh=None, repo=""):
+        gh = gh or FakeGitHub([issue(n, labels=["Feature"])])
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        status = self.decision_status()
+        status["decision"]["question"] = question
+        status["decision"]["options"][0]["summary"] = option
+        runner = self.runner(gh, status)
+        if repo:
+            runner.cfg["request_repo"] = repo
+        with mock.patch("sys.stdout", new=io.StringIO()) as out:
+            runner.park(n, status, status["decision"], "- A", PRODUCT_PR)
+        return gh, runner, out.getvalue()
+
+    def test_park_asks_once_on_the_pull_request_and_once_on_the_issue(self):
+        with self.with_denylist():
+            gh, runner, _ = self.park()
+            on_pr = self.pr_comments(gh)
+            self.assertEqual(len(on_pr), 1)
+            for part in ("Which chip layout?", "1. **A**: Inline", "2. **B**: Stacked", "Recommended: **A**",
+                         "To decide: reply on the request issue with your pick, or approve and merge this pull request "
+                         "to accept the recommendation."):
+                self.assertIn(part, on_pr[0]["body"])
+            self.assertTrue(on_pr[0]["body"].split("\n\n<!--")[0].endswith("to accept the recommendation."))
+            self.assertNotIn("Reply `1`", on_pr[0]["body"])
+            self.assertEqual(len([c for c in gh.comment_store[80] if ht.marker(80, "decision-needed") in c["body"]]), 1)
+            before = len(gh.calls)
+            runner.park(80, self.decision_status(), self.decision_status()["decision"], "- A", PRODUCT_PR)  # identical repeat
+            self.assertEqual(len(gh.comment_store[PR_NUMBER]), 1)
+            self.assertFalse([c for c in gh.calls[before:] if c[0] == "edit" and c[1] == on_pr[0]["id"]])
+
+    def test_a_second_park_with_new_text_edits_the_runners_comment_in_place(self):
+        with self.with_denylist():
+            gh, _, _ = self.park_with()
+            gh, _, _ = self.park_with(question="Which toggle style?", gh=gh)
+            on_pr = self.pr_comments(gh)
+            self.assertEqual(len(on_pr), 1)
+            self.assertIn("Which toggle style?", on_pr[0]["body"])
+            self.assertNotIn("Which chip layout?", on_pr[0]["body"])
+
+    def canary_status(self, question="Which chip layout?"):
+        """A park whose question, option summary and recommendation all carry the canary."""
+        status = self.decision_status()
+        status["decision"]["question"] = f"{question} {self.CANARY}"
+        status["decision"]["options"][0]["summary"] = f"Inline {self.CANARY}"
+        status["decision"]["recommendation"] = f"A {self.CANARY}"
+        status["screenshots"] = [{"kind": "image", "file": f"chip-{self.CANARY}.png", "url": "https://example.test/chip.png",
+                                  "caption": f"Inline {self.CANARY}"}]
+        return status
+
+    def park_canary(self, gh, n, nightly, question="Which chip layout?"):
+        """Park issue ``n`` with canary text; ``nightly`` runs the nightly intake, whose issue is on the public repository."""
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        status = self.canary_status(question)
+        runner = self.runner(gh, status)
+        if nightly:
+            runner.intake = self.cfg["nightly"]
+            runner.repo = self.cfg["nightly"]["repo"]
+        with mock.patch("sys.stdout", new=io.StringIO()) as out:
+            runner.park(n, status, status["decision"], "\n".join(f"- {o['summary']}" for o in status["decision"]["options"]),
+                        PRODUCT_PR)
+        return runner, out.getvalue()
+
+    def issue_comments(self, gh, repo, n):
+        return [c for c in gh.comment_store.get(n, []) if ht.marker(n, "decision-needed") in c["body"]]
+
+    def test_a_park_never_sends_house_data_to_the_public_repository_on_either_intake(self):
+        """Fails if the canary reaches a pull request comment or, on the nightly intake, the issue comment on the product repository."""
+        for nightly, n in ((False, 120), (True, 121)):
+            with self.subTest(nightly=nightly), self.with_denylist(f"{self.CANARY}\n"):
+                gh = FakeGitHub([issue(n, labels=["Nightly Fix" if nightly else "Feature"])])
+                runner, out = self.park_canary(gh, n, nightly)
+                self.assertEqual(runner.state.data["parked"][str(n)]["pr"], PRODUCT_PR)
+                self.assertNotIn(self.CANARY, out)
+                self.assertTrue(gh.posts)
+                on_issue = self.issue_comments(gh, runner.repo, n)
+                self.assertEqual(len(on_issue), 1)
+                if nightly:  # the issue is on the public repository: fixed text, the pull request still named
+                    self.assertEqual(runner.repo, self.cfg["product_repo"])
+                    self.assertIn(PRODUCT_PR, on_issue[0]["body"])
+                    self.assertIn("hit(s)", out)
+                else:  # the private request repository keeps the full question
+                    self.assertIn("Which chip layout?", on_issue[0]["body"])
+                self.assertIn(ht.GENERIC_PULL_QUESTION, self.pr_comments(gh)[0]["body"])
+
+    def test_a_second_park_with_different_text_edits_in_place_and_never_leaks(self):
+        """Fails if a second park (new text, canary in it) leaves the canary, or a second comment, on the public repository."""
+        for nightly, n in ((False, 122), (True, 123)):
+            with self.subTest(nightly=nightly), self.with_denylist(f"{self.CANARY}\n"):
+                gh = FakeGitHub([issue(n, labels=["Nightly Fix" if nightly else "Feature"])])
+                self.park_canary(gh, n, nightly, question="First question?")
+                first = len(gh.posts)  # a start index, never a clear: tearDown must still see the first park
+                clean = self.decision_status()
+                clean["decision"]["question"] = "Second question?"
+                runner = self.runner(gh, clean)
+                if nightly:
+                    runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+                with mock.patch("sys.stdout", new=io.StringIO()):
+                    runner.park(n, clean, clean["decision"], "- A", PRODUCT_PR)
+                    runner.park(n, self.canary_status("Third question?"), self.canary_status("Third question?")["decision"],
+                                f"- {self.CANARY}", PRODUCT_PR)
+                self.assertEqual(len(self.pr_comments(gh)), 1)
+                self.assertEqual(len(self.issue_comments(gh, runner.repo, n)), 1)
+                self.assertTrue([p for p in gh.posts[first:] if p[1] == "edit"])
+
+    def test_a_canary_only_in_a_screenshot_caption_or_file_name_stays_off_the_public_issue(self):
+        """Fails if the park checks a body without the screenshots part but posts it with them."""
+        n = 124
+        with self.with_denylist(f"{self.CANARY}\n"):
+            gh = FakeGitHub([issue(n, labels=["Nightly Fix"])])
+            gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+            status = self.decision_status(screenshots=self.canary_status()["screenshots"])
+            runner = self.runner(gh, status)
+            runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+            with mock.patch("sys.stdout", new=io.StringIO()) as out:
+                runner.park(n, status, status["decision"], "- A", PRODUCT_PR)
+            on_issue = self.issue_comments(gh, runner.repo, n)
+            self.assertEqual(len(on_issue), 1)
+            self.assertIn(PRODUCT_PR, on_issue[0]["body"])
+            self.assertNotIn("Which chip layout?", on_issue[0]["body"])
+            self.assertNotIn(self.CANARY, out.getvalue())
+
+    def test_a_nightly_decision_without_a_parkable_pull_request_never_leaks(self):
+        """Fails if the plain decision comment on the public product repository carries worker text that fails the check."""
+        for n, pr in ((125, ""), (126, PRODUCT_PR)):
+            with self.subTest(pr=pr), self.with_denylist(f"{self.CANARY}\n"):
+                gh = FakeGitHub([issue(n, labels=["Nightly Fix"])])
+                if pr:
+                    gh.pulls[PRODUCT_PR] = {"state": "CLOSED", "labels": []}
+                status = self.canary_status()
+                status["pr"] = pr
+                runner = self.runner(gh, status)
+                runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+                with mock.patch("sys.stdout", new=io.StringIO()) as out:
+                    self.assertEqual(runner.work(n), "needs_decision")
+                on_issue = self.issue_comments(gh, runner.repo, n)
+                self.assertEqual(len(on_issue), 1)
+                self.assertIn(ht.GENERIC_DECISION_ISSUE, on_issue[0]["body"])
+                self.assertNotIn(self.CANARY, out.getvalue())
+                self.assertIn("issue comment", out.getvalue())
+
+    def test_a_clean_nightly_decision_without_a_pull_request_keeps_its_text(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(127, labels=["Nightly Fix"])])
+            runner = self.runner(gh, self.decision_status(pr=""))
+            runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(runner.work(127), "needs_decision")
+            self.assertIn("Which chip layout?", self.issue_comments(gh, runner.repo, 127)[0]["body"])
+
+    def test_the_repository_match_ignores_case(self):
+        """Fails if a nightly repository spelled in another case skips the check."""
+        with self.with_denylist(f"{self.CANARY}\n"):
+            gh = FakeGitHub([issue(128, labels=["Nightly Fix"])])
+            gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+            status = self.canary_status()
+            runner = self.runner(gh, status)
+            runner.intake = self.cfg["nightly"]
+            runner.repo = self.cfg["nightly"]["repo"].upper()
+            self.assertNotEqual(runner.repo, self.cfg["nightly"]["repo"])
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                runner.park(128, status, status["decision"], "- A", PRODUCT_PR)
+            self.assertTrue([p for p in gh.posts if p[2].count(ht.GENERIC_PARK_ISSUE)])
+
+    def test_a_marker_comment_by_another_author_is_ignored(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(91, labels=["Feature"])])
+            tag = ht.marker(PR_NUMBER, "decision-needed")
+            gh.comment_store[PR_NUMBER] = [{"id": 5, "body": tag, "user": {"login": "stranger"}}]
+            gh, _, _ = self.park_with(gh=gh, n=91)
+            self.assertEqual(gh.comment_store[PR_NUMBER][0]["body"], tag)
+            self.assertEqual(len(gh.comment_store[PR_NUMBER]), 2)
+            self.assertIn("Which chip layout?", gh.comment_store[PR_NUMBER][1]["body"])
+
+    def assert_generic(self, gh, out, secret):
+        on_pr = self.pr_comments(gh)
+        self.assertEqual(len(on_pr), 1)
+        self.assertIn(ht.GENERIC_PULL_QUESTION, on_pr[0]["body"])
+        self.assertNotIn("Which chip layout?", on_pr[0]["body"])
+        self.assertNotIn(secret, on_pr[0]["body"])
+        self.assertNotIn(secret, out)
+
+    def test_a_denylisted_term_posts_the_generic_comment_and_prints_no_term(self):
+        with self.with_denylist("zzfixtureterm\n"):
+            gh, _, out = self.park_with(option="uses zzfixtureterm lamp")
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("hit(s)", out)
+
+    def test_the_private_repository_name_or_an_issue_link_posts_the_generic_comment(self):
+        repo = "Fixture/zzprivate-requests"
+        for n, leak in ((92, "zzprivate-requests"), (93, f"https://github.com/{repo}/issues/12")):
+            with self.with_denylist():
+                gh, _, out = self.park_with(option=f"see {leak}", n=n, repo=repo)
+            self.assert_generic(gh, out, "zzprivate-requests")
+
+    def test_an_unloaded_denylist_posts_the_generic_comment(self):
+        with mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": str(Path(tempfile.mkdtemp()) / "none.txt")}):
+            gh, _, out = self.park_with()
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("denylist not loaded", out)
+
+    def test_a_checker_error_posts_the_generic_comment(self):
+        with self.with_denylist(), mock.patch("house_scan.scan_text", side_effect=RuntimeError("boom zzfixtureterm")):
+            gh, _, out = self.park_with()
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("check failed", out)
+
+    def test_any_post_failure_leaves_the_park_intact(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(94, labels=["Feature"])])
+            real = gh.comments
+
+            def comments(repo, n):
+                if n == PR_NUMBER:
+                    raise AttributeError("odd")
+                return real(repo, n)
+            gh.comments = comments
+            gh2, runner, _ = self.park_with(gh=gh, n=94)
+            self.assertIn("94", runner.state.data["parked"])
+
+    def test_a_failing_pull_request_post_never_stops_the_park(self):
+        gh = FakeGitHub([issue(86, labels=["Feature"])])
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        create = gh.create_comment
+
+        def failing(repo, n, body):
+            if n == PR_NUMBER:
+                raise ht.TriageError("denied")
+            create(repo, n, body)
+        gh.create_comment = failing
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(self.runner(gh, self.decision_status()).work(86), "parked")
+        self.assertIn(("label_pull", PRODUCT_PR, "Needs Decision", ""), gh.calls)
+        self.assertEqual(len([c for c in gh.comment_store[86] if ht.marker(86, "decision-needed") in c["body"]]), 1)
 
     def test_a_design_pick_is_not_parked_it_is_sent_back_to_be_judged(self):
         gh = FakeGitHub([issue(85, labels=["Feature"])])
@@ -1935,6 +2233,17 @@ class PromptFileTests(Base):
             for part in ("R-5", "Route: x", "orchestrator", "pr_land.sh", "(Triage)", "devcap"):
                 self.assertIn(part, text, template)
 
+    def test_prompts_name_only_files_that_exist(self):
+        """Fails if: a prompt sends the session to a skill, agent file or tool that is not in the tree. Workflow rule docs are
+        left to the rule-surface lint, which knows their fixed names."""
+        root = ht.HERE.parents[1]
+        for path in sorted((ht.HERE / "prompts").glob("*.md")):
+            named = re.findall(r"`((?:\.agents|\.claude|tools)/[\w./-]+\.(?:md|py|sh|json))`", path.read_text())
+            self.assertTrue(named, path.name)
+            for rel in named:
+                if not rel.startswith(".agents/workflow/"):
+                    self.assertTrue((root / rel).exists(), f"{path.name}: {rel}")
+
     def test_worker_prompt_has_the_level_rules(self):
         text = (ht.HERE / "prompts" / "worker.md").read_text()
         for part in ("L0", "L1", "L2", "needs_decision", "owner_only", "gate: park", "Do not park a design pick", "Refs "):
@@ -2161,6 +2470,262 @@ class HaRollbackAlertTests(Base):
         runner = self.tick(gh)
         self.assertNotIn("unreachable_since", runner.state.data["ha_changes"])
         self.assertIsNone(ht.status_report(self.cfg, self.paths, gh)["ha_changes_unreachable_since"])
+
+
+class T3LauncherTests(Base):
+    """``agent.launcher``: ``claude`` (the default) keeps today's argv; ``t3code`` hands the session to ``t3launch``."""
+
+    argv = AgentFlagTests.argv  # captures the argv `_launch` gives Popen
+
+    GOLDEN_HEAD = ["claude", "-p", "--model", "claude-fable-5-2", "--effort", "medium", "--permission-mode", "auto", "--output-format",
+                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools", "Bash(tools/pr_land.sh*),Bash(tools/ship.sh*)",
+                   "--disallowedTools"]
+
+    def worktree(self, settings=True):
+        tree = self.home / "tree"
+        (tree / ".claude").mkdir(parents=True, exist_ok=True)
+        (tree / ".claude" / "settings.json").write_text(json.dumps(
+            {"agent": "orchestrator", "hooks": {"PreToolUse": [{"hooks": [{"command": "tools/hooks/triage_deny.py"}]}]}} if settings else {}))
+        return tree
+
+    def runner_for(self, **agent):
+        self.cfg["agent"].update(agent)
+        return ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""))
+
+    def test_the_default_launcher_is_claude_and_its_argv_is_the_golden_one(self):
+        self.assertEqual(ht.load_config(self.home)["agent"]["launcher"], "claude")
+        argv = self.argv({})
+        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+        self.assertEqual(argv[-1], ",".join(self.cfg["agent"]["disallowed_tools"]))
+        self.assertEqual(argv, self.argv({"launcher": "claude"}))
+        base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
+        expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
+                    "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(1)), "HASS_TRIAGE_BIN": str(ht.HERE / "hass_triage.py"),
+                    "FENTON_DEVCAP_MAX_WAIT": "1200", "FENTON_HEADLESS": "1", **base}
+        self.assertEqual(self.launch_env, expected)  # exactly today's environment: no key added or dropped
+
+    def test_the_t3_block_does_not_touch_the_deny_list(self):
+        agent = self.cfg["agent"]
+        self.assertEqual(agent["t3"]["version"], "0.3.0")
+        self.assertEqual(agent["t3"]["checkout"], "current")
+        self.assertNotIn("Bash(*t3code*)", agent["disallowed_tools"])  # extras ride in the record, not in the claude flags
+
+    def claude_popen(self, runner, tree):
+        """Run ``runner._launch`` with Popen faked; the argv it gave Popen (None when it never reached Popen)."""
+        runner.state.data["current"] = {"issue": 7}
+        got = []
+
+        class FakeProc:
+            pid = 99
+            stdin = mock.Mock()
+
+            def wait(self, timeout=None):
+                return 0
+
+        with mock.patch.object(subprocess, "Popen", lambda argv, **kw: got.append(argv) or FakeProc()), \
+                mock.patch.object(ht.shutil, "which", return_value=None):
+            runner._launch(7, tree, "p", self.home / "log")
+        return got[0] if got else None
+
+    def test_t3code_is_used_for_a_worker_whose_settings_agree(self):
+        runner = self.runner_for(launcher="t3code")
+        with mock.patch.object(runner, "_t3_launch", return_value=5) as t3:
+            self.assertEqual(runner._launch(7, self.worktree(), "p", self.home / "log"), 5)
+        t3.assert_called_once()
+
+    def test_the_reviewer_is_always_claude_whatever_the_launcher(self):
+        runner = self.runner_for(launcher="t3code")
+        runner.agent_override = "reviewer"
+        with mock.patch.object(runner, "_t3_launch") as t3:
+            argv = self.claude_popen(runner, self.worktree())
+        t3.assert_not_called()
+        self.assertEqual(argv[argv.index("--agent") + 1], "reviewer")
+        self.assertIn("Bash(git push*)", argv[argv.index("--disallowedTools") + 1])
+
+    def test_a_worktree_without_the_hook_falls_back_to_the_claude_path(self):
+        runner = self.runner_for(launcher="t3code")
+        with mock.patch.object(runner, "_t3_launch") as t3:
+            argv = self.claude_popen(runner, self.worktree(settings=False))
+        t3.assert_not_called()
+        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+
+    def test_a_t3_launch_passes_the_record_inputs_and_keeps_the_thread_in_the_state(self):
+        runner = self.runner_for(launcher="t3code")
+        runner.state.data["current"] = {"issue": 7}
+        tree = self.worktree()
+        seen = {}
+
+        class FakeLauncher:
+            def __init__(self, agent, home, root, env, run):
+                seen["env"] = env
+
+            def launch(self, **kw):
+                seen.update(kw)
+                kw["on_thread"]("thread-1")
+                return ht.t3launch.Outcome(0, "thread-1", True, False)
+
+        awake = mock.Mock()
+        popen = mock.Mock(return_value=awake)
+        with mock.patch.object(ht.t3launch, "Launcher", FakeLauncher), mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch.object(ht.shutil, "which", return_value="/usr/bin/caffeinate"), mock.patch.object(subprocess, "Popen", popen), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner._launch(7, tree, "the prompt", self.home / "logs" / "7-1.log"), 0)
+        self.assertEqual(popen.call_args[0][0], ["caffeinate", "-is", "-w", str(os.getpid())])  # awake for the whole session
+        awake.terminate.assert_called_once()
+        self.assertEqual((seen["kind"], seen["issue"], seen["role"], seen["prompt"]), ("request", 7, "worker", "the prompt"))
+        self.assertEqual(seen["timeout"], 300 * 60)
+        self.assertEqual(seen["deny"], self.cfg["agent"]["disallowed_tools"])
+        self.assertEqual(seen["session_env"]["FENTON_HEADLESS"], "1")
+        self.assertEqual(seen["session_env"]["HASS_TRIAGE_ISSUE"], "7")
+        self.assertNotIn("HOME", seen["session_env"])
+        self.assertTrue(runner.stray)
+        self.assertEqual(runner.state.data["current"]["thread"], "thread-1")
+        self.assertEqual(runner.state.data["current"]["launcher"], "t3code")
+
+    def test_a_job_and_a_retro_and_the_nightly_intake_get_their_own_kind(self):
+        tree = self.worktree()
+        for key, intake, kind in (("job-steward", None, "job"), ("retro-R-1", None, "retro"), (5, {"repo": "r", "authors": [], "label": "Nightly Fix"}, "nightly")):
+            self.cfg["agent"]["launcher"] = "t3code"
+            runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""),
+                               intake=intake)
+            kinds = []
+            with mock.patch.object(ht.t3launch, "Launcher") as launcher, mock.patch.object(runner, "trusted_clone", return_value=self.home):
+                launcher.return_value.launch.side_effect = lambda **kw: kinds.append(kw["kind"]) or ht.t3launch.Outcome(0, "t")
+                runner._launch(key, tree, "p", self.home / "log")
+            self.assertEqual(kinds, [kind])
+
+    def test_a_launch_that_cannot_start_safely_is_logged_and_returns_one(self):
+        runner = self.runner_for(launcher="t3code")
+        tree, log = self.worktree(), self.home / "logs" / "7-1.log"
+        with mock.patch.object(ht.t3launch, "Launcher") as launcher, mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            launcher.return_value.launch.side_effect = ht.t3launch.LaunchError("guard files differ")
+            self.assertEqual(runner._launch(7, tree, "p", log), 1)
+        self.assertIn("guard files differ", out.getvalue())
+        self.assertEqual(json.loads(log.read_text())["type"], "t3_launch_failed")
+        self.assertIn("guard files differ", runner.log_tail(log))
+
+    def test_tampered_guard_hooks_block_the_issue_and_undo_an_armed_pull_request(self):
+        """Fails if: after guard_tampered an auto-merge the worker armed inside the session stays armed, or the merge label stays."""
+        gh = FakeGitHub([issue(31)])
+        pr = "https://github.com/SFenton/native-home/pull/77"
+        gh.branch_pull_list = [{"url": pr, "state": "OPEN", "labels": [{"name": "Ready to Merge"}]},
+                               {"url": pr.replace("77", "70"), "state": "MERGED", "labels": []}]
+        runner = self.runner(gh, {"state": "done", "summary": "x", "pr": PRODUCT_PR, "tests_passed": True})
+        plain = runner.launch
+
+        def tampered(*args):
+            code = plain(*args)
+            runner.guard_tampered = True
+            return code
+
+        runner.launch = tampered
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.work(31), "blocked")
+        self.assertIn("Blocked", ht.label_names(gh.issues[31]))
+        self.assertIn(("branch_pulls", "report/31"), gh.calls)
+        self.assertIn(("disarm", pr), gh.calls)
+        self.assertNotIn(("disarm", pr.replace("77", "70")), gh.calls)
+        body = [c for c in gh.calls if c[0] == "comment"][-1][2]
+        self.assertIn("auto-merge on " + pr + " was turned off", body)
+        self.assertIn("pull/70 had already merged", body)
+        self.assertNotIn("Merging", ht.label_names(gh.issues[31]))
+
+    def test_stray_processes_alone_also_block_and_disarm_the_pull_request(self):
+        """Fails if: a T3 session that left a process behind keeps an auto-merge it armed, because only guard_tampered undid it."""
+        gh = FakeGitHub([issue(33)])
+        pr = "https://github.com/SFenton/native-home/pull/78"
+        gh.branch_pull_list = [{"url": pr, "state": "OPEN", "labels": []}]
+        runner = self.runner(gh, {"state": "done", "summary": "x", "pr": PRODUCT_PR, "tests_passed": True})
+        plain = runner.launch
+
+        def straying(*args):
+            code = plain(*args)
+            runner.t3_stray = True
+            return code
+
+        runner.launch = straying
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.work(33), "blocked")
+        self.assertIn(("disarm", pr), gh.calls)
+        self.assertIn("blocked:stray", [h["outcome"] for h in runner.state.data["history"]])
+
+    def test_a_launch_error_that_found_a_stray_is_a_stray(self):
+        runner = self.runner_for(launcher="t3code")
+        tree = self.worktree()
+        with mock.patch.object(ht.t3launch, "Launcher") as launcher, mock.patch.object(runner, "trusted_clone", return_value=self.home), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            launcher.return_value.launch.side_effect = ht.t3launch.LaunchError("handover failed", True)
+            self.assertEqual(runner._launch(7, tree, "p", self.home / "logs" / "7-1.log"), 1)
+        self.assertTrue(runner.t3_stray)
+
+    def test_the_t3_install_folder_is_denied_to_the_session(self):
+        extra = self.cfg["agent"]["t3"]["extra_denied"]
+        self.assertIn("Write(~/hass-agents/tools/t3code/**)", extra)
+        self.assertIn("Edit(~/hass-agents/tools/t3code/**)", extra)
+
+    def test_a_pull_request_list_that_fails_is_said_in_the_block_comment(self):
+        gh = FakeGitHub([issue(32)])
+        gh.branch_pulls = lambda repo, branch: (_ for _ in ()).throw(ht.TriageError("offline"))
+        self.assertIn("could not be listed", self.runner(gh).undo_landing(32))
+
+    def test_preflight_refuses_the_tick_when_t3_is_not_ready_and_launches_when_it_cannot_say(self):
+        for ready, launches in (((False, "T3 does not speak protocol 2"), 0), ((None, "no report"), 1), ((True, ""), 1)):
+            self.cfg["agent"]["launcher"] = "t3code"
+            ht._PRINTED.clear()
+            gh = FakeGitHub([issue(32)])
+            runner = self.runner(gh, {"state": "no_changes", "summary": "x"})
+            with mock.patch.object(ht.t3launch, "ready", return_value=ready), mock.patch("sys.stdout", new=io.StringIO()) as out:
+                runner.tick()
+            self.assertEqual(len([p for p in self.prompts if "request #" in p]), launches, ready)
+            if not launches:
+                self.assertIn("t3code launcher is not ready: T3 does not speak protocol 2", out.getvalue())
+                self.assertEqual(gh.calls, [])
+
+    def test_preflight_ignores_t3_for_the_claude_launcher(self):
+        with mock.patch.object(ht.t3launch, "ready") as ready:
+            self.assertTrue(self.runner(FakeGitHub([])).preflight())
+        ready.assert_not_called()
+
+    def test_status_report_names_the_launcher_and_the_thread(self):
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
+        self.assertEqual((report["launcher"], report["t3_ready"], report["t3_thread"]), ("claude", None, None))
+        state = ht.State(self.paths.state)
+        state.data["current"] = {"issue": 7, "thread": "thread-1", "launcher": "t3code"}
+        state.save()
+        self.cfg["agent"]["launcher"] = "t3code"
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True, True)
+        self.assertEqual((report["launcher"], report["t3_ready"], report["t3_thread"]), ("t3code", True, "thread-1"))
+
+    def test_cleanup_and_the_worktree_removals_forget_the_triage_records(self):
+        session = ht.t3launch.session_module()
+        root = ht.t3launch.registry_root(self.home)
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(33)
+        tree.mkdir(parents=True)
+        session.write_record(session.build_record("request", 33, "worker", tree, "report/33", {"FENTON_HEADLESS": "1"}, []), root)
+        self.assertTrue(session.path_record(tree, root).exists())
+        runner._keep = set()
+        runner.cleanup(33)
+        self.assertFalse(session.path_record(tree, root).exists())
+        dry = self.runner(FakeGitHub([], dry_run=True), dry_run=True)
+        session.write_record(session.build_record("request", 33, "worker", tree, "report/33", {"FENTON_HEADLESS": "1"}, []), root)
+        dry._drop_worktree(tree, str(self.paths.clone))
+        self.assertTrue(session.path_record(tree, root).exists())  # a dry run removes nothing
+
+    def test_status_command_prints_the_launcher_line(self):
+        self.cfg["agent"]["launcher"] = "t3code"
+        fake = FakeGitHub([])
+        with mock.patch.object(ht, "GitHub", return_value=fake), mock.patch.object(ht, "claude_logged_in", return_value=True), \
+                mock.patch.object(ht, "load_config", return_value=self.cfg), \
+                mock.patch.object(ht.t3launch, "ready", return_value=(True, "")), mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertEqual(ht.main(["status"], home=self.home), 0)
+        self.assertIn("launcher: t3code (ready)", out.getvalue())
+
+    def test_install_t3code_runs_the_pinned_install(self):
+        with mock.patch.object(ht.t3launch, "install", return_value=0) as install:
+            self.assertEqual(ht.main(["install-t3code"], home=self.home), 0)
+        self.assertEqual(install.call_args[0][0], self.paths.root)
 
 
 if __name__ == "__main__":

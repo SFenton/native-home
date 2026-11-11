@@ -60,7 +60,10 @@ final class UKHostedLoginServerTests: XCTestCase {
         XCTAssertEqual(server.accessibilityLabel, "Server address")
         let ids = HostedDriver.identifiers(in: page.view)
         XCTAssertTrue(ids.contains("login.server"))
-        XCTAssertFalse(ids.contains("login.server.readonly"), "a fresh sign-in has the editable row")
+        // Both Server rows are always in the module and `configure(mode:)` hides one (`UKLoginFieldsModule`), so "the editable row"
+        // is a visibility check, as the welcome back test below reads it.
+        XCTAssertEqual(view("login.server.readonly", in: page)?.isHidden, true, "a fresh sign-in has the editable row, not the read-only one")
+        XCTAssertFalse(HostedPage.descendants(of: page.view).contains { $0.isHidden && server.isDescendant(of: $0) }, "and the editable row is shown")
         let username = try XCTUnwrap(view("login.username", in: page))
         XCTAssertLessThan(server.convert(server.bounds, to: page.view).minY, username.convert(username.bounds, to: page.view).minY)
         XCTAssertTrue(HostedPage.labels(in: page.view).contains("Server"), "the visible label")
@@ -152,7 +155,11 @@ final class UKHostedLoginServerTests: XCTestCase {
         submit(page)
         hostedSettle(1.5)
         XCTAssertTrue(HostedDriver.identifiers(in: page.view).contains("login.error.card"))
-        XCTAssertTrue(HostedPage.labels(in: page.view).contains("Can't reach Home Assistant"))
+        // The card's title is drawn after a warning symbol (an attributed string), so its text ends with the words and its
+        // accessibility label is the words alone (`UKLoginFailureCardView`).
+        let title = HostedPage.descendants(of: page.view).compactMap { $0 as? UILabel }.first { $0.accessibilityLabel == LoginCopy.unreachableTitle }
+        XCTAssertEqual(LoginCopy.unreachableTitle, "Can't reach Home Assistant")
+        XCTAssertEqual(title?.text?.hasSuffix(LoginCopy.unreachableTitle), true, "the card is titled \(LoginCopy.unreachableTitle); saw \(HostedPage.labels(in: page.view))")
         XCTAssertEqual(module(in: page)?.showsServerOutline, false, "the address may be right")
     }
 

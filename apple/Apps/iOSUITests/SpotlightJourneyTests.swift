@@ -12,6 +12,7 @@ final class SpotlightJourneyTests: JourneyTestCase {
         guard let token = ProcessInfo.processInfo.environment["FENTON_HASS_TOKEN"], !token.isEmpty else {
             throw XCTSkip("Set TEST_RUNNER_FENTON_HASS_TOKEN to run the Spotlight journeys")
         }
+        try FentonHomeApp.requireServer()
         let app = FentonHomeApp.makeApp()
         app.launchEnvironment["FENTON_UITEST_RESET"] = "1"
         app.launchEnvironment["FENTON_HASS_TOKEN"] = token

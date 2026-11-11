@@ -59,6 +59,105 @@ class PerFamilyFilterTests(unittest.TestCase):
         self.assertIn('echo "${FAMILY_ARGS[*]-}|plan:$PLAN_ARGS', text)
 
 
+class HostedLegTests(unittest.TestCase):
+    """``--changed`` also runs the diff's hosted classes (FentonHomeTests) on iPhone, as one extra ``--hosted`` run (dry run: ``hosted: …``)."""
+    CLIMATE = "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift"
+    MYSTERY = "apple/Sources/HassUI/UIKitPort/Features/Mystery/UKThing.swift"
+
+    def dry(self, files, *args):
+        got, out = filters(files, None, *args)
+        hosted = [line.split(": ", 1)[1] for line in out.stdout.splitlines() if line.startswith("hosted: ")]
+        return hosted, got, out
+
+    def test_the_journeys_run_and_then_the_hosted_classes_are_named(self):
+        hosted, got, out = self.dry([self.CLIMATE])
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(hosted, ["UKHostedClimateSheetTests"])
+        self.assertIn("iphone", got)
+        self.assertLess(out.stdout.index("iphone: "), out.stdout.index("hosted: "))
+
+    def test_a_diff_with_no_hosted_class_adds_nothing(self):
+        hosted, _, out = self.dry(["apple/Sources/HassCore/Climate/ClimateLogic.swift", "apple/Sources/HassUI/Features/Chores/ChoresView.swift"])
+        self.assertEqual((hosted, out.returncode), ([], 0))
+
+    def test_only_a_non_primary_family_or_the_smoke_plan_adds_no_hosted_run(self):
+        for args in (("--only", "duo"), ("--only", "ipad"), ("--plan", "Smoke")):
+            hosted, _, _ = self.dry([self.CLIMATE], *args)
+            self.assertEqual(hosted, [], args)
+        self.assertEqual(self.dry([self.CLIMATE], "--only", "iphone")[0], ["UKHostedClimateSheetTests"])
+
+    def test_a_diff_that_reaches_only_hosted_classes_still_runs_them(self):
+        hosted, got, out = self.dry(["apple/Apps/iOSTests/UKHostedTileTests.swift"])
+        self.assertEqual(hosted, ["UKHostedTileTests"])
+        self.assertEqual((got, out.returncode), ({}, 0))
+
+    def test_an_unplaced_port_file_fails_with_the_pick_status(self):
+        hosted, _, out = self.dry([self.MYSTERY])
+        self.assertEqual((hosted, out.returncode), ([], 3))
+        self.assertIn("NEEDS A PICK", out.stderr)
+
+    def test_no_hosted_turns_the_leg_off_and_an_unplaced_file_no_longer_exits_3(self):
+        hosted, got, out = self.dry([self.CLIMATE], "--no-hosted")
+        self.assertEqual((hosted, out.returncode), ([], 0))
+        self.assertIn("iphone", got)  # the journeys still run
+        hosted, _, out = self.dry([self.CLIMATE, self.MYSTERY], "--no-hosted")
+        self.assertEqual((hosted, out.returncode), ([], 0))  # the pick is the hosted step's to report, once
+        self.assertNotIn("NEEDS A PICK", out.stderr)
+
+    def test_a_coverage_run_with_impact_does_not_run_the_hosted_leg(self):
+        # tools/apple_coverage.sh --changed runs `--changed --allow-empty --impact DIR` and its own hosted phase.
+        hosted, _, out = self.dry([self.CLIMATE, self.MYSTERY], "--impact", "/tmp/fenton-impact-test")
+        self.assertEqual((hosted, out.returncode), ([], 0))
+
+    def test_the_hosted_run_is_its_own_run_with_the_class_filter_and_a_sized_hold(self):
+        text = SCRIPT.read_text()
+        self.assertIn('FENTON_HOSTED_FILTER="$CHANGED_HOSTED" "$ROOT/tools/ios_uitest.sh" "${args[@]}"', text)
+        self.assertIn("args=(--hosted --only iphone)", text)
+        self.assertIn('hosted-hold ${FENTON_HOSTED_FILTER:-}', text)  # the child sizes its own hold from its classes
+        self.assertIn('status="$(worst "$status" "$hs")"', text)  # the exit status combines both runs
+        self.assertIn('[[ $FORCE == 1 ]] && args+=(--force)', text)
+
+    def test_the_ledger_keys_the_hosted_run_apart_from_the_journeys(self):
+        # The child run has no --changed: its family arguments are the -only-testing:FentonHomeTests/<Class> list, so its key never equals a journey key.
+        out = subprocess.run(["bash", str(SCRIPT), "--hosted", "--only", "iphone", "--force"],
+                             env=dict(os.environ, FENTON_UITEST_PRINT_FILTERS="1", FENTON_HOSTED_FILTER="UKHostedClimateSheetTests"),
+                             capture_output=True, text=True)
+        self.assertIn("-only-testing:FentonHomeTests/UKHostedClimateSheetTests", out.stdout, out.stderr)
+        self.assertNotIn("FentonHomeUITests", out.stdout)
+
+    def test_hosted_alone_still_honours_the_filter(self):
+        env = dict(os.environ, FENTON_UITEST_PRINT_FILTERS="1")
+        env.pop("FENTON_HOSTED_FILTER", None)
+        out = subprocess.run(["bash", str(SCRIPT), "--hosted", "--only", "iphone"], env=env, capture_output=True, text=True)
+        self.assertIn("-only-testing:FentonHomeTests", out.stdout)
+        self.assertNotIn("FentonHomeTests/", out.stdout)
+
+
+class PlanFilterTests(unittest.TestCase):
+    """``--changed`` runs only the journey classes its plan runs: a Live-plan class under Gate would be EMPTY."""
+    GATE = "apple/Sources/HassUI/UIKitPort/Features/HouseConfig/UKHouseLayoutGate.swift"
+    SHELL = "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift"
+
+    def test_the_house_layout_gate_maps_to_a_gate_plan_journey(self):
+        got, out = filters([self.GATE])
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(got["iphone"], ["-only-testing:FentonHomeUITests/HouseLayoutStatesJourneyTests"])
+
+    def test_a_class_the_gate_plan_skips_is_dropped_and_named(self):
+        got, out = filters([self.SHELL])
+        self.assertNotIn("-only-testing:FentonHomeUITests/ShellJourneyTests", got["iphone"])
+        self.assertIn("not in the Gate plan, so not run:", out.stdout)
+        self.assertIn("ShellJourneyTests", out.stdout.split("not in the Gate plan, so not run:", 1)[1].splitlines()[0])
+
+    def test_a_diff_reaching_only_skipped_classes_runs_no_journey_and_says_so(self):
+        test_map = Path(os.environ.get("TMPDIR", "/tmp")) / "plan-filter-map.json"
+        test_map.write_text('{"rules":[{"prefix":"apple/Sources/X/","swift":[],"journeys":["ShellJourneyTests"]}],"families":["iphone","duo","ipad"],"journeyTarget":"FentonHomeUITests"}')
+        self.addCleanup(test_map.unlink)
+        got, out = filters(["apple/Sources/X/A.swift"], test_map)
+        self.assertEqual((got, out.returncode), ({}, 0))
+        self.assertIn("no Gate-plan journey covers this diff", out.stdout)
+
+
 class HoldTests(unittest.TestCase):
     def test_hold_follows_the_selected_test_count(self):
         self.assertEqual(hold("-only-testing:FentonHomeUITests/ShellJourneyTests/testX"), 600)  # 120 + 300, floored at 10 minutes
@@ -324,7 +423,6 @@ class SkippedLedgerTests(unittest.TestCase):
         self.assertEqual(uitest_support.tally_verdict("xcodebuild_iphone 0 0\nxcodebuild_duo 0 0\nxcodebuild_ipad 1 0\n")[0], 0)
         text = SCRIPT.read_text()
         self.assertIn('echo "xcodebuild_$family 1 0" >> "$FENTON_TALLY"', text)
-        self.assertIn("--allow-empty --impact", (SCRIPT.parent / "apple_coverage.sh").read_text())
 
     def test_the_script_records_and_replays_skips(self):
         text = SCRIPT.read_text()

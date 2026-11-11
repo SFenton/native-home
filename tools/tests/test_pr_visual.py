@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -397,23 +398,31 @@ class JevShadow(Packs):
 
 class Render(Packs):
     def test_comment_layout_and_marker(self):
+        """Fails if: the class comment is not three bullet lists under Actions Taken, Result and Next Steps, shows a role line
+        or a round, hides its record in a details block, writes a pair as anything but a picture reference ``pr_note``
+        uploads, or loses its marker."""
         sel = self.select(after={"duo-partial-fold": tree(340.0)}, files=[HINGE_FILE])
         body = pv.render_class(sel, "duo", 2, task="T-section-sides", summary="Sections stay on one side of the hinge.")
-        self.assertTrue(body.startswith("**Verifier** (agent) · iPhone Duo · round 2\n"))
-        self.assertIn("Sections stay on one side of the hinge.", body)
-        self.assertIn("Poses: Half open — changed", body)
+        self.assertTrue(body.startswith("### Actions Taken\n- Compared the before and after captures of each iPhone Duo pose.\n"))
+        self.assertEqual(re.findall(r"^### .*$", body, re.M), ["### Actions Taken", "### Result", "### Next Steps"])
+        self.assertIn("- Sections stay on one side of the hinge.", body)
+        self.assertIn("- Poses: Half open — changed", body)
         self.assertIn("| | Before | After |", body)
-        self.assertIn("**Clips**", body)
+        self.assertRegex(body, r"\| !\[Before: Half open, [^\]]+\]\([^)\s]+\.png\) \| !\[After: Half open, [^\]]+\]\([^)\s]+\.png\) \|")
+        self.assertIn("- Clip: ", body)
         self.assertIn("Why this one:", body)
-        self.assertIn("**Checked, not shown:**", body)
-        self.assertIn("<details><summary>Technical record</summary>", body)
+        self.assertIn("- Checked, not shown: ", body)
+        self.assertIn("- Why this class: ", body)
+        visible = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+        for gone in ("**Verifier**", "round", "<details", "<img", "Technical record"):
+            self.assertNotIn(gone, visible)
         self.assertTrue(body.rstrip().endswith("<!-- sh:evidence:T-section-sides:duo:2 -->"))
 
     def test_marker_uses_class_key(self):
         sel = self.select(request="iPad rotates badly")
         body = pv.render_class(sel, "ipad", 1)
         self.assertIn("<!-- sh:evidence:T-x:ipad:1 -->", body)
-        self.assertIn("· iPad · round 1", body)
+        self.assertIn("each iPad pose", body)
 
     def test_devices_rows_group_by_class(self):
         sel = self.select(after={"duo-partial-fold": tree(340.0)})

@@ -48,7 +48,7 @@ struct HouseholdAwayConnectionTests {
     @Test func theControllerTreatsAThrownCallAsTransport() async throws {
         let (connection, mock) = makeConnection()
         connection.store.replaceAll([awayEntity()])
-        let controller = HouseholdAwayController(store: connection.store, responder: connection, makeRequestId: { "req-9" })
+        let controller = HouseholdAwayController(store: connection.store, responder: connection, timeout: .seconds(600), makeRequestId: { "req-9" })
         let outcome = Task { await controller.cancel() }
         let pending = try await pendingRequest(mock)
         let sent = try #require(pending.request.data["service_data"] as? [String: any Sendable])

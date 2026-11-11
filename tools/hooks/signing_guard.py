@@ -70,6 +70,11 @@ from typing import List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from shell_parse import FEEDERS, KEYWORDS, SHELLS, WRAPPERS, XARGS_VALUE, strip_prefixes, tokenize, unwrap_xargs  # noqa: E402
 
+try:  # the registry of T3-launched triage sessions: a registered session gets the runner's markers (tools/hooks/triage_session.py)
+    import triage_session
+except Exception:  # noqa: BLE001 - triage_deny fails closed when the module is gone
+    triage_session = None
+
 MESSAGE = (
     "Blocked: certificates, provisioning profiles, signing keys and App Store Connect keys are owner-only (fixed set, "
     "agent-roster.md). TestFlight upload stays autonomous on GitHub Actions (ios-release uses repository secrets), so "
@@ -626,6 +631,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         payload = json.load(sys.stdin)
     except ValueError:
         return 0
+    if triage_session:
+        triage_session.apply(payload)
     tool = payload.get("tool_name")
     if tool not in ("Bash", *PATH_TOOLS) or not agent_session(payload):
         return 0

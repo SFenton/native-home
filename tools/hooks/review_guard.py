@@ -29,6 +29,11 @@ import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+try:  # the registry of T3-launched triage sessions: a registered session gets the runner's markers (tools/hooks/triage_session.py)
+    import triage_session
+except Exception:  # noqa: BLE001 - triage_deny fails closed when the module is gone
+    triage_session = None
+
 MESSAGE = (
     "Blocked: a review verdict is written only by `tools/review/record.py`, run by the reviewer (agent_type `reviewer`). The verdict file is the "
     "independent review that `tools/pr_land.sh` gates on, so no other session creates or edits `build/review/*.json` or "
@@ -283,6 +288,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         payload = json.load(sys.stdin)
     except ValueError:
         return 0
+    if triage_session:
+        triage_session.apply(payload)
     if not agent_session(payload):
         return 0
     why = reason(payload)

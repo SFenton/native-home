@@ -104,8 +104,10 @@ final class UKHouseLayoutGate {
         let (hasDocument, status) = inputs()
         var next = HouseLayoutState.resolve(hasDocument: hasDocument, status: status, role: role)
         if retrying {
-            // Try Again keeps the message up, with a busy button, while the store asks again.
-            if next == .skeleton { next = .message(.timedOut, showsAction: true) } else { retrying = false }
+            // Try Again keeps the message up, with a busy button, while the store asks again. A debug-forced timeout has no store
+            // behind it to answer, so it stays busy (the state the captures and `HouseLayoutStatesJourneyTests` look at).
+            let forcedTimeout = forced?.status == .timedOut && !forcedReleased
+            if next == .skeleton || forcedTimeout { next = .message(.timedOut, showsAction: true) } else { retrying = false }
         }
         if case .message = next { loadRoleIfNeeded() }
         rebuildIfStructureChanged(hasDocument: hasDocument, hash: store?.hash)

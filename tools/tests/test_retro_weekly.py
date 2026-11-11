@@ -55,6 +55,14 @@ class WeeklyTests(Fixture):
         self.assertEqual(m["triggers"], {"blocked": 1, "owner_correction": 1, "routing_override": 1})
         self.assertEqual([r["task"] for r in m["tasks"]], ["N-3", "R-1", "R-2"])
 
+    def test_a_t3_flow_with_unknown_tokens_is_unknown_not_zero(self):
+        """Fails if: the weekly row turns a T3 flow's null tokens into 0."""
+        self.flow("request-1", "R-1", tokens=None, minutes=10)
+        self.flow("request-2", "R-2", tokens=3000, minutes=10)
+        m = self.doc()["metrics"]
+        self.assertEqual([r["tokens"] for r in m["tasks"]], [None, 3000])
+        self.assertEqual(m["tokens_per_task"], 3000.0)
+
     def test_jobs_and_retros_are_not_flows(self):
         self.flow("job-steward-2026-11-08", "job-steward-2026-11-08", ["blocked"])
         self.flow("retro-request-1", "retro-R-1", [])
@@ -162,6 +170,22 @@ class OwnerRuleTests(Fixture):
         md = rw.render_md(self.doc())
         self.assertNotIn("broken again", md)
         self.assertIn("bare rule (undated", md)
+
+
+class RuleSurfaceLineTests(Fixture):
+    def test_the_rule_surface_lines_are_report_only_and_optional(self):
+        """Fails if: the roll-up drops the rule-surface numbers when present, or needs them to render."""
+        self.assertNotIn("Rule surface", rw.render_md(self.doc()))
+        doc = self.doc()
+        doc["rule_surface"] = {"rule_surface_words": 900, "layers": {"core": {"files": 1, "words": 500}},
+                               "role_load": {".claude/agents/coder.md": 3000}}
+        md = rw.render_md(doc)
+        self.assertIn("Rule surface (report only): 900 words; core 500", md)
+        self.assertIn("coder 3000", md)
+
+    def test_no_contract_means_no_numbers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(rw.rule_surface(Path(tmp)), {})
 
 
 class RegressionTests(Fixture):

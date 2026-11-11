@@ -246,6 +246,7 @@ final class LaunchPerformanceTests: JourneyTestCase {
         guard let credentials = FentonHomeApp.credentials else {
             throw XCTSkip("Set TEST_RUNNER_FENTON_HASS_USERNAME / _PASSWORD to measure the arrival")
         }
+        try FentonHomeApp.requireServer()
         let app = makeApp(reset: true, skipIntro: true)
         app.launchEnvironment["FENTON_AUTOSIGNIN"] = "1"
         app.launchEnvironment["FENTON_HASS_USERNAME"] = credentials.username

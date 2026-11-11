@@ -16,7 +16,8 @@ import argparse
 import json
 import subprocess
 import sys
-from typing import Callable, Dict, List, Optional, Sequence
+from datetime import datetime, timezone
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 #: The check GitHub requires before a merge: the aggregate job of pr-checks.yml.
 REQUIRED_CHECK = "pr-checks"
@@ -98,6 +99,63 @@ def check(repo: str, branch: str = "main", fetch: Optional[Callable[[str, str], 
         return problems(rules, rulesets)
     except Exception as error:  # noqa: BLE001 - any failure means "do not arm"
         return ["the rules of %s could not be read (%s)" % (repo, type(error).__name__)]
+
+
+def utc(stamp: object) -> Optional[datetime]:
+    """A GitHub timestamp (``...Z`` or with an offset, optional milliseconds) as an aware UTC datetime; None when it is not one."""
+    if not isinstance(stamp, str) or not stamp:
+        return None
+    text = stamp.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return (moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
+
+
+def live_requirements(repo: str, branch: str = "main", fetch: Optional[Callable[[str, str], object]] = None,
+                      fetch_one: Optional[Callable[[str, object], object]] = None) -> Dict[str, object]:
+    """What the live rules on ``branch`` demand of a merge, for the verifier that vets a range of merged pull requests.
+
+    Returns ``{contexts, updated_at, problems}``: ``contexts`` is every required status check as ``(name, integration_id)``
+    (never hardcoded), ``updated_at`` the newest ``updated_at`` of those rulesets as an aware UTC datetime (None when unknown), and
+    ``problems`` why the rules are not a gate (``check``'s findings, plus: no required checks, a ruleset that is not active, an
+    unreadable ``updated_at``). Bypass actors are NOT a condition: the agent login cannot read them (GitHub hides the list), so a
+    "none" would verify nothing; the per-commit evidence is the authority. Any failure is a problem; this never raises. ``check``
+    and its exit codes are unchanged.
+    """
+    out: Dict[str, object] = {"contexts": [], "updated_at": None, "problems": []}
+    try:
+        rules = (fetch or fetch_rules)(repo, branch)
+        listed = rules if isinstance(rules, list) else []
+        ids = sorted({str(r["ruleset_id"]) for r in listed if isinstance(r, dict) and r.get("ruleset_id") is not None})
+        rulesets = {ruleset_id: (fetch_one or fetch_ruleset)(repo, ruleset_id) for ruleset_id in ids}
+        found = list(problems(rules, rulesets))
+        contexts: List[Tuple[str, object]] = []
+        for rule in listed:
+            if isinstance(rule, dict) and rule.get("type") == "required_status_checks":
+                for item in (rule.get("parameters") or {}).get("required_status_checks") or []:
+                    pair = (str(item.get("context")), item.get("integration_id"))
+                    if pair not in contexts:
+                        contexts.append(pair)
+        if not contexts:
+            found.append("the ruleset requires no status check")
+        newest: Optional[datetime] = None
+        for ruleset_id, answer in rulesets.items():
+            answer = answer if isinstance(answer, dict) else {}
+            if answer.get("enforcement") != "active":
+                found.append("the ruleset %s is not active" % ruleset_id)
+            moment = utc(answer.get("updated_at"))
+            if moment is None:
+                found.append("the ruleset %s has no readable updated_at" % ruleset_id)
+            elif newest is None or moment > newest:
+                newest = moment
+        out.update(contexts=contexts, updated_at=newest, problems=found)
+    except Exception as error:  # noqa: BLE001 - any failure means "not a gate"
+        out["problems"] = ["the rules of %s could not be read (%s)" % (repo, type(error).__name__)]
+    return out
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

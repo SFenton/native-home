@@ -126,12 +126,76 @@ class TriggerTests(Base):
         log = self.write("s.log", "devcap: still waiting (19m) for 'sim'\n")
         self.assertNotIn("slot_wait", self.fired(self.run_digest("--log", str(log))))
 
+    def t3_log(self, tool_output="", text="finished the lane"):
+        """A T3 launch's log: ``t3_launch``, then one ``t3_thread`` line (no ``result`` event: T3 reports no cost)."""
+        thread = {"messages": [{"role": "user", "text": "go"}, {"role": "assistant", "text": "working"},
+                               {"role": "assistant", "text": text}],
+                  "toolCalls": [{"name": "Bash", "output": tool_output}]}
+        return self.write("t3.log", json.dumps({"type": "t3_launch", "thread": "t"}) + "\n"
+                          + json.dumps({"type": "t3_thread", "thread": "t", "data": {"thread": thread}}) + "\n")
+
+    def test_a_t3_log_gives_the_last_assistant_text_and_tool_outputs_and_no_cost(self):
+        info = rd.parse_log(self.t3_log("line one\ndevcap: still waiting (40m) for 'sim'"))
+        self.assertEqual((info["last_text"], info["launcher"], info["result"]), ("finished the lane", "t3code", None))
+        self.assertIn("\ndevcap: still waiting (40m)", info["raw"])
+        self.assertEqual(rd.parse_log(self.write("c.log", assistant("hi") + "\n" + result()))["launcher"], "claude")
+        doc = self.run_digest("--log", str(self.t3_log("devcap: still waiting (40m) for 'sim'")))
+        self.assertEqual(self.fired(doc)["slot_wait"][1], "40 minutes")
+        self.assertIsNone(doc["cost"]["total_cost_usd"])  # unknown, never zero
+        self.assertIsNone(doc["cost"]["tokens"])
+        self.assertEqual(doc["counts"]["turns"], 0)
+
+    def test_a_launch_that_never_started_is_a_t3_log_too(self):
+        log = self.write("f.log", json.dumps({"type": "t3_launch_failed", "reason": "guard files differ"}) + "\n")
+        self.assertEqual(rd.parse_log(log)["launcher"], "t3code")
+
+    def test_a_claude_log_still_reports_its_cost(self):
+        doc = self.run_digest("--log", str(self.write("c.log", assistant("hi") + "\n" + result())))
+        self.assertEqual(doc["cost"]["total_cost_usd"], 1.5)
+        self.assertEqual(doc["cost"]["tokens"], 600)
+
     def test_stopped_with_live_children(self):
         self.write("build/runs/job.running", {"pid": os.getpid(), "label": "job"})
         self.write("build/runs/dead.running", {"pid": 2 ** 22 + 12345, "label": "dead"})
         evidence = self.fired(self.run_digest())["stopped_with_live_children"]
         self.assertEqual(len(evidence), 1)
         self.assertIn("job", evidence[0])
+
+    def test_a_ci_wait_is_not_a_stray_job_but_a_build_job_is(self):
+        """Fails if: a live ci-81.running fires stopped_with_live_children, or a live build-9.running does not."""
+        self.write("build/runs/ci-81.running", {"pid": os.getpid(), "label": "ci-81"})
+        self.assertNotIn("stopped_with_live_children", self.fired(self.run_digest()))
+        self.write("build/runs/build-9.running", {"pid": os.getpid(), "label": "build-9"})
+        evidence = self.fired(self.run_digest())["stopped_with_live_children"]
+        self.assertEqual(len(evidence), 2)
+        self.assertIn("build-9", evidence[0])
+        self.assertIn("1 ci wait", evidence[-1])  # Fails if: the skipped ci wait is not noted beside a stray job
+
+    def test_a_recorded_raise_to_the_gate_hint_is_not_an_override(self):
+        """Fails if: a raise to the gate's own hint with a reason fires routing_override."""
+        self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L2",
+                                            "level_history": [{"from": "L0", "to": "L2", "reason": "new visible line"}]})
+        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": True}) + "\n"
+                   + json.dumps({"question": "design.target_decided@1", "value": False}) + "\n")
+        doc = self.run_digest()
+        self.assertEqual(doc["level"]["gate_hint"], "L2")
+        self.assertNotIn("routing_override", self.fired(doc))
+
+    def test_a_raise_to_the_hint_with_no_reason_still_fires(self):
+        """Fails if: a raise onto the hint with an empty reason is waved through."""
+        self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L2", "level_history": [{"from": "L0", "to": "L2"}]})
+        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": True}) + "\n"
+                   + json.dumps({"question": "design.target_decided@1", "value": False}) + "\n")
+        self.assertIn("routing_override", self.fired(self.run_digest()))
+
+    def test_a_lowering_with_no_history_is_flagged(self):
+        """Fails if: an L2 hint with a final L0 and no history does not fire, or its text lacks "no reason recorded"."""
+        self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L0"})
+        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": True}) + "\n"
+                   + json.dumps({"question": "design.target_decided@1", "value": False}) + "\n")
+        doc = self.run_digest()
+        self.assertEqual(doc["level"]["gate_hint"], "L2")
+        self.assertIn("no reason recorded", self.fired(doc)["routing_override"][0])
 
     def test_tool_errors_counted_and_redacted(self):
         log = self.write("e.log", "error: HTTP 401: Requires authentication\nHTTP 401 again\nNot logged in · Please run /login\n"

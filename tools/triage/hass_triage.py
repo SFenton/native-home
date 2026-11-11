@@ -13,9 +13,12 @@ pull request on the product repository. The worker lands its own pull request th
     hass_triage.py run-issue N [--dry-run]            # work one issue now
     hass_triage.py run-job NAME                       # run one scheduled job (steward, researcher) now
     hass_triage.py status [--json]
+    hass_triage.py ack-verified                       # accept a moved base when every move is a checked PR merge (agent sessions may)
+    hass_triage.py ack-base SHA                       # owner only: accept any moved base after checking it
     hass_triage.py pause | resume
     hass_triage.py init-labels
     hass_triage.py install [--interval S] [--uninstall]
+    hass_triage.py install-t3code                     # the pinned T3 CLI for agent.launcher "t3code" (t3launch.py)
     hass_triage.py upload FILE...                     # workers: media → GitHub URLs
     hass_triage.py comment N --kind K --body-file F [--media FILE[::caption]...]
 
@@ -50,13 +53,26 @@ sys.path.insert(0, str(HERE.parent))
 from redact import copy_redacted, redact, redact_lines  # noqa: E402,F401  (the one shared scrubber, tools/redact.py)
 import agent_login  # noqa: E402  (the agent account's login, a name: tools/agent_login.py)
 import request_repo  # noqa: E402  (the request repository comes from local configuration, tools/request_repo.py)
+import ruleset_gate  # noqa: E402  (the live ruleset's requirements, tools/ruleset_gate.py)
 import lane_land  # noqa: E402  (the runner lands the lanes agents push: tools/lane_land.py)
 import retro_weekly  # noqa: E402  (the metrics the automatic revert compares: tools/retro_weekly.py)
+import t3launch  # noqa: E402  (the T3 launcher behind agent.launcher: tools/triage/t3launch.py)
 LAUNCHD_LABEL = "com.sfenton.hass-triage"
 API = "https://api.github.com"
 UPLOADS = "https://uploads.github.com/user-attachments/assets"
 MAX_MEDIA_BYTES = 10 * 1024 * 1024
 ATTACHMENT_URL = re.compile(r"https://github\.com/user-attachments/(?:assets|files)/[A-Za-z0-9-]+(?:/[^\s)\"'<>]*)?")
+#: The comment the runner posts on the public pull request when the worker's text fails the house-data check.
+GENERIC_PULL_QUESTION = ("An owner decision is needed before this pull request can land. "
+                         "The question and options are on the request issue.")
+#: The issue comment the nightly park posts on the public product repository when the worker's text fails the house-data check.
+GENERIC_PARK_ISSUE = "An owner decision is needed before the pull request below can land."
+#: The decision comment the nightly intake posts on the public product repository, with no pull request to name, when the
+#: worker's text fails the house-data check.
+GENERIC_DECISION_ISSUE = "An owner decision is needed before this can continue."
+#: The last line of the pull request question: only what works today (nothing reads replies or approvals there yet).
+PULL_DECIDE_LINE = ("To decide: reply on the request issue with your pick, or approve and merge this pull request "
+                    "to accept the recommendation.")
 RUNNER_MARKER = re.compile(r"<!-- hass-triage:\d+:[a-z-]+ -->")
 MISSING_LABEL = re.compile(r"'([^']+)' not found")
 #: Lines of the worker log kept in the evidence archive.
@@ -66,6 +82,11 @@ AUTH_MESSAGE = "claude is not logged in; run claude auth login"
 WORKFLOW_PATHS = (".claude/agents", ".agents/workflow", "tools/hooks", "tools/triage", "contracts/jev")
 #: The most first-parent commits ``check_base`` walks when it vets a move of a shared workflow base; more pauses.
 BASE_WALK_CAP = 200
+#: What a pause tells the reader about the two ways out: the checked-PR verb (agent sessions may run it) and the owner's.
+ACK_HOW = ("Accept with `python3 tools/triage/hass_triage.py ack-verified` when every move is a checked PR merge; for anything "
+           "else the owner runs `ack-base <sha>` from a terminal.")
+#: The most rounds ``ack_verified`` re-reads a moving base before it records the last head it verified.
+ACK_ROUNDS = 3
 #: The default base a retro job branches from (``workflow_base`` in config.json).
 DEFAULT_WORKFLOW_BASE = "main"
 #: The automatic revert (plan section 9): flows compared on each side of a landing, the days after which a slow landing is
@@ -94,7 +115,7 @@ OWNER_ONLY = {"fixed_set", "app_wide", "unmatched", "gate_unavailable"}
 JUDGE_NOTE = ("\n\nOwner rule (2026-11-03): a design or policy pick is not the owner's. Your last run finished "
               "`needs_decision` on {pr} for one. Build up to 3 options, capture screenshots and behaviour on the affected "
               "families, have the `designer` judge them and record the pick (`design-decision` skill), then land the "
-              "pick through `tools/pr_land.sh` like L0/L1. Finish `needs_decision` only for the fixed set or a `gate: park` "
+              "pick through `tools/pr_land.sh` like L0/L1. Finish `needs_decision` only for the fixed set or a `gate: park route=pr` "
               "from `tools/jev_gate.py`, with `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or "
               "`gate_unavailable`.\n")
 #: Failed attempts to file one ha-changes alert before it is listed as unfiled and later entries go on.
@@ -366,6 +387,33 @@ class GitHub:
         """The pull requests GitHub associates with ``sha`` (``repos/<repo>/commits/<sha>/pulls``). Raises on any failure."""
         return json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}/pulls"]) or "[]")
 
+    def commit_record(self, repo: str, sha: str) -> Dict[str, Any]:
+        """``repos/<repo>/commits/<sha>``: the message, the committer and GitHub's signature verdict. Raises on any failure."""
+        return json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}"]) or "{}")
+
+    def pull_record(self, repo: str, number: int) -> Dict[str, Any]:
+        """``repos/<repo>/pulls/<number>``: the pull request itself (``merged_at``, ``base.ref``, ``merge_commit_sha``, ``head.sha``)."""
+        return json.loads(self._gh(["api", f"repos/{repo}/pulls/{int(number)}"]) or "{}")
+
+    def check_runs(self, repo: str, sha: str) -> List[Dict[str, Any]]:
+        """Every check run on ``sha`` (``commits/<sha>/check-runs``, all pages up to 1000 runs). Raises on any failure."""
+        runs: List[Dict[str, Any]] = []
+        for page in range(1, 11):
+            answer = json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}/check-runs?per_page=100&page={page}"]) or "{}")
+            batch = [r for r in answer.get("check_runs") or [] if isinstance(r, dict)]
+            runs += batch
+            if len(batch) < 100 or len(runs) >= int(answer.get("total_count") or 0):
+                break
+        return runs
+
+    def commit_status(self, repo: str, sha: str) -> Dict[str, Any]:
+        """The combined commit status of ``sha`` (``commits/<sha>/status``). Raises on any failure."""
+        return json.loads(self._gh(["api", f"repos/{repo}/commits/{sha}/status?per_page=100"]) or "{}")
+
+    def live_requirements(self, repo: str, branch: str) -> Dict[str, Any]:
+        """The live ruleset's required checks and ``updated_at`` (:func:`ruleset_gate.live_requirements`); never raises."""
+        return ruleset_gate.live_requirements(repo, branch)
+
     def edit_labels(self, repo: str, n: int, add: Iterable[str] = (), remove: Iterable[str] = ()) -> None:
         args = ["issue", "edit", str(n), "-R", repo]
         for label in add:
@@ -423,6 +471,14 @@ class GitHub:
     def ready_pull(self, url: str) -> None:
         """Mark a draft pull request ready for review (the runner's own call: the worker's deny list keeps ``gh pr ready``)."""
         self._write(["pr", "ready", url])
+
+    def branch_pulls(self, repo: str, branch: str) -> List[Dict[str, Any]]:
+        """Every pull request (any state) whose head branch is ``branch``: ``url``, ``state``, ``labels``."""
+        return json.loads(self._gh(["pr", "list", "-R", repo, "--head", branch, "--state", "all", "--json", "url,state,labels"]) or "[]")
+
+    def disarm_pull(self, url: str) -> None:
+        """Turn auto-merge off (the runner's own call: the worker's deny list keeps every other merge form)."""
+        self._write(["pr", "merge", url, "--disable-auto"])
 
     def label_pull(self, url: str, add: str = "", remove: str = "") -> None:
         args = ["pr", "edit", url]
@@ -617,7 +673,7 @@ def preread_section(cfg: Dict[str, Any], title: str, body: str) -> str:
 
     Empty when ``cfg["jev"]["enabled"]`` is false, when there is no key (the file ``~/.config/fenton-hass/typesafe.key``, or ``TYPESAFE_API_KEY`` when there is no file), when the API fails or has
     nothing confident to say, and on any error: the prompt is then exactly what it was without Jev
-    (``tools/jev_hints.py``, ``.agents/workflow/decision-models.md``).
+    (``tools/jev_hints.py``, ``.agents/workflow/jev.md``).
     """
     if not (cfg.get("jev") or {}).get("enabled", True):
         return ""
@@ -751,7 +807,7 @@ def route_rule(issue: Dict[str, Any], nightly: bool, about_workflow: Optional[fl
 
 
 def route_text(rule: str, jev: Optional[str]) -> str:
-    """The ``{{ROUTE}}`` line of the prompt: the rule route only. A shadow answer is never shown (decision-models.md);
+    """The ``{{ROUTE}}`` line of the prompt: the rule route only. A shadow answer is never shown (.agents/workflow/jev.md);
     ``jev`` is recorded in the ledger and the shadow log, not here."""
     if rule == "steward-jev":
         return "Route: steward-first (no Workflow label, but Jev reads the request as about how the agents work)"
@@ -906,6 +962,10 @@ class Runner:
         self.extra_dirs: List[Path] = []
         #: Set when a launched session left processes behind that could not be killed: nothing lands until it is looked at.
         self.stray = False
+        #: Set when a T3 session changed the guard hooks in its worktree: outcome ``guard_tampered``, nothing lands.
+        self.guard_tampered = False
+        #: Set when a T3 session left processes that could not be killed (the claude path keeps using ``stray`` alone).
+        self.t3_stray = False
         #: ``agents/*`` refs on origin recorded before each session (by label), so only lanes it pushed are landed.
         self.lane_snapshots: Dict[str, Optional[Dict[str, str]]] = {}
         #: Issues whose worktree must stay because a lane they pushed is not landed or filed.
@@ -1106,7 +1166,21 @@ class Runner:
             self._tick_auth = claude_logged_in(self.cfg["agent"]["command"], self._path(), self.run) is not False
             if not self._tick_auth:
                 print_once("auth", AUTH_MESSAGE)
+            elif self.t3_ready() is False:
+                self._tick_auth = False
         return self._tick_auth
+
+    def t3_ready(self) -> Optional[bool]:
+        """With ``agent.launcher: "t3code"``: can T3 take a launch (pinned CLI, protocol 2, guard files)? Prints the one-line reason when
+        not. ``None`` when it cannot be said, and always ``True`` for the claude launcher. The reviewer still needs ``claude`` itself."""
+        if (self.cfg["agent"].get("launcher") or "claude") != "t3code":
+            return True
+        trusted = self.paths.root / "trusted" / self.cfg["product_repo"].split("/")[1]  # only if the reviewer already made it: no network here
+        ok, why = t3launch.ready(self.cfg["agent"], self.paths.root, trusted if (trusted / ".git").exists() else None,
+                                 {"PATH": self._path(), "HOME": str(self.paths.home)}, self.run)
+        if ok is False:
+            print_once("t3", f"t3code launcher is not ready: {why}")
+        return ok
 
     def refresh_clone(self) -> None:
         clone = self.paths.clone
@@ -1320,6 +1394,12 @@ class Runner:
             self.snapshot_lanes(n)
         code = self.launch(n, worktree, prompt, log)
         self.state.data["current"] = None
+        if self.guard_tampered:  # the session changed the hooks that guarded it: nothing it reports is trusted
+            return self.block(n, "The session changed the guard hooks, settings or triage record, so its result was not used."
+                              + self.undo_landing(n), "guard_tampered", self.log_tail(log))
+        if self.t3_stray:  # a process of the T3 session survived the cleanup: the worker may already have armed its pull request
+            return self.block(n, "A process of the session was still running after the cleanup, so its result was not used."
+                              + self.undo_landing(n), "stray", self.log_tail(log))
         status = self.read_status(n)
         if status and "Workflow" in label_names(issue) and status.get("lanes") and not status.get("pr"):
             return self.finish_workflow(n, status, worktree)  # Steward entry B: the runner lands the lanes the worker pushed
@@ -1392,7 +1472,7 @@ class Runner:
         lanes_resolved = True
         try:
             if worktree.exists():
-                self._run(["git", "-C", str(self.paths.clone), "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, str(self.paths.clone))
             self._run(["git", "-C", str(self.paths.clone), "worktree", "prune"], check=False)
             worktree.parent.mkdir(parents=True, exist_ok=True)
             self._run(["git", "-C", str(self.paths.clone), "worktree", "add", "-B", branch, str(worktree),
@@ -1421,7 +1501,7 @@ class Runner:
                                   outcome=self.job_outcome_code(outcome),
                                   enqueue=name != "steward")  # no post-mortem of the Steward's own run
             if lanes_resolved:  # a lane the runner could not land or file keeps its worktree
-                self._run(["git", "-C", str(self.paths.clone), "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, str(self.paths.clone))
             self.state.save()
         return outcome
 
@@ -1576,54 +1656,146 @@ class Runner:
 
     def pr_moves_ok(self, base: str, expected: str, current: str) -> bool:
         """The acceptance rule for a shared base: ``base`` is the product base and ``expected..current`` is only merged pull
-        requests (:meth:`moves_are_merged_prs`). Always False for a separate workflow base."""
-        return base == str(self.cfg.get("product_base") or "") and self.moves_are_merged_prs(base, expected, current)
+        requests that passed the live ruleset's required checks (:meth:`verify_pr_range`); the reason is printed on a failure.
+        Always False for a separate workflow base."""
+        if base != str(self.cfg.get("product_base") or ""):
+            return False
+        ok, _evidence, reason = self.verify_pr_range(base, expected, current)
+        if not ok:
+            print(f"base integrity: {reason}")
+        return ok
 
-    def moves_are_merged_prs(self, base: str, expected: str, current: str) -> bool:
-        """Is every move of the shared base from ``expected`` to ``current`` a merged pull request? When the workflow base is also
-        the product base, merged product PRs move it legitimately. True only when ``expected`` is an ancestor of ``current`` and
-        every first-parent commit in ``expected..current`` (at most ``BASE_WALK_CAP``) is the merge commit of a merged PR into
-        ``base`` on the product repo (``merged_at`` set, ``base.ref`` and ``merge_commit_sha`` matching). A direct push, a force
-        push, an over-long walk or a failed lookup (retried once) is False: no evidence is not evidence of a PR, so it pauses."""
+    def verify_pr_range(self, base: str, expected: str, head: str) -> Tuple[bool, List[Dict[str, Any]], str]:
+        """Is every move of ``base`` from ``expected`` to ``head`` a squash-merged pull request that passed the required checks?
+
+        Returns ``(ok, evidence, reason)``: one ``{sha, pr, head_sha, contexts}`` per commit and the first failure's sha and
+        reason. All or nothing, fail closed: no answer is never taken as a pull request. Runs in the land clone after fetching
+        ``base``. ``expected`` must be an ancestor of ``head`` and the first-parent walk at most ``BASE_WALK_CAP`` (and not empty).
+        Each commit needs: exactly one parent; a GitHub-made (web-flow), signature-verified commit; a merged PR into ``base``
+        whose ``merge_commit_sha`` is this commit (from ``commits/<sha>/pulls``, else the ``(#N)`` in the subject read as a hint
+        only, GitHub's own record ``pulls/N`` being the authority: a forged subject cannot pass); and, on the PR head, the newest
+        run of every context the LIVE rules require, from the integration the rules name, concluded ``success`` (or a
+        ``success`` commit status of that context when no run exists). Once per range: the ruleset is live, needs a pull
+        request and checks, and was not edited after the oldest merge in the range.
+
+        Bypass actors are not checked (the agent login cannot read the list); the per-commit evidence is the authority. A bypass
+        could only produce a direct push (no owning PR, not made by GitHub) or a merge with a required check failing or missing
+        on the PR head, and both are refused above. CODEOWNERS approval is not re-verified for the same reason."""
         repo = str(self.cfg["product_repo"])
         try:
             clone = self.land_clone()
             lane_land.git(clone, "fetch", "-q", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}")
-            if lane_land.git(clone, "merge-base", "--is-ancestor", expected, current).returncode != 0:
-                print(f"base integrity: {expected} is not an ancestor of {current} (a force push?)")
-                return False
-            walk = lane_land.git(clone, "rev-list", "--first-parent", f"--max-count={BASE_WALK_CAP + 1}", f"{expected}..{current}")
+            if lane_land.git(clone, "merge-base", "--is-ancestor", expected, head).returncode != 0:
+                return False, [], f"{expected} is not an ancestor of {head} (a force push?)"
+            walk = lane_land.git(clone, "rev-list", "--first-parent", f"--max-count={BASE_WALK_CAP + 1}", f"{expected}..{head}")
             if walk.returncode != 0:
-                return False
+                return False, [], f"could not walk {expected}..{head}"
             shas = walk.stdout.split()
         except Exception as exc:  # noqa: BLE001
-            print(f"base integrity: could not walk {expected}..{current}: {redact(str(exc))[:200]}")
-            return False
+            return False, [], f"could not walk {expected}..{head}: {redact(str(exc))[:200]}"
         if not shas or len(shas) > BASE_WALK_CAP:
-            print(f"base integrity: {len(shas)} first-parent commits in {expected}..{current} (cap {BASE_WALK_CAP}): not vetted")
-            return False
-        for sha in shas:
-            for attempt in (1, 2):
-                try:
-                    pulls = self.gh.commit_pulls(repo, sha)
-                    break
-                except Exception as exc:  # noqa: BLE001
-                    if attempt == 2:
-                        print(f"base integrity: PR lookup for {sha} failed: {redact(str(exc))[:200]}")
-                        return False
-            if not any(isinstance(pr, dict) and pr.get("merged_at") and str((pr.get("base") or {}).get("ref")) == base
-                       and pr.get("merge_commit_sha") == sha for pr in pulls):
-                print(f"base integrity: {sha} on origin/{base} is not the merge commit of a merged pull request")
-                return False
-        return True
+            return False, [], f"{len(shas)} first-parent commits in {expected}..{head} (cap {BASE_WALK_CAP}): not vetted"
+        requirements = self.gh.live_requirements(repo, base)
+        found = list(requirements.get("problems") or [])
+        if found:
+            return False, [], "the live ruleset is not a gate: " + "; ".join(str(x) for x in found)
+        contexts = [(str(name), integration) for name, integration in requirements.get("contexts") or []]
+        evidence: List[Dict[str, Any]] = []
+        merged_times: List[Any] = []
+        for sha in reversed(shas):  # oldest first, so the evidence reads in merge order
+            try:
+                parents = lane_land.git(clone, "rev-list", "--parents", "-n1", sha).stdout.split()
+                if len(parents) != 2:
+                    return False, evidence, f"{sha} has {max(len(parents) - 1, 0)} parents, not one (not a squash merge)"
+                record = self._lookup(self.gh.commit_record, repo, sha)
+                if not self._github_made(record):
+                    return False, evidence, f"{sha} was not made and signed by GitHub (a direct push?)"
+                pr = self._owning_pull(repo, base, sha, record)
+                if pr is None:
+                    return False, evidence, f"{sha} on origin/{base} is not the merge commit of a merged pull request"
+                head_sha = str((pr.get("head") or {}).get("sha") or "")
+                if not head_sha:
+                    return False, evidence, f"{sha}: pull request #{pr.get('number')} names no head commit"
+                why = self._checks_failed(repo, head_sha, contexts)
+                if why:
+                    return False, evidence, f"{sha}: pull request #{pr.get('number')}: {why}"
+            except Exception as exc:  # noqa: BLE001 (a lookup that failed twice is not evidence)
+                return False, evidence, f"{sha}: lookup failed: {redact(str(exc))[:200]}"
+            merged_times.append(ruleset_gate.utc(pr.get("merged_at")))
+            evidence.append({"sha": sha, "pr": pr.get("number"), "head_sha": head_sha, "contexts": [name for name, _ in contexts]})
+        changed = requirements.get("updated_at")
+        oldest = min((m for m in merged_times if m is not None), default=None)
+        if changed is None or oldest is None or changed > oldest:
+            return False, evidence, ("the ruleset changed in the range (edited after the oldest merge in it): the owner's "
+                                     "`ack-base <sha>` clears it once")
+        return True, evidence, ""
+
+    @staticmethod
+    def _lookup(fetch: Callable[..., Any], *args: Any) -> Any:
+        """``fetch(*args)``, retried once; a second exception propagates."""
+        try:
+            return fetch(*args)
+        except Exception:  # noqa: BLE001
+            return fetch(*args)
+
+    @staticmethod
+    def _github_made(record: Dict[str, Any]) -> bool:
+        """Did GitHub itself make and sign this commit? Needs the committer LOGIN ``web-flow`` AND ``verification.verified`` true with
+        reason ``valid``; the committer name alone (anyone can set it) never counts."""
+        commit = record.get("commit") if isinstance(record.get("commit"), dict) else {}
+        verification = commit.get("verification") or {}
+        login = (record.get("committer") or {}).get("login")
+        return login == "web-flow" and verification.get("verified") is True and verification.get("reason") == "valid"
+
+    def _owning_pull(self, repo: str, base: str, sha: str, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """The merged pull request into ``base`` whose merge commit is ``sha``: from ``commits/<sha>/pulls`` and, when that lists
+        none that matches (GitHub's commit-to-PR index has gaps), from the ``(#N)`` ending the squash subject, fetching
+        ``pulls/N`` and requiring that record itself to name ``sha``. None when nothing matches."""
+        def owns(pr: Any) -> bool:
+            return (isinstance(pr, dict) and bool(pr.get("merged_at")) and str((pr.get("base") or {}).get("ref")) == base
+                    and pr.get("merge_commit_sha") == sha)
+        for pr in self._lookup(self.gh.commit_pulls, repo, sha) or []:
+            if owns(pr):
+                return pr
+        subject = str(((record.get("commit") or {}).get("message") or "")).splitlines()[0:1]
+        hint = re.search(r"\(#(\d+)\)\s*$", subject[0]) if subject else None
+        if hint:
+            pr = self._lookup(self.gh.pull_record, repo, int(hint.group(1)))
+            if owns(pr):
+                return pr
+        return None
+
+    def _checks_failed(self, repo: str, head_sha: str, contexts: List[Tuple[str, Any]]) -> str:
+        """Why a required context did not pass on the PR head (empty when all did). The newest run of a name decides; its app
+        must be the integration the rules name; with no run, a ``success`` status of that context stands only for a check whose rules name no integration."""
+        runs = self._lookup(self.gh.check_runs, repo, head_sha)
+        status: Optional[Dict[str, Any]] = None
+        zero = datetime.min.replace(tzinfo=timezone.utc)
+        for name, integration in contexts:
+            named = [r for r in runs if r.get("name") == name]
+            if named:
+                newest = max(named, key=lambda r: (ruleset_gate.utc(r.get("completed_at") or r.get("started_at")) or zero, int(r.get("id") or 0)))
+                if integration is not None and (newest.get("app") or {}).get("id") != integration:
+                    return f"{name} was not reported by the required integration {integration}"
+                if newest.get("conclusion") != "success":
+                    return f"{name} concluded {newest.get('conclusion') or newest.get('status') or 'nothing'}"
+                continue
+            if integration:  # the rules bind this check to an app: a status (any token can post one) never stands in for its run
+                return f"{name} did not run on {head_sha[:10]} (a status cannot replace the run from integration {integration})"
+            if status is None:
+                status = self._lookup(self.gh.commit_status, repo, head_sha)
+            if not any(isinstance(x, dict) and x.get("context") == name and x.get("state") == "success"
+                       for x in status.get("statuses") or []):
+                return f"{name} did not run on {head_sha[:10]}"
+        return ""
 
     @staticmethod
     def pause_text(base: str, shas: List[str], at: str, when: str) -> str:
         """The pause message when ``origin/<base>`` has moved without the runner more than once: every move, oldest first."""
         listing = "; ".join(f"{n}. {sha}" for n, sha in enumerate(shas, 1))
         return (f"origin/{base} moved {len(shas)} times without the runner (first noticed at {when}, {at}). Every move, oldest "
-                f"first: {listing}. Self-change landings are paused. Owner only: check each of them, then accept the newest from "
-                f"an interactive shell with `python3 tools/triage/hass_triage.py ack-base {shas[-1]}` (agents never run this).")
+                f"first: {listing}. Self-change landings are paused. {ACK_HOW} Owner only: check each of them, then accept the "
+                f"newest from an interactive shell with `python3 tools/triage/hass_triage.py ack-base {shas[-1]}` (agents never run this).")
 
     def base_moved(self, base: str, expected: str, current: str, when: str) -> None:
         details = ""
@@ -1636,8 +1808,8 @@ class Runner:
         except Exception as exc:  # noqa: BLE001
             details = f"\n\n(could not read the commit: {redact(str(exc))[:160]})"
         reason = (f"origin/{base} is {current}, but the runner last landed or saw {expected} (noticed at {when}, {iso()}). "
-                  "Self-change landings are paused. Owner only: after checking the change, accept it from an interactive shell with "
-                  f"`python3 tools/triage/hass_triage.py ack-base {current}` (agents never run this).")
+                  f"Self-change landings are paused. {ACK_HOW} Owner only: after checking the change, accept it from an interactive "
+                  f"shell with `python3 tools/triage/hass_triage.py ack-base {current}` (agents never run this).")
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         pending = pause_info(self.paths)
         if (self.paths.state_dir / "SELF_CHANGE_PAUSED").exists() and pending.get("sha"):
@@ -1700,6 +1872,60 @@ class Runner:
         pause.unlink(missing_ok=True)
         (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").unlink(missing_ok=True)
         return current
+
+    def ack_verified(self, session: str = "agent") -> Dict[str, Any]:
+        """Accept ``origin/<workflow_base>`` when every move since the last accepted SHA is a checked, squash-merged pull request
+        (:meth:`verify_pr_range`). Needs a pending ``SELF_CHANGE_PAUSED`` (else raises) and a workflow base that is the product base.
+        Returns ``{ok, reason, head, prs}``; on ``ok`` False nothing changed (the owner runs ``ack-base <sha>``). Under the ack
+        lock it verifies ``recorded..head`` and re-reads the base: if it moved, only the increment is verified, at most
+        ``ACK_ROUNDS`` rounds, then the last VERIFIED head is recorded (``check_base`` vets the rest on the next tick). Records
+        that head, clears the pause and appends a line to ``ack-log.jsonl``."""
+        base = str(self.cfg.get("workflow_base") or DEFAULT_WORKFLOW_BASE)
+        pause = self.paths.state_dir / "SELF_CHANGE_PAUSED"
+        if not pause.exists():
+            raise TriageError("no pending SELF_CHANGE_PAUSED: nothing to acknowledge")
+
+        def refused(reason: str) -> Dict[str, Any]:
+            return {"ok": False, "reason": f"{reason}. Nothing was accepted: owner: `ack-base <sha>`.", "head": None, "prs": []}
+
+        if base != str(self.cfg.get("product_base") or ""):
+            return refused(f"{base} is not the product base, so pull requests do not move it")
+        try:
+            expected = json.loads(self.base_record().read_text()).get(base)
+        except (OSError, ValueError):
+            expected = None
+        if not expected:
+            return refused(f"no accepted SHA is recorded for {base}")
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.paths.state_dir / "ack.lock", "a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                head = self.remote_base_sha(base)
+                if not head:
+                    return refused(f"{base} is not on origin")
+                verified, evidence = str(expected), []
+                for _round in range(ACK_ROUNDS):
+                    ok, found, reason = self.verify_pr_range(base, verified, head)
+                    if not ok:
+                        return refused(reason)
+                    evidence += found
+                    verified = head
+                    again = self.remote_base_sha(base)
+                    if not again or again == head:
+                        break
+                    head = again
+                prs = [int(e["pr"]) for e in evidence]
+                contexts = sorted({c for e in evidence for c in e["contexts"]})
+                self.base_record().parent.mkdir(parents=True, exist_ok=True)
+                self.base_record().write_text(json.dumps({base: verified}, indent=2, sort_keys=True))
+                pause.unlink(missing_ok=True)
+                (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").unlink(missing_ok=True)
+                with open(self.paths.state_dir / "ack-log.jsonl", "a") as log:
+                    log.write(json.dumps({"at": iso(), "mode": "verified", "from": expected, "to": verified, "prs": prs,
+                                          "contexts": contexts, "session": session}, sort_keys=True) + "\n")
+                return {"ok": True, "reason": "", "head": verified, "prs": prs}
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def base_missing(self, base: str, label: str) -> None:
         """The workflow base is not on origin, so every self-change lane waits. File one ``Workflow`` + ``On Hold`` issue per
@@ -2206,25 +2432,8 @@ class Runner:
             self._run(["git", "-C", clone, "worktree", "add", "-b", branch, str(path), base])
         return path
 
-    def _launch(self, n: int, worktree: Path, prompt: str, log: Path) -> int:
-        """Run the Claude Code session; returns its exit code, or -9 when it was stopped at the timeout."""
-        agent = self.cfg["agent"]
-        self.stray = False
-        log.parent.mkdir(parents=True, exist_ok=True)
-        command = shutil.which(agent["command"], path=self._path()) or agent["command"]
-        argv = [command, "-p", "--model", agent["model"], "--effort", agent["effort"],
-                "--permission-mode", agent["permission_mode"], "--output-format", "stream-json", "--verbose"]
-        if self.agent_override or agent.get("agent"):  # the orchestrator playbook (.claude/agents/orchestrator.md); empty turns it off
-            argv += ["--agent", self.agent_override or agent["agent"]]
-        if agent.get("allowed_tools"):
-            argv += ["--allowedTools", ",".join(agent["allowed_tools"])]
-        denied = list(agent.get("disallowed_tools") or [])
-        if self.agent_override == "reviewer":  # the reviewer never pushes, lands or acknowledges anything
-            denied += ["Bash(git push*)", "Bash(*hass_triage*)", "Bash(*ack-base*)", "Bash(*lane_land*)"]
-        if denied:
-            argv += ["--disallowedTools", ",".join(denied)]
-        for extra in self.extra_dirs:
-            argv += ["--add-dir", str(extra)]
+    def _session_env(self, n: Any) -> Dict[str, str]:
+        """The environment of a worker session: a scrubbed base plus the headless markers (a T3 launch records these instead)."""
         env = {key: os.environ[key] for key in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL") if key in os.environ}
         env.update({"PATH": self._path(), "HASS_TRIAGE_ISSUE": str(n), "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
                     "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(n)),
@@ -2233,6 +2442,100 @@ class Runner:
                     "FENTON_HEADLESS": "1"})  # arms the Stop hook that refuses to end a headless turn on running work
         if self.intake:
             env["HASS_TRIAGE_INTAKE"] = "nightly"  # `comment` and `upload` then post to the product repository
+        return env
+
+    def _t3_launch(self, n: Any, worktree: Path, prompt: str, log: Path) -> int:
+        """Run the session as a T3 thread (``agent.launcher: "t3code"``, see ``t3launch``). Same contract as ``_launch``: the exit
+        code, or -9 at the timeout. A launch that could not start safely is logged and returns 1 (the caller's retry path)."""
+        agent = self.cfg["agent"]
+        self.stray = self.guard_tampered = self.t3_stray = False
+        env = self._session_env(n)
+        record_env = {k: v for k, v in env.items() if k not in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
+        kind = "nightly" if self.intake else "request" if isinstance(n, int) else "retro" if str(n).startswith("retro-") else "job"
+        branch = (self._run(["git", "-C", str(worktree), "symbolic-ref", "--short", "-q", "HEAD"], check=False).stdout or "").strip()
+
+        def started(thread: str) -> None:
+            if isinstance(self.state.data.get("current"), dict):
+                self.state.data["current"].update(thread=thread, launcher="t3code", pid=os.getpid())
+                self.state.save()
+
+        # The claude path keeps the Mac awake for the session (caffeinate on its pid); the runner is what blocks in `threads wait` here.
+        awake = subprocess.Popen(["caffeinate", "-is", "-w", str(os.getpid())]) if shutil.which("caffeinate") else None
+        try:
+            launcher = t3launch.Launcher(agent, self.paths.home, self.paths.root, env, self.run)
+            out = launcher.launch(kind=kind, issue=n if isinstance(n, int) else None, role="worker" if isinstance(n, int) else str(n),
+                                  worktree=worktree, branch=branch, session_env=record_env,
+                                  deny=list(agent.get("disallowed_tools") or []), prompt=prompt, log=log,
+                                  timeout=float(self.job_timeout or agent["timeout_minutes"]) * 60,
+                                  trusted=self.trusted_clone(self.cfg["product_base"]), on_thread=started)
+        except Exception as exc:  # noqa: BLE001 (any failure to start safely, the trusted checkout's included, is a failed launch)
+            self.stray = self.t3_stray = bool(getattr(exc, "stray", False))
+            print(f"{n}: t3 launch failed: {redact(str(exc))[:300]}")
+            with open(log, "ab") as handle:
+                handle.write((json.dumps({"type": "t3_launch_failed", "reason": redact(str(exc))[:300]}) + "\n").encode())
+            return 1
+        finally:
+            if awake:
+                awake.terminate()
+        self.stray, self.guard_tampered, self.t3_stray = out.stray or out.tampered, out.tampered, out.stray  # a tampered session lands nothing either
+        if out.stray:
+            print(f"{n}: processes of the T3 session are still running after the cleanup")
+        if out.tampered:
+            print(f"{n}: the guard hooks changed during the session")
+        return out.code
+
+    def undo_landing(self, n: int) -> str:
+        """After ``guard_tampered``: the worker lands its own pull request inside the session, so disarm auto-merge on every pull request of
+        its branch and take off the merge label. Returns a sentence for the block comment (it says when a pull request already merged)."""
+        notes = []
+        try:
+            pulls = self.gh.branch_pulls(self.cfg["product_repo"], f"{self.branch}/{n}")
+        except TriageError as exc:
+            return f" Its pull requests could not be listed to disarm them ({exc}); check {self.branch}/{n} by hand."
+        for pull in pulls:
+            url, state = str(pull.get("url") or ""), pull.get("state")
+            if state == "MERGED":
+                notes.append(f"{url} had already merged")
+            elif state == "OPEN":
+                try:
+                    self.gh.disarm_pull(url)
+                    self.gh.label_pull(url, remove=self.cfg["merge"]["label"])
+                    notes.append(f"auto-merge on {url} was turned off")
+                except TriageError as exc:
+                    notes.append(f"{url} could not be disarmed ({exc}); disarm it by hand")
+        return " " + "; ".join(notes) + "." if notes else ""
+
+    def _drop_worktree(self, path: Path, clone: str) -> None:
+        """``git worktree remove`` and forget its T3 triage records (``t3launch.forget``)."""
+        self._run(["git", "-C", clone, "worktree", "remove", "--force", str(path)], check=False)
+        if not self.dry_run:
+            t3launch.forget(path, self.paths.home)
+
+    def _launch(self, n: int, worktree: Path, prompt: str, log: Path) -> int:
+        """Run the Claude Code session; returns its exit code, or -9 when it was stopped at the timeout."""
+        agent = self.cfg["agent"]
+        log.parent.mkdir(parents=True, exist_ok=True)
+        if (agent.get("launcher") or "claude") == "t3code" and self.agent_override != "reviewer" \
+                and t3launch.settings_agree(worktree, agent.get("agent")):
+            return self._t3_launch(n, worktree, prompt, log)
+        self.stray = self.guard_tampered = self.t3_stray = False
+        command = shutil.which(agent["command"], path=self._path()) or agent["command"]
+        role = ({"model": "claude-opus-5-5", "effort": "high", **(agent.get("reviewer") or {})}
+                if self.agent_override == "reviewer" else agent)
+        argv = [command, "-p", "--model", role["model"], "--effort", role["effort"],
+                "--permission-mode", agent["permission_mode"], "--output-format", "stream-json", "--verbose"]
+        if self.agent_override or agent.get("agent"):  # the orchestrator playbook (.claude/agents/orchestrator.md); empty turns it off
+            argv += ["--agent", self.agent_override or agent["agent"]]
+        if agent.get("allowed_tools"):
+            argv += ["--allowedTools", ",".join(agent["allowed_tools"])]
+        denied = list(agent.get("disallowed_tools") or [])
+        if self.agent_override == "reviewer":  # the reviewer never pushes, lands or acknowledges anything
+            denied += ["Bash(git push*)", "Bash(*hass_triage*)", "Bash(*ack-base*)", "Bash(*ack-verified*)", "Bash(*lane_land*)"]
+        if denied:
+            argv += ["--disallowedTools", ",".join(denied)]
+        for extra in self.extra_dirs:
+            argv += ["--add-dir", str(extra)]
+        env = self._session_env(n)
         # The reviewer's stdout goes to an unlinked temp file only the runner holds (copied to the log afterwards): a process
         # that outlived an earlier session cannot append a later ``result`` event to a file it can open by name.
         capture = tempfile.TemporaryFile() if self.agent_override == "reviewer" else None
@@ -2295,6 +2598,9 @@ class Runner:
             text = log.read_text(errors="replace")
         except OSError:
             return ""
+        tail = t3launch.thread_tail(text)
+        if tail is not None:  # a T3 log: the last assistant messages, not the raw thread JSON
+            return redact_lines(tail)[-6000:]
         return redact_lines("\n".join(text.splitlines()[-lines:]))[-6000:]
 
     # -- outcomes
@@ -2365,7 +2671,7 @@ class Runner:
             text = (f"{decision.get('question', summary)}\n\n{options}\n\nRecommended: "
                     f"**{decision.get('recommendation', '?')}**. Reply with your choice and the agent continues on its "
                     "next run.")
-            post_update(self.gh, self.repo, n, "decision-needed", text)
+            self.post_decision(n, text, [], GENERIC_DECISION_ISSUE)
             self.gh.edit_labels(self.repo, n, add=["Needs Decision"], remove=["In Progress"])
             self.state.record(n, "needs_decision", decision.get("question", ""))
             return "needs_decision"
@@ -2385,7 +2691,8 @@ class Runner:
 
         Labels the pull request and the issue ``Needs Decision``, posts the options, and remembers the pull request so
         ``check_parked`` finishes the issue when the owner merges it and ``requeue`` builds the owner's pick when they
-        reply instead. The worktree stays."""
+        reply instead. The worktree stays. The issue comment goes through :meth:`post_decision`, which checks it when the issue
+        is on the public product repository (the nightly intake) and falls back to :data:`GENERIC_PARK_ISSUE` on a hit."""
         summary = str(status.get("summary", "")).strip()
         mockups = "\n".join(f"- {m}" for m in decision.get("mockups") or [])
         text = (f"{decision.get('question', summary)}\n\n{options}\n\nRecommended: "
@@ -2393,7 +2700,8 @@ class Runner:
         if mockups:
             text += f"\n\nMockups:\n{mockups}"
         text += (f"\n\nPull request: {pr}\n\nReply with your pick, or merge the PR to accept the recommendation.")
-        post_update(self.gh, self.repo, n, "decision-needed", text, status.get("screenshots") or [])
+        self.post_decision(n, text, status.get("screenshots") or [], f"{GENERIC_PARK_ISSUE}\n\nPull request: {pr}")
+        self.post_pull_question(pr, decision, options)
         self.gh.label_pull(pr, "Needs Decision")
         try:  # a coder's pull request is a draft (ship.sh): ready it so the owner can merge it to accept
             if self.gh.pull(pr).get("isDraft"):
@@ -2405,6 +2713,72 @@ class Runner:
         self.state.set_attempts(n, 0)
         self.state.record(n, "parked", pr)
         return "parked"
+
+    def post_decision(self, n: int, text: str, media: List[Dict[str, str]], fallback: str) -> None:
+        """Post the runner's ``decision-needed`` comment on this issue, the one place both decision comments go through.
+
+        When the issue is not on the request repository (the nightly intake is on the public product repository; the
+        comparison ignores case) the exact body that will be posted, captions and file names included, passes
+        :meth:`public_safe`; on a hit, or a checker that cannot run, the comment is ``fallback`` with no media. Any repository
+        other than the request repository is treated as public."""
+        request = str(self.cfg.get("request_repo") or "")
+        if self.repo.lower() != request.lower() and not self.public_safe(render_update(n, "decision-needed", text, media),
+                                                                         "issue comment"):
+            text, media = fallback, []
+        post_update(self.gh, self.repo, n, "decision-needed", text, media)
+
+    def public_safe(self, text: str, target: str = "pull request question") -> bool:
+        """May ``text`` go to the public product repository? Fails closed: ``False`` on any house-data hit (``tools/house_scan.py``
+        with the owner's denylist), the private request repository's name or an issue link into it, a denylist that is not
+        loaded, or any checker error. ``target`` names what is being checked in the log. Counts only are printed, never a
+        matched term."""
+        try:
+            import house_scan
+            deny = house_scan.load_denylist()
+            if not deny:
+                print(f"{target}: denylist not loaded; posting the generic comment")
+                return False
+            hits = house_scan.scan_text("pull-comment.md", text, house_scan.load_config(), deny)
+            name = str(self.cfg.get("request_repo") or "").strip()
+            leaked = bool(name) and any(part.lower() in text.lower() for part in {name, name.split("/")[-1]} if part)
+            if hits or leaked:
+                print(f"{target}: {len(hits) + int(leaked)} house-data hit(s); posting the generic comment")
+                return False
+            return True
+        except Exception as exc:  # noqa: BLE001  a checker that cannot run must never let text through
+            print(f"{target}: house-data check failed ({type(exc).__name__}); posting the generic comment")
+            return False
+
+    def post_pull_question(self, pr: str, decision: Dict[str, Any], options: str) -> None:
+        """Post the parked question on the pull request itself, as the runner's ``decision-needed`` marker comment.
+
+        The pull request is on the public product repository, so the worker's text is posted only after :meth:`public_safe`
+        passes; otherwise the comment is the fixed :data:`GENERIC_PULL_QUESTION` with no worker text. A second park edits the
+        runner's own marker comment in place when the text changed and does nothing when it did not; a marker comment by anyone
+        else is ignored. Nothing reads replies or approvals on the pull request yet, so the last line names only what works.
+        Fail safe: any failure is logged and the park goes on. The issue comment is unchanged."""
+        try:
+            number = int(pr.rstrip("/").rsplit("/", 1)[1])
+            repo = self.cfg["product_repo"]
+            numbered = "\n".join(f"{i}. **{o.get('key', i)}**: {o.get('summary', '')}" if isinstance(o, dict) else f"{i}. {o}"
+                                 for i, o in enumerate(decision.get("options") or [], 1)) or options
+            text = (f"{decision.get('question', '')}\n\n{numbered}\n\nRecommended: **{decision.get('recommendation', '?')}**.\n\n"
+                    f"{PULL_DECIDE_LINE}")
+            body = render_update(number, "decision-needed", text, [])
+            if not self.public_safe(body):
+                body = render_update(number, "decision-needed", GENERIC_PULL_QUESTION, [])
+            if self.gh.dry_run:
+                return
+            tag = marker(number, "decision-needed")
+            own = {x.lower() for x in [*self.authors, str(self.cfg.get("agent_login") or "")] if x}
+            for comment in self.gh.comments(repo, number):
+                if tag in (comment.get("body") or "") and author(comment).lower() in own:
+                    if (comment.get("body") or "").strip() != body.strip():
+                        self.gh.edit_comment(repo, int(comment["id"]), body)
+                    return
+            self.gh.create_comment(repo, number, body)
+        except Exception as exc:  # noqa: BLE001  the question on the pull request is a courtesy; the park must stay intact
+            print(f"{pr}: could not post the question on the pull request: {redact(str(exc))[:200]}")
 
     def finish_done(self, n: int, status: Dict[str, Any], pr: str) -> str:
         parts = [str(status.get("summary", "")).strip()]
@@ -2662,7 +3036,7 @@ class Runner:
         had_lanes = False
         try:
             if worktree.exists():
-                self._run(["git", "-C", clone, "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, clone)
             self._run(["git", "-C", clone, "worktree", "prune"], check=False)
             self._run(["git", "-C", clone, "fetch", "-q", "origin", base])
             worktree.parent.mkdir(parents=True, exist_ok=True)
@@ -2702,7 +3076,7 @@ class Runner:
             elif not had_lanes and self.retro_unlanded(clone, worktree, base):
                 print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
             else:
-                self._run(["git", "-C", clone, "worktree", "remove", "--force", str(worktree)], check=False)
+                self._drop_worktree(worktree, clone)
             self.state.save()
         return outcome
 
@@ -2767,7 +3141,7 @@ class Runner:
         path = self.paths.worktree(n)
         self.archive_evidence(n, digest=False)
         if path.exists() and n not in self._keep:
-            self._run(["git", "-C", str(self.paths.clone), "worktree", "remove", "--force", str(path)], check=False)
+            self._drop_worktree(path, str(self.paths.clone))
         shutil.rmtree(self.paths.work / str(n), ignore_errors=True)
         self.paths.request_snapshot(n).unlink(missing_ok=True)
 
@@ -2851,7 +3225,8 @@ def self_change_status(paths: Paths) -> Dict[str, Any]:
             "moves": listed if "SELF_CHANGE_PAUSED" in on else []}
 
 
-def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None) -> Dict[str, Any]:
+def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None,
+                  t3_ready: Optional[bool] = None) -> Dict[str, Any]:
     state = State(paths.state)
     holder = ""
     try:
@@ -2878,6 +3253,9 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
     return {
         "claude_logged_in": logged_in,
+        "launcher": cfg["agent"].get("launcher") or "claude",
+        "t3_ready": t3_ready,
+        "t3_thread": (state.data.get("current") or {}).get("thread"),
         "jobs": jobs,
         "parked": {k: v.get("pr") for k, v in state.data["parked"].items()},
         "nightly_queue": nightly_queue,
@@ -2918,6 +3296,9 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
     ack = sub.add_parser("ack-base", help="owner only (interactive shell): accept origin/<workflow_base> after an unexpected move "
                                           "and clear SELF_CHANGE_PAUSED")
     ack.add_argument("sha", help="the exact current SHA of origin/<workflow_base>")
+    sub.add_parser("ack-verified", help="interactive sessions (not the runner's workers): accept origin/<workflow_base> when every move "
+                                        "since the last accepted SHA is a squash-merged PR that passed the live ruleset's checks")
+    sub.add_parser("install-t3code", help=f"install {t3launch.PACKAGE}@{t3launch.PINNED_VERSION} under ~/hass-agents/tools/t3code (pinned, no scripts)")
     sub.add_parser("pause")
     sub.add_parser("resume")
     sub.add_parser("init-labels")
@@ -2975,7 +3356,10 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
             print(runner.run_job(args.name))
             return 0
         if args.cmd == "status":
-            report = status_report(cfg, paths, gh, claude_logged_in(cfg["agent"]["command"], agent_path(home)))
+            t3 = None
+            if (cfg["agent"].get("launcher") or "claude") == "t3code":
+                t3 = t3launch.ready(cfg["agent"], paths.root, env={"PATH": agent_path(home), "HOME": str(home)})[0]
+            report = status_report(cfg, paths, gh, claude_logged_in(cfg["agent"]["command"], agent_path(home)), t3)
             if args.json:
                 print(json.dumps(report, indent=2))
             else:
@@ -2996,6 +3380,9 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(f"auth: {AUTH_MESSAGE}")
                 elif report["claude_logged_in"]:
                     print("auth: claude logged in")
+                if report["launcher"] == "t3code":
+                    print(f"launcher: t3code ({'ready' if report['t3_ready'] else 'not ready' if report['t3_ready'] is False else 'unknown'})"
+                          + (f", thread {report['t3_thread']}" if report["t3_thread"] else ""))
                 if report["current"]:
                     what = (f"job {report['current']['job']}" if report["current"].get("job")
                             else f"#{report['current'].get('issue')}")
@@ -3023,6 +3410,24 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                 return 2
             print(f"Accepted {Runner(cfg, paths, gh).ack_base(args.sha)[:10]} as the workflow base; SELF_CHANGE_PAUSED cleared.")
             return 0
+        if args.cmd == "ack-verified":
+            if os.environ.get("FENTON_HEADLESS") == "1" or os.environ.get("HASS_TRIAGE_ISSUE"):
+                print("ack-verified is not for the runner's own sessions: they cannot clear their own pause.", file=sys.stderr)
+                return 2
+            owner = sys.stdin.isatty()
+            try:
+                result = Runner(cfg, paths, gh).ack_verified("owner" if owner else "agent")
+            except TriageError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            if not result["ok"]:
+                print(f"ack-verified: {result['reason']}", file=sys.stderr)
+                return 1
+            print(f"Accepted {len(result['prs'])} PR merges: {' '.join('#%d' % n for n in result['prs'])}; head {result['head'][:10]}; "
+                  "SELF_CHANGE_PAUSED cleared.")
+            return 0
+        if args.cmd == "install-t3code":
+            return t3launch.install(paths.root, {"PATH": agent_path(home), "HOME": str(home)})
         if args.cmd == "pause":
             paths.config_dir.mkdir(parents=True, exist_ok=True)
             paths.paused.write_text(iso() + "\n")

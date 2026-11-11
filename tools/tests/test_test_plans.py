@@ -64,6 +64,20 @@ class ClassifyTests(unittest.TestCase):
 
 
 class RealPlansTests(unittest.TestCase):
+    def test_token_launch_helpers_that_require_a_server_are_live_not_gate(self):
+        """Fails if: a journey that calls FentonHomeApp.requireServer( (the token and password launch helpers) is classified Gate, where it would skip for lack of credentials and fail the run as EMPTY."""
+        classes = t.scan()
+        spotlight = classes["SpotlightJourneyTests"]
+        self.assertTrue(spotlight)
+        for method, src in spotlight.items():
+            with self.subTest(test=f"SpotlightJourneyTests/{method}"):
+                self.assertEqual(t.classify("SpotlightJourneyTests", method, src), "Live")
+        food = "testSignedInFixtureSheetSwitchesTabs"
+        self.assertEqual(t.classify("FoodLiveJourneyTests", food, classes["FoodLiveJourneyTests"][food]), "Live")
+        gate = t.partition(classes)["Gate"]
+        self.assertNotIn("SpotlightJourneyTests", gate)
+        self.assertNotIn(food, gate.get("FoodLiveJourneyTests", {}))
+
     def test_the_real_journeys_partition_and_smoke_exists(self):
         classes = t.scan()
         docs = t.build(classes)

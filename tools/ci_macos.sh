@@ -5,6 +5,8 @@
 #   tools/ci_macos.sh build                  build the test products once (no simulator booted: a first Duo boot beside a compile killed runners)
 #   tools/ci_macos.sh smoke FAMILY           Smoke plan on iphone|duo|ipad (one at a time, each booted, slimmed (simslim) and settled first)
 #   tools/ci_macos.sh journeys FAMILY         the journeys the diff reaches (pull requests only; skips when Gate runs none of them)
+#   tools/ci_macos.sh hosted iphone          the app-hosted unit-test classes (FentonHomeTests) the diff reaches, plain, on iPhone (pull requests only;
+#                                            the whole suite when a file cannot be placed; skips when the diff reaches none)
 #   tools/ci_macos.sh swift-test             swift test (the affected suites on a pull request, everything otherwise)
 #   tools/ci_macos.sh summary                the timing table and the runner's swap and memory
 #
@@ -83,7 +85,39 @@ case "$cmd" in
     target="${2:-}"; check_family "$target" 1
     jrc=0; journeys_for "$target" || jrc=$?
     case "$jrc" in 0) ;; 10) echo "skipped: no journey the diff reaches runs in the Gate plan on $target"; exit 0 ;; *) exit "$jrc" ;; esac
-    phase "journeys-$target" "$UITEST" --only "$target" --changed --force
+    # --no-hosted: the diff's hosted classes run in the `hosted` step only (once, and an unplaced file is reported there), not inside this one.
+    phase "journeys-$target" "$UITEST" --only "$target" --changed --force --no-hosted
+    ;;
+  hosted)
+    target="${2:-}"; check_family "$target" 1
+    # The hosted classes are family-independent unit tests (nightly runs them on every family): the pull request tier runs them on iPhone only.
+    [[ "$target" == iphone ]] || { echo "ci_macos: hosted runs on iphone only (got '$target')" >&2; exit 2; }
+    # affected_tests.py --hosted: exit 0 with the classes (possibly none), exit 3 when a UIKitPort or iOSTests file no rule places. CI never
+    # guesses narrower than the diff: on 3 it runs the whole suite and says so. Any other exit is a crash of the tool and fails the step.
+    rc=0; picked="$("${AFFECTED[@]}" --hosted)" || rc=$?
+    # The hosted run replaces apple/.build/uitest-iphone.xcresult and .log (the artifact path of a failed leg): keep the journeys' own beside them.
+    build="$ROOT/apple/.build"
+    if [[ "$rc" == 0 && -z "$picked" ]]; then :; else
+      for ext in xcresult log; do
+        if [[ -e "$build/uitest-$target.$ext" ]]; then rm -rf "$build/uitest-$target-journeys.$ext"; mv "$build/uitest-$target.$ext" "$build/uitest-$target-journeys.$ext"; fi
+      done
+    fi
+    case "$rc" in
+      0)
+        if [[ -z "$picked" ]]; then
+          echo "skipped: no hosted class the diff reaches"
+          printf 'hosted-%s\t0\t0\n' "$target" >> "$TIMINGS"
+          exit 0
+        fi
+        echo "hosted classes the diff reaches: $picked"
+        phase "hosted-$target" env FENTON_HOSTED_FILTER="$picked" "$UITEST" --only "$target" --hosted --force
+        ;;
+      3)
+        echo "affected_tests.py could not place every changed file (exit 3): running every hosted class"
+        phase "hosted-$target" env -u FENTON_HOSTED_FILTER "$UITEST" --only "$target" --hosted --force
+        ;;
+      *) echo "affected_tests.py failed (exit $rc)" >&2; exit "$rc" ;;
+    esac
     ;;
   swift-test)
     "$RELEASE" || true
@@ -122,7 +156,7 @@ case "$cmd" in
     } | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
     ;;
   *)
-    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 2
     ;;
 esac

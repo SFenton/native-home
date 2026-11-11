@@ -1,5 +1,6 @@
 """Hang watchdogs (``tools/xc_watch.py``) and the UI test helpers (``tools/uitest_support.py``)."""
 
+import math
 import subprocess
 import sys
 import unittest
@@ -162,10 +163,11 @@ class SupportTests(unittest.TestCase):
             many = "".join(f"    func testCase{i}() {{}}\n" for i in range(400))
             (hosted / "A.swift").write_text(f"final class AHostedTests: XCTestCase {{\n{many}}}\n", encoding="utf-8")
             (hosted / "B.swift").write_text("final class BHostedTests: XCTestCase {\n    func testOnly() {}\n}\n", encoding="utf-8")
-            # 401 tests: 6 s each plus ten minutes, above the 1800 s floor.
-            self.assertEqual(uitest_support.hosted_hold([], root), 6 * 401 + 600)
-            self.assertEqual(uitest_support.hosted_hold(["BHostedTests"], root), uitest_support.HOSTED_FLOOR)
-            self.assertEqual(uitest_support.hosted_hold(["AHostedTests", "Missing"], root), 6 * (400 + uitest_support.UNKNOWN_CLASS) + 600)
+            # 401 tests: the measured 3.1 s each times 1.5 (4.65 s) plus ten minutes, above the 900 s floor.
+            self.assertEqual(uitest_support.hosted_hold([], root), math.ceil(4.65 * 401) + 600)
+            self.assertEqual(uitest_support.hosted_hold(["BHostedTests"], root), uitest_support.HOSTED_FLOOR)  # 5 + 600 s is under 900
+            self.assertEqual(uitest_support.HOSTED_FLOOR, 900)
+            self.assertEqual(uitest_support.hosted_hold(["AHostedTests", "Missing"], root), math.ceil(4.65 * (400 + uitest_support.UNKNOWN_CLASS)) + 600)
             (hosted / "C.swift").write_text("final class CHostedTests: XCTestCase {\n" + many * 3 + "}\n", encoding="utf-8")
             self.assertEqual(uitest_support.hosted_hold([], root), uitest_support.HOLD_CAP)
 

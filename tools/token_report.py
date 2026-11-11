@@ -7,7 +7,8 @@ Reports tokens and a relative weighted cost per day and model, then the habits t
 Oct 2026 (`.agents/archive/audit/token-burn-2026-10-22.md`): sessions past 200 turns, context per turn, poll turns
 (sleep loops), and turns that re-wrote a whole cached context after a gap. Weighted cost is relative, not the
 plan's meter: input 1, cache read 0.1, cache write 1.25 (5 min tier) or 2 (1 h tier), output 5, times a model
-multiplier (Opus 5, Sonnet 1, Haiku 0.33).
+multiplier (Opus 5, Sonnet 1, Haiku 0.33, Fable 10 on every term except cache reads, which cost the same as
+Opus's). All of it is relative, not dollars.
 
 A healthy week: no session over 200 turns, no poll turns, no rewrite turns.
 """
@@ -40,14 +41,16 @@ def default_project_glob() -> str:
     return f"*{name}*" if name else "*"
 
 
-MODEL_WEIGHT = {"opus": 5.0, "sonnet": 1.0, "haiku": 0.33}
+MODEL_WEIGHT = {"opus": 5.0, "sonnet": 1.0, "haiku": 0.33, "fable": 10.0}
+#: Relative cost of a cache read, in input-token units *before* the model multiplier; Fable's reads cost what Opus's do.
+CACHE_READ = {"fable": 0.05}
 POLL = re.compile(r"\b(?:until|while)\b.{0,400}?\bdo\b.{0,300}?\bsleep\s+[0-9$]|\bfor\s+\w+\s+in\b[^;\n]*\bseq\b.{0,400}?\bdo\b.{0,300}?\bsleep\s+[0-9$]|\bsleep\s+(?:[3-9]\d|\d{3,})\b", re.S)
 LONG_SESSION_TURNS = 200
 REWRITE_GAP_SECONDS = 300
 
 
 def family(model: str) -> Optional[str]:
-    """``opus``, ``sonnet`` or ``haiku`` for a model id, else ``None`` (synthetic turns)."""
+    """``opus``, ``sonnet``, ``haiku`` or ``fable`` for a model id, else ``None`` (synthetic turns)."""
     for name in MODEL_WEIGHT:
         if name in (model or ""):
             return name
@@ -63,7 +66,7 @@ def weighted(usage: Dict, model: str) -> float:
     write = 1.25 * created.get("ephemeral_5m_input_tokens", 0) + 2.0 * created.get("ephemeral_1h_input_tokens", 0)
     if not created:
         write = 1.25 * usage.get("cache_creation_input_tokens", 0)
-    return MODEL_WEIGHT[fam] * (usage.get("input_tokens", 0) + 0.1 * usage.get("cache_read_input_tokens", 0)
+    return MODEL_WEIGHT[fam] * (usage.get("input_tokens", 0) + CACHE_READ.get(fam, 0.1) * usage.get("cache_read_input_tokens", 0)
                                 + write + 5 * usage.get("output_tokens", 0))
 
 

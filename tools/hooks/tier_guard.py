@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""PreToolUse hook for Bash: the full journey suite and full coverage are the nightly and release tiers, not a per-change run.
+"""PreToolUse hook for Bash: the full journey suite is the nightly and release tier, not a per-change run.
 
 Refuses (exit 2, the message goes back to the model):
 
 * ``tools/ios_uitest.sh`` with no filter: no ``--changed``, no ``-only-testing…`` and no ``--plan Smoke|Capture|Perf|Live``
   (``--plan Gate`` is the whole gate, so it is a full run and is refused too).
-* ``tools/apple_coverage.sh`` without ``--changed``.
+
+``tools/apple_coverage.sh`` is not guarded: it is the host-only logic gate and boots no simulator.
 
 Allowed anyway when the command carries ``FENTON_TIER=nightly`` or ``FENTON_TIER=release`` (the CI workflows and the release
 checklist set it; the hook process's own environment counts too), or ``--full`` together with a ``# full-ok: reason`` comment.
@@ -24,7 +25,6 @@ import sys
 from typing import List, Optional
 
 UITEST = "ios_uitest.sh"
-COVERAGE = "apple_coverage.sh"
 LAUNCHERS = {"bg_run.py", "devcap.py", "bash", "sh", "zsh", "dash", "nohup", "time", "env", "exec", "command", "nice"}
 SPLIT = re.compile(r"&&|\|\||\$\(|[;|&(){}`\n]|\b(?:then|do|else|elif|if|while|until)\b")
 SHELL_C = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
@@ -34,11 +34,8 @@ SMALL_PLANS = {"Smoke", "Capture", "Perf", "Live"}
 
 
 def message(script: str) -> str:
-    if script == UITEST:
-        alternative = ("`tools/ios_uitest.sh --changed` (the journeys the diff affects), `-only-testing:FentonHomeUITests/<Class>`, "
-                       "or `--plan Smoke|Capture|Perf|Live` for a family a change does not target")
-    else:
-        alternative = "`tools/apple_coverage.sh --changed` (coverage of the files this change touches)"
+    alternative = ("`tools/ios_uitest.sh --changed` (the journeys the diff affects), `-only-testing:FentonHomeUITests/<Class>`, "
+                   "or `--plan Smoke|Capture|Perf|Live` for a family a change does not target")
     return (f"Blocked: an unfiltered {script} run is the nightly or release tier. Use {alternative}. The full run belongs to "
             "the nightly workflow and the release checklist (FENTON_TIER=nightly|release); if you really need it, add "
             "`--full` and a `# full-ok: <reason>` comment. See .agents/testing/apple/README.md and "
@@ -49,8 +46,6 @@ def unfiltered(script: str, args: List[str]) -> bool:
     """Is this invocation of ``script`` a full run?"""
     if any(a in ("-h", "--help") for a in args):
         return False
-    if script == COVERAGE:
-        return "--changed" not in args
     if "--changed" in args or any(a.startswith("-only-testing") for a in args):
         return False
     for i, a in enumerate(args):
@@ -68,7 +63,7 @@ def segment_script(segment: str) -> Optional[tuple]:
     except ValueError:
         words = segment.split()
     for i, word in enumerate(words):
-        if os.path.basename(word) in (UITEST, COVERAGE):
+        if os.path.basename(word) == UITEST:
             before = [os.path.basename(w) for w in words[:i]]
             if "-n" in before:  # `bash -n script`: a syntax check, nothing runs
                 return None

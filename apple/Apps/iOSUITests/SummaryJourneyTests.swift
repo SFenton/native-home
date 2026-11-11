@@ -71,6 +71,16 @@ final class SummaryJourneyTests: JourneyTestCase {
             XCTAssertGreaterThanOrEqual(tab(id).frame.width, 43, tab(id).label)
             XCTAssertGreaterThanOrEqual(tab(id).frame.height, 43, tab(id).label)
         }
+        // The capsule is drawn behind the opening tab with no tap (owner, 2026-11-05): the pixels just inside the Profile segment's
+        // leading edge differ from the same spot in an unselected segment. It has no accessibility element of its own.
+        let capture = try XCTUnwrap(RenderedContrast.Capture.screen())
+        func edgeColour(_ id: SummaryTabID) throws -> (red: Int, green: Int, blue: Int) {
+            let frame = tab(id).frame
+            return try XCTUnwrap(RenderedContrast.rgb(at: CGPoint(x: frame.minX + 8, y: frame.midY), in: capture), id.rawValue)
+        }
+        let lifted = try edgeColour(.profile), plain = try edgeColour(.upcoming)
+        XCTAssertGreaterThanOrEqual(max(abs(lifted.red - plain.red), abs(lifted.green - plain.green), abs(lifted.blue - plain.blue)), 6,
+                                    "The opening tab shows its capsule: \(lifted) against \(plain)")
         overdue.tap()
         XCTAssertTrue(overdue.isSelected)
         XCTAssertTrue(element("todo.item.11--fixture", in: app).appears(timeout: 5), "Overdue chores listed")

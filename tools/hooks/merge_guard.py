@@ -22,7 +22,7 @@ targets ``refs/heads/agents/*`` (``agents/x``, ``HEAD:agents/x``, ``refs/heads/a
 ``git push``, a ``HEAD`` or branch-name refspec whose destination depends on the checkout, any ``+`` or ``--force*``,
 ``--all``, ``--mirror``, ``--tags``, ``--delete``, glob or delete refspecs, another remote or URL, a push inside ``-C``,
 ``git -c ...``, ``xargs``, ``timeout`` and other wrappers, subshells, ``bash -c`` and ``eval``, an alias (``-c alias.*``,
-``git config alias.*``), ``git send-pack`` and ``http-push``, ``tools/lane_land.py`` (the runner lands), ``hass_triage.py ack-base`` (owner only), writes to the git
+``git config alias.*``), ``git send-pack`` and ``http-push``, ``tools/lane_land.py`` (the runner lands), ``hass_triage.py ack-base`` (owner only; ``ack-verified`` is the agent-runnable form: blocked headless, allowed only in its exact form), writes to the git
 refs, branches, merges or contents API, and any command that mentions ``git`` and ``push`` through a shell expansion or that
 cannot be parsed. Merging locally is harmless now: only the runner, from its own land clone, moves the workflow base.
 
@@ -73,6 +73,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import agent_login as agent_login_module  # noqa: E402
 import request_repo as request_repo_module  # noqa: E402
 from shell_parse import FEEDERS, scan_shell, strip_prefixes, tokenize as _tokenize, unwrap_xargs  # noqa: E402
+
+try:  # the registry of T3-launched triage sessions: a registered session gets the runner's markers (tools/hooks/triage_session.py)
+    import triage_session
+except Exception:  # noqa: BLE001 - triage_deny fails closed when the module is gone
+    triage_session = None
 
 MESSAGE = (
     "Blocked: agents merge only through `tools/pr_land.sh N` (its gate: the configured checks and a recorded independent review), never with "
@@ -151,16 +156,169 @@ def headless() -> bool:
 OWNER_OPTION = re.compile(r"--owner", re.I)
 #: Taking the headless markers away from a command: unset/env -u/env -i, or an assignment of anything but `FENTON_HEADLESS=1`.
 ENV_TAMPER = (
-    re.compile(r"\bunset\b[^;&|\n]*\b(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)\b"),
-    re.compile(r"\benv\s+(?:(?:-[A-Za-z]+|--\S+|\w+=\S*)\s+)*(?:-[A-Za-z]*i|--ignore-environment|-u\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)|"
-               r"--unset[= ]\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)|-)(?=\s|$)"),
+    re.compile(r"\bunset\b[^;&|\n]*\b(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)\b"),
+    re.compile(r"\benv\s+(?:(?:-[A-Za-z]+|--\S+|\w+=\S*)\s+)*(?:-[A-Za-z]*i|--ignore-environment|-u\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)|"
+               r"--unset[= ]\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)|-)(?=\s|$)"),
     re.compile(r"\bFENTON_HEADLESS\s*=\s*(?!1\b)"),
     re.compile(r"\bHASS_TRIAGE_(?:ISSUE|INTAKE|PAUSED_FILE|BIN|STATUS_FILE)\s*="),
-    re.compile(r"\b(?:export|declare|typeset)\s+-[a-zA-Z]*n?\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+)\s*$"),
+    re.compile(r"\b(?:T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)\s*="),  # what finds a T3 session's registry record
+    re.compile(r"\b(?:export|declare|typeset)\s+-[a-zA-Z]*n?\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)\s*$"),
 )
 PTY_WRAPPER = re.compile(r"(?:^|[\s;&|(`])(?:\S*/)?(?:script|expect|unbuffer|faketty|socat|screen|tmux)(?=\s|$)")
-LAND_WORDS = re.compile(r"pr_land|lane_land|ack[-_]?base")
+LAND_WORDS = re.compile(r"pr_land|lane_land|ack[-_]?(?:base|verified)")
+#: `hass_triage` run with `ack-verified`: the agent-runnable acceptance of a range of checked PR merges (owner, 2026-11-10).
+ACK_VERIFIED = re.compile(r"hass_triage[\s\S]*ack[-_]?verified", re.I)
+#: The only form it may take: no wrapper, prefix, chain, pipe or substitution; a relative or absolute path to `hass_triage.py`.
+ACK_VERIFIED_FORM = re.compile(r"^python3\s+(?:[\w./~+-]*/)?hass_triage\.py\s+ack-verified$")
 INTERPRETERS = re.compile(r"^(?:python[\d.]*|bash|sh|zsh|dash|source|\.)$")
+
+
+# MARK: - Command words (match the landing words in commands, not in text a command only carries)
+
+#: ``<<WORD``, ``<<-WORD`` and the quoted forms, read the way the shell does: the delimiter is one whole word.
+HEREDOC_OPEN = re.compile(r"<<(-?)[ \t]*(?:'(\w+)'|\"(\w+)\"|(\w+))(?=[\s;&|<>]|$)")
+#: What may stay in a line once its quoted text is set aside: anything else could expand, comment out, group or escape.
+UNSURE_TEXT = re.compile(r"[\\$`#'\"(){}]|[<>]\(")
+#: Quoted text with nothing in it the shell would expand (single quotes, or double quotes without ``$``, a backtick or a backslash).
+SAFE_QUOTED = re.compile(r"'[^']*'|\"[^\"\\$`]*\"")
+#: The operators that join data commands: sequence, pipe and ``&&``/``||`` (the lexer reports ``&`` and ``|`` one at a time).
+DATA_OPS = {";", "|", "&"}
+
+
+def split_simple(text: str) -> Optional[List[str]]:
+    """``text`` cut into simple commands and the operators between them (alternating, operators as their own items), quote-aware; ``None``
+    when a quote is left open."""
+    out: List[str] = []
+    buf: List[str] = []
+    quote = ""
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            buf.append(ch)
+            if ch == "\\" and quote == '"' and i + 1 < len(text):
+                i += 1
+                buf.append(text[i])
+            elif ch == quote:
+                quote = ""
+        elif ch == "\\" and i + 1 < len(text):
+            buf.append(ch + text[i + 1])
+            i += 1
+        elif ch in "'\"":
+            quote = ch
+            buf.append(ch)
+        elif ch in ";&|\n(){}":
+            out.append("".join(buf))
+            out.append(ch)
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    if quote:
+        return None
+    out.append("".join(buf))
+    return out
+
+
+def blank_quotes(segment: str) -> str:
+    """``segment`` with every quoted span emptied (``'..'`` and ``".."`` become ``""``)."""
+    return SAFE_QUOTED.sub('""', segment)
+
+
+def heredoc_at(line: str) -> Optional[int]:
+    """Index of the first ``<<`` in ``line`` that sits outside quotes, or ``None``."""
+    quote = ""
+    for i, ch in enumerate(line):
+        if quote:
+            quote = "" if ch == quote else quote
+        elif ch in "'\"":
+            quote = ch
+        elif line.startswith("<<", i):
+            return i
+    return None
+
+
+def bad_target(word: str) -> bool:
+    """Is ``word`` a file name that could hold a hook or climb out of the checkout (``.git``, ``..``)?"""
+    return ".git" in word or ".." in word
+
+
+def data_words(words: List[str]) -> bool:
+    """Is this one simple command, as words, a listed data or read-only program with arguments that cannot run anything? The list is
+    :func:`exempt_words` plus ``tee``, ``gh issue`` and ``gh pr edit`` message commands. A redirect or ``tee`` target in ``.git`` or with
+    ``..`` is no, as is ``printf -v``."""
+    if not words or "/" in words[0]:
+        return False
+    for index, word in enumerate(words):
+        target = re.match(r"^\d*>>?(.*)$", word)
+        if target and bad_target(target.group(1) or (words[index + 1] if index + 1 < len(words) else ".git")):
+            return False
+    program, args = words[0], words[1:]
+    if program == "printf":
+        return "-v" not in args
+    if program == "tee":
+        return not any(bad_target(a) for a in args)
+    if program == "gh" and args[:2] in (["issue", "create"], ["issue", "comment"], ["issue", "edit"], ["issue", "view"], ["issue", "list"],
+                                        ["pr", "edit"]):
+        return not any(a in ("-R", "--repo") or a.startswith("--repo=") for a in args)
+    return exempt_words(words, _CWD)
+
+
+def data_line(line: str) -> Optional[str]:
+    """``line`` (one command line, its heredoc marker already cut) with quoted arguments emptied when every command in it is a data command
+    joined by ``; | &``; else ``None``."""
+    rest = SAFE_QUOTED.sub("\x00", line)
+    if UNSURE_TEXT.search(rest):
+        return None
+    parts = split_simple(line)
+    if parts is None:
+        return None
+    for index, part in enumerate(parts):
+        if index % 2:
+            if part not in DATA_OPS:
+                return None
+        elif part.strip():
+            try:
+                if not data_words(shlex.split(part)):
+                    return None
+            except ValueError:
+                return None
+    return "".join(blank_quotes(part) if index % 2 == 0 else part for index, part in enumerate(parts))
+
+
+def command_words(command: str) -> str:
+    """``command`` as far as the landing words go. Only when every command in the whole input is a listed data or read-only program (see
+    :func:`data_words`) and nothing could run, expand, comment out or escape text, are heredoc bodies and quoted arguments removed, so
+    ``cat > f <<'EOF'`` with ``pr_land`` in its text, ``gh pr comment 5 --body "..."`` and ``printf '...' > f`` do not match. Anything
+    else (a runner or wrapper, a path command, ``find``, a function, a substitution, an unread heredoc marker, an unreadable line) is
+    returned whole, so the old full-text match decides (owner decision in ``build/decisions/T-autonomy-p4-merge-guard-allowlist.md``)."""
+    lines = command.split("\n")
+    kept: List[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        at = heredoc_at(line)
+        if at is not None:
+            mark = HEREDOC_OPEN.match(line, at)
+            if not mark:
+                return command
+            word = mark.group(2) or mark.group(3) or mark.group(4)
+            body: List[str] = []
+            while i < len(lines) and (lines[i].lstrip("\t") if mark.group(1) else lines[i]) != word:
+                body.append(lines[i])
+                i += 1
+            if i >= len(lines) or (mark.group(4) and re.search(r"[$`\\]", "\n".join(body))):
+                return command  # never closed, or a body the shell expands
+            i += 1
+            line = line[:at] + " " + line[mark.end():]
+            if heredoc_at(line) is not None:
+                return command
+        cleaned = data_line(line)
+        if cleaned is None:
+            return command
+        kept.append(cleaned)
+    return "\n".join(kept)
 
 
 def runs_pr_land(command: str) -> bool:
@@ -207,10 +365,15 @@ def git_out(top: str, *args: str) -> str:
 #: Files each landing tool is hashed with (beside its own folder): the tool, what it loads, and ``tools/triage/config.json`` (it names the
 #: product repo, the protected paths and the bases the tools clone and trust).
 PINNED_WITH = {
-    "pr_land.sh": ("pr_land.sh", "pr_land.py", "house_scan.py", "agent_login.py"),
+    "pr_land.sh": ("pr_land.sh", "pr_land.py", "house_scan.py", "agent_login.py", "pr_blockers.py", "review_verdict.py", "ruleset_gate.py", "request_repo.py"),
     "lane_land.py": ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "agent_login.py"),
     "go_public.sh": ("go_public.sh", "go_public_gate.py", "house_scan.py"),
 }
+
+
+#: What ``hass_triage.py ack-verified`` runs, relative to the checkout top: itself and the modules the verifier imports. Pinned like the landers.
+ACK_VERIFIED_PINNED = ("tools/triage/hass_triage.py", "tools/ruleset_gate.py", "tools/redact.py", "tools/agent_login.py", "tools/request_repo.py",
+                       "tools/lane_land.py", "tools/release_closure.py", "tools/agent_eval_measure.py", "tools/retro_weekly.py")
 
 
 def pr_land_matches_base(command: str, script_word: Optional[str] = None) -> bool:
@@ -223,7 +386,8 @@ def pr_land_matches_base(command: str, script_word: Optional[str] = None) -> boo
         folder = script.resolve().parent
         top = git_out(str(folder), "rev-parse", "--show-toplevel")
         rel = folder.relative_to(Path(top).resolve()).as_posix()
-        names = [f"{rel}/{n}" for n in PINNED_WITH.get(script.name, PINNED_WITH["pr_land.sh"])] + ["tools/triage/config.json"]
+        names = ([*ACK_VERIFIED_PINNED] if script.name == "hass_triage.py"
+                 else [f"{rel}/{n}" for n in PINNED_WITH.get(script.name, PINNED_WITH["pr_land.sh"])]) + ["tools/triage/config.json"]
         local = [git_out(top, "hash-object", "--", n) for n in names]
         for base in base_refs():
             try:
@@ -241,12 +405,13 @@ def headless_land_reason(command: str) -> Optional[str]:
     and only when this checkout's ``pr_land.sh`` and ``pr_land.py`` equal the base branch's; nothing may take the session markers
     away, and no pty wrapper may run the landing tools. ``--owner-ack`` (and any abbreviation of an ``--owner*`` option given to
     ``pr_land`` or ``lane_land``) is the owner's, never an agent's."""
-    if re.search(r"owner[-_]ack", command) or (OWNER_OPTION.search(command) and re.search(r"pr_land|lane_land", command)):
+    words = command_words(command)
+    if re.search(r"owner[-_]ack", words) or (OWNER_OPTION.search(words) and re.search(r"pr_land|lane_land", words)):
         return "owner-ack: --owner-ack is the owner's, never an agent session's"
     if any(pattern.search(command) for pattern in ENV_TAMPER):
-        return "landing: the session markers FENTON_HEADLESS and HASS_TRIAGE_* are not for a command to unset or change"
-    if PTY_WRAPPER.search(command) and LAND_WORDS.search(command):
-        return "landing: script/expect/unbuffer around pr_land, lane_land or ack-base (a pty would fake a terminal)"
+        return "landing: the session markers FENTON_HEADLESS, HASS_TRIAGE_*, T3CODE_*, CLAUDE_PROJECT_DIR and CLAUDE_ENV_FILE are not for a command to unset or change"
+    if PTY_WRAPPER.search(command) and LAND_WORDS.search(words):
+        return "landing: script/expect/unbuffer around pr_land, lane_land, ack-base or ack-verified (a pty would fake a terminal)"
     lane = runs_script(command, "lane_land")
     if lane and not re.search(r"ack[-_]?base", command) and not pr_land_matches_base(command, lane):  # ack-base has its own refusal
         return ("landing: this checkout's tools/lane_land.py, release_closure.py or triage/config.json differs from origin/" + "|".join(base_refs())
@@ -1201,8 +1366,19 @@ def raw_reason(command: str, cwd: Optional[str] = None, agent: bool = False) -> 
         return public
     if PIPE_TO_SHELL.search(command) or HERE_TO_SHELL.search(command):
         return "script piped into a shell"
-    if headless() and re.search(r"ack[-_]?base", command):
+    words = command_words(command)
+    if headless() and re.search(r"ack[-_]?base", words):
         return "ack-base in a headless session (headless: only the owner accepts a moved base)"
+    if re.search(r"ack[-_]?verified", words) and headless():
+        return "ack-verified in a headless session (headless: the runner's own sessions cannot clear their own pause)"
+    if ACK_VERIFIED.search(words):
+        if PTY_WRAPPER.search(command):
+            return "ack-verified: no pty wrapper around it (a pty would fake a terminal)"
+        if not ACK_VERIFIED_FORM.match(command.strip()):
+            return "ack-verified: runs only as exactly `python3 tools/triage/hass_triage.py ack-verified` (no wrapper, chain, pipe or substitution)"
+        if not pr_land_matches_base(command, command.split()[1]):
+            return ("ack-verified: this checkout's tools/triage/hass_triage.py, ruleset_gate.py or what they import differs from origin/"
+                    + "|".join(base_refs()) + " (or git could not say): run it from a checkout whose copy is the base branch's")
     if headless():
         why = request_repo_reason(command)
         if why:
@@ -1232,6 +1408,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         payload = json.load(sys.stdin)
     except ValueError:
         return 0
+    if triage_session:
+        triage_session.apply(payload)
     if payload.get("tool_name") != "Bash":
         return 0
     why = reason(str((payload.get("tool_input") or {}).get("command", "")), payload.get("cwd"),

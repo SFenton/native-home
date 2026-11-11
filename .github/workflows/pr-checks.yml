@@ -1,8 +1,11 @@
 name: pr-checks
 # The merge gate: the aggregate job `pr-checks` (GitHub requires it by name). Everything runs on GitHub-hosted runners.
-# Linux: the repo checks, the Python tool tests, the denylist scan and the aggregate. macOS (only while the repository variable
-# HOSTED_MACOS is `on`): swift test, the Release build and the Smoke simulators. All of them run on plain `pull_request` with no
-# secrets (except the denylist scan), FENTON_CI_HOSTED=1 (tools/ci_hosted.py) and no devcap.
+# Linux: the repo checks, the Python tool tests (the long core part in 4 shards), the denylist
+# scan and the aggregate. macOS (only while the repository variable HOSTED_MACOS is `on`): one job builds the test products, then a
+# matrix runs Smoke on iPhone, Duo and iPad in parallel from them (swift test rides the iPad leg: the full suite when the PR touches
+# the Core or Design packages, the affected suites otherwise), a coverage-changed job gates the changed files at 95% (a PR only), and
+# the Release build. All of them run on plain `pull_request` with no secrets (except the denylist scan), FENTON_CI_HOSTED=1
+# (tools/ci_hosted.py) and no devcap.
 # Documentation: .agents/workflow/pr-lifecycle.md, .agents/workflow/ci.md.
 on:
   pull_request:
@@ -18,9 +21,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  # A manual run has its own group per dry-run flag; a new push still cancels the pull request's older run.
-  group: pr-checks-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}', inputs.report_dry_run) || '' }}
-  cancel-in-progress: true
+  # A push to main keys on its own sha and never cancels: every merge gets a verdict, so a red main cannot go unseen and the release
+  # does not wait on a run that a newer merge cancelled. A pull request keeps one group per number and a new push cancels its older run.
+  # A manual run has its own group per dry-run flag and also cancels its older run.
+  group: pr-checks-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha) || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}', inputs.report_dry_run) || '' }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 defaults:
   run:
     shell: bash
@@ -40,6 +45,7 @@ jobs:
     outputs:
       app: ${{ steps.filter.outcome == 'skipped' && 'true' || (steps.filter.outputs.app_code == 'true' || steps.filter.outputs.app_tools == 'true') }}
       release: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.release }}
+      swift_full: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.swift_full }}
     steps:
       - id: filter
         if: ${{ github.event_name == 'pull_request' }}
@@ -62,13 +68,17 @@ jobs:
               - '!contracts/test-suites*'
             app_tools: '{tools/ios_uitest.sh,tools/affected_tests.py,tools/lane_base.py,tools/test_plans.py,tools/test_suites.py,tools/test_impact.py,tools/uitest_support.py,tools/products_cache.py,tools/xc_watch.py,tools/sim_*.sh,tools/simslim/**,tools/ci_hosted*,tools/ci_heartbeat.sh,tools/ci_macos.sh,tools/ci_release_sims.sh,tools/push_fixtures/**,contracts/test-map*,contracts/test-suites*}'
             release: 'apple/**'
+            # swift_full: the packages every Swift suite builds on (HassCore, HassDesign and what they import, the shared test support,
+            # the manifest) and the files that run swift test: a PR that touches them runs the full swift test, as main does.
+            swift_full: '{apple/Sources/HassCore/**,apple/Sources/HassDesign/**,apple/Sources/HassTelemetry/**,apple/Sources/FentonActivityModel/**,apple/Sources/HassDemoHouse/**,apple/Tests/HassCoreTests/**,apple/Tests/HassDesignTests/**,apple/Tests/HassTelemetryTests/**,apple/Tests/FentonActivityModelTests/**,apple/Tests/HassTestSupport/**,apple/Package.swift,apple/Package.resolved,.github/workflows/pr-checks.yml,tools/ci_macos.sh}'
       - name: Summary
         env:
           APP: ${{ steps.filter.outcome == 'skipped' && 'true' || (steps.filter.outputs.app_code == 'true' || steps.filter.outputs.app_tools == 'true') }}
           RELEASE: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.release }}
+          SWIFT_FULL: ${{ steps.filter.outcome == 'skipped' && 'true' || steps.filter.outputs.swift_full }}
           FILTER: ${{ steps.filter.outcome }}
         run: |
-          echo "scope - app=$APP release=$RELEASE (filter $FILTER)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "scope - app=$APP release=$RELEASE swift_full=$SWIFT_FULL (filter $FILTER)" | tee -a "$GITHUB_STEP_SUMMARY"
 
   linux-checks:
     # The repo checks and the small tool-test parts in one job: three short Linux jobs cost three runner starts.
@@ -97,6 +107,9 @@ jobs:
       - name: House-data lint
         if: ${{ !cancelled() }}
         run: python3 tools/house_scan.py
+      - name: Rule surface lint
+        if: ${{ !cancelled() }}
+        run: python3 tools/rules_lint.py --base origin/main
       - name: Motion lint
         if: ${{ !cancelled() }}
         run: tools/lint_motion.sh
@@ -143,13 +156,20 @@ jobs:
           if-no-files-found: ignore
 
   tool-tests-core:
-    # The long part (about 5 minutes) gets its own job so it runs beside the other checks.
-    name: Tool tests (core)
+    # The long part gets its own job, in 4 shards that run beside each other and the other checks: tools/ci_shard.py splits the
+    # tools/tests modules by recorded run time, every module in exactly one shard (tools/tests/test_ci_shard.py proves it). It always
+    # runs: some core tests read live apple/ files.
+    name: Tool tests (core ${{ matrix.shard }}/4)
     needs: scope
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false   # every shard reports; a red one must not hide the others' failures
+      matrix:
+        shard: [0, 1, 2, 3]   # the 4 is also in the name above and in FENTON_TOOL_SHARD below: change all three together
     env:
       GH_TOKEN: ${{ github.token }}
+      FENTON_TOOL_SHARD: ${{ matrix.shard }}/4
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -172,7 +192,7 @@ jobs:
         if: ${{ failure() && github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: tool-tests-log-core
+          name: tool-tests-log-core-${{ matrix.shard }}
           path: ${{ runner.temp }}/tool-tests-core.log
           if-no-files-found: ignore
 
@@ -214,7 +234,7 @@ jobs:
           STRICT: ${{ vars.DENYLIST_STRICT }}
         run: |
           set +e
-          # main's `house_scan.py denylist` (house-data-gate.md) does the scan. Only its count line is shown: the hit list (path:line) stays out of
+          # main's `house_scan.py denylist` (security.md#house-data) does the scan. Only its count line is shown: the hit list (path:line) stays out of
           # the log. A pull request is judged against its base commit with the base's own config (never the tree under review); a push to
           # main counts every hit and only warns. DENYLIST_STRICT=on counts every hit and fails on any, on every event.
           args=(--root . --required true)
@@ -233,38 +253,34 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/house_denylist.txt"
 
-  macos:
-    # One macOS job per app change: the test products are built once and shared by every device, then Smoke runs on iPhone, iPhone Duo
-    # and iPad, then swift test (the affected suites on a PR, the full suite on main). The build, the Smoke and journey steps and swift test are all required (owner decision
-    # 2026-11-08, build/decisions/native-home-smoke-gate.md): no step is continue-on-error except the diagnostics. Poses that need Device Hub stay on the MacBook.
-    # The simulators boot after the build, not during it: a first Duo boot beside a compile killed two runners (the Duo is also
-    # settled before it is used, tools/sim_settle.sh).
-    name: macOS - build, Smoke on three devices, swift test
+  macos-build:
+    # Build once, test three times. This job builds the test products (xcodebuild build-for-testing -testProductsPath, which holds the
+    # .xctestrun and the Build/Products it names) and uploads them for one day; macos-test restores them on a fresh runner per device
+    # family and runs test-without-building. No simulator boots here: a first Duo boot beside a compile killed two runners.
+    # Owner decision 2026-11-08 (build/decisions/native-home-smoke-gate.md): the build, the Smoke and journey steps and swift test are
+    # all required, no step is continue-on-error except the diagnostics. Split into build and test jobs: build/decisions/T-autonomy-p4-macos-split.md.
+    name: macOS - build for testing
     needs: scope
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    timeout-minutes: 150
+    timeout-minutes: 60
     env:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
-      FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
-      # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
-      FENTON_HEALTH_SHOT_WALL: "180"
-      FENTON_HEALTH_BOOT_WALL: "300"
       # Hosted-only build settings (the products script adds them to the cache key, so hosted products have their own key):
-      # host architecture only, no index store. Local builds never see these.
+      # host architecture only, no index store. Local builds never see these. The test job sets the same value: change both together.
       FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Derived data path
-        # The runner context is not allowed in job env.
-        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+      - name: Derived data and products paths
+        # The runner context is not allowed in job env. The products go to a runner directory, not the user cache, so the artifact is exactly them.
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        env:
-          FENTON_INSTALL_SIMSLIM: "1"
         run: |
           tools/ci_hosted_setup.sh
           # Spotlight indexing competes with the compile for 3 cores; best effort (needs sudo).
@@ -281,8 +297,116 @@ jobs:
           key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Build the test products
+        id: build
+        run: tools/ci_macos.sh build
+      - name: Pack the test products
+        # tar keeps the bundle's symlinks and modes (the artifact zip would not); gzip -1 because the transfer, not the size, is the cost.
+        run: |
+          set -o pipefail
+          ls "$FENTON_PRODUCTS_DIR"
+          tar -cf - -C "$FENTON_PRODUCTS_DIR" . | gzip -1 > "$RUNNER_TEMP/test-products.tar.gz"
+          du -h "$RUNNER_TEMP/test-products.tar.gz"
+      - name: Upload the test products
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: macos-test-products
+          path: ${{ runner.temp }}/test-products.tar.gz
+          retention-days: 1
+          compression-level: 0   # already gzip
+          if-no-files-found: error
+      - name: Timing summary
+        if: ${{ !cancelled() }}
+        run: tools/ci_macos.sh summary
+      - name: Save DerivedData (main only)
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+
+  macos-test:
+    # One runner per device family, in parallel, each from the products macos-build uploaded: Smoke, the journeys the diff reaches
+    # (pull requests only; skips when Gate runs none of them), and, on the iPad leg (the shortest, so it carries the Swift package suites
+    # without becoming the longest), swift test (the affected suites on a PR, the full suite on main). Poses that need Device Hub stay on the MacBook.
+    # Each leg is its own VM, so the one-device-at-a-time rule of the old single job holds trivially; the Duo is still settled before use
+    # (tools/sim_settle.sh), every device slimmed (simslim, tools/sim_slim.sh) and the earlier simulators released (tools/ci_release_sims.sh).
+    name: macOS - Smoke ${{ matrix.family }}
+    needs: [scope, macos-build]
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false   # a red Duo must not hide the iPhone and iPad results
+      matrix:
+        family: [iphone, duo, ipad]
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+      FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+      # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
+      FENTON_HEALTH_SHOT_WALL: "180"
+      FENTON_HEALTH_BOOT_WALL: "300"
+      # The same hosted build settings as macos-build: they are part of the products key, so a mismatch is a miss (and fails "Reuse the built products").
+      FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data and products paths
+        # The runner context is not allowed in job env.
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
+        run: |
+          tools/ci_hosted_setup.sh
+          # Spotlight indexing competes with the simulators for 3 cores; best effort (needs sudo).
+          sudo mdutil -a -i off || true
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      - name: Download the test products
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: macos-test-products
+          path: ${{ runner.temp }}/products-download
+      - name: Unpack the test products
+        run: |
+          set -euo pipefail
+          mkdir -p "$FENTON_PRODUCTS_DIR"
+          tar -xzf "$RUNNER_TEMP/products-download/test-products.tar.gz" -C "$FENTON_PRODUCTS_DIR"
+          ls "$FENTON_PRODUCTS_DIR"
+      - name: Reuse the built products
+        # The journey runner keys the products by a content hash of apple/, the build settings and Xcode, so the unpacked bundle is a hit
+        # on this runner. A miss would rebuild silently and lose the point of the split: fail instead.
+        run: |
+          set -o pipefail
+          tools/ci_macos.sh build 2>&1 | tee "$RUNNER_TEMP/products-reuse.log"
+          grep -q '^products: hit ' "$RUNNER_TEMP/products-reuse.log" || { echo "::error::the uploaded test products did not match this runner's key (see the log above)"; exit 1; }
+      - name: Smoke on ${{ matrix.family }}
+        id: smoke
+        if: ${{ !cancelled() }}
+        run: tools/ci_macos.sh smoke ${{ matrix.family }}
+      - name: Journeys the diff reaches on ${{ matrix.family }}
+        id: journeys
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: tools/ci_macos.sh journeys ${{ matrix.family }}
+      - name: Hosted tests the diff reaches on iphone
+        id: hosted
+        # The app-hosted unit tests (FentonHomeTests, apple/Apps/iOSTests): family-independent, so iPhone only, from the same products as the
+        # journeys. affected_tests.py --hosted picks the classes (the whole suite when a file cannot be placed). A failed step fails the job.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && matrix.family == 'iphone' }}
+        # A typical diff is 1 to 10 minutes of hosted time; the whole suite (a helper, UKContext, a file no rule places) is 40 to 60 on this runner.
+        # 75 keeps a hung suite from eating the job's budget (Smoke and the journeys run before it).
+        timeout-minutes: 75
+        run: tools/ci_macos.sh hosted iphone
       - name: Restore SwiftPM caches
         id: spm
+        if: ${{ matrix.family == 'ipad' }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -291,99 +415,94 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: Build the test products
-        id: build
-        run: tools/ci_macos.sh build
-      - name: Smoke on iPhone
-        id: iphone
-        if: ${{ !cancelled() }}
-        run: |
-          tools/ci_macos.sh smoke iphone
-      - name: Journeys the diff reaches on iPhone
-        id: iphone_journeys
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        run: tools/ci_macos.sh journeys iphone
-      - name: Smoke on iPhone Duo
-        id: duo
-        if: ${{ !cancelled() }}
-        run: |
-          tools/ci_macos.sh smoke duo
-      - name: Journeys the diff reaches on iPhone Duo
-        id: duo_journeys
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        run: tools/ci_macos.sh journeys duo
-      - name: Smoke on iPad
-        id: ipad
-        if: ${{ !cancelled() }}
-        run: |
-          tools/ci_macos.sh smoke ipad
-      - name: Journeys the diff reaches on iPad
-        id: ipad_journeys
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        run: tools/ci_macos.sh journeys ipad
       - name: swift test
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.family == 'ipad' }}
+        # The full suite on main and on a PR that touches the Core or Design packages (scope swift_full); the affected suites otherwise.
+        # ci_macos.sh runs everything when FENTON_AFFECTED_BASE is empty, so the step blanks it; the journeys keep the job's value.
+        env:
+          FENTON_AFFECTED_BASE: ${{ github.event_name == 'pull_request' && needs.scope.outputs.swift_full != 'true' && format('origin/{0}', github.base_ref) || '' }}
         run: tools/ci_macos.sh swift-test
       - name: Timing summary
         if: ${{ !cancelled() }}
         run: tools/ci_macos.sh summary
       - name: Simulator diagnostics
-        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.duo.outcome == 'failure' || steps.ipad.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure' || steps.duo_journeys.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
         continue-on-error: true
         run: |
           xcrun simctl list devices
           df -h / | tail -1
           log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
-      - name: Keep the iphone results
-        if: ${{ !cancelled() && (steps.iphone.outcome == 'failure' || steps.iphone_journeys.outcome == 'failure') }}
+      - name: Keep the ${{ matrix.family }} results
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: xcresult-iphone
+          name: xcresult-${{ matrix.family }}
           # An .xcresult is a directory: upload-artifact matches files only, so the trailing /** names the files inside.
           # apple/.build is hidden, and upload-artifact v4.4+ skips hidden files unless told otherwise.
           include-hidden-files: true
           path: |
-            apple/.build/uitest-iphone.xcresult/**
-            apple/.build/uitest-iphone.log
+            apple/.build/uitest-${{ matrix.family }}.xcresult/**
+            apple/.build/uitest-${{ matrix.family }}.log
+            apple/.build/uitest-${{ matrix.family }}-journeys.xcresult/**
+            apple/.build/uitest-${{ matrix.family }}-journeys.log
           if-no-files-found: ignore
-      - name: Keep the duo results
-        if: ${{ !cancelled() && (steps.duo.outcome == 'failure' || steps.duo_journeys.outcome == 'failure') }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: xcresult-duo
-          # An .xcresult is a directory: upload-artifact matches files only, so the trailing /** names the files inside.
-          # apple/.build is hidden, and upload-artifact v4.4+ skips hidden files unless told otherwise.
-          include-hidden-files: true
-          path: |
-            apple/.build/uitest-duo.xcresult/**
-            apple/.build/uitest-duo.log
-          if-no-files-found: ignore
-      - name: Keep the ipad results
-        if: ${{ !cancelled() && (steps.ipad.outcome == 'failure' || steps.ipad_journeys.outcome == 'failure') }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: xcresult-ipad
-          # An .xcresult is a directory: upload-artifact matches files only, so the trailing /** names the files inside.
-          # apple/.build is hidden, and upload-artifact v4.4+ skips hidden files unless told otherwise.
-          include-hidden-files: true
-          path: |
-            apple/.build/uitest-ipad.xcresult/**
-            apple/.build/uitest-ipad.log
-          if-no-files-found: ignore
-      - name: Save DerivedData (main only)
-        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/dd
-          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
       - name: Save SwiftPM caches (main only)
-        if: ${{ github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}
+        if: ${{ matrix.family == 'ipad' && github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             apple/.build
             ~/Library/Caches/org.swift.swiftpm
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+
+  coverage-changed:
+    # The 95% per-PR logic gate as a required check instead of the honour system: tools/apple_coverage.sh --changed runs the
+    # affected swift test suites with coverage on the Mac host (no simulator, no products bundle), then gates only the changed
+    # logic files. Its own job, not a step of macos-test: it builds with coverage on and it must not lengthen the iPad leg. It needs only scope, so it starts
+    # beside macos-build: build + coverage is 2 runners, then 3 legs + coverage is 4, never over the 5-concurrent macOS cap. Pull requests only.
+    name: macOS - changed-file coverage
+    needs: scope
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' && github.event_name == 'pull_request' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 120
+    env:
+      FENTON_CI_HOSTED: "1"
+      DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+      FENTON_AFFECTED_BASE: ${{ format('origin/{0}', github.base_ref) }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data path
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      - name: Restore SwiftPM caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            apple/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Changed-file coverage (95% logic)
+        run: tools/apple_coverage.sh --changed
+      - name: Keep the coverage logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coverage-changed-logs
+          include-hidden-files: true
+          path: |
+            apple/.build/coverage-class/**
+          if-no-files-found: ignore
 
   build-release:
     # The Release build runs on a push to main only; a pull request is covered by the macOS job's build and swift test.
@@ -430,9 +549,10 @@ jobs:
 
   pr-checks:
     # The one check GitHub requires. A job that was skipped passes only when it was allowed to (tools/ci_aggregate.py): scope-gated
-    # jobs, hosted macOS while HOSTED_MACOS is off, the denylist scan on a fork PR. A failed Smoke step fails the macos job and so the aggregate.
+    # jobs (the macOS jobs on a docs/tools diff), hosted macOS while HOSTED_MACOS is off, the
+    # denylist scan on a fork PR. A matrix job's result is the worst of its legs: a failed shard or a failed Smoke leg fails this check.
     if: always()
-    needs: [scope, linux-checks, tool-tests-core, denylist-scan, macos, build-release]
+    needs: [scope, linux-checks, tool-tests-core, denylist-scan, macos-build, macos-test, coverage-changed, build-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -516,3 +636,45 @@ jobs:
           else
             gh issue create --label Workflow --title "$title @ ${HEAD_SHA:0:10}" --body "$body"
           fi
+
+  close-red-main:
+    # The mirror of report-red-main: a green push run on main closes the open red-main issue(s) with a comment linking the run. Green is the
+    # aggregate `pr-checks` job succeeding, which covers the tool tests the issue is about and everything else. Only an issue about an
+    # older commit closes: a green run that finished after a newer red one must not close the newer issue (compared through the API).
+    needs: [pr-checks]
+    if: ${{ always() && github.event_name == 'push' && needs.pr-checks.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Close the red-main issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}   # no checkout in this job, so gh needs the repository named
+          HEAD_SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The title report-red-main files: "Tool tests red on <branch> @ <sha10>".
+          title="Tool tests red on ${BRANCH}"
+          gh issue list --state open --label Workflow --search "\"$title\" in:title" --json number,title \
+            --jq ".[] | select(.title | startswith(\"$title\")) | \"\(.number) \(.title)\"" | while read -r number rest; do
+            sha="${rest##*@ }"
+            # Fail closed: close only when the API says this commit is at or past the reported one, or that the reported sha is gone (404).
+            # An empty answer or any other API error leaves the issue open.
+            if status="$(gh api "repos/$GH_REPO/compare/${sha}...${HEAD_SHA}" --jq .status 2>&1)"; then
+              case "$status" in
+                ahead | identical) ;;
+                *) echo "issue #$number is about $sha, which this commit does not contain ($status): left open"; continue ;;
+              esac
+            else
+              case "$status" in
+                *"HTTP 404"*) ;;   # the reported sha no longer exists: nothing newer can be hiding behind it
+                *) echo "issue #$number: compare against $sha failed ($status): left open"; continue ;;
+              esac
+            fi
+            gh issue close "$number" --comment "Main is green again at ${HEAD_SHA:0:10}: ${RUN_URL}"
+            echo "closed issue #$number"
+          done

@@ -15,11 +15,11 @@ xcodegen generate          # writes FentonHome.xcodeproj
 open FentonHome.xcodeproj  # run the FentonHome scheme on an iPhone or iPad simulator
 ```
 
-Gates: `tools/apple_coverage.sh` (95% logic / 95% UX line coverage) and `tools/ios_uitest.sh --env shell` (journeys and accessibility audits on iPhone, iPhone Duo and iPad).
+Gates: `tools/apple_coverage.sh` (95% logic line coverage on the Mac host; UX is not measured) and `tools/ios_uitest.sh --env shell` (journeys and accessibility audits on iPhone, iPhone Duo and iPad).
 
 ## Setup
 
-Run `tools/setup.sh` once per checkout. It installs the tracked git hooks (`core.hooksPath` = `.githooks`: the pre-push hook: the house-denylist check, see [house-data-gate](.agents/workflow/house-data-gate.md#pre-push-hook-owner-2026-11-07)) and reports whether a denylist was found (counts only).
+Run `tools/setup.sh` once per checkout. It installs the tracked git hooks (`core.hooksPath` = `.githooks`: the pre-push hook: the house-denylist check, see [security](.agents/workflow/security.md#house-data)) and reports whether a denylist was found (counts only).
 
 ## Where to start
 

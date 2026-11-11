@@ -1,79 +1,31 @@
 """``.github/CODEOWNERS`` lists every agent file for the owner (owner decisions D1 and D2, 2026-11-10).
 
-The matcher below is a minimal gitignore-style one, enough for this file: a leading ``/`` anchors to the repository root, a trailing ``/``
-means a directory and everything under it, ``*`` and ``?`` do not cross ``/``, ``**`` does, the last matching line wins. Not implemented
-(CODEOWNERS here does not use them): ``!`` negation, ``[...]`` classes, escapes, and team or email owners.
+The matcher is ``tools/pr_blockers.py``'s (the one the landing tools use; no second copy here): gitignore-style, the last matching line
+wins. See its docstring for the supported forms.
 """
 
-import re
 import sys
 import unittest
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 TOOLS = Path(__file__).resolve().parents[1]
 ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 import lane_land  # noqa: E402
+from pr_blockers import owners_of, parse  # noqa: E402
 
 OWNER = "@SFenton"
 
 #: The agent-file globs (audit section 2.3 plus the credential subset and the whole ``.github`` tree, decision D2), as written in CODEOWNERS.
 AGENT_FILES = (
     "/.claude/", "/.agents/workflow/", "/.agents/skills/", "/AGENTS.md", "/tools/hooks/", "/.githooks/", "/tools/review/",
-    "/tools/review_verdict.py", "/tools/ship.sh", "/tools/ship_guard.sh", "/tools/pr_land.py", "/tools/pr_land.sh", "/tools/lane_*.py",
+    "/tools/review_verdict.py", "/tools/ship.sh", "/tools/ship_guard.sh", "/tools/pr_land.py", "/tools/pr_land.sh", "/tools/pr_blockers.py", "/tools/lane_*.py",
     "/tools/ruleset_gate.py", "/tools/jev_gate.py", "/tools/triage/", "/contracts/jev/", "/evals/", "/.github/", "/tools/agent_login.py",
     "/tools/release/", "/tools/hass_creds.sh", "/tools/gh_app_token.py", "/tools/devcap.py", "/tools/ci_hygiene.py",
     "/tools/release_closure.py", "/.gitmodules",
 )
 #: ``DEFAULT_PROTECTED`` entries that are not tracked files, so CODEOWNERS cannot (and need not) own them.
 UNTRACKED = {".git/**"}
-
-
-def pattern_regex(pattern: str) -> "re.Pattern[str]":
-    """The regex for one CODEOWNERS pattern (gitignore-style, see the module docstring)."""
-    anchored = pattern.startswith("/") or "/" in pattern.rstrip("/")
-    directory = pattern.endswith("/")
-    body = pattern.strip("/")
-    out, i = "", 0
-    while i < len(body):
-        if body.startswith("**/", i):
-            out += "(?:.*/)?"
-            i += 3
-        elif body.startswith("**", i):
-            out += ".*"
-            i += 2
-        elif body[i] == "*":
-            out += "[^/]*"
-            i += 1
-        elif body[i] == "?":
-            out += "[^/]"
-            i += 1
-        else:
-            out += re.escape(body[i])
-            i += 1
-    prefix = "" if anchored else "(?:.*/)?"
-    return re.compile(prefix + out + ("/.*" if directory else "(?:/.*)?") + r"\Z")
-
-
-def parse(text: str) -> List[Tuple[str, List[str]]]:
-    """``(pattern, owners)`` for each rule line, comments and blanks dropped."""
-    rules = []
-    for line in text.splitlines():
-        line = line.split(" #", 1)[0].strip()
-        if line and not line.startswith("#"):
-            pattern, *owners = line.split()
-            rules.append((pattern, owners))
-    return rules
-
-
-def owners_of(path: str, rules: List[Tuple[str, List[str]]]) -> Optional[List[str]]:
-    """The owners of ``path`` (the last matching rule), or None when no rule matches."""
-    found = None
-    for pattern, owners in rules:
-        if pattern_regex(pattern).match(path):
-            found = owners
-    return found
 
 
 def sample(glob: str) -> str:
@@ -126,6 +78,14 @@ class CodeownersCoverTests(unittest.TestCase):
         self.assertEqual(owners_of("c_x.py", rules), ["@o"])
         self.assertIsNone(owners_of("sub/c_x.py", rules))
         self.assertEqual(owners_of("docs/deep/n.md", rules), ["@o"])  # no slash: any depth
+
+    def test_the_last_matching_line_wins_and_an_unowned_override_unowns(self):
+        """Fails if: an earlier line beats a later one, or a later owner-less line no longer leaves the file unowned (GitHub's rule)."""
+        rules = parse("/tools/ @o\n/tools/free/ \n/tools/free/keep.py @p\n")
+        self.assertEqual(owners_of("tools/x.py", rules), ["@o"])
+        self.assertEqual(owners_of("tools/free/a.py", rules), [])
+        self.assertEqual(owners_of("tools/free/keep.py", rules), ["@p"])
+        self.assertIsNone(owners_of("apple/x.swift", rules))
 
 
 if __name__ == "__main__":

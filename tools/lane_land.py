@@ -78,6 +78,10 @@ DEFAULT_PROTECTED: Tuple[str, ...] = (
     "tools/review/**",
     "tools/review_verdict.py",
     "tools/hooks/review_guard.py",
+    # The T3 triage guards: the registry, the deny-rule matcher and the PreToolUse hook that enforces a registered session's deny list.
+    "tools/hooks/triage_session.py",
+    "tools/hooks/deny_rules.py",
+    "tools/hooks/triage_deny.py",
     "tools/release/**",
     "tools/hass_creds.sh",
     "tools/gh_app_token.py",
@@ -97,11 +101,14 @@ DEFAULT_APPEND_ONLY: Tuple[str, ...] = (
 
 
 class Refused(Exception):
-    """A gate said no (exit 2). ``kind`` tells the runner what to file."""
+    """A gate said no (exit 2). ``kind`` tells the runner what to file. ``park`` is true only for the app-UI gate's question to the
+    owner (Jev says app-wide or unsure, the request is not confirmed, or Jev is unavailable): the one refusal the owner's approval of
+    the pull request answers at merge (:mod:`pr_land`)."""
 
-    def __init__(self, message: str, kind: str = "other"):
+    def __init__(self, message: str, kind: str = "other", park: bool = False):
         super().__init__(message)
         self.kind = kind
+        self.park = park
 
 
 class LandFailed(Exception):
@@ -300,7 +307,7 @@ def changed_paths(clone: Path, base: str, sha: str) -> List[Tuple[str, str, str,
 
 
 #: Appended to a pull-request refusal of the owner-only set: the only way past it.
-OWNER_ONLY_HINT = "; only the owner lands it, from their own terminal with the owner acknowledgement (see pr-lifecycle.md)"
+OWNER_ONLY_HINT = "; the owner approves this pull request on GitHub (their review of this exact head) and merges it there (see pr-lifecycle.md)"
 
 
 def protected_set(root: Path, cfg: Optional[dict] = None) -> List[str]:
@@ -1075,9 +1082,12 @@ APP_UI_PATHS: Tuple[str, ...] = (
     "apple/Apps/**", "**/*.xcassets/**", ".agents/design/mockups/**")
 #: Under APP_UI_PATHS but not app UI: test targets and privacy manifests.
 APP_UI_EXCLUDED: Tuple[str, ...] = ("apple/Apps/*Tests/**", "apple/Apps/**/*.xcprivacy")
-DESIGN_RECORDS = ".agents/design/*.md"
+#: Where a design pick is recorded: a new file, dated by its name, with a ``Decision:`` front line (``.agents/decisions/README.md``).
+DESIGN_RECORDS = ".agents/decisions/*.md"
+DECISION_FILE = re.compile(r"^\.agents/decisions/\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$")
+#: Records already on the base that a lane may cite with ``Design: <path>``.
+CITABLE_PREFIXES = (".agents/design/", ".agents/patterns/", ".agents/decisions/")
 DECISION_LINE = re.compile(r"^[\s>*_-]*Decision\*{0,2}:\*{0,2}.*$", re.M | re.I)
-DECISION_DATE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
 DECISION_OPTIONS = re.compile(r"\boptions?\s+[A-C]\b|\b[A-C]\s*(?:,|and|/|vs\.?)\s*[A-C]\b", re.I)
 #: The recorded app-UI gate outcome (``tools/jev_gate.py``), a line in the design record. Agent-initiated work (every
 #: ``agents/*`` lane) needs ``app_wide=no``; work from an owner request needs ``matches_request=yes`` and the commit
@@ -1133,8 +1143,8 @@ DESIGN_CITE = re.compile(r"^Design: *(\S+)\s*$", re.M)
 
 
 def has_decision(text: str) -> bool:
-    """A ``Decision:`` line that carries a date and names the judged options (``Option B``, ``A, B and C``)."""
-    return any(DECISION_DATE.search(m.group(0)) and DECISION_OPTIONS.search(m.group(0)) for m in DECISION_LINE.finditer(text))
+    """A ``Decision:`` line that names the judged options (``Option B``, ``A, B and C``). The date is the file name's."""
+    return any(DECISION_OPTIONS.search(m.group(0)) for m in DECISION_LINE.finditer(text))
 
 
 def app_ui_paths(rows: Sequence[Tuple[str, str, str, str]]) -> List[str]:
@@ -1357,28 +1367,29 @@ def verify_gate(path: str, change: str, log: str, trusted_for: Callable[[], Path
         qid, key, prompt = "design.app_wide", "app_wide", change
     p_yes = ask(trusted, qid, prompt)
     if p_yes is None:
-        raise Refused(f"Jev is unavailable for {qid}: app UI cannot land unattended; the owner decides", "gate")
+        raise Refused(f"Jev is unavailable for {qid}: app UI cannot land unattended; the owner decides", "gate", park=True)
     word = "yes" if p_yes >= YES_ABOVE else "no" if p_yes < NO_BELOW else "unsure"
-    if (key == "matches_request" and word != "yes") or (key == "app_wide" and word != "no"):
-        raise Refused(f"Jev answered {qid}={word} (p={p_yes:.2f}) for the app-UI change ({path}): "
-                      + ("it is not confirmed to match the owner's request" if text else "it is app-wide or unsure and no owner "
-                         "request is on record for this session") + "; the owner decides", "gate")
     forged = [g.lower() for g in GATE_LINE.findall(record) if g.lower().startswith(key + "=") and g.lower() != f"{key}={word}"]
     if forged:
         raise Refused(f"{path} records `Gate: {forged[0]}` but Jev answered {qid}={word} (p={p_yes:.2f}); the lane's gate line "
                       "must agree with Jev", "gate")
+    if (key == "matches_request" and word != "yes") or (key == "app_wide" and word != "no"):
+        raise Refused(f"Jev answered {qid}={word} (p={p_yes:.2f}) for the app-UI change ({path}): "
+                      + ("it is not confirmed to match the owner's request" if text else "it is app-wide or unsure and no owner "
+                         "request is on record for this session") + "; the owner decides", "gate", park=True)
 
 
 def check_design_record(clone: Path, base: str, sha: str, rows: Sequence[Tuple[str, str, str, str]],
                         trusted_for: Optional[Callable[[], Path]] = None, ask: JevAsk = ask_jev,
                         reader: RequestReader = no_request, extra_log: str = "",
                         prompts: Optional[Callable[[str], Optional[str]]] = None) -> None:
-    """A lane that changes app UI adds or updates a design decision record, or cites an existing one (``Design: <path>``),
+    """A lane that changes app UI adds a design decision record, or cites an existing one (``Design: <path>``),
     and Jev is asked about it either way (:func:`verify_gate`; the lane's ``Gate:`` line only documents the answer).
 
-    The record is ``.agents/design/*.md`` in which **this lane added** a dated ``Decision:`` line naming the judged options
-    (an old record the lane merely touches does not count). A lane that only fixes a bug back to documented design may cite a
-    record or pattern doc that exists on ``origin/<base>`` (``Design: <path>``; never a file the lane adds); Jev still judges
+    The record is a **new** file ``.agents/decisions/<YYYY-MM-DD>-<slug>.md`` whose ``Decision:`` line names the judged options
+    (a line added to a design doc, or an old record the lane merely touches, does not count). A lane that only fixes a bug back
+    to documented design may cite a decision, design or pattern doc that exists on ``origin/<base>`` (``Design: <path>``; never a
+    file the lane adds); Jev still judges
     the diff. Closes the gap where app UI landed without the Designer's recorded pick or the app-wide check.
 
     ``extra_log`` is more text read like commit messages (``Owner-Request:`` and ``Design:`` lines): a product PR passes its
@@ -1390,20 +1401,20 @@ def check_design_record(clone: Path, base: str, sha: str, rows: Sequence[Tuple[s
     if extra_log:
         log += "\n" + extra_log
     for status, path, _old, new in rows:
-        if status == "D" or not matches(path, (DESIGN_RECORDS,)):
+        if status != "A" or not DECISION_FILE.match(path):
             continue
         added = added_lines(clone, base, sha, path)
         if has_decision(added):
             verify_gate(path, gate_input(clone, base, sha, ui, added), log, trusted_for, ask, reader, record=added, prompts=prompts)
             return
     for cited in DESIGN_CITE.findall(log):
-        if cited.startswith((".agents/design/", ".agents/patterns/")) and _exists(clone, f"refs/remotes/origin/{base}", cited):
+        if cited.startswith(CITABLE_PREFIXES) and _exists(clone, f"refs/remotes/origin/{base}", cited):
             verify_gate(cited, gate_input(clone, base, sha, ui, f"(cites {cited} on the base; no new record)"), log,
                         trusted_for, ask, reader, prompts=prompts)
             return
-    raise Refused(f"the lane changes app UI ({ui[0]}) without a design decision record: add or update "
-                  f"{DESIGN_RECORDS} with a dated `Decision:` line naming the judged options, or cite an existing "
-                  "record or pattern on the base in a commit message (`Design: <path>`)", "design")
+    raise Refused(f"the lane changes app UI ({ui[0]}) without a design decision record: add "
+                  "a new file .agents/decisions/<YYYY-MM-DD>-<slug>.md with a `Decision:` line naming the judged options (a line in a design doc "
+                  "does not count), or cite an existing record or pattern on the base in a commit message (`Design: <path>`)", "design")
 
 
 # MARK: - The same gate for product pull requests
@@ -1448,7 +1459,7 @@ def live_request_reader(gh: GH, cfg: dict) -> RequestReader:
     issue, the pull request's own text and anything unreadable count as nothing: agents use the owner's login or, once configured,
     the agent login (which :func:`read_config` drops from ``authors``, so it never vouches), so only the request repo (where
     agent-filed issues carry ``Workflow``) can show an owner's request. The owner's way around is
-    ``--owner-ack``."""
+    to approve the pull request on GitHub (their review of this exact head) and merge it there."""
     authors = list(cfg.get("authors") or [])
     repo = str(cfg.get("request_repo") or "")
 
@@ -1557,6 +1568,31 @@ def own_checkout() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _triage_session() -> Any:
+    """``tools/hooks/triage_session.py``, loaded by path (the registry of T3-launched triage sessions)."""
+    import importlib.util
+    if "triage_session" in sys.modules:
+        return sys.modules["triage_session"]
+    spec = importlib.util.spec_from_file_location("triage_session", Path(__file__).resolve().parent / "hooks" / "triage_session.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["triage_session"] = module  # a dataclass in the module looks itself up here while it loads
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop("triage_session", None)
+        raise
+    return module
+
+
+def triage_session_env() -> Optional[Dict[str, str]]:
+    """The record's env when this process is inside a T3-launched triage session, else None. Fails closed: an unloadable module is a
+    headless session."""
+    try:
+        return _triage_session().session_env()
+    except Exception:  # noqa: BLE001
+        return {"FENTON_HEADLESS": "1"}
+
+
 def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: Callable[[], str], env: Optional[Dict[str, str]] = None,
             ask: JevAsk = ask_jev, locked: bool = False) -> str:
     """The app-UI gate for product pull request ``number`` (``info`` is ``gh pr view --json files,body,title,author,baseRefName,
@@ -1567,7 +1603,14 @@ def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: C
     (runner) sessions are vouched by the pickup snapshot only; interactive sessions by a linked request-repo issue the owner
     filed (never the PR's own text: agents open PRs under the owner's login). Fails closed: missing data, a fetch error or an unreadable Jev raise :class:`Refused`. Returns a short
     note on success."""
+    given = env
     env = dict(os.environ if env is None else env)
+    if given is None:  # the real process: a T3-launched triage session carries the runner's markers in its registry record
+        record_env = triage_session_env()
+        for name, value in (record_env or {}).items():  # a record only adds: markers the process carries stay as they are
+            env.setdefault(name, value)
+        if record_env is not None:
+            env["FENTON_HEADLESS"] = "1"
     base, sha = str(info.get("baseRefName") or ""), str(info.get("headRefOid") or "")
     files = info.get("files")
     if not isinstance(files, list):
@@ -1625,9 +1668,13 @@ def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: C
     return f"app-UI gate passed ({len(rendered_ui_paths(clone, rows))} app-UI file(s))"
 
 
+#: Exit status of ``gate`` for a park (:attr:`Refused.park`): a typed answer, so ``pr_land`` never reads message text.
+PARK_EXIT = 3
+
+
 def gate_main(argv: List[str]) -> int:
     """``python3 -I <trusted clone>/tools/lane_land.py gate --pr N``: run :func:`pr_gate` on a pull request; exit 0 passed (or no
-    app UI), 2 refused. ``tools/pr_land.sh`` starts it from the PR's base branch, never from the PR's own checkout."""
+    app UI), 2 refused, :data:`PARK_EXIT` for a park. ``tools/pr_land.sh`` starts it from the PR's base branch, never from the PR's own checkout."""
     parser = argparse.ArgumentParser(prog="lane_land.py gate", allow_abbrev=False,
                                      description="Run the app-UI gate on a product pull request.")
     parser.add_argument("--pr", required=True)
@@ -1653,7 +1700,7 @@ def gate_main(argv: List[str]) -> int:
         note = pr_gate(args.pr, info, root=Path(args.root), cfg=cfg, gh=gh, origin=lambda: product_origin(cfg), locked=args.lock_held)
     except Refused as exc:
         print(f"lane_land gate: refused ({exc.kind}): {exc}", file=sys.stderr)
-        return 2
+        return PARK_EXIT if exc.park else 2
     except (RuntimeError, ValueError, OSError) as exc:
         print(f"lane_land gate: failed closed: {exc}", file=sys.stderr)
         return 2
@@ -1687,7 +1734,7 @@ def land(lane: str, base: str, *, clone: Path, home: Path, reviews_dir: Path, te
 
     ``reaper(lane, sha, clone)``, when given, runs after a successful push and returns log lines (``result["reaper"]``); anything it
     raises is logged there and never changes the result."""
-    if os.environ.get("FENTON_HEADLESS") == "1":
+    if os.environ.get("FENTON_HEADLESS") == "1" or triage_session_env() is not None:
         raise Refused("a headless agent session does not land: push the agents/* branch and list it in the status file; "
                       "the runner reviews, tests and merges it", "headless")
     if not LANE_RE.match(lane) or ".." in lane or lane.endswith(("/", ".lock")):

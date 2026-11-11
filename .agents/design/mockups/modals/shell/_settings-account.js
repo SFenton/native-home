@@ -108,7 +108,7 @@
   SA.summarySheet = function (ctx, o) {
     o = o || {}; var viewer = o.viewer || 'alex', guest = viewer === 'guest';
     var order = guest ? ['profile', 'expired-food'] : ['profile', 'overdue', 'upcoming', 'expired-food'];
-    var tab = o.tab || (guest ? 'expired-food' : 'overdue');
+    var tab = o.tab || 'profile';
     var overdue = o.empty ? 0 : 3, expired = (o.empty || o.vacation) ? 0 : 3;
     var tabs = order.map(function (k) { var t = Object.assign({}, SA.tabs[k]); if (k === 'overdue' && overdue) t.badge = overdue; if (k === 'expired-food' && expired) t.badge = expired; return t; });
     var content = ({ profile: profileTab, overdue: overdueTab, upcoming: upcomingTab, 'expired-food': expiredTab })[tab](ctx, Object.assign({}, o, { viewer: viewer }));

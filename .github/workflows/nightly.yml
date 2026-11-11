@@ -1,13 +1,19 @@
 name: nightly
-# The full run (FENTON_TIER=nightly, the tier tools/hooks/tier_guard.py leaves to CI): the Gate and Live test plans
-# (apple/TestPlans, tools/test_plans.py) on iPhone, iPhone Duo and iPad at once (`ios_uitest.sh --parallel-families`, sharded at 60
-# tests or fewer per devcap hold; the app is built once per tree and every shard and family reuses it), plus the Capture plan
-# on Sundays, and apple_coverage.sh with the >=95% gate. Dispatched at 02:00 local time by the launchd job
-# (tools/nightly_dispatch.sh, tools/nightly_install.sh); never on push. Each failing area becomes one `Nightly Fix` issue
+# The certification tier (FENTON_TIER=nightly, the tier tools/hooks/tier_guard.py leaves to CI), all on GitHub-hosted runners, nothing
+# on the owner's Macs (owner, 2026-11-10): the Gate test plan (apple/TestPlans, tools/test_plans.py) on iPhone, iPhone Duo and iPad,
+# plus the Capture plan on Sundays, the whole app-hosted suite, and apple_coverage.sh with the >=95% logic gate. Each failing area becomes one `Nightly Fix` issue
 # (tools/nightly_report.py) that the triage runner fixes; the next passing run closes it.
-# Journeys run on the MacBook runner (self-hosted, macOS, hass); coverage on the Mac mini runner (self-hosted, macOS,
-# host). Documentation: .agents/workflow/ci.md.
+# Layout (the pr-checks "build once, test many" layout, #57): `build` compiles the test products once and uploads them; `journeys` is a
+# matrix of family x shard (tools/nightly_plan.py --families), each leg a fresh runner that unpacks the products and runs one shard of
+# one family; `coverage` is its own job; `plan` and `report` run on Linux (Python only).
+# The Live plan runs in its own `live` job against the DEMO instance (vars.HASS_TEST_SERVER; it serves the synthetic DemoHouse), never the
+# owner's real house: only on schedule or dispatch, only on main, only when vars.HASS_LIVE_NIGHTLY is `on`, and in the protected
+# `hass-test` environment, which holds the password. The repo is public, so the Live job uploads result digests only (no logs, screenshots or
+# xcresults) and keeps its test output out of the Actions log. Documentation: .agents/workflow/ci.md.
 on:
+  schedule:
+    # 07:37 UTC (an off-hour minute: the top of the hour is when GitHub's scheduler is busiest). Runs from the default branch.
+    - cron: '37 7 * * *'
   workflow_dispatch:
     inputs:
       filter:
@@ -15,11 +21,11 @@ on:
         type: string
         default: ''
       families:
-        description: Device families, comma-separated (all three run at once; a subset runs one after another)
+        description: Device families, comma-separated
         type: string
         default: iphone,duo,ipad
       plans:
-        description: Test plans, comma-separated (Gate, Live, Capture, Perf). Empty = Gate,Live, plus Capture on Sundays
+        description: Test plans, comma-separated (Gate, Capture, Perf). Empty = Gate, plus Capture on Sundays
         type: string
         default: ''
       coverage:
@@ -31,185 +37,526 @@ on:
         type: choice
         options: [file, dry-run, off]
         default: file
+      shard_size:
+        description: Most UI tests in one shard (a leg is one shard on one family)
+        type: string
+        default: '100'
+      live:
+        description: Also run the Live plan against the demo instance (only on main, and only when vars.HASS_LIVE_NIGHTLY is on)
+        type: boolean
+        default: true
 permissions:
   contents: read
-  issues: write
 concurrency:
   group: nightly
   cancel-in-progress: false
 env:
-  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+  FENTON_CI_HOSTED: "1"
+  FENTON_TIER: nightly
+  DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
+  # Hosted-only build settings (part of the products key, so the build job and every leg must agree): host architecture only, no index store.
+  FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
+  # A cold hosted simulator (the Duo above all) takes minutes to draw its first frame; the local walls are 20 s and 120 s.
+  FENTON_HEALTH_SHOT_WALL: "180"
+  FENTON_HEALTH_BOOT_WALL: "300"
 defaults:
   run:
     shell: bash
 jobs:
   plan:
-    runs-on: [self-hosted, macOS, hass]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
       expect: ${{ steps.plan.outputs.expect }}
+      coverage: ${{ steps.plan.outputs.coverage }}
+      hosted: ${{ steps.plan.outputs.hosted }}
+      live: ${{ steps.plan.outputs.live }}
+      live_matrix: ${{ steps.plan.outputs.live_matrix }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
-          clean: false
-      - name: Reset the workspace (keeps the build caches)
-        run: git clean -ffdx -e apple/.build -e build
-      - name: Disk pre-flight (30 GB free)
-        run: python3 tools/ci_hygiene.py preflight --min-gb 30
-      - name: Reap stale devcap holds and remember the simulators that exist
-        run: |
-          python3 tools/devcap.py reap || true
-          python3 tools/ci_hygiene.py prune-results --days 7
-          python3 tools/ci_hygiene.py sims-snapshot "${{ runner.workspace }}/nightly-sims-${{ github.run_id }}.txt"
+          persist-credentials: false
       - id: plan
         env:
           FILTER: ${{ inputs.filter }}
           FAMILIES: ${{ inputs.families }}
           PLANS: ${{ inputs.plans }}
           COVERAGE: ${{ inputs.coverage }}
+          SHARD_SIZE: ${{ inputs.shard_size }}
+          LIVE_INPUT: ${{ inputs.live }}
+          LIVE_ON: ${{ vars.HASS_LIVE_NIGHTLY }}
         run: |
           set -euo pipefail
-          # Gate and Live every night; Capture (galleries, screenshots) weekly, on Sundays. Perf only when dispatched by hand.
+          # A scheduled run has no inputs: every default below is the scheduled one.
+          families="${FAMILIES:-iphone,duo,ipad}"
+          # Gate every night; Capture (galleries, screenshots) weekly, on Sundays. Perf only when dispatched by hand. Live is the separate `live` job.
           plans="${PLANS:-}"
           if [ -z "$plans" ]; then
-            plans="Gate,Live"
-            [ "$(date +%u)" = "7" ] && plans="$plans,Capture"
+            plans="Gate"
+            [ "$(date -u +%u)" = "7" ] && plans="$plans,Capture"
           fi
-          matrix="$(python3 tools/nightly_plan.py --filter "$FILTER" --plans "$plans")"
+          matrix="$(python3 tools/nightly_plan.py --filter "$FILTER" --plans "$plans" --families "$families" --max-tests "${SHARD_SIZE:-100}")"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           # Every shard runs on every family, so each family's area expects one result per shard.
-          expect="$(printf '%s' "$matrix" | FAMILIES="${FAMILIES:-iphone,duo,ipad}" python3 -c '
-          import json, os, sys
-          shards = len(json.load(sys.stdin)["include"])
-          print(",".join("journeys-%s=%d" % (f, shards) for f in sorted(os.environ["FAMILIES"].split(",")) if f))')"
-          if [ "${COVERAGE:-true}" = "true" ]; then expect="$expect,coverage=1"; fi
+          expect="$(printf '%s' "$matrix" | python3 -c '
+          import collections, json, sys
+          legs = collections.Counter(e["family"] for e in json.load(sys.stdin)["include"])
+          print(",".join("journeys-%s=%d" % (f, n) for f, n in sorted(legs.items())))')"
+          # The Live legs (the demo instance): planned only when the owner switched them on and this is main; a dispatch can opt out.
+          live=false
+          live_matrix='{"include":[]}'
+          if [ "${LIVE_ON:-}" = "on" ] && [ "$GITHUB_REF" = "refs/heads/main" ] && [ "${LIVE_INPUT:-true}" != "false" ]; then
+            if live_matrix="$(python3 tools/nightly_plan.py --filter "$FILTER" --plans Live --families "$families" --max-tests "${SHARD_SIZE:-100}")"; then
+              live=true
+              live_expect="$(printf '%s' "$live_matrix" | python3 -c '
+          import collections, json, sys
+          legs = collections.Counter(e["family"] for e in json.load(sys.stdin)["include"])
+          print(",".join("live-%s=%d" % (f, n) for f, n in sorted(legs.items())))')"
+              expect="$expect,$live_expect"
+            else
+              live_matrix='{"include":[]}'
+            fi
+          fi
+          echo "live=$live" >> "$GITHUB_OUTPUT"
+          echo "live_matrix=$live_matrix" >> "$GITHUB_OUTPUT"
+          run_coverage=true
+          [ "${COVERAGE:-true}" = "false" ] && run_coverage=false
+          [ "$run_coverage" = "true" ] && expect="$expect,coverage=1"
+          echo "coverage=$run_coverage" >> "$GITHUB_OUTPUT"
+          # The whole app-hosted suite (FentonHomeTests) is not a UI-test class, so the class filter does not apply to it: a filtered run skips it.
+          run_hosted=true
+          [ -n "${FILTER:-}" ] && run_hosted=false
+          [ "$run_hosted" = "true" ] && expect="$expect,hosted=1"
+          echo "hosted=$run_hosted" >> "$GITHUB_OUTPUT"
           echo "expect=$expect" >> "$GITHUB_OUTPUT"
-          echo "shards: $expect" >> "$GITHUB_STEP_SUMMARY"
+          echo "plans: $plans; legs: $expect" >> "$GITHUB_STEP_SUMMARY"
 
-  journeys:
+  build:
+    # Build once, test many (pr-checks macos-build): the test products are built here with no simulator booted (a first Duo boot beside a
+    # compile killed two runners) and every journey leg restores them. The products key is a hash of apple/, the build settings and Xcode.
+    name: build for testing
     needs: plan
-    runs-on: [self-hosted, macOS, hass]
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    name: journeys ${{ matrix.plan }} shard ${{ matrix.shard }}
+    if: ${{ vars.HOSTED_MACOS == 'on' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
-          clean: false
-      - name: Disk pre-flight (30 GB free)
-        run: python3 tools/ci_hygiene.py preflight --min-gb 30
-      - name: Run the shard (one devcap hold per device, the families at once)
+          persist-credentials: false
+      - name: Derived data and products paths
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      # Restore only: pr-checks saves this key on main (the same prefix and settings), the nightly reads it.
+      - name: Restore DerivedData
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dd
+          key: dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            dd-sim-arm64-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: Build the test products
+        run: tools/ci_macos.sh build
+      - name: Pack the test products
+        # tar keeps the bundle's symlinks and modes (the artifact zip would not); gzip -1 because the transfer, not the size, is the cost.
+        run: |
+          set -o pipefail
+          ls "$FENTON_PRODUCTS_DIR"
+          tar -cf - -C "$FENTON_PRODUCTS_DIR" . | gzip -1 > "$RUNNER_TEMP/test-products.tar.gz"
+          du -h "$RUNNER_TEMP/test-products.tar.gz"
+      - name: Upload the test products
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: test-products-nightly
+          path: ${{ runner.temp }}/test-products.tar.gz
+          retention-days: 1
+          compression-level: 0   # already gzip
+          if-no-files-found: error
+      - name: Timing summary
+        if: ${{ !cancelled() }}
+        run: tools/ci_macos.sh summary
+
+  journeys:
+    # One runner per family x shard. At most 3 at once: with the coverage job that is 4 of the account's 5 concurrent macOS jobs, so
+    # a pull request's build or test leg still gets a runner while the nightly runs.
+    needs: [plan, build]
+    if: ${{ vars.HOSTED_MACOS == 'on' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: journeys ${{ matrix.family }} ${{ matrix.plan }} shard ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data and products paths
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Download the test products
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: test-products-nightly
+          path: ${{ runner.temp }}/products-download
+      - name: Unpack the test products
+        run: |
+          set -euo pipefail
+          mkdir -p "$FENTON_PRODUCTS_DIR"
+          tar -xzf "$RUNNER_TEMP/products-download/test-products.tar.gz" -C "$FENTON_PRODUCTS_DIR"
+          ls "$FENTON_PRODUCTS_DIR"
+      - name: Reuse the built products
+        # A miss would rebuild silently and lose the point of the split: fail instead.
+        run: |
+          set -o pipefail
+          tools/ci_macos.sh build 2>&1 | tee "$RUNNER_TEMP/products-reuse.log"
+          grep -q '^products: hit ' "$RUNNER_TEMP/products-reuse.log" || { echo "::error::the uploaded test products did not match this runner's key (see the log above)"; exit 1; }
+      - name: Slim and settle the ${{ matrix.family }} simulator
+        id: sim
+        # The pr-checks steps: release earlier simulators, simslim (boots it slim), then wait for the first boot to settle (the Duo above all).
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          set -uo pipefail
+          tools/ci_release_sims.sh || true
+          slim_rc=0
+          tools/ci_heartbeat.sh run -- tools/sim_slim.sh "$FAMILY" || slim_rc=$?
+          # 0 slimmed, 3 left stock, 4 slimmed but unconfirmed; a device left stock is not slimmed behind our back by the journey runner.
+          if [ "$slim_rc" != 0 ]; then echo "slim=0" >> "$GITHUB_OUTPUT"; else echo "slim=1" >> "$GITHUB_OUTPUT"; fi
+          echo "sim_slim exit $slim_rc"
+          tools/ci_heartbeat.sh run -- tools/sim_settle.sh "$FAMILY" || true
+      - name: Run the shard
         id: run
         env:
-          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-nightly-${{ github.run_id }}
-          FAMILIES: ${{ inputs.families }}
+          FAMILY: ${{ matrix.family }}
           PLAN: ${{ matrix.plan }}
           SHARD: ${{ matrix.shard }}
           FILTERS: ${{ matrix.filters }}
-          LAST: ${{ matrix.last }}
+          SLIM: ${{ steps.sim.outputs.slim }}
         run: |
           set -uo pipefail
+          # The step shell is `bash -e -o pipefail`: -e must go, or a failing run aborts before its exit code is recorded.
+          set +e
           mkdir -p build/nightly
-          # Live-server credentials load in this step's own process from ~/.config/fenton-hass/env (tools/hass_creds.sh).
-          source tools/hass_creds.sh
-          if ! hass_load_creds || ! hass_require_creds; then
-            echo "::error::Live-server credentials are missing or the credentials file was refused (see the message above); failing the shard instead of skipping the signed-in journeys"
-            # Name the reason in the shard log: the digest classifies it as infra (a machine problem), so no Nightly Fix issue is filed.
-            echo "Live-server credentials unavailable: missing or refused on this runner (tools/hass_creds.sh); see ~/.config/fenton-hass/env" > "build/nightly/log-$FAMILY-$SHARD.txt"
-            echo "code=1" >> "$GITHUB_OUTPUT"
-            echo "elapsed=0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          [ "${SLIM:-1}" = "0" ] && export FENTON_SIM_SLIM=0
+          log="build/nightly/log-$FAMILY-$SHARD.txt"
           start=$(date +%s)
-          for v in FENTON_HASS_USERNAME FENTON_HASS_PASSWORD FENTON_HASS_TOKEN; do
-            [ -n "${!v:-}" ] && echo "::add-mask::${!v}"
-          done
-          [ "$LAST" = "true" ] && export FENTON_SHUTDOWN_SIM=1
-          export FENTON_DEVCAP_HOLD=7200 FENTON_TIER=nightly
-          log="build/nightly/log-$SHARD.txt"
-          : > "$log"
-          IFS=, read -r -a fams <<< "${FAMILIES:-iphone,duo,ipad}"
           code=0
           # shellcheck disable=SC2086
-          if [ "${#fams[@]}" -ge 3 ]; then
-            tools/ios_uitest.sh --env shell --parallel-families --plan "$PLAN" --force $FILTERS > "$log" 2>&1 || code=$?
-          else
-            for f in "${fams[@]}"; do
-              tools/ios_uitest.sh --env shell --only "$f" --plan "$PLAN" --force $FILTERS >> "$log" 2>&1 || code=$?
-            done
-          fi
+          tools/ios_uitest.sh --only "$FAMILY" --plan "$PLAN" --force $FILTERS 2>&1 | tee "$log"
+          code=${PIPESTATUS[0]}
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
-          # Per-family exit codes: the script prints "===== FAMILY (exit N) =====" for a parallel run, and writes apple/.build/uitest-FAMILY.log.
-          for f in "${fams[@]}"; do
-            fc="$(sed -n "s/^===== $f (exit \([0-9]*\)) =====$/\1/p" "$log" | tail -1)"
-            echo "code-$f=${fc:-$code}" >> "$GITHUB_OUTPUT"
-            [ -f "apple/.build/uitest-$f.log" ] && cp "apple/.build/uitest-$f.log" "build/nightly/log-$f-$SHARD.txt" || cp "$log" "build/nightly/log-$f-$SHARD.txt"
-            xcrun xcresulttool get test-results summary --path "apple/.build/uitest-$f.xcresult" --compact > "build/nightly/xcresult-$f-$SHARD.json" 2>/dev/null || true
-          done
+          xcrun xcresulttool get test-results summary --path "apple/.build/uitest-$FAMILY.xcresult" --compact > "build/nightly/xcresult-$FAMILY-$SHARD.json" 2>/dev/null || true
           exit 0
-      - name: Digest (one result per family)
+      - name: Digest
         if: always()
         env:
-          FAMILIES: ${{ inputs.families }}
+          FAMILY: ${{ matrix.family }}
           SHARD: ${{ matrix.shard }}
-          CODES: ${{ toJSON(steps.run.outputs) }}
           ELAPSED: ${{ steps.run.outputs.elapsed }}
           CODE: ${{ steps.run.outputs.code }}
         run: |
           set -uo pipefail
           mkdir -p build/nightly
-          IFS=, read -r -a fams <<< "${FAMILIES:-iphone,duo,ipad}"
-          for f in "${fams[@]}"; do
-            touch "build/nightly/log-$f-$SHARD.txt"
-            fc="$(printf '%s' "$CODES" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("code-" + sys.argv[1], ""))' "$f")"
-            python3 tools/nightly_report.py result --area "journeys-$f" --shard "$SHARD" \
-              --log "build/nightly/log-$f-$SHARD.txt" --exit-code "${fc:-${CODE:-124}}" --elapsed "${ELAPSED:-0}" \
-              --out "build/nightly/result-$f-$SHARD.json" | tee -a "$RUNNER_TEMP/digest.txt"
-          done
+          touch "build/nightly/log-$FAMILY-$SHARD.txt"
+          python3 tools/nightly_report.py result --area "journeys-$FAMILY" --shard "$SHARD" \
+            --log "build/nightly/log-$FAMILY-$SHARD.txt" --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" \
+            --out "build/nightly/result-$FAMILY-$SHARD.json" | tee "$RUNNER_TEMP/digest.txt"
           { echo '```'; cat "$RUNNER_TEMP/digest.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload results and xcresult summaries
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: nightly-journeys-${{ matrix.shard }}
+          name: nightly-journeys-${{ matrix.family }}-${{ matrix.shard }}
           path: |
             build/nightly/result-*.json
             build/nightly/xcresult-*.json
             build/nightly/log-*.txt
+          retention-days: 14
+      - name: Keep the xcresult of a failed shard
+        if: ${{ always() && steps.run.outputs.code != '0' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-${{ matrix.family }}-${{ matrix.shard }}
+          # An .xcresult is a directory (the trailing /** names the files inside); apple/.build is hidden.
+          include-hidden-files: true
+          path: apple/.build/uitest-${{ matrix.family }}.xcresult/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Fail the shard
+        if: steps.run.outputs.code != '0'
+        run: exit 1
+
+  hosted:
+    # The whole app-hosted unit-test suite (FentonHomeTests) on iPhone, plain, as the pass or fail gate that a pull request runs for the classes its
+    # diff reaches (tools/ci_macos.sh hosted iphone). It starts after `coverage`, so the journeys (3) plus one more job stay under the macOS cap.
+    name: hosted iphone
+    needs: [plan, build, coverage]
+    if: ${{ !cancelled() && vars.HOSTED_MACOS == 'on' && needs.plan.outputs.hosted == 'true' && needs.build.result == 'success' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data and products paths
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Download the test products
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: test-products-nightly
+          path: ${{ runner.temp }}/products-download
+      - name: Unpack the test products
+        run: |
+          set -euo pipefail
+          mkdir -p "$FENTON_PRODUCTS_DIR"
+          tar -xzf "$RUNNER_TEMP/products-download/test-products.tar.gz" -C "$FENTON_PRODUCTS_DIR"
+          ls "$FENTON_PRODUCTS_DIR"
+      - name: Reuse the built products
+        run: |
+          set -o pipefail
+          tools/ci_macos.sh build 2>&1 | tee "$RUNNER_TEMP/products-reuse.log"
+          grep -q '^products: hit ' "$RUNNER_TEMP/products-reuse.log" || { echo "::error::the uploaded test products did not match this runner's key (see the log above)"; exit 1; }
+      - name: Slim and settle the iphone simulator
+        id: sim
+        run: |
+          set -uo pipefail
+          tools/ci_release_sims.sh || true
+          slim_rc=0
+          tools/ci_heartbeat.sh run -- tools/sim_slim.sh iphone || slim_rc=$?
+          if [ "$slim_rc" != 0 ]; then echo "slim=0" >> "$GITHUB_OUTPUT"; else echo "slim=1" >> "$GITHUB_OUTPUT"; fi
+          tools/ci_heartbeat.sh run -- tools/sim_settle.sh iphone || true
+      - name: Run FentonHomeTests (the whole suite)
+        id: run
+        env:
+          SLIM: ${{ steps.sim.outputs.slim }}
+        run: |
+          set -uo pipefail
+          # The step shell is `bash -e -o pipefail`: -e must go, or a failing run aborts before its exit code is recorded.
+          set +e
+          mkdir -p build/nightly
+          [ "${SLIM:-1}" = "0" ] && export FENTON_SIM_SLIM=0
+          start=$(date +%s)
+          tools/ios_uitest.sh --only iphone --hosted --force 2>&1 | tee build/nightly/log-hosted.txt
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Digest
+        if: always()
+        env:
+          CODE: ${{ steps.run.outputs.code }}
+          ELAPSED: ${{ steps.run.outputs.elapsed }}
+        run: |
+          set -uo pipefail
+          mkdir -p build/nightly
+          touch build/nightly/log-hosted.txt
+          python3 tools/nightly_report.py result --area hosted --log build/nightly/log-hosted.txt \
+            --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" --out build/nightly/result-hosted.json | tee "$RUNNER_TEMP/digest.txt"
+          { echo '```'; cat "$RUNNER_TEMP/digest.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: nightly-hosted
+          path: |
+            build/nightly/result-*.json
+            build/nightly/log-*.txt
+          retention-days: 14
+      - name: Keep the xcresult of a failed run
+        if: ${{ always() && steps.run.outputs.code != '0' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-hosted-iphone
+          include-hidden-files: true
+          path: apple/.build/uitest-iphone.xcresult/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Fail the hosted run
+        if: steps.run.outputs.code != '0'
+        run: exit 1
+
+  live:
+    # The Live plan against the DEMO instance, after the journeys (so it never competes with them for the macOS cap: at most 2 legs beside the
+    # coverage job). Triggers are schedule and dispatch only (no pull_request anywhere in this file); the if: keeps it to main and to the owner's
+    # switch. The `hass-test` environment (deployment branches: main) holds HASS_TEST_PASSWORD, which enters only the run step's env and reaches
+    # the test runner in-process through the uitest script's `--env shell` (tools/hass_creds.sh): never exported to a later step, never echoed.
+    # Public repo: the test output goes to a file, not the Actions log, and only the result digest is uploaded (no log, screenshot or xcresult).
+    name: live ${{ matrix.family }} shard ${{ matrix.shard }}
+    needs: [plan, build, journeys]
+    if: ${{ !cancelled() && vars.HOSTED_MACOS == 'on' && vars.HASS_LIVE_NIGHTLY == 'on' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.plan.outputs.live == 'true' && needs.build.result == 'success' }}
+    environment: hass-test
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.plan.outputs.live_matrix) }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data and products paths
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Download the test products
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: test-products-nightly
+          path: ${{ runner.temp }}/products-download
+      - name: Unpack the test products
+        run: |
+          set -euo pipefail
+          mkdir -p "$FENTON_PRODUCTS_DIR"
+          tar -xzf "$RUNNER_TEMP/products-download/test-products.tar.gz" -C "$FENTON_PRODUCTS_DIR"
+      - name: Reuse the built products
+        run: |
+          set -o pipefail
+          tools/ci_macos.sh build 2>&1 | tee "$RUNNER_TEMP/products-reuse.log"
+          grep -q '^products: hit ' "$RUNNER_TEMP/products-reuse.log" || { echo "::error::the uploaded test products did not match this runner's key (see the log above)"; exit 1; }
+      - name: Slim and settle the ${{ matrix.family }} simulator
+        id: sim
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          set -uo pipefail
+          tools/ci_release_sims.sh || true
+          slim_rc=0
+          tools/ci_heartbeat.sh run -- tools/sim_slim.sh "$FAMILY" || slim_rc=$?
+          if [ "$slim_rc" != 0 ]; then echo "slim=0" >> "$GITHUB_OUTPUT"; else echo "slim=1" >> "$GITHUB_OUTPUT"; fi
+          tools/ci_heartbeat.sh run -- tools/sim_settle.sh "$FAMILY" || true
+      - name: Run the Live shard against the demo instance
+        id: run
+        env:
+          FAMILY: ${{ matrix.family }}
+          SHARD: ${{ matrix.shard }}
+          FILTERS: ${{ matrix.filters }}
+          SLIM: ${{ steps.sim.outputs.slim }}
+          # The only step with credentials; `--env shell` hands them to the test runner as TEST_RUNNER_FENTON_HASS_*.
+          FENTON_HASS_SERVER: ${{ vars.HASS_TEST_SERVER }}
+          FENTON_HASS_USERNAME: ${{ vars.HASS_TEST_USERNAME }}
+          FENTON_HASS_PASSWORD: ${{ secrets.HASS_TEST_PASSWORD }}
+          # Tells the journeys the server is the demo instance, so they assert DemoHouse values (journey-expectations.md).
+          TEST_RUNNER_HASS_TEST_SERVER: ${{ vars.HASS_TEST_SERVER }}
+          TEST_RUNNER_FENTON_JOURNEY_TARGET: demo
+        run: |
+          set -uo pipefail
+          # The step shell is `bash -e -o pipefail`: -e must go, or a failing run aborts before its exit code is recorded.
+          set +e
+          mkdir -p build/nightly
+          [ "${SLIM:-1}" = "0" ] && export FENTON_SIM_SLIM=0
+          log="build/nightly/log-live-$FAMILY-$SHARD.txt"
+          start=$(date +%s)
+          # The log goes to a file, not the public Actions log; only the digest below is printed.
+          code=0
+          # shellcheck disable=SC2086
+          tools/ios_uitest.sh --env shell --only "$FAMILY" --plan Live --force $FILTERS > "$log" 2>&1 || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Digest
+        if: always()
+        env:
+          FAMILY: ${{ matrix.family }}
+          SHARD: ${{ matrix.shard }}
+          ELAPSED: ${{ steps.run.outputs.elapsed }}
+          CODE: ${{ steps.run.outputs.code }}
+        run: |
+          set -uo pipefail
+          mkdir -p build/nightly
+          touch "build/nightly/log-live-$FAMILY-$SHARD.txt"
+          python3 tools/nightly_report.py result --area "live-$FAMILY" --shard "$SHARD" \
+            --log "build/nightly/log-live-$FAMILY-$SHARD.txt" --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" \
+            --out "build/nightly/result-live-$FAMILY-$SHARD.json" | tee "$RUNNER_TEMP/digest.txt"
+          { echo '```'; cat "$RUNNER_TEMP/digest.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the result digest
+        # Digest only: the public repo gets no log, screenshot or xcresult from the Live job.
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: nightly-live-${{ matrix.family }}-${{ matrix.shard }}
+          path: build/nightly/result-live-*.json
           retention-days: 14
       - name: Fail the shard
         if: steps.run.outputs.code != '0'
         run: exit 1
 
   coverage:
+    # Full tools/apple_coverage.sh with the 95% logic gate: swift test with coverage on the Mac host, no simulator and no products bundle.
+    # The journeys run in `journeys` and the whole app-hosted suite in `hosted`; both are pass or fail.
     needs: plan
-    if: inputs.coverage
-    runs-on: [self-hosted, macOS, host]
-    timeout-minutes: 150
+    if: ${{ vars.HOSTED_MACOS == 'on' && needs.plan.outputs.coverage == 'true' }}
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
-          clean: false
-      - name: Reset the workspace (keeps the build caches)
-        run: git clean -ffdx -e apple/.build -e build
-      - name: Disk pre-flight (30 GB free)
-        run: python3 tools/ci_hygiene.py preflight --min-gb 30
-      - name: apple_coverage.sh (95% logic and UX gate)
+          persist-credentials: false
+      - name: Derived data path
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Selected Xcode (cache key)
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+      - name: Restore SwiftPM caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            apple/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
+      - name: apple_coverage.sh (95% logic gate)
         id: run
         run: |
           set -uo pipefail
+          # The step shell is `bash -e -o pipefail`: -e must go, or a failing run aborts before its exit code is recorded.
+          set +e
           mkdir -p build/nightly
           start=$(date +%s)
-          code=0
-          FENTON_TIER=nightly FENTON_DEVCAP_HOLD=7200 tools/apple_coverage.sh > build/nightly/log-coverage.txt 2>&1 || code=$?
+          tools/apple_coverage.sh 2>&1 | tee build/nightly/log-coverage.txt
+          code=${PIPESTATUS[0]}
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
           exit 0
@@ -223,7 +570,7 @@ jobs:
           mkdir -p build/nightly
           touch build/nightly/log-coverage.txt
           python3 tools/nightly_report.py result --area coverage --log build/nightly/log-coverage.txt \
-            --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" --out build/nightly/result-coverage.json | tee -a "$RUNNER_TEMP/digest.txt"
+            --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" --out build/nightly/result-coverage.json | tee "$RUNNER_TEMP/digest.txt"
           { echo '```'; cat "$RUNNER_TEMP/digest.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload results
         if: always()
@@ -239,14 +586,18 @@ jobs:
         run: exit 1
 
   report:
-    needs: [plan, journeys, coverage]
+    # Python and gh only, so Linux. The one job with issues: write; GITHUB_TOKEN files, updates and closes the Nightly Fix issues.
+    needs: [plan, journeys, coverage, hosted, live]
     if: always() && needs.plan.result == 'success'
-    runs-on: [self-hosted, macOS, hass]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          clean: false
+          persist-credentials: false
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: nightly-*
@@ -264,18 +615,10 @@ jobs:
           args=(issues --results "$RUNNER_TEMP/nightly-results" --expect "$EXPECT" --run-url "$RUN_URL" --sha "$GITHUB_SHA")
           # Only a full, unfiltered run may close Nightly Fix issues: a filtered run passes areas it did not fully run.
           if [ -z "${FILTER:-}" ]; then args+=(--full-run); fi
-          case "$MODE" in
+          # A scheduled run has no inputs: it files.
+          case "${MODE:-file}" in
             file) args+=(--repo "$GITHUB_REPOSITORY") ;;
             dry-run) args+=(--repo "$GITHUB_REPOSITORY" --dry-run) ;;
           esac
           python3 tools/nightly_report.py "${args[@]}" | tee "$RUNNER_TEMP/report.md"
           cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
-      - name: Clean up (DerivedData, simulators this run created, old results)
-        if: always()
-        env:
-          FENTON_DERIVED_DATA: ${{ runner.workspace }}/dd-nightly-${{ github.run_id }}
-        run: |
-          python3 tools/ci_hygiene.py rm-dir "$FENTON_DERIVED_DATA" || true
-          python3 tools/ci_hygiene.py sims-clean "${{ runner.workspace }}/nightly-sims-${{ github.run_id }}.txt" || true
-          rm -f "${{ runner.workspace }}/nightly-sims-${{ github.run_id }}.txt"
-          python3 tools/ci_hygiene.py prune-results --days 7

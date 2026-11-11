@@ -30,6 +30,22 @@ final class UKHostedSummaryTests: DemoHouseTestCase {
         XCTAssertFalse(page.navigationItem.title?.isEmpty ?? true)
     }
 
+    /// The opening tab is highlighted from first display, with no tap (owner, 2026-11-05): its segment is `.selected`, a 44 pt
+    /// target, and the capsule sits on it. Runs on every family, so iPhone, Duo and iPad are each checked.
+    func testTheOpeningTabIsHighlightedBeforeAnyTap() throws {
+        for opening in [SummaryTab.profile, .expiredFood] {
+            let (page, _, window) = summary(["FENTON_GALLERY_VIEWER": "resident_1"], opening: opening)
+            defer { window.isHidden = true }
+            let segment = try XCTUnwrap(FeatureHost.view("summary.tabs.\(opening.id)", in: page.view), "\(opening) segment")
+            let lift = try XCTUnwrap(FeatureHost.view("summary.tabs.lift", in: page.view), "the capsule")
+            XCTAssertTrue(segment.accessibilityTraits.contains(.selected), "\(opening) is selected")
+            XCTAssertGreaterThanOrEqual(segment.frame.height, 44)
+            XCTAssertFalse(lift.isHidden)
+            XCTAssertGreaterThan(lift.frame.width, 20, "the capsule has a size when the sheet opens")
+            XCTAssertEqual(lift.frame, segment.frame, "the capsule sits behind \(opening)")
+        }
+    }
+
     func testProfileListsTheHouseholdsPeople() throws {
         let (page, _, window) = summary([:])
         defer { window.isHidden = true }

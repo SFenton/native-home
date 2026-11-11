@@ -697,7 +697,9 @@ class GeneratedQuestionTests(Isolated):
             if path != "none":
                 self.assertTrue((REPO / path).is_file(), path)
         self.assertNotIn(".agents/design/mockups", " ".join(criteria))
-        self.assertIn(".agents/workflow/decision-models.md", criteria)
+        self.assertNotIn(".agents/decisions", " ".join(criteria))  # the record is never a home for a rule
+        self.assertNotIn(".agents/archive", " ".join(criteria))
+        self.assertIn(".agents/workflow/jev.md", criteria)
 
     def test_release_impact_covers_services_hakit_and_frameworks(self):
         criteria = jev.load_questions()["research.release_impact"].data["criteria"]
@@ -730,6 +732,9 @@ class GeneratedQuestionTests(Isolated):
             (root / ".agents/design/mockups").mkdir(parents=True)
             (root / ".agents/workflow/a.md").write_text("# Doc A\n\n> **What:** does a. **Read when:** touching a.\n")
             (root / ".agents/design/mockups/m.md").write_text("# Mock\n")
+            for record in ("decisions", "archive"):
+                (root / ".agents" / record).mkdir()
+                (root / ".agents" / record / "2026-11-10-x.md").write_text("# Record\n")
             (root / "AGENTS.md").write_text("# Agents\n\n> **What:** the entry point.\n")
             (root / "apple/Sources/X").mkdir(parents=True)
             (root / "apple/Sources/X/B.swift").write_text('import WidgetKit\n')
@@ -760,10 +765,7 @@ class SectionsMeasureTests(Isolated):
         sec = load_tool("jev_sections")
         labels = json.loads(measure.LABELS.read_text())["pairs"]
         self.assertGreaterEqual(len(labels), 20)
-        for pair in labels:
-            text = (REPO / pair["file"]).read_text(encoding="utf-8")
-            parts = sec.split_sections(text, sec.detect_kind(pair["file"], text))
-            self.assertTrue(any(p in s.text for s in parts for p in pair["any_of"]), pair["question"])
+        self.assertEqual([(f["question"], f["reason"]) for f in sec.label_anchor_failures(REPO, labels)], [])
 
     def test_run_sections_compares_jev_with_bm25_and_stops_at_the_cap(self):
         def send(body, key, timeout):
@@ -772,8 +774,8 @@ class SectionsMeasureTests(Isolated):
                                 for n in body["questions"]}, "usage": {"input_tokens": 1000}}
         labels = Path(self.tmp.name) / "labels.json"
         labels.write_text(json.dumps({"pairs": [
-            {"file": ".agents/workflow/ci.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]},
-            {"file": ".agents/workflow/ci.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]}]}))
+            {"file": ".agents/platforms/apple/testflight.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]},
+            {"file": ".agents/platforms/apple/testflight.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]}]}))
         with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "k"}):
             result = measure.run_sections(labels, transport=send)
             self.assertEqual((result["pairs"], result["jev"]["hit@1"]), (2, 1.0))

@@ -13,6 +13,14 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
     private let rig = GalleryHouseRig()
     private var source: HouseConfigSource { rig.source }
     private var transport: StubHouseTransport { rig.transport }
+    /// The gates ``gated(_:role:size:)`` made, kept for the test as a page keeps its own (`UKPageViewController.houseGate`): the
+    /// message's action holds its gate weakly, so a gate nobody keeps does nothing when the button is pressed.
+    private var gates: [UKHouseLayoutGate] = []
+
+    override func tearDown() async throws {
+        gates.removeAll()
+        try await super.tearDown()
+    }
 
     private func makeStore(timeout: Duration = .seconds(60)) -> HouseConfigStore {
         // swiftlint:disable:next force_try
@@ -69,6 +77,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         page.contentView.addSubview(marker)
         let window = HostedPage.show(page, size: size)
         let gate = UKHouseLayoutGate(page: page, kind: .page, forced: forced, role: role)
+        gates.append(gate)
         HostedPage.wait(0.3)
         return (page, gate, window, host)
     }
@@ -257,10 +266,13 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         let page = UKHomeViewController(context: context, configuration: UKHomeConfiguration(parts: .statusRail))
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
-        let pills = HostedPage.descendants(of: page.view).compactMap { $0 as? UKStatusPillView }
-        XCTAssertFalse(pills.isEmpty, "the chips are still there")
-        XCTAssertTrue(pills.contains { ($0.accessibilityValue ?? "").contains("Unavailable") }, "a missing entity reads Unavailable")
-        XCTAssertFalse(pills.contains { $0.accessibilityValue == "Loading" })
+        // The rail's chips are `UKStatusChipView` (`UKStatusRail`), one element each, labelled "<title>, <summary>".
+        let chips = HostedPage.descendants(of: page.view).compactMap { $0 as? UKStatusChipView }
+        XCTAssertEqual(chips.count, HomeConfig.statusChips.count, "the chips are still there")
+        XCTAssertFalse(chips.isEmpty, "the demo house has status chips")
+        XCTAssertTrue(chips.allSatisfy { !$0.isHidden && $0.alpha > 0 })
+        XCTAssertTrue(chips.contains { ($0.accessibilityLabel ?? "").hasSuffix(", Unavailable") }, "a missing entity reads Unavailable")
+        XCTAssertFalse(chips.contains { ($0.accessibilityLabel ?? "").contains("Loading") })
     }
 
     // MARK: - The modal's House Layout row
@@ -321,15 +333,21 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
 
     func testAMissingLightIsAnUnavailableBrightnessTileThatStaysPut() throws {
         let entities = storeLackingTheHouse()
+        // Manual control on and the Custom mode picked: the page shows its light tiles only then, and a hidden grid has no frames
+        // worth comparing.
+        entities.apply([EntityState(entityId: CustomLightsConfig.manualControlEntityId, state: "on"),
+                        EntityState(entityId: CustomLightsConfig.modeEntityId, state: CustomLightsConfig.customMode)])
         var context = UKGalleryChrome.context(store: entities, caller: GalleryServiceRecorder(store: entities))
         context.valuesPending = false
         let page = UKCustomLightsViewController(context: context)
-        let window = HostedPage.show(page, size: CGSize(width: 393, height: 1600))
+        // Under its navigation bar, as the app shows it. As a bare window root the first rows sit inside the top safe area, where a
+        // row's padding follows the safe area and its measured height changes by a point on every layout pass.
+        let window = HostedPage.show(UKGalleryChrome.wrap(page, context: context), size: CGSize(width: 393, height: 1600))
         defer { window.isHidden = true }
         let tiles = HostedPage.descendants(of: page.view).compactMap { $0 as? UKBrightnessTileView }
         XCTAssertFalse(tiles.isEmpty, "the brightness tiles are drawn")
         XCTAssertTrue(tiles.allSatisfy(\.isUnavailable), "a missing light is an unavailable tile")
-        XCTAssertTrue(tiles.allSatisfy { !$0.isHidden && $0.alpha > 0 })
+        XCTAssertTrue(tiles.allSatisfy { HostedDriver.isShown($0) && $0.bounds.width > 0 }, "on screen, in a grid that is showing")
         let before = tiles.map { $0.convert($0.bounds, to: page.view) }
         entities.apply(CustomLightsConfig.lights.map { EntityState(entityId: $0.entityId, state: "on", attributes: ["brightness": .number(128)]) })
         HostedPage.wait(0.4)

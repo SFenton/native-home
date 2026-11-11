@@ -21,8 +21,9 @@ def needs(**results):
 
 
 def run_of(macos="success", **overrides):
+    """A pull request that changed app code and tools: every gated job wanted. `macos` is the state of the build and the test matrix."""
     base = needs(scope="success", linux_checks="success", tool_tests_core="success", denylist_scan="success",
-                 macos=macos, build_release=macos)
+                 macos_build=macos, macos_test=macos, coverage_changed=macos, build_release=macos)
     base["scope"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
@@ -45,11 +46,31 @@ class AggregateTests(unittest.TestCase):
         run["scope"]["outputs"] = {"app": "false", "release": "false"}
         self.assertEqual(agg.problems(run, True), [])
 
+    def test_one_failed_or_skipped_leg_of_the_macos_build_or_test_fails_the_aggregate(self):
+        for job in ("macos-build", "macos-test", "coverage-changed"):
+            for state in ("failure", "cancelled", "skipped"):
+                run = run_of()
+                run[job]["result"] = state
+                self.assertTrue(agg.problems(run, True, "pull_request"), (job, state))
+        run = run_of(macos="skipped")
+        run["scope"]["outputs"]["app"] = "false"  # a docs-only diff skips both
+        self.assertEqual(agg.problems(run, True, "pull_request"), [])
+
     def test_the_release_build_may_skip_off_main_but_not_on_a_push(self):
         run = run_of(build_release="skipped")
         self.assertEqual(agg.problems(run, True, "pull_request"), [])
         self.assertEqual(agg.problems(run, True, "workflow_dispatch"), [])
         self.assertTrue(agg.problems(run, True, "push"))
+
+    def test_the_coverage_gate_may_skip_off_a_pull_request_but_not_on_one(self):
+        """coverage-changed runs on pull requests only: a push to main or a manual run skips it; a PR that needs it may not."""
+        run = run_of(coverage_changed="skipped")
+        self.assertEqual(agg.problems(run, True, "push"), [])
+        self.assertEqual(agg.problems(run, True, "workflow_dispatch"), [])
+        self.assertTrue(agg.problems(run, True, "pull_request"))
+        self.assertEqual(agg.problems(run_of(coverage_changed="skipped"), False, "pull_request"), [])
+        for state in ("failure", "cancelled"):
+            self.assertTrue(agg.problems(run_of(coverage_changed=state), True, "push"))
 
     def test_the_macos_job_may_not_skip_on_a_pull_request_that_needs_it(self):
         self.assertTrue(agg.problems(run_of(macos="skipped"), True, "pull_request"))
@@ -61,7 +82,7 @@ class AggregateTests(unittest.TestCase):
 
     def test_a_gated_job_missing_from_needs_fails(self):
         """Dropping a job from the workflow's `needs` must not let the aggregate pass blind."""
-        for gone in ("macos", "build-release"):
+        for gone in ("macos-build", "macos-test", "coverage-changed", "build-release"):
             run = run_of()
             del run[gone]
             self.assertTrue(agg.problems(run, True), gone)
