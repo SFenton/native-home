@@ -39,6 +39,10 @@ class StopContinueGuardTests(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, {"BG_RUNS_DIR": str(self.runs), "FENTON_HEADLESS": "1"})
         patcher.start()
         self.addCleanup(patcher.stop)
+        # A registered triage session sets these; main() would force FENTON_HEADLESS=1 from them.
+        # patch.dict restores the originals on stop, so the removal stays inside each test.
+        for name in ("T3CODE_THREAD_ID", "CLAUDE_PROJECT_DIR"):
+            os.environ.pop(name, None)
         self.addCleanup(self.tmp.cleanup)
 
     def transcript(self, items, raw=None):
