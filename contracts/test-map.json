@@ -1,6 +1,6 @@
 {
  "version": 1,
- "comment": "Path prefix -> swift test --filter regexes and iOS UI journey classes (-only-testing:FentonHomeUITests/<Class>). The longest matching prefix wins per file; equal-length matches merge. Seeded from .agents/patterns/*.md test lists and test file names. A changed test file selects its own classes. Families: affected journeys run on defaultFamilies (the primary family, iPhone) and the Smoke plan (tools/test_plans.py, `smoke` below) on the others; each family has its own journey list (tools/affected_tests.py journeys_by_family): iPhone runs every affected journey; Duo and iPad run only the layout journeys among them: a class the matched rule names in layout_journeys, or a layoutJourneys class whose own test file changed (the pose, split and wide classes of a split suite), and the Smoke plan when there are none. A rule tagged layout_sensitive with no layout_journeys (shared HassDesign components, shell, split policy, settings) is blanket: all of its journeys run on every family. A rule may also list explicit `families`. No journeys means no device run. A source file under no rule falls back to the file-name convention (Name.swift -> Name*Tests.swift and NameJourneyTests), then to its module's test target (apple/Sources/HassUI -> HassUITests); tools/affected_tests.py asks for a targeted pick only for files with no module either, and never widens to the full suite. `changedEnvironment` is the environment a `--changed` run (the pull request tier) gives the journeys, as TEST_RUNNER_ variables unless the caller already set them: `FENTON_UITEST_SPACES=all-food` makes the Inventory pages audit cover one representative space instead of all six; the nightly and release runs (no --changed) set nothing and cover all six. The UIKit port (owner, 2026-11-01) replaced the SwiftUI screens: rules for the deleted SwiftUI files were folded into their UIKitPort feature folder (apple/Sources/HassUI/UIKitPort/Features/<Feature>/, UIKitPort/App/).",
+ "comment": "Path prefix -> swift test --filter regexes and iOS UI journey classes (-only-testing:FentonHomeUITests/<Class>). The longest matching prefix wins per file; equal-length matches merge. Seeded from .agents/patterns/*.md test lists and test file names. A changed test file selects its own classes. Families: affected journeys run on defaultFamilies (the primary family, iPhone) and the Smoke plan (tools/test_plans.py, `smoke` below) on the others; each family has its own journey list (tools/affected_tests.py journeys_by_family): iPhone runs every affected journey; Duo and iPad run only the layout journeys among them: a class the matched rule names in layout_journeys, or a layoutJourneys class whose own test file changed (the pose, split and wide classes of a split suite), and the Smoke plan when there are none. A rule tagged layout_sensitive with no layout_journeys (shared HassDesign components, shell, split policy, settings) is blanket: all of its journeys run on every family. A rule may also list explicit `families`. No journeys means no device run. A source file under no rule falls back to the file-name convention (Name.swift -> Name*Tests.swift and NameJourneyTests), then to its module's test target (apple/Sources/HassUI -> HassUITests); tools/affected_tests.py asks for a targeted pick only for files with no module either, and never widens to the full suite. `changedEnvironment` is the environment a `--changed` run (the pull request tier) gives the journeys, as TEST_RUNNER_ variables unless the caller already set them: `FENTON_UITEST_SPACES=all-food` makes the Inventory pages audit cover one representative space instead of all six; the nightly and release runs (no --changed) set nothing and cover all six. The UIKit port (owner, 2026-11-01) replaced the SwiftUI screens: rules for the deleted SwiftUI files were folded into their UIKitPort feature folder (apple/Sources/HassUI/UIKitPort/Features/<Feature>/, UIKitPort/App/). A rule may also list `hosted`: app-hosted unit-test classes (apple/Apps/iOSTests, target FentonHomeTests; exact names or `*` globs, `\"*\"` alone is every class) that tools/affected_tests.py --hosted prints for FENTON_HOSTED_FILTER. The longest prefix that has a `hosted` key wins (equal lengths merge), and a rule with `hosted` but no `swift` or `journeys` places hosted classes only. Files under UIKitPort/Features/<Area>/ with no hosted rule use the area convention (every class whose name after UKHosted, or whose file name, starts with <Area> or its singular), so most features need no rule here; the rules below cover areas whose class names differ (Home, Rooms, RoomDevices, Settings, Food, ...) and shared code (Design, App, Common, Gallery, Foundation, HassDesign, HassUI/App). A changed file under apple/Apps/iOSTests selects its own classes; a helper (UKHostedDriver, HostedFeatureSupport, DemoHouseTestCase, UKHostedScene) selects them all. A UIKitPort or iOSTests file that nothing places is a pick (--hosted exits 3), never a silent full run. tools/ios_uitest.sh --changed runs the hosted classes on iPhone after the journeys; pr-checks runs them through tools/ci_macos.sh hosted iphone.",
  "journeyTarget": "FentonHomeUITests",
  "families": [
   "iphone",
@@ -2152,6 +2152,13 @@
    "journeys": []
   },
   {
+   "prefix": "apple/Tests/HassUITests/HostedGate.swift",
+   "swift": [
+    "HassUITests"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Tests/HassTestSupport",
    "swift": [
     "HassCoreTests",
@@ -2898,6 +2905,675 @@
     "VacuumController"
    ],
    "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/",
+   "hosted": [
+    "UKHostedBedAlarmsGapTests",
+    "UKHostedBedScopeTests",
+    "UKHostedBedroomSheetTests",
+    "UKHostedWakeEditorTests",
+    "UKHostedWakeLightErrorTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet",
+   "hosted": [
+    "UKHostedWakeEditorTests",
+    "UKHostedWakeLightErrorTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Food/",
+   "hosted": [
+    "UKHostedFood*Tests",
+    "UKHostedRecipe*Tests",
+    "UKHostedSharedRecipe*Tests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Home/",
+   "hosted": [
+    "UKHostedSharedHomeTests",
+    "UKHostedSharedWeatherViewsTests",
+    "UKHostedOverviewDetailTests",
+    "UKHostedGateAndOverviewTests",
+    "UKHostedGridMeasuringTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/HouseConfig/",
+   "swift": [
+    "HassUITests"
+   ],
+   "journeys": [
+    "HouseLayoutStatesJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/HouseConfig/",
+   "hosted": [
+    "UKHostedHouseLayoutGateTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/",
+   "hosted": [
+    "UKHostedHousehold*Tests",
+    "UKHostedSummary*Tests",
+    "UKHostedVacationTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation",
+   "hosted": [
+    "UKHostedVacationTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile",
+   "hosted": [
+    "UKHostedSummary*Tests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Inventory/",
+   "hosted": [
+    "UKHostedInventory*Tests",
+    "UKHostedScanTests",
+    "UKHostedSharedInventorySheetsTests",
+    "UKHostedSharedScanTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/",
+   "hosted": [
+    "UKHostedDeviceSheetTests",
+    "UKHostedDeviceKitGapTests",
+    "UKHostedHumidifierGapTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/",
+   "hosted": [
+    "UKHostedRoomLinkTests",
+    "UKHostedRoomsBindingTests",
+    "UKHostedCustomLightSheetTests",
+    "UKHostedCustomRowTests",
+    "UKHostedHueSyncBrightnessTests",
+    "UKHostedMediaRemoteWideTests",
+    "UKHostedSprinkler*Tests",
+    "UKHostedCommonGapTests",
+    "UKHostedSectionSidesTests",
+    "UKHostedGridFillTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/CustomLights/",
+   "hosted": [
+    "UKHostedCustomLightSheetTests",
+    "UKHostedCustomRowTests",
+    "UKHostedHueSyncBrightnessTests",
+    "UKHostedSectionSidesTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/MediaRemote/",
+   "hosted": [
+    "UKHostedMediaRemoteWideTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/Sprinklers/",
+   "hosted": [
+    "UKHostedSprinkler*Tests",
+    "UKHostedSectionSidesTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Security/",
+   "hosted": [
+    "UKHostedSharedSecurityTests",
+    "UKHostedSectionSidesTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/",
+   "hosted": [
+    "UKHostedSettings*Tests",
+    "SettingsFooterInkTests",
+    "UKHostedFeedbackTests",
+    "UKHostedHomeAssistantTests",
+    "UKHostedAppIconTests",
+    "UKHostedPerformanceTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback",
+   "hosted": [
+    "UKHostedFeedbackTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKHomeAssistantSettings",
+   "hosted": [
+    "UKHostedHomeAssistantTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon",
+   "hosted": [
+    "UKHostedAppIconTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKPerformanceViewController",
+   "hosted": [
+    "UKHostedPerformanceTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKNotificationsSettings",
+   "hosted": [
+    "UKHostedSettingsPushTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/",
+   "hosted": [
+    "UKHostedRootTests",
+    "UKHostedShell*Tests",
+    "UKHostedFeatureEntryTests",
+    "UKHostedSignalsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Login/",
+   "hosted": [
+    "UKHostedLogin*Tests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/",
+   "hosted": [
+    "UKHostedShell*Tests",
+    "UKHostedEarlierBarTests",
+    "StackMotionTests",
+    "UKHostedSectionColumnsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/UKStackMotion",
+   "hosted": [
+    "StackMotionTests",
+    "UKHostedShellPartsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController",
+   "hosted": [
+    "StackMotionTests",
+    "UKHostedShellPartsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Layout/",
+   "hosted": [
+    "UKHostedColumnsTests",
+    "UKHostedColumnBarOffscreenTests",
+    "UKHostedSignalsTests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedShellPartsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Page/",
+   "hosted": [
+    "UKHostedPageBaseTests",
+    "UKHostedColumnsTests",
+    "UKHostedColumnBarOffscreenTests",
+    "UKHostedShellMoreTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Motion/",
+   "hosted": [
+    "UKHostedShellPartsTests",
+    "StackMotionTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/App/Notifications/",
+   "hosted": [
+    "UKHostedSettingsPushTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/",
+   "hosted": [
+    "UKHostedAvatarTests",
+    "UKHostedDesign*Tests",
+    "UKHostedFloatingBarTests",
+    "UKHostedChipUndersizedTests",
+    "UKHostedGrid*Tests",
+    "UKHostedImageTests",
+    "UKHostedFormTests",
+    "UKHostedModalTests",
+    "UKHostedTile*Tests",
+    "UKHostedTabLiftTests",
+    "UKHostedCustomRowTests",
+    "UKHostedSmoothSwapTests",
+    "HassRGBTokenTests",
+    "SettingsFooterInkTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKTile",
+   "hosted": [
+    "UKHostedTile*Tests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedHueSyncBrightnessTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKGlassTile",
+   "hosted": [
+    "UKHostedTile*Tests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedHueSyncBrightnessTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKBrightnessTileView",
+   "hosted": [
+    "UKHostedTile*Tests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedHueSyncBrightnessTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKDynamicGrid",
+   "hosted": [
+    "UKHostedGrid*Tests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKWrapWidth",
+   "hosted": [
+    "UKHostedGrid*Tests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews",
+   "hosted": [
+    "UKHostedGrid*Tests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns",
+   "hosted": [
+    "UKHostedGrid*Tests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedChipUndersizedTests",
+    "UKHostedSectionSidesTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKFloatingActionBar",
+   "hosted": [
+    "UKHostedFloatingBarTests",
+    "UKHostedEarlierBarTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKPagePinnedBar",
+   "hosted": [
+    "UKHostedFloatingBarTests",
+    "UKHostedEarlierBarTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKPinnedBar",
+   "hosted": [
+    "UKHostedFloatingBarTests",
+    "UKHostedEarlierBarTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKPendingValueBar",
+   "hosted": [
+    "UKHostedFloatingBarTests",
+    "UKHostedEarlierBarTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKHassModal",
+   "hosted": [
+    "UKHostedDesignSheetsTests",
+    "UKHostedModalTests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedFormTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKForm",
+   "hosted": [
+    "UKHostedDesignSheetsTests",
+    "UKHostedModalTests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedFormTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKSheet",
+   "hosted": [
+    "UKHostedDesignSheetsTests",
+    "UKHostedModalTests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedFormTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKImageViews",
+   "hosted": [
+    "UKHostedImageTests",
+    "UKHostedFormTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKRow",
+   "hosted": [
+    "UKHostedDesignRowTests",
+    "UKHostedCustomRowTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKCheckRow",
+   "hosted": [
+    "UKHostedDesignRowTests",
+    "UKHostedCustomRowTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKModule",
+   "hosted": [
+    "UKHostedDesignRowTests",
+    "UKHostedCustomRowTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKPercentSliderRow",
+   "hosted": [
+    "UKHostedDesignRowTests",
+    "UKHostedDesignVolumeSliderTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKSettingsSection",
+   "hosted": [
+    "UKHostedDesignRowTests",
+    "SettingsFooterInkTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKSwipeActions",
+   "hosted": [
+    "UKHostedDesignRowTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKStatusChipView",
+   "hosted": [
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKStatusPillView",
+   "hosted": [
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKAvatarView",
+   "hosted": [
+    "UKHostedAvatarTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls",
+   "hosted": [
+    "UKHostedDesignControlsTests",
+    "UKHostedDesignVolumeSliderTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKControllerControls",
+   "hosted": [
+    "UKHostedDesignControlsTests",
+    "UKHostedDesignVolumeSliderTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Common/",
+   "hosted": [
+    "UKHostedSmoothSwapTests",
+    "UKHostedShellPartsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Diagnostics/",
+   "hosted": [
+    "LayerCensusHostedTests",
+    "SystemDeviceStatusSourceHostedTests",
+    "CameraAudioHostedTests",
+    "WebRTCCameraPeerHostedTests",
+    "ScanCameraHostedTests",
+    "ScrollCostDriverHostedTests",
+    "LaunchCostProbeHostedTests",
+    "FramePacingHostedTests",
+    "UKHostedDebugProbeTests",
+    "UKHostedSettingsProbeTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/",
+   "hosted": [
+    "UKHostedRoomsBindingTests",
+    "UKHostedPerformanceTests",
+    "ScrollCostDriverHostedTests",
+    "FramePacingHostedTests",
+    "LaunchCostProbeHostedTests",
+    "UKHostedDesign*Tests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/UKColor",
+   "hosted": [
+    "UKHostedTileFaceInkColourTests",
+    "HassRGBTokenTests",
+    "UKHostedDesign*Tests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/UKContext",
+   "hosted": [
+    "*"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/UKObservation",
+   "hosted": [
+    "*"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Gallery/",
+   "hosted": [
+    "UKHostedGallery*Tests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Gallery/UKGalleryChrome",
+   "hosted": [
+    "*"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/",
+   "hosted": [
+    "UKHostedAvatarTests",
+    "UKHostedDesign*Tests",
+    "UKHostedFloatingBarTests",
+    "UKHostedChipUndersizedTests",
+    "UKHostedGrid*Tests",
+    "UKHostedImageTests",
+    "UKHostedFormTests",
+    "UKHostedModalTests",
+    "UKHostedTile*Tests",
+    "UKHostedTabLiftTests",
+    "UKHostedCustomRowTests",
+    "UKHostedSmoothSwapTests",
+    "HassRGBTokenTests",
+    "SettingsFooterInkTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/Tile",
+   "hosted": [
+    "UKHostedTile*Tests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedHueSyncBrightnessTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/GlassTile",
+   "hosted": [
+    "UKHostedTile*Tests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedHueSyncBrightnessTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/BrightnessTile",
+   "hosted": [
+    "UKHostedTile*Tests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedHueSyncBrightnessTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/Sheet",
+   "hosted": [
+    "UKHostedDesignSheetsTests",
+    "UKHostedModalTests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedFormTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/HassModal",
+   "hosted": [
+    "UKHostedDesignSheetsTests",
+    "UKHostedModalTests",
+    "UKHostedDesignBrightnessModalTests",
+    "UKHostedFormTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/DynamicGridLayout",
+   "hosted": [
+    "UKHostedGrid*Tests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/PagedRow",
+   "hosted": [
+    "UKHostedGrid*Tests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/FloatingActionBar",
+   "hosted": [
+    "UKHostedFloatingBarTests",
+    "UKHostedEarlierBarTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/StatusPill",
+   "hosted": [
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/ChipRail",
+   "hosted": [
+    "UKHostedChipUndersizedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/Avatar",
+   "hosted": [
+    "UKHostedAvatarTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/App/",
+   "hosted": [
+    "UKHostedRootTests",
+    "UKHostedShell*Tests",
+    "UKHostedFeatureEntryTests",
+    "UKHostedSignalsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/App/Layout",
+   "hosted": [
+    "UKHostedColumnsTests",
+    "UKHostedColumnBarOffscreenTests",
+    "UKHostedSignalsTests",
+    "UKHostedSectionColumnsTests",
+    "UKHostedShellPartsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/App/Shell",
+   "hosted": [
+    "UKHostedShell*Tests",
+    "UKHostedEarlierBarTests",
+    "StackMotionTests",
+    "UKHostedSectionColumnsTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/Diagnostics/",
+   "hosted": [
+    "LayerCensusHostedTests",
+    "SystemDeviceStatusSourceHostedTests",
+    "CameraAudioHostedTests",
+    "WebRTCCameraPeerHostedTests",
+    "ScanCameraHostedTests",
+    "ScrollCostDriverHostedTests",
+    "LaunchCostProbeHostedTests",
+    "FramePacingHostedTests",
+    "UKHostedDebugProbeTests",
+    "UKHostedSettingsProbeTests"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/VacuumsByPosition",
+   "hosted": [
+    "UKHostedVacuum*Tests"
+   ]
   }
  ],
  "changedEnvironment": {

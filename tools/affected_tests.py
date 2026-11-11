@@ -6,6 +6,7 @@
 ``affected_tests.py --journeys``      `-only-testing:FentonHomeUITests/Class …` for `tools/ios_uitest.sh` (the iPhone list)
 ``affected_tests.py --journeys --device duo``  the journeys one family runs (iphone: all of them; duo, ipad: the layout ones)
 ``affected_tests.py --journeys --plan Gate``  only the classes that plan runs (a class the plan skips whole, or does not select, would match nothing: xcodebuild "EMPTY")
+``affected_tests.py --hosted``        the app-hosted unit-test classes (`apple/Apps/iOSTests`, FentonHomeTests) the diff reaches, for `FENTON_HOSTED_FILTER`
 ``affected_tests.py --families``      device families that run the affected journeys (iphone duo ipad)
 ``affected_tests.py --smoke-families``  families that run only the Smoke plan (`ios_uitest.sh --only F --plan Smoke`)
 ``affected_tests.py --environment``   `NAME=value` lines a `--changed` run gives the journeys (``changedEnvironment`` of the map)
@@ -18,12 +19,18 @@ pick; it never widens to the full suite (the full suite is the nightly tier). Jo
 and the Smoke plan on the others. A journey the matched rule lists in `layout_journeys`, or a `layoutJourneys` class whose own test file changed, also
 runs on Duo and iPad (`journeys_by_family`); the other journeys of the change stay on iPhone. A rule tagged `layout_sensitive`
 without `layout_journeys` is blanket: all its journeys run on all three families.
+Hosted classes (``--hosted``, ``hosted`` in ``--json``) come from the longest matching ``hosted`` rule of the map (class names, ``*``
+globs allowed; ``"*"`` alone is every class), then the **area convention** (``UIKitPort/Features/<Area>/…`` -> every class whose name
+after ``UKHosted`` (and an optional ``Shared``), or whose file's name, starts with ``<Area>`` or its singular). A changed file under
+``apple/Apps/iOSTests/`` selects its own classes; a helper (``UKHostedDriver``, ``HostedFeatureSupport``, ``DemoHouseTestCase``,
+``UKHostedScene``) selects every class. A ``UIKitPort`` or ``iOSTests`` file no rule or convention places is a pick, never a silent widening.
 Exit status is 0 when everything resolved, 3 when a file needs a pick.
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -41,6 +48,11 @@ TREE_PATHS = ("apple",)
 SOURCES = "apple/Sources/"
 TESTS = "apple/Tests/"
 JOURNEYS = "apple/Apps/iOSUITests/"
+HOSTED_TESTS = "apple/Apps/iOSTests/"
+UIKIT = SOURCES + "HassUI/UIKitPort/"
+FEATURES = UIKIT + "Features/"
+#: Files of the hosted target that every class builds on: a change to one selects the whole suite.
+HOSTED_HELPERS = ("UKHostedDriver", "HostedFeatureSupport", "DemoHouseTestCase", "UKHostedScene")
 CLASS_RE = re.compile(r"^\s*(?:final\s+)?(?:public\s+)?class\s+(\w+)\s*:", re.M)
 SUITE_RE = re.compile(r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:final\s+)?(?:struct|class)\s+(\w+)", re.M)
 
@@ -111,6 +123,68 @@ def convention(file: str, root: Path = ROOT) -> Optional[Dict[str, List[str]]]:
     return None
 
 
+def hosted_classes(root: Path = ROOT) -> Dict[str, str]:
+    """Every app-hosted test class (``apple/Apps/iOSTests``) mapped to the stem of the file that declares it."""
+    found: Dict[str, str] = {}
+    for path in sorted((root / HOSTED_TESTS).rglob("*.swift")):
+        for name in classes_in(path):
+            found[name] = path.stem
+    return found
+
+
+def _topic(name: str) -> str:
+    """A hosted class or file name without its ``UKHosted`` prefix, a leading ``Shared`` and its ``Tests`` suffix."""
+    name = name[len("UKHosted"):] if name.startswith("UKHosted") else name
+    name = name[len("Shared"):] if name.startswith("Shared") and len(name) > len("Shared") else name
+    return name[:-len("Tests")] if name.endswith("Tests") else name
+
+
+def area_hosted(area: str, classes: Dict[str, str]) -> List[str]:
+    """Area convention: the hosted classes of ``Features/<area>/`` are those whose class or file topic starts with the area name or its singular."""
+    singular = area[:-1] if area.endswith("s") and len(area) > 4 else area
+    return sorted(name for name, stem in classes.items()
+                  if any(_topic(topic).startswith((area, singular)) for topic in (name, stem)))
+
+
+def expand_hosted(names: Iterable[str], classes: Dict[str, str]) -> List[str]:
+    """Rule class names to real classes: exact names, ``fnmatch`` globs, and ``*`` for all of them. Sorted, no repeats."""
+    chosen = set()
+    for name in names:
+        chosen.update(fnmatch.filter(classes, name))
+    return sorted(chosen)
+
+
+def hosted_for(file: str, rules: Sequence[Dict], classes: Dict[str, str], root: Path = ROOT) -> Optional[List[str]]:
+    """Hosted classes one changed file reaches, or ``None`` when it should be placed but no rule or convention does.
+
+    Order: a changed hosted test file selects its own classes (a helper selects all); the longest-prefix map rule that has a ``hosted``
+    key (equal-length rules merge); the ``Features/<Area>/`` convention. Files outside ``UIKitPort`` and ``iOSTests`` that no rule
+    names reach no hosted class (and never ask for a pick).
+    """
+    if file.startswith(HOSTED_TESTS):
+        if not file.endswith(".swift") or not (root / file).exists():
+            return []
+        stem = Path(file).stem
+        if stem in HOSTED_HELPERS:
+            return sorted(classes)
+        matches = [rule for rule in rules if "hosted" in rule and file.startswith(rule["prefix"])]
+        if matches:  # a helper file the map names (VacuumsByPosition) selects what the rule lists
+            longest = max(len(rule["prefix"]) for rule in matches)
+            return expand_hosted([n for r in matches if len(r["prefix"]) == longest for n in r["hosted"]], classes)
+        own = sorted(name for name, owner in classes.items() if owner == stem)
+        return own or None
+    matches = [rule for rule in rules if "hosted" in rule and file.startswith(rule["prefix"])]
+    if matches:
+        longest = max(len(rule["prefix"]) for rule in matches)
+        return expand_hosted([n for r in matches if len(r["prefix"]) == longest for n in r["hosted"]], classes)
+    if file.startswith(FEATURES) and file.endswith(".swift"):
+        area = file[len(FEATURES):].split("/", 1)[0]
+        return area_hosted(area, classes) or None
+    if file.startswith(UIKIT) and file.endswith(".swift"):
+        return None
+    return []
+
+
 def module_tests(file: str, root: Path = ROOT) -> Optional[str]:
     """The test target of a Swift file's module (``apple/Sources/HassUI/…`` -> ``HassUITests``), or ``None``."""
     if file.startswith(SOURCES) and file.endswith(".swift"):
@@ -121,8 +195,13 @@ def module_tests(file: str, root: Path = ROOT) -> Optional[str]:
 
 
 def select(files: Iterable[str], test_map: Dict, root: Path = ROOT) -> Dict:
-    """Resolve changed files to filters, journeys, families, ignored files and files needing a pick."""
-    rules = test_map.get("rules", [])
+    """Resolve changed files to filters, journeys, hosted classes, families, ignored files and files needing a pick."""
+    all_rules = test_map.get("rules", [])
+    # A rule with a `hosted` list and no swift/journeys keys places hosted classes only; it must not shadow the journey rules.
+    rules = [rule for rule in all_rules if not ("hosted" in rule and "swift" not in rule and "journeys" not in rule)]
+    classes = hosted_classes(root)
+    hosted: List[str] = []
+    hosted_unknown: List[str] = []
     ignore = tuple(test_map.get("ignore", []))
     swift: List[str] = []
     journeys: List[str] = []
@@ -142,6 +221,14 @@ def select(files: Iterable[str], test_map: Dict, root: Path = ROOT) -> Dict:
         if file.startswith(ignore):
             ignored.append(file)
             continue
+        if file.startswith(HOSTED_TESTS) or file.startswith(UIKIT) or any(file.startswith(r["prefix"]) for r in all_rules if "hosted" in r):
+            placed = hosted_for(file, all_rules, classes, root)
+            if placed is None:
+                hosted_unknown.append(file)
+            else:
+                add(hosted, placed)
+        if file.startswith(HOSTED_TESTS):
+            continue  # hosted tests are not journeys or Swift package suites
         if file.startswith(TESTS) and not (root / file).exists():
             ignored.append(file)  # a deleted test file has nothing to run
             continue
@@ -189,7 +276,7 @@ def select(files: Iterable[str], test_map: Dict, root: Path = ROOT) -> Dict:
     run = [f for f in all_families if by_family[f]]
     # The families a change does not target still get the Smoke plan: the shell, a sheet, an audit, AX5 and rotation.
     smoke = [f for f in all_families if journeys and f not in run]
-    return {"swift": swift, "journeys": journeys, "journeys_by_family": by_family,
+    return {"swift": swift, "journeys": journeys, "hosted": sorted(hosted), "hosted_unknown": hosted_unknown, "journeys_by_family": by_family,
             "families": run, "smoke_families": smoke, "layout_sensitive": layout,
             "ignored": ignored, "unknown": unknown, "target": test_map.get("journeyTarget", "FentonHomeUITests")}
 
@@ -256,15 +343,25 @@ def environment_args(result: Dict, test_map: Dict) -> str:
     return "\n".join(f"{name}={value}" for name, value in sorted(test_map.get("changedEnvironment", {}).items()))
 
 
-def unknown_request(result: Dict) -> str:
-    """The request for a targeted pick, or an empty string."""
-    if not result["unknown"]:
+def hosted_args(result: Dict) -> str:
+    """The hosted classes as ``FENTON_HOSTED_FILTER`` takes them: space separated class names."""
+    return " ".join(result["hosted"])
+
+
+def unknown_request(result: Dict, key: str = "unknown") -> str:
+    """The request for a targeted pick, or an empty string. ``key`` is ``unknown`` (swift and journeys) or ``hosted_unknown``."""
+    if not result.get(key):
         return ""
     lines = ["NEEDS A PICK: no test mapping for these files (the full suite is the nightly tier, not a fallback):"]
-    lines += [f"  {name}" for name in result["unknown"]]
-    lines.append("Pick the suites that cover them and run `swift test --filter <Suite>` / "
-                 "`tools/ios_uitest.sh -only-testing:FentonHomeUITests/<Class>`, then add a rule to "
-                 "contracts/test-map.json so the next change finds them.")
+    lines += [f"  {name}" for name in result[key]]
+    if key == "hosted_unknown":
+        lines.append("Pick the hosted classes (apple/Apps/iOSTests) that cover them, run `FENTON_HOSTED_FILTER='<Class> ...' "
+                     "tools/ios_uitest.sh --only iphone --hosted`, then add a `hosted` rule to contracts/test-map.json "
+                     "(or name the class after the feature area) so the next change finds them.")
+    else:
+        lines.append("Pick the suites that cover them and run `swift test --filter <Suite>` / "
+                     "`tools/ios_uitest.sh -only-testing:FentonHomeUITests/<Class>`, then add a rule to "
+                     "contracts/test-map.json so the next change finds them.")
     return "\n".join(lines)
 
 
@@ -320,6 +417,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--map", default=str(MAP_PATH))
     parser.add_argument("--swift", action="store_true")
     parser.add_argument("--journeys", action="store_true")
+    parser.add_argument("--hosted", action="store_true", help="the app-hosted test classes (FENTON_HOSTED_FILTER)")
     parser.add_argument("--families", action="store_true")
     parser.add_argument("--smoke-families", action="store_true")
     parser.add_argument("--environment", action="store_true")
@@ -348,10 +446,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     test_map = load_map(Path(args.map))
     result = select(files, test_map)
     request = unknown_request(result)
+    hosted_request = unknown_request(result, "hosted_unknown")
+    if args.hosted:
+        request = hosted_request  # --hosted asks for hosted picks only; --swift and --journeys keep their own
+    elif not (args.swift or args.journeys or args.families or args.smoke_families or args.environment):
+        request = "\n".join(part for part in (request, hosted_request) if part)
     if args.swift:
         print(swift_args(result))
     elif args.journeys:
         print(journey_args(result, args.device, args.plan))
+    elif args.hosted:
+        print(hosted_args(result))
     elif args.families:
         print(" ".join(result["families"]))
     elif args.smoke_families:
@@ -363,6 +468,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         print(f"files: {len(files)} changed, {len(result['ignored'])} need no tests")
         print(f"swift test: {swift_args(result) or '(none)'}")
+        print(f"hosted:     {hosted_args(result) or '(none)'}" + ("  (iPhone, FENTON_HOSTED_FILTER)" if result["hosted"] else ""))
         print(f"journeys:   {journey_args(result) or '(none)'}  on {' '.join(result['families']) or 'no device'}"
               + (" (layout-sensitive)" if result["layout_sensitive"] else ""))
         for family, names in result["journeys_by_family"].items():

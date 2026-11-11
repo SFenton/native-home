@@ -335,7 +335,7 @@ jobs:
     needs: [scope, macos-build]
     if: ${{ vars.HOSTED_MACOS == 'on' && needs.scope.outputs.app == 'true' }}
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
-    timeout-minutes: 90
+    timeout-minutes: 150
     strategy:
       fail-fast: false   # a red Duo must not hide the iPhone and iPad results
       matrix:
@@ -395,6 +395,15 @@ jobs:
         id: journeys
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: tools/ci_macos.sh journeys ${{ matrix.family }}
+      - name: Hosted tests the diff reaches on iphone
+        id: hosted
+        # The app-hosted unit tests (FentonHomeTests, apple/Apps/iOSTests): family-independent, so iPhone only, from the same products as the
+        # journeys. affected_tests.py --hosted picks the classes (the whole suite when a file cannot be placed). A failed step fails the job.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && matrix.family == 'iphone' }}
+        # A typical diff is 1 to 10 minutes of hosted time; the whole suite (a helper, UKContext, a file no rule places) is 40 to 60 on this runner.
+        # 75 keeps a hung suite from eating the job's budget (Smoke and the journeys run before it).
+        timeout-minutes: 75
+        run: tools/ci_macos.sh hosted iphone
       - name: Restore SwiftPM caches
         id: spm
         if: ${{ matrix.family == 'ipad' }}
@@ -417,14 +426,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: tools/ci_macos.sh summary
       - name: Simulator diagnostics
-        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
         continue-on-error: true
         run: |
           xcrun simctl list devices
           df -h / | tail -1
           log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
       - name: Keep the ${{ matrix.family }} results
-        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-${{ matrix.family }}
@@ -434,6 +443,8 @@ jobs:
           path: |
             apple/.build/uitest-${{ matrix.family }}.xcresult/**
             apple/.build/uitest-${{ matrix.family }}.log
+            apple/.build/uitest-${{ matrix.family }}-journeys.xcresult/**
+            apple/.build/uitest-${{ matrix.family }}-journeys.log
           if-no-files-found: ignore
       - name: Save SwiftPM caches (main only)
         if: ${{ matrix.family == 'ipad' && github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}
@@ -445,10 +456,9 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
 
   coverage-changed:
-    # The 95% per-PR gate (logic and UX) as a required check instead of the honour system: tools/apple_coverage.sh --changed runs the
-    # affected swift test suites with coverage (and, when UIKitPort sources changed, the diff's journeys on iPhone with an instrumented
-    # app), then gates only the changed source files. Its own job, not a step of macos-test: it cannot reuse the macos-build products
-    # (it builds with coverage on, so its products key differs) and it must not lengthen the iPad leg. It needs only scope, so it starts
+    # The 95% per-PR logic gate as a required check instead of the honour system: tools/apple_coverage.sh --changed runs the
+    # affected swift test suites with coverage on the Mac host (no simulator, no products bundle), then gates only the changed
+    # logic files. Its own job, not a step of macos-test: it builds with coverage on and it must not lengthen the iPad leg. It needs only scope, so it starts
     # beside macos-build: build + coverage is 2 runners, then 3 legs + coverage is 4, never over the 5-concurrent macOS cap. Pull requests only.
     name: macOS - changed-file coverage
     needs: scope
@@ -459,21 +469,14 @@ jobs:
       FENTON_CI_HOSTED: "1"
       DEVELOPER_DIR: ${{ vars.HOSTED_DEVELOPER_DIR || '/Applications/Xcode_27.1.app/Contents/Developer' }}
       FENTON_AFFECTED_BASE: ${{ format('origin/{0}', github.base_ref) }}
-      FENTON_HEALTH_SHOT_WALL: "180"
-      FENTON_HEALTH_BOOT_WALL: "300"
-      FENTON_HOSTED_BUILD_SETTINGS: "ARCHS=arm64 ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Derived data and products paths
-        run: |
-          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
-          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Derived data path
+        run: echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
       - name: Prepare the runner
-        env:
-          FENTON_INSTALL_SIMSLIM: "1"
         run: |
           tools/ci_hosted_setup.sh
           sudo mdutil -a -i off || true
@@ -489,7 +492,7 @@ jobs:
           key: spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             spm-test-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/Package.resolved') }}-
-      - name: Changed-file coverage (95% logic and UX)
+      - name: Changed-file coverage (95% logic)
         run: tools/apple_coverage.sh --changed
       - name: Keep the coverage logs
         if: ${{ failure() }}
@@ -499,7 +502,6 @@ jobs:
           include-hidden-files: true
           path: |
             apple/.build/coverage-class/**
-            apple/.build/coverage-ios/*.json
           if-no-files-found: ignore
 
   build-release:

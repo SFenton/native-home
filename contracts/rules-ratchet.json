@@ -1186,12 +1186,12 @@
   ".agents/platforms/apple/live-activities-per-job.md": {
    "forbidden": 38,
    "long_lines": 13,
-   "over_words": 6224
+   "over_words": 6221
   },
   ".agents/platforms/apple/live-activities.md": {
    "forbidden": 34,
    "long_lines": 15,
-   "over_words": 4252
+   "over_words": 4251
   },
   ".agents/platforms/apple/location.md": {
    "forbidden": 22,
@@ -1240,11 +1240,11 @@
    "links": 1
   },
   ".agents/testing/apple/README.md": {
-   "forbidden": 39,
-   "long_lines": 34,
-   "over_words": 6484,
+   "forbidden": 36,
+   "long_lines": 33,
+   "over_words": 6348,
    "links": 1,
-   "structure": 2
+   "structure": 1
   },
   ".agents/testing/apple/accessibility.md": {
    "forbidden": 32,
@@ -1256,13 +1256,8 @@
    "long_lines": 12,
    "over_words": 1823
   },
-  ".agents/testing/apple/coverage-baseline.md": {
-   "forbidden": 2,
-   "over_words": 4691
-  },
   ".agents/testing/apple/coverage.md": {
-   "forbidden": 4,
-   "long_lines": 8
+   "long_lines": 1
   },
   ".agents/testing/apple/devices.md": {
    "forbidden": 14,
@@ -1288,8 +1283,8 @@
    "structure": 3
   },
   ".agents/testing/apple/strategy.md": {
-   "forbidden": 7,
-   "long_lines": 4
+   "forbidden": 2,
+   "long_lines": 3
   },
   ".agents/testing/apple/suites.md": {
    "long_lines": 2,
