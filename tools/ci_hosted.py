@@ -67,7 +67,18 @@ def find_udid(name: str, listing: Optional[dict] = None) -> Optional[str]:
     return None
 
 
-def devcap_main(argv: Sequence[str], runner: Callable[[List[str]], int] = lambda cmd: subprocess.call(cmd),
+def held_environment(options: Sequence[str], base: Mapping[str, str]) -> dict:
+    """The settings a ``devcap run`` child gets: ``DEVCAP_HELD`` names every ``--pool`` (and the gates already held), as
+    ``tools/devcap.py`` sets it. Without it a script that re-runs itself inside its hold (``tools/apple_coverage.sh``) sees no
+    hold on the re-run and re-runs itself again, without end, until the runner cannot fork."""
+    child = dict(base)
+    held = {name for name in child.get("DEVCAP_HELD", "").split(",") if name}
+    held.update(options[i + 1] for i, option in enumerate(options[:-1]) if option == "--pool" and not options[i + 1].isdigit())
+    child["DEVCAP_HELD"] = ",".join(sorted(held))
+    return child
+
+
+def devcap_main(argv: Sequence[str], runner: Optional[Callable[[List[str]], int]] = None,
                 lookup: Callable[[str], Optional[str]] = find_udid) -> int:
     """The hosted stand-in for ``devcap.py``: same command line, no capacity.
 
@@ -83,7 +94,10 @@ def devcap_main(argv: Sequence[str], runner: Callable[[List[str]], int] = lambda
         if "--" not in rest or not rest[rest.index("--") + 1:]:
             print("devcap run: missing command after --", file=sys.stderr)
             return 2
-        return runner(rest[rest.index("--") + 1:])
+        split = rest.index("--")
+        if runner is not None:
+            return runner(rest[split + 1:])
+        return subprocess.call(rest[split + 1:], env=held_environment(rest[:split], os.environ))
     if cmd == "pick-sim":
         name = rest[rest.index("--name") + 1] if "--name" in rest and rest.index("--name") + 1 < len(rest) else ""
         udid = lookup(name) if name else None

@@ -6,8 +6,10 @@ name: nightly
 # Layout (the pr-checks "build once, test many" layout, #57): `build` compiles the test products once and uploads them; `journeys` is a
 # matrix of family x shard (tools/nightly_plan.py --families), each leg a fresh runner that unpacks the products and runs one shard of
 # one family; `coverage` is its own job; `plan` and `report` run on Linux (Python only).
-# The Live plan (the real house, credentials) is NOT in the default plans or the matrix yet: the live lane adds it later, behind a
-# protected environment. Documentation: .agents/workflow/ci.md.
+# The Live plan runs in its own `live` job against the DEMO instance (vars.HASS_TEST_SERVER; it serves the synthetic DemoHouse), never the
+# owner's real house: only on schedule or dispatch, only on main, only when vars.HASS_LIVE_NIGHTLY is `on`, and in the protected
+# `hass-test` environment, which holds the password. The repo is public, so the Live job uploads result digests only (no logs, screenshots or
+# xcresults) and keeps its test output out of the Actions log. Documentation: .agents/workflow/ci.md.
 on:
   schedule:
     # 07:37 UTC (an off-hour minute: the top of the hour is when GitHub's scheduler is busiest). Runs from the default branch.
@@ -39,6 +41,10 @@ on:
         description: Most UI tests in one shard (a leg is one shard on one family)
         type: string
         default: '100'
+      live:
+        description: Also run the Live plan against the demo instance (only on main, and only when vars.HASS_LIVE_NIGHTLY is on)
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
@@ -64,6 +70,8 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       expect: ${{ steps.plan.outputs.expect }}
       coverage: ${{ steps.plan.outputs.coverage }}
+      live: ${{ steps.plan.outputs.live }}
+      live_matrix: ${{ steps.plan.outputs.live_matrix }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -75,11 +83,13 @@ jobs:
           PLANS: ${{ inputs.plans }}
           COVERAGE: ${{ inputs.coverage }}
           SHARD_SIZE: ${{ inputs.shard_size }}
+          LIVE_INPUT: ${{ inputs.live }}
+          LIVE_ON: ${{ vars.HASS_LIVE_NIGHTLY }}
         run: |
           set -euo pipefail
           # A scheduled run has no inputs: every default below is the scheduled one.
           families="${FAMILIES:-iphone,duo,ipad}"
-          # Gate every night; Capture (galleries, screenshots) weekly, on Sundays. Perf only when dispatched by hand. The live-house plan is not here yet.
+          # Gate every night; Capture (galleries, screenshots) weekly, on Sundays. Perf only when dispatched by hand. Live is the separate `live` job.
           plans="${PLANS:-}"
           if [ -z "$plans" ]; then
             plans="Gate"
@@ -92,6 +102,23 @@ jobs:
           import collections, json, sys
           legs = collections.Counter(e["family"] for e in json.load(sys.stdin)["include"])
           print(",".join("journeys-%s=%d" % (f, n) for f, n in sorted(legs.items())))')"
+          # The Live legs (the demo instance): planned only when the owner switched them on and this is main; a dispatch can opt out.
+          live=false
+          live_matrix='{"include":[]}'
+          if [ "${LIVE_ON:-}" = "on" ] && [ "$GITHUB_REF" = "refs/heads/main" ] && [ "${LIVE_INPUT:-true}" != "false" ]; then
+            if live_matrix="$(python3 tools/nightly_plan.py --filter "$FILTER" --plans Live --families "$families" --max-tests "${SHARD_SIZE:-100}")"; then
+              live=true
+              live_expect="$(printf '%s' "$live_matrix" | python3 -c '
+          import collections, json, sys
+          legs = collections.Counter(e["family"] for e in json.load(sys.stdin)["include"])
+          print(",".join("live-%s=%d" % (f, n) for f, n in sorted(legs.items())))')"
+              expect="$expect,$live_expect"
+            else
+              live_matrix='{"include":[]}'
+            fi
+          fi
+          echo "live=$live" >> "$GITHUB_OUTPUT"
+          echo "live_matrix=$live_matrix" >> "$GITHUB_OUTPUT"
           run_coverage=true
           [ "${COVERAGE:-true}" = "false" ] && run_coverage=false
           [ "$run_coverage" = "true" ] && expect="$expect,coverage=1"
@@ -273,6 +300,119 @@ jobs:
         if: steps.run.outputs.code != '0'
         run: exit 1
 
+  live:
+    # The Live plan against the DEMO instance, after the journeys (so it never competes with them for the macOS cap: at most 2 legs beside the
+    # coverage job). Triggers are schedule and dispatch only (no pull_request anywhere in this file); the if: keeps it to main and to the owner's
+    # switch. The `hass-test` environment (deployment branches: main) holds HASS_TEST_PASSWORD, which enters only the run step's env and reaches
+    # the test runner in-process through the uitest script's `--env shell` (tools/hass_creds.sh): never exported to a later step, never echoed.
+    # Public repo: the test output goes to a file, not the Actions log, and only the result digest is uploaded (no log, screenshot or xcresult).
+    name: live ${{ matrix.family }} shard ${{ matrix.shard }}
+    needs: [plan, build, journeys]
+    if: ${{ !cancelled() && vars.HOSTED_MACOS == 'on' && vars.HASS_LIVE_NIGHTLY == 'on' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.plan.outputs.live == 'true' && needs.build.result == 'success' }}
+    environment: hass-test
+    runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.plan.outputs.live_matrix) }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Derived data and products paths
+        run: |
+          echo "FENTON_DERIVED_DATA=$RUNNER_TEMP/dd" >> "$GITHUB_ENV"
+          echo "FENTON_PRODUCTS_DIR=$RUNNER_TEMP/products" >> "$GITHUB_ENV"
+      - name: Prepare the runner
+        env:
+          FENTON_INSTALL_SIMSLIM: "1"
+        run: |
+          tools/ci_hosted_setup.sh
+          sudo mdutil -a -i off || true
+      - name: Download the test products
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: test-products-nightly
+          path: ${{ runner.temp }}/products-download
+      - name: Unpack the test products
+        run: |
+          set -euo pipefail
+          mkdir -p "$FENTON_PRODUCTS_DIR"
+          tar -xzf "$RUNNER_TEMP/products-download/test-products.tar.gz" -C "$FENTON_PRODUCTS_DIR"
+      - name: Reuse the built products
+        run: |
+          set -o pipefail
+          tools/ci_macos.sh build 2>&1 | tee "$RUNNER_TEMP/products-reuse.log"
+          grep -q '^products: hit ' "$RUNNER_TEMP/products-reuse.log" || { echo "::error::the uploaded test products did not match this runner's key (see the log above)"; exit 1; }
+      - name: Slim and settle the ${{ matrix.family }} simulator
+        id: sim
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          set -uo pipefail
+          tools/ci_release_sims.sh || true
+          slim_rc=0
+          tools/ci_heartbeat.sh run -- tools/sim_slim.sh "$FAMILY" || slim_rc=$?
+          if [ "$slim_rc" != 0 ]; then echo "slim=0" >> "$GITHUB_OUTPUT"; else echo "slim=1" >> "$GITHUB_OUTPUT"; fi
+          tools/ci_heartbeat.sh run -- tools/sim_settle.sh "$FAMILY" || true
+      - name: Run the Live shard against the demo instance
+        id: run
+        env:
+          FAMILY: ${{ matrix.family }}
+          SHARD: ${{ matrix.shard }}
+          FILTERS: ${{ matrix.filters }}
+          SLIM: ${{ steps.sim.outputs.slim }}
+          # The only step with credentials; `--env shell` hands them to the test runner as TEST_RUNNER_FENTON_HASS_*.
+          FENTON_HASS_SERVER: ${{ vars.HASS_TEST_SERVER }}
+          FENTON_HASS_USERNAME: ${{ vars.HASS_TEST_USERNAME }}
+          FENTON_HASS_PASSWORD: ${{ secrets.HASS_TEST_PASSWORD }}
+          # Tells the journeys the server is the demo instance, so they assert DemoHouse values (journey-expectations.md).
+          TEST_RUNNER_HASS_TEST_SERVER: ${{ vars.HASS_TEST_SERVER }}
+          TEST_RUNNER_FENTON_JOURNEY_TARGET: demo
+        run: |
+          set -uo pipefail
+          # The step shell is `bash -e -o pipefail`: -e must go, or a failing run aborts before its exit code is recorded.
+          set +e
+          mkdir -p build/nightly
+          [ "${SLIM:-1}" = "0" ] && export FENTON_SIM_SLIM=0
+          log="build/nightly/log-live-$FAMILY-$SHARD.txt"
+          start=$(date +%s)
+          # The log goes to a file, not the public Actions log; only the digest below is printed.
+          code=0
+          # shellcheck disable=SC2086
+          tools/ios_uitest.sh --env shell --only "$FAMILY" --plan Live --force $FILTERS > "$log" 2>&1 || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Digest
+        if: always()
+        env:
+          FAMILY: ${{ matrix.family }}
+          SHARD: ${{ matrix.shard }}
+          ELAPSED: ${{ steps.run.outputs.elapsed }}
+          CODE: ${{ steps.run.outputs.code }}
+        run: |
+          set -uo pipefail
+          mkdir -p build/nightly
+          touch "build/nightly/log-live-$FAMILY-$SHARD.txt"
+          python3 tools/nightly_report.py result --area "live-$FAMILY" --shard "$SHARD" \
+            --log "build/nightly/log-live-$FAMILY-$SHARD.txt" --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" \
+            --out "build/nightly/result-live-$FAMILY-$SHARD.json" | tee "$RUNNER_TEMP/digest.txt"
+          { echo '```'; cat "$RUNNER_TEMP/digest.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the result digest
+        # Digest only: the public repo gets no log, screenshot or xcresult from the Live job.
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: nightly-live-${{ matrix.family }}-${{ matrix.shard }}
+          path: build/nightly/result-live-*.json
+          retention-days: 14
+      - name: Fail the shard
+        if: steps.run.outputs.code != '0'
+        run: exit 1
+
   coverage:
     # Full tools/apple_coverage.sh with the 95% logic gate: swift test with coverage on the Mac host, no simulator and no products bundle.
     # The journeys and hosted tests run in their own jobs and are pass or fail.
@@ -343,7 +483,7 @@ jobs:
 
   report:
     # Python and gh only, so Linux. The one job with issues: write; GITHUB_TOKEN files, updates and closes the Nightly Fix issues.
-    needs: [plan, journeys, coverage]
+    needs: [plan, journeys, coverage, live]
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
