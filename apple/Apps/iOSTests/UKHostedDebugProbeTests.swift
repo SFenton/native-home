@@ -49,6 +49,10 @@ final class UKHostedDebugProbeTests: DemoHouseTestCase {
         let window = HostedPage.show(page, size: CGSize(width: 393, height: 852))
         defer { window.isHidden = true }
         func field(_ id: String) -> UITextField? { HostedPage.descendants(of: page.view).first { $0.accessibilityIdentifier == id } as? UITextField }
+        // Sign In needs all three fields (`house-config-states.md` rule 3): a fresh form on fresh defaults has no server yet.
+        field("login.server")?.text = "homeassistant.local:8123"
+        field("login.server")?.sendActions(for: .editingChanged)
+        XCTAssertFalse(model.serverText.isEmpty, "the form has a server, typed or prefilled")
         field("login.username")?.text = "alex"
         field("login.username")?.sendActions(for: .editingChanged)
         field("login.password")?.text = "secret"
