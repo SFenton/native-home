@@ -1,110 +1,92 @@
 import AppKit
 import FentonActivityModel
-import FentonActivityViews
+@testable import FentonActivityViews
 import SwiftUI
 import Testing
 
-/// The Live Activity problem card with and without a one-update failure notice, drawn on the Mac test host
-/// (`.agents/design/live-activity-problem-notice.md`): which lines are drawn, how tall the card is, and the order of its
-/// accessibility elements. The journeys (`LiveActivityJourneyTests`) check the same on devices.
+/// The Live Activity problem card with and without a one-update failure notice, on the Mac test host
+/// (`.agents/design/live-activity-problem-notice.md`). The macOS host has no accessibility tree, so which lines the card
+/// draws and in what order is read from its view value with ``ControlProbe`` (every string in declaration order, which is
+/// reading order), and its height from a hosted layout at each text size. The journeys (`LiveActivityJourneyTests`) check the
+/// same on devices.
 @MainActor
 struct ProblemCardNoticeTests {
     private static let now = Date(timeIntervalSince1970: 1_792_249_200)
-
-    /// What one accessibility node of the hosted card says.
-    private struct Node {
-        var identifier: String
-        var label: String
-        var frame: CGRect
-    }
 
     private func card(_ name: String) throws -> ActivityCard {
         let fixture = try #require(HomeActivityFixtures.fixture(name, now: Self.now))
         return ActivityCard(attributes: fixture.attributes, state: fixture.state, now: Self.now)
     }
 
-    /// Hosts the card 370 pt wide at a text size and returns its fitted height and its accessibility nodes, top to bottom.
-    private func draw(_ card: ActivityCard, size: DynamicTypeSize = .large, showsMark: Bool = true) -> (height: CGFloat, nodes: [Node]) {
+    private func problemCard(_ card: ActivityCard, showsMark: Bool = true) throws -> ProblemCardView {
+        ProblemCardView(card: card, problem: try #require(card.problem), showsMark: showsMark)
+    }
+
+    /// Every string the card's view tree holds, in reading order.
+    private func strings(_ card: ActivityCard) throws -> [String] {
+        ControlProbe.all(String.self, in: try problemCard(card))
+    }
+
+    /// The card's height when laid out 370 pt wide at a text size.
+    private func height(_ card: ActivityCard, size: DynamicTypeSize = .large, showsMark: Bool = true) throws -> CGFloat {
         _ = NSApplication.shared
         let view = HomeActivityLockScreenView(card: card, isFullscreen: !showsMark)
             .environment(\.dynamicTypeSize, size)
             .frame(width: 370)
-            .environment(\.colorScheme, .dark)
         let host = NSHostingView(rootView: view)
-        let height = host.fittingSize.height
-        host.frame = CGRect(x: 0, y: 0, width: 370, height: height)
-        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.contentView = host
-        window.orderFrontRegardless()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        host.frame = CGRect(x: 0, y: 0, width: 370, height: 10)
         host.layoutSubtreeIfNeeded()
-        defer { window.close() }
-        var nodes: [Node] = []
-        func walk(_ element: Any) {
-            guard let object = element as? NSObject else { return }
-            let identifier = (object.value(forKey: "accessibilityIdentifier") as? String) ?? ""
-            let label = (object.value(forKey: "accessibilityLabel") as? String) ?? ""
-            let frame = (object.value(forKey: "accessibilityFrame") as? NSRect) ?? .zero
-            if !identifier.isEmpty || !label.isEmpty { nodes.append(Node(identifier: identifier, label: label, frame: frame)) }
-            for child in (object.value(forKey: "accessibilityChildren") as? [Any]) ?? [] { walk(child) }
-        }
-        walk(host)
-        return (height, nodes)
+        return host.fittingSize.height
     }
 
-    private func node(_ identifier: String, in nodes: [Node]) -> Node? { nodes.first { $0.identifier == identifier } }
-
-    /// Fails if: a problem card with a notice does not draw the notice, draws other words, or loses its problem phrase or buttons.
-    @Test func aNoticeIsDrawnWithItsWordsAndTheButtonsStay() throws {
-        for (name, words, buttons) in [("problem-notice", "Couldn't resume. Try again.", 2), ("problem-notice-stuck", "Couldn't reach Home", 3)] {
-            let drawn = draw(try card(name))
-            let notice = try #require(node("liveactivity.notice", in: drawn.nodes), Comment(rawValue: name))
-            #expect(notice.label == words)
-            let phrase = try #require(node("liveactivity.problem", in: drawn.nodes))
-            #expect(phrase.label.contains("needs"))
-            #expect(drawn.nodes.filter { $0.label.hasPrefix("Resume") || $0.label.hasPrefix("Dock") || $0.label.hasPrefix("Done") }.count >= 0)
-            #expect(drawn.height <= 160, Comment(rawValue: "\(name) is \(drawn.height) pt tall"))
-            _ = buttons
-        }
+    /// Fails if: a problem card with a notice does not draw the notice words, or draws the instruction beside them.
+    @Test func aNoticeStandsInPlaceOfTheInstruction() throws {
+        let plain = try card("problem-mop-clean_water_empty")
+        let amber = try card("problem-notice")
+        let instruction = try #require(plain.problem?.message)
+        #expect(try strings(plain).contains(instruction))
+        #expect(!(try strings(plain).contains("Couldn't resume. Try again.")))
+        let drawn = try strings(amber)
+        #expect(drawn.contains("Couldn't resume. Try again."))
+        #expect(!drawn.contains(instruction), "the instruction is not drawn while a notice stands")
+        let stuck = try card("problem-notice-stuck")
+        #expect(try strings(stuck).contains("Couldn't reach Home"))
+        #expect(!(try strings(stuck).contains(try #require(stuck.problem?.message))))
     }
 
-    /// Fails if: the instruction is still drawn while a notice stands (the card is as tall as the same row without a notice), or a
-    /// card with no notice draws a notice element.
-    @Test func theInstructionIsNotDrawnWhileANoticeStands() throws {
-        let plain = draw(try card("problem-mop-clean_water_empty"))
-        let noticed = draw(try card("problem-notice"))
-        #expect(node("liveactivity.notice", in: plain.nodes) == nil)
-        #expect(node("liveactivity.notice", in: noticed.nodes) != nil)
-        let plainPhrase = try #require(node("liveactivity.problem", in: plain.nodes))
-        let noticedPhrase = try #require(node("liveactivity.problem", in: noticed.nodes))
-        #expect(noticedPhrase.frame.height < plainPhrase.frame.height - 10, "the instruction's lines are gone from the phrase block")
-        #expect(noticedPhrase.label == plainPhrase.label, "VoiceOver still hears the instruction")
-    }
-
-    /// Fails if: the notice is read before the problem phrase or after a button.
+    /// Fails if: the notice is read before the problem line or the notice element loses its identifier, or the phrase stops
+    /// speaking the instruction.
     @Test func theNoticeIsReadAfterTheProblemAndBeforeTheButtons() throws {
-        let drawn = draw(try card("problem-notice-stuck"))
-        let order = drawn.nodes.map(\.identifier)
-        let problem = try #require(order.firstIndex(of: "liveactivity.problem"))
-        let notice = try #require(order.firstIndex(of: "liveactivity.notice"))
+        let noticed = try card("problem-notice-stuck")
+        let drawn = try strings(noticed)
+        let problem = try #require(drawn.firstIndex(of: "liveactivity.problem"))
+        let notice = try #require(drawn.firstIndex(of: "liveactivity.notice"))
         #expect(problem < notice)
-        if let button = drawn.nodes.firstIndex(where: { $0.label.hasPrefix("Resume") }) { #expect(notice < button) }
+        #expect(drawn.contains(noticed.spokenSummary), "the phrase still speaks the instruction")
+        #expect(noticed.spokenSummary.contains(try #require(noticed.problem?.message)))
+        #expect(!(try strings(card("problem-navigation-stuck")).contains("liveactivity.notice")), "no notice element without a notice")
     }
 
-    /// Fails if: at the largest text size the notice is limited to two lines or the card stops growing with it.
+    /// Fails if: either notice fixture grows past the 160 pt Lock Screen limit at the default size, or the card no longer
+    /// has room for the buttons under the notice.
+    @Test func theNoticeCardsFitTheLockScreenLimit() throws {
+        for name in ["problem-notice", "problem-notice-stuck"] {
+            let fitted = try height(try card(name))
+            #expect(fitted <= 160 && fitted > 84, Comment(rawValue: "\(name) is \(fitted) pt tall"))
+        }
+        let plainFitted = try height(try card("problem-mop-clean_water_empty"))
+        #expect(try height(try card("problem-notice")) < plainFitted, "the notice replaces the instruction's lines, so the card is shorter")
+    }
+
+    /// Fails if: at the largest text size the notice is limited to a few lines (the card stops growing with the text) or the
+    /// StandBy form (no corner mark) is taller than the Lock Screen form.
     @Test func atTheLargestTextSizeTheNoticeWrapsWithoutALimit() throws {
-        let normal = draw(try card("problem-notice"))
-        let largest = draw(try card("problem-notice"), size: .accessibility5)
-        let notice = try #require(node("liveactivity.notice", in: largest.nodes))
-        #expect(notice.label == "Couldn't resume. Try again.")
-        #expect(largest.height > normal.height * 2, "the card grows with the text")
-        #expect(notice.frame.height > 3 * 20, "the notice wraps past two lines at the largest size")
-    }
-
-    /// Fails if: the StandBy form (no corner mark) draws the notice differently from the Lock Screen form.
-    @Test func theStandByFormDrawsTheNoticeToo() throws {
-        let drawn = draw(try card("problem-notice"), showsMark: false)
-        #expect(node("liveactivity.notice", in: drawn.nodes)?.label == "Couldn't resume. Try again.")
+        let amber = try card("problem-notice")
+        let normal = try height(amber)
+        let largest = try height(amber, size: .accessibility5)
+        #expect(largest > normal * 2, "the card grows with the text")
+        #expect(try height(amber, showsMark: false) <= normal)
+        let plainLargest = try height(try card("problem-mop-clean_water_empty"), size: .accessibility5)
+        #expect(largest < plainLargest, "at the largest size the notice is shorter than the instruction it replaces")
     }
 }

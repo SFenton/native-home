@@ -29,6 +29,6 @@ enum ControlProbe {
     /// Only the app's own views are expanded; framework views have no useful `body`.
     private static func isApp(_ view: any View) -> Bool {
         let name = String(reflecting: type(of: view))
-        return name.hasPrefix("HassUI.") || name.hasPrefix("HassDesign.") || name.hasPrefix("HassUITests.")
+        return name.hasPrefix("HassUI.") || name.hasPrefix("HassDesign.") || name.hasPrefix("FentonActivityViews.") || name.hasPrefix("HassUITests.")
     }
 }
