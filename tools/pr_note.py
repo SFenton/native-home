@@ -32,16 +32,16 @@ Behaviour:
 
 - A body hash is stored in the comment; an unchanged body is a no-op, a changed one edits the comment and adds
   "updated HH:MMZ" to its header line, a new marker posts a new comment.
-- Finding the PR: ``--pr N``; else ``--branch B`` (``gh pr list --head B``); else the current branch's PR; else the branches
-  of the task ledger (``build/tasks/<task>.json``, directory ``--ledger-dir``, ``TASKS_DIR`` or this checkout's
-  ``build/tasks``). If the ledger lists two or more branches with an open PR and nothing else decided, the note is queued with
-  a message naming them (pass ``--pr`` or ``--branch``) rather than sent to the first; a single open one is used and named on stderr.
-  A queued note records the branch it was written from (``--branch``, else the writer's current branch); ``flush``, ``init`` and
-  ``post`` send it only to the PR whose head branch is that one. A note with no recorded branch (legacy) goes only when the ledger
-  lists exactly one branch, else it stays queued and is reported. What a note records: a known PR's number and head branch (never
-  the writer's); ``--branch B``: B; otherwise the writer's branch if it is a ledger branch, else the ledger's only branch, else none.
-  ``flush`` sends it to the PR with that number or head branch. Every ``flush``, ``init`` and ``post`` ends with one stderr line per
-  note left queued (kind, round, recorded target, why it was not sent).
+- Finding the PR: ``--pr N``; else ``--branch B`` (``gh pr list --head B``; nothing else is tried when B has none yet); else
+  the current branch's PR; else, only when the task ledger (``build/tasks/<task>.json``, directory ``--ledger-dir``, ``TASKS_DIR``
+  or this checkout's ``build/tasks``) lists branches and the current branch is not one of them, the single open PR among them
+  (named on stderr). The ledger is never needed to queue.
+- A queued note has one target, fixed when it is queued: a PR (its number, plus its head branch when it was read) or a branch
+  with no PR yet (``--branch B``, else the writer's current branch). A write that names neither, from a checkout whose branch a
+  readable ledger does not list (or with no branch checked out), is refused: exit 1, ``pass --pr N or --branch B``. A note is
+  sent to a PR only when its target is that PR's number or its target branch is that PR's head branch. A note with no target
+  (written by an older version) is sent only by a run with ``--pr`` or ``--branch`` while the ledger lists at most one branch.
+  Every ``flush``, ``init`` and ``post`` ends with one stderr line per note left queued (kind, round, target, reason).
 - With no PR yet the note is queued under ``~/hass-agents/pr-notes/<task>/queue/`` (``SH_PR_NOTES_DIR`` overrides the
   folder; shared by every worktree) with its original time, and ``flush`` posts the queue in order once the PR exists (a queued note whose marker is posted with the same body is dropped;
   with a different body it is applied as an edit; one that is refused or fails stays queued, is reported, and the notes behind it
@@ -70,7 +70,7 @@ Behaviour:
 - ``init`` (run once, right after ``ship.sh`` opens the PR) appends any missing ``sh-devices`` / ``sh-status`` /
   ``sh-timeline`` / review marker block to the PR body, existing text untouched and no placeholder text added; then it
   flushes the task's queue. ``post`` also flushes the task's queue first and drops queued entries for a marker it just
-  posted, so a stale queued note never overwrites a newer comment.
+  posted (those with this PR as their target), so a stale queued note never overwrites a newer comment.
 - ``--as ROLE`` (orchestrator, researcher, designer, coder, verifier, reviewer, steward, menial, triage): when that
   role's GitHub App key exists (``tools/gh_app_token.py``) comments are posted and edited through the REST API with
   its installation token; otherwise one stderr line and the owner's ``gh`` login, exactly as without ``--as``. When the
@@ -202,41 +202,38 @@ def ledger_branches(task: str, ledger_dir: Optional[str] = None) -> List[str]:
 
 
 def find_pr(explicit: Optional[str], branch: Optional[str] = None, task: Optional[str] = None,
-            ledger_dir: Optional[str] = None) -> Optional[int]:
-    """The PR number: ``--pr``, else ``--branch``, else the current branch's PR, else the ledger's branches, else ``None``.
+            ledger_dir: Optional[str] = None) -> "tuple[Optional[int], str]":
+    """``(PR number, head branch)``: ``--pr``, else ``--branch``, else the current branch's PR, else the single open PR of the
+    task ledger's branches; ``(None, "")`` when there is no PR yet. The head is ``""`` when ``gh`` cannot read it.
 
-    ``None`` means no PR yet. The ledger comes last and only decides when exactly one of its branches has an open PR (else
-    the newest PR of the first branch that has one); two or more open PRs raise ``NoteError`` so the note is queued, not
-    sent to the wrong PR."""
+    ``--branch B`` decides alone: when B has no PR nothing else is tried. The ledger is read only when the current branch is not
+    one of its branches (a lane's own branch names its PR, never a sibling's); two or more open PRs raise ``NoteError``."""
     if explicit:
-        return int(explicit)
+        return int(explicit), pr_head_branch(int(explicit))
     if branch:
         found = pr_of_branch(branch)
-        if found is not None:
-            return found
+        return found, branch if found is not None else ""
     try:
-        return int(json.loads(gh(["pr", "view", "--json", "number"]))["number"])
+        number = int(json.loads(gh(["pr", "view", "--json", "number"]))["number"])
+        return number, pr_head_branch(number)
     except NoteError as exc:
         if "no pull requests found" not in str(exc).lower():
             raise
     except (ValueError, KeyError):
         pass
-    branches = ledger_branches(task, ledger_dir) if task else []
-    open_prs = {pr_of_branch(name, "open"): name for name in branches} if branches else {}
+    listed = ledger_branches(task, ledger_dir) if task else []
+    if not listed or current_branch() in listed:
+        return None, ""
+    open_prs = {pr_of_branch(name, "open"): name for name in listed}
     open_prs.pop(None, None)
     if len(open_prs) > 1:
         raise NoteError(f"task {task} has {len(open_prs)} branches with open pull requests "
-                        f"({', '.join(f'#{n}' for n in sorted(open_prs))}); pass --pr or --branch")
-    if open_prs:
-        number, name = next(iter(open_prs.items()))
+                        f"({', '.join(f'#{n}' for n in sorted(open_prs))}); pass --pr N or --branch B")
+    for number, name in open_prs.items():
         print(f"pr_note: using #{number} ({name}): the current branch has no pull request and it is the only open one among "
               f"the task's ledger branches", file=sys.stderr)
-        return number
-    for name in branches:
-        found = pr_of_branch(name)
-        if found is not None:
-            return found
-    return None
+        return number, name
+    return None, ""
 
 
 def repo_slug() -> str:
@@ -772,23 +769,20 @@ def drain_legacy(task: str) -> int:
     return moved
 
 
-def queue_note(task: str, kind: str, cls: Optional[str], round_no: int, body: str,
-               role: Optional[str] = None, step: Optional[int] = None, head: Optional[str] = None,
-               branch: Optional[str] = None, pr: Optional[int] = None) -> Path:
-    """Write the note to the task's queue with its original time; names are unique and sort in posting order.
-
-    ``pr`` and ``branch`` are the recorded target (see ``record_target``); either may be empty. ``flush`` sends the note to the PR
-    with that number or that head branch."""
+def queue_note(task: str, kind: str, cls: Optional[str], round_no: int, body: str, target: "tuple[Optional[int], str]",
+               role: Optional[str] = None, step: Optional[int] = None, head: Optional[str] = None) -> Path:
+    """Write the note to the task's queue with its original time and its ``target`` (``queue_target``); names are unique and
+    sort in posting order."""
     folder = queue_root(task)
     stamp = unique_stamp(folder)
     path = folder / f"{stamp:020d}-{kind}-{cls or 'all'}-{round_no}.json"
     path.write_text(json.dumps({"kind": kind, "class": cls, "round": round_no, "body": body, "time": now_z(),
-                                "branch": branch or "", "pr": pr, "as": role, "step": step, "head": head}))
+                                "pr": target[0], "branch": target[1], "as": role, "step": step, "head": head}))
     return path
 
 
 def current_branch() -> str:
-    """The checked-out branch, for information only (queues are keyed by task)."""
+    """The branch checked out in this checkout (``""`` when git cannot say, ``HEAD`` when none is)."""
     try:
         return subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True,
                               timeout=TIMEOUT, cwd=ROOT).stdout.strip()
@@ -804,91 +798,97 @@ def pr_head_branch(pr: int) -> str:
         return ""
 
 
-def record_target(task: str, pr: Optional[int], branch: Optional[str], ledger_dir: Optional[str] = None) -> "tuple[Optional[int], str]":
-    """The ``(pr number, head branch)`` a note is queued for.
+def queue_target(task: str, pr: Optional[int], head: str, branch: Optional[str],
+                 ledger_dir: Optional[str] = None) -> "tuple[Optional[int], str]":
+    """The one target a note is queued with: ``(pr, its head branch)`` when the PR is known, else ``(None, branch)`` for
+    ``--branch`` or the writer's current branch.
 
-    A known PR: its number and head branch (never the writer's branch; when the head cannot be read, ``--branch``, else none). ``--branch B`` with no PR: ``B``. Otherwise the writer's branch if it is one
-    of the task's ledger branches, else the ledger's only branch, else none (the legacy rule then applies)."""
+    Refuses (``Refusal``) instead of guessing when nothing names the target and the writer's branch cannot be it: no branch is
+    checked out, or a readable ledger for the task lists branches and this one is not among them."""
     if pr is not None:
-        return pr, pr_head_branch(pr) or branch or ""
+        return pr, head
     if branch:
         return None, branch
-    ledger = ledger_branches(task, ledger_dir)
-    writer = current_branch()
-    if writer and writer in ledger:
-        return None, writer
-    return None, ledger[0] if len(ledger) == 1 else ""
+    writer, listed = current_branch(), ledger_branches(task, ledger_dir)
+    if writer in ("", "HEAD") or (listed and writer not in listed):
+        where = f"the current branch {writer} is not one of the task's ledger branches" if listed else "no branch is checked out"
+        raise Refusal(f"nothing says which pull request this note is for ({where}), not queued; pass --pr N or --branch B")
+    return None, writer
 
 
-def not_sent_reason(note: Dict[str, Any], task: str, pr: Optional[int], head_branch: str) -> Optional[str]:
-    """Why ``note`` is not for PR ``pr`` (head ``head_branch``), else ``None`` when it should go there.
+def target_text(note: Dict[str, Any]) -> str:
+    """A queued note's target in words: ``#N (head)``, ``branch B`` or ``no target`` (a note from an older version)."""
+    number, branch = note.get("pr"), note.get("branch") or ""
+    if number:
+        return f"#{number} ({branch})" if branch else f"#{number}"
+    return f"branch {branch}" if branch else "no target"
 
-    Rules: the recorded PR number equals ``pr``, or the recorded branch equals the head branch; a note with neither recorded goes
-    only when the task ledger lists exactly one branch."""
-    rec_pr, rec_branch = note.get("pr"), note.get("branch") or ""
-    if rec_pr or rec_branch:
-        target = " and ".join(x for x in (f"#{rec_pr}" if rec_pr else "", f"branch {rec_branch}" if rec_branch else "") if x)
-        if pr is None:
-            return f"recorded for {target}; waiting for a pull request"
-        if (rec_pr and int(rec_pr) == pr) or (rec_branch and rec_branch == head_branch):
-            return None
-        return f"recorded for {target}; this is #{pr} ({head_branch or 'head unknown'})"
-    count = len(ledger_branches(task))
-    if count == 1:
-        return None if pr is not None else "no recorded target; waiting for a pull request"
-    return f"no recorded pull request or branch and the task ledger lists {count} branches"
+
+def is_for(note: Dict[str, Any], pr: int, head: str) -> bool:
+    """Whether the note's target is PR ``pr`` (head branch ``head``): the same number, or the same branch. Nothing else."""
+    branch = note.get("branch") or ""
+    return note.get("pr") == pr or bool(branch and branch == head)
 
 
 _WHY: Dict[str, str] = {}
 
 
-def report_left(task: str, pr: Optional[int], head_branch: str = "") -> int:
-    """One stderr line for every note still queued: kind, round, recorded target and why it was not sent. Returns the count."""
+def report_left(task: str, pr: Optional[int], head: str = "", waiting: str = "waiting for a pull request") -> int:
+    """One stderr line for every note still queued: kind, round, target and why it was not sent (``waiting`` when this run
+    reached no PR). Returns the count."""
     left = queue_files(task)
     for path in left:
         try:
             n = json.loads(path.read_text())
-            target = " and ".join(x for x in (f"#{n['pr']}" if n.get("pr") else "",
-                                              f"branch {n['branch']}" if n.get("branch") else "") if x) or "no target"
-            why = _WHY.get(path.name) or not_sent_reason(n, task, pr, head_branch) or "its send failed; kept for the next flush"
-            print(f"pr_note: queued {n['kind']} round {n['round']} for {target} not sent ({path.name}): {why}", file=sys.stderr)
+            if path.name in _WHY:
+                why = _WHY[path.name]
+            elif not (n.get("pr") or n.get("branch")):
+                why = "written without a target; sent only with --pr or --branch while the task ledger lists at most one branch"
+            elif pr is None:
+                why = waiting
+            elif is_for(n, pr, head):
+                why = "its send failed; kept for the next flush"
+            else:
+                why = f"this is #{pr} ({head or 'head unknown'})"
+            print(f"pr_note: queued {n['kind']} round {n['round']} for {target_text(n)} not sent ({path.name}): {why}",
+                  file=sys.stderr)
         except (OSError, KeyError, ValueError) as exc:
             print(f"pr_note: warning, queued note {path.name} unreadable and kept: {exc}", file=sys.stderr)
     return len(left)
 
 
-def drop_queued(task: str, kind: str, cls: Optional[str], round_no: int, branch: Optional[str] = None,
-                pr: Optional[int] = None) -> None:
-    """Remove queued entries for a marker that was just posted to PR ``pr`` (head ``branch``): those recorded for that PR or
-    branch, or for none."""
-    for path in queue_files(task):
-        n = json.loads(path.read_text())
-        if (n["kind"], n["class"], n["round"]) != (kind, cls, round_no):
-            continue
-        recorded = (n.get("pr"), n.get("branch") or "")
-        if recorded == (None, "") or (pr is not None and recorded[0] == pr) or (branch and recorded[1] == branch):
-            path.unlink()
-
-
-def flush(task: str, pr: int, quiet: bool = False) -> int:
-    """Post this PR's queued notes in order (after draining the legacy queue). Returns how many were posted.
-
-    A note is sent when its recorded PR number is ``pr`` or its recorded branch is the PR's head branch; a note with neither goes
-    only when the task ledger lists exactly one branch. Every other note stays queued untouched. A queued note is gated again
-    before it goes out. One whose marker is on the PR with the same body (hash) is dropped; with a different body it is applied as an
-    edit, so an update that failed once is not lost. A role whose app fails is posted with the ``gh`` login. A note that is refused or
-    fails stays queued and the notes behind it still go out. Unless ``quiet``, it ends with one stderr line per note left queued
-    (``report_left``); if any was refused, ``Refusal`` is raised after that (exit 1)."""
-    drain_legacy(task)
-    count, refused = 0, []
-    idents: Dict[Optional[str], Identity] = {}
-    comments = list_comments(pr)
-    head_branch = pr_head_branch(pr)
-    _WHY.clear()
+def drop_queued(task: str, kind: str, cls: Optional[str], round_no: int, pr: int, head: str) -> None:
+    """Remove queued notes for a marker that was just posted to PR ``pr`` (head ``head``): only those whose target is that PR."""
     for path in queue_files(task):
         try:
             n = json.loads(path.read_text())
-            if not_sent_reason(n, task, pr, head_branch):
+            if (n["kind"], n["class"], n["round"]) == (kind, cls, round_no) and is_for(n, pr, head):
+                path.unlink()
+        except (OSError, KeyError, ValueError):
+            continue
+
+
+def flush(task: str, pr: int, head: str, named: bool = False, ledger_dir: Optional[str] = None, quiet: bool = False) -> int:
+    """Post the queued notes whose target is PR ``pr`` (head branch ``head``), in order. Returns how many were posted.
+
+    Every other note stays queued untouched. A note with no target (older version) goes only when the run named its PR (``named``:
+    ``--pr`` or ``--branch``) and the ledger lists at most one branch. A queued note is gated again before it goes out. One whose
+    marker is on the PR with the same body (hash) is dropped; with a different body it is applied as an edit, so an update that
+    failed once is not lost. A role whose app fails is posted with the ``gh`` login. A note that is refused or fails stays queued
+    and the notes behind it still go out. Unless ``quiet``, it ends with one stderr line per note left queued (``report_left``);
+    if any was refused, ``Refusal`` is raised after that (exit 1)."""
+    drain_legacy(task)
+    _WHY.clear()
+    if not head:  # sending only the notes recorded by number would post them out of order
+        raise NoteError(f"the head branch of #{pr} could not be read, queue not flushed")
+    count, refused = 0, []
+    idents: Dict[Optional[str], Identity] = {}
+    comments = list_comments(pr)
+    untargeted = named and len(ledger_branches(task, ledger_dir)) <= 1
+    for path in queue_files(task):
+        try:
+            n = json.loads(path.read_text())
+            if not (is_for(n, pr, head) or (untargeted and not (n.get("pr") or n.get("branch")))):
                 continue
             tag = marker(n["kind"], task, n["round"], n.get("class"))
             same = body_hash(strip_markers(redact(n["body"])))
@@ -912,7 +912,7 @@ def flush(task: str, pr: int, quiet: bool = False) -> int:
         path.unlink()
         count += 1
     if not quiet:
-        report_left(task, pr, head_branch)
+        report_left(task, pr, head)
     if refused:
         raise Refusal(f"{len(refused)} queued note(s) refused and kept in the queue")
     return count
@@ -1014,7 +1014,7 @@ def follow_template(body: str, template: str = "") -> str:
     return out
 
 
-def init_pr(pr: int, task: str) -> str:
+def init_pr(pr: int, task: str, head: str, named: bool = False, ledger_dir: Optional[str] = None) -> str:
     """Append the marker blocks the PR body lacks, then flush the task's queue (legacy queue included)."""
     body = json.loads(gh(["pr", "view", str(pr), "--json", "body"]))["body"] or ""
     new = follow_template(body)
@@ -1022,7 +1022,7 @@ def init_pr(pr: int, task: str) -> str:
     if new != body:
         gh(["pr", "edit", str(pr), "--body-file", "-"], new)
         state = "body updated"
-    return f"{state}, flushed {flush(task, pr)}"
+    return f"{state}, flushed {flush(task, pr, head, named, ledger_dir)}"
 
 
 # MARK: - CLI
@@ -1069,42 +1069,45 @@ def run(args: argparse.Namespace) -> str:
         _ACTIVE = OWNER
 
 
-def _lookup(args: argparse.Namespace) -> Optional[int]:
-    """The PR for this command: ``--pr``, ``--branch``, the ledger's branches, the current branch."""
+def _lookup(args: argparse.Namespace) -> "tuple[Optional[int], str]":
+    """The PR for this command and its head branch (``find_pr``)."""
     return find_pr(args.pr, args.branch, args.task, args.ledger_dir)
 
 
 def _post(args: argparse.Namespace) -> str:
-    """``post``: gate, find the PR (queue when none), flush, post, then refresh the timeline.
+    """``post``: gate, find the PR, flush, post, then refresh the timeline.
 
-    A note that has to be queued records its target (``record_target``); every run ends with one stderr line per note left queued."""
+    With no PR yet, or when ``gh`` fails, the note is queued with its one target (``queue_target``, which refuses a write that
+    names none). Every run ends with one stderr line per note left queued."""
     body = Path(args.body_file).read_text()
     gate(body, f"body file {Path(args.body_file).name}", load_media(args.task))
-    tag = marker(args.kind, args.task, args.round, args.cls)
-    pr: Optional[int] = None
+    named = bool(args.pr or args.branch)
+    pr, head, failed, result = (int(args.pr) if args.pr else None), "", None, ""
     try:
-        pr = _lookup(args)
-        if pr is None:
-            step = args.step or next_step([], args.task, tag, queued=True)
-            target_pr, target_branch = record_target(args.task, None, args.branch, ledger_dir=args.ledger_dir)
-            name = queue_note(args.task, args.kind, args.cls, args.round, body, args.role, step, args.head,
-                              target_branch, target_pr).name
-            report_left(args.task, None)
-            return f"queued {name}"
-        try:
-            flush(args.task, pr, quiet=True)
-        except (NoteError, Refusal) as exc:
-            print(f"pr_note: warning, queue not flushed: {exc}", file=sys.stderr)
-        result = post_comment(pr, args.task, args.kind, args.cls, args.round, redact(body), role=args.role,
-                              step=args.step, head=args.head)
-        head_branch = pr_head_branch(pr)
-        drop_queued(args.task, args.kind, args.cls, args.round, head_branch, pr)
-        report_left(args.task, pr, head_branch)
-    except NoteError:
-        target_pr, target_branch = record_target(args.task, pr, args.branch, args.ledger_dir)
-        queue_note(args.task, args.kind, args.cls, args.round, body, args.role, args.step, args.head, target_branch, target_pr)
-        report_left(args.task, pr)
-        raise
+        pr, head = _lookup(args)
+        if pr is not None:
+            if not head:
+                raise NoteError(f"the head branch of #{pr} could not be read")
+            try:
+                flush(args.task, pr, head, named, args.ledger_dir, quiet=True)
+            except (NoteError, Refusal) as exc:
+                print(f"pr_note: warning, queue not flushed: {exc}", file=sys.stderr)
+            result = post_comment(pr, args.task, args.kind, args.cls, args.round, redact(body), role=args.role,
+                                  step=args.step, head=args.head)
+            drop_queued(args.task, args.kind, args.cls, args.round, pr, head)
+    except NoteError as exc:
+        failed = exc
+    if pr is None or failed:
+        target = queue_target(args.task, pr, head, args.branch, args.ledger_dir)
+        step = args.step
+        if not (step or failed):
+            step = next_step([], args.task, marker(args.kind, args.task, args.round, args.cls), queued=True)
+        name = queue_note(args.task, args.kind, args.cls, args.round, body, target, args.role, step, args.head).name
+        report_left(args.task, pr, head)
+        if failed:
+            raise failed
+        return f"queued {name}"
+    report_left(args.task, pr, head)
     if result != "unchanged":
         try:
             state = timeline(pr, args.task)
@@ -1129,13 +1132,21 @@ def _run(args: argparse.Namespace) -> str:
         gate(args.text, "the resolve text")
     if args.cmd in ("init", "flush"):
         drain_legacy(args.task)
-    pr = _lookup(args)
+        try:
+            pr, head = _lookup(args)
+            if pr is not None:
+                named = bool(args.pr or args.branch)
+                if args.cmd == "init":
+                    return init_pr(pr, args.task, head, named, args.ledger_dir)
+                return f"flushed {flush(args.task, pr, head, named, args.ledger_dir)}"
+        except NoteError:
+            report_left(args.task, None, waiting="gh failed in this run; kept for the next flush")
+            raise
+        report_left(args.task, None)
+        return "no PR yet"
+    pr, _head = _lookup(args)
     if pr is None:
         return "no PR yet"
-    if args.cmd == "init":
-        return init_pr(pr, args.task)
-    if args.cmd == "flush":
-        return f"flushed {flush(args.task, pr)}"
     if args.cmd == "timeline":
         return timeline(pr, args.task)
     if args.cmd == "status":
