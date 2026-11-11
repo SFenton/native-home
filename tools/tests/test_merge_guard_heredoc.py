@@ -83,10 +83,10 @@ class SedReadTests(unittest.TestCase):
                 self.assertIsNotNone(verdict(cmd), cmd)
 
     def test_sed_that_writes_or_runs_stays_blocked(self):
-        for cmd in (f"sed -i s/a/b/ f; grep {FLAG} f; gh pr merge 1", f"sed -i 1p tools/pr_land.py | grep '{FLAG}'",
-                    f"sed -n '1e gh pr merge 1' f | grep '{FLAG}'", f"sed -n 'w x' f | grep '{FLAG}'",
-                    f"sed -n 1p f; gh pr merge 1", f"sed -n -e 1p f | grep '{FLAG}'", f"sed -n 1p -s f | grep '{FLAG}'",
-                    f"sed -n -f script f | grep '{FLAG}'", f"sed 1p f | grep '{FLAG}'", f"sed -n 1,2w out f | grep '{FLAG}'"):
+        for cmd in (f"sed -i s/a/b/ f; grep {FLAG} f; gh pr merge 1", f"sed -i 1p tools/pr_land.py | grep {FLAG}",
+                    f"sed -n '1e gh pr merge 1' f | grep {FLAG}", f"sed -n 'w x' f | grep {FLAG}",
+                    f"sed -n 1p f; gh pr merge 1", f"sed -n -e 1p f | grep {FLAG}", f"sed -n 1p -s f | grep {FLAG}",
+                    f"sed -n -f script f | grep {FLAG}", f"sed 1p f | grep {FLAG}", f"sed -n 1,2w out f | grep {FLAG}"):
             with self.subTest(cmd=cmd):
                 self.assertIsNotNone(verdict(cmd), cmd)
 
