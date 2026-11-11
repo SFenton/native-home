@@ -277,7 +277,7 @@ class AsRoleTests(Base):
         self.assertIn("\n\n### Handoff\nneeds you", bodies[0])
         self.assertTrue(bodies[1].startswith("@SFenton\n\n#### Step"))
         self.assertIn("\n\n### Owner\nlook", bodies[1])
-        self.assertTrue(bodies[2].startswith("#### Step"))
+        self.assertTrue(bodies[2].startswith("### Pick\n#### Step"))
         self.assertNotIn("@SFenton", bodies[2])
 
     def test_mention_is_not_doubled_and_not_added_for_the_owner_login(self):
