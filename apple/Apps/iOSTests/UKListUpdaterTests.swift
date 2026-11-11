@@ -395,6 +395,121 @@ final class UKListUpdaterTests: XCTestCase {
         XCTAssertEqual(spoken, ["Bee deleted"])
     }
 
+    // MARK: A fade never lets a stale list overwrite a newer one
+
+    func testAFormFadeHoldsALaterResetSoItsStaleListCannotOverwriteIt() {
+        let updater = makeUpdater(holdsOnlyForRemovals: true)
+        updater.hooks.reduceMotion = { true }
+        var shown = snapshot(["a", "b"])
+        var finishFade: (() -> Void)?
+        updater.fadeOut = { _, done in finishFade = done }
+        var applied: [[String]] = []
+        func perform(_ next: Snapshot, _ animated: Bool, _ done: @escaping () -> Void) {
+            applied.append(next.itemIdentifiers)
+            shown = next
+            done()
+        }
+        updater.run(shown, old: nil, current: { shown }, cause: .reset, hasWindow: true, perform: perform)
+        applied.removeAll()
+        // b leaves under Reduce Motion: its cells fade (held open here), then the list changes.
+        updater.run(snapshot(["a"]), current: { shown }, cause: .live, hasWindow: true, perform: perform)
+        XCTAssertTrue(updater.isAnimating)
+        // A reset arrives inside the fade window.
+        updater.run(snapshot(["a", "c"]), current: { shown }, cause: .reset, hasWindow: true, perform: perform)
+        XCTAssertTrue(applied.isEmpty, "nothing is applied while the fade plays")
+        finishFade?()
+        XCTAssertEqual(applied, [["a"], ["a", "c"]], "the fade's list lands first and the reset after it")
+        XCTAssertEqual(shown.itemIdentifiers, ["a", "c"], "so the list ends on the newer rows")
+        XCTAssertFalse(updater.isAnimating)
+    }
+
+    // MARK: The play counters
+
+    func testALateCompletionAfterTheWatchdogLeavesTheCounterAtZero() async {
+        let updater = primed()
+        updater.watchdogSeconds = 0.05
+        var held: [() -> Void] = []
+        removalInFlight(updater, held: &held)
+        try? await Task.sleep(for: .milliseconds(300))
+        XCTAssertFalse(updater.isAnimating, "the watchdog let the list go")
+        held.forEach { $0() } // The late completion arrives and must not count a second time.
+        XCTAssertFalse(updater.isAnimating)
+        var again: [() -> Void] = []
+        updater.run(snapshot(["b"]), old: snapshot(["a", "b"]), cause: .live, hasWindow: true) { [unowned self] _, animated, done in
+            animatedApplies.append(animated)
+            again.append(done)
+        }
+        XCTAssertTrue(updater.isAnimating, "a counter taken below zero would read as idle while this play runs")
+        again.forEach { $0() }
+        XCTAssertFalse(updater.isAnimating)
+    }
+
+    func testOnePlayEndingDoesNotEndAnotherThatIsStillPlaying() {
+        let updater = makeUpdater(holdsOnlyForRemovals: true)
+        var shown = snapshot(["a", "b", "c"])
+        var held: [() -> Void] = []
+        func perform(_ next: Snapshot, _ animated: Bool, _ done: @escaping () -> Void) {
+            shown = next
+            if animated { held.append(done) } else { done() }
+        }
+        updater.run(shown, old: nil, current: { shown }, cause: .reset, hasWindow: true, perform: perform)
+        // A form applies two unticketed animated changes without waiting for the first.
+        updater.run(snapshot(["a", "b"]), current: { shown }, cause: .live, hasWindow: true, perform: perform)
+        updater.run(snapshot(["a"]), current: { shown }, cause: .live, hasWindow: true, perform: perform)
+        XCTAssertEqual(held.count, 2, "both are playing at once")
+        held.removeFirst()()
+        XCTAssertTrue(updater.isAnimating, "the first ending leaves the second playing")
+        held.removeFirst()()
+        XCTAssertFalse(updater.isAnimating)
+    }
+
+    // MARK: A redraw queued before any snapshot
+
+    private func removalPlaying(_ updater: UKListUpdater<Int, String>, shown: inout Snapshot, held: inout [() -> Void]) {
+        var current = shown
+        var pending: [() -> Void] = []
+        updater.run(snapshot(["a"]), old: current, cause: .live, hasWindow: true) { next, _, done in
+            current = next
+            pending.append(done)
+        }
+        shown = current
+        held = pending
+    }
+
+    func testARedrawQueuedBeforeAnySnapshotRedrawsTheListAsItStandsThen() {
+        let updater = primed()
+        var shown = snapshot(["a", "b"])
+        var held: [() -> Void] = []
+        removalPlaying(updater, shown: &shown, held: &held)
+        XCTAssertTrue(updater.isAnimating)
+        var last: Snapshot?
+        updater.redraw(where: { $0 == "a" }, current: { snapshot(["a"]) }, hasWindow: true, perform: { next, _, done in
+            last = next
+            done()
+        })
+        XCTAssertNil(last, "it waits for the removal")
+        held.forEach { $0() }
+        XCTAssertEqual(last?.itemIdentifiers, ["a"])
+        XCTAssertEqual(last?.reconfiguredItemIdentifiers, ["a"], "and then redraws the row")
+    }
+
+    func testARedrawQueuedBeforeASnapshotIsKeptWhenTheSnapshotArrives() {
+        let updater = primed()
+        var shown = snapshot(["a", "b"])
+        var held: [() -> Void] = []
+        removalPlaying(updater, shown: &shown, held: &held)
+        var last: Snapshot?
+        func record(_ next: Snapshot, _ animated: Bool, _ done: @escaping () -> Void) {
+            last = next
+            done()
+        }
+        updater.redraw(where: { $0 == "a" }, current: { snapshot(["a"]) }, hasWindow: true, perform: record)
+        updater.run(snapshot(["a", "c"]), current: { snapshot(["a"]) }, cause: .live, hasWindow: true, perform: record)
+        held.forEach { $0() }
+        XCTAssertEqual(last?.itemIdentifiers, ["a", "c"], "the snapshot that arrived later is the list")
+        XCTAssertEqual(last?.reconfiguredItemIdentifiers, ["a"], "and the earlier redraw is still in it")
+    }
+
     func testFocusLandsOnTheRowThatTookThePlace() {
         XCTAssertEqual(UKListUpdater<Int, String>.nextRow(removed: ["b"], before: ["a", "b", "c"], after: ["a", "c"]), "c")
         XCTAssertEqual(UKListUpdater<Int, String>.nextRow(removed: ["c"], before: ["a", "b", "c"], after: ["a", "b"]), "b")

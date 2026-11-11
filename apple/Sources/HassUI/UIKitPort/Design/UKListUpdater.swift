@@ -86,12 +86,17 @@ final class UKListUpdater<Section: Hashable & Sendable, Item: Hashable & Sendabl
     /// True while an animated apply is playing: cells redrawn then animate their module-card corners (``UKModuleRowBackgroundView``).
     var isAnimating: Bool { activePlays > 0 }
     /// Whether a new apply waits: for any animated apply, or (``holdsOnlyForRemovals``) only for a person's removal.
-    private var isHolding: Bool { holdsOnlyForRemovals ? removalPlays > 0 : activePlays > 0 }
+    private var isHolding: Bool { holdsOnlyForRemovals ? removalPlays > 0 || fadePlays > 0 : activePlays > 0 }
     private var activePlays = 0
     private var removalPlays = 0
+    /// Under Reduce Motion a fade applies the snapshot it was started with once the cells have faded, so nothing may apply in between
+    /// (it would be overwritten by the older list), even in a form.
+    private var fadePlays = 0
     /// A form applies its section changes as they come, as the system does; only a person's removal, which moves focus and is announced,
     /// holds back what follows it. A list holds back anything that follows an animated apply.
     let holdsOnlyForRemovals: Bool
+    /// Tests only: stands in for the cell fade of a Reduce Motion removal, so a test can hold the fade open and finish it by hand.
+    var fadeOut: (([UICollectionViewCell], @escaping () -> Void) -> Void)?
     /// How long an animated apply may wait for UIKit's completion before the list is let go (scaled by the window's animation speed).
     var watchdogSeconds = 3.0
 
@@ -228,16 +233,20 @@ final class UKListUpdater<Section: Hashable & Sendable, Item: Hashable & Sendabl
         let interval: Telemetry.Interval
         /// Whether a person's removal is playing (it holds back what follows, even in a form).
         let person: Bool
+        /// Whether this is a Reduce Motion fade, which applies a snapshot of its own after the fade.
+        let fades: Bool
         var ended = false
-        init(_ interval: Telemetry.Interval, person: Bool) {
+        init(_ interval: Telemetry.Interval, person: Bool, fades: Bool = false) {
             self.interval = interval
             self.person = person
+            self.fades = fades
         }
     }
 
     private func begin(_ play: Play) -> Play {
         activePlays += 1
         if play.person { removalPlays += 1 }
+        if play.fades { fadePlays += 1 }
         return play
     }
 
@@ -247,6 +256,7 @@ final class UKListUpdater<Section: Hashable & Sendable, Item: Hashable & Sendabl
         play.ended = true
         activePlays -= 1
         if play.person { removalPlays -= 1 }
+        if play.fades { fadePlays -= 1 }
         let interval = play.interval
         NextFrame.perform { Telemetry.end(interval) }
         drainQueued()
@@ -293,7 +303,7 @@ final class UKListUpdater<Section: Hashable & Sendable, Item: Hashable & Sendabl
     /// Reduce Motion: the leaving rows fade out, then the list changes at once. Nothing slides.
     private func fade(_ snapshot: NSDiffableDataSourceSnapshot<Section, Item>, leaving: Set<Item>, person: Bool, perform: @escaping Perform,
                       finish: @escaping () -> Void) {
-        let play = begin(Play(Telemetry.begin(Telemetry.Name.layoutChange, page: "ListRowRemoval.\(surface)", "reduced"), person: person))
+        let play = begin(Play(Telemetry.begin(Telemetry.Name.layoutChange, page: "ListRowRemoval.\(surface)", "reduced"), person: person, fades: true))
         let cells = leaving.compactMap { item in dataSource?.indexPath(for: item).flatMap { collectionView?.cellForItem(at: $0) } }
         let change = { [weak self] in
             perform(snapshot, false) {
@@ -302,7 +312,9 @@ final class UKListUpdater<Section: Hashable & Sendable, Item: Hashable & Sendabl
                 self?.endPlay(play)
             }
         }
-        if cells.isEmpty {
+        if let fadeOut {
+            fadeOut(cells, change)
+        } else if cells.isEmpty {
             change()
         } else {
             UKMotion.animate(.quick, reduced: .quick, animations: { for cell in cells { cell.alpha = 0 } }, completion: { _ in change() })

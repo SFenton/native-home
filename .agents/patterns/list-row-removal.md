@@ -46,7 +46,9 @@ Related: [motion](motion.md) (tokens, Reduce Motion), [module-list](module-list.
 2. Replace every `apply` with `updater.apply(snapshot, cause:, cornerNeighbours:)`. Pass `.reset` for a rebuilt question; leave `.live` otherwise.
 3. Register a ticket where the person commits a removal; cancel it where the call fails.
 4. Module-card lists: give the cell registration `animated: updater.isAnimating` and pass the rows that only became first or last as `cornerNeighbours`.
-5. Add the journeys and the unit tests below.
+5. Redraw rows without changing which rows exist (a header's height, a selection) with `updater.redraw(where:)`, never by applying a snapshot built from the list on screen: a redraw queued behind an animation joins the update waiting there (which keeps its removals and their announcement) and applies unanimated. Use `apply` for any change of rows.
+6. A form (`UKFormViewController`) is built with `holdsOnlyForRemovals: true`: it applies section changes as they come, as the system does, and only a person's removal (focus moves, a title is announced) or a Reduce Motion fade holds back what follows it. Leave the default (`false`) for a list: any animated apply holds back what follows, so a second apply cannot cut the first short. Use `true` only for a screen whose controls change its own sections while it animates.
+7. Add the journeys and the unit tests below.
 
 ## Instrumentation and tests
 
