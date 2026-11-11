@@ -346,12 +346,12 @@ git rev-list --left-right --count claude/uikit-port...origin/claude/uikit-port
 **What is left to decide (owner).**
 
 1. Close #280 as done, or keep it open for what the hook does not cover: a request typed in a session the hook did not run in (a resumed session, another machine in the mesh), a request given as a voice note or in the Claude app, and a request whose quote was edited by the harness (line wrapping).
-2. Check the gate on the next interactive owner request: the PR carries the quote line, `pr_land.sh N --dry-run` shows the gate passing without `--owner-ack`.
+2. Check the gate on the next interactive owner request: the PR carries the quote line, `pr_land.sh N --dry-run` shows the gate passing without an owner override (the flag is retired, 2026-11-10).
 3. Decide whether the 14-day window and the 20-character floor are right.
 
 **Superseded 2026-11-10:** the flag is gone; the metric is now owner terminal actions for landing, target 0.
 
-**How to measure.** How often the owner has to use `--owner-ack`, target zero for requests typed in an attended session; the count of gate answers `unsure` on `design.matches_request` for PRs that carry a quote.
+**How to measure.** How often the owner has to approve and merge on GitHub to clear this gate, target zero for requests typed in an attended session; the count of gate answers `unsure` on `design.matches_request` for PRs that carry a quote.
 
 **Guardrails.** An agent message never vouches for a request. The quote is checked against the log, not trusted. The log lives outside every worktree and agents cannot write it.
 

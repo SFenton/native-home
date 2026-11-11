@@ -7,7 +7,7 @@ On SFenton/native-home GitHub is the merge gate: ruleset ``main-checks`` require
 owner-kept set), the house denylist, the author and fork check, an independent reviewer pass for that head
 (:func:`review_verdict.has_pass`), the live ruleset (:mod:`ruleset_gate`) and the ``main`` base. ``tools/ship.sh`` calls it after the PR opens.
 
-A PR that touches a CODEOWNERS path, or that the app-UI gate refuses, is the owner's to clear: the owner approves this pull request on
+A PR that touches a CODEOWNERS path, the owner-kept set, or that the app-UI gate parks, is the owner's to clear (a missing design record or a contradicting ``Gate:`` line is the agent's to fix): the owner approves this pull request on
 GitHub (their review of this exact head) and merges it there. There is no override flag. :func:`owner_recipe` prints the three ``gh``
 commands for that, for the owner only.
 """
@@ -307,7 +307,7 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
         return 1, f"blocked #{number}: pull request is {info['state'].lower()}"
     if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
            for label in info.get("labels") or []):
-        return 1, f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park): the owner approves this pull request on GitHub (their review of this exact head) and merges it there"
+        return 1, f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park): the owner approves this pull request on GitHub (their review of this exact head) and merges it there, or replies on the issue to pick an option"
     if info.get("mergeable") == "CONFLICTING":
         return 1, f"blocked #{number}: merge conflicts with {info.get('baseRefName', 'main')}"
     login = info["author"].get("login") if isinstance(info.get("author"), dict) else None
