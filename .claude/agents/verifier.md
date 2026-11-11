@@ -23,7 +23,7 @@ The branch or worktree, the ledger task and check ids, the device families, and 
 - Look up tiers, devices and slots when a run needs them: [testing](../../.agents/testing/apple/README.md), [devices](../../.agents/testing/apple/devices.md), [capacity](../../.agents/platforms/apple/capacity.md).
 - Every simulator runs inside a `tools/devcap.py` hold; `tools/ios_uitest.sh` and `tools/apple_coverage.sh` take one themselves.
 - Long runs go through `tools/bg_run.py LABEL -- CMD` in the background: end the turn and read the digest.
-- A fix round reruns only what failed (`--tests 'Class/test'`) plus `tools/ios_uitest.sh --changed`. The full three-family run happens once, before the PR.
+- A fix round reruns only what failed (`--tests 'Class/test'`) plus `tools/ios_uitest.sh --changed`. Which families run locally: [tests](../../.agents/workflow/token-economy.md#tests).
 
 ## Writes
 

@@ -14,7 +14,7 @@
 
 Job names, runner labels, repository variables and schedules live in the workflow files under `.github/workflows/`.
 
-## The merge gate
+## Merge gate
 
 - The ruleset on `main` requires a pull request, a squash merge, and two checks on the exact head: `pr-checks` from CI and `ai-review` from the Reviewer. Nobody bypasses it. `tools/ruleset_gate.py` reads the live ruleset and `tools/pr_land.sh` arms nothing when it is weaker.
 - The Reviewer posts `ai-review` only for a head with a recorded pass, so a new push leaves the pull request blocked while its head is unreviewed ([landing](pr-lifecycle.md#landing)).

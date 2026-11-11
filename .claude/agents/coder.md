@@ -23,7 +23,7 @@ Code, tests and docs, only in the lane worktree and the files the brief names.
 
 - Extend the canonical component. Custom machinery needs the rung-0 note ([change-loop](../../.agents/workflow/change-loop.md#rung-0)); no note, no machinery.
 - Tests ship with the change, as `AGENTS.md` requires. DocC `///` on new Swift. Run the `swiftui-pro` review on any SwiftUI in your diff.
-- A fix round reruns only the failed tests plus `tools/ios_uitest.sh --changed`. The full three-family run happens once, before the PR.
+- A fix round reruns only the failed tests plus `tools/ios_uitest.sh --changed`. Which families run locally: [tests](../../.agents/workflow/token-economy.md#tests).
 - Small commits ending with a `Release-Note:` trailer ([versioning](../../.agents/workflow/versioning.md)) and the co-author trailer.
 - Before a `tools/bg_run.py` job make a WIP commit (`git add -A && git commit -m "WIP: <step>"`; it needs no trailer), then end the turn and read the digest ([token-economy](../../.agents/workflow/token-economy.md#waiting)).
 - Run devcap holds with `--max-wait 1200`. When the wait gives up, yield; do not retry ([token-economy](../../.agents/workflow/token-economy.md#capacity)).

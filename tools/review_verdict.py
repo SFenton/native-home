@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Is there an independent ``pass`` verdict for this exact commit? One answer for the push guard, ``ship.sh`` and ``merge_guard``.
 
-The gate on SFenton/native-home is review-before-push (owner, 2026-11-09; .agents/workflow/ci.md#the-merge-gate): nothing an agent pushes
+The gate on SFenton/native-home is review-before-push (owner, 2026-11-09; .agents/workflow/ci.md#merge-gate): nothing an agent pushes
 reaches the repository without a ``pass`` for the commit it pushes. The verdicts are the records ``tools/review/record.py --lane BRANCH`` writes to the
 trusted store ``<account home>/hass-agents/reviews/<branch with / as __>-<sha12>.json`` (the same file ``tools/lane_land.py`` trusts), never a file in a worktree.
 
