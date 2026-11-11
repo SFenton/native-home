@@ -84,6 +84,7 @@ class UKFormViewController: UKPageViewController, UICollectionViewDelegate, UKSh
     private(set) var sections: [UKFormSection] = []
     private(set) var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<String, String>!
+    private var updater: UKListUpdater<String, String>!
     private var drawn: [String: String] = [:]
     private var drawnTexts: [String: String] = [:]
 
@@ -152,21 +153,32 @@ class UKFormViewController: UKPageViewController, UICollectionViewDelegate, UKSh
                 ? collectionView.dequeueConfiguredReusableSupplementary(using: header, for: path)
                 : collectionView.dequeueConfiguredReusableSupplementary(using: footer, for: path)
         }
-        applySnapshot(animated: false)
+        updater = UKListUpdater(surface: "Form", collectionView: collectionView, dataSource: dataSource, holdsOnlyForRemovals: true)
+        applySnapshot(cause: .reset)
     }
 
-    /// Shows `newSections`. A row whose state changed is reconfigured in place; rows and sections diff by id.
-    func setSections(_ newSections: [UKFormSection], animated: Bool = true) {
+    /// Shows `newSections`. A row whose state changed is reconfigured in place; rows and sections diff by id, through ``UKListUpdater``.
+    /// - Parameters:
+    ///   - animated: `false` replaces the sections at once (``ListUpdateCause/reset``).
+    ///   - cause: Overrides `animated`: `.person` for a change the person just made (see ``expectRemoval(of:title:)``), `.live` otherwise.
+    func setSections(_ newSections: [UKFormSection], animated: Bool = true, cause: ListUpdateCause? = nil) {
         sections = newSections
-        if isViewLoaded { applySnapshot(animated: animated) }
+        if isViewLoaded { applySnapshot(cause: cause ?? (animated ? .live : .reset)) }
     }
+
+    /// A person is removing the rows `ids`; the sections that hold them leave with the system animation and are announced as
+    /// "<title> deleted" when the next ``setSections(_:animated:cause:)`` drops them.
+    func expectRemoval(of ids: [String], title: String? = nil) { updater?.expectRemoval(of: ids, title: title) }
+
+    /// The removal failed: the rows stay and nothing moves.
+    func cancelExpectation(of ids: [String]) { updater?.cancelExpectation(of: ids) }
 
     private func row(_ id: String) -> UKFormRow? {
         for section in sections { if let row = section.rows.first(where: { $0.id == id }) { return row } }
         return nil
     }
 
-    private func applySnapshot(animated: Bool) {
+    private func applySnapshot(cause: ListUpdateCause) {
         var snapshot = NSDiffableDataSourceSnapshot<String, String>()
         snapshot.appendSections(sections.map(\.id))
         var changed: [String] = []
@@ -191,7 +203,7 @@ class UKFormViewController: UKPageViewController, UICollectionViewDelegate, UKSh
         }
         drawnTexts = texts
         snapshot.reloadSections(reloaded.filter { snapshot.indexOfSection($0) != nil })
-        dataSource.apply(snapshot, animatingDifferences: animated && view.window != nil)
+        updater.apply(snapshot, cause: cause)
     }
 
     /// What a row shows, so a state change reconfigures it and nothing else does.

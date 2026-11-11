@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 8,
+  "version": 9,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
@@ -25,6 +25,7 @@
     "modal-sheet": "Modal sheet: how web hash modals become native sheets. (components: UKHassModal, ModalTabBar)",
     "module-list": "Module list: inset lists on the wallpaper (direction G, Controls: Lists). (components: UKModuleListView)",
     "motion": "Motion: the shared components that apply the app-wide motion rules. (components: MotionTokens)",
+    "list-row-removal": "List row removal: the one way a diffable list applies a snapshot: the system animation for a row or section that leaves, never on a reapply. (components: UKListUpdater)",
     "optimistic-actions": "Optimistic actions: how a control shows its new value at once and stays honest. (components: OptimisticActions)",
     "option-picker": "Option picker: picking one value from a short list in a sheet. (components: OptionPickerSheet)",
     "page-backdrop": "Page backdrop: the blurred photo of the house behind every page. (components: HouseBackdrop)",

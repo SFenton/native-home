@@ -330,6 +330,11 @@ final class UKInventoryListViewController: UKPaneViewController, UICollectionVie
     private let presentation: InventoryPresentation
     private(set) lazy var collectionView: UICollectionView = UKWidthAwareCollectionView(frame: .zero, collectionViewLayout: makeLayout())
     private var dataSource: UICollectionViewDiffableDataSource<String, Item>!
+    private var updater: UKListUpdater<String, Item>!
+    /// Cards whose removal ticket is registered (`InventoryListModel/pendingRemoval`).
+    private var ticketed: Set<String> = []
+    /// The search, sort and filter the rows were last built for: a change of them replaces the list.
+    private var shownQuestion = ""
     private let bag = UKObservationBag()
     private let loading: UKArcSpinnerView
     private let searching = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
@@ -410,7 +415,9 @@ final class UKInventoryListViewController: UKPaneViewController, UICollectionVie
             let position = self.positions[id] ?? (true, true)
             let selected = self.presentation.canSplit && self.presentation.editing?.itemId == id
             cell.configure(item: row, model: self.model, isFirst: position.isFirst, isLast: position.isLast, selected: selected, surface: .page,
-                           actions: UKInventoryRowActions(onEdit: { [weak self] in self?.onEdit(row) }, onShop: { [weak self] in self?.onShop(row) }))
+                           actions: UKInventoryRowActions(onEdit: { [weak self] in self?.onEdit(row) }, onShop: { [weak self] in self?.onShop(row) },
+                                                          onDelete: { [weak self] in self?.onDelete(row) }),
+                           animatedCorners: self.updater?.isAnimating ?? false)
         }
         let header = UICollectionView.SupplementaryRegistration<UKInventoryHeaderView>(elementKind: UICollectionView.elementKindSectionHeader) { [weak self] view, _, path in
             guard let self, let section = self.dataSource.snapshot().sectionIdentifiers[safe: path.section],
@@ -425,6 +432,7 @@ final class UKInventoryListViewController: UKPaneViewController, UICollectionVie
         dataSource.supplementaryViewProvider = { collectionView, _, path in
             collectionView.dequeueConfiguredReusableSupplementary(using: header, for: path)
         }
+        updater = UKListUpdater(surface: "Inventory", collectionView: collectionView, dataSource: dataSource)
         bag.observe { [weak self] in self?.refresh() }
         bag.observe { [weak self] in
             guard let self else { return }
@@ -473,8 +481,9 @@ final class UKInventoryListViewController: UKPaneViewController, UICollectionVie
     func trailingSwipe(at path: IndexPath) -> UISwipeActionsConfiguration? {
         guard let item = item(at: path), model.deletableRows(of: item) != nil, model.batches(for: item).count <= 1 else { return nil }
         return UKSwipeAction.configuration([UKSwipeAction("Delete", systemImage: "trash", role: .destructive) { [weak self] done in
-            self?.onDelete(item)
-            done(true)
+            guard let self else { done(false); return }
+            // The row stays open while the confirmation is up (`hold`): confirm completes the swipe as the row leaves, cancel closes it.
+            UKInventoryRowActionsHost.swipeDelete(item, in: self.model, presentation: self.presentation, done: done, request: self.onDelete)
         }])
     }
 
@@ -532,6 +541,14 @@ final class UKInventoryListViewController: UKPaneViewController, UICollectionVie
             }
         }
 
+        // Search, sort and filter rebuild the list around a new question: that replaces it. A removal does not.
+        let question = "\(model.settledQuery)|\(sort)|\(model.sortDirection)|\(model.filterMode)|\(phase)"
+        let cause: ListUpdateCause = question == shownQuestion ? .live : .reset
+        shownQuestion = question
+        for (id, name) in model.takeRemovals() {
+            ticketed.insert(id)
+            updater.expectRemoval(of: [.row(id)], title: name)
+        }
         sections = built
         var items: [String: InventoryDisplayItem] = [:]
         var places: [String: (isFirst: Bool, isLast: Bool)] = [:]
@@ -546,22 +563,30 @@ final class UKInventoryListViewController: UKPaneViewController, UICollectionVie
             snapshot.appendSections([section.id])
             snapshot.appendItems(section.items.map { .row($0.id) }, toSection: section.id)
         }
-        // A row whose card changed (a quantity, its place on the module) is redrawn in place; the rest are not touched.
+        // A row whose card changed (a quantity) is redrawn in place; a row that only became the first or last of its module card (its
+        // neighbour left) is a corner neighbour, redrawn with the animated corners. The rest are not touched.
         var changed: [Item] = []
-        for (id, item) in items where rows[id] != item || positions[id]?.isFirst != places[id]?.isFirst || positions[id]?.isLast != places[id]?.isLast {
-            if rows[id] != nil { changed.append(.row(id)) }
+        var neighbours: [Item] = []
+        for (id, item) in items where rows[id] != nil {
+            let moved = positions[id]?.isFirst != places[id]?.isFirst || positions[id]?.isLast != places[id]?.isLast
+            if rows[id] != item { changed.append(.row(id)) } else if moved { neighbours.append(.row(id)) }
         }
         rows = items
         positions = places
         snapshot.reconfigureItems(changed.filter { snapshot.itemIdentifiers.contains($0) })
-        dataSource.apply(snapshot, animatingDifferences: false)
+        updater.apply(snapshot, cause: cause, cornerNeighbours: neighbours.filter { snapshot.itemIdentifiers.contains($0) }) { [weak self] in
+            guard let self else { return }
+            // A ticket whose delete failed (the card is back) is dropped so a later removal is not announced for it.
+            for id in self.ticketed where self.model.pendingRemoval[id] == nil {
+                self.ticketed.remove(id)
+                self.updater.cancelExpectation(of: [.row(id)])
+            }
+        }
     }
 
     private func reconfigureSelection() {
         guard dataSource != nil else { return }
-        var snapshot = dataSource.snapshot()
-        snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { if case .row = $0 { return true } else { return false } })
-        dataSource.apply(snapshot, animatingDifferences: false)
+        updater.redraw(where: { if case .row = $0 { return true } else { return false } })
     }
 
     // MARK: Delegate

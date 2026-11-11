@@ -59,6 +59,7 @@ struct UKSprinklerSection {
 class UKSprinklerListController: UKPaneViewController, UICollectionViewDelegate, UKSheetFitting {
     private(set) var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<String, String>!
+    private var updater: UKListUpdater<String, String>!
     private var sections: [UKSprinklerSection] = []
     private var rows: [String: UKSprinklerRow] = [:]
     private var contents: [String: UIView] = [:]
@@ -126,6 +127,7 @@ class UKSprinklerListController: UKPaneViewController, UICollectionViewDelegate,
                 ? collectionView.dequeueConfiguredReusableSupplementary(using: header, for: path)
                 : collectionView.dequeueConfiguredReusableSupplementary(using: footer, for: path)
         }
+        updater = UKListUpdater(surface: "Sprinklers", collectionView: collectionView, dataSource: dataSource)
         applySnapshot(animated: false)
     }
 
@@ -167,7 +169,7 @@ class UKSprinklerListController: UKPaneViewController, UICollectionViewDelegate,
         drawnText = seenText
         snapshot.reconfigureItems(changedRows.filter { snapshot.indexOfItem($0) != nil })
         snapshot.reloadSections(reloaded.filter { snapshot.indexOfSection($0) != nil })
-        dataSource.apply(snapshot, animatingDifferences: animated && view.window != nil)
+        updater.apply(snapshot, cause: animated ? .live : .reset)
     }
 
     // MARK: Cells

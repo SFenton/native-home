@@ -27,6 +27,7 @@
         "FoodRecipeDetailJourneyTests/testRecipeGridAtAX5()",
         "HeaderButtonsJourneyTests/testBarKeepsItsSizesAtAX5()",
         "HeaderButtonsJourneyTests/testPhotoButtonKeepsItsSizeAtAX5()",
+        "InventoryRowActionsJourneyTests/testSwipeDeleteIsATouchTargetAtDefaultAndAX5()",
         "LiveActivityJourneyTests/testAX5CardDishwasherLongStaysOnScreen()",
         "LiveActivityJourneyTests/testAX5CardFanStaysOnScreen()",
         "LiveActivityJourneyTests/testAX5CardFanXLongStaysOnScreen()",

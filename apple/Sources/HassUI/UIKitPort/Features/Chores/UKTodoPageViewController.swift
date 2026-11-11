@@ -72,8 +72,8 @@ final class UKTodoPageViewController: UKPageViewController, UICollectionViewDele
     private let dataBag = UKObservationBag()
     private var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<Int, RowID>!
+    private var updater: UKListUpdater<Int, RowID>!
     private var specs: [RowID: RowSpec] = [:]
-    private var hasApplied = false
 
     // MARK: Chrome
 
@@ -297,6 +297,8 @@ final class UKTodoPageViewController: UKPageViewController, UICollectionViewDele
             if case .item = id { return collectionView.dequeueConfiguredReusableCell(using: itemCell, for: indexPath, item: id) }
             return collectionView.dequeueConfiguredReusableCell(using: plainCell, for: indexPath, item: id)
         }
+        // The reapply counter is read inside `refresh()`'s observation, so a reconnect re-runs it and applies while its window is open.
+        updater = UKListUpdater(surface: "Chores", collectionView: collectionView, dataSource: dataSource) { [weak self] in self?.context.store.reapplyGeneration ?? 0 }
     }
 
     private func buildPanes() {
@@ -410,17 +412,23 @@ final class UKTodoPageViewController: UKPageViewController, UICollectionViewDele
         snapshot.appendItems(ids)
         snapshot.reconfigureItems(ids.filter { id in specs[id].map { $0 != new[id] } ?? false })
         specs = new
-        // Chores animate away when completed and back in if the call fails; under Reduce Motion they fade.
-        dataSource.apply(snapshot, animatingDifferences: hasApplied && view.window != nil)
-        hasApplied = true
+        // Chores animate away when completed and back in if the call fails; under Reduce Motion they fade. A reconnect, a reapply and the
+        // first apply never move (``ListUpdateTransition``).
+        updater.apply(snapshot)
+    }
+
+    /// A person is about to remove or bring back `item`: the change is theirs, so it is announced and focused.
+    private func expect(_ expectation: UKTodoListActions.Expectation, item: TodoItem, in list: ChoresConfig.TodoList) {
+        let id = RowID.item(list: list.entityId, id: item.id)
+        switch expectation {
+        case let .removal(title): updater.expectRemoval(of: [id], title: title)
+        case .insertion: updater.expectInsertion(of: [id])
+        }
     }
 
     private func reconfigureHeader() {
-        guard dataSource != nil, specs[.header] != nil else { return }
-        var snapshot = dataSource.snapshot()
-        guard snapshot.itemIdentifiers.contains(.header) else { return }
-        snapshot.reconfigureItems([.header])
-        dataSource.apply(snapshot, animatingDifferences: false)
+        guard dataSource != nil, specs[.header] != nil, dataSource.snapshot().itemIdentifiers.contains(.header) else { return }
+        updater.redraw(where: { $0 == .header })
     }
 
     /// Every visible list loads, drawn or not, so a hidden list reappears when its entity says it has items again; a save or delete
@@ -459,7 +467,7 @@ final class UKTodoPageViewController: UKPageViewController, UICollectionViewDele
         let actions = UKTodoItemRow.Actions(
             onToggle: { [weak self] in self?.toggle(item, in: list) },
             onEdit: spec.canEdit ? { [weak self] in self?.edit(list, item) } : nil,
-            onUndo: spec.offersUndo ? { UKTodoListActions.undo(item, controller: controller) } : nil,
+            onUndo: spec.offersUndo ? { [weak self] in UKTodoListActions.undo(item, controller: controller) { self?.expect($0, item: item, in: list) } } : nil,
             onDelete: spec.canDelete ? { [weak self] in self?.delete(item, in: list, from: cell) } : nil,
             menu: { [weak self, weak cell] in
                 guard let self else { return nil }
@@ -509,7 +517,7 @@ final class UKTodoPageViewController: UKPageViewController, UICollectionViewDele
     }
 
     private func toggle(_ item: TodoItem, in list: ChoresConfig.TodoList) {
-        UKTodoListActions.toggle(item, in: list, controller: model.todos.controller(for: list.entityId))
+        UKTodoListActions.toggle(item, in: list, controller: model.todos.controller(for: list.entityId)) { [weak self] in self?.expect($0, item: item, in: list) }
     }
 
     /// Asks first, or deletes at once on a page that doesn't confirm.
@@ -517,8 +525,13 @@ final class UKTodoPageViewController: UKPageViewController, UICollectionViewDele
         let controller = model.todos.controller(for: list.entityId)
         switch TodoPageLayout.deletion(for: chorePage) {
         case .unavailable: break
-        case .confirm: UKTodoListActions.confirmDelete(item, controller: controller, from: self, source: cell.map(UKPopoverSource.view) ?? UKPopoverSource.none)
-        case .immediate: Task { await controller.remove(item) }
+        case .confirm:
+            UKTodoListActions.confirmDelete(item, controller: controller, from: self, source: cell.map(UKPopoverSource.view) ?? UKPopoverSource.none) { [weak self] in
+                self?.expect($0, item: item, in: list)
+            }
+        case .immediate:
+            expect(.removal(title: item.displayTitle), item: item, in: list)
+            Task { await controller.remove(item) }
         }
     }
 

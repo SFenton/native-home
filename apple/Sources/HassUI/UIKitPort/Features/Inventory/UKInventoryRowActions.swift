@@ -90,6 +90,7 @@ final class UKInventoryRowActionsHost {
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
             self?.promptShown = nil
             self?.presentation.prompt = nil
+            self?.presentation.finishSwipe(removed: false)
         })
         alert.addAction(UIAlertAction(title: prompt.confirmTitle, style: .default) { [weak self, weak alert] _ in
             guard let self else { return }
@@ -101,6 +102,15 @@ final class UKInventoryRowActionsHost {
         presenter.present(alert, animated: true)
     }
 
+    /// A swiped Delete on a row: asks to confirm (or for a quantity) and settles the swipe with `done`. The row is held
+    /// open until the answer (confirm completes it as the card leaves, cancel closes it).
+    static func swipeDelete(_ item: InventoryDisplayItem, in model: InventoryListModel, presentation: InventoryPresentation,
+                            done: @escaping (Bool) -> Void, request: ((InventoryDisplayItem) -> Void)? = nil) {
+        presentation.finishSwipe(removed: false)
+        presentation.swipeCompletion = done
+        if let request { request(item) } else { presentation.requestDelete(item, in: model) }
+    }
+
     /// "Delete Honey?" on the page, not the row: a swipe Delete is gone once the swipe closes, so a row dialog never presents.
     private func present(_ item: InventoryDisplayItem, from presenter: UIViewController) {
         confirmShown = true
@@ -109,11 +119,12 @@ final class UKInventoryRowActionsHost {
                                             guard let self else { return }
                                             self.confirmShown = false
                                             self.presentation.confirmDelete = nil
-                                            Task { await self.model.delete(item) }
+                                            Task { await self.model.delete(item) { self.presentation.finishSwipe(removed: $0) } }
                                         },
                                         onCancel: { [weak self] in
                                             self?.confirmShown = false
                                             self?.presentation.confirmDelete = nil
+                                            self?.presentation.finishSwipe(removed: false)
                                         })
     }
 }

@@ -4,6 +4,6 @@
 - Source: `apple/Sources/HassDesign/{ModuleList,Module}.swift`, `HassUI/Features/Inventory/InventoryRow.swift`, `Sprinklers/SprinklersScreen.swift`
 - Spec: `.agents/patterns/module-list.md`, `.agents/design/direction-g.md` · Patterns: module-list
 - States covered: variants (thin, dense, no glyph), accessories, dense-and-list (List row backgrounds), rows, in-context, ax5
-- Motion: row press (0.2 s), glyph colour (0.6 s)
+- Motion: row press (0.2 s), glyph colour (0.6 s), card corners re-round when a first or last row leaves
 - Devices: iPhone, iPad (size class), embedded devices
 - Open notes: iOS 17 draws no hairlines; the in-context rows follow the preview in ModuleList.swift (the Security and Climate pages belong to other mockups).

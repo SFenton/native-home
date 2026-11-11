@@ -704,6 +704,49 @@
    }
   },
   {
+   "name": "ListUpdateCause",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/Motion/ListUpdateCause.swift",
+   "pattern": "motion",
+   "tests": {
+    "swift": [
+     "Motion"
+    ],
+    "journeys": [
+     "MotionJourneyTests"
+    ]
+   }
+  },
+  {
+   "name": "ListUpdateLedger",
+   "kind": "struct",
+   "file": "apple/Sources/HassDesign/Motion/ListUpdateLedger.swift",
+   "pattern": "motion",
+   "tests": {
+    "swift": [
+     "Motion"
+    ],
+    "journeys": [
+     "MotionJourneyTests"
+    ]
+   }
+  },
+  {
+   "name": "ListUpdateTransition",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/Motion/ListUpdateTransition.swift",
+   "pattern": "motion",
+   "tests": {
+    "swift": [
+     "Motion"
+    ],
+    "journeys": [
+     "MotionJourneyTests"
+    ]
+   },
+   "systemApi": "Keep. System alternative: 17/18/26: `UICollectionViewDiffableDataSource.apply(_:animatingDifferences:)` draws the delete and slides the neighbours; it has no notion of a reapply or of who caused the change, and `UIContextualAc. See .agents/design/apple/system-api-audit.md."
+  },
+  {
    "name": "MotionTokens",
    "kind": "enum",
    "file": "apple/Sources/HassDesign/Motion/MotionTokens.swift",

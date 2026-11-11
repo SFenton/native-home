@@ -3,10 +3,12 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// What an inventory row asks of its page: open the item editor, ask for a quantity to add to groceries.
+/// What an inventory row asks of its page: open the item editor, ask for a quantity to add to groceries and, where the page deletes,
+/// delete (the swipe's Delete, offered to VoiceOver too because a swipe is not discoverable).
 struct UKInventoryRowActions {
     var onEdit: () -> Void
     var onShop: () -> Void
+    var onDelete: (() -> Void)?
 }
 
 /// One inventory card (``InventoryRow``; web `PantryRow`; direction G mockup n6-inventory, redesigned 2026-10-16): the name over its
@@ -186,6 +188,10 @@ final class UKInventoryRowView: UKRowView, UIGestureRecognizerDelegate {
         nameLabel.accessibilityLabel = Self.accessibilityText(item: item, subtitle: subtitle, tone: tone, error: error)
         nameLabel.accessibilityIdentifier = item.name
         subtitleLabel.accessibilityLabel = subtitle
+        // The swipe's Delete (single-batch, deletable cards) as a VoiceOver action on the name, where a swipe is not discoverable.
+        let canDelete = deletable && !multiBatch && actions?.onDelete != nil
+        nameLabel.accessibilityCustomActions = canDelete
+            ? [UIAccessibilityCustomAction(name: "Delete") { [weak self] _ in self?.actions?.onDelete?(); return true }] : nil
 
         cart.show(state, name: item.name)
         chevron.isHidden = !opensEditor
@@ -390,8 +396,8 @@ final class UKInventoryRowCell: UICollectionViewListCell {
 
 
     func configure(item: InventoryDisplayItem, model: InventoryListModel, isFirst: Bool, isLast: Bool, selected: Bool, surface: TileSurface,
-                   actions: UKInventoryRowActions) {
-        card.configure(density: .dense, surface: surface, isFirst: isFirst, isLast: isLast, selected: selected)
+                   actions: UKInventoryRowActions, animatedCorners: Bool = false) {
+        card.configure(density: .dense, surface: surface, isFirst: isFirst, isLast: isLast, selected: selected, animated: animatedCorners)
         row.surface = surface
         row.configure(item: item, model: model, actions: actions)
         hairline?.removeFromSuperview()

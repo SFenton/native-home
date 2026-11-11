@@ -22,6 +22,9 @@ final class InventoryPresentation {
     var confirmDelete: InventoryDisplayItem?
     /// Whether the window may show the editor beside the list (``SplitPolicy``).
     var canSplit: Bool
+    /// The completion of a swiped Delete that waits for its confirmation: true removes the row, false
+    /// closes the swipe. Settled by ``finishSwipe(removed:)``.
+    @ObservationIgnored var swipeCompletion: ((Bool) -> Void)?
 
     init(canSplit: Bool = false) {
         self.canSplit = canSplit
@@ -62,6 +65,13 @@ final class InventoryPresentation {
         }
     }
 
+    /// Settles a held swipe Delete: the row leaves (`removed`) or the swipe closes. Nothing held: nothing happens.
+    func finishSwipe(removed: Bool) {
+        let completion = swipeCompletion
+        swipeCompletion = nil
+        completion?(removed)
+    }
+
     /// The confirmation for deleting `item` from `space`: "Delete <name>?", with the place in the message.
     static func deleteSpec(_ item: InventoryDisplayItem, space: InventorySpace) -> AlertCopy.Spec {
         AlertCopy.delete("Item", named: item.name, detail: "It will be removed from the \(space.phrase).")
@@ -86,9 +96,10 @@ final class InventoryPresentation {
         case let .delete(item, stocked):
             guard let quantity = InventoryFormat.parseQuantity(promptText), quantity >= 1, quantity <= stocked else {
                 model.setRowError("Enter a number from 1 to \(InventoryFormat.quantity(stocked)).", for: item.id)
+                finishSwipe(removed: false)
                 return
             }
-            await model.delete(item, quantity: quantity)
+            await model.delete(item, quantity: quantity) { [weak self] removed in self?.finishSwipe(removed: removed) }
         }
     }
 

@@ -260,6 +260,7 @@ final class UKSettingsListDriver: NSObject, UICollectionViewDelegate {
     private(set) var collectionView: UICollectionView!
     private(set) var sections: [UKSettingsListSection] = []
     private var dataSource: UICollectionViewDiffableDataSource<String, String>!
+    private var updater: UKListUpdater<String, String>!
     private var drawn: [String: String] = [:]
     private var drawnHeaders: [String: String] = [:]
 
@@ -302,6 +303,7 @@ final class UKSettingsListDriver: NSObject, UICollectionViewDelegate {
                 ? collectionView.dequeueConfiguredReusableSupplementary(using: header, for: path)
                 : collectionView.dequeueConfiguredReusableSupplementary(using: footer, for: path)
         }
+        updater = UKListUpdater(surface: "Settings", collectionView: collectionView, dataSource: dataSource)
     }
 
     // MARK: Data
@@ -326,7 +328,7 @@ final class UKSettingsListDriver: NSObject, UICollectionViewDelegate {
         snapshot.reconfigureItems(changed.filter { snapshot.indexOfItem($0) != nil })
         let headersChanged = headers != drawnHeaders
         drawnHeaders = headers
-        dataSource.apply(snapshot, animatingDifferences: animated && collectionView.window != nil)
+        updater.apply(snapshot, cause: animated ? .live : .reset)
         // Headers and footers are not items: refresh the ones on screen when their text changed.
         if collectionView.window != nil {
             for index in newSections.indices {

@@ -8,6 +8,9 @@ import XCTest
 /// window, pull to refresh and the section headers.
 @MainActor
 final class UKHostedInventoryPageTests: DemoHouseTestCase {
+    /// What the announcer was asked to say.
+    private final class SpokenLog { var lines: [String] = [] }
+
     private struct Rig {
         let page: UKInventoryViewController
         let model: InventoryListModel
@@ -121,6 +124,75 @@ final class UKHostedInventoryPageTests: DemoHouseTestCase {
         await FeatureHost.settleAsync(0.5)
         XCTAssertFalse(r.server.calls.contains { $0.contains("delete_inventory") })
         XCTAssertNil(r.presentation.confirmDelete)
+    }
+
+    // MARK: Row removal (`UKListUpdater`)
+
+    private func singleUnit(_ r: Rig) -> InventoryDisplayItem? {
+        r.model.displayItems.first { r.model.deletableRows(of: $0).map { rows in rows.reduce(0) { $0 + $1.quantity } <= 1 } == true && r.model.batches(for: $0).count <= 1 }
+    }
+
+    private func rowViews(in view: UIView) -> [UKInventoryRowView] {
+        (view as? UKInventoryRowView).map { [$0] } ?? view.subviews.flatMap { rowViews(in: $0) }
+    }
+
+    func testAConfirmedDeleteAnnouncesTheItemAndHidesItAtOnce() async throws {
+        let r = await rig()
+        defer { r.window.isHidden = true }
+        let spoken = SpokenLog()
+        UKListAnnouncements.sink = { spoken.lines.append($0) }
+        defer { UKListAnnouncements.sink = nil }
+        let single = try XCTUnwrap(singleUnit(r))
+        r.server.latency = .milliseconds(600)
+        r.presentation.requestDelete(single, in: r.model)
+        await FeatureHost.settleAsync(until: { FeatureHost.alert(on: r.page)?.title == "Delete \(single.name)?" })
+        let confirm = try XCTUnwrap(FeatureHost.alert(on: r.page))
+        XCTAssertTrue(FeatureHost.answer(confirm, try XCTUnwrap(confirm.actions.first { $0.style == .destructive }?.title)))
+        await FeatureHost.settleAsync(until: { !r.model.pendingRemoval.isEmpty })
+        XCTAssertNil(r.model.visibleItems.first { $0.id == single.id }, "the row is gone before the server answers")
+        await FeatureHost.settleAsync(until: { spoken.lines.contains("\(single.name) deleted") })
+        XCTAssertTrue(spoken.lines.contains("\(single.name) deleted"), "\(spoken.lines)")
+    }
+
+    func testAHeldSwipeCompletesOnConfirmAndClosesOnCancel() async throws {
+        let r = await rig()
+        defer { r.window.isHidden = true }
+        let single = try XCTUnwrap(singleUnit(r))
+        var results: [Bool] = []
+        UKInventoryRowActionsHost.swipeDelete(single, in: r.model, presentation: r.presentation) { results.append($0) }
+        await FeatureHost.settleAsync(until: { FeatureHost.alert(on: r.page) != nil })
+        XCTAssertTrue(results.isEmpty, "the swipe stays open while the confirmation is up")
+        XCTAssertTrue(FeatureHost.answer(try XCTUnwrap(FeatureHost.alert(on: r.page)), "Cancel"))
+        await FeatureHost.settleAsync(until: { !results.isEmpty })
+        XCTAssertEqual(results.last, false, "cancel closes the swipe")
+
+        results.removeAll()
+        UKInventoryRowActionsHost.swipeDelete(single, in: r.model, presentation: r.presentation) { results.append($0) }
+        await FeatureHost.settleAsync(until: { FeatureHost.alert(on: r.page) != nil })
+        let confirm = try XCTUnwrap(FeatureHost.alert(on: r.page))
+        XCTAssertTrue(FeatureHost.answer(confirm, try XCTUnwrap(confirm.actions.first { $0.style == .destructive }?.title)))
+        await FeatureHost.settleAsync(until: { results.last == true })
+        XCTAssertEqual(results.last, true, "confirm completes the swipe as the row leaves")
+    }
+
+    func testAFailedDeleteBringsTheItemBackWithItsError() async throws {
+        let r = await rig()
+        defer { r.window.isHidden = true }
+        let single = try XCTUnwrap(singleUnit(r))
+        r.server.failing = ["evershelf.delete_inventory"]
+        await r.model.delete(single)
+        await FeatureHost.settleAsync(0.8)
+        XCTAssertNotNil(r.model.visibleItems.first { $0.id == single.id })
+        XCTAssertNotNil(r.model.rowErrors[single.id])
+    }
+
+    func testEachDeletableRowOffersDeleteToVoiceOver() async throws {
+        let r = await rig()
+        defer { r.window.isHidden = true }
+        let single = try XCTUnwrap(singleUnit(r))
+        let row = try XCTUnwrap(rowViews(in: r.page.view).first { $0.item?.id == single.id }, "the row is on the page")
+        let names = row.accessibilityElements?.compactMap { ($0 as? UIView)?.accessibilityCustomActions }.flatMap { $0 }.map(\.name)
+        XCTAssertEqual(names, ["Delete"], "a swipe is not discoverable, so VoiceOver gets the action too")
     }
 
     func testOnAWideWindowTheEditorOpensBesideTheList() async throws {
