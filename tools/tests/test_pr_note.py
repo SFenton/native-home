@@ -205,14 +205,14 @@ class CommentTests(Base):
     def test_new_then_unchanged_then_edited(self):
         self.assertIn("posted", self.post("verdict", "**Designer** (agent) · pass\n\nLooks right.")[1])
         self.assertEqual(len(self.get()["comments"]), 1)
-        self.assertIn("<!-- sh:verdict:T-x:1 -->", self.get()["comments"][0]["body"])
+        self.assertIn("<!-- sh:verdict:T-x:s1 -->", self.get()["comments"][0]["body"])
         self.assertIn("unchanged", self.post("verdict", "**Designer** (agent) · pass\n\nLooks right.")[1])
         self.assertEqual(len(self.get()["comments"]), 1)
         self.assertIn("edited", self.post("verdict", "**Designer** (agent) · changes\n\nNo.")[1])
         comments = self.get()["comments"]
         self.assertEqual(len(comments), 1)
         self.assertEqual(comments[0]["body"].splitlines()[0], "## Designer")
-        self.assertEqual(self.meta(), {"step": "1", "round": "1"})
+        self.assertEqual(self.meta(), {"step": "1", "round": "1", "ident": "round"})
 
     def test_new_round_is_a_new_comment(self):
         self.post("verdict", "**Designer** (agent) · pass", "1")
@@ -226,8 +226,10 @@ class CommentTests(Base):
         self.post("evidence", "**Verifier** (agent) · duo · round 2", "2", "--class", "duo")
         bodies = [c["body"] for c in self.get()["comments"]]
         self.assertEqual(len(bodies), 4)
-        for tag in ("iphone:1", "duo:1", "ipad:1", "duo:2"):
+        for tag in ("iphone:s1", "duo:s2", "ipad:s3", "duo:s4"):
             self.assertEqual(sum(f"<!-- sh:evidence:T-x:{tag} -->" in b for b in bodies), 1, tag)
+        self.assertEqual([self.meta(i)["round"] for i in range(4)], ["1", "1", "1", "2"])
+        self.assertIn("again", bodies[1])
 
     def test_evidence_needs_a_class(self):
         code, _out, err = self.post("evidence", "x")
@@ -237,7 +239,8 @@ class CommentTests(Base):
 
     def test_renderer_marker_is_replaced_not_doubled(self):
         self.post("evidence", "**V** · duo\n\ntext\n\n<!-- sh:evidence:T-x:duo:1 -->", "1", "--class", "duo")
-        self.assertEqual(self.get()["comments"][0]["body"].count("sh:evidence:T-x:duo:1"), 1)
+        body = self.get()["comments"][0]["body"]
+        self.assertEqual((body.count("<!-- sh:evidence:"), body.count("<!-- sh:evidence:T-x:duo:s1 -->")), (1, 1))
 
     def test_resolve_marks_handoff(self):
         self.post("handoff", "**Orchestrator** · waiting on you")
@@ -297,6 +300,15 @@ class BlockTests(Base):
                          REVIEW[:REVIEW.index("<!-- review:end -->")])
         self.assertTrue(body.startswith("intro\n") and body.endswith("tail\n") and "\nmid\n" in body)
         self.assertNotIn("old", body)
+
+    def test_status_text_is_never_shown(self):
+        """Fails if: ``status`` writes text people see into the description ("Drafting" or any other line), drops the hidden
+        ``sh-status`` markers, leaves an earlier visible line there, or a line with ``--`` or ``>`` ends the comment early."""
+        self.set_state(body="Intro\n<!-- sh-status:start -->\n**Status:** Drafting · Waiting on: nobody\n<!-- sh-status:end -->\nTail\n")
+        self.assertIn("updated", self.run_cli("status", "--task", "T", "--line", "Ready --> waiting on: nobody")[1])
+        body = self.get()["body"]
+        self.assertEqual(re.sub(r"<!--.*?-->", "", body, flags=re.S), "Intro\n\n\n\nTail\n")
+        self.assertIn("<!-- sh-status:start -->\n<!-- sh-status-line: Ready - waiting on: nobody -->\n<!-- sh-status:end -->", body)
 
     def test_same_line_is_a_no_op(self):
         self.set_state(body=self.BODY)
@@ -489,8 +501,8 @@ class RoleKindTests(Base):
             self.assertIn("posted", self.post(kind, f"{role} did the work.", str(rnd))[1])
             body = self.get()["comments"][-1]["body"]
             self.assertEqual(body.splitlines()[:3], [f"## {role}", "", "### Actions Taken"])
-            self.assertEqual(self.meta(-1), {"step": str(rnd), "round": str(rnd)})
-            self.assertTrue(body.rstrip().endswith(f"<!-- sh:{kind}:T-x:{rnd} -->"))
+            self.assertEqual(self.meta(-1), {"step": str(rnd), "round": str(rnd), "ident": "round"})
+            self.assertTrue(body.rstrip().endswith(f"<!-- sh:{kind}:T-x:s{rnd} -->"))
 
     def test_as_names_the_role_and_head_is_shortened(self):
         """Fails if: ``--as`` does not set the role in the heading, ``--head`` is not kept as its first 7 characters in the hidden
@@ -499,7 +511,7 @@ class RoleKindTests(Base):
             _code, _out, err = self.post("build", "Done.", "2", "--as", "coder", "--head", "8afc84d1234567")
         self.assertIn("no app identity for coder", err)
         self.assertEqual(self.comment_lines()[0], "## Coder")
-        self.assertEqual(self.meta(), {"step": "1", "round": "2", "head": "8afc84d"})
+        self.assertEqual(self.meta(), {"step": "1", "round": "2", "ident": "round", "head": "8afc84d"})
         self.assertNotIn("8afc84d", self.visible())
 
     def test_heading_is_its_own_line_and_an_edit_keeps_its_step(self):
@@ -1308,7 +1320,7 @@ class HeaderFormTests(Base):
         body = self.get()["comments"][0]["body"]
         self.assertEqual(self.visible(), "## Researcher\n\n" + self.BODY.strip())
         self.assertNotRegex(self.visible(), r"Step \d|round|8afc84d|\d\d:\d\dZ")
-        self.assertTrue(body.endswith("<!-- sh-meta:step=1 round=3 head=8afc84d -->\n<!-- sh:research:T-x:3 -->\n"), body)
+        self.assertTrue(body.endswith("<!-- sh-meta:step=1 round=3 ident=round head=8afc84d -->\n<!-- sh:research:T-x:s1 -->\n"), body)
         self.assertIn("unchanged", self.post("research", self.BODY, "3")[1])
 
     def test_body_must_be_three_bullet_lists(self):
@@ -1547,9 +1559,11 @@ class PictureRuleTests(PictureBase):
                              "![a](build/evidence/agents-x/gone.png)")
             self.set_state(pr=None)
             self.assertIn("queued", self.post("build", f"Later.\n\n![Home]({pic})", "2")[1])
-            queued = next((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")).read_text()
-            self.assertNotIn("zzhouseterm", queued)
-            self.assertIn("build/evidence/agents-x/iphone/home.png", queued)
+            queued = json.loads(next((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")).read_text())
+            self.assertNotIn("zzhouseterm", queued["body"])  # what will be posted; the file it named is kept beside it, on this machine only
+            self.assertIn("build/evidence/agents-x/iphone/home.png", queued["body"])
+            self.assertEqual({ref: Path(named).resolve() for ref, named in queued["pictures"].items()},
+                             {"build/evidence/agents-x/iphone/home.png": pic.resolve()})
             outside = home / "Pictures" / "private.png"
             outside.parent.mkdir(parents=True)
             outside.write_bytes(b"p")
@@ -1579,6 +1593,25 @@ class PictureRuleTests(PictureBase):
         self.assertIn("Same as Here", second)
         self.assertIn(self.img(b"there", "There"), second)
         self.assertEqual(self.attached(), 2)
+
+    def test_an_absolute_path_in_another_worktree_attaches_that_file(self):
+        """Fails if: an absolute path under another worktree attaches this checkout's copy of the same relative path (other
+        bytes) instead of the file it named, at once or after the note waited in the queue."""
+        other = Path(self.tmp.name) / "lane-worktree"
+        self.evidence("iphone/home.png", b"this checkout")
+        there = self.evidence("iphone/home.png", b"the lane worktree", root=other)
+        with mock.patch.object(pr_note, "checkouts", lambda: [pr_note.ROOT, other]):
+            self.assertIn("posted", self.post("build", f"Shot.\n![Home]({there})", "1")[1])
+            self.set_state(pr=None)
+            self.assertIn("queued", self.post("review", f"Seen.\n![Home again]({there})", "1", task="T-q")[1])
+            self.set_state(pr=7)
+            self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-q")[1])
+        first, second = self.bodies()
+        self.assertIn(self.img(b"the lane worktree", "Home"), first)
+        self.assertIn(self.img(b"the lane worktree", "Home again"), second)
+        for body in (first, second):
+            self.assertNotIn(self.url(b"this checkout"), body)
+            self.assertNotIn("lane-worktree", body)
 
     def test_manifest_three_shapes(self):
         """Fails if: a picture is refused or attached differently depending on the manifest shape that names it (path strings
@@ -1684,7 +1717,49 @@ class StepTests(Base):
         self.assertEqual(len(self.get()["comments"]), 1)
         self.post("build", "Built again.", "1", "--step", "2")
         self.assertIn("posted", self.post("build", "Which one?", "1")[1])
-        self.assertEqual(self.markers(), ["sh:build:T-x:s1", "sh:build:T-x:s2", "sh:build:T-x:1"])
+        self.assertEqual(self.markers(), ["sh:build:T-x:s1", "sh:build:T-x:s2", "sh:build:T-x:s3"])
+        self.assertIn("unchanged", self.post("build", "Which one?", "1")[1])  # found again by its kind and round
+
+    def test_a_post_without_a_step_gets_the_next_step_and_the_step_marker(self):
+        """Fails if: a new comment posted without ``--step`` still gets the older round marker, takes a step number a comment on
+        the page holds, is not found again by its kind and round (a re-post doubles it), or a comment with the older round
+        marker is no longer edited in place with its marker kept."""
+        self.post("research", "One.", "1")
+        self.post("build", "Two.", "1")
+        self.post("build", "Round two.", "2")
+        self.assertEqual(self.markers(), ["sh:research:T-x:s1", "sh:build:T-x:s2", "sh:build:T-x:s3"])
+        self.assertIn("edited", self.post("build", "Two, changed.", "1")[1])
+        self.assertIn("unchanged", self.post("build", "Round two.", "2")[1])
+        self.assertEqual((len(self.get()["comments"]), self.steps()), (3, [1, 2, 3]))
+        self.assertIn("Two, changed.", self.get()["comments"][1]["body"])
+        self.set_state(comments=[self.old_comment(1, "pick", 1, 1), self.old_comment(2, "pick", 5, 2)])
+        self.assertIn("posted", self.post("verdict", "New.", "1", task="T")[1])
+        self.assertIn("edited", self.post("pick", "Old one, edited.", "2", task="T")[1])
+        self.assertEqual(self.markers(), ["sh:pick:T:1", "sh:pick:T:2", "sh:verdict:T:s3"])
+        self.assertEqual(self.steps(), [1, 5, 3])
+        self.assertIn("posted", self.post("build", "Newer.", "1", task="T")[1])  # four markers: 4 is free
+        self.assertIn("posted", self.post("review", "Newest.", "1", task="T")[1])  # 5 is held: one above the highest
+        self.assertEqual(self.steps(), [1, 5, 3, 4, 6])
+
+    def test_replacing_a_hand_edited_comment_keeps_every_step(self):
+        """Fails if: after a comment that records no step (edited by hand) is posted anew because of a new picture, it or any
+        other unrecorded comment of the task counts as a different step than before, or the new copy loses its round marker."""
+        def plain(cid, kind, text):
+            return {"id": cid, "html_url": f"u{cid}",
+                    "body": f"## {pr_note.KIND_ROLE[kind]}\n\n{formed(text)}\n<!-- sh-hash:0 -->\n<!-- sh:{kind}:T:1 -->\n"}
+        self.set_state(comments=[plain(1, "research", "Read."), plain(2, "pick", "Wrote."), plain(3, "build", "Built."),
+                                 plain(4, "review", "Passed.")])
+        self.assertEqual(pr_note.steps_of(self.get()["comments"], "T"), {1: 1, 2: 2, 3: 3, 4: 4})
+        pic = self.atlas_picture("new.png", b"new shot")
+        self.assertIn("replaced", self.post("pick", f"Wrote.\n![Shot]({pic})", "1", task="T")[1])
+        comments = self.get()["comments"]
+        steps = pr_note.steps_of(comments, "T")
+        self.assertEqual([c["id"] for c in comments][:3], [1, 3, 4])
+        self.assertEqual([steps[c["id"]] for c in comments], [1, 3, 4, 2])
+        self.assertTrue(comments[3]["body"].endswith("<!-- sh:pick:T:1 -->\n"))
+        self.assertIn("user-attachments", comments[3]["body"])
+        block = self.get()["body"].split("<!-- sh-timeline:start -->\n")[1].split("\n<!-- sh-timeline:end -->")[0].splitlines()
+        self.assertEqual([line.split(":")[0] for line in block], ["1. [Researcher", "2. [Designer", "3. [Coder", "4. [Reviewer"])
 
     def test_step_order_hold(self):
         """Fails if: after step 3 is posted before step 2 the page order (creation order) is 3 then 2, a held step is lost or
@@ -1804,6 +1879,43 @@ class PictureScaleTests(PictureBase):
         body = self.get()["body"]
         self.assertEqual(body, "Intro\n<!-- sh-devices:start -->\n| iPad | " + self.img(png(2048, 2732), "Home", 260)
                          + " |\n<!-- sh-devices:end -->\nTail\n")
+
+
+class RenderedEvidenceTests(PictureBase):
+    """What ``pr_visual.py render`` prints is what the Verifier posts: it must pass the comment form and come out scaled."""
+
+    def test_the_rendered_class_comment_posts_through_pr_note(self):
+        """Fails if: the body ``pr_visual.render_class`` writes is refused by the comment form, is posted with a visible round
+        or role line, leaves a before or after picture in the full-size form or not uploaded, or the same output posted
+        again is not ``unchanged``."""
+        import pr_visual
+        before = self.evidence("duo-partial-fold/before.png", png(1812, 2176, b"b"))
+        after = self.evidence("duo-partial-fold/after.png", png(1812, 2176, b"a"))
+        selection = {"task": "T-x", "base_pack": "build/evidence/agents-x/before", "after_pack": "build/evidence/agents-x/after",
+                     "pose_notes": {"duo-folded": "no tree in the before pack"},
+                     "classes": {"duo": {
+                         "needs_evidence": True, "reason": "the hinge layout changed",
+                         "poses": {"Half open": "changed", "Folded": "unknown", "Lying flat": "same"},
+                         "pairs": [{"pose": "Half open", "surface": "Security", "before": str(before), "after": str(after),
+                                    "compared": True}],
+                         "clips": [{"label": "Flat to half open and back", "why": "the sections move across the hinge"}],
+                         "checked_not_shown": [{"what": "2 more screens", "covered_by": "the same layout code"}],
+                         "more_pairs": [], "transition_files": ["apple/Sources/HassUI/UKHingedPanes.swift"]}}}
+        body = pr_visual.render_class(selection, "duo", 2)
+        self.assertIsNone(pr_note.form_problem(body), body)
+        code, out, err = self.post("evidence", body, "2", "--class", "duo")
+        self.assertEqual((code, out.strip()), (0, "pr_note: posted"), err)
+        posted = self.bodies()[0]
+        seen = self.visible()
+        self.assertTrue(seen.startswith("## Verifier\n\n### Actions Taken\n"))
+        self.assertNotRegex(seen, r"round|\*\*Verifier\*\*|!\[")
+        row = (f"| Half open: Security | {self.img(png(1812, 2176, b'b'), 'Before: Half open, Security', 260)} | "
+               f"{self.img(png(1812, 2176, b'a'), 'After: Half open, Security', 260)} |")
+        self.assertIn(row, posted)
+        self.assertIn("- Clip: Flat to half open and back, about 10 s. Why this one: the sections move across the hinge. Not recorded yet.", posted)
+        self.assertEqual((self.attached(), self.meta()["round"]), (2, "2"))
+        self.assertEqual(posted.count("<!-- sh:evidence:"), 1)
+        self.assertIn("unchanged", self.post("evidence", body, "2", "--class", "duo")[1])
 
 
 if __name__ == "__main__":

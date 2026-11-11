@@ -274,7 +274,7 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
     if "evidence" in found and not has_own_picture(found["evidence"]):
         errors.append("## Evidence holds no picture of its own; leave the section out when the pictures are in the comments")
     errors += placeholder_problems(body, words)
-    first =first_summary_sentence(body, words)
+    first = first_summary_sentence(body, words)
     if first:
         for hit in label_hits(first, words):
             errors.append(f"first Summary sentence has an internal label: {hit}")

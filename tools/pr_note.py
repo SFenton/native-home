@@ -21,12 +21,13 @@ Kinds are ``pick``, ``evidence``, ``verdict``, ``owner``, ``handoff``, ``shipped
 ``research`` (Researcher), ``build`` (Coder), ``review`` (Reviewer) and ``retro`` (Steward). An ``evidence`` comment is per
 device class (``iphone``, ``duo`` for iPhone Duo, ``ipad``); a class with nothing to show gets no comment.
 
-Which comment a post means (the marker): with ``--step N`` it is the kind plus the step, ``<!-- sh:<kind>:<task>:s<N> -->``
-(evidence: ``<!-- sh:evidence:<task>:<class>:s<N> -->``), so two notes of one kind in one round are two comments and
-``--round`` is only the text in the header. Without ``--step`` it is the older form, the kind plus the round
-(``<!-- sh:<kind>:<task>:<round> -->``, ``<!-- sh:evidence:<task>:<class>:<round> -->``). Both forms are read on every
-pull request: a post by step also finds the round-form comment of its kind whose header shows that step, a post by round
-also finds the single step-form comment of its kind with that round, and an edit keeps the marker the comment has.
+Which comment a post means: every new comment gets the marker kind plus step, ``<!-- sh:<kind>:<task>:s<N> -->``
+(evidence: ``<!-- sh:evidence:<task>:<class>:s<N> -->``). With ``--step N`` the comment is found again by that step, so two
+notes of one kind in one round are two comments. Without ``--step`` the tool assigns the step itself (this task's distinct
+markers posted or queued, plus one) and the comment is found again by its kind and round, which its hidden line records
+(``ident=round``). The round markers an older version wrote (``<!-- sh:<kind>:<task>:<round> -->``,
+``<!-- sh:evidence:<task>:<class>:<round> -->``) are read on every pull request, by round and by the step the comment
+holds, and an edit keeps the marker its comment has.
 
 Step order: a new comment with ``--step N`` is held in the queue (result ``held ...``, exit 0) while a step below N is not
 on the pull request, and goes out right after its predecessors (the next ``post``, ``flush`` or ``init``), so the page reads
@@ -39,7 +40,8 @@ is ``--as`` or the kind's usual role (Researcher, Designer, Coder, Verifier, Rev
 ``@SFenton`` mention stays the first line. The step (``--step``, or the count of this task's distinct markers posted or queued
 plus one; an edit keeps its own), the round and ``--head`` (7 to 40 hex characters, 7 kept) live in a hidden line,
 ``<!-- sh-meta:step=N round=R head=<sha7> -->``, between the hash and the marker. A comment that records no step (one edited by
-hand) counts by its place on the page; one with the visible header of an older version is rewritten on its next post.
+hand) counts by its place on the page among the numbers no recorded step holds, so posting one of them anew does not
+renumber the others; one with the visible header of an older version is rewritten on its next post.
 
 Scaled pictures: every attached picture or gif is written ``<img src="URL" alt="caption" width="N">`` and a video
 ``<video src="URL" width="N" controls></video>``, never the full-size ``![]()`` form: 280 wide for a portrait capture (and
@@ -87,6 +89,7 @@ Behaviour:
   are keyed by SHA-256, and a file takes the URL at its own place in the posted comment, never by counting over the comment.
   The same bytes are uploaded once per PR: in any later comment, class or path the image becomes
   ``Same as <first caption or file name>``; a picture that differs is uploaded.
+- ``status`` keeps its line as an HTML comment between the ``sh-status`` markers (nothing about status is shown).
 - ``status`` and ``devices`` replace only the text between their own ``sh-status`` / ``sh-devices`` markers in the PR
   body. Everything else, including the reviewer's block, is left byte for byte.
 - ``timeline`` rewrites the text between ``<!-- sh-timeline:start -->`` and ``<!-- sh-timeline:end -->`` (appended when
@@ -504,9 +507,11 @@ def form_gate(body: str, source: str) -> None:
                       f"'### Next Steps'): {problem}; not posting")
 
 
-def meta_line(step: int, round_no: int, head: Optional[str]) -> str:
-    """The hidden line that keeps what people do not need to see: the step, the round and the head commit."""
-    return f"<!-- sh-meta:step={step} round={round_no}" + (f" head={head[:7]}" if head else "") + " -->"
+def meta_line(step: int, round_no: int, head: Optional[str], by_round: bool = False) -> str:
+    """The hidden line that keeps what people do not need to see: the step, the round, the head commit and, for a comment
+    posted without ``--step`` (``by_round``), that it is found again by its kind and round."""
+    return (f"<!-- sh-meta:step={step} round={round_no}" + (" ident=round" if by_round else "")
+            + (f" head={head[:7]}" if head else "") + " -->")
 
 
 def meta_of(comment: Dict[str, Any]) -> Dict[str, str]:
@@ -540,6 +545,9 @@ def compose(body: str, tag: str, digest: Optional[str] = None, role: Optional[st
 # MARK: - Pictures
 
 _CHECKOUTS: Dict[str, List[Path]] = {}
+#: Relative reference to the file an absolute path named in this run (or in the queued note being sent): the same relative
+#: path can exist in several worktrees with other bytes, and the one that was named is the one to attach.
+_NAMED: Dict[str, str] = {}
 
 
 def checkouts() -> List[Path]:
@@ -588,7 +596,8 @@ def resolve_picture(ref: str, position: int = 0) -> "tuple[str, Optional[Path]]"
     evidence folder (``build/evidence/<branch>/``), then the same repository's other worktrees, then as a path inside exactly
     one evidence folder of any of them; the text keeps it as written. An absolute path under one of the checkouts is
     rewritten to the path relative to that checkout, whether or not the file exists, so a home folder name never reaches
-    the denylist or the comment. An absolute path anywhere else is refused (``Refusal``) with a message that names its
+    the denylist or the comment; the relative form then keeps naming that very file (``_NAMED``), not another checkout's
+    copy of the same path. An absolute path anywhere else is refused (``Refusal``) with a message that names its
     ``position`` in the text and never the path."""
     if re.match(r"^(https?:|data:|mailto:|#)", ref):
         return ref, None
@@ -599,10 +608,14 @@ def resolve_picture(ref: str, position: int = 0) -> "tuple[str, Optional[Path]]"
             raise Refusal(f"picture {position or 1} of the text has an absolute path outside this repository's checkouts; "
                           "name it relative to the evidence folder or the checkout, not posting")
         form = next(f for f in (Path(os.path.abspath(path)), path.resolve()) if f.is_relative_to(root))
-        return form.relative_to(root).as_posix(), (form if form.is_file() else None)
+        kept = form.relative_to(root).as_posix()
+        if form.is_file():
+            _NAMED[kept] = str(form)
+        return kept, (form if form.is_file() else None)
     name = ref[2:] if ref.startswith("./") else ref
     roots = checkouts()
-    for candidate in (roots[0] / name, Path(name)):
+    named = Path(_NAMED[name]) if name in _NAMED else None
+    for candidate in ([named] if named else []) + [roots[0] / name, Path(name)]:
         if candidate.is_file():
             return ref, candidate
     slug = evidence_slug()
@@ -976,33 +989,39 @@ def tag_parts(inner: str, task: str) -> "Optional[tuple[str, Optional[str], str]
     return (kind, None, parts[0]) if len(parts) == 1 else None
 
 
+def by_round(comment: Dict[str, Any], task: str) -> bool:
+    """Whether a comment is found again by its kind and round: one with the older round marker, or one posted without
+    ``--step`` (``ident=round`` in its hidden line)."""
+    parts = tag_parts(comment_tag(comment, task) or "", task)
+    return bool(parts) and (not parts[2].startswith("s") or meta_of(comment).get("ident") == "round")
+
+
 def find_matches(comments: List[Dict[str, Any]], task: str, kind: str, cls: Optional[str], round_no: int,
                  step: Optional[int] = None) -> "tuple[str, List[Dict[str, Any]]]":
-    """``(marker, comments that carry it)`` for one note: by step when ``step`` is given, else by round.
+    """``(marker of the first one, the comments that are this note)``: by step when ``step`` is given, else by round.
 
-    The exact marker wins. Otherwise the other form is read, so no posted comment is orphaned: a post by step finds the
-    comment of its kind (and class) in the older round form that holds that step (``steps_of``); a post by round finds the
-    single comment of its kind in the step form that records that round (two or more such comments decide nothing). The
-    marker returned is the one the comment carries, so an edit keeps it."""
-    exact = marker(kind, task, round_no, cls, step)
-    hits = [c for c in comments if has_tag(c, exact)]
-    if hits:
-        return exact, hits
-    groups: Dict[str, List[Dict[str, Any]]] = {}
-    steps = steps_of(comments, task)
+    By step: the comments of this kind (and class) whose marker is ``s<step>``; else those with the older round marker
+    that hold that step (``steps_of``). By round: the comments of this kind found by their round (``by_round``) that record
+    this round; else the single comment of this kind posted with ``--step`` that records it (two or more decide nothing).
+    The marker is ``""`` with no match; an edit keeps the marker its comment carries."""
+    want = (kind, cls if kind == "evidence" else None)
+    mine = []
     for c in comments:
-        inner = comment_tag(c, task)
-        parts = tag_parts(inner, task) if inner else None
-        if not parts or parts[:2] != (kind, cls if kind == "evidence" else None):
-            continue
-        stepped = parts[2].startswith("s")
-        if (step is not None and not stepped and steps.get(c.get("id")) == step) or (
-                step is None and stepped and round_of(c, task) == round_no):
-            groups.setdefault(str(inner), []).append(c)
-    if len(groups) == 1:
-        inner, hits = groups.popitem()
-        return f"<!-- {inner} -->", hits
-    return exact, []
+        parts = tag_parts(comment_tag(c, task) or "", task)
+        if parts and parts[:2] == want:
+            mine.append((c, parts[2]))
+    if step is not None:
+        hits = [c for c, key in mine if key == f"s{step}"]
+        if not hits:
+            steps = steps_of(comments, task)
+            hits = [c for c, key in mine if not key.startswith("s") and steps.get(c.get("id")) == step]
+    else:
+        hits = [c for c, _key in mine if by_round(c, task) and round_of(c, task) == round_no]
+        if not hits:
+            hits = [c for c, _key in mine if round_of(c, task) == round_no]
+            if len({comment_tag(c, task) for c in hits}) != 1:
+                hits = []
+    return (f"<!-- {comment_tag(hits[0], task)} -->" if hits else ""), hits
 
 
 def missing_steps(comments: List[Dict[str, Any]], task: str, step: int) -> List[int]:
@@ -1055,13 +1074,25 @@ def round_of(comment: Dict[str, Any], task: str) -> Optional[int]:
 
 def steps_of(comments: List[Dict[str, Any]], task: str) -> Dict[Any, int]:
     """``{comment id: step}`` for the comments of ``task``. A comment that records no step (one edited by hand into the
-    plain form) takes its place on the page among the task's comments."""
+    plain form) takes, in page order, the lowest number no recorded step holds: its place on the page while none is
+    recorded, and the same number after another comment was edited or posted anew with its step recorded."""
     mine = [c for c in comments if comment_tag(c, task)]
-    return {c.get("id"): step_of(c) or place for place, c in enumerate(mine, start=1)}
+    recorded = {c.get("id"): step_of(c) for c in mine if step_of(c)}
+    taken, out, free = set(recorded.values()), {}, 0
+    for c in mine:
+        if c.get("id") in recorded:
+            out[c.get("id")] = recorded[c.get("id")]
+            continue
+        free += 1
+        while free in taken:
+            free += 1
+        out[c.get("id")] = free
+    return out
 
 
 def next_step(comments: List[Dict[str, Any]], task: str, tag: str, queued: bool = False) -> int:
-    """This task's distinct markers already posted (and, with ``queued``, queued) plus one."""
+    """This task's distinct markers already posted (and, with ``queued``, queued) plus one; when a comment on the page holds
+    that number, one above the highest step there. ``tag`` (may be ``""``) is the note's own marker, not counted."""
     seen = {t for t in (comment_tag(c, task) for c in comments) if t}
     if queued:
         for path in queue_files(task):
@@ -1071,7 +1102,9 @@ def next_step(comments: List[Dict[str, Any]], task: str, tag: str, queued: bool 
             except (OSError, ValueError, KeyError):
                 continue
     seen.discard(tag[5:-4])
-    return len(seen) + 1
+    number = len(seen) + 1
+    taken = set(steps_of(comments, task).values())
+    return number if number not in taken else max(taken) + 1
 
 
 # MARK: - Comments
@@ -1103,28 +1136,35 @@ def _post_as(ident: Identity, pr: int, task: str, kind: str, cls: Optional[str],
     body = with_mention(kind, body, ident)
     digest = digest_of(body)  # after the pictures are resolved: a changed or corrected picture is a changed body
     comments = list_comments(pr)
-    tag, matches = find_matches(comments, task, kind, cls, round_no, step if stepped else None)
-    shown = render(body, pr, task, tag)
-    if shown.new:  # an installation token cannot upload: this post goes out under the owner's login
+    found, matches = find_matches(comments, task, kind, cls, round_no, step if stepped else None)
+    steps = steps_of(comments, task)
+    kept = next((steps[c.get("id")] for c in matches if c.get("id") in steps), None)
+    if stepped:
+        number = step or kept or next_step(comments, task, found, happened is None)
+    else:  # the tool assigns the step: the note's own when it is on the page, else the queued one when it is free, else the next
+        free = step if step and step not in set(steps.values()) else None
+        number = kept or free or next_step(comments, task, found, happened is None)
+    fresh = marker(kind, task, round_no, cls, number)
+    if render(body, pr, task, found or fresh).new:  # an installation token cannot upload: the owner's login posts this
         ident = OWNER
     own = next((c for c in matches if ident.mine(c)), None)
     foreign = [c for c in matches if not ident.mine(c) and ident.replaceable(c)]
     label = role_label(kind, role)
-    steps = steps_of(comments, task)
+    # an edit keeps the marker and the step its comment has; a new comment gets the kind + step marker
+    tag = f"<!-- {comment_tag(own, task)} -->" if own else fresh
+    number = steps.get(own.get("id"), number) if own else number
+    shown = render(body, pr, task, tag)
+    keyed = by_round(own, task) if own else not stepped
+    meta = meta_line(number, round_no, head or (meta_of(own).get("head") if own else None), keyed)
     if own:
         m = _HASH.search(own["body"])
         if m and m.group(1) == digest and not header_of(own):  # a visible header of an older version is rewritten
             return "unchanged"
-        number = steps.get(own.get("id")) or step or next_step(comments, task, tag)
         if not shown.new:
-            meta = meta_line(number, round_no, head or meta_of(own).get("head"))
             ident.edit(own["id"], compose(shown.text, tag, digest, label, meta))
             remember_hashes(pr, task, tag, shown.pics)
             return "edited"
-        step, foreign = number, [own, *foreign]  # a new file: post anew, then drop the old copy
-    number = (step or next((steps[c.get("id")] for c in matches if c.get("id") in steps), None)
-              or next_step(comments, task, tag, happened is None))
-    meta = meta_line(number, round_no, head)
+        foreign = [own, *foreign]  # a new file: post anew with the same marker and step, then drop the old copy
     text = compose(shown.text, tag, digest, label, meta)
     if ident.role:
         ident.create(pr, text)
@@ -1211,7 +1251,8 @@ def queue_note(task: str, kind: str, cls: Optional[str], round_no: int, body: st
     path = folder / f"{stamp:020d}-{kind}-{cls or 'all'}-{round_no}.json"
     path.write_text(json.dumps({"kind": kind, "class": cls, "round": round_no, "body": body, "time": now_z(),
                                 "pr": target[0], "branch": target[1], "as": role, "step": step, "head": head,
-                                "ident": "step" if stepped and step is not None else "round", "now": bool(now)}))
+                                "ident": "step" if stepped and step is not None else "round", "now": bool(now),
+                                "pictures": {ref: _NAMED[ref] for _alt, ref in _MEDIA.findall(body) if ref in _NAMED}}))
     return path
 
 
@@ -1343,6 +1384,9 @@ def flush(task: str, pr: int, head: str, named: bool = False, ledger_dir: Option
                 if stale:
                     comments, stale = list_comments(pr), False
                 stepped = by_step(n)
+                for ref, named in (n.get("pictures") or {}).items():  # the files its absolute paths named when it was queued
+                    if isinstance(named, str) and checkout_of(Path(named)) is not None:
+                        _NAMED[ref] = named
                 body = normalize_pictures(n["body"])
                 _tag, matches = find_matches(comments, task, n["kind"], n.get("class"), n["round"],
                                              n["step"] if stepped else None)
@@ -1393,6 +1437,11 @@ def replace_block(body: str, name: str, content: str) -> Optional[str]:
     if i < 0 or j < 0:
         return None
     return body[:i + len(start)] + "\n" + content.strip("\n") + "\n" + body[j:]
+
+
+def hidden_status(line: str) -> str:
+    """The status line as an HTML comment: tools still read it between the ``sh-status`` markers, people see nothing."""
+    return "<!-- sh-status-line: " + re.sub(r"-{2,}", "-", " ".join(line.split())).replace(">", "") + " -->"
 
 
 def update_block(pr: int, name: str, content: str, task: Optional[str] = None, add_missing: bool = False) -> str:
@@ -1526,8 +1575,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--class", dest="cls", choices=CLASSES)
     s.add_argument("--round", type=int, required=True)
     s.add_argument("--body-file", required=True)
-    s.add_argument("--step", type=int, help="step number; it identifies the comment (default: this task's markers posted "
-                   "or queued, plus one, and the comment is then identified by its round)")
+    s.add_argument("--step", type=int, help="step number; the comment is found again by it (default: the tool assigns this "
+                   "task's markers posted or queued, plus one, and the comment is found again by its kind and round)")
     s.add_argument("--now", action="store_true", help="with --step: send at once even when a lower step is not posted yet")
     s.add_argument("--head", type=head_sha, help="head commit shown in the header (7 to 40 hex characters; first 7 shown)")
     add("flush")
@@ -1545,6 +1594,7 @@ def run(args: argparse.Namespace) -> str:
     """Execute one command; returns the one-line result."""
     global _ACTIVE
     _ACTIVE = resolve_identity(getattr(args, "role", None)) if args.cmd in ("post", "flush", "resolve") else OWNER
+    _NAMED.clear()
     try:
         return _run(args)
     finally:
@@ -1654,7 +1704,7 @@ def _run(args: argparse.Namespace) -> str:
     if args.cmd == "timeline":
         return timeline(pr, args.task)
     if args.cmd == "status":
-        return update_block(pr, "sh-status", redact(args.line))
+        return update_block(pr, "sh-status", hidden_status(redact(args.line)))
     if args.cmd == "devices":
         return update_block(pr, "sh-devices", redact(devices), args.task)
     return resolve_handoff(pr, args.task, args.round, redact(args.text))

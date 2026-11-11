@@ -31,7 +31,8 @@
 * The Jev questions run in **shadow** only: answers (and ``jev_disagrees``) are recorded under ``jev_shadow`` and
   nothing else reads them: not the selection, not the device rows.
 
-``render`` prints one class's comment body (layout in K.6) ending in the marker
+``render`` prints one class's comment body in the comment form ``pr_note`` posts (three bullet lists, the pairs as
+picture references ``pr_note`` uploads and scales) ending in the marker
 ``<!-- sh:evidence:<task>:<class>:<round> -->``. ``devices`` prints the device-table rows for the description's
 ``sh-devices`` block. Standard library only.
 """
@@ -648,43 +649,53 @@ def _length(clip: dict[str, Any]) -> str:
 
 
 def render_class(selection: dict[str, Any], cls: str, rnd: int, task: str | None = None, summary: str | None = None) -> str | None:
-    """The class comment body (K.6), or None when the class needs no comment (``false``) or goes to the Verifier."""
+    """The class comment body in the comment form ``pr_note`` posts, or None when the class needs no comment (``false``) or
+    goes to the Verifier.
+
+    Three bullet lists under ``### Actions Taken``, ``### Result`` and ``### Next Steps``; no role line and no round in
+    sight (``pr_note`` writes the role heading and keeps the round hidden). The before and after pairs are a table of
+    ``![caption](path)`` references below the Result list and each recorded clip is one such line, so ``pr_note`` uploads
+    and scales them; what was a technical record is plain bullets."""
     info = selection["classes"][cls]
     if info["needs_evidence"] is not True:
         return None
     task = task or selection.get("task") or "T-unknown"
     changed = [p for p, s in info["poses"].items() if s == "changed"]
-    lines = [f"**Verifier** (agent) · {CLASS_NAMES[cls]} · round {rnd}", ""]
+    name = CLASS_NAMES[cls]
+    actions = [f"- Compared the before and after captures of each {name} pose."]
+    if info["pairs"]:
+        actions.append(f"- Selected {len(info['pairs'])} before and after pair(s) to show.")
+    if info["clips"]:
+        actions.append(f"- Selected {len(info['clips'])} clip(s) of the movement to show.")
     sentence = summary or info.get("summary") or (
         f"On the {CLASS_SHORT[cls]}, " + (", ".join(changed) + (" looks" if len(changed) == 1 else " look") + " different."
                                            if changed else "the movement is what to look at."))
-    lines += [sentence.strip(), ""]
     order = sorted(info["poses"].items(), key=lambda kv: kv[1] != "changed")
     labels = {"unknown": "not compared", "not_run": "not run"}
-    lines += ["Poses: " + " · ".join(f"{name} — {labels.get(status, status)}" for name, status in order), ""]
+    result = [f"- {sentence.strip()}",
+              "- Poses: " + " · ".join(f"{pose} — {labels.get(status, status)}" for pose, status in order)]
+    pictures: list[str] = []
     if info["pairs"]:
-        lines += ["| | Before | After |", "|---|---|---|"]
+        pictures += ["| | Before | After |", "|---|---|---|"]
         for pair in info["pairs"]:
             note = "" if pair.get("compared", True) else " (not compared)"
-            lines.append(f"| {pair['pose']}: {pair['surface']}{note} | " + " | ".join(
-                f'<img src="{pair[side]}" width="240" alt="{side.title()}: {pair["pose"]}, {pair["surface"]}">' if pair.get(side)
+            pictures.append(f"| {pair['pose']}: {pair['surface']}{note} | " + " | ".join(
+                f'![{side.title()}: {pair["pose"]}, {pair["surface"]}]({pair[side]})' if pair.get(side)
                 else "_not captured_" for side in ("before", "after")) + " |")
-        lines.append("")
-    if info["clips"]:
-        lines += ["**Clips**", ""]
-        for clip in info["clips"]:
-            lines += [clip["path"] if clip.get("path") else "_Clip not recorded yet._", "",
-                      f"{clip['label']}, {_length(clip)}. Why this one: {clip['why']}", ""]
+    for clip in info["clips"]:
+        state = "" if clip.get("path") else " Not recorded yet."
+        result.append(f"- Clip: {clip['label']}, {_length(clip)}. Why this one: {clip['why'].rstrip('.')}.{state}")
+        if clip.get("path"):
+            pictures.append(f"![{clip['label']}]({clip['path']})")
     if info["checked_not_shown"]:
-        lines += ["**Checked, not shown:** " + "; ".join(f"{c['what']} ({c['covered_by']})" for c in info["checked_not_shown"]), ""]
-    record = [f"- Packs: before `{selection.get('base_pack')}`, after `{selection.get('after_pack')}`",
-              f"- Why this class: {info['reason']}"]
-    prefix = cls if cls != "iphone" else "iphone"
-    record += [f"- Pose not compared: {p}: {note}" for p, note in selection.get("pose_notes", {}).items() if p.startswith(prefix)]
-    record += [f"- More pair: {p['pose']}: {p['surface']}: before `{p.get('before')}`, after `{p.get('after')}`" for p in info.get("more_pairs", [])]
-    record += [f"- Transition code: `{f}`" for f in info.get("transition_files", [])]
-    lines += ["<details><summary>Technical record</summary>", ""] + record + ["", "</details>", "",
-                                                                             f"<!-- sh:evidence:{task}:{cls}:{rnd} -->"]
+        result.append("- Checked, not shown: " + "; ".join(f"{c['what']} ({c['covered_by']})" for c in info["checked_not_shown"]))
+    result.append(f"- Why this class: {info['reason']}")
+    result += [f"- Pose not compared: {p}: {note}" for p, note in selection.get("pose_notes", {}).items() if p.startswith(cls)]
+    result += [f"- More pair: {p['pose']}: {p['surface']}" for p in info.get("more_pairs", [])]
+    result += [f"- Transition code: `{f}`" for f in info.get("transition_files", [])]
+    following = ["- The Designer and the Reviewer look at these pictures."]
+    lines = ["### Actions Taken", *actions, "", "### Result", *result, *([""] + pictures if pictures else []), "",
+             "### Next Steps", *following, "", f"<!-- sh:evidence:{task}:{cls}:{rnd} -->"]
     return "\n".join(lines) + "\n"
 
 
