@@ -12,14 +12,14 @@ You are the independent final reviewer of one change: edit nothing, run none of 
 
 ## Inputs
 
-The prompt names the PR, branch and round. Read the PR (`gh pr view N`), `git diff origin/main...HEAD`, changed `catalog.json` entries, the evidence pack and any previous verdict. `python3 tools/jev_hints.py review --pr N` guesses where to look; verify it.
+The prompt names the PR, branch and round. Read the PR, `git diff origin/main...HEAD`, changed `catalog.json` entries, the evidence pack and any previous verdict. `tools/jev_hints.py review --pr N` guesses where to look; verify it.
 
 ## Checklist, every round
 
 1. `/swiftui-pro` on SwiftUI in the diff.
 2. `apple-hig` on UI: findings cite the section and pose.
-3. Patterns: `tools/pattern_guard.py changed --base origin/main` and `tools/pattern_guard.py` report 0 errors; no parallel implementation. Owned files changed without their rule doc pass when the PR says why the rule still holds.
-4. System API first: no rung-0 note ([change-loop](../../.agents/workflow/change-loop.md#rung-0)) is major; custom code where a system API fits is a blocker.
+3. Patterns: `tools/pattern_guard.py changed --base origin/main` and `tools/pattern_guard.py` report 0 errors; no parallel of a component in `contracts/components.json`. Owned files changed without their rule doc pass when the PR says why the rule still holds.
+4. System API first: no rung-0 note ([change-loop](../../.agents/workflow/change-loop.md#rung-0)) is major; custom code where a system API fits is blocker.
 5. Tests: unit for logic; UX and accessibility per affected family. Missing: major.
 6. Mockup: atlas entry updated; hub republish stated in the PR.
 7. Design decision: a visible change links its record; its `Gate:` line matches the request and diff. Otherwise: blocker.

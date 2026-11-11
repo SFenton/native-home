@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1961,6 +1962,17 @@ class PromptFileTests(Base):
             self.assertNotIn("{{", text, template)
             for part in ("R-5", "Route: x", "orchestrator", "pr_land.sh", "(Triage)", "devcap"):
                 self.assertIn(part, text, template)
+
+    def test_prompts_name_only_files_that_exist(self):
+        """Fails if: a prompt sends the session to a skill, agent file or tool that is not in the tree. Workflow rule docs are
+        left to the rule-surface lint, which knows their fixed names."""
+        root = ht.HERE.parents[1]
+        for path in sorted((ht.HERE / "prompts").glob("*.md")):
+            named = re.findall(r"`((?:\.agents|\.claude|tools)/[\w./-]+\.(?:md|py|sh|json))`", path.read_text())
+            self.assertTrue(named, path.name)
+            for rel in named:
+                if not rel.startswith(".agents/workflow/"):
+                    self.assertTrue((root / rel).exists(), f"{path.name}: {rel}")
 
     def test_worker_prompt_has_the_level_rules(self):
         text = (ht.HERE / "prompts" / "worker.md").read_text()
