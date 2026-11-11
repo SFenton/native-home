@@ -35,6 +35,9 @@ MAX_PARAGRAPH_SENTENCES = 6
 MAX_PROSE_WORDS = 25
 MAX_ITEM_WORDS = 20
 MAX_AREAS = 3
+MIN_SUMMARY_SENTENCES = 2
+MAX_SUMMARY_SENTENCES = 4
+ALLOWED_SECTIONS = ("summary", "tests", "evidence")
 TYPES = ("Bug", "Feature", "Workflow", "Nightly Fix")
 #: ``--devices`` token to label. Only the device families the app supports; there is no Mac label.
 DEVICE_LABELS = {"iphone": "iPhone", "duo": "iPhone Duo", "ipad": "iPad"}
@@ -54,7 +57,7 @@ INLINE_CODE = re.compile(r"`[^`\n]*`")
 REQUEST_LINE = re.compile(r"^[ \t>*_-]*(?:Owner'?s request\b|Owner-Request:).*$", re.I | re.M)
 HEADING = re.compile(r"^##[ \t]+(.+?)[ \t]*#*[ \t]*$", re.M)
 ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.*)$")
-BRACKET = re.compile(r"(?<![\w!\\])\[([^\[\]\n]*)\](?![(\[:])")
+BRACKET = re.compile(r"(?<![\w!\\\]])\[(?!!)([^\[\]\n]*)\](?![(\[:])")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])")
 ABBREVIATIONS = ("e.g.", "i.e.", "vs.", "etc.,")
 
@@ -80,18 +83,20 @@ def sections(text: str) -> dict:
             for i, m in enumerate(marks)}
 
 
-def plain(text: str) -> str:
-    """One line of reading text: links reduced to their label, images, code ticks and emphasis marks removed."""
+def plain(text: str, keep_code: bool = False) -> str:
+    """One line of reading text: links reduced to their label, images and emphasis marks removed, code ticks too unless ``keep_code``."""
     text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
     text = re.sub(r"^\[[ xX]\]\s*", "", text)
-    text = text.replace("`", "")
+    text = text if keep_code else text.replace("`", "")
     text = re.sub(r"(\*\*|__|\*|(?<!\w)_|_(?!\w))", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
-def units(text: str) -> list:
-    """``(kind, text)`` for each paragraph (``para``) and list item (``item``) of ``text``; headings, tables and images are skipped."""
+def units(text: str, keep_code: bool = False) -> list:
+    """``(kind, text)`` for each paragraph (``para``) and list item (``item``) of ``text``; headings, tables and images are skipped.
+
+    Paragraph lines are joined, so a sentence wrapped over lines stays whole."""
     out: list = []
     para: list = []
     item: Optional[list] = None
@@ -121,7 +126,7 @@ def units(text: str) -> list:
                 flush()
             para.append(stripped)
     flush()
-    return [(kind, plain(body)) for kind, body in out if plain(body)]
+    return [(kind, plain(body, keep_code)) for kind, body in out if plain(body, keep_code)]
 
 
 def sentences(text: str) -> list:
@@ -180,11 +185,12 @@ def placeholder_problems(body: str, words: dict) -> list:
     """Template placeholder text left in ``body``: a bracketed ``[ ... ]`` that is not a link or checkbox, or an old instruction string."""
     problems = []
     raw = marker_block("review").sub("", body)
+    prose = INLINE_CODE.sub("", FENCE.sub("", raw))
     for needle in words["placeholder_strings"]:
-        hit = re.search(rf"\b{re.escape(needle)}\b", raw) if len(needle) <= 4 else re.search(re.escape(needle), raw, re.I)
+        hit = re.search(rf"\b{re.escape(needle)}\b", prose) if len(needle) <= 4 else re.search(re.escape(needle), prose, re.I)
         if hit:
             problems.append(f"template placeholder text left in: {needle!r}")
-    text = INLINE_CODE.sub("", COMMENT.sub("", FENCE.sub("", raw)))
+    text = COMMENT.sub("", prose)
     for m in BRACKET.finditer(text):
         inner = m.group(1)
         if inner in (" ", "x", "X") or inner.startswith("^"):
@@ -229,14 +235,8 @@ def first_summary_sentence(body: str, words: Optional[dict] = None) -> Optional[
     section = sections(body).get("summary")
     if section is None:
         return None
-    text = strip_unlinted(section, words)
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith(("#", "|", "![", "<")):
-            continue
-        item = ITEM.match(line)
-        stripped = item.group(1) if item else stripped
-        found = sentences(re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", stripped))
+    for _, unit in units(strip_unlinted(section, words), keep_code=True):
+        found = sentences(unit)
         if found:
             return found[0]
     return None
@@ -252,10 +252,13 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
     for name in ("summary", "tests"):
         if name not in found:
             errors.append(f"missing section: ## {name.capitalize()}")
-        elif not plain(strip_unlinted(found[name], words)):
+        elif not re.search(r"\w", plain(strip_unlinted(found[name], words))):
             errors.append(f"empty section: ## {name.capitalize()}")
         else:
             visible[name] = strip_unlinted(found[name], words)
+    for heading in HEADING.finditer(strip_unlinted(body, words)):
+        if heading.group(1).strip().lower() not in ALLOWED_SECTIONS:
+            errors.append(f"extra section: ## {heading.group(1).strip()}; a body has only Summary, Tests and Evidence")
     errors += placeholder_problems(body, words)
     first = first_summary_sentence(body, words)
     if first:
@@ -268,6 +271,9 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
     for kind, text in units(visible.get("summary", "")):
         if kind == "para" and len(sentences(text)) > MAX_PARAGRAPH_SENTENCES:
             errors.append(f"a Summary paragraph has {len(sentences(text))} sentences; the limit is {MAX_PARAGRAPH_SENTENCES}")
+    count = sum(len(sentences(unit)) for _, unit in units(visible.get("summary", "")))
+    if "summary" in visible and not MIN_SUMMARY_SENTENCES <= count <= MAX_SUMMARY_SENTENCES:
+        warnings.append(f"Summary has {count} sentences; aim for {MIN_SUMMARY_SENTENCES} to {MAX_SUMMARY_SENTENCES}")
     for name, text in visible.items():
         for kind, unit in units(text):
             limit = MAX_ITEM_WORDS if kind == "item" else MAX_PROSE_WORDS
@@ -404,9 +410,11 @@ def main(argv: Optional[Sequence] = None) -> int:
         if not first:
             print("error: no Summary sentence", file=sys.stderr)
             return 1
-        title = first.rstrip().rstrip(".").strip()
-        if len(title) > MAX_TITLE:
-            print(f"error: the first Summary sentence is {len(title)} characters; the limit is {MAX_TITLE}", file=sys.stderr)
+        title = first.rstrip().rstrip(".!?").strip()
+        problems = title_problems(title)
+        if problems:
+            for line in problems:
+                print(f"error: {line}", file=sys.stderr)
             return 1
         print(title)
         return 0

@@ -213,7 +213,7 @@ class BodyTests(unittest.TestCase):
     def test_unlinted_regions_are_skipped(self):
         """Fails if: text in details, a code fence, an HTML comment or a marker block is style-linted."""
         bad = "This is robust and then it was cleared by the app."
-        text = (body() + f"\n<details><summary>More</summary>\n\n{bad}\n\n</details>\n\n```\n{bad}\n```\n\n<!-- {bad} -->\n"
+        text = (body("Pages load faster. They use a cache.") + f"\n<details><summary>More</summary>\n\n{bad}\n\n</details>\n\n```\n{bad}\n```\n\n<!-- {bad} -->\n"
                 + f"<!-- sh-status:start -->\n{bad}\n<!-- sh-status:end -->\n<!-- review:start -->\n{bad}\n<!-- review:end -->\n")
         self.assertEqual(warnings_of(text), [])
         self.assertEqual(errors_of(text), [])
@@ -222,6 +222,63 @@ class BodyTests(unittest.TestCase):
         """Fails if: a '## Tests' line inside a code fence satisfies the Tests section."""
         text = "## Summary\nIt works.\n\n```\n## Tests\n- x\n```\n"
         self.assertTrue(any("missing section: ## Tests" in p for p in errors_of(text)))
+
+
+class ReviewRound1Tests(unittest.TestCase):
+    def test_extra_visible_sections_are_errors(self):
+        """Fails if: a body with a visible 'Why and how (for engineers)' or 'Checklist' section passes body-check."""
+        text = body("It works now. It is faster.") + "\n## Why and how (for engineers)\nDetails.\n\n## Checklist\n- [ ] done\n"
+        problems = errors_of(text)
+        self.assertTrue(any("Why and how" in p for p in problems))
+        self.assertTrue(any("Checklist" in p for p in problems))
+
+    def test_extra_sections_inside_exempt_regions_are_fine(self):
+        """Fails if: a '##' heading inside details, a fence, a comment or a marker block is refused, or Evidence is."""
+        text = (body("It works now. It is faster.") + "\n## Evidence\n![a](a.png)\n\n<details><summary>x</summary>\n\n## Notes\n\n</details>\n\n"
+                "```\n## Code\n```\n\n<!-- ## Hidden -->\n<!-- sh-status:start -->\n## Status\n<!-- sh-status:end -->\n")
+        self.assertEqual(errors_of(text), [])
+
+    def test_wrapped_first_sentence_is_read_whole(self):
+        """Fails if: a Summary sentence wrapped over two lines is cut at the break, or its label on line two is missed."""
+        text = body("Checks on a pull request now take\nabout 19 minutes in Phase 4. It helps.")
+        self.assertEqual(pr_text.first_summary_sentence(text), "Checks on a pull request now take about 19 minutes in Phase 4.")
+        self.assertTrue(any("internal label" in p for p in errors_of(text)))
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "b.md"
+            path.write_text(body("Tiles keep their size when you\nrotate the phone. It helps."), encoding="utf-8")
+            self.assertEqual(run_cli("title-from", str(path)), (0, "Tiles keep their size when you rotate the phone\n", ""))
+
+    def test_title_from_prints_only_a_passing_title_without_emphasis(self):
+        """Fails if: title-from prints a title that title-check refuses, keeps '**', or leaves a trailing '?' or '!'."""
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "b.md"
+            path.write_text(body("Pages: the **new** layout, with tiles, wins. It helps."), encoding="utf-8")
+            code, out, err = run_cli("title-from", str(path))
+            self.assertEqual((code, out), (1, ""))
+            self.assertIn("error:", err)
+            path.write_text(body("The **new** layout keeps tiles in place! It helps."), encoding="utf-8")
+            self.assertEqual(run_cli("title-from", str(path))[1], "The new layout keeps tiles in place\n")
+
+    def test_code_fences_and_alerts_are_not_placeholders(self):
+        """Fails if: TODO in a code span or fence, a GitHub alert, or a reference link is read as placeholder text."""
+        text = body("Tiles keep size. See [the note][ref] for why.\n\n> [!NOTE]\n> The `TODO` marker stays.\n\n```\nTODO\n```",
+                    "- unit (tools): checks (pass)")
+        self.assertEqual(errors_of(text), [])
+        self.assertTrue(errors_of(body("TODO write this. It helps.")))
+
+    def test_tests_section_without_words_is_empty(self):
+        """Fails if: a Tests section of a bare dash or empty bullets counts as filled."""
+        for tests in ("-", "- \n-", "* "):
+            with self.subTest(tests=tests):
+                self.assertTrue(any("empty section: ## Tests" in p for p in errors_of(body(tests=tests))))
+
+    def test_summary_sentence_count_is_a_warning(self):
+        """Fails if: 1 or 5 Summary sentences give no warning, 2 to 4 give one, or it is an error."""
+        for count, warns in ((1, True), (2, False), (4, False), (5, True)):
+            text = body(" ".join(f"Point {i} holds." for i in range(count)))
+            with self.subTest(count=count):
+                self.assertEqual(any("Summary has" in w for w in warnings_of(text)), warns)
+                self.assertEqual(errors_of(text), [])
 
 
 class ComposeTests(unittest.TestCase):
