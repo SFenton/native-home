@@ -365,6 +365,9 @@ class ArmTests(unittest.TestCase):
         plain = pr_land.owner_recipe("7", owned)
         self.assertEqual(len(plain), 4)
         heads = [("75", "1" * 40), ("78", "2" * 40), ("80", "3" * 40)]
+        patcher = mock.patch.object(pr_land, "fetch_missing_heads", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         contains = {("1" * 40, self.HEAD), ("2" * 40, self.HEAD), (self.HEAD, "3" * 40)}
         with mock.patch.object(pr_land, "open_pr_heads", return_value=heads[:2]), \
                 mock.patch.object(pr_land, "is_ancestor", side_effect=lambda a, b, repo=None: (a, b) in contains):
@@ -374,10 +377,63 @@ class ArmTests(unittest.TestCase):
         with mock.patch.object(pr_land, "open_pr_heads", return_value=heads[2:]), \
                 mock.patch.object(pr_land, "is_ancestor", side_effect=lambda a, b, repo=None: (a, b) in contains):
             inside = pr_land.owner_recipe("7", owned)
-        self.assertEqual(inside, ["do not merge; included in #80"])
+        self.assertEqual(inside, ["do not merge; included in #80; merge #80 instead"])
         with mock.patch.object(pr_land, "open_pr_heads", return_value=heads), mock.patch.object(pr_land, "is_ancestor", return_value=False):
             self.assertEqual(pr_land.owner_recipe("7", owned), plain)
         with mock.patch.object(pr_land, "open_pr_heads", return_value=[]):
+            self.assertEqual(pr_land.owner_recipe("7", owned), plain)
+
+    def test_a_containing_head_missing_locally_is_fetched_in_one_hardened_fetch(self):
+        """Fails if: a containing head this clone lacks is never fetched (so the full commands print), the fetch is not one `git fetch`
+        of the missing refs/pull refs through `_git`, or a failed fetch changes today's output."""
+        owned = self.info(files=self.OWNED_FILES, reviewDecision="REVIEW_REQUIRED")
+        plain = pr_land.owner_recipe("7", owned)
+        with TemporaryDirectory() as tmp:
+            def git(*args, cwd=tmp):
+                return subprocess.run(["git", "-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", *args], capture_output=True, text=True, check=True).stdout.strip()
+            git("init", "-q", "-b", "main", tmp)
+            git("commit", "-q", "--allow-empty", "-m", "a")
+            base = git("rev-parse", "HEAD")
+            git("commit", "-q", "--allow-empty", "-m", "b")
+            tip = git("rev-parse", "HEAD")
+            git("reset", "-q", "--hard", base)
+            heads = [("9", tip), ("10", "e" * 40)]
+            calls = []
+            real_git = pr_land._git
+
+            def fake_git(repo, *args):
+                calls.append(args)
+                if args[0] == "fetch":
+                    return mock.Mock(returncode=0, stdout="", stderr="")
+                return real_git(repo, *args)
+            # tip exists here, "e"*40 does not: only #10 is missing
+            with mock.patch.object(pr_land, "_git", side_effect=fake_git):
+                self.assertTrue(pr_land.fetch_missing_heads(heads, Path(tmp)))
+            fetches = [c for c in calls if c[0] == "fetch"]
+            self.assertEqual(fetches, [("fetch", "-q", "origin", "refs/pull/10/head")])
+            calls.clear()
+            with mock.patch.object(pr_land, "_git", side_effect=lambda repo, *a: mock.Mock(returncode=1, stdout="", stderr="no")):
+                self.assertFalse(pr_land.fetch_missing_heads(heads, Path(tmp)))
+            with mock.patch.object(pr_land, "_git", side_effect=OSError("no git")):
+                self.assertFalse(pr_land.fetch_missing_heads(heads, Path(tmp)))
+            self.assertTrue(pr_land.fetch_missing_heads([("9", tip)], Path(tmp)))
+        # end to end: a containing head absent until the fetch lands says "do not merge"; a failed fetch prints today's output
+        present = {"landed": False}
+
+        def ancestor(a, b, repo=None):
+            return present["landed"] and (a, b) == (self.HEAD, "3" * 40)
+
+        def fetch(heads, repo=None):
+            present["landed"] = True
+            return True
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=[("80", "3" * 40)]), \
+                mock.patch.object(pr_land, "is_ancestor", side_effect=ancestor), \
+                mock.patch.object(pr_land, "fetch_missing_heads", side_effect=fetch):
+            self.assertEqual(pr_land.owner_recipe("7", owned), ["do not merge; included in #80; merge #80 instead"])
+        present["landed"] = False
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=[("80", "3" * 40)]), \
+                mock.patch.object(pr_land, "is_ancestor", side_effect=ancestor), \
+                mock.patch.object(pr_land, "fetch_missing_heads", return_value=False):
             self.assertEqual(pr_land.owner_recipe("7", owned), plain)
 
     def test_open_pr_heads_is_one_gh_call_and_any_failure_is_no_overlap(self):

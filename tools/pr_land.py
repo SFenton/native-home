@@ -325,9 +325,21 @@ def open_pr_heads(number: str) -> List[Tuple[str, str]]:
 
 def is_ancestor(older: str, newer: str, repo: Optional[Path] = None) -> bool:
     """True when commit ``older`` is an ancestor of (or equal to) ``newer``. A commit this clone lacks counts as no (git exits 128)."""
-    cmd = ["git", "-C", str(repo or Path(__file__).resolve().parent.parent), "merge-base", "--is-ancestor", older, newer]
     try:
-        return subprocess.run(cmd, capture_output=True).returncode == 0
+        return _git(repo or Path(__file__).resolve().parent.parent, "merge-base", "--is-ancestor", older, newer).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def fetch_missing_heads(heads: List[Tuple[str, str]], repo: Optional[Path] = None) -> bool:
+    """Fetch ``refs/pull/M/head`` for every ``(M, sha)`` whose commit this clone lacks, in one hardened ``git fetch``. True when nothing
+    was missing or the fetch worked; False when it failed (the caller then judges with what it has, as before the fetch existed)."""
+    where = repo or Path(__file__).resolve().parent.parent
+    try:
+        missing = [n for n, sha in heads if _git(where, "cat-file", "-e", f"{sha}^{{commit}}").returncode != 0]
+        if not missing:
+            return True
+        return _git(where, "fetch", "-q", "origin", *[f"refs/pull/{n}/head" for n in missing]).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -339,7 +351,9 @@ def stack_overlap(number: str, head: str) -> Tuple[List[str], List[str]]:
     on the same head count as carried by each other, not as included."""
     carried: List[str] = []
     included: List[str] = []
-    for other, other_head in open_pr_heads(number):
+    others = open_pr_heads(number)
+    fetch_missing_heads(others)  # a head not fetched here is judged "not contained", today's output
+    for other, other_head in others:
         if other_head == head:
             carried.append(other)
         elif is_ancestor(other_head, head):
@@ -367,7 +381,7 @@ def owner_recipe(number: str, info: Dict[str, Any]) -> List[str]:
     head = str(info.get("headRefOid") or "")
     carried, included = stack_overlap(number, head)
     if included:
-        return [f"do not merge; included in {_hashed(included)}"]
+        return [f"do not merge; included in {_hashed(included)}; merge {_hashed(included)} instead"]
     why = "; ".join(pr_blockers.blockers(info))
     note = [f"carries {_hashed(carried)}; they close as included"] if carried else []
     return [*note, f"owner-only: #{number} touches CODEOWNERS paths ({why}); the owner approves this pull request on GitHub (their review of this exact head) and merges it there; the same steps as commands (agents never run these):",
