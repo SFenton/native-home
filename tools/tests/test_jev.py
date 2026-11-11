@@ -769,8 +769,8 @@ class SectionsMeasureTests(Isolated):
                                 for n in body["questions"]}, "usage": {"input_tokens": 1000}}
         labels = Path(self.tmp.name) / "labels.json"
         labels.write_text(json.dumps({"pairs": [
-            {"file": ".agents/workflow/ci.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]},
-            {"file": ".agents/workflow/ci.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]}]}))
+            {"file": ".agents/platforms/apple/testflight.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]},
+            {"file": ".agents/platforms/apple/testflight.md", "question": "Who signs the app archive?", "any_of": ["Apple Distribution"]}]}))
         with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "k"}):
             result = measure.run_sections(labels, transport=send)
             self.assertEqual((result["pairs"], result["jev"]["hit@1"]), (2, 1.0))

@@ -12,7 +12,9 @@ description: Orders the work for one reported bug or feature, from pinning inten
    2. Rung 0: custom machinery needs the system-API note ([change-loop](../../workflow/change-loop.md#rung-0), [system-api-audit](../../design/apple/system-api-audit.md)).
    3. The registered [pattern](../../patterns/README.md), then the same behaviour elsewhere in the app, then the web dashboard, then the HIG with the section cited.
    Fix the canonical component, never only the reported screen.
-3. **Reproduce** on the reported device family; the issue's diagnostics give device, window size, text size and server version. Use a unit test, a hosted render, or the app on a simulator against the live server (`tools/ios_uitest.sh --env shell`). A server-side cause is fixed on the server with `tools/ha_change.py` ([ha-operations](../../platforms/apple/ha-operations.md)), not patched around in the app.
+3. **Reproduce** on the reported device family; the issue's diagnostics give device, window size, text size and server version. Use a unit test, a hosted render, or the app on a simulator against the live server (`tools/ios_uitest.sh --env shell`).
+   - Pick the instrument by the class of the report, cheapest first: a log or unit test for state and logic, a trace or log with timestamps for timing and ordering, a screenshot or recording for look and motion.
+   - A server-side cause is fixed on the server with `tools/ha_change.py` ([ha-operations](../../platforms/apple/ha-operations.md)), not patched around in the app.
 4. **Sweep the blast radius.** Check every consumer of the changed behaviour on iPhone, iPhone Duo and iPad; fix it or say why it is out of scope.
 5. **Test the behaviour shift.** Unit tests for logic; a UX journey and an accessibility audit on each affected device family ([testing](../../testing/apple/README.md)).
 6. **Record a rule only when one changed.** Apply the scope test ([docs-conventions](../../workflow/docs-conventions.md#scope-test)); a broad change rewrites the rule in its pattern, page or control doc. Everything else goes in the pull request description.
