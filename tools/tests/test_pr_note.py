@@ -1,4 +1,28 @@
-"""``tools/pr_note.py`` against a fake ``gh`` that keeps a PR (body and comments) in a JSON file."""
+"""``tools/pr_note.py`` against a fake ``gh`` that keeps a PR (body and comments) in a JSON file.
+
+What a queued note records and when it is sent (``BranchOwnershipTests`` has one test per cell that can occur)::
+
+    target named by            no PR yet                    gh error on post             gh error on edit
+    -------------------------  ---------------------------  ---------------------------  ---------------------------
+    --pr N                     cannot occur (N exists)      records #N (+ head branch    records #N; flush applies
+                                                            if readable); sent to #N     the edit to #N
+    --branch B                 records branch B; sent to    records the PR found through records that PR's number
+                               the PR whose head is B       B (number, head B)           and head B
+    current branch has a PR    cannot occur                 records that PR's number     records that PR's number
+                                                            (never the writer's branch)
+    ledger, one branch         records the ledger's only    records the open PR found    records that PR's number
+                               branch (the writer's branch  through the ledger
+                               is not a ledger branch)
+    ledger, several branches   records the writer's branch  cannot occur (the lookup is  cannot occur
+                               if it is a ledger branch,    ambiguous and queues
+                               else nothing: kept, reported instead, same record)
+    nothing known              records nothing: kept and    (the current branch's PR is  (same)
+                               reported on every flush      the row above)
+
+A note is sent when its recorded number is the target PR or its recorded branch is the target's head branch; a note with neither
+goes only when the ledger lists exactly one branch. Every ``flush``, ``init`` and ``post`` ends with one stderr line per note left
+queued, naming its kind, round, recorded target and why it was not sent.
+"""
 
 import ast
 import io
@@ -23,7 +47,7 @@ state_path = os.environ["FAKE_STATE"]
 st = json.load(open(state_path))
 args = sys.argv[1:]
 open(os.environ["FAKE_LOG"], "a").write(json.dumps(args) + "\n")
-if st.get("fail"):
+if st.get("fail") or any(k in args for k in st.get("fail_on", [])):
     sys.stderr.write("HTTP 500 boom"); sys.exit(1)
 def save(): json.dump(st, open(state_path, "w"))
 if args[:2] == ["pr", "view"] and args[-1] == "headRefName":
@@ -85,7 +109,11 @@ class Base(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, env)
         patcher.start()
         self.addCleanup(patcher.stop)
-        for target, value in (("NOTES_DIR", tmp / "notes"), ("ROOT", tmp), ("current_branch", lambda: "agents/x")):
+        real_ledger = pr_note.ledger_branches
+        # without a ledger folder named, the task's ledger lists this one branch (the writer's checkout)
+        ledger = lambda task, ledger_dir=None: real_ledger(task, ledger_dir) if ledger_dir else ["agents/x"]  # noqa: E731
+        for target, value in (("NOTES_DIR", tmp / "notes"), ("ROOT", tmp), ("current_branch", lambda: "agents/x"),
+                              ("ledger_branches", ledger)):
             p = mock.patch.object(pr_note, target, value)
             p.start()
             self.addCleanup(p.stop)
@@ -197,7 +225,7 @@ class QueueTests(Base):
         self.set_state(fail=True)
         code, _out, err = self.post("verdict", "**D** · pass")
         self.assertEqual(code, 0)
-        self.assertEqual(len(err.strip().splitlines()), 1)
+        self.assertEqual(len(err.strip().splitlines()), 2)  # the warning and the line for the queued note
         self.assertEqual(len(list((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))), 1)
 
 
@@ -779,61 +807,219 @@ class AppFailureTests(Base):
 
 
 class BranchOwnershipTests(Base):
-    """A queued note goes only to the PR of the branch it was written from."""
+    """A queued note goes only to the PR it was written for, and every note left queued is reported (see the module table)."""
 
-    def two_lanes(self):
-        """Two lanes of one task queue a note each before their PRs exist."""
-        self.set_state(pr=None)
-        with mock.patch.object(pr_note, "current_branch", lambda: "agents/lane-a"):
-            self.post("research", "Lane A note.", "1")
-        with mock.patch.object(pr_note, "current_branch", lambda: "agents/lane-b"):
-            self.post("build", "Lane B note.", "1")
-        self.set_state(pr=7, heads={"7": "agents/lane-a", "8": "agents/lane-b"})
+    def queue_dir(self, task="T-x"):
+        return pr_note.NOTES_DIR / task / "queue"
+
+    def notes(self, task="T-x"):
+        return [json.loads(f.read_text()) for f in sorted(self.queue_dir(task).glob("*.json"))]
 
     def names(self, task="T-x"):
-        return sorted(p.name.split("-")[1] for p in (pr_note.NOTES_DIR / task / "queue").glob("*.json"))
+        return [n["kind"] for n in self.notes(task)]
 
-    def test_each_pull_request_gets_only_its_own_queued_note(self):
-        """Fails if: a flush for one lane's PR sends the other lane's queued note to it, or removes it from the queue."""
-        self.two_lanes()
-        self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-x", "--pr", "7")[1])
-        self.assertEqual([re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]], ["research"])
-        self.assertEqual(self.names(), ["build"])
-        self.set_state(comments=[])
-        self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-x", "--pr", "8")[1])
-        self.assertEqual([re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]], ["build"])
+    def ledger(self, branches):
+        return mock.patch.object(pr_note, "ledger_branches", lambda task, ledger_dir=None: list(branches))
+
+    def writer(self, branch):
+        return mock.patch.object(pr_note, "current_branch", lambda: branch)
+
+    def flush(self, pr):
+        return self.run_cli("flush", "--task", "T-x", "--pr", str(pr))
+
+    # row: --pr N
+    def test_pr_flag_with_a_gh_error_on_post_records_that_pr_not_the_writers_branch(self):
+        """Fails if: a post with ``--pr 8`` that hits a gh error is queued with the writer's checkout branch (a branch that is no
+        PR's head) so the next flush never sends it. The reviewer's reproduction."""
+        self.set_state(pr=None, heads={"8": "agents/lane-b"}, fail_on=["comment", "headRefName"])
+        with self.writer("agents/orchestrator"), self.ledger(["agents/lane-a", "agents/lane-b"]):
+            code, _out, err = self.post("build", "Built.", "1", "--pr", "8")
+        note = self.notes()[0]
+        self.assertEqual((code, note["pr"], note["branch"]), (0, 8, ""))
+        self.assertIn("queued build round 1 for #8 not sent", err)
+        self.set_state(fail_on=[], pr=8)
+        with self.ledger(["agents/lane-a", "agents/lane-b"]):
+            self.assertIn("flushed 1", self.flush(8)[1])
+        self.assertEqual(self.names(), [])
+        self.assertEqual(len(self.get()["comments"]), 1)
+
+    def test_pr_flag_with_a_gh_error_on_edit_records_that_pr_and_flush_applies_the_edit(self):
+        """Fails if: an edit that failed with ``--pr 8`` is dropped, queued for the writer's branch, or applied to another PR."""
+        self.set_state(pr=8, heads={"8": "agents/lane-b"})
+        with self.writer("agents/orchestrator"):
+            self.post("build", "First.", "1", "--pr", "8")
+            self.set_state(fail_on=["PATCH", "headRefName"])
+            self.post("build", "Second.", "1", "--pr", "8")
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(8, "")])
+        self.set_state(fail_on=[])
+        with self.writer("agents/orchestrator"):
+            self.assertIn("flushed 1", self.flush(8)[1])
+        self.assertIn("Second.", self.get()["comments"][0]["body"])
         self.assertEqual(self.names(), [])
 
-    def test_the_branch_flag_is_what_is_recorded(self):
-        """Fails if: a note queued with ``--branch`` records the writer's current branch instead."""
+    # row: --branch B
+    def test_branch_flag_with_no_pr_yet_records_that_branch(self):
+        """Fails if: a note queued with ``--branch B`` before B's PR exists records the writer's branch instead, or goes to a PR
+        whose head is another branch."""
         self.set_state(pr=None)
-        self.run_cli("post", "build", "--task", "T-x", "--round", "1", "--branch", "agents/other", "--body-file", self.body_file("x"))
-        note = json.loads(next((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json")).read_text())
-        self.assertEqual(note["branch"], "agents/other")
+        with self.writer("agents/orchestrator"):
+            self.run_cli("post", "build", "--task", "T-x", "--round", "1", "--branch", "agents/other",
+                         "--body-file", self.body_file("x"))
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(None, "agents/other")])
+        self.set_state(pr=7, heads={"7": "agents/not-other"})
+        _code, out, err = self.flush(7)
+        self.assertIn("flushed 0", out)
+        self.assertIn("recorded for branch agents/other; this is #7 (agents/not-other)", err)
+        self.set_state(heads={"7": "agents/other"})
+        self.assertIn("flushed 1", self.flush(7)[1])
 
-    def test_a_legacy_note_without_a_branch_goes_only_with_exactly_one_ledger_branch(self):
-        """Fails if: a note with no recorded branch is sent although the ledger lists two branches (and is not reported), or is
-        held back when the ledger lists exactly one."""
+    def test_branch_flag_with_a_gh_error_on_post_or_edit_records_the_pr_found_through_it(self):
+        """Fails if: a note queued after a gh error with ``--branch B`` (PR found through B) records no PR number, or B's PR does not
+        get it on the next flush (post and edit)."""
+        self.set_state(pr=None, branches={"agents/b": 8}, heads={"8": "agents/b"}, fail_on=["comment", "headRefName"])
+        with self.writer("agents/orchestrator"):
+            self.run_cli("post", "build", "--task", "T-x", "--round", "1", "--branch", "agents/b", "--body-file", self.body_file("One."))
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(8, "agents/b")])
+        self.set_state(fail_on=[])
+        self.assertIn("flushed 1", self.flush(8)[1])
+        self.set_state(fail_on=["PATCH"])
+        self.run_cli("post", "build", "--task", "T-x", "--round", "1", "--branch", "agents/b", "--body-file", self.body_file("Two."))
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(8, "agents/b")])
+        self.set_state(fail_on=[])
+        self.assertIn("flushed 1", self.flush(8)[1])
+        self.assertIn("Two.", self.get()["comments"][0]["body"])
+
+    # row: the current branch has a PR
+    def test_current_branch_pr_with_a_gh_error_records_that_prs_number(self):
+        """Fails if: a note queued after a gh error for the current branch's PR (post or edit) records the branch name only or
+        nothing, so it is stranded when the head cannot be read."""
+        self.set_state(pr=7, fail_on=["comment", "headRefName"])
+        self.post("build", "One.", "1")
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(7, "")])
+        self.set_state(fail_on=[])
+        self.assertIn("flushed 1", self.flush(7)[1])
+        self.set_state(fail_on=["PATCH", "headRefName"])
+        self.post("build", "Two.", "1")
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(7, "")])
+        self.set_state(fail_on=[])
+        self.assertIn("flushed 1", self.flush(7)[1])
+        self.assertIn("Two.", self.get()["comments"][0]["body"])
+
+    # row: ledger, one branch
+    def test_ledger_single_branch_no_pr_yet_records_the_ledger_branch_not_the_writers(self):
+        """Fails if: a note queued before the lane's PR opens, from a checkout whose branch is not a ledger branch, records that
+        checkout's branch (and is never sent) instead of the ledger's only branch."""
+        self.set_state(pr=None)
+        with self.writer("agents/orchestrator"), self.ledger(["agents/lane"]):
+            self.post("build", "Early.", "1")
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(None, "agents/lane")])
+        self.set_state(pr=7, heads={"7": "agents/lane"})
+        with self.writer("agents/orchestrator"), self.ledger(["agents/lane"]):
+            self.assertIn("flushed 1", self.flush(7)[1])
+
+    def test_ledger_single_branch_pr_with_a_gh_error_records_the_pr_found_through_it(self):
+        """Fails if: a note queued after a gh error, with the PR found through the ledger's only branch, records no PR number."""
+        self.set_state(pr=None, branches={"agents/lane": 9}, fail_on=["comment", "headRefName"])
+        with self.writer("agents/orchestrator"), self.ledger(["agents/lane"]):
+            self.post("build", "One.", "1")
+        self.assertEqual([n["pr"] for n in self.notes()], [9])
+        self.set_state(fail_on=[], heads={"9": "agents/lane"})
+        with self.writer("agents/orchestrator"), self.ledger(["agents/lane"]):
+            self.assertIn("flushed 1", self.flush(9)[1])
+
+    # row: ledger, several branches
+    def test_ledger_several_branches_record_the_writers_branch_only_when_it_is_a_ledger_branch(self):
+        """Fails if: with several ledger branches each lane's note is not sent to its own PR only, or a writer outside the ledger
+        gets a branch recorded (it must be kept and reported instead)."""
+        self.set_state(pr=None)
+        both = ["agents/lane-a", "agents/lane-b"]
+        with self.ledger(both):
+            with self.writer("agents/lane-a"):
+                self.post("research", "Lane A note.", "1")
+            with self.writer("agents/lane-b"):
+                self.post("build", "Lane B note.", "1")
+            with self.writer("agents/orchestrator"):
+                _code, _out, err = self.post("review", "From nowhere.", "1")
+            self.assertEqual([(n["kind"], n["branch"]) for n in self.notes()],
+                             [("research", "agents/lane-a"), ("build", "agents/lane-b"), ("review", "")])
+            self.assertIn("queued review round 1 for no target not sent", err)
+            self.set_state(pr=7, heads={"7": "agents/lane-a", "8": "agents/lane-b"})
+            _code, out, err = self.flush(7)
+            self.assertIn("flushed 1", out)
+            self.assertEqual([re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]], ["research"])
+            self.assertEqual(self.names(), ["build", "review"])
+            self.assertIn("queued build round 1 for branch agents/lane-b not sent", err)
+            self.assertIn("queued review round 1 for no target not sent", err)
+            self.assertIn("task ledger lists 2 branches", err)
+            self.set_state(comments=[])
+            self.assertIn("flushed 1", self.flush(8)[1])
+            self.assertEqual(self.names(), ["review"])
+
+    def test_ledger_several_open_prs_queue_with_the_writers_branch_and_a_message(self):
+        """Fails if: an ambiguous ledger (two open PRs, none for the current branch) sends the note to one of them or queues it
+        silently."""
+        self.set_state(pr=None, branches={"agents/lane-a": 7, "agents/lane-b": 8})
+        with self.ledger(["agents/lane-a", "agents/lane-b"]), self.writer("agents/lane-b"):
+            _code, _out, err = self.post("build", "Which one?", "1")
+        self.assertIn("pass --pr or --branch", err)
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(None, "agents/lane-b")])
+        self.assertEqual(self.get()["comments"], [])
+
+    # row: nothing known
+    def test_nothing_known_keeps_the_note_and_reports_it_on_every_flush(self):
+        """Fails if: a note with no pull request, no branch and no usable ledger is sent anywhere, or left queued without a line
+        saying why."""
+        self.set_state(pr=None)
+        with self.ledger([]), self.writer("agents/orchestrator"):
+            _code, _out, err = self.post("build", "Lost?", "1")
+        self.assertEqual([(n["pr"], n["branch"]) for n in self.notes()], [(None, "")])
+        self.assertIn("queued build round 1 for no target not sent", err)
+        self.set_state(pr=7)
+        with self.ledger([]):
+            for _ in range(2):
+                _code, out, err = self.flush(7)
+                self.assertIn("flushed 0", out)
+                self.assertIn("task ledger lists 0 branches", err)
+        self.assertEqual(self.get()["comments"], [])
+
+    # every command reports what it leaves
+    def test_init_and_post_report_the_notes_they_leave_queued(self):
+        """Fails if: ``init`` or ``post`` finishes with another lane's note still queued and no stderr line for it."""
+        self.set_state(pr=None)
+        with self.ledger(["agents/lane-a", "agents/lane-b"]), self.writer("agents/lane-b"):
+            self.post("build", "Lane B.", "1")
+        self.set_state(pr=7, heads={"7": "agents/lane-a"})
+        with self.ledger(["agents/lane-a", "agents/lane-b"]):
+            _code, _out, err = self.run_cli("init", "--task", "T-x", "--pr", "7")
+            self.assertIn("queued build round 1 for branch agents/lane-b not sent", err)
+            _code, _out, err = self.run_cli("post", "research", "--task", "T-x", "--round", "1", "--pr", "7",
+                                            "--body-file", self.body_file("Mine."))
+            self.assertIn("queued build round 1 for branch agents/lane-b not sent", err)
+
+    def test_a_legacy_note_without_a_target_goes_only_with_exactly_one_ledger_branch(self):
+        """Fails if: a note with nothing recorded is sent although the ledger lists two branches (or not reported), or is held back
+        when the ledger lists exactly one."""
         self.set_state(pr=None)
         self.post("research", "Old note.", "1")
-        f = next((pr_note.NOTES_DIR / "T-x" / "queue").glob("*.json"))
+        f = next(self.queue_dir().glob("*.json"))
         note = json.loads(f.read_text())
         note.pop("branch")
+        note.pop("pr")
         f.write_text(json.dumps(note))
         self.set_state(pr=7)
-        with mock.patch.object(pr_note, "ledger_branches", return_value=["agents/a", "agents/b"]):
-            _code, out, err = self.run_cli("flush", "--task", "T-x", "--pr", "7")
+        with self.ledger(["agents/a", "agents/b"]):
+            _code, out, err = self.flush(7)
         self.assertIn("flushed 0", out)
-        self.assertEqual(err.count("no recorded branch"), 1)
+        self.assertEqual(err.count("task ledger lists 2 branches"), 1)
         self.assertEqual(self.names(), ["research"])
-        with mock.patch.object(pr_note, "ledger_branches", return_value=["agents/a"]):
-            self.assertIn("flushed 1", self.run_cli("flush", "--task", "T-x", "--pr", "7")[1])
+        with self.ledger(["agents/a"]):
+            self.assertIn("flushed 1", self.flush(7)[1])
 
     def test_the_single_open_ledger_pull_request_is_named_when_used(self):
         """Fails if: the ledger's only open PR is used silently, without saying which one and why."""
         self.set_state(pr=None, branches={"agents/y": 9})
         err = io.StringIO()
-        with mock.patch.object(pr_note, "ledger_branches", return_value=["agents/y"]), redirect_stderr(err):
+        with self.ledger(["agents/y"]), redirect_stderr(err):
             self.assertEqual(pr_note.find_pr(None, None, "T-x"), 9)
         self.assertIn("using #9 (agents/y)", err.getvalue())
 
