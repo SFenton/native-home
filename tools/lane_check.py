@@ -6,10 +6,13 @@ check ran against an open PR; a ``git reset --soft origin/main`` squash reverted
 shared ``origin/main``; ``house_scan`` ran only at push time; ``core.hooksPath`` flipped between ``.githooks`` and an absolute path.
 
     python3 tools/lane_check.py start --task T --branch B --paths P...   # run with the lane worktree as the current directory (after lane_new.sh, before the Coder works)
-    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap]...   # no push; exit 1 on a failure
+    python3 tools/lane_check.py check [--base main] [--only hooks|scan|identity|revert|shape|jev|overlap]...   # no push; exit 1 on a failure
     python3 tools/lane_check.py squash [--dry-run]                       # soft-reset onto the recorded lane base, never origin/main
 
-``start`` fetches, records the base (the ``origin/main`` sha) in ``<git-dir>/lane-base`` (worktree-local, so another session's fetch
+``start`` first tests the commit identity git would use here (``git var GIT_AUTHOR_IDENT`` / ``GIT_COMMITTER_IDENT``, which includes git's
+fallback of local user and host) with the pre-push hook's own matcher; a hit exits 1 before anything is fetched or recorded, with no bypass
+flag (set ``user.name`` and ``user.email``; the triage runner does it in its clone). Without a loaded denylist it only notes that on stderr.
+Then ``start`` fetches, records the base (the ``origin/main`` sha) in ``<git-dir>/lane-base`` (worktree-local, so another session's fetch
 cannot move it) and appends it to ``<common-git-dir>/lane-bases.log`` (the previous lane's base is the last line of another lane). It
 then lists open PRs whose files match a declared path, and commits on ``origin/main`` since the previous lane's base (skipped when no other lane
 has started in this repository) that touch one; any hit exits 1 unless ``--ack-overlap "<reason>"`` (the reason is printed and recorded).
@@ -18,7 +21,8 @@ TASK BRANCH`` (a missing entry only prints a note); the base itself is not writt
 lane-base file carries the task id.
 
 ``check`` runs: ``hooks`` (``core.hooksPath`` resolves to this worktree's ``<toplevel>/.githooks``; nothing else passes), ``scan`` (``house_scan.py denylist``, the
-exit mapping ship.sh always had), ``revert`` (files the parent has changed since the lane base that HEAD puts back, the shape of a
+exit mapping ship.sh always had), ``identity`` (the effective identity again, and the author and committer of each commit of
+``origin/<base>..HEAD`` by the hook's ``commit_hits``; ``scan`` covers content only; output is roles and sha8, never an identity or a term), ``revert`` (files the parent has changed since the lane base that HEAD puts back, the shape of a
 squash over a moved base) and ``shape`` (advisory: one commit, parent equal to ``origin/<base>``, else the safe squash is printed),
 ``jev`` (``jev_ask.py sync --check``, so a stale generated question fails here and not at the push preflight or in ``test_jev``, plus the
 label-anchor check of ``test_labels_point_at_real_sections``: every ``tools/tests/fixtures/jev_section_labels.json`` pair must still find its
@@ -49,7 +53,7 @@ from typing import List, Optional, Sequence
 
 TOOLS = Path(__file__).resolve().parent
 NETWORK_TIMEOUT = 15.0  # seconds for each ``gh`` or ``git fetch`` call
-CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap")
+CHECKS = ("hooks", "scan", "identity", "revert", "shape", "jev", "overlap")
 
 
 class LaneError(Exception):
@@ -139,8 +143,60 @@ def commit_overlaps(paths: Sequence[str], since_base: Optional[str]) -> List[str
     return found
 
 
+#: ``start`` refusal: the effective identity hits the house denylist. Roles only; never the identity or a term.
+IDENTITY_START_MESSAGE = (
+    "the commit identity git would use here matches the house denylist (author, committer); every commit in this lane would be "
+    "refused at push. Set user.name and user.email for this repository (the runner does it in its clone), then run start again.")
+
+
+def identity_findings(base: str = "main", branch: bool = True) -> Optional[tuple]:
+    """``(roles, hits)`` of the commit identity against the house denylist, or None when no denylist is loaded (a note is printed).
+
+    ``roles`` lists ``author`` / ``committer`` when the identity git would use here (``git var GIT_AUTHOR_IDENT`` and
+    ``GIT_COMMITTER_IDENT``: environment, configuration, then git's fallback of local user and host) matches. ``hits`` lists
+    ``<sha8>:author`` for each commit of ``origin/<base>..HEAD`` whose author or committer matches (``branch``), by the pre-push hook's own
+    ``prepush_denylist.commit_hits`` over the same matcher, so there is no second copy of the matching rules. Neither holds an identity or a term.
+    """
+    patterns = load_tool("house_scan").load_denylist()
+    if not patterns:
+        print("lane_check: note: no house denylist is loaded; the commit identity was not tested", file=sys.stderr)
+        return None
+    hook = load_tool("prepush_denylist")
+    matcher = hook.Matcher(patterns)
+    roles = []
+    for role, var in (("author", "GIT_AUTHOR_IDENT"), ("committer", "GIT_COMMITTER_IDENT")):
+        ident = run(["git", "var", var], check=False).stdout  # fails when git has no identity at all: then no commit is possible either
+        if ident and matcher.text(ident):
+            roles.append(role)
+    hits: List[str] = []
+    if branch and run(["git", "rev-parse", "-q", "--verify", f"origin/{base}"], check=False).returncode == 0:
+        for sha in git("rev-list", f"origin/{base}..HEAD", check=False).split():
+            hits += [hit for hit in hook.commit_hits(sha, matcher) if hit.endswith(":author")]
+    return roles, hits
+
+
+def check_identity(base: str = "main") -> Optional[str]:
+    """None when neither the effective identity nor any commit of ``origin/<base>..HEAD`` carries a denylist hit in author or committer, else the reason."""
+    found = identity_findings(base)
+    if not found:
+        return None
+    roles, hits = found
+    reasons = []
+    if hits:
+        shown = ", ".join(hits[:8]) + (" ..." if len(hits) > 8 else "")
+        reasons.append(f"identity: {len(hits)} commit(s) carry a denylist hit in author or committer ({shown}). Rewrite them: "
+                       f"git rebase origin/{base} --exec 'git commit --amend --no-edit --reset-author', then record the review on the new head.")
+    if roles:
+        reasons.append("identity: " + IDENTITY_START_MESSAGE)
+    return " ".join(reasons) or None
+
+
 def cmd_start(args: argparse.Namespace) -> int:
-    """Fetch, record the base, print and gate on overlap."""
+    """Test the commit identity, fetch, record the base, print and gate on overlap."""
+    found = identity_findings(branch=False)  # first: a refused start fetches nothing and leaves no lane-base record
+    if found and found[0]:
+        print(f"lane_check: {IDENTITY_START_MESSAGE}", file=sys.stderr)
+        return 1
     run(["git", "fetch", "-q", "origin", "main"])
     base = git("rev-parse", "origin/main")
     log = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "lane-bases.log"
@@ -382,6 +438,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     if "hooks" in wanted and (why := check_hooks()):
         failures.append(why)
     if "scan" in wanted and (why := check_scan(args.base)):
+        failures.append(why)
+    if "identity" in wanted and (why := check_identity(args.base)):
         failures.append(why)
     if "revert" in wanted and (why := check_revert(args.base)):
         failures.append(why)

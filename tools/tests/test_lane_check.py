@@ -336,6 +336,112 @@ class ScanTests(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
 
+class IdentityTests(unittest.TestCase):
+    """The commit identity is tested against the house denylist at ``start`` and in ``check``, with the pre-push hook's own matcher."""
+
+    TERM = "zebracorn-marker"
+
+    def env(self, tmp, name=None, terms=None, denylist=True):
+        """ENV with a temp denylist (``terms``) and, when ``name`` is given, an effective identity built from it (the git fallback's stand-in)."""
+        deny = Path(tmp) / "deny.txt"
+        deny.write_text("\n".join(terms or [self.TERM]) + "\n")
+        deny.chmod(0o600)
+        env = {**fake_gh(tmp, []), "HOME": tmp, "HOUSE_SCAN_DENYLIST": str(deny if denylist else Path(tmp) / "missing.txt")}
+        if name:
+            env.update({"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": f"{name}@example.com",
+                        "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": f"{name}@example.com"})
+        return env
+
+    def lane_base(self, clone):
+        return Path(git(clone, "rev-parse", "--absolute-git-dir")) / "lane-base"
+
+    def branch_commit(self, clone, env, name="notes.txt"):
+        """A commit on ``agents/x`` made under ``env`` (its identity); returns the sha."""
+        git(clone, "switch", "-q", "-c", "agents/x")
+        (clone / name).write_text("n\n")
+        git(clone, "add", "-A")
+        subprocess.run(["git", "commit", "-q", "-m", "work"], cwd=clone, env=env, capture_output=True, text=True, check=True)
+        return git(clone, "rev-parse", "HEAD")
+
+    def test_start_refuses_when_the_effective_identity_hits_the_denylist(self):
+        """Fails if: `start` lets a lane begin with an identity the pre-push hook would refuse, writes a lane-base first, or prints the identity or a term."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "switch", "-q", "-c", "agents/x")
+            done = start(clone, self.env(tmp, self.TERM), "zzz/")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("author, committer", done.stderr)
+            self.assertFalse(self.lane_base(clone).exists())
+            self.assertNotIn(self.TERM, done.stdout + done.stderr)
+
+    def test_start_with_a_clean_identity_proceeds(self):
+        """Fails if: a clean identity is refused, or `start` stops recording the base."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "switch", "-q", "-c", "agents/x")
+            done = start(clone, self.env(tmp, "sfenton-agent"), "zzz/")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertTrue(self.lane_base(clone).exists())
+
+    def test_start_without_a_loaded_denylist_notes_and_proceeds(self):
+        """Fails if: a host without a denylist cannot start a lane, or the missing list passes silently."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "switch", "-q", "-c", "agents/x")
+            done = start(clone, self.env(tmp, self.TERM, denylist=False), "zzz/")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertIn("no house denylist is loaded", done.stderr)
+
+    def test_check_identity_names_branch_commits_by_sha8_and_role(self):
+        """Fails if: `check` passes commits whose author carries a term, omits `<sha8>:author`, or prints the identity or a term."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            sha = self.branch_commit(clone, self.env(tmp, self.TERM))
+            done = lane(clone, "check", "--only", "identity", env=self.env(tmp, "sfenton-agent"))
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn(f"{sha[:8]}:author", done.stderr)
+            self.assertIn("1 commit(s)", done.stderr)
+            self.assertIn("--reset-author", done.stderr)
+            self.assertNotIn(self.TERM, done.stdout + done.stderr)
+
+    def test_check_identity_passes_after_reset_author_with_a_clean_identity(self):
+        """Fails if: the rewrite the message prescribes (`--amend --no-edit --reset-author`) still leaves the check failing."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            clean = self.env(tmp, "sfenton-agent")
+            self.branch_commit(clone, self.env(tmp, self.TERM))
+            self.assertEqual(lane(clone, "check", "--only", "identity", env=clean).returncode, 1)
+            subprocess.run(["git", "commit", "-q", "--amend", "--no-edit", "--reset-author"], cwd=clone, env=clean,
+                           capture_output=True, text=True, check=True)
+            done = lane(clone, "check", "--only", "identity", env=clean)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_check_only_identity_runs_only_that_check(self):
+        """Fails if: `--only identity` is not accepted, or it also runs the other checks (the unset hooks path would fail `hooks`)."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            done = lane(clone, "check", "--only", "identity", env=self.env(tmp, "sfenton-agent"))
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertIn("lane_check: ok (identity)", done.stdout)
+            self.assertEqual(lane(clone, "check", "--only", "hooks", env=self.env(tmp, "sfenton-agent")).returncode, 1)
+
+    def test_the_identity_check_uses_the_hooks_matcher(self):
+        """Fails if: the check matches by a rule of its own: the hook's whole-word rule and its backslash-escape decoding must decide."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "switch", "-q", "-c", "agents/x")
+            terms = ["zebra"]
+            for name, refused in (("zebra-host", True), ("zebracorn", False), ("ze\\x62ra-host", True)):
+                done = start(clone, self.env(tmp, name, terms), "zzz/")
+                self.assertEqual(done.returncode, 1 if refused else 0, (name, done.stdout + done.stderr))
+            sys.path.insert(0, str(TOOLS))
+            import house_scan
+            import prepush_denylist
+            patterns = house_scan.load_denylist({"HOUSE_SCAN_DENYLIST": str(Path(tmp) / "deny.txt")})
+            matcher = prepush_denylist.Matcher(patterns)  # the same rule, asked of the hook's own Matcher
+            self.assertEqual([matcher.text(n) for n in ("zebra-host", "zebracorn", "ze\\x62ra-host")], [True, False, True])
+
+
 class JevCheckTests(unittest.TestCase):
     DOC = ".agents/workflow/a.md"
 
