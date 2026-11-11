@@ -201,7 +201,7 @@ class HostedWorkflowTests(unittest.TestCase):
 
     def test_every_job_is_github_hosted(self):
         self.assertNotRegex(self.TEXT, r"(?m)^\s+runs-on:.*self-hosted")
-        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ", self.TEXT)), 6)
+        self.assertEqual(len(re.findall(r"(?m)^    runs-on: ", self.TEXT)), 7)
         self.assertEqual(len(re.findall(r"(?m)^    runs-on: ubuntu-24\.04$", self.TEXT)), 2)  # plan and report: Python only
 
     def test_it_runs_on_a_schedule_off_the_hour_and_by_hand(self):
