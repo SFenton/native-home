@@ -95,7 +95,7 @@ REQUEST_MESSAGE = (
 
 LAND_MESSAGE = (
     "Blocked: landing is the owner's path. Agents run exactly `tools/pr_land.sh N [--dry-run]` from a checkout whose pr_land matches the "
-    "base branch; `--owner-ack` (retired), a pty wrapper, changing FENTON_HEADLESS/HASS_TRIAGE_* and wrapping pr_land are refused. "
+    "base branch; `--owner-ack`, a pty wrapper, changing FENTON_HEADLESS/HASS_TRIAGE_* and wrapping pr_land are refused. "
     "See .agents/workflow/agent-roster.md (what code enforces today)."
 )
 

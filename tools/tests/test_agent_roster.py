@@ -406,8 +406,14 @@ class AgentFilesTests(unittest.TestCase):
                           "verifier": "medium", "steward": "medium", "menial": "low"}.get(name)
                 if effort:
                     self.assertIn(f"effort: {effort}\n", head)
-                if name != "reviewer":
-                    self.assertIn("status block", text)
+                description = re.findall(r"(?m)^description: (.+)$", head)
+                self.assertEqual(len(description), 1)  # one line, so the picker shows the whole of it
+                for heading in ("## Read first", "## Ending"):
+                    self.assertIn(heading, text)
+                self.assertIn("agent-roster.md#contracts", text)  # the ending links the status-block contract, never restates it
+                for link in re.findall(r"\]\(([^)#\s]+)", text):
+                    if not link.startswith("http") and "/.agents/workflow/" not in link and "/.agents/decisions" not in link:
+                        self.assertTrue((agents / link).resolve().exists(), f"{name}: {link}")
                 self.assertLess(len(text.splitlines()), 90)
 
 

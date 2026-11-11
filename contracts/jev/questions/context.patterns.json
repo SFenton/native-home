@@ -67,7 +67,7 @@
     "precision": 0.5
   },
   "output": "Pre-read hint line (jev_hints.py preread): the top patterns, their docs and canonical files.",
-  "evidence": "Last 50 merged PRs (33 touch a pattern): recall@8 0.78 against 0.58 for keyword matching; 0.90 against 0.68 on the 16 focused PRs (up to 3 patterns). Ranked hint only: a PR that touches several patterns still misses some (full@8 0.42). See .agents/workflow/decision-models.md.",
+  "evidence": "Last 50 merged PRs (33 touch a pattern): recall@8 0.78 against 0.58 for keyword matching; 0.90 against 0.68 on the 16 focused PRs (up to 3 patterns). Ranked hint only: a PR that touches several patterns still misses some (full@8 0.42). See .agents/workflow/jev.md.",
   "measured": {
     "n": 33,
     "recall_at_8": 0.783,

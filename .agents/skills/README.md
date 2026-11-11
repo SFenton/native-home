@@ -1,20 +1,26 @@
 # Skills
 
-> **What:** repeatable procedures. **Read when:** a task matches one.
+> **What:** repeatable procedures, one task each. **Read when:** a task matches one.
 
 | Skill | Use for |
 |---|---|
-| [port-page](port-page/SKILL.md) | Bringing a web page to native |
 | [add-control](add-control/SKILL.md) | A new reusable control |
-| [mockup-hub](mockup-hub/SKILL.md) | Publishing the mockup atlas to the one in-app hub Artifact |
-| [design-decision](design-decision/SKILL.md) | A design choice the owner hasn't made (build up to 3 options, judge, record, per [propose-first](../workflow/propose-first.md)) |
+| [design-decision](design-decision/SKILL.md) | A design choice the owner has not made, and its decision record |
 | [fix-reported-issue](fix-reported-issue/SKILL.md) | A bug or feature from the request repo |
-| [pose-matrix](pose-matrix/SKILL.md) | The Verifier's check of a visible change in every device pose, ending in the evidence pack ([agent-roster](../workflow/agent-roster.md)) |
-| [research-note](research-note/SKILL.md) | The Researcher's sourced note: rung-0 system-API lookups, precedents, release-notes watch |
-| [swiftui-pro](../../.claude/skills/swiftui-pro/SKILL.md) | Writing or reviewing any SwiftUI (third-party, vendored under `.claude/skills`; see [workflow/swiftui-pro.md](../workflow/swiftui-pro.md)) |
+| [land-pr](land-pr/SKILL.md) | Shipping a branch: pull request, review, verdict, arming the merge, waiting on CI |
+| [mockup-hub](mockup-hub/SKILL.md) | Publishing the mockup atlas to the hub Artifact |
+| [port-page](port-page/SKILL.md) | Bringing a web page to the UIKit app |
+| [pose-matrix](pose-matrix/SKILL.md) | The Verifier's check of a visible change in every device pose, and the evidence pack |
+| [research-note](research-note/SKILL.md) | The Researcher's sourced note: rung-0 lookups, precedents, release watches |
+| [secret-scan-triage](secret-scan-triage/SKILL.md) | Judging a secret-scan finding and allowing a false positive |
+| [self-change-lane](self-change-lane/SKILL.md) | One change to agents, skills, hooks, tools or Jev questions |
+| [triage-session](triage-session/SKILL.md) | An unattended request or nightly failure, start to status file |
+| [swiftui-pro](../../.claude/skills/swiftui-pro/SKILL.md) | Writing or reviewing SwiftUI (vendored under `.claude/skills`) |
 
-## Claude Code links
+## Adding a skill
 
-Every skill here is invocable (`/pose-matrix`) and preloadable into an agent (`skills:` in `.claude/agents/*.md`) through a relative symlink `.claude/skills/<name>` -> `../../.agents/skills/<name>`. Claude Code reads `SKILL.md` through symlinked skill folders ([skills docs](https://code.claude.com/docs/en/skills), "Symlinked folders"). The `.agents/skills/` folder stays the one source; edit there. A new skill adds its link in the same commit (`ln -s ../../.agents/skills/<name> .claude/skills/<name>`). `swiftui-pro`, `apple-hig` and `app-designer-pro` are real folders under `.claude/skills` (vendored or git-ignored), not links.
-
-Start a skill with frontmatter (`name`, `description`: what it does and when to use it, third person) so Claude Code can choose it; without it the description is the first line of the file. `pose-matrix` and `research-note` have it; the older skills do not yet.
+1. Create `.agents/skills/<name>/SKILL.md`. This folder is the one source; edit skills here.
+2. Start it with frontmatter: `name`, and a `description` in the third person that says what it does and when to use it.
+3. Write the procedure as numbered steps for one task. Link the rules it follows; do not restate them.
+4. Link it for Claude Code in the same commit: `ln -s ../../.agents/skills/<name> .claude/skills/<name>`. The link makes it invocable (`/<name>`) and preloadable through `skills:` in an agent file.
+5. Add its row to the table above.

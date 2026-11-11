@@ -7,7 +7,7 @@
 # build/secret-scan/ folder (HISTORY_SCAN_OUT overrides the folder, for tests) and prints counts by rule, never a finding's value.
 # Triaged false positives are listed by fingerprint in .gitleaksignore; fixture files are path-scoped in .gitleaks.toml (--config).
 # gitleaks runs from the repo root so paths are repo-relative (the ^ anchors in .gitleaks.toml rely on it); an absolute-path
-# dir scan fails closed (findings). Rules for adding an entry: .agents/workflow/secret-scan-triage.md.
+# dir scan fails closed (findings). Rules for adding an entry: .agents/workflow/security.md#secret-scans (procedure: skill secret-scan-triage).
 # Needs gitleaks on PATH (brew install gitleaks); this script does not install it.
 # gitleaks exits 1 for "leaks or an error", so leaks are asked to exit 3: 0 is a completed clean scan, 3 a completed scan with
 # findings, anything else (1 included) a failed scan.

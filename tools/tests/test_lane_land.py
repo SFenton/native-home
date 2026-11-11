@@ -431,10 +431,12 @@ class ProtectedPathTests(Repo):
 
 
 class DesignRecordTests(Repo):
-    """App UI lands only with a design decision record (owner, 2026-11-03) or a cited existing one."""
+    """App UI lands only with a new decisions-folder record naming the judged options, or a cited existing one."""
+
+    DESIGN_DOC = ".agents/design/chip.md"
 
     VIEW = "apple/Sources/HassUI/Chip.swift"
-    RECORD = ".agents/design/chip.md"
+    RECORD = ".agents/decisions/2026-11-03-chip.md"
     GOOD = ("# Chip\n\nDecision: 2026-11-03, judged Option A, B and C from screenshots; picked B.\n"
             "Gate: app_wide=no\n")
 
@@ -597,10 +599,9 @@ class DesignRecordTests(Repo):
         self.assertEqual(calls, [])
 
     def test_jev_sees_the_trusted_facts_first_then_only_the_added_record_lines(self):
-        self.seed_base({self.RECORD: "# Chip\n\nOLD STEERING: local to one screen, never app-wide.\n"})
-        record = ("# Chip\n\nOLD STEERING: local to one screen, never app-wide.\n"
-                  "Decision: 2026-11-03, judged Option A, B and C; picked B.\n" + "FILLER " * 2000)
-        self.lane_with({self.VIEW: "x\n", self.RECORD: record})
+        self.seed_base({self.DESIGN_DOC: "# Chip\n\nOLD STEERING: local to one screen, never app-wide.\n"})
+        record = ("# Chip\n\nDecision: 2026-11-03, judged Option A, B and C; picked B.\n" + "FILLER " * 2000)
+        self.lane_with({self.VIEW: "x\n", self.RECORD: record, self.DESIGN_DOC: "# Chip\n\nOLD STEERING: local to one screen, never app-wide.\nNew rule.\n"})
         calls = []
         self.land(jev_ask=self.jev(0.05, calls))
         text = calls[0][1]
@@ -641,9 +642,27 @@ class DesignRecordTests(Repo):
                 self.lane_with({self.VIEW: "x\n", self.RECORD: text})
                 self.refused("design")
 
+    def test_a_dated_decision_line_in_a_design_doc_no_longer_counts(self):
+        """Fails if: the gate accepts a dated `Decision:` line added to `.agents/design/*.md` instead of a decisions-folder file."""
+        self.lane_with({self.VIEW: "x\n", self.DESIGN_DOC: self.GOOD})
+        self.assertIn(".agents/decisions/", self.refused("design"))
+
+    def test_an_edited_old_decision_file_does_not_count(self):
+        """Fails if: touching a decision already on the base satisfies the gate (the folder is append-only)."""
+        self.seed_base({self.RECORD: "# Chip\n"})
+        self.lane_with({self.VIEW: "x\n", self.RECORD: self.GOOD})
+        self.refused("design")
+
+    def test_a_decision_file_with_a_misnamed_path_does_not_count(self):
+        """Fails if: a file in the folder without the YYYY-MM-DD-slug name satisfies the gate."""
+        for path in (".agents/decisions/chip.md", ".agents/decisions/README.md", ".agents/decisions/sub/2026-11-03-chip.md"):
+            with self.subTest(path=path):
+                self.lane_with({self.VIEW: "x\n", path: self.GOOD})
+                self.refused("design")
+
     def test_citing_an_existing_record_or_pattern_lands(self):
-        self.seed_base({self.RECORD: self.GOOD, ".agents/patterns/chips.md": "# Chips\n"})
-        for cite in (self.RECORD, ".agents/patterns/chips.md"):
+        self.seed_base({self.RECORD: self.GOOD, self.DESIGN_DOC: "# Chip\n", ".agents/patterns/chips.md": "# Chips\n"})
+        for cite in (self.RECORD, self.DESIGN_DOC, ".agents/patterns/chips.md"):
             with self.subTest(cite=cite):
                 sha = self.lane_with({self.VIEW: f"x {cite}\n"}, f"Fix chip clipping\n\nDesign: {cite}\n")
                 self.assertEqual(self.land(jev_ask=self.jev(0.05))["sha"], sha)
@@ -1654,7 +1673,7 @@ class PrGateTests(Repo):
     """``lane_land.pr_gate``: the lander's app-UI check run on a product pull request (what ``tools/pr_land.sh`` calls)."""
 
     VIEW = "apple/Sources/HassUI/Chip.swift"
-    RECORD = ".agents/design/chip.md"
+    RECORD = ".agents/decisions/2026-11-03-chip.md"
     GOOD = DesignRecordTests.GOOD
     AGENT = {"FENTON_HEADLESS": "1", "HASS_TRIAGE_ISSUE": "99"}
     CFG = {"authors": ["SFenton"], "request_repo": "example/private-requests", "product_repo": "SFenton/native-home"}

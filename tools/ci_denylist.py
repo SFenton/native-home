@@ -4,7 +4,7 @@
 
     ci_denylist.py mask FILE
 
-The scan itself is `tools/house_scan.py denylist` (house-data-gate.md). Stdlib only.
+The scan itself is `tools/house_scan.py denylist` (.agents/workflow/security.md#house-data). Stdlib only.
 """
 from __future__ import annotations
 
