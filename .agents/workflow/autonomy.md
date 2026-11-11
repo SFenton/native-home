@@ -14,7 +14,7 @@
 
 - When unsure between two levels, take the higher; `tools/tasks.py set-level` raises one and refuses to lower it.
 - Visible is defined in [propose-first](propose-first.md#what-is-visible).
-- Only L3 and a `route=pr` park from the [app-UI gate](#app-ui-gate) end `needs_decision`; any other is sent back to be judged and merged.
+- A pick that ends `needs_decision` without `decision.owner_only` is sent back to be judged and merged; only L3 and a `route=pr` park from the [app-UI gate](#app-ui-gate) end it.
 - Every level merges through an independent review ([landing](pr-lifecycle.md#landing)); a change to agents, hooks, skills or tools also passes the [eval gate](eval-gate.md).
 
 ## Owner-only
@@ -47,9 +47,9 @@ The owner alone decides and merges changes to:
 | Decision model unavailable | Never | Park |
 
 - A park prints `route=session` or `route=pr`. `session`: the Verifier captures up to 3 options on the affected families, the owner types the pick, and it is cited as `Owner's request:`; no `needs_decision`.
-- `pr`: it ends `needs_decision` with `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; the question goes on the pull request, where the owner's approval of its exact head answers the park and `Needs Decision` at merge, never the owner-only set.
-- A park builds only what shows the options. The Designer never picks a change the gate parked.
-- A plan quotes the owner's words on an `Owner's request:` line when one exists.
+- `pr`: it ends `needs_decision`, `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; the question goes on the pull request, where the owner's approval of its head answers the park and `Needs Decision`, never the owner-only set.
+- A parked change builds only what shows the owner options. The Designer never picks a change the gate parked.
+- A plan quotes the owner's words on an `Owner's request:` line.
 - At merge a request counts as the owner's only when the runner vouches for the request issue or the quote sits in a prompt the owner typed (`tools/hooks/owner_prompt_log.py`); agent-written text never does.
 - A merged app-UI change carries or cites a design decision record or pattern ([propose-first](propose-first.md#record)).
 - A mockup edit drawing the same is not app UI.

@@ -92,6 +92,8 @@ class ArmTests(unittest.TestCase):
         def ui(number, info):
             if isinstance(gate, Exception):
                 raise gate
+            if callable(gate):
+                return gate(number, info)
             return "app-UI gate passed (0 app-UI file(s))"
         has_pass = passed if callable(passed) else (lambda sha: passed)
         patches = [mock.patch.object(pr_land, "run", fake_run), mock.patch.object(pr_land, "kill_switch", return_value=kill),
@@ -268,16 +270,24 @@ class ArmTests(unittest.TestCase):
                                         after={"state": "OPEN", "autoMergeRequest": {"enabledBy": {"login": "SFenton"}}})
         self.assertEqual(code, 0, line)
         self.assertEqual(self.merge_calls(calls)[0][-2:], ["--match-head-commit", self.HEAD])
+        self.assertIn(f"app-UI gate answered by the owner's approval of {self.HEAD[:8]}", line)  # the real arm line says it too
+        self.assertTrue(line.startswith(f"armed #7 at {self.HEAD[:8]}"), line)
         (code, line), calls = self.land(gate=self.PARK)
         self.assertEqual(code, 1, line)
         self.assertIn("app-UI gate (gate)", line)
+        self.assertIn("the owner's approval of this exact head on GitHub answers this park, then the lander is run again", line)
         self.assertFalse(self.merge_calls(calls))
+        (code, line), _ = self.land(gate=pr_land.GateRefused("no design decision record", "design"))
+        self.assertNotIn("answers this park", line)
 
     def test_an_approval_of_the_head_lifts_the_needs_decision_label_only(self):
         """Fails if: the label blocks an approved head, or stops blocking an unapproved one (or one approved at an older commit)."""
         labelled = self.info(labels=[{"name": "Needs Decision"}])
         (code, line), _ = self.land(info=labelled, reviews=self.APPROVAL, dry=True)
         self.assertEqual(code, 0, line)
+        self.assertIn(f"Needs Decision lifted by the owner's approval of {self.HEAD[:8]}", line)
+        (code, line), _ = self.land(info=labelled, reviews=self.APPROVAL, after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        self.assertIn("Needs Decision lifted by the owner's approval", line)
         older = [[{"user": {"login": "SFenton"}, "state": "APPROVED", "commit_id": "a" * 40}]]
         for reviews in (None, older):
             (code, line), calls = self.land(info=labelled, reviews=reviews, dry=True)
@@ -314,6 +324,21 @@ class ArmTests(unittest.TestCase):
         self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [])
         _, calls = self.land(gate=self.PARK, reviews=self.APPROVAL, dry=True)
         self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [["gh", "api", "repos/SFenton/native-home/pulls/7/reviews", "--paginate"]])
+        _, calls = self.land(gate=self.PARK, info=self.info(labels=[{"name": "Needs Decision"}]), reviews=self.APPROVAL, dry=True)
+        self.assertEqual(len([c for c in calls if c[:2] == ["gh", "api"]]), 1)  # label and park share one read
+
+    def test_the_approval_is_read_after_the_review_pass_the_ruleset_and_the_gate(self):
+        """Fails if: the reviews are fetched before the review pass or ruleset, or before the app-UI gate has run (so the answer could be stale)."""
+        labelled = self.info(labels=[{"name": "Needs Decision"}])
+        for kwargs in ({"passed": False}, {"ruleset": ["the ruleset allows a bypass"]}):
+            _, calls = self.land(info=labelled, reviews=self.APPROVAL, **kwargs)
+            self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [], kwargs)
+        order = []
+        real = pr_land.owner_approval
+        with mock.patch.object(pr_land, "owner_approval", side_effect=lambda n, h: order.append("approval") or True):
+            self.land(info=labelled, gate=lambda n, info: order.append("gate") or "passed", dry=True)
+        self.assertEqual(order, ["gate", "approval"])
+        self.assertIs(pr_land.owner_approval, real)
 
     OWNED_FILES = [{"path": "tools/ci_wait.py"}, {"path": ".github/workflows/pr-checks.yml"}]
 
@@ -701,6 +726,7 @@ class UiGateInLandTests(unittest.TestCase):
         (code, line), _ = self.land(gate=lambda n, info: "passed", dry=False, info=self.info(labels=[{"name": "Needs Decision"}]))
         self.assertEqual(code, 1, line)
         self.assertIn("approves this pull request on GitHub", line)
+        self.assertIn("which also lifts this label, and then the lander is run again", line)
         self.assertNotIn("terminal", line)
 
 

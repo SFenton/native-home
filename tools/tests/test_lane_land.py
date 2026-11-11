@@ -2006,9 +2006,10 @@ class PrGateTests(Repo):
 
     def test_only_a_park_carries_the_park_flag_and_exit_status(self):
         """Fails if: a forged gate line or a missing design record is marked a park (the owner's approval would answer it), or a park loses its flag."""
+        bare = self.GOOD.replace("Gate: app_wide=no\n", "")
         for p_yes, word in ((0.5, "unsure"), (0.9, "app-wide"), (None, "unavailable")):
             with self.subTest(word):
-                info = self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD})
+                info = self.pr({self.VIEW: "x\n", self.RECORD: bare})
                 with self.assertRaises(lane_land.Refused) as cm:
                     self.gate(info, p_yes=p_yes, env=self.AGENT)
                 self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", True))
@@ -2016,6 +2017,12 @@ class PrGateTests(Repo):
         with self.assertRaises(lane_land.Refused) as cm:
             self.gate(forged, p_yes=0.05, env=self.AGENT)
         self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", False))
+        for p_yes in (0.5, 0.9):  # `Gate: app_wide=no` against an unsure or app-wide answer is a contradiction, never a park
+            with self.subTest(f"contradiction at {p_yes}"):
+                with self.assertRaises(lane_land.Refused) as cm:
+                    self.gate(self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD}), p_yes=p_yes, env=self.AGENT)
+                self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", False))
+                self.assertIn("must agree", str(cm.exception))
         for refusal in (lane_land.Refused("no record", "design"), lane_land.Refused("must agree", "gate"),
                         lane_land.Refused("owner-only set", "paths")):
             self.assertFalse(refusal.park)

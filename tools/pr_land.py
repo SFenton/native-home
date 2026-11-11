@@ -351,15 +351,13 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
         return 1, f"blocked #{number}: pull request is {info['state'].lower()}"
     head = str(info.get("headRefOid") or "")
     approved: List[bool] = []
+    notes: List[str] = []  # what the owner's approval answered, said on the final line
 
     def approval() -> bool:
-        """The owner's approval of this head, read once per run."""
+        """The owner's approval of this head, read once per run, and only once the review pass, ruleset and gate have run."""
         if not approved:
             approved.append(owner_approval(number, head))
         return approved[0]
-    if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
-           for label in info.get("labels") or []) and not approval():
-        return 1, f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park): the owner approves this pull request on GitHub (their review of this exact head) and merges it there, or replies on the issue to pick an option"
     if info.get("mergeable") == "CONFLICTING":
         return 1, f"blocked #{number}: merge conflicts with {info.get('baseRefName', 'main')}"
     login = info["author"].get("login") if isinstance(info.get("author"), dict) else None
@@ -379,20 +377,29 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
         if not (exc.park and approval()):  # only a park is answered; the owner-kept set, a missing record and the rest stay refused
             if OWNER_KEPT in str(exc):
                 print_owner_recipe(number, info)
-            return 1, f"blocked #{number}: app-UI gate ({exc.kind}): {exc}"
+            return 1, (f"blocked #{number}: app-UI gate ({exc.kind}): {exc}" + (
+                "; the owner's approval of this exact head on GitHub answers this park, then the lander is run again" if exc.park else ""))
         gate = f"app-UI gate answered by the owner's approval of {head[:8]}"
+        notes.append(gate)
     except (RuntimeError, ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
         return 1, f"blocked #{number}: app-UI gate failed closed: {exc}"
+    if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision"
+           for label in info.get("labels") or []):
+        if not approval():
+            return 1, (f"blocked #{number}: labelled Needs Decision; an owner-only item (fixed set, or an app-UI gate park): the owner approves this pull "
+                       "request on GitHub (their review of this exact head), which also lifts this label, and then the lander is run again; or replies on the issue to pick an option")
+        notes.append(f"Needs Decision lifted by the owner's approval of {head[:8]}")
     refused = denylist_gate(number, head, load_config().get("denylist_required") is True, base_name)
     if refused:
         return 1, f"blocked #{number}: {refused}"
     if pr_blockers.owner_only(info):  # every gate of ours passed; what is left is the owner's alone
         print_owner_recipe(number, info)
     if dry_run:
-        return 0, f"would arm #{number} at {head[:8]} ({gate})"
+        return 0, f"would arm #{number} at {head[:8]} ({'; '.join(([] if gate in notes else [gate]) + notes)})"
     if info.get("isDraft"):
         run(["gh", "pr", "ready", number, "-R", PRODUCT_REPO])
-    return arm(number, head)
+    code, line = arm(number, head)
+    return code, line + (f" ({'; '.join(notes)})" if notes and code == 0 else "")
 
 
 def main(argv: Optional[List[str]] = None) -> int:

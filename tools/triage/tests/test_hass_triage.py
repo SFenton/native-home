@@ -1526,7 +1526,7 @@ class ParkTests(Base):
             on_pr = self.pr_comments(gh)
             self.assertEqual(len(on_pr), 1)
             for part in ("Which chip layout?", "1. **A**: Inline", "2. **B**: Stacked", "Recommended: **A**",
-                         "To decide: reply on the request issue with your pick, or approve and merge this pull request "
+                         "To decide: reply on the request issue with your pick, or approve this pull request "
                          "to accept the recommendation."):
                 self.assertIn(part, on_pr[0]["body"])
             self.assertTrue(on_pr[0]["body"].split("\n\n<!--")[0].endswith("to accept the recommendation."))

@@ -1369,14 +1369,14 @@ def verify_gate(path: str, change: str, log: str, trusted_for: Callable[[], Path
     if p_yes is None:
         raise Refused(f"Jev is unavailable for {qid}: app UI cannot land unattended; the owner decides", "gate", park=True)
     word = "yes" if p_yes >= YES_ABOVE else "no" if p_yes < NO_BELOW else "unsure"
-    if (key == "matches_request" and word != "yes") or (key == "app_wide" and word != "no"):
-        raise Refused(f"Jev answered {qid}={word} (p={p_yes:.2f}) for the app-UI change ({path}): "
-                      + ("it is not confirmed to match the owner's request" if text else "it is app-wide or unsure and no owner "
-                         "request is on record for this session") + "; the owner decides", "gate", park=True)
     forged = [g.lower() for g in GATE_LINE.findall(record) if g.lower().startswith(key + "=") and g.lower() != f"{key}={word}"]
     if forged:
         raise Refused(f"{path} records `Gate: {forged[0]}` but Jev answered {qid}={word} (p={p_yes:.2f}); the lane's gate line "
                       "must agree with Jev", "gate")
+    if (key == "matches_request" and word != "yes") or (key == "app_wide" and word != "no"):
+        raise Refused(f"Jev answered {qid}={word} (p={p_yes:.2f}) for the app-UI change ({path}): "
+                      + ("it is not confirmed to match the owner's request" if text else "it is app-wide or unsure and no owner "
+                         "request is on record for this session") + "; the owner decides", "gate", park=True)
 
 
 def check_design_record(clone: Path, base: str, sha: str, rows: Sequence[Tuple[str, str, str, str]],
