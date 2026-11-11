@@ -68,6 +68,20 @@ class DevcapStandInTests(unittest.TestCase):
                                    runner=lambda c: seen.append(c) or 7)
         self.assertEqual((rc, seen), (7, [["echo", "hi"]]))
 
+    def test_held_environment_names_every_pool(self):
+        """Fails if: a hosted `devcap run` child sees no DEVCAP_HELD, so apple_coverage.sh re-runs itself without end (PR 81, run 42960328087)."""
+        opts = ["--pool", "build", "--pool", "swift-test", "--hold", "60", "--purpose", "x"]
+        self.assertEqual(ci_hosted.held_environment(opts, {})["DEVCAP_HELD"], "build,swift-test")
+        self.assertEqual(ci_hosted.held_environment(opts, {"DEVCAP_HELD": "simulator"})["DEVCAP_HELD"], "build,simulator,swift-test")
+
+    def test_run_child_inherits_the_held_gates(self):
+        """Fails if: the default runner starts the child without DEVCAP_HELD."""
+        out = tempfile.NamedTemporaryFile(delete=False)
+        out.close()
+        rc = ci_hosted.devcap_main(["run", "--pool", "build", "--", "sh", "-c", 'printf %s "$DEVCAP_HELD" > "$0"', out.name])
+        self.assertEqual((rc, Path(out.name).read_text()), (0, "build"))
+        os.unlink(out.name)
+
     def test_run_without_a_command_is_a_usage_error(self):
         self.assertEqual(ci_hosted.devcap_main(["run", "--pool", "build"], runner=lambda c: 0), 2)
         self.assertEqual(ci_hosted.devcap_main(["run", "--"], runner=lambda c: 0), 2)
