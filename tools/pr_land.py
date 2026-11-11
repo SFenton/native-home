@@ -9,9 +9,10 @@ owner-kept set), the house denylist, the author and fork check, an independent r
 
 A PR that touches a CODEOWNERS path, the owner-kept set, or that the app-UI gate parks, is the owner's to clear (a missing design record or a contradicting ``Gate:`` line is the agent's to fix): the owner approves this pull request on
 GitHub (their review of this exact head) and merges it there. There is no override flag. :func:`owner_recipe` prints the three ``gh``
-commands for that, for the owner only. :func:`owner_approval` reads that approval from GitHub on every call; it answers an app-UI park
-and the ``Needs Decision`` label and nothing else (the owner-kept set, a missing design record, the denylist, the review pass and the
-ruleset still refuse).
+commands for that, for the owner only. :func:`owner_approval` reads that approval from GitHub on every call: when the lander is run again, the
+approval of the exact head answers an app-UI park and the ``Needs Decision`` label and nothing else (the owner-kept set, a missing design
+record, the denylist, the review pass and the ruleset still refuse). Nothing runs the lander on an approval by itself; without a rerun,
+the owner approves and merges on GitHub.
 """
 
 from __future__ import annotations

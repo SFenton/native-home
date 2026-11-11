@@ -65,8 +65,8 @@ ATTACHMENT_URL = re.compile(r"https://github\.com/user-attachments/(?:assets|fil
 #: The comment the runner posts on the public pull request when the worker's text fails the house-data check.
 GENERIC_PULL_QUESTION = ("An owner decision is needed before this pull request can land. "
                          "The question and options are on the request issue.")
-#: The last line of the pull request question: the owner's approval of the exact head answers an app-UI park at merge.
-PULL_DECIDE_LINE = ("To decide: reply on the request issue with your pick, or approve this pull request "
+#: The last line of the pull request question: only what works today (nothing reads replies or approvals there yet).
+PULL_DECIDE_LINE = ("To decide: reply on the request issue with your pick, or approve and merge this pull request "
                     "to accept the recommendation.")
 RUNNER_MARKER = re.compile(r"<!-- hass-triage:\d+:[a-z-]+ -->")
 MISSING_LABEL = re.compile(r"'([^']+)' not found")
@@ -2735,7 +2735,7 @@ class Runner:
         The pull request is on the public product repository, so the worker's text is posted only after :meth:`public_safe`
         passes; otherwise the comment is the fixed :data:`GENERIC_PULL_QUESTION` with no worker text. A second park edits the
         runner's own marker comment in place when the text changed and does nothing when it did not; a marker comment by anyone
-        else is ignored. The last line names both ways to decide: a reply on the request issue, or the owner's approval of this pull request.
+        else is ignored. Nothing reads replies or approvals on the pull request yet, so the last line names only what works.
         Fail safe: any failure is logged and the park goes on. The issue comment is unchanged."""
         try:
             number = int(pr.rstrip("/").rsplit("/", 1)[1])

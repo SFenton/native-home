@@ -47,10 +47,10 @@ The owner alone decides and merges changes to:
 | Decision model unavailable | Never | Park |
 
 - A park prints `route=session` or `route=pr`. `session`: the Verifier captures up to 3 options on the affected families, the owner types the pick, and it is cited as `Owner's request:`; no `needs_decision`.
-- `pr`: it ends `needs_decision`, `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; the question goes on the pull request, where the owner's approval of its head answers the park and `Needs Decision`, never the owner-only set.
-- A parked change builds only what shows the owner options. The Designer never picks a change the gate parked.
+- `pr`: it ends `needs_decision`, `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; the question goes on the pull request; when the lander runs, the owner's approval of its head answers the park and `Needs Decision`, never the owner-only set.
+- A parked change builds only the owner's options. The Designer never picks a change the gate parked.
 - A plan quotes the owner's words on an `Owner's request:` line.
 - At merge a request counts as the owner's only when the runner vouches for the request issue or the quote sits in a prompt the owner typed (`tools/hooks/owner_prompt_log.py`); agent-written text never does.
 - A merged app-UI change carries or cites a design decision record or pattern ([propose-first](propose-first.md#record)).
 - A mockup edit drawing the same is not app UI.
-- At plan time the gate is only a hint ([jev](jev.md)).
+- At plan time the gate only hints ([jev](jev.md)).
