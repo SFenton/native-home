@@ -19,7 +19,7 @@ Gates: `tools/apple_coverage.sh` (95% logic / 95% UX line coverage) and `tools/i
 
 ## Setup
 
-Run `tools/setup.sh` once per checkout. It installs the tracked git hooks (`core.hooksPath` = `.githooks`: the pre-push hook: the house-denylist check, see [house-data-gate](.agents/workflow/house-data-gate.md#pre-push-hook-owner-2026-11-07)) and reports whether a denylist was found (counts only).
+Run `tools/setup.sh` once per checkout. It installs the tracked git hooks (`core.hooksPath` = `.githooks`: the pre-push hook: the house-denylist check, see [security](.agents/workflow/security.md#house-data)) and reports whether a denylist was found (counts only).
 
 ## Where to start
 
