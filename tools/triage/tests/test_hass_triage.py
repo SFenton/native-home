@@ -2582,5 +2582,109 @@ class T3LauncherTests(Base):
         self.assertEqual(install.call_args[0][0], self.paths.root)
 
 
+class CommitIdentityTests(Base):
+    """The runner gives its clone the agent identity so no headless commit carries git's fallback (real git, temp clone)."""
+
+    AGENT = ("sfenton-agent", "sfenton-agent@users.noreply.github.com")
+
+    def setUp(self):
+        super().setUp()
+        self.user_file = self.home / "user-settings"
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_")) and k not in ("EMAIL", "GIT_CONFIG_COUNT")}
+        env.update({"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"})
+        patcher = mock.patch.dict(os.environ, env, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        origin = self.home / "origin.git"
+        seed = self.home / "seed"
+        self.git(self.home, "init", "-q", "--bare", "-b", "main", str(origin))
+        self.git(self.home, "init", "-q", "-b", "main", str(seed))
+        (seed / "a.txt").write_text("a\n")
+        self.git(seed, "add", "a.txt")
+        self.git(seed, "-c", "user.name=seed", "-c", "user.email=seed@example.com", "commit", "-q", "-m", "seed")
+        self.git(seed, "remote", "add", "origin", str(origin))
+        self.git(seed, "-c", "push.default=simple", "push", "-q", "origin", "main")
+        self.git(self.home, "clone", "-q", str(origin), str(self.paths.clone))
+
+    def git(self, cwd, *args):
+        done = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done.stdout.strip()
+
+    def config(self, key, scope=None):
+        args = ["git", "-C", str(self.paths.clone), "config", *([scope] if scope else []), "--get", key]
+        return subprocess.run(args, capture_output=True, text=True).stdout.strip()
+
+    def real_runner(self, **kw):
+        return ht.Runner(self.cfg, self.paths, FakeGitHub(dry_run=kw.get("dry_run", False)), run=subprocess.run, **kw)
+
+    def commit_in(self, tree):
+        (Path(tree) / "b.txt").write_text("b\n")
+        self.git(tree, "add", "b.txt")
+        self.git(tree, "commit", "-q", "-m", "work")
+        return self.git(tree, "log", "-1", "--format=%an %ae %cn %ce")
+
+    def test_refresh_clone_writes_the_agent_identity_into_the_clone_config(self):
+        self.assertEqual(self.config("user.name"), "")
+        self.real_runner().refresh_clone()
+        self.assertEqual((self.config("user.name"), self.config("user.email")), self.AGENT)
+        self.assertEqual(self.config("user.email", "--local"), self.AGENT[1])
+
+    def test_a_worktree_cut_later_commits_with_it_for_author_and_committer(self):
+        self.real_runner().refresh_clone()
+        expected = " ".join(self.AGENT * 2)
+        first = self.home / "wt1"
+        self.git(self.paths.clone, "worktree", "add", "-q", "-b", "report/1", str(first), "origin/main")
+        self.assertEqual(self.commit_in(first), expected)
+        second = self.home / "wt2"
+        self.git(self.paths.clone, "worktree", "add", "-q", "-b", "agents/x-261110", str(second), "origin/main")
+        self.assertEqual(self.commit_in(second), expected)
+
+    def test_prepare_worktree_sets_the_identity_without_refresh_clone(self):
+        self.real_runner().prepare_worktree(7)
+        self.assertEqual((self.config("user.name"), self.config("user.email")), self.AGENT)
+
+    def test_an_existing_local_or_global_identity_is_kept(self):
+        self.git(self.paths.clone, "config", "--local", "user.name", "Local Name")
+        self.user_file.write_text("[user]\n\temail = kept@example.com\n")
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(self.user_file)}):
+            self.real_runner().refresh_clone()
+            self.assertEqual(self.config("user.name"), "Local Name")
+            self.assertEqual(self.config("user.email"), "kept@example.com")
+            self.assertEqual(self.config("user.email", "--local"), "")  # a global value is not shadowed by a local copy
+
+    def test_no_agent_login_writes_nothing(self):
+        self.cfg["agent_login"] = ""
+        with mock.patch.object(ht.agent_login, "resolve", return_value=""):
+            self.real_runner().refresh_clone()
+        self.assertEqual((self.config("user.name"), self.config("user.email")), ("", ""))
+
+    def test_dry_run_writes_nothing(self):
+        self.real_runner(dry_run=True).ensure_commit_identity()
+        self.assertEqual((self.config("user.name"), self.config("user.email")), ("", ""))
+
+    def test_the_identity_does_not_hit_a_denylist_holding_the_owner_terms(self):
+        import getpass
+        import socket
+        import house_scan
+        import prepush_denylist
+        self.real_runner().refresh_clone()
+        tree = self.home / "wt"
+        self.git(self.paths.clone, "worktree", "add", "-q", "-b", "agents/y-261110", str(tree), "origin/main")
+        self.commit_in(tree)
+        terms = self.home / "terms.txt"
+        terms.write_text("\n".join([getpass.getuser(), socket.gethostname().split(".")[0], "ownerterm"]) + "\n")
+        terms.chmod(0o600)
+        matcher = prepush_denylist.Matcher(house_scan.load_denylist({"HOUSE_SCAN_DENYLIST": str(terms)}))
+        sha = self.git(tree, "rev-parse", "HEAD")
+        cwd = os.getcwd()
+        os.chdir(tree)  # commit_hits runs git in the working directory
+        try:
+            self.assertEqual(prepush_denylist.commit_hits(sha, matcher), [])
+        finally:
+            os.chdir(cwd)
+
+
 if __name__ == "__main__":
     unittest.main()

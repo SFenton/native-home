@@ -1187,6 +1187,23 @@ class Runner:
         if not self.dry_run:
             self._run(["git", "-C", str(clone), "checkout", "-q", "--detach", f"origin/{self.cfg['product_base']}"])
             self._run(["git", "-C", str(clone), "worktree", "prune"])
+            self.ensure_commit_identity()
+
+    def ensure_commit_identity(self) -> None:
+        """Give the runner's clone a neutral commit identity (the agent account's noreply address) when none is set anywhere.
+
+        Without one git falls back to the machine's user and host, which the pre-push denylist refuses. The write goes to the clone's
+        shared ``.git/config`` (``--local``), so every worktree of the clone, including lanes cut later, reads it. A key already set
+        in any scope (local, global, system) is kept; nothing is written without an agent login or in a dry run. Idempotent.
+        """
+        login = agent_login.resolve(self.cfg.get("agent_login"))
+        if not login or self.dry_run:
+            return
+        clone = str(self.paths.clone)
+        for key, value in (("user.name", login), ("user.email", f"{login}@users.noreply.github.com")):
+            current = self._run(["git", "-C", clone, "config", "--get", key], check=False)
+            if not str(getattr(current, "stdout", "") or "").strip():
+                self._run(["git", "-C", clone, "config", "--local", key, value])
 
     def _run(self, args: List[str], allow_dry: bool = False, cwd: Optional[Path] = None, check: bool = True) -> Any:
         if self.dry_run and not allow_dry:
@@ -1470,6 +1487,7 @@ class Runner:
                 self._drop_worktree(worktree, str(self.paths.clone))
             self._run(["git", "-C", str(self.paths.clone), "worktree", "prune"], check=False)
             worktree.parent.mkdir(parents=True, exist_ok=True)
+            self.ensure_commit_identity()
             self._run(["git", "-C", str(self.paths.clone), "worktree", "add", "-B", branch, str(worktree),
                        self.job_start_point()])
             if status_file.exists():
@@ -2416,6 +2434,7 @@ class Runner:
             self._run(["git", "-C", str(path), "merge", "-q", "--no-edit", base], check=False)
             return path
         path.parent.mkdir(parents=True, exist_ok=True)
+        self.ensure_commit_identity()
         exists = self._run(["git", "-C", clone, "rev-parse", "--verify", "-q", branch], check=False).returncode == 0
         remote = self._run(["git", "-C", clone, "ls-remote", "--exit-code", "origin", branch], check=False).returncode == 0
         if exists:
@@ -3020,6 +3039,7 @@ class Runner:
             self._run(["git", "-C", clone, "worktree", "prune"], check=False)
             self._run(["git", "-C", clone, "fetch", "-q", "origin", base])
             worktree.parent.mkdir(parents=True, exist_ok=True)
+            self.ensure_commit_identity()
             self._run(["git", "-C", clone, "worktree", "add", "-B", branch, str(worktree), f"origin/{base}"])
             status_file.unlink(missing_ok=True)
             self.ensure_workflow_label()
