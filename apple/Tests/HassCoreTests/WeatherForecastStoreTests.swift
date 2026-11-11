@@ -16,11 +16,12 @@ struct WeatherForecastStoreTests {
     }
 
     private func makeHarness(
-        server: HassServer? = nil, cache: WeatherForecastDiskCache? = nil, timeout: TimeInterval = 20, clock: WeatherTestClock = WeatherTestClock()
+        server: HassServer? = nil, cache: WeatherForecastDiskCache? = nil, timeout: TimeInterval = 20, clock: WeatherTestClock = WeatherTestClock(),
+        entityId: @escaping @MainActor () -> String = { HomeConfig.weatherEntityId }
     ) -> Harness {
         let scheduler = ManualWeatherScheduler()
         let store = WeatherForecastStore(
-            server: server, cache: cache, timeZone: TimeZone(identifier: "UTC")!, requestTimeout: timeout,
+            entityId: entityId(), server: server, cache: cache, timeZone: TimeZone(identifier: "UTC")!, requestTimeout: timeout,
             scheduler: scheduler, clock: { clock.now }
         )
         return Harness(store: store, caller: FakeWeatherCaller(), scheduler: scheduler, clock: clock)
@@ -175,9 +176,9 @@ struct WeatherForecastStoreTests {
             h.scheduler.fire()
             await h.store.settle()
         }
-        for feed in [h.store.daily, h.store.hourly] {
+        for (kind, feed) in [(WeatherForecastKind.daily, h.store.daily), (.hourly, h.store.hourly)] {
             #expect(feed.phase == .error)
-            #expect(feed.error == "HA offline")
+            #expect(feed.error == WeatherCopy.forecastFailure(kind), "the server's words never reach the card")
             #expect(!feed.refreshing)
             #expect(feed.forecasts.count == (cached ? 1 : 0))
             #expect((feed.updatedAt != nil) == cached)
@@ -196,6 +197,53 @@ struct WeatherForecastStoreTests {
         #expect(h.store.hourly.phase == .ready)
         #expect(h.store.hourly.error == nil)
         #expect(temperature(h.store.hourly) == 99)
+    }
+
+    /// A mutable weather id standing in for the house document arriving after the store is built.
+    @MainActor private final class LateID { var value = "" }
+
+    @Test func anEmptyWeatherIdSendsNothingAndStaysPending() async {
+        let late = LateID()
+        let h = makeHarness(entityId: { late.value })
+        h.store.activate(caller: h.caller, revision: nil)
+        await h.store.settle()
+        h.store.update(revision: "r")
+        h.store.setConnected(false)
+        h.store.setConnected(true)
+        await h.store.settle()
+        #expect(h.caller.calls.isEmpty, "no weather.get_forecasts with entity_id \"\"")
+        for feed in [h.store.daily, h.store.hourly] {
+            #expect(feed.showsPlaceholders, "pending: the card shows placeholders")
+            #expect(feed.error == nil)
+            #expect(!feed.refreshing)
+        }
+        #expect(h.scheduler.armedCount == 0, "nothing is due, so no timer spins")
+    }
+
+    @Test func anIdThatArrivesLaterMakesTheFirstCallCarryIt() async {
+        let late = LateID()
+        let h = makeHarness(entityId: { late.value })
+        h.store.activate(caller: h.caller, revision: nil)
+        await h.store.settle()
+        #expect(h.caller.calls.isEmpty)
+
+        late.value = WeatherFixtures.entityId
+        h.store.update(revision: nil)
+        await h.store.settle()
+        #expect(h.caller.calls == [.daily, .hourly])
+        #expect(h.caller.lastData["entity_id"] as? String == WeatherFixtures.entityId)
+        #expect(h.store.daily.phase == .ready)
+    }
+
+    @Test func aSchemaRejectShowsDeckCopyNotTheServersText() async {
+        struct Schema: LocalizedError { var errorDescription: String? { "expected 'all' or 'none' at 'entity_id'" } }
+        let h = makeHarness()
+        h.caller.respond = { _ in throw Schema() }
+        h.store.activate(caller: h.caller, revision: "a")
+        await h.store.settle()
+        #expect(h.store.daily.error == WeatherCopy.forecastFailure(.daily))
+        #expect(h.store.hourly.error == WeatherCopy.forecastFailure(.hourly))
+        #expect(h.store.daily.phase == .error)
     }
 
     @Test func emptyResponsesClearPreviousValues() async {
@@ -230,7 +278,7 @@ struct WeatherForecastStoreTests {
         h.caller.respond = { _ in throw WeatherForecastError(message: "Disconnected") }
         h.store.activate(caller: h.caller, revision: "a")
         await h.store.settle()
-        #expect(h.store.hourly.error == "Disconnected")
+        #expect(h.store.hourly.error == WeatherCopy.forecastFailure(.hourly))
         h.caller.respond = { _ in WeatherFixtures.response(temperature: 75, wrapped: true) }
         h.store.update(revision: "b")
         await h.store.settle()

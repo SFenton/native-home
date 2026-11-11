@@ -12,6 +12,7 @@ final class UKWeatherForecastDriver {
     private let context: UKContext
     private let caller: (any WeatherForecastCalling)?
     private var lastRevision: String??
+    private var lastEntityId: String?
     private var lastConnected: Bool?
     private var briefingKey: [Date?] = []
     private var briefingTask: Task<Void, Never>?
@@ -41,6 +42,7 @@ final class UKWeatherForecastDriver {
         isActive = true
         let revision = WeatherForecastStore.revision(of: context.store.entity(WeatherEntities.weather).state)
         lastRevision = .some(revision)
+        lastEntityId = WeatherEntities.weather
         lastConnected = isConnected
         if let target: any WeatherForecastCalling = caller ?? context.connection {
             forecasts.activate(caller: target, revision: revision, connected: isConnected)
@@ -70,12 +72,16 @@ final class UKWeatherForecastDriver {
 
     /// Reads what the store depends on; call it inside an observation so a change reaches it.
     func refresh() {
-        let revision = WeatherForecastStore.revision(of: context.store.entity(WeatherEntities.weather).state)
+        let entityId = WeatherEntities.weather
+        let revision = WeatherForecastStore.revision(of: context.store.entity(entityId).state)
         let connected = isConnected
         let key = [forecasts.daily.updatedAt, forecasts.hourly.updatedAt]
         guard isActive else { return }
-        if lastRevision != .some(revision) {
+        // The id is read here, inside the observation, so the house document arriving re-runs this. A first sign-in builds
+        // the card with no document; the store holds still until the id is known, and this is what starts its first fetch.
+        if lastRevision != .some(revision) || lastEntityId != entityId {
             lastRevision = .some(revision)
+            lastEntityId = entityId
             forecasts.update(revision: revision)
         }
         if lastConnected != connected {
