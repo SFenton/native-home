@@ -60,4 +60,4 @@ Word budgets per file, per line and per role's spawn load are in `contracts/rule
 
 ## Enforcement
 
-`tools/rules_lint.py` checks these rules in `pr-checks`, in the tool tests and before a push; `tools/hooks/rules_guard.py` applies it when a rule-surface file is written. Exemptions are by layer only, never an inline comment.
+`tools/rules_lint.py` checks these rules in `pr-checks` and in the tool tests; `tools/hooks/rules_guard.py` applies it when a rule-surface file is written. Exemptions are by layer only, never an inline comment.
