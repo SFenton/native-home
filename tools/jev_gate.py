@@ -18,7 +18,7 @@ For a plan that is not read as invisible it then prints the app-UI gate (owner, 
 plan has an `Owner's request:` section, else `design.app_wide`, ending in a machine-readable line
 `gate: autonomous|park basis=request|agent answer=yes|no|unsure|unavailable`, with ` route=session|pr` appended to a `park` line (owner,
 2026-11-10: a headless session, the markers `merge_guard.headless()` reads, routes to the pull request; an interactive one decides in the
-session; see `.agents/workflow/agent-roster.md#questions`). Unavailable Jev or a missing question file
+session; see `.agents/workflow/autonomy.md#app-ui-gate`). Unavailable Jev or a missing question file
 parks (fail safe); the gate lines are printed even with no key. This plan-time gate trusts the plan's `Owner's request:` section as written; the landing gate (`tools/lane_land.py`) is where a
 quote must match a prompt the owner typed (`tools/hooks/owner_prompt_log.py`, last 14 days, 20+ characters) and where mockup edits
 that draw the same are not app UI (`rendered_ui_paths`, owner decisions 2026-11-04). Quote the owner's words in that section.

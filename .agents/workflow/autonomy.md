@@ -47,8 +47,9 @@ The owner alone decides and merges changes to:
 | Started by an agent | The decision model confirms the change is local to one screen | Park |
 | Decision model unavailable | Never | Park |
 
-- A park prints `route=session` or `route=pr`. On `session` the orchestrator has the Verifier capture up to 3 options on the affected families, shows them with one line each, has the owner type the pick, and records it citing `Owner's request:`.
-- On `pr` it finishes `needs_decision` with `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; the runner posts the question on the pull request. The Designer never picks a parked change.
+- A park prints `route=session` or `route=pr`. `session`: the Verifier captures up to 3 options on the affected families, the owner types the pick, and it is cited as `Owner's request:`; no `needs_decision`.
+- `pr`: it ends `needs_decision` with `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or `gate_unavailable`; the question goes on the pull request.
+- A parked change builds only what the owner needs to see the options. The Designer never picks a change the gate parked.
 - A plan quotes the owner's words on an `Owner's request:` line.
 - At merge a request counts as the owner's only when the runner vouches for the request issue or the quote sits in a prompt the owner typed (`tools/hooks/owner_prompt_log.py`); agent-written text never does.
 - A merged app-UI change carries or cites a design decision record or pattern ([propose-first](propose-first.md#record)).
