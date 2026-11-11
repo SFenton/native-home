@@ -54,7 +54,7 @@ final class UKHostedHomeAssistantTests: DemoHouseTestCase {
         let (page, window, _) = try await page(user: nil)
         defer { window.isHidden = true }
         // Never connected: the account row cannot be loaded, and says so instead of spinning forever.
-        for _ in 0..<10 where labels(page)["haSettings.user"] == "Signed in as, Loading account" { await FeatureHost.settleAsync(0.3) }
+        await FeatureHost.settleAsync(until: { self.labels(page)["haSettings.user"] != "Signed in as, Loading account" })
         let label = labels(page)["haSettings.user"] ?? ""
         XCTAssertTrue(label == "Signed in as, Unavailable offline" || label.contains("Loading"), "got \(label)")
     }
@@ -117,7 +117,7 @@ final class UKHostedHomeAssistantTests: DemoHouseTestCase {
         let web = UKHomeAssistantWebPageViewController(page: .settings, session: signedIn.session, connection: signedIn.connection)
         let window = HostedPage.show(web)
         defer { window.isHidden = true }
-        for _ in 0..<12 where FeatureHost.view("haWeb.retry", in: web.view) == nil { await FeatureHost.settleAsync(0.4) }
+        await FeatureHost.settleAsync(until: { FeatureHost.view("haWeb.retry", in: web.view) != nil })
         XCTAssertNotNil(FeatureHost.view("haWeb.retry", in: web.view), "Can't open Settings, with Try Again")
         XCTAssertTrue(HostedPage.labels(in: web.view).contains("Can't open Settings"))
         FeatureHost.press("haWeb.retry", in: web.view)
