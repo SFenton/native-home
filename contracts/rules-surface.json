@@ -1,0 +1,260 @@
+{
+ "_about": "Data for tools/rules_lint.py and tools/hooks/rules_guard.py. Budgets and patterns change only here (CODEOWNERS-protected). There is no inline ignore comment and no per-line allow-list; exemptions are by layer. Every tracked markdown file matches a layer or a glob in `unchecked`.",
+ "words_per_line": 60,
+ "layers": {
+  "core": {
+   "globs": [
+    "AGENTS.md"
+   ],
+   "max_words": 600,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "rules": {
+   "globs": [
+    ".agents/workflow/*.md"
+   ],
+   "max_words": 700,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true,
+   "files": [
+    "README.md",
+    "agent-roster.md",
+    "autonomy.md",
+    "change-loop.md",
+    "propose-first.md",
+    "pr-lifecycle.md",
+    "ci.md",
+    "versioning.md",
+    "token-economy.md",
+    "docs-conventions.md",
+    "eval-gate.md",
+    "jev.md",
+    "security.md",
+    "triage-agent.md"
+   ]
+  },
+  "agent": {
+   "globs": [
+    ".claude/agents/*.md"
+   ],
+   "max_words": 350,
+   "file_max_words": {
+    ".claude/agents/orchestrator.md": 600
+   },
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "prompt": {
+   "globs": [
+    "tools/triage/prompts/*.md"
+   ],
+   "max_words": 350,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "procedure": {
+   "globs": [
+    ".agents/skills/*/SKILL.md"
+   ],
+   "max_words": 600,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "router": {
+   "globs": [
+    ".agents/README.md",
+    ".agents/skills/README.md"
+   ],
+   "max_words": 400,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "reference": {
+   "globs": [
+    ".agents/**/*.md"
+   ],
+   "exclude": [
+    ".agents/design/mockups/**",
+    ".agents/decisions/**",
+    ".agents/archive/**"
+   ],
+   "max_words": 1500,
+   "dates": false,
+   "forbidden": true,
+   "one_home": false,
+   "ratchet": "contracts/rules-ratchet.json"
+  },
+  "mockup_readme": {
+   "globs": [
+    ".agents/design/mockups/**/README.md"
+   ],
+   "max_words": 1500,
+   "dates": false,
+   "forbidden": true,
+   "one_home": false,
+   "ratchet": "contracts/rules-ratchet.json"
+  },
+  "state": {
+   "globs": [
+    "PROGRESS.md"
+   ],
+   "max_words": 900,
+   "max_lines": 60,
+   "dates": true,
+   "forbidden": false,
+   "one_home": false,
+   "words_per_line": null
+  },
+  "record": {
+   "globs": [
+    ".agents/decisions/*.md",
+    ".agents/archive/**/*.md"
+   ],
+   "max_words": null,
+   "dates": true,
+   "forbidden": false,
+   "one_home": false,
+   "words_per_line": null,
+   "append_only": true
+  }
+ },
+ "unchecked": [
+  {
+   "glob": ".claude/skills/**",
+   "reason": "vendored third-party skills; their text is not ours to rewrite"
+  },
+  {
+   "glob": ".claude/agent-memory/**",
+   "reason": "per-agent memory notes the harness writes; dated by design and never linked as a rule"
+  },
+  {
+   "glob": ".agents/design/mockups/**",
+   "reason": "the mockup atlas has its own lifecycle and hub; only its README files are a layer"
+  },
+  {
+   "glob": "evals/**",
+   "reason": "eval cases and their notes are graded data, changed only apart from agent behaviour"
+  },
+  {
+   "glob": "contracts/jev/derived/**",
+   "reason": "measured decision-model output and scenarios; eval data"
+  },
+  {
+   "glob": ".github/**",
+   "reason": "GitHub's own templates and workflow notes; not loaded by agents as rules"
+  },
+  {
+   "glob": "tools/*/README.md",
+   "reason": "how one tool folder works; tool documentation, not rule text"
+  },
+  {
+   "glob": "README.md",
+   "reason": "the product's front page for people"
+  }
+ ],
+ "role_load": {
+  "orchestrator": 6000,
+  "default": 4000,
+  "agent_globs": [
+   ".claude/agents/*.md"
+  ],
+  "prompt_globs": [
+   "tools/triage/prompts/*.md"
+  ],
+  "always": [
+   "AGENTS.md"
+  ],
+  "orchestrator_files": [
+   ".claude/agents/orchestrator.md"
+  ]
+ },
+ "decision_link_allowed": [
+  ".agents/workflow/docs-conventions.md"
+ ],
+ "forbidden": [
+  {
+   "id": "date",
+   "regex": "\\b20\\d\\d-\\d\\d-\\d\\d\\b|\\b20\\d\\d/\\d\\d/\\d\\d\\b|\\b\\d{1,2}/\\d{1,2}/20\\d\\d\\b",
+   "skip_code": false,
+   "why": "a rule carries no date",
+   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+  },
+  {
+   "id": "date_words",
+   "regex": "\\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+20\\d\\d\\b|\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?(?=[\\s,.:;)]|$)(?:\\s+20\\d\\d\\b)?|\\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?\\s+20\\d\\d\\b|\\b20\\d\\d-(?:0[1-9]|1[0-2])\\b(?!-)",
+   "skip_code": true,
+   "why": "a rule carries no date",
+   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+  },
+  {
+   "id": "attribution",
+   "regex": "\\(owner\\b|\\bowner decisions?\\b|\\bowner approved\\b|\\bowner,\\s*\\d|\\bthe owner (?:decided|approved|asked|said|wanted|requested)\\b|\\bper the owner\\b|\\bowner['\u2019]s (?:decision|request|call)\\b",
+   "ignorecase": true,
+   "skip_code": true,
+   "why": "a rule carries no who-decided attribution",
+   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+  },
+  {
+   "id": "reference",
+   "regex": "(?<![\\w&/])#\\d{2,5}\\b|\\bPRs? #?\\d+\\b|\\b(?i:pull requests?|issues?) #?\\d+\\b",
+   "skip_code": true,
+   "why": "a rule names no PR or issue number",
+   "home": "the PR description or the commit; a rule names no PR, issue or commit"
+  },
+  {
+   "id": "sha",
+   "regex": "\\b(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\\b",
+   "skip_code": true,
+   "why": "a rule names no commit",
+   "home": "the PR description or the commit; a rule names no PR, issue or commit"
+  },
+  {
+   "id": "change_was",
+   "regex": "\\(was\\b|\\bwere\\b[:)]|\\bwas:",
+   "ignorecase": true,
+   "skip_code": true,
+   "why": "a rule states the present default, not what it replaced",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "skip_quotes": true
+  },
+  {
+   "id": "change",
+   "regex": "\\bpreviously\\b|\\bno longer\\b|(?<!\\bis )(?<!\\bare )(?<!\\bbe )(?<!\\bbeen )(?<!\\bbeing )(?<!\\bget )(?<!\\bgets )used to\\b|\\braised from\\b|\\blowered from\\b|\\bunlocked\\s*[(:]|\\bunlocked,\\s*(?:20|on )|\\bsuperseded\\b|\\bfor now\\b|\\bas of (?:\\d|today|now|this (?:week|month|writing|change|release))|\\bsince 20\\d\\d\\b|\\b(?:has|have|had|already|just|first) landed\\b|\\blanded (?:in|on)\\b|\\bPhase \\d|\\bas decided\\b|\\bwe (?:decided|changed|moved|switched)\\b|\\boriginally\\b|\\bformerly\\b|\\btemporarily\\b|\\bgoing forward\\b|\\bfrom now on\\b",
+   "ignorecase": true,
+   "skip_code": true,
+   "why": "a rule uses no words of change",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "skip_quotes": true
+  },
+  {
+   "id": "change_label",
+   "regex": "(?<![\\w-])(?:new|old):(?=\\s)",
+   "ignorecase": true,
+   "skip_code": true,
+   "why": "a rule states the present default, not a before and after",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "skip_quotes": true
+  }
+ ],
+ "homes": {
+  "decision": ".agents/decisions/<YYYY-MM-DD>-<slug>.md and the PR description",
+  "status": "PROGRESS.md or an issue",
+  "narrow exception": "the enforcing tool's config or allow-list with a reason; prose never",
+  "incident": "a test or one eval case per class, and the PR description",
+  "numbers and names tools read": "contracts/*.json or the tool; the doc names the file",
+  "how a tool works": "the tool's --help and refusal messages",
+  "over budget": "delete, link to the rule's one home, or move the how-to to a skill; budgets change only in contracts/rules-surface.json"
+ },
+ "path_ignore": [
+  ".claude/worktrees",
+  "apple/.build",
+  "build"
+ ]
+}
