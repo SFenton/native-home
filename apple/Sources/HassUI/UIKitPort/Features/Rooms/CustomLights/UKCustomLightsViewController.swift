@@ -17,7 +17,9 @@ final class UKCustomLightsViewController: UKPageViewController {
 
     private let column = UKFoldColumns(spacing: HassTokens.Spacing.m)
     private var scroll: UKPageScrollView!
-    private let header = UKPageSectionHeaderView(CustomLightsConfig.frontYardTitle)
+    private var header = UKPageSectionHeaderView(CustomLightsConfig.frontYardTitle)
+    /// Holds the observations of the light tiles, which come from the house document, so a rebuild ends the old ones.
+    private let structureBag = UKObservationBag()
     private var manualRow: UKModuleToggleRow!
     private var modeRow: UKLightingModeButton!
     private var modeFitted: UKRoomsFittedView!
@@ -45,9 +47,6 @@ final class UKCustomLightsViewController: UKPageViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let environment = UKTileEnvironment(context: context)
-        let store = self.store
-
         manualRow = UKModuleToggleRow(ManualControlRow.title, symbol: "lightbulb.2", glyph: UIColor(ColorFamily.lights.offGlyphToken),
                                       isOn: false) { [weak self] in
             guard let self else { return }
@@ -61,24 +60,7 @@ final class UKCustomLightsViewController: UKPageViewController {
         modeFitted = UKRoomsFittedView(modeRow)
         frontYard = UKRoomsModuleStack(rows: [UKRoomsFittedView(manualRow), modeFitted])
 
-        for light in CustomLightsConfig.lights {
-            let state = store.entity(light.entityId).state
-            let tile = UKBrightnessTileView(title: light.title, tint: UIColor(HassTokens.RGB.Tint.light),
-                                            fillTint: CustomLightsConfig.RGB(entity: state).map(UIColor.init(lightRGB:)),
-                                            percent: LightControl.percent(of: state), isUnavailable: state?.isUnavailable ?? true)
-            tile.environment = environment
-            tile.identifier = "customLights.light.\(light.entityId)"
-            tile.onPower = { [weak self] on in self?.send(LightControl.power(light.entityId, on: on)) }
-            tile.onBrightness = { [weak self] percent in self?.send(LightControl.brightness(light.entityId, percent: Double(percent))) }
-            tile.onOpen = { [weak self] in self?.show(light) }
-            tiles.append(tile)
-            bag.observe { [weak tile] in
-                let state = store.entity(light.entityId).state
-                tile?.update(fillTint: CustomLightsConfig.RGB(entity: state).map(UIColor.init(lightRGB:)),
-                             percent: LightControl.percent(of: state), isUnavailable: state?.isUnavailable ?? true)
-            }
-        }
-        grid.setItems(tiles.map { UKGridItem($0) })
+        buildTiles()
 
         // Reset is a list row, not a grey button (direction G, Sheets and Primary buttons).
         let reset = UKRoomsActionRow(title: "Reset All Lights", symbol: "arrow.counterclockwise", identifier: "customLights.resetAll") { [weak self] in
@@ -88,8 +70,7 @@ final class UKCustomLightsViewController: UKPageViewController {
 
         // Partly folded: the header and the switch and mode card lead; the light tiles and Reset All Lights trail, level with the card
         // (`.agents/design/section-sides.md`, rule 6). Lying flat the page is one column up to 960 pt, as before.
-        column.setSections([.init(header, side: .leading), .init(frontYard, side: .leading),
-                            .init(grid, side: .trailing, levelWith: 1), .init(resetCard, side: .trailing)])
+        setColumnSections()
         column.sideInset = HassTokens.Spacing.l
         column.flatMaxWidth = 960
         column.splitIdentifier = "customLights.columns.split"
@@ -110,6 +91,46 @@ final class UKCustomLightsViewController: UKPageViewController {
             guard let self else { return }
             column.hinge = context.shell?.windowHinge
         }
+    }
+
+    private func setColumnSections() {
+        column.setSections([.init(header, side: .leading), .init(frontYard, side: .leading),
+                            .init(grid, side: .trailing, levelWith: 1), .init(resetCard, side: .trailing)])
+    }
+
+    /// Builds the header title and a brightness tile per light from the house document. Called from `viewDidLoad` and again by
+    /// ``houseLayoutDidChange()``.
+    private func buildTiles() {
+        structureBag.removeAll()
+        tiles = []
+        let environment = UKTileEnvironment(context: context)
+        let store = self.store
+        for light in CustomLightsConfig.lights {
+            let state = store.entity(light.entityId).state
+            let tile = UKBrightnessTileView(title: light.title, tint: UIColor(HassTokens.RGB.Tint.light),
+                                            fillTint: CustomLightsConfig.RGB(entity: state).map(UIColor.init(lightRGB:)),
+                                            percent: LightControl.percent(of: state), isUnavailable: state?.isUnavailable ?? true)
+            tile.environment = environment
+            tile.identifier = "customLights.light.\(light.entityId)"
+            tile.onPower = { [weak self] on in self?.send(LightControl.power(light.entityId, on: on)) }
+            tile.onBrightness = { [weak self] percent in self?.send(LightControl.brightness(light.entityId, percent: Double(percent))) }
+            tile.onOpen = { [weak self] in self?.show(light) }
+            tiles.append(tile)
+            structureBag.observe { [weak tile] in
+                let state = store.entity(light.entityId).state
+                tile?.update(fillTint: CustomLightsConfig.RGB(entity: state).map(UIColor.init(lightRGB:)),
+                             percent: LightControl.percent(of: state), isUnavailable: state?.isUnavailable ?? true)
+            }
+        }
+        grid.setItems(tiles.map { UKGridItem($0) })
+    }
+
+    override func houseLayoutDidChange() {
+        buildTiles()
+        header = UKPageSectionHeaderView(CustomLightsConfig.frontYardTitle)
+        setColumnSections()
+        refresh()
+        scroll.contentChanged(animated: false)
     }
 
     override func viewDidAppear(_ animated: Bool) {

@@ -5,32 +5,18 @@ import UIKit
 import XCTest
 @testable import HassUI
 
-/// A scripted house config transport: nothing is sent until the test emits.
-@MainActor
-final class StubHouseTransport: HouseConfigTransport {
-    private var handler: (@Sendable (Result<Data, Error>) -> Void)?
-    private(set) var subscribeCount = 0
-
-    func subscribe(_ handler: @escaping @Sendable (Result<Data, Error>) -> Void) -> @Sendable () -> Void {
-        subscribeCount += 1
-        self.handler = handler
-        return {}
-    }
-
-    func emit(_ result: Result<Data, Error>) { handler?(result) }
-}
-
 /// The skeleton and the missing-layout messages on the layout-driven pages, and the swap to content
 /// (`.agents/design/house-config-states.md` rules 10 to 15). Compile-only in the migration tier: run in the deferred pass.
 @MainActor
 final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
-    private let source = HouseConfigSource()
-    private let transport = StubHouseTransport()
+    /// Built in the app's copy of HassCore, the one the gate observes (`GalleryHouseRig`).
+    private let rig = GalleryHouseRig()
+    private var source: HouseConfigSource { rig.source }
+    private var transport: StubHouseTransport { rig.transport }
 
     private func makeStore(timeout: Duration = .seconds(60)) -> HouseConfigStore {
-        let cache = HouseConfigCache(fileURL: FileManager.default.temporaryDirectory.appending(path: "gate-\(UUID()).json"))
-        return HouseConfigStore(server: HassServer(baseURL: URL(string: "https://demo.example.com")!), transport: transport, cache: cache,
-                                source: source, timeout: timeout)
+        // swiftlint:disable:next force_try
+        try! rig.makeStore(timeout: timeout)
     }
 
     private func homeContext(store: HouseConfigStore) -> UKContext {
@@ -46,6 +32,12 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         configuration.weatherStore = WeatherForecastStore(requestTimeout: 3600)
         configuration.weatherCaller = WeatherFixtureCaller(mode: .normal)
         return UKHomeViewController(context: homeContext(store: store), configuration: configuration)
+    }
+
+    /// Answers the subscription once the store has made it (it subscribes a task after `start()`; an earlier answer is dropped).
+    private func emit(_ result: Result<Data, Error>) async {
+        _ = await FeatureHost.settleAsync(until: { self.transport.subscribeCount > 0 }, timeout: 4)
+        transport.emit(result)
     }
 
     private func document() throws -> Data {
@@ -85,7 +77,6 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
 
     func testHomeShowsItsSkeletonUntilTheDocumentArrivesThenSwapsToContent() async throws {
         let store = makeStore()
-        store.start()
         let page = home(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
@@ -96,7 +87,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         XCTAssertEqual(page.contentView.alpha, 0, "the content waits behind the skeleton, still built")
         XCTAssertFalse(has("houseConfig.state", in: page))
 
-        transport.emit(.success(try document()))
+        await emit(.success(try document()))
         await expectWait("home.skeleton", in: page, present: false, "the document arrived: the skeleton goes")
         _ = await FeatureHost.settleAsync(until: { page.contentView.alpha == 1 }, timeout: 4)
         XCTAssertEqual(page.contentView.alpha, 1)
@@ -106,7 +97,6 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
 
     func testSecurityShowsTheGenericSkeletonAndTheDocumentSwapsItAway() async throws {
         let store = makeStore()
-        store.start()
         let entities = HomeFixtures.store(environment: [:])
         let recorder = GalleryServiceRecorder(store: entities)
         var context = UKGalleryChrome.context(store: entities, caller: recorder)
@@ -117,13 +107,12 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
         defer { window.isHidden = true }
         await expectWait("page.skeleton", in: page)
         XCTAssertEqual(FeatureHost.view("page.skeleton", in: page.view)?.accessibilityLabel, "Getting your home from Home Assistant")
-        transport.emit(.success(try document()))
+        await emit(.success(try document()))
         await expectWait("page.skeleton", in: page, present: false)
     }
 
     func testTheSkeletonStaysOneElementAtTheLargestTextSize() async throws {
         let store = makeStore()
-        store.start()
         let page = home(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
@@ -138,15 +127,14 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
     }
 
     func testAPageWithADocumentNeverShowsAStateWhateverTheStatus() async throws {
-        source.set(DemoHouse.config)
+        rig.setDocument(DemoHouse.config)
         let store = makeStore()
-        store.start()
         let page = home(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
-        transport.emit(.success(Data(#"{"configured": false}"#.utf8)))
-        _ = await FeatureHost.settleAsync(until: { store.status == .notConfigured }, timeout: 4)
-        XCTAssertEqual(store.status, .notConfigured)
+        await emit(.success(Data(#"{"configured": false}"#.utf8)))
+        _ = await FeatureHost.settleAsync(until: { rig.status == .notConfigured }, timeout: 4)
+        XCTAssertEqual(rig.status, .notConfigured)
         XCTAssertFalse(has("home.skeleton", in: page) || has("houseConfig.state", in: page), "a saved layout always wins")
         XCTAssertEqual(page.contentView.alpha, 1)
     }
@@ -248,12 +236,11 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
 
     func testARealTimeoutShowsTheMessageThenTheDocumentReplacesIt() async throws {
         let store = makeStore(timeout: .milliseconds(150))
-        store.start()
         let page = home(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }
         await expectWait("houseConfig.state", in: page, "10 s with no answer, shortened: the message")
-        transport.emit(.success(try document()))
+        await emit(.success(try document()))
         await expectWait("houseConfig.state", in: page, present: false, "the message goes without anyone tapping")
         _ = await FeatureHost.settleAsync(until: { page.contentView.alpha == 1 }, timeout: 4)
         XCTAssertEqual(page.contentView.alpha, 1)
@@ -405,11 +392,7 @@ final class UKHostedHouseLayoutGateTests: DemoHouseTestCase {
     // MARK: - Cold launch with a saved layout
 
     func testAColdLaunchWithASavedLayoutNeverDrawsASkeleton() throws {
-        let cache = HouseConfigCache(fileURL: FileManager.default.temporaryDirectory.appending(path: "cold-\(UUID()).json"))
-        let server = HassServer(baseURL: URL(string: "https://demo.example.com")!)
-        try cache.save(DemoHouse.config, hash: "saved", server: server)
-        let store = HouseConfigStore(server: server, transport: transport, cache: cache, source: source, loadsCacheSynchronously: true)
-        store.start()
+        let store = try rig.makeStore(cached: (DemoHouse.config, "saved"), loadsCacheSynchronously: true)
         let page = home(store: store)
         let window = HostedPage.show(page)
         defer { window.isHidden = true }

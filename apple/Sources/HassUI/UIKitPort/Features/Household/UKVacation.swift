@@ -672,6 +672,19 @@ final class UKVacationViewController: UKPageViewController {
         }
     }
 
+    /// The three contents read the house document when they are made, so a document that arrives (or changes) after they were made
+    /// drops them and shows the live route again from fresh ones.
+    override func houseLayoutDidChange() {
+        let previous = activeContent
+        previous?.scrollView.removeFromSuperview()
+        previous?.hostDidDisappear()
+        chooser = nil
+        mode = nil
+        solo = nil
+        displayed = nil
+        show(displayedRoute(live: liveRoute()))
+    }
+
     private func liveRoute() -> Vacation.Route {
         Vacation.route(
             snapshot: household.snapshot,

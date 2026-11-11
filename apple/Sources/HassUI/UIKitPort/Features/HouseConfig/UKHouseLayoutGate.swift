@@ -39,6 +39,8 @@ final class UKHouseLayoutGate {
     private var renderedBusy = false
     private var renderedRole: HouseLayoutState.Role = .unknown
     private var hasRendered = false
+    /// What the page was built from: whether a document existed and the store's hash then. nil until the first pass.
+    private var built: (hasDocument: Bool, hash: String?)?
 
     /// The state on screen.
     private(set) var state: HouseLayoutState = .content
@@ -106,6 +108,7 @@ final class UKHouseLayoutGate {
             if next == .skeleton { next = .message(.timedOut, showsAction: true) } else { retrying = false }
         }
         if case .message = next { loadRoleIfNeeded() }
+        rebuildIfStructureChanged(hasDocument: hasDocument, hash: store?.hash)
         let busy = retrying
         guard next != state || busy != renderedBusy || role != renderedRole || !hasRendered else { return }
         let previous = state
@@ -116,6 +119,24 @@ final class UKHouseLayoutGate {
         renderedRole = role
         hasRendered = true
         render(previous: previous, animated: animated, busy: busy, roleChanged: roleChanged)
+    }
+
+    /// **Structure from facades is built when the document exists, and rebuilt on a hash change.** The first pass (the gate is made in
+    /// `viewDidLoad`, before the page builds) records what the page is about to be built from. After that the page is rebuilt once when
+    /// a document appears that it was built without, and once when the hash of the document it was built from changes. A hash arriving
+    /// for a document the page already had (nil to a value) is not a change, and a cached launch never rebuilds. The hook runs inside this
+    /// observation, so the facade and entity boxes it reads are tracked too: after a rebuild the gate refreshes once more on the next
+    /// change to one of them, which finds nothing new and does nothing.
+    private func rebuildIfStructureChanged(hasDocument: Bool, hash: String?) {
+        guard let current = built else {
+            built = (hasDocument, hash)
+            return
+        }
+        guard hasDocument else { return }
+        let changed = !current.hasDocument || (current.hash != nil && hash != nil && hash != current.hash)
+        built = (true, hash ?? current.hash)
+        guard changed, let page else { return }
+        page.houseLayoutDidChange()
     }
 
     private func loadRoleIfNeeded() {
