@@ -22,11 +22,11 @@ Kinds are ``pick``, ``evidence``, ``verdict``, ``owner``, ``handoff``, ``shipped
 device class (``iphone``, ``duo``, ``ipad``) per round, marker ``<!-- sh:evidence:<task>:<class>:<round> -->``; a class
 with nothing to show gets no comment. Other markers are ``<!-- sh:<kind>:<task>:<round> -->``.
 
-Header: every comment starts with ``Step N · <Role> · round R · head <sha7> · HH:MMZ`` (head only when ``--head`` is
-given). ``N`` is ``--step`` or, when absent, the count of this task's distinct markers already posted or queued, plus one;
+Header: every comment has its own heading line ``#### Step N · <Role> · round R · head <sha7> · HH:MMZ`` (head only when
+``--head`` is given), then a blank line and the body unchanged. ``N`` is ``--step`` or, when absent, the count of this task's distinct markers already posted or queued, plus one;
 an edit keeps its number. The role is ``--as`` or the kind's usual role (Researcher, Designer, Coder, Verifier,
-Reviewer, Steward, Orchestrator). A body whose first line is its own ``**Role**`` header (or, for an app's ``@SFenton``
-comment, its first text line) shares the line with the step header, so the mention stays first.
+Reviewer, Steward, Orchestrator). A body that starts with its own ``#`` heading keeps it first and the header follows;
+an app's ``@SFenton`` mention stays first. A comment in the older glued form is rewritten in the new one on its next post.
 
 Behaviour:
 
@@ -64,7 +64,10 @@ Behaviour:
   posted, so a stale queued note never overwrites a newer comment.
 - ``--as ROLE`` (orchestrator, researcher, designer, coder, verifier, reviewer, steward, menial, triage): when that
   role's GitHub App key exists (``tools/gh_app_token.py``) comments are posted and edited through the REST API with
-  its installation token; otherwise one stderr line and the owner's ``gh`` login, exactly as without ``--as``.
+  its installation token; otherwise one stderr line and the owner's ``gh`` login, exactly as without ``--as``. When the
+  app call itself fails, one stderr line ``pr_note: <role> app failed (<reason>); posted with the gh login`` (the error's
+  own message, redacted) and the comment goes out with the ``gh`` login: a note is never lost, and a queued note for a
+  failing role never blocks the queue. REST paths use the repository of ``origin``, not the ``repo`` of ``apps.json``.
   ``handoff`` and ``owner`` comments from an app start with ``@SFenton`` (GitHub Mobile pushes only on a mention).
   Marker lookup matches comments by marker whoever wrote them: an app edits its own comment; a comment by another
   author (the owner's login before the switch, or the reverse) is replaced, since an app cannot edit it, by posting
@@ -126,6 +129,10 @@ _HASH = re.compile(r"<!-- sh-hash:([0-9a-f]+) -->")
 
 class NoteError(Exception):
     """A ``gh`` or input problem; ``main`` turns it into one warning line and exit 0."""
+
+
+class AppFailed(NoteError):
+    """A role's GitHub App call failed; ``str`` is the redacted reason (status code and API path, never a secret)."""
 
 
 class Refusal(Exception):
@@ -200,23 +207,33 @@ def find_pr(explicit: Optional[str], branch: Optional[str] = None, task: Optiona
         return None
 
 
+def repo_slug() -> str:
+    """``owner/name`` the PR lives in: the environment or ``origin`` of this checkout, else the ``repo`` of ``apps.json``.
+
+    ``apps.json`` can name a renamed repository, whose REST path lists no comments, so it comes last."""
+    try:
+        return gh_app_token.default_repo()
+    except Exception:  # noqa: BLE001 - no remote: fall back to the apps file
+        return gh_app_token.repo()
+
+
 def list_comments(pr: int) -> List[Dict[str, Any]]:
     """All issue comments on the PR as ``{id, body, html_url, user: {login, type}}`` (read with the owner's login)."""
-    out = gh(["api", "repos/{slug}/issues/{pr}/comments".format(slug=gh_app_token.repo(), pr=pr), "--paginate", "--jq",
+    out = gh(["api", "repos/{slug}/issues/{pr}/comments".format(slug=repo_slug(), pr=pr), "--paginate", "--jq",
               ".[] | {id, body, html_url, user: {login: .user.login, type: .user.type}}"])
     return [json.loads(line) for line in out.splitlines() if line.strip()]
 
 
 def patch_comment(comment_id: Any, body: str) -> None:
     """Replace the text of one comment with the owner's login."""
-    gh(["api", "-X", "PATCH", "repos/{slug}/issues/comments/{id}".format(slug=gh_app_token.repo(), id=comment_id),
+    gh(["api", "-X", "PATCH", "repos/{slug}/issues/comments/{id}".format(slug=repo_slug(), id=comment_id),
         "--input", "-"],
        json.dumps({"body": body}))
 
 
 def remove_comment(comment_id: Any) -> None:
     """Remove one comment with the owner's login (the old copy after a change of author)."""
-    gh(["api", "-X", "DELETE", "repos/{slug}/issues/comments/{id}".format(slug=gh_app_token.repo(), id=comment_id)])
+    gh(["api", "-X", "DELETE", "repos/{slug}/issues/comments/{id}".format(slug=repo_slug(), id=comment_id)])
 
 
 _OWNER_LOGIN: List[str] = []
@@ -258,6 +275,12 @@ def has_tag(comment: Dict[str, Any], tag: str) -> bool:
 
 # MARK: - Identity
 
+def reason_of(exc: BaseException) -> str:
+    """The error's own message (``ExcName`` when it has none), through ``tools/redact.py`` when it can be imported."""
+    text = " ".join(str(exc).split()) or type(exc).__name__
+    return (_redact(text) if _redact else text)[:200]
+
+
 class Identity:
     """Who writes: an app role (``role`` and its ``login``, ``<slug>[bot]``) or the owner's ``gh`` login (no role)."""
 
@@ -283,22 +306,22 @@ class Identity:
 
     def create(self, pr: int, text: str) -> None:
         """Post a new issue comment as an app (REST, installation token in-process)."""
-        self.call("POST", "repos/{slug}/issues/{pr}/comments".format(slug=gh_app_token.repo(), pr=pr), {"body": text})
+        self.call("POST", "repos/{slug}/issues/{pr}/comments".format(slug=repo_slug(), pr=pr), {"body": text})
 
     def edit(self, comment_id: Any, text: str) -> None:
         """Edit one of this identity's own comments."""
         if not self.role:
             patch_comment(comment_id, text)
             return
-        self.call("PATCH", "repos/{slug}/issues/comments/{id}".format(slug=gh_app_token.repo(), id=comment_id),
+        self.call("PATCH", "repos/{slug}/issues/comments/{id}".format(slug=repo_slug(), id=comment_id),
                   {"body": text})
 
     def call(self, method: str, path: str, payload: Dict[str, Any]) -> None:
         """One REST call with the role's installation token."""
         try:
             gh_app_token.api_request(method, path, gh_app_token.token(self.role or ""), payload)
-        except Exception as exc:  # noqa: BLE001 - any failure queues the note instead of losing it
-            raise NoteError(f"app call failed: {type(exc).__name__}") from None
+        except Exception as exc:  # noqa: BLE001 - the caller falls back to the gh login instead of losing the note
+            raise AppFailed(reason_of(exc)) from None
 
 
 OWNER = Identity()
@@ -316,8 +339,7 @@ def resolve_identity(role: Optional[str]) -> Identity:
                    else gh_app_token.slug(role, timeout=gh_app_token.PROBE_TIMEOUT))
             return Identity(role, f"{own}[bot]")
     except Exception as exc:  # noqa: BLE001 - never lose a note over identity
-        print(f"pr_note: app identity for {role} failed ({type(exc).__name__}: {exc}), posting as the owner login",
-              file=sys.stderr)
+        print(f"pr_note: app identity for {role} failed ({reason_of(exc)}), posting as the owner login", file=sys.stderr)
         return OWNER
     print(f"pr_note: no app identity for {role}, posting as the owner login", file=sys.stderr)
     return OWNER
@@ -371,31 +393,23 @@ def compose(body: str, tag: str, note: Optional[str] = None, digest: Optional[st
             header: Optional[str] = None) -> str:
     """The final comment text: header (with ``note`` appended), body, hash and marker.
 
-    ``digest`` is the hash of the raw body (before upload URLs were substituted) so a re-post compares equal. ``header`` is the
-    step header: it is the first line, except that a body whose first line is its own ``**Role**`` header shares that line, and
-    a ``#`` heading or an ``@SFenton`` mention stays first with the header at the end of its line (of the first text line after the
-    mention)."""
+    ``digest`` is the hash of the raw body (before upload URLs were substituted) so a re-post compares equal. ``header`` is
+    its own line, ``#### Step N · ...``, then a blank line, then the body unchanged. A body that starts with its own ``#``
+    heading keeps it first and gets the header as the next line; an ``@SFenton`` mention stays first, the header follows it."""
     clean = strip_markers(body)
     lines = clean.split("\n")
-    at = 0
     if header is None:
-        pass
-    elif clean.startswith(MENTION):
-        at = 0 if lines[0].strip() != MENTION else next((n for n, x in enumerate(lines) if n and x.strip()), -1)
-        if at < 0:
-            lines += ["", header]
-            at = len(lines) - 1
-        else:
-            lines[at] = f"{lines[at]} · {header}"
-    elif lines[0].startswith("**"):
-        lines[0] = f"{header} · {lines[0]}"
+        if note:
+            lines[0] = f"{lines[0]} · {note}"
+        return f"{chr(10).join(lines)}\n\n<!-- sh-hash:{digest or body_hash(clean)} -->\n{tag}\n"
+    shown = f"#### {header}" + (f" · {note}" if note else "")
+    if clean.startswith(MENTION):
+        text = f"{lines[0]}\n\n{shown}\n\n" + "\n".join(lines[1:]).lstrip("\n")
     elif lines[0].startswith("#"):  # a heading stays the first line
-        lines[0] = f"{lines[0]} · {header}"
+        text = f"{lines[0]}\n{shown}\n\n" + "\n".join(lines[1:]).lstrip("\n")
     else:
-        lines.insert(0, header)
-    if note:
-        lines[at] = f"{lines[at]} · {note}"
-    return f"{chr(10).join(lines)}\n\n<!-- sh-hash:{digest or body_hash(clean)} -->\n{tag}\n"
+        text = f"{shown}\n\n{clean}"
+    return f"{text.rstrip()}\n\n<!-- sh-hash:{digest or body_hash(clean)} -->\n{tag}\n"
 
 
 def _local(path: str) -> Optional[Path]:
@@ -592,7 +606,7 @@ def comment_tag(comment: Dict[str, Any], task: str) -> Optional[str]:
 
 def header_of(comment: Dict[str, Any]) -> "Optional[re.Match[str]]":
     """The step header match in the first lines of a comment, else ``None``."""
-    return _HEADER.search("\n".join((comment.get("body") or "").splitlines()[:4]))
+    return _HEADER.search("\n".join((comment.get("body") or "").splitlines()[:6]))
 
 
 def step_of(comment: Dict[str, Any]) -> Optional[int]:
@@ -624,8 +638,19 @@ def post_comment(pr: int, task: str, kind: str, cls: Optional[str], round_no: in
 
     Comments are found by marker whoever wrote them. The identity's own is edited; one by another author is
     replaced (new comment first, then the old one removed) because an app cannot edit the owner's comment. The header shows
-    ``step`` (an edit keeps its own), the role, the round, ``head`` and the time (``happened`` for a queued note)."""
+    ``step`` (an edit keeps its own), the role, the round, ``head`` and the time (``happened`` for a queued note).
+    When the role's app call fails, one stderr line names the reason and the note is posted with the ``gh`` login instead."""
     ident = ident or _ACTIVE
+    try:
+        return _post_as(ident, pr, task, kind, cls, round_no, body, happened, role, step, head)
+    except AppFailed as exc:
+        print(f"pr_note: {ident.role} app failed ({exc}); posted with the gh login", file=sys.stderr)
+        return _post_as(OWNER, pr, task, kind, cls, round_no, body, happened, role, step, head)
+
+
+def _post_as(ident: Identity, pr: int, task: str, kind: str, cls: Optional[str], round_no: int, body: str,
+             happened: Optional[str], role: Optional[str], step: Optional[int], head: Optional[str]) -> str:
+    """``post_comment`` for one identity; raises ``AppFailed`` when that identity is an app whose call failed."""
     tag = marker(kind, task, round_no, cls)
     body = with_mention(kind, body, ident)
     digest = body_hash(strip_markers(body))
@@ -639,7 +664,7 @@ def post_comment(pr: int, task: str, kind: str, cls: Optional[str], round_no: in
     label = role_label(kind, role)
     if own:
         m = _HASH.search(own["body"])
-        if m and m.group(1) == digest:
+        if m and m.group(1) == digest and "#### Step " in own["body"]:  # an older, glued header is rewritten
             return "unchanged"
         number = step_of(own) or step or next_step(comments, task, tag)
         header = header_line(number, label, round_no, head, now_z())
@@ -745,16 +770,25 @@ def drop_queued(task: str, kind: str, cls: Optional[str], round_no: int) -> None
 
 
 def flush(task: str, pr: int) -> int:
-    """Post the queue in order (after draining the legacy one); stops at the first failure so order is kept.
+    """Post the queue in order (after draining the legacy one); stops at the first ``gh`` failure so order is kept.
 
-    A queued note is gated again before it goes out. Returns how many were posted."""
+    A queued note is gated again before it goes out. One whose marker is already on the PR is dropped (the posted comment is
+    newer). A role whose app fails is posted with the ``gh`` login, so it never blocks the queue. Returns how many were posted."""
     drain_legacy(task)
     count = 0
+    idents: Dict[Optional[str], Identity] = {}
     for path in queue_files(task):
         n = json.loads(path.read_text())
+        tag = marker(n["kind"], task, n["round"], n.get("class"))
+        if any(has_tag(c, tag) for c in list_comments(pr)):
+            path.unlink()
+            continue
         gate(n["body"], f"queued note {path.name}", load_media(task))
+        role = n.get("as")
+        if role not in idents:
+            idents[role] = resolve_identity(role)
         post_comment(pr, task, n["kind"], n["class"], n["round"], redact(n["body"]), happened=n["time"],
-                     ident=resolve_identity(n.get("as")), role=n.get("as"), step=n.get("step"), head=n.get("head"))
+                     ident=idents[role], role=role, step=n.get("step"), head=n.get("head"))
         path.unlink()
         count += 1
     return count
@@ -793,12 +827,18 @@ def update_block(pr: int, name: str, content: str, task: Optional[str] = None, a
 # MARK: - Timeline
 
 def first_sentence(comment: Dict[str, Any]) -> str:
-    """The first sentence of a step comment's text (140 characters at most), without its header, mention and markers."""
-    lines = [ln.strip() for ln in strip_markers(comment.get("body") or "").splitlines()]
-    text = next((ln for ln in lines[1:] if ln and not ln.startswith(("@", "<"))), "")
-    if not text:  # the text shares the header line
-        text = _HEADER.sub("", lines[0] if lines else "")
-        text = re.sub(r" · (?:updated|happened) [^·]*", "", text).replace("·", " ")
+    """The first sentence of a step comment's text (140 characters at most), without its header, mention and markers.
+
+    The header is its own line; an older comment has the text on the header line, which is read too."""
+    text = ""
+    for ln in (x.strip() for x in strip_markers(comment.get("body") or "").splitlines()):
+        if _HEADER.search(ln):
+            ln = _HEADER.sub("", ln)
+            ln = re.sub(r" · (?:updated|happened) [^·]*", "", ln).replace("·", " ")
+            ln = ln.replace("####", "")
+        if ln.strip() and not ln.startswith(("@", "<")):
+            text = ln
+            break
     text = re.sub(r"[*#`>]+|^\s*[-\d.]+\s+", "", text).strip()
     sentence = re.split(r"(?<=[.!?])\s", " ".join(text.split()), maxsplit=1)[0]
     return sentence[:140].rstrip()
@@ -931,7 +971,9 @@ def _post(args: argparse.Namespace) -> str:
         raise
     if result != "unchanged":
         try:
-            timeline(pr, args.task)
+            state = timeline(pr, args.task)
+            if state in ("no steps", "no markers"):
+                print(f"pr_note: warning, timeline not updated: {state}", file=sys.stderr)
         except (NoteError, Refusal) as exc:
             print(f"pr_note: warning, timeline not updated: {exc}", file=sys.stderr)
     return result

@@ -53,6 +53,7 @@ elif args[0] == "api" and "PATCH" in args:
         if c["id"] == cid: c["body"] = json.loads(sys.stdin.read())["body"]
     save()
 elif args[0] == "api":
+    if st.get("slug") and st["slug"] not in args[1]: sys.exit(0)  # a renamed repository lists nothing
     for c in st["comments"]: print(json.dumps(c))
 '''
 
@@ -127,7 +128,7 @@ class CommentTests(Base):
         self.assertIn("edited", self.post("verdict", "**Designer** (agent) · changes\n\nNo.")[1])
         comments = self.get()["comments"]
         self.assertEqual(len(comments), 1)
-        self.assertRegex(comments[0]["body"].splitlines()[0], r"changes · updated \d\d:\d\dZ$")
+        self.assertRegex(comments[0]["body"].splitlines()[0], r"^#### Step 1 · Designer · round 1 · \d\d:\d\dZ · updated \d\d:\d\dZ$")
 
     def test_new_round_is_a_new_comment(self):
         self.post("verdict", "**Designer** (agent) · pass", "1")
@@ -311,6 +312,8 @@ class InitAndQueueIdentityTests(Base):
         return sorted((pr_note.NOTES_DIR / task / "queue").glob("*.json"))
 
     def test_init_appends_missing_blocks_only_keeps_review_and_flushes(self):
+        """Fails if: ``init`` changes text outside the marker blocks, drops or duplicates the review block, omits a missing
+        ``sh-devices`` / ``sh-status`` / ``sh-timeline`` block, does not flush the queue, or a second ``init`` rewrites the body."""
         self.set_state(pr=None)
         self.post("pick", "**Designer** · pick")
         self.set_state(pr=7, body="Old text\n" + REVIEW + "\ntail")
@@ -396,12 +399,13 @@ class RoleKindTests(Base):
 
     def test_each_new_kind_posts_with_its_header_and_marker(self):
         """Fails if: research, build, review or retro is refused, lacks the marker for its kind, or starts with anything but
-        ``Step N · <Role> · round R · HH:MMZ``."""
+        ``#### Step N · <Role> · round R · HH:MMZ`` on its own line."""
         for rnd, (kind, role) in enumerate((("research", "Researcher"), ("build", "Coder"), ("review", "Reviewer"),
                                             ("retro", "Steward")), start=1):
             self.assertIn("posted", self.post(kind, f"{role} did the work.", str(rnd))[1])
             body = self.get()["comments"][-1]["body"]
-            self.assertRegex(body.splitlines()[0], rf"^Step {rnd} · {role} · round {rnd} · \d\d:\d\dZ$")
+            self.assertRegex(body.splitlines()[0], rf"^#### Step {rnd} · {role} · round {rnd} · \d\d:\d\dZ$")
+            self.assertEqual(body.splitlines()[1], "")
             self.assertTrue(body.rstrip().endswith(f"<!-- sh:{kind}:T-x:{rnd} -->"))
 
     def test_as_names_the_role_and_head_is_shortened(self):
@@ -409,14 +413,16 @@ class RoleKindTests(Base):
         with mock.patch.dict(os.environ, {"FENTON_HASS_APPS_DIR": str(Path(self.tmp.name) / "no-apps")}):  # no key: the owner login posts
             _code, _out, err = self.post("build", "Done.", "2", "--as", "coder", "--head", "8afc84d1234567")
         self.assertIn("no app identity for coder", err)
-        self.assertRegex(self.comment_lines()[0], r"^Step 1 · Coder · round 2 · head 8afc84d · \d\d:\d\dZ$")
+        self.assertRegex(self.comment_lines()[0], r"^#### Step 1 · Coder · round 2 · head 8afc84d · \d\d:\d\dZ$")
 
-    def test_legacy_header_shares_the_line_and_updated_is_appended(self):
-        """Fails if: a body that has its own ``**Role**`` first line gets a second header line, or an edit loses its step number."""
+    def test_header_is_its_own_line_and_updated_is_appended(self):
+        """Fails if: the header shares a line with a body that starts with ``**Role**``, the blank line or the body is lost, or an
+        edit loses its step number."""
         self.post("pick", "**Designer** (agent) · pick\n\nBody.")
         self.post("pick", "**Designer** (agent) · pick 2\n\nBody.")
-        first = self.comment_lines()[0]
-        self.assertRegex(first, r"^Step 1 · Designer · round 1 · \d\d:\d\dZ · \*\*Designer\*\* \(agent\) · pick 2 · updated \d\d:\d\dZ$")
+        lines = self.comment_lines()
+        self.assertRegex(lines[0], r"^#### Step 1 · Designer · round 1 · \d\d:\d\dZ · updated \d\d:\d\dZ$")
+        self.assertEqual(lines[1:3], ["", "**Designer** (agent) · pick 2"])
 
     def test_step_numbers_count_distinct_markers_and_an_edit_keeps_its_number(self):
         """Fails if: steps do not count up by distinct marker, a second post of one marker takes a new number, ``--step`` is
@@ -425,14 +431,14 @@ class RoleKindTests(Base):
         self.post("build", "Two.", "1")
         self.post("build", "Two, changed.", "1")
         self.post("review", "Nine.", "1", "--step", "9")
-        steps = [int(re.match(r"Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+        steps = [int(re.match(r"#### Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
         self.assertEqual(steps, [1, 2, 9])
         self.set_state(pr=None, comments=[])
         self.post("retro", "Q one.", "1", task="T-q")
         self.post("retro", "Q two.", "2", task="T-q")
         self.set_state(pr=7)
         self.run_cli("flush", "--task", "T-q")
-        steps = [int(re.match(r"Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
+        steps = [int(re.match(r"#### Step (\d+)", c["body"]).group(1)) for c in self.get()["comments"]]
         self.assertEqual(steps, [1, 2])
 
     def test_pr_found_by_branch_from_another_directory(self):
@@ -608,7 +614,7 @@ class TimelineTests(Base):
         duplicated, or other body text changes."""
         self.set_state(body="Intro\n")
         self.post("research", "Looked at prior art. More words follow.", "1")
-        self.post("build", "**Coder** · built\n\nBuilt the writer. Next bit.", "1")
+        self.post("build", "Built the writer. Next bit.", "1")
         self.post("review", "Reviewed the head.", "1", "--step", "7")
         body = self.get()["body"]
         self.assertTrue(body.startswith("Intro\n"))
@@ -627,6 +633,123 @@ class TimelineTests(Base):
         self.assertEqual((code, out.strip()), (0, "pr_note: posted"))
         self.assertIn("timeline not updated", err)
         self.assertEqual(len(self.get()["comments"]), 1)
+
+
+class AppFailureTests(Base):
+    """A role whose GitHub App call fails: the reason is shown and the note is posted with the gh login, never lost."""
+
+    REASON = "GitHub answered 404 for POST /repos/o/n/issues/7/comments"
+    SECRET = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789"
+
+    def app(self, fail=True, reason=None):
+        """Patch ``gh_app_token`` so ``steward`` resolves to an app whose REST call fails."""
+        def api_request(method, path, token, payload=None):
+            if fail:
+                raise pr_note.gh_app_token.AppError(reason or self.REASON)
+        for name, value in (("available", lambda role: True), ("token", lambda role, timeout=None: "t"),
+                            ("has_recorded_slug", lambda role: True), ("recorded_slug", lambda role: f"s-h-{role}"),
+                            ("api_request", api_request)):
+            p = mock.patch.object(pr_note.gh_app_token, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def queue_files(self, task="T-x"):
+        return sorted((pr_note.NOTES_DIR / task / "queue").glob("*.json"))
+
+    def test_a_failing_role_prints_its_reason_and_posts_with_the_gh_login(self):
+        """Fails if: the stderr line shows only the exception class name, carries a secret from the message, or the comment is
+        lost (queued instead of posted with the ``gh`` login)."""
+        self.app(reason=self.REASON + " " + self.SECRET)
+        code, out, err = self.post("retro", "Did it.", "1", "--as", "steward")
+        self.assertEqual((code, out.strip()), (0, "pr_note: posted"))
+        self.assertIn("pr_note: steward app failed (GitHub answered 404 for POST /repos/o/n/issues/7/comments", err)
+        self.assertIn("); posted with the gh login", err)
+        self.assertNotIn(self.SECRET, err)
+        self.assertNotIn("AppError", err)
+        self.assertEqual(len(self.get()["comments"]), 1)
+        self.assertRegex(self.get()["comments"][0]["body"], r"^#### Step 1 · Steward · round 1")
+        self.assertEqual(self.queue_files(), [])
+
+    def test_a_queued_note_for_a_failing_role_does_not_block_later_posts(self):
+        """Fails if: a queued note whose role fails keeps the queue from flushing, a later post warns ``queue not flushed``, or
+        the notes are not posted in their original order."""
+        self.set_state(pr=None)
+        self.post("research", "First.", "1", "--as", "steward")
+        self.post("build", "Second.", "1", "--as", "steward")
+        self.assertEqual(len(self.queue_files()), 2)
+        self.set_state(pr=7)
+        self.app()
+        code, _out, err = self.post("review", "Third.", "1")
+        self.assertEqual(code, 0)
+        self.assertNotIn("queue not flushed", err)
+        kinds = [re.search(r"<!-- sh:(\w+)", c["body"]).group(1) for c in self.get()["comments"]]
+        self.assertEqual(kinds, ["research", "build", "review"])
+        self.assertEqual(self.queue_files(), [])
+
+    def test_flush_drops_a_queued_note_whose_marker_is_already_posted(self):
+        """Fails if: a stale queued note is posted again, edits the newer comment, or stays in the queue."""
+        self.post("retro", "Old text.", "1")
+        self.set_state(pr=None)
+        self.post("retro", "Queued again.", "1")
+        self.set_state(pr=7)
+        self.assertEqual(len(self.queue_files()), 1)
+        self.assertIn("flushed 0", self.run_cli("flush", "--task", "T-x")[1])
+        self.assertEqual(self.queue_files(), [])
+        self.assertEqual(len(self.get()["comments"]), 1)
+        self.assertIn("Old text.", self.get()["comments"][0]["body"])
+
+
+class HeaderFormTests(Base):
+    """The step header is its own heading line; the two exceptions keep their first line."""
+
+    def test_old_glued_comment_is_rewritten_in_the_new_form_in_place(self):
+        """Fails if: a comment whose body hash is unchanged keeps its older glued header, or the rewrite adds a second comment."""
+        old = ("Step 1 · Steward · round 1 · 01:38Z · **What I did.** I read it.\n\n"
+               f"<!-- sh-hash:{pr_note.body_hash('**What I did.** I read it.')} -->\n<!-- sh:retro:T-x:1 -->\n")
+        self.set_state(comments=[{"id": 1, "body": old, "html_url": "https://example.test/pull/7#issuecomment-1"}])
+        self.assertIn("edited", self.post("retro", "**What I did.** I read it.", "1")[1])
+        comments = self.get()["comments"]
+        self.assertEqual(len(comments), 1)
+        lines = comments[0]["body"].splitlines()
+        self.assertRegex(lines[0], r"^#### Step 1 · Steward · round 1 · \d\d:\d\dZ · updated \d\d:\d\dZ$")
+        self.assertEqual(lines[1:3], ["", "**What I did.** I read it."])
+        self.assertIn("unchanged", self.post("retro", "**What I did.** I read it.", "1")[1])
+
+    def test_a_body_heading_stays_first_and_a_mention_stays_first(self):
+        """Fails if: the header goes above the body's own ``#`` heading or above an ``@SFenton`` mention."""
+        tag = "<!-- sh:retro:T-x:1 -->"
+        head = "Step 2 · Steward · round 1 · 01:00Z"
+        self.assertEqual(pr_note.compose("# Title\n\nText.", tag, None, "abc", head).splitlines()[:4],
+                         ["# Title", "#### " + head, "", "Text."])
+        self.assertEqual(pr_note.compose("@SFenton\n\nText.", tag, None, "abc", head).splitlines()[:5],
+                         ["@SFenton", "", "#### " + head, "", "Text."])
+        self.assertEqual(pr_note.compose("@SFenton look\nText.", tag, "updated 02:00Z", "abc", head).splitlines()[:5],
+                         ["@SFenton look", "", "#### " + head + " · updated 02:00Z", "", "Text."])
+
+
+class RepoPathTests(Base):
+    """REST paths use the repository of ``origin``; a stale ``repo`` in ``apps.json`` lists no comments."""
+
+    def test_comments_and_the_timeline_use_the_origin_repository_not_the_apps_file(self):
+        """Fails if: comments are listed under the ``repo`` of ``apps.json`` (so markers are never found and the step list stays
+        empty), or the timeline is not written after the posts."""
+        self.set_state(slug="Real/Repo", body="Intro\n")
+        with mock.patch.object(pr_note.gh_app_token, "default_repo", return_value="Real/Repo"), \
+                mock.patch.object(pr_note.gh_app_token, "repo", return_value="Stale/Repo"):
+            self.post("research", "Looked.", "1")
+            self.post("build", "Built.", "1")
+            self.assertIn("unchanged", self.post("build", "Built.", "1")[1])
+        body = self.get()["body"]
+        self.assertEqual(len(self.get()["comments"]), 2)
+        self.assertEqual(body.count("<!-- sh-timeline:start -->"), 1)
+        self.assertIn("2. [Coder, round 1: Built.]", body)
+        self.assertNotIn("Stale/Repo", self.log.read_text())
+
+    def test_an_empty_step_list_after_a_post_warns_with_its_reason(self):
+        """Fails if: a post that cannot find any step for the task ends silently without a timeline."""
+        with mock.patch.object(pr_note, "timeline", return_value="no steps"):
+            _code, _out, err = self.post("build", "Built.")
+        self.assertIn("timeline not updated: no steps", err)
 
 
 class InitNoPlaceholderTests(Base):
