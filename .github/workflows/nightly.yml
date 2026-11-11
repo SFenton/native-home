@@ -308,7 +308,7 @@ jobs:
     # Public repo: the test output goes to a file, not the Actions log, and only the result digest is uploaded (no log, screenshot or xcresult).
     name: live ${{ matrix.family }} shard ${{ matrix.shard }}
     needs: [plan, build, journeys]
-    if: ${{ always() && vars.HOSTED_MACOS == 'on' && vars.HASS_LIVE_NIGHTLY == 'on' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.plan.outputs.live == 'true' && needs.build.result == 'success' }}
+    if: ${{ !cancelled() && vars.HOSTED_MACOS == 'on' && vars.HASS_LIVE_NIGHTLY == 'on' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.plan.outputs.live == 'true' && needs.build.result == 'success' }}
     environment: hass-test
     runs-on: ${{ (startsWith(vars.HOSTED_XCODE_LABEL, 'xcode-') || startsWith(vars.HOSTED_XCODE_LABEL, 'macos-')) && vars.HOSTED_XCODE_LABEL || 'xcode-27' }}
     timeout-minutes: 150

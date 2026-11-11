@@ -273,6 +273,9 @@ class LiveJobTests(unittest.TestCase):
         self.assertIn("github.ref == 'refs/heads/main'", condition)
         self.assertIn("vars.HASS_LIVE_NIGHTLY == 'on'", condition)
         self.assertIn("vars.HOSTED_MACOS == 'on'", condition)
+        # a cancelled run must not start Live legs with the demo password in env
+        self.assertNotIn("always()", condition)
+        self.assertIn("!cancelled()", condition)
         self.assertIn("environment: hass-test", self.LIVE)
         # the planner agrees: no Live legs unless the switch is on and the ref is main
         plan_job = self.TEXT.split("\n  plan:\n", 1)[1].split("\n  build:\n", 1)[0]
