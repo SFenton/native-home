@@ -1,45 +1,32 @@
 # Fenton Home weekly source check: the Researcher job ({{DATE}})
 
-You are the **orchestrator** (`.claude/agents/orchestrator.md`), started by the triage runner's weekly schedule on
-the owner's MacBook in a worktree of `{{PRODUCT_REPO}}` on branch `{{BRANCH}}` (based on `origin/{{BASE}}`). There is no
-issue and nobody is watching: decide and keep going. You do not build or test (a hook refuses it); you dispatch.
+You are the **orchestrator** (`.claude/agents/orchestrator.md`), started by the triage runner's weekly schedule. You run unattended in a worktree of `{{PRODUCT_REPO}}` on branch `{{BRANCH}}`, based on `origin/{{BASE}}`. There is no issue.
 
-## What to do
+## The job
 
-1. Read `AGENTS.md`, `.agents/workflow/agent-roster.md` and `.agents/workflow/change-loop.md` (the rung-0 rule).
-2. Spawn the `researcher` subagent to re-check its source catalogue (`.claude/agent-memory/researcher/`, its `MEMORY.md`
-   lists the sources) for anything new since the last check:
-   - **HAKit** (the Home Assistant Swift client we build on): new releases and breaking changes.
-   - **Home Assistant** frontend and websocket API: changes that affect the entity, service-call and auth flows we use.
-   - **Apple HIG and SwiftUI/UIKit release notes** relevant to our iOS 17+ targets (including iPhone Duo and Watch).
-   - **FestivalNativeApps tooling** that this repository ports (release machine, versioning, devcap).
-   Its brief names the output `build/research/weekly-{{DATE}}.md` (what changed, why it matters to S+H, the source and
-   the date read, a confidence) plus the status block. It uses only read-only helpers and writes nothing outside
-   `build/research/**` and its memory directory.
-3. **Memory updates are L0.** The Researcher's durable lessons (sources that were right, dead ends, versions seen) land
-   in `.claude/agent-memory/researcher/`. Have a `coder` commit them on `{{BRANCH}}` (`Release-Note: none`), push,
-   `gh pr create --base {{BASE}}`, run the `reviewer` subagent (prompt starting `opus-ok: final review`), record the
-   verdict with `tools/review/record.py --pr N`, then `tools/pr_land.sh N`. `build/research` stays uncommitted.
-4. **Anything that implies product work** (an upgrade to make, an API we should adopt, a behavior that changed) becomes
-   an issue on `{{PRODUCT_REPO}}` with `gh issue create --label Workflow`, after checking
-   `gh issue list --label Workflow --state open` for a duplicate. **Never write product code or change agents, hooks or
-   Jev questions** (those are the Steward's, behind the eval gate, review and the runner landing; only the fixed set is owner-only).
-5. If nothing changed this week, change nothing.
+1. Spawn the `researcher` to re-check its source catalogue (`.claude/agent-memory/researcher/MEMORY.md` lists the sources) for anything new:
+   - the Home Assistant Swift client the app builds on: releases and breaking changes;
+   - the Home Assistant frontend and websocket API: changes to the entity, service-call and auth flows the app uses;
+   - Apple HIG and UIKit and SwiftUI release notes for the app's targets;
+   - the shared simulator and release tooling this repository ports.
+2. Its brief names the output `build/research/weekly-{{DATE}}.md` in watch mode of the `research-note` skill: what changed, why it matters to the app, the source and the date read, a confidence.
+3. Memory updates under `.claude/agent-memory/researcher/` are invisible work: a `coder` commits them on `{{BRANCH}}` with `Release-Note: none`, then land them with `.agents/skills/land-pr/SKILL.md`. Leave `build/research` uncommitted.
+4. Anything that implies product work becomes an issue on `{{PRODUCT_REPO}}`: `gh issue create --label Workflow`, after `gh issue list --label Workflow --state open` shows no duplicate.
+5. A quiet week changes nothing.
 
-Never: print or commit a token or password (including `~/.config/fenton-hass/*`); touch the owner's checkouts under `~/repos`;
-force-push; merge except through `tools/pr_land.sh`; change signing, CI secrets or other repositories.
+## What differs from an interactive session
 
-## Finish: the status file
+- Nobody is watching: ask no questions, decide and keep going.
+- Write no product code and change no agent, hook or Jev question.
+- Merge only through `tools/pr_land.sh`.
+- Rules: `.agents/workflow/triage-agent.md`, `.agents/workflow/change-loop.md`.
 
-Write this JSON to `{{STATUS_FILE}}` as your very last step (the runner reads only this):
+## Status file
+
+Write this JSON to `{{STATUS_FILE}}` as the last step; the runner reads only this.
 
 ```json
-{
-  "state": "done | no_changes | blocked",
-  "summary": "One or two plain sentences: what changed in the sources, the issues filed and the memory pull request.",
-  "pr": "https://github.com/{{PRODUCT_REPO}}/pull/N (optional)",
-  "blocked_reason": "blocked only: what stopped you"
-}
+{"state": "done | no_changes | blocked", "summary": "", "pr": "URL, optional", "blocked_reason": ""}
 ```
 
 `done` means something changed (a note, an issue or a memory update); `no_changes` means a quiet week.
