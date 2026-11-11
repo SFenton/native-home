@@ -15,10 +15,30 @@ import pr_visual  # noqa: E402
 SKILL = TOOLS.parent / ".agents" / "skills" / "pose-matrix" / "SKILL.md"
 
 
+#: The manifest the pose-matrix skill describes, in the shape its example had: path strings and no ``source``.
+SKILL_EXAMPLE = {
+    "branch": "claude/x", "sha": "<head>", "task": "T-0142", "ran_at": "2026-11-01T18:00:00Z",
+    "poses": {
+        "duo-partial-fold": {
+            "device": "iPhone Duo (HASS)", "udid": "<UDID>", "pose_confirmed": True,
+            "screenshots": ["build/evidence/x/duo-partial-fold/home.png"],
+            "ax_tree": "build/evidence/x/duo-partial-fold/home.ax.txt",
+            "measurements": {"sheet_frame": [0, 0, 455, 874], "min_target_pt": 44},
+            "tests": {"FentonHomeUITests/HomeJourneyTests/testX": "pass"},
+            "result": "pass|fail|not_run", "failure_class": None, "notes": "",
+        }
+    },
+    "summary": {"pass": 6, "fail": 1, "not_run": 2},
+}
+
+
 def skill_example():
-    """The manifest example of the pose-matrix skill (its first ``json`` block), read only."""
-    block = re.search(r"```json\n(.*?)\n```", SKILL.read_text(encoding="utf-8"), re.S)
-    return json.loads(block.group(1))
+    """The skill's manifest: its ``json`` example when the skill file has one (read only), else ``SKILL_EXAMPLE``. The skill
+    names the pose keys in prose; the picture key it names must be one the reader reads."""
+    text = SKILL.read_text(encoding="utf-8")
+    assert any(f"`{key}`" in text for key in evidence_manifest.MEDIA_KEYS), "the skill names no picture key the reader reads"
+    block = re.search(r"```json\n(.*?)\n```", text, re.S)
+    return json.loads(block.group(1)) if block else SKILL_EXAMPLE
 
 
 def as_strings(entries, source):
