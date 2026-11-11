@@ -1,0 +1,213 @@
+{
+ "_about": "Data for tools/rules_lint.py and tools/hooks/rules_guard.py. Budgets and patterns change only here (CODEOWNERS-protected). There is no inline ignore comment and no per-line allow-list; exemptions are by layer.",
+ "words_per_line": 60,
+ "layers": {
+  "core": {
+   "globs": [
+    "AGENTS.md"
+   ],
+   "max_words": 600,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "rules": {
+   "globs": [
+    ".agents/workflow/*.md"
+   ],
+   "max_words": 700,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true,
+   "files": [
+    "README.md",
+    "agent-roster.md",
+    "autonomy.md",
+    "change-loop.md",
+    "propose-first.md",
+    "pr-lifecycle.md",
+    "ci.md",
+    "versioning.md",
+    "token-economy.md",
+    "docs-conventions.md",
+    "eval-gate.md",
+    "jev.md",
+    "security.md",
+    "triage-agent.md"
+   ]
+  },
+  "agent": {
+   "globs": [
+    ".claude/agents/*.md"
+   ],
+   "max_words": 350,
+   "file_max_words": {
+    ".claude/agents/orchestrator.md": 600
+   },
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "prompt": {
+   "globs": [
+    "tools/triage/prompts/*.md"
+   ],
+   "max_words": 350,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "procedure": {
+   "globs": [
+    ".agents/skills/*/SKILL.md"
+   ],
+   "max_words": 600,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "router": {
+   "globs": [
+    ".agents/README.md",
+    ".agents/skills/README.md"
+   ],
+   "max_words": 400,
+   "dates": false,
+   "forbidden": true,
+   "one_home": true
+  },
+  "reference": {
+   "globs": [
+    ".agents/testing/**/*.md",
+    ".agents/patterns/**/*.md",
+    ".agents/platforms/**/*.md",
+    ".agents/design/**/*.md",
+    ".agents/pages/**/*.md",
+    ".agents/controls/**/*.md"
+   ],
+   "exclude": [
+    ".agents/design/mockups/**"
+   ],
+   "max_words": 1500,
+   "dates": false,
+   "forbidden": true,
+   "one_home": false,
+   "ratchet": "contracts/rules-ratchet.json"
+  },
+  "mockup_readme": {
+   "globs": [
+    ".agents/design/mockups/**/README.md"
+   ],
+   "max_words": 1500,
+   "dates": false,
+   "forbidden": true,
+   "one_home": false,
+   "ratchet": "contracts/rules-ratchet.json"
+  },
+  "state": {
+   "globs": [
+    "PROGRESS.md"
+   ],
+   "max_words": 900,
+   "max_lines": 60,
+   "dates": true,
+   "forbidden": false,
+   "one_home": false,
+   "words_per_line": null
+  },
+  "record": {
+   "globs": [
+    ".agents/decisions/*.md",
+    ".agents/archive/**/*.md"
+   ],
+   "max_words": null,
+   "dates": true,
+   "forbidden": false,
+   "one_home": false,
+   "words_per_line": null,
+   "append_only": true
+  }
+ },
+ "role_load": {
+  "orchestrator": 6000,
+  "default": 4000,
+  "agent_globs": [
+   ".claude/agents/*.md"
+  ],
+  "prompt_globs": [
+   "tools/triage/prompts/*.md"
+  ],
+  "always": [
+   "AGENTS.md"
+  ],
+  "orchestrator_files": [
+   ".claude/agents/orchestrator.md"
+  ]
+ },
+ "decision_link_allowed": [
+  ".agents/workflow/docs-conventions.md"
+ ],
+ "forbidden": [
+  {
+   "id": "date",
+   "regex": "\\b20\\d\\d-\\d\\d-\\d\\d\\b",
+   "skip_code": false,
+   "why": "a rule carries no date",
+   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+  },
+  {
+   "id": "attribution",
+   "regex": "\\(owner\\b|\\bowner decisions?\\b|\\bowner approved\\b|\\bowner,\\s*\\d",
+   "ignorecase": true,
+   "skip_code": true,
+   "why": "a rule carries no who-decided attribution",
+   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+  },
+  {
+   "id": "reference",
+   "regex": "(?<![\\w&/])#\\d{2,5}\\b",
+   "skip_code": true,
+   "why": "a rule names no PR or issue number",
+   "home": "the PR description or the commit; a rule names no PR, issue or commit"
+  },
+  {
+   "id": "sha",
+   "regex": "\\b(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\\b",
+   "skip_code": true,
+   "why": "a rule names no commit",
+   "home": "the PR description or the commit; a rule names no PR, issue or commit"
+  },
+  {
+   "id": "change_was",
+   "regex": "\\(was\\b|\\bwere\\b[:)]|\\bwas:",
+   "ignorecase": true,
+   "skip_code": true,
+   "why": "a rule states the present default, not what it replaced",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "skip_quotes": true
+  },
+  {
+   "id": "change",
+   "regex": "\\bpreviously\\b|\\bno longer\\b|(?<!\\bis )(?<!\\bare )(?<!\\bbe )(?<!\\bbeen )(?<!\\bbeing )(?<!\\bget )(?<!\\bgets )used to\\b|\\braised from\\b|\\blowered from\\b|\\bunlocked\\s*[(:]|\\bunlocked,\\s*(?:20|on )|\\bsuperseded\\b|\\bfor now\\b|\\bas of\\b|\\bsince 20\\d\\d\\b|\\blanded\\b|\\bPhase \\d|\\bretired\\b",
+   "ignorecase": true,
+   "skip_code": true,
+   "why": "a rule uses no words of change",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "skip_quotes": true
+  }
+ ],
+ "homes": {
+  "decision": ".agents/decisions/<YYYY-MM-DD>-<slug>.md and the PR description",
+  "status": "PROGRESS.md or an issue",
+  "narrow exception": "the enforcing tool's config or allow-list with a reason; prose never",
+  "incident": "a test or one eval case per class, and the PR description",
+  "numbers and names tools read": "contracts/*.json or the tool; the doc names the file",
+  "how a tool works": "the tool's --help and refusal messages",
+  "over budget": "delete, link to the rule's one home, or move the how-to to a skill; budgets change only in contracts/rules-surface.json"
+ },
+ "path_ignore": [
+  ".claude/worktrees",
+  "apple/.build",
+  "build"
+ ]
+}

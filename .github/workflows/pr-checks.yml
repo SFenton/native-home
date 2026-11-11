@@ -107,6 +107,9 @@ jobs:
       - name: House-data lint
         if: ${{ !cancelled() }}
         run: python3 tools/house_scan.py
+      - name: Rule surface lint
+        if: ${{ !cancelled() }}
+        run: python3 tools/rules_lint.py --base origin/main
       - name: Motion lint
         if: ${{ !cancelled() }}
         run: tools/lint_motion.sh

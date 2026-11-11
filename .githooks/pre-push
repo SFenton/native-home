@@ -16,4 +16,10 @@ case "$2" in
       exit 1
     fi ;;
 esac
-python3 "$root/tools/prepush_denylist.py" "$@" < "$refs"
+# The rule surface stays clean: forbidden patterns, budgets, one home, links (tools/rules_lint.py; budgets in contracts/rules-surface.json).
+python3 "$root/tools/prepush_denylist.py" "$@" < "$refs" || exit $?
+if git -C "$root" rev-parse --verify -q origin/main >/dev/null 2>&1; then
+  python3 "$root/tools/rules_lint.py" --base origin/main || exit 1
+else
+  python3 "$root/tools/rules_lint.py" || exit 1
+fi
