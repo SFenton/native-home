@@ -1,92 +1,24 @@
-"""Bloat controls (plan section 9): line and word budgets for the agent files, the Steward, the pattern docs and AGENTS.md, and a
-deterministic contradiction check across the agent files and the roster. Each budget is the current maximum of its group
-rounded up (lines to the next 5, words to the next 50), so the tests pass today and fail when a file grows: shrink or split a
-file before raising a budget. Words matter because AGENTS.md and some pattern docs are written as long paragraphs."""
+"""Bloat controls: the rule surface passes ``tools/rules_lint.py`` (budgets, forbidden patterns, one home, links, structure), and a
+deterministic contradiction check runs across the agent files and the roster. Budgets live in ``contracts/rules-surface.json``;
+this file holds no numbers."""
 
 import re
-import tempfile
+import sys
 import unittest
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
-
-#: Line budgets (``len(text.splitlines())``); current maxima: agent files 55 (reviewer), steward 48, pattern docs 121, AGENTS.md 48.
-AGENT_FILE_BUDGET = 55
-STEWARD_BUDGET = 50
-PATTERN_BUDGET = 125
-AGENTS_MD_BUDGET = 50
-#: Word budgets (``len(text.split())``); current maxima: agent files 1119 (orchestrator), steward 680, pattern docs 6404
-#: (modal-sheet), AGENTS.md 1821.
-AGENT_FILE_WORDS = 1150
-STEWARD_WORDS = 700
-PATTERN_WORDS = 6450
-AGENTS_MD_WORDS = 1850
+sys.path.insert(0, str(ROOT / "tools"))
+import rules_lint  # noqa: E402
 
 
-def lines_of(path: Path) -> int:
-    return len(path.read_text(encoding="utf-8").splitlines())
-
-
-def words_of(path: Path) -> int:
-    return len(path.read_text(encoding="utf-8").split())
-
-
-def over(paths, line_budget: int, word_budget: int) -> List[str]:
-    """The files in ``paths`` past the line or the word budget, each as one message."""
-    found: List[str] = []
-    for p in sorted(paths):
-        rel = p.relative_to(ROOT) if ROOT in p.parents else p
-        if lines_of(p) > line_budget:
-            found.append(f"{rel}: {lines_of(p)} lines (budget {line_budget})")
-        if words_of(p) > word_budget:
-            found.append(f"{rel}: {words_of(p)} words (budget {word_budget})")
-    return found
-
-
-class LineBudgetTests(unittest.TestCase):
-    def test_agent_files(self):
-        files = [p for p in (ROOT / ".claude" / "agents").glob("*.md") if p.name != "steward.md"]
-        self.assertTrue(files)
-        self.assertEqual(over(files, AGENT_FILE_BUDGET, AGENT_FILE_WORDS), [])
-
-    def test_the_steward(self):
-        self.assertEqual(over([ROOT / ".claude" / "agents" / "steward.md"], STEWARD_BUDGET, STEWARD_WORDS), [])
-
-    def test_pattern_docs(self):
-        files = list((ROOT / ".agents" / "patterns").glob("*.md"))
-        self.assertTrue(files)
-        self.assertEqual(over(files, PATTERN_BUDGET, PATTERN_WORDS), [])
-
-    def test_agents_md(self):
-        self.assertEqual(over([ROOT / "AGENTS.md"], AGENTS_MD_BUDGET, AGENTS_MD_WORDS), [])
-
-    def test_the_budgets_are_tight(self):
-        """A budget far above the largest file it covers is no budget: within 10% (and the rounding) of the maximum."""
-        groups = [([p for p in (ROOT / ".claude" / "agents").glob("*.md") if p.name != "steward.md"], AGENT_FILE_BUDGET,
-                   AGENT_FILE_WORDS),
-                  ([ROOT / ".claude" / "agents" / "steward.md"], STEWARD_BUDGET, STEWARD_WORDS),
-                  (list((ROOT / ".agents" / "patterns").glob("*.md")), PATTERN_BUDGET, PATTERN_WORDS),
-                  ([ROOT / "AGENTS.md"], AGENTS_MD_BUDGET, AGENTS_MD_WORDS)]
-        for files, line_budget, word_budget in groups:
-            with self.subTest(files=str(files[0].name)):
-                self.assertLess(line_budget, max(lines_of(p) for p in files) + 5)
-                self.assertLess(word_budget, max(words_of(p) for p in files) + 50)
-
-    def test_over_catches_a_longer_file_and_a_wordier_one(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            long_file, wide_file, fine = Path(tmp) / "long.md", Path(tmp) / "wide.md", Path(tmp) / "fine.md"
-            long_file.write_text("line\n" * 5)
-            wide_file.write_text("word " * 30 + "\n")
-            fine.write_text("a b c\n")
-            self.assertEqual(lines_of(long_file), 5)
-            self.assertEqual(words_of(wide_file), 30)
-            [message] = over([long_file], 4, 100)
-            self.assertIn("5 lines (budget 4)", message)
-            [message] = over([wide_file], 4, 20)
-            self.assertIn("30 words (budget 20)", message)
-            self.assertEqual(over([fine, long_file], 5, 100), [])
-            self.assertEqual(len(over([long_file, wide_file], 4, 20)), 2)
+class RuleSurfaceLintTests(unittest.TestCase):
+    def test_the_tree_passes_the_lint(self):
+        """Fails if: any rule-surface file carries a date, attribution, reference, change word, an over-long line, a repeated
+        sentence, a broken link or path, a missing router entry, or is over its budget (the findings are listed)."""
+        found = rules_lint.run(ROOT)
+        self.assertEqual([f.render() for f in found[:40]], [], rules_lint.summary(found) if found else "")
 
 
 # MARK: - Contradiction check
