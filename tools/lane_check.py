@@ -24,10 +24,10 @@ squash over a moved base) and ``shape`` (advisory: one commit, parent equal to `
 label-anchor check of ``test_labels_point_at_real_sections``: every ``tools/tests/fixtures/jev_section_labels.json`` pair must still find its
 ``any_of`` phrase in its file; the failure names the file and the anchor) and ``overlap`` (``open_pr_overlaps`` and ``commit_overlaps``
 re-run against the files the branch actually changes since the recorded lane base, not only the paths declared at ``start``; needs ``gh``) and
-``scope`` (post-mortem T-autonomy-p4, Action 1: every file changed since the lane base, committed or not, must match the ``--paths`` ``start``
+``scope`` (every file changed since the lane base, committed or not, must match the ``--paths`` ``start``
 stored, by the same matcher ``start`` uses; a stray file fails and is named. ``--ack-scope "<reason>"`` overrides: the reason is printed and
-recorded in the lane-base file, so a later ``check`` passes without it. Files ``jev_ask.py sync`` writes (``contracts/jev/questions/*.json``)
-are exempt. With no lane base for this branch the check fails open with a note).
+recorded in the lane-base file together with the exact files it covered, so a later ``check`` passes for those files only; a new stray file fails again. Files ``jev_ask.py sync`` writes (``contracts/jev/questions/*.json``)
+are exempt. With no lane base for this branch the check fails open: a note, and for an ``agents/*`` or ``port/*`` branch a loud ``WARNING`` line, since such a lane should have run ``start``).
 
 Hooks-path environment: ``core.hooksPath`` lives in the repository's shared config, so every worktree sees one value. Only the relative
 ``.githooks`` that ``tools/setup.sh`` writes resolves to each worktree's own hooks; an absolute path points every worktree at one checkout,
@@ -364,31 +364,42 @@ def check_overlap(target: str = "main") -> Optional[str]:
 def check_scope(target: str = "main", ack: Optional[str] = None) -> Optional[str]:
     """None when every file changed since the lane base matches the paths ``start`` declared, else the reason naming the strays.
 
-    Changed means committed since the fork point, modified in the working tree, or untracked (not ignored). Files ``jev_ask.py sync``
-    writes are exempt. ``ack`` (or an ``ack_scope`` already recorded in the lane-base file) passes and is printed; a new ``ack`` is recorded.
-    No lane base for this branch: fails open with a note.
+    Changed means committed since the fork point with ``origin/<target>`` (so files that arrived from main by merge or rebase do not
+    count), modified in the working tree, or untracked (not ignored); all repo-relative. Files ``jev_ask.py sync`` writes are exempt.
+    ``ack`` passes and is printed; it is recorded as ``ack_scope`` (reason and the exact files covered), and a later check passes only
+    the files in that record. No lane base for this branch: fails open with a note, and a ``WARNING`` for an ``agents/*`` or ``port/*`` branch.
     """
     rec = read_lane_base()
-    if not rec or rec.get("branch") != git("rev-parse", "--abbrev-ref", "HEAD"):
-        print("lane_check: no lane base recorded for this branch (run `lane_check.py start`); scope check skipped", file=sys.stderr)
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    if not rec or rec.get("branch") != branch:
+        if branch.startswith(("agents/", "port/")):
+            print(f"lane_check: WARNING: no lane base recorded for {branch}; the scope check did NOT run. "
+                  "Run `lane_check.py start` for this lane.", file=sys.stderr)
+        else:
+            print("lane_check: no lane base recorded for this branch (run `lane_check.py start`); scope check skipped", file=sys.stderr)
         return None
     declared = rec.get("paths") or []
     if not declared:
         print("lane_check: the lane base declares no paths; scope check skipped", file=sys.stderr)
         return None
     base = branch_range(rec, target)
-    files = set(git("diff", "--name-only", base).splitlines()) | set(git("ls-files", "--others", "--exclude-standard").splitlines())
+    files = set(git("diff", "--name-only", base).splitlines()) | set(
+        git("ls-files", "--others", "--exclude-standard", "--full-name", str(toplevel())).splitlines())
     strays = sorted(f for f in files if f and not matches(f, declared) and not matches(f, SCOPE_EXEMPT))
-    if not strays:
+    recorded = rec.get("ack_scope") if isinstance(rec.get("ack_scope"), dict) else {}
+    if ack:
+        recorded = {"reason": ack, "files": sorted(set(recorded.get("files", [])) | set(strays))}
+        rec["ack_scope"] = recorded
+        lane_base_file().write_text(json.dumps(rec) + "\n")
+        if strays:
+            print(f"scope acknowledged: {ack} ({', '.join(strays[:8])})")
         return None
-    note = ack or rec.get("ack_scope")
-    if note:
-        print(f"scope acknowledged: {note} ({', '.join(strays[:8])})")
-        if ack and rec.get("ack_scope") != ack:
-            rec["ack_scope"] = ack
-            lane_base_file().write_text(json.dumps(rec) + "\n")
+    uncovered = [f for f in strays if f not in recorded.get("files", [])]
+    if strays and not uncovered:
+        print(f"scope acknowledged: {recorded.get('reason')} ({', '.join(strays[:8])})")
+    if not uncovered:
         return None
-    names = ", ".join(strays[:8]) + (" ..." if len(strays) > 8 else "")
+    names = ", ".join(uncovered[:8]) + (" ..." if len(uncovered) > 8 else "")
     return (f"files outside the declared paths ({' '.join(declared)}): {names}. Revert them, or rerun with "
             '`lane_check.py check --only scope --ack-scope "<reason>"`.')
 
