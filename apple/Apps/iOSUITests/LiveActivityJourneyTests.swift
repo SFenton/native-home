@@ -313,93 +313,80 @@ final class LiveActivityJourneyTests: JourneyTestCase {
 
     // MARK: Failure notice on the problem card (R-43)
 
-    /// The two fixtures that carry a notice and their words; Dock is on the red one only.
+    /// The two fixtures that carry a notice, their words and buttons; Dock is on the red one only.
     private static let noticeFixtures: [(name: String, words: String, buttons: [String])] = [
         ("problem-notice", "Couldn't resume. Try again.", ["Resume Main Floor Vacuum", "Done Main Floor Vacuum"]),
         ("problem-notice-stuck", "Couldn't reach Home",
          ["Resume Main Floor Vacuum", "Dock Main Floor Vacuum", "Done Main Floor Vacuum"]),
     ]
 
-    /// The `notice-options` card for a fixture under a placement, as a snapshot node.
-    private func noticeCard(_ fixture: String, _ placement: String, in root: any XCUIElementSnapshot) -> (any XCUIElementSnapshot)? {
-        first("liveactivity.card.\(fixture).\(placement)", in: root)
-    }
-
     /// The notice is inside the Lock Screen card with its exact words, below the problem phrase and above the first button, the
     /// buttons are back, and the card fits the 160 pt limit.
-    private func assertNotice(placement: String) {
-        let app = launch("notice-options")
-        guard let root = try? app.snapshot() else { return XCTFail("no tree") }
+    ///
+    /// Fails if: the problem card does not draw `card.notice`, draws it with other words, draws it above the phrase or below a
+    /// button, drops a button, or grows past 160 pt.
+    func testProblemNoticeShowsInPlaceOfTheInstruction() {
         for fixture in Self.noticeFixtures {
-            guard let card = noticeCard(fixture.name, placement, in: root) else { XCTFail("\(fixture.name) \(placement): no card"); continue }
-            XCTAssertLessThanOrEqual(card.frame.height, 160, "\(fixture.name) \(placement) is \(Int(card.frame.height)) pt tall")
+            let app = launch(fixture.name, identifier: "liveactivity.lockscreen")
+            guard let root = try? app.snapshot(), let card = first("liveactivity.lockscreen", in: root) else {
+                XCTFail("\(fixture.name): no card"); continue
+            }
+            XCTAssertLessThanOrEqual(card.frame.height, 160, "\(fixture.name) is \(Int(card.frame.height)) pt tall")
             guard let notice = first("liveactivity.notice", in: card), let phrase = first("liveactivity.problem", in: card) else {
-                XCTFail("\(fixture.name) \(placement): notice or problem phrase missing"); continue
+                XCTFail("\(fixture.name): notice or problem phrase missing"); continue
             }
             XCTAssertEqual(notice.label, fixture.words)
             XCTAssertEqual(descendants(of: card).filter { $0.identifier == "liveactivity.notice" }.count, 1, "one notice per card")
             XCTAssertTrue(phrase.label.contains("Main Floor Vacuum, needs"), "the phrase still speaks the card")
             let buttons = fixture.buttons.compactMap { button($0, in: card) }
-            XCTAssertEqual(buttons.count, fixture.buttons.count, "\(fixture.name) \(placement): the buttons are back")
+            XCTAssertEqual(buttons.count, fixture.buttons.count, "\(fixture.name): the buttons are back")
             for each in buttons { assertTarget(each) }
             if let firstButton = buttons.first {
-                XCTAssertLessThanOrEqual(phrase.frame.minY, notice.frame.minY, "problem, then notice")
-                XCTAssertLessThanOrEqual(phrase.frame.maxY, notice.frame.minY + 1, "the notice sits under the phrase")
+                XCTAssertLessThanOrEqual(phrase.frame.maxY, notice.frame.minY + 1, "problem, then notice")
                 XCTAssertLessThanOrEqual(notice.frame.maxY, firstButton.frame.minY + 1, "notice, then buttons")
             }
+            keepScreenshot(app, "live-activity-\(fixture.name)-\(layout)")
         }
-        keepScreenshot(app, "live-activity-notice-\(placement)-\(layout)")
     }
 
-    func testProblemNoticeReplacePlacement() { assertNotice(placement: "replace") }
-    func testProblemNoticeLinePlacement() { assertNotice(placement: "line") }
-
-    /// `replace` does not draw the instruction (its phrase block is a line or two shorter than under `line`, where the
-    /// instruction keeps one line), and `line` does.
-    func testReplaceHidesTheInstructionAndLineKeepsOne() {
-        let app = launch("notice-options")
-        guard let root = try? app.snapshot() else { return XCTFail("no tree") }
-        for fixture in Self.noticeFixtures {
-            guard let replaced = noticeCard(fixture.name, "replace", in: root).flatMap({ first("liveactivity.problem", in: $0) }),
-                  let lined = noticeCard(fixture.name, "line", in: root).flatMap({ first("liveactivity.problem", in: $0) }) else {
-                XCTFail("\(fixture.name): cards missing"); continue
-            }
-            XCTAssertGreaterThan(lined.frame.height, replaced.frame.height + 10, "\(fixture.name): line keeps its one-line instruction")
-            XCTAssertLessThan(lined.frame.height - replaced.frame.height, 30, "\(fixture.name): the instruction keeps one line, not two")
+    /// The instruction is not drawn while a notice stands: the phrase block is a line or two shorter than the same row's without
+    /// one (the phrase's frame holds the device, problem and instruction lines).
+    ///
+    /// Fails if: the problem card draws the instruction beside a notice, so the phrase is as tall as the plain card's.
+    func testTheInstructionIsNotDrawnWhileANoticeStands() {
+        let plain = launch("problem-mop-clean_water_empty", identifier: "liveactivity.lockscreen")
+        guard let plainRoot = try? plain.snapshot(), let plainPhrase = first("liveactivity.problem", in: plainRoot) else {
+            return XCTFail("the plain card is missing")
         }
+        let noticed = launch("problem-notice", identifier: "liveactivity.lockscreen")
+        guard let noticedRoot = try? noticed.snapshot(), let noticedPhrase = first("liveactivity.problem", in: noticedRoot) else {
+            return XCTFail("the notice card is missing")
+        }
+        XCTAssertLessThan(noticedPhrase.frame.height, plainPhrase.frame.height - 10, "the instruction's lines are gone")
     }
 
     /// A problem card with no notice has no notice element.
+    ///
+    /// Fails if: a problem card draws a `liveactivity.notice` element without a notice in its content.
     func testAProblemCardWithoutANoticeHasNoNoticeElement() {
         let app = launch("problem-navigation-stuck", identifier: "liveactivity.lockscreen")
         XCTAssertFalse(element("liveactivity.notice", in: app).exists)
     }
 
-    /// The expanded island stand-in stays within 160 pt on the 393 and 440 pt screens with a notice on the card.
-    func testExpandedIslandWithANoticeCardFitsTheLimit() {
-        let app = launch("notice-options")
-        guard let root = try? app.snapshot() else { return XCTFail("no tree") }
-        for fixture in Self.noticeFixtures {
-            for screen in [393, 440] {
-                guard let island = first("liveactivity.island.\(fixture.name).\(screen)", in: root) else {
-                    XCTFail("\(fixture.name) \(screen): no island"); continue
-                }
-                XCTAssertLessThanOrEqual(island.frame.height, 160, "\(fixture.name) \(screen) pt island is \(Int(island.frame.height)) pt tall")
-            }
-        }
-    }
-
     /// At the largest text size the notice wraps without a line limit, nothing leaves the screen and every target holds.
-    private func assertAX5Notice(placement: String) {
-        let app = launch("notice-options", arguments: FentonHomeApp.ax5)
-        guard let root = try? app.snapshot() else { return XCTFail("no tree") }
-        let window = descendants(of: root).first { $0.elementType == .window }?.frame ?? root.frame
+    ///
+    /// Fails if: the notice is cut to one line or two, the card or a button leaves the screen or the card, a button is under 44
+    /// pt, or a button sits above the notice.
+    func testAX5NoticeWrapsAndKeepsTargets() {
         for fixture in Self.noticeFixtures {
-            guard let card = noticeCard(fixture.name, placement, in: root), let notice = first("liveactivity.notice", in: card) else {
-                XCTFail("\(fixture.name) \(placement): no card or notice"); continue
+            let app = launch(fixture.name, arguments: FentonHomeApp.ax5, identifier: "liveactivity.lockscreen")
+            guard let root = try? app.snapshot(), let card = first("liveactivity.lockscreen", in: root),
+                  let notice = first("liveactivity.notice", in: card) else {
+                XCTFail("\(fixture.name): no card or notice"); continue
             }
+            let window = descendants(of: root).first { $0.elementType == .window }?.frame ?? root.frame
             XCTAssertEqual(notice.label, fixture.words)
-            XCTAssertGreaterThan(notice.frame.height, 40, "\(fixture.name) \(placement): the notice wraps and is not cut to one line")
+            XCTAssertGreaterThan(notice.frame.height, 40, "\(fixture.name): the notice wraps and is not cut to one line")
             XCTAssertLessThanOrEqual(card.frame.maxX, window.maxX + 0.5)
             XCTAssertGreaterThanOrEqual(card.frame.minX, window.minX - 0.5)
             XCTAssertLessThanOrEqual(notice.frame.maxX, card.frame.maxX + 0.5, "the notice stays in the card")
@@ -411,12 +398,9 @@ final class LiveActivityJourneyTests: JourneyTestCase {
                 XCTAssertGreaterThanOrEqual(each.frame.minX, card.frame.minX - 0.5, "\(each.label) runs off the card")
                 XCTAssertGreaterThanOrEqual(each.frame.minY, notice.frame.maxY - 1, "\(each.label) is below the notice")
             }
+            keepScreenshot(app, "live-activity-\(fixture.name)-ax5-\(layout)")
         }
-        keepScreenshot(app, "live-activity-notice-\(placement)-ax5-\(layout)")
     }
-
-    func testAX5NoticeReplacePlacement() { assertAX5Notice(placement: "replace") }
-    func testAX5NoticeLinePlacement() { assertAX5Notice(placement: "line") }
 
     func testDoneOnAProblemShowsCompleting() {
         let app = launch("problem-navigation-stuck", identifier: "liveactivity.lockscreen")

@@ -20,11 +20,6 @@ import UIKit
 /// - `compact-widths`: the compact island for an `MM:SS` time, an `H:MM:SS` time and two vacuum words, each beside a probe of
 ///   its hidden template, to check the trailing side's width is the template's and not the width the island offers.
 ///
-/// - `notice-options`: the two problem cards that carry a failure notice (`problem-notice`, `problem-notice-stuck`) under both
-///   notice placements, one under the other, each named `liveactivity.card.<fixture>.<placement>`, then the expanded island
-///   stand-in for both on the 393 and 440 pt screens. `FENTON_LA_NOTICE_PLACEMENT=replace|line` sets the placement for every
-///   other scenario (unset: `replace`).
-///
 /// Launch with `FENTON_GALLERY=live-activity`; the default scenario is `stack` (four cards, the cap).
 struct LiveActivityGallery: View {
     /// A screen and camera the island stand-in is drawn for.
@@ -46,22 +41,16 @@ struct LiveActivityGallery: View {
     private let isGroup: Bool
     private let showsIslandWidths: Bool
     private let showsCompactWidths: Bool
-    private let showsNoticeOptions: Bool
-    private let placement: ProblemNoticePlacement
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let name = environment["FENTON_GALLERY_SCENARIO"] ?? "stack"
         showsIslandWidths = name == "island-widths"
         showsCompactWidths = name == "compact-widths"
-        showsNoticeOptions = name == "notice-options"
-        placement = environment["FENTON_LA_NOTICE_PLACEMENT"].flatMap(ProblemNoticePlacement.init(rawValue:)) ?? .replace
         isGroup = HomeActivityFixtures.groups[name] != nil || name == "catalog"
         let loaded = if name == "catalog" {
             HomeActivityFixtures.groups.keys.sorted().flatMap { HomeActivityFixtures.fixtures(fromLaunchValue: $0) }
         } else if showsIslandWidths {
             [HomeActivityFixtures.fixture("fan-long")].compactMap { $0 }
-        } else if showsNoticeOptions {
-            ["problem-notice", "problem-notice-stuck"].compactMap { HomeActivityFixtures.fixture($0) }
         } else if showsCompactWidths {
             ["dishwasher", "dishwasher-long", "vacuum", "vacuum-long"].compactMap { HomeActivityFixtures.fixture($0) }
         } else {
@@ -94,25 +83,6 @@ struct LiveActivityGallery: View {
                                 .fixedSize()
                                 .foregroundStyle(HassTokens.Ink.secondary)
                                 .accessibilityIdentifier("liveactivity.probe.\(size.id)")
-                        }
-                    }
-                } else if showsNoticeOptions {
-                    ForEach(fixtures, id: \.name) { fixture in
-                        ForEach(ProblemNoticePlacement.allCases, id: \.self) { option in
-                            section("\(fixture.name), \(option.rawValue)") {
-                                lockScreen(fixture, identifier: "liveactivity.card.\(fixture.name).\(option.rawValue)")
-                                    .environment(\.problemNoticePlacement, option)
-                            }
-                        }
-                    }
-                    ForEach(fixtures, id: \.name) { fixture in
-                        ForEach([393, 440] as [CGFloat], id: \.self) { screen in
-                            section("Dynamic Island, expanded, \(fixture.name), \(Int(screen)) pt screen") {
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HomeActivityIslandPreview(card: fixture.card(), kind: .expanded, screenWidth: screen, cameraWidth: 126)
-                                        .accessibilityIdentifier("liveactivity.island.\(fixture.name).\(Int(screen))")
-                                }
-                            }
                         }
                     }
                 } else if showsCompactWidths {
@@ -154,7 +124,6 @@ struct LiveActivityGallery: View {
             .padding(HassTokens.Spacing.l)
         }
         .environment(\.activityActions, actions)
-        .environment(\.problemNoticePlacement, placement)
         // The system draws a time ring only inside a Live Activity; here it is the fraction elapsed when drawn.
         .environment(\.activityStaticTimerRing, true)
         .navigationTitle("Live Activity")

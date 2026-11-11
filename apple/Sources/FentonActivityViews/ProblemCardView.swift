@@ -7,14 +7,14 @@ import SwiftUI
 /// you; amber carries on. The state is also a two-word label on the problem line, so it is never colour alone.
 ///
 /// VoiceOver reads one phrase, "Main Floor Vacuum, needs help: Stuck in Kitchen. Move it somewhere flat, then tap
-/// Resume.", then the buttons. A failure notice (`card.notice`) is its own element after that phrase and before the buttons,
-/// drawn where `\.problemNoticePlacement` says; the phrase still speaks the instruction either way.
+/// Resume.", then the buttons. A failure notice (`card.notice`, R-43) takes the instruction's place for that update, as the job
+/// card's notice takes the value's: the instruction is not drawn while it stands. The notice is its own element after the
+/// phrase and before the buttons, and the phrase still speaks the instruction.
 struct ProblemCardView: View {
     let card: ActivityCard
     let problem: ActivityProblem
     var showsMark = true
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Environment(\.problemNoticePlacement) private var placement
 
     private var colors: ActivityStyle.Severity { ActivityStyle.severity(problem.severity) }
 
@@ -53,7 +53,6 @@ struct ProblemCardView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ActivityStyle.primaryText)
                     .lineLimit(noticeLineLimit)
-                    .minimumScaleFactor(placement == .line && !typeSize.isAccessibilitySize ? 0.85 : 1)
                     .privacySensitive()
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("liveactivity.notice")
@@ -61,13 +60,8 @@ struct ProblemCardView: View {
         }
     }
 
-    /// Two lines in place of the instruction at ordinary sizes, one on its own line; no limit at accessibility sizes.
-    private var noticeLineLimit: Int? {
-        typeSize.isAccessibilitySize ? nil : (placement == .line ? 1 : 2)
-    }
-
-    /// Whether the instruction is drawn: not while a notice stands in its place.
-    private var showsInstruction: Bool { !(placement == .replace && card.notice != nil) }
+    /// Two lines at ordinary sizes; no limit at accessibility sizes.
+    private var noticeLineLimit: Int? { typeSize.isAccessibilitySize ? nil : 2 }
 
     /// The device, the problem and the instruction.
     private var phrase: some View {
@@ -88,21 +82,15 @@ struct ProblemCardView: View {
                     .privacySensitive()
             }
             .padding(.trailing, showsMark ? 48 : 0)
-            if showsInstruction {
+            if card.notice == nil {
                 Text(problem.message)
                     .font(.subheadline)
                     .foregroundStyle(Color.white.opacity(0.82))
-                    .lineLimit(instructionLineLimit)
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                     .minimumScaleFactor(0.9)
                     .privacySensitive()
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-
-    /// Two lines; one while the `line` placement shares the column with a notice, except at accessibility sizes.
-    private var instructionLineLimit: Int? {
-        if typeSize.isAccessibilitySize { return nil }
-        return placement == .line && card.notice != nil ? 1 : 2
     }
 }

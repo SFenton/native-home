@@ -7973,7 +7973,8 @@
       ],
       "docs": [
         ".agents/platforms/apple/live-activities-per-job.md",
-        ".agents/platforms/apple/live-activities.md"
+        ".agents/platforms/apple/live-activities.md",
+        ".agents/design/live-activity-problem-notice.md"
       ],
       "patterns": [],
       "presentedFrom": [],
@@ -7997,6 +7998,7 @@
         "dust bag",
         "with Done button | without",
         "chips",
+        "notice (failed press)",
         "ax5"
       ],
       "motionHint": [
@@ -9256,9 +9258,10 @@
         "apple/Sources/FentonActivityViews/ProblemCardView.swift",
         "apple/Sources/FentonActivityViews/HomeActivityIslandViews.swift"
       ],
-      "status": "proposed",
+      "status": "decided",
       "mockup": "proposals/live-activity-problem-notice/live-activity-problem-notice.html",
-      "note": "R-43 (agent-initiated, gate autonomous, local to one card). Options B (in place of the instruction) and C (own line) go to build and capture; A (beside the buttons) is drawn as not viable. The Designer picks from the Verifier's captures; the pick then moves into live-activity-problem-card. Brief: build/design/R-43-notice-brief.md."
+      "note": "R-43 (agent-initiated, gate app_wide=no). Decided 2026-11-10: judged B (in place of the instruction) and C (own line) from captures; picked B. A (beside the buttons) was not built. Current design: live-activity-problem-card, state notice.",
+      "decision": ".agents/design/live-activity-problem-notice.md"
     }
   ]
 }

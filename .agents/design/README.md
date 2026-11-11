@@ -17,6 +17,7 @@
 | [weather-card-header.md](weather-card-header.md) | The Home weather card's header layout, the ticker for long conditions, and its mockups |
 | [sheet-bottom-gap.md](sheet-bottom-gap.md) | Fitted sheets no longer leave an empty band under their last control: the detent leaves out the bottom safe area the system adds |
 | [weather-chevron-contrast.md](weather-chevron-contrast.md) | The weather carousel's disabled Previous and Next: one fade to 55%, never `.plain` on top |
+| [live-activity-problem-notice.md](live-activity-problem-notice.md) | The Live Activity problem card after a failed button press: the notice takes the instruction's place (judged from captures, 2026-11-10) |
 | [profile-badge.md](profile-badge.md) | The Profile attention badge: 24 x 18 at default, on the disc's corner on every bar (the header draws it, the rail uses the system badge), text capped at xLarge (2026-11-04) |
 | [mockups/proposals/state-message/state-message.html](mockups/proposals/state-message/state-message.html) | Empty and error states centred in the space a page leaves: before and after for Chores, Summary tabs, Recipes, Inventory and Accessibility 5 |
 | [controller-bound-controls.md](controller-bound-controls.md) | Proposal (awaiting owner): removing `Binding(get:set:)` closures that forward to controllers |
