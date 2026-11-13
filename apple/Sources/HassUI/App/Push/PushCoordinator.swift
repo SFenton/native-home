@@ -87,7 +87,8 @@ public final class PushCoordinator {
     public func didConnect(userID: String, userName: String? = nil) async {
         guard mobileApp.begin(userID: userID, userName: userName) else { return }
         isConnected = true
-        await refreshSettings()
+        // Read before the first sync, so the sync knows whether the saved APNs token may go.
+        await readSettings()
         if authorization == .granted { platform.registerForRemoteNotifications() }
         await mobileApp.sync()
     }
@@ -101,8 +102,16 @@ public final class PushCoordinator {
     /// evaluates. Does nothing before the session connects (journeys that never ask stay as they are).
     public func refreshSettings() async {
         guard isConnected else { return }
+        let before = mobileApp.notificationsGranted
+        await readSettings()
+        // Permission was turned on or off in iOS Settings: the registration gains or loses the APNs token.
+        if before != nil, mobileApp.notificationsGranted != before { await mobileApp.sync() }
+    }
+
+    private func readSettings() async {
         authorization = await platform.authorization()
         timeSensitive = authorization == .granted ? await platform.timeSensitiveSetting() : .notSupported
+        _ = mobileApp.setNotificationsGranted(authorization == .granted)
     }
 
     /// The person tapped Turn On Notifications (Home banner or Settings row): the one place the system alert is

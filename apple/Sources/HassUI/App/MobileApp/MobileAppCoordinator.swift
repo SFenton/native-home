@@ -5,7 +5,8 @@ import Observation
 /// The signed-in session's one `mobile_app` registration, shared by push, location and sensors
 /// (`.agents/platforms/apple/mobile-app.md`).
 ///
-/// Owns the session's ``MobileAppRegistrar``, the user it registered for, and the APNs token. ``PushCoordinator``
+/// Owns the session's ``MobileAppRegistrar``, the user it registered for, and the install's APNs and push-to-start tokens
+/// (kept in the store across launches and sign-out, so no sync drops one). ``PushCoordinator``
 /// starts the session, supplies the token and fires notification buttons through it; ``LocationCoordinator`` sends
 /// through ``webhookSource`` and starts when ``registration`` appears.
 @MainActor
@@ -38,9 +39,16 @@ public final class MobileAppCoordinator {
     }()
     @ObservationIgnored private(set) var userID: String?
     @ObservationIgnored private var userName: String?
+    /// The last APNs token the system issued, seeded from the store at launch so the first sync carries it.
     @ObservationIgnored private var token: String?
-    /// The Home activity's push-to-start token (nil while Live Activities are off or unsupported).
+    /// The Home activity's push-to-start token a sync sends: seeded from the store at launch, nil while Live Activities
+    /// are off or unsupported.
     @ObservationIgnored private var startActivityToken: String?
+    /// The last push-to-start token the system issued, kept while Live Activities are off so turning them on restores it.
+    @ObservationIgnored private(set) var lastStartActivityToken: String?
+    /// Whether notification permission is granted; nil until the system's answer is read. While it is false a sync
+    /// sends no APNs token, so the registration stays websocket-only like a phone that never had permission.
+    @ObservationIgnored private(set) var notificationsGranted: Bool?
     /// The running sync, so a token arriving mid-sync waits for it instead of racing it.
     @ObservationIgnored private var syncTask: Task<Void, Never>?
     /// The registration and user the person link last succeeded for, so a reconnect doesn't repeat it.
@@ -65,6 +73,10 @@ public final class MobileAppCoordinator {
         self.transport = transport
         self.isEnabled = isEnabled
         self.allowsRegistration = allowsRegistration
+        let saved = store.deviceTokens
+        token = saved.push
+        startActivityToken = saved.startActivity
+        lastStartActivityToken = saved.startActivity
     }
 
     /// Where location and sensor commands go: the signed-in user's webhook, read at send time.
@@ -131,15 +143,32 @@ public final class MobileAppCoordinator {
     func setPushToken(_ hex: String) -> Bool {
         guard hex != token else { return false }
         token = hex
+        persistTokens()
+        return true
+    }
+
+    /// The system's notification answer was read.
+    /// - Returns: Whether it differs from the last answer, so the caller syncs.
+    func setNotificationsGranted(_ granted: Bool) -> Bool {
+        guard granted != notificationsGranted else { return false }
+        notificationsGranted = granted
         return true
     }
 
     /// The Home activity's push-to-start token changed, or Live Activities were turned off (nil).
     /// - Returns: Whether it differs from the last one, so the caller syncs.
     func setStartActivityToken(_ hex: String?) -> Bool {
+        if let hex { lastStartActivityToken = hex }
+        persistTokens()
         guard hex != startActivityToken else { return false }
         startActivityToken = hex
         return true
+    }
+
+    /// Keeps the last tokens for the next launch. Turning Live Activities off drops the token from the next sync only;
+    /// the last one stays here so turning them on restores it.
+    private func persistTokens() {
+        store.setDeviceTokens(DeviceTokens(push: token, startActivity: lastStartActivityToken))
     }
 
     /// Takes the Home activity's push-to-start token (nil removes it) and syncs the registration when it changed, so
@@ -165,7 +194,8 @@ public final class MobileAppCoordinator {
     public func sync() async {
         await syncTask?.value
         guard isEnabled, let registrar, let userID else { return }
-        let token = token, userName = userName, startActivityToken = startActivityToken
+        // Permission refused or revoked: the stored token is stale, so the registration goes websocket-only.
+        let token = notificationsGranted == false ? nil : token, userName = userName, startActivityToken = startActivityToken
         let task = Task { [weak self] in
             guard let outcome = try? await registrar.sync(userID: userID, userName: userName, token: token,
                                                           startActivityToken: startActivityToken) else { return }

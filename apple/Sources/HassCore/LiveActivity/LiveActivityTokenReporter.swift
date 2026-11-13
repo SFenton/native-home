@@ -32,10 +32,14 @@ public final class LiveActivityTokenReporter {
     ///   - webhook: The signed-in registration's webhook sender, read at send time; nil while unregistered (a report
     ///     is then skipped and the next token change or launch sends it again).
     ///   - registerStartToken: Hands the start token (nil to remove it) to the registration, which syncs.
+    ///   - lastKnownStartToken: The token a launch before this one saved, so turning Live Activities on restores it even
+    ///     when the system has not yielded one yet this launch.
     ///   - now: The clock.
     public init(client: any LiveActivityClient, webhook: @escaping @Sendable () -> (any LiveActivityWebhookSending)?,
                 registerStartToken: @escaping @MainActor @Sendable (String?) async -> Void,
+                lastKnownStartToken: String? = nil,
                 now: @escaping @Sendable () -> Date = { Date() }) {
+        lastStartToken = lastKnownStartToken
         self.client = client
         self.webhook = webhook
         self.registerStartToken = registerStartToken
@@ -46,6 +50,8 @@ public final class LiveActivityTokenReporter {
     public func start() {
         guard tasks.isEmpty else { return }
         enabled = client.areActivitiesEnabled
+        // The registration was seeded with the last token before this ran; with Live Activities off it must not keep it.
+        let seededWhileOff = !enabled
         tasks = [
             Task { [weak self, client] in
                 for await token in client.pushToStartTokens() { await self?.startTokenChanged(token) }
@@ -57,6 +63,7 @@ public final class LiveActivityTokenReporter {
                 for await isEnabled in client.enablementUpdates() { await self?.enablementChanged(isEnabled) }
             },
         ]
+        if seededWhileOff { tasks.append(Task { [weak self] in await self?.removeSeededStartToken() }) }
         Task { [weak self, client] in
             for record in await client.current() where record.lifecycle.isLive { self?.observe(record) }
         }
@@ -74,6 +81,13 @@ public final class LiveActivityTokenReporter {
     func startTokenChanged(_ token: String) async {
         lastStartToken = token
         if enabled { await registerStartToken(token) }
+    }
+
+    /// Live Activities are off at launch: tells the registration to drop the token it was seeded with, unless they were
+    /// turned on in the meantime.
+    func removeSeededStartToken() async {
+        guard !enabled else { return }
+        await registerStartToken(nil)
     }
 
     func enablementChanged(_ isEnabled: Bool) async {

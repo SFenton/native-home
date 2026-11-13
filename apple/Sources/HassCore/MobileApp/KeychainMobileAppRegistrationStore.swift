@@ -43,6 +43,12 @@ public final class KeychainMobileAppRegistrationStore: MobileAppRegistrationStor
         update { $0.removePending(entry) }
     }
 
+    public var deviceTokens: DeviceTokens { lock.withLock { read().tokens } }
+
+    public func setDeviceTokens(_ tokens: DeviceTokens) {
+        update { $0.tokens = tokens }
+    }
+
     // MARK: - Keychain
 
     private var baseQuery: [String: Any] {

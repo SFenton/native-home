@@ -6,11 +6,15 @@ struct MobileAppRegistrationList: Codable, Equatable {
     var active: MobileAppRegistration?
     /// Removals Home Assistant has not confirmed yet (sign-out offline); older saved lists have none.
     var pending: [PendingUnregister] = []
+    /// The install's last push tokens; they outlive every sign-out. Older saved lists have none.
+    var tokens = DeviceTokens()
 
-    init(registrations: [MobileAppRegistration] = [], active: MobileAppRegistration? = nil, pending: [PendingUnregister] = []) {
+    init(registrations: [MobileAppRegistration] = [], active: MobileAppRegistration? = nil, pending: [PendingUnregister] = [],
+         tokens: DeviceTokens = DeviceTokens()) {
         self.registrations = registrations
         self.active = active
         self.pending = pending
+        self.tokens = tokens
     }
 
     init(from decoder: any Decoder) throws {
@@ -18,6 +22,7 @@ struct MobileAppRegistrationList: Codable, Equatable {
         registrations = try container.decodeIfPresent([MobileAppRegistration].self, forKey: .registrations) ?? []
         active = try container.decodeIfPresent(MobileAppRegistration.self, forKey: .active)
         pending = try container.decodeIfPresent([PendingUnregister].self, forKey: .pending) ?? []
+        tokens = try container.decodeIfPresent(DeviceTokens.self, forKey: .tokens) ?? DeviceTokens()
     }
 
     mutating func addPending(_ entry: PendingUnregister) {
