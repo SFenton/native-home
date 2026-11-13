@@ -155,6 +155,45 @@ class CoverageGateTests(unittest.TestCase):
         self.assertIn("apple/Sources/NewKit", err)
         self.assertIn("not classified as logic, unmeasured", err)
 
+    def classify_real_rules(self, *names: str) -> tuple[int, str]:
+        """Classify a scratch tree under the repository's own ``contracts/coverage-rules.json``."""
+        self.write_sources(
+            "apple/Sources/HassCore/A.swift", "apple/Sources/HassDesign/D.swift",
+            "apple/Sources/FentonActivityViews/V.swift", *names,
+        )
+        rules = coverage_gate.RULES
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = coverage_gate.main(
+                ["--language", "swift", "--root", str(self.root), "--rules", str(rules), "--classify-only"]
+            )
+        return status, err.getvalue()
+
+    def test_a_new_model_file_in_hassui_is_gated_wherever_it_sits(self) -> None:
+        status, err = self.classify_real_rules(
+            "apple/Sources/HassUI/Features/Foo/FooModel.swift", "apple/Sources/HassUI/Features/Foo/FooModel+Summary.swift",
+            "apple/Sources/HassUI/Features/Foo/FooView.swift", "apple/Sources/HassUI/UIKitPort/UKFoo.swift",
+        )
+        self.assertEqual((status, err), (0, ""))
+
+    def test_a_model_file_in_a_view_directory_is_logic_not_unmeasured(self) -> None:
+        self.write_sources("apple/Sources/HassUI/Controls/FooModel.swift")
+        rules = json.loads(coverage_gate.RULES.read_text(encoding="utf-8"))
+        categories, _, errors = coverage_gate.classify(self.root, rules, "swift")
+        self.assertIn("apple/Sources/HassUI/Controls/FooModel.swift", categories["logic"])
+        self.assertFalse([e for e in errors if "classified twice" in e or "FooModel" in e])
+
+    def test_an_unconventional_hassui_file_fails_classification_by_name(self) -> None:
+        for name in (
+            "apple/Sources/HassUI/Features/Foo/RecipeFormatting.swift",
+            "apple/Sources/HassUI/App/Shell/RouteResolver.swift",
+            "apple/Sources/HassUI/App/NewArea/Thing.swift",
+        ):
+            with self.subTest(name=name):
+                status, err = self.classify_real_rules(name)
+                self.assertEqual(status, 1)
+                self.assertIn(name, err)
+
     def test_unmeasured_must_not_carry_a_threshold(self) -> None:
         self.write_sources("apple/Sources/Core/A.swift", "apple/Sources/UI/B.swift")
         RULES["thresholds"]["unmeasured"] = 95
