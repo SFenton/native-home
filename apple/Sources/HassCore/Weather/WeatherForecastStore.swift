@@ -40,7 +40,7 @@ public final class WeatherForecastStore {
         var retryAt: Date = .distantPast
     }
 
-    @ObservationIgnored private let entityId: String
+    @ObservationIgnored private let entityId: @MainActor () -> String
     @ObservationIgnored private let server: HassServer?
     @ObservationIgnored private let cache: WeatherForecastDiskCache?
     @ObservationIgnored private let timeZone: TimeZone
@@ -65,7 +65,9 @@ public final class WeatherForecastStore {
 
     /// Creates a store and restores the disk snapshot, if any, before any network work.
     /// - Parameters:
-    ///   - entityId: The weather entity to ask about.
+    ///   - entityId: The weather entity to ask about. Read each time a fetch is due, never captured: on a first sign-in the
+    ///     house document, and so the id, arrives after the store is built. While it is empty nothing is sent and the feeds
+    ///     stay pending (placeholders).
     ///   - server: The signed-in server; with `cache`, keys the disk snapshot.
     ///   - cache: Disk snapshot of the last good forecasts.
     ///   - timeZone: Where "today" is for the briefing.
@@ -74,7 +76,7 @@ public final class WeatherForecastStore {
     ///   - scheduler: Starts the refresh timer.
     ///   - clock: The current time.
     public init(
-        entityId: String = HomeConfig.weatherEntityId, server: HassServer? = nil, cache: WeatherForecastDiskCache? = nil,
+        entityId: @autoclosure @escaping @MainActor () -> String = HomeConfig.weatherEntityId, server: HassServer? = nil, cache: WeatherForecastDiskCache? = nil,
         timeZone: TimeZone = .current, requestTimeout: TimeInterval = 20,
         scheduler: any WeatherRefreshScheduling = WeatherTaskScheduler(), clock: @escaping @MainActor () -> Date = { Date() }
     ) {
@@ -147,12 +149,16 @@ public final class WeatherForecastStore {
         guard isActive else { return }
         let now = clock()
         pruneHourly(now)
+        // With no weather entity yet (no house document) there is nothing to ask; the feeds stay pending and the
+        // driver calls `update(revision:)` when the id arrives.
+        let entity = entityId()
+        let canFetch = connected && !entity.isEmpty
         for kind in WeatherForecastKind.allCases {
             let request = requests[kind] ?? Request()
-            if connected, !request.inFlight, now >= dueAt(request) { fetch(kind) }
+            if canFetch, !request.inFlight, now >= dueAt(request) { fetch(kind, entityId: entity) }
         }
         // While disconnected, the connection's ready event resumes fetching.
-        var deadlines: [Date] = connected
+        var deadlines: [Date] = canFetch
             ? WeatherForecastKind.allCases.compactMap { kind in
                 let request = requests[kind] ?? Request()
                 return request.inFlight ? nil : dueAt(request)
@@ -262,7 +268,7 @@ public final class WeatherForecastStore {
         if kind == .daily { daily = feed } else { hourly = feed }
     }
 
-    private func fetch(_ kind: WeatherForecastKind) {
+    private func fetch(_ kind: WeatherForecastKind, entityId: String) {
         let revision = revision
         let previousPhase = feed(kind).phase
         requests[kind]?.inFlight = true
@@ -278,7 +284,6 @@ public final class WeatherForecastStore {
                 // Re-checked after the hop so a request queued just before backgrounding never starts.
                 if let caller, isActive, connected {
                     started = true
-                    let entityId = entityId
                     let response = try await Self.withTimeout(requestTimeout) {
                         try await caller.callServiceForResponse("weather", "get_forecasts", data: ["entity_id": entityId, "type": kind.rawValue])
                     }
@@ -299,9 +304,10 @@ public final class WeatherForecastStore {
                 if Self.isConnectionInterruption(error) {
                     interrupted = true
                 } else {
-                    let message = ServiceErrorText.message(for: error, fallback: WeatherCopy.forecastFailure(kind))
+                    // Home Assistant's own words (a schema error, a missing service) go to the log, never to the card.
+                    Telemetry.event("weather.forecastFailed", detail: "\(kind.rawValue): \(ServiceErrorText.message(for: error, fallback: "\(error)"))")
                     patch(kind) { feed in
-                        feed.error = message
+                        feed.error = WeatherCopy.forecastFailure(kind)
                         feed.phase = .error
                     }
                 }
