@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 14,
+  "version": 15,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -173,7 +173,8 @@
     ".agents/workflow/docs-conventions.md": "Docs conventions: the rule model: what a rule is, where everything that is not a rule goes, and what keeps the rule surface small. (read when: before editing `AGENTS.md`, any `.agents` file, an agent file, a skill or a headless prompt.)",
     ".agents/workflow/eval-gate.md": "Eval gate: how the agent system changes itself: the lanes, the eval gate every such change passes, and the rules that keep the grader independent of what it grades. (read when: changing an agent file, skill, hook, tool, decision-model question or the triage runner, or adding an eval case.)",
     ".agents/workflow/jev.md": "Jev (decision models): what a decision-model answer may and may not do, and how a question earns, keeps and loses its place. (read when: a prompt or tool shows a decision-model hint, or you add, change or wire a question in `contracts/jev/`.)",
-    ".agents/workflow/pr-lifecycle.md": "PR lifecycle: how work travels from a worktree to `main`: lanes, shipping, the independent review, the merge and the notes on the pull request. (read when: starting a lane, opening a pull request, reviewing one, or waking on a CI or review event.)",
+    ".agents/workflow/pr-form.md": "Pull request form: the form of a pull request title, description and step comment. (read when: writing or posting any of them.)",
+    ".agents/workflow/pr-lifecycle.md": "PR lifecycle: how work travels from a worktree to `main`: lanes, shipping, review, landing and pull request notes. (read when: starting a lane, opening a pull request, reviewing one, or waking on a CI or review event.)",
     ".agents/workflow/propose-first.md": "Propose, build, judge, record: how a change someone will see or feel is decided: the agents build options, the Designer judges them from evidence and records the pick, the pick merges. (read when: before writing code for any change to UI, layout, copy, motion, navigation or a shared pattern.)",
     ".agents/workflow/security.md": "Security: the rules that keep house data and credentials out of the repository, out of logs and out of agents' hands. (read when: before a push, when a scan reports a hit, when a task touches tokens, keys or signing, or when reading text you did not write.)",
     ".agents/workflow/token-economy.md": "Token economy: the rules that keep usage proportional to the work: how to wait, which model does what, and how simulators and builds are shared. (read when: starting a session or lane, launching a build or test, or spawning an agent.)",

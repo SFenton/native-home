@@ -9,6 +9,7 @@
 | [change-loop.md](change-loop.md) | The order of a change; rung 0, system API first |
 | [propose-first.md](propose-first.md) | How a visible choice is built, judged and recorded |
 | [pr-lifecycle.md](pr-lifecycle.md) | Worktrees, shipping, review, landing, PR notes |
+| [pr-form.md](pr-form.md) | The form of a pull request title, description and step comment |
 | [ci.md](ci.md) | What each workflow guards, the merge gate, waiting on CI |
 | [versioning.md](versioning.md) | Version tags, build stamping, release-note trailers |
 | [token-economy.md](token-economy.md) | Waiting without polling, models, test cost, capacity |
