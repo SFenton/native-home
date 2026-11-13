@@ -68,6 +68,20 @@ class DevcapStandInTests(unittest.TestCase):
                                    runner=lambda c: seen.append(c) or 7)
         self.assertEqual((rc, seen), (7, [["echo", "hi"]]))
 
+    def test_held_environment_names_every_pool(self):
+        """Fails if: a hosted `devcap run` child sees no DEVCAP_HELD, so apple_coverage.sh re-runs itself without end (PR 81, run 42960328087)."""
+        opts = ["--pool", "build", "--pool", "swift-test", "--hold", "60", "--purpose", "x"]
+        self.assertEqual(ci_hosted.held_environment(opts, {})["DEVCAP_HELD"], "build,swift-test")
+        self.assertEqual(ci_hosted.held_environment(opts, {"DEVCAP_HELD": "simulator"})["DEVCAP_HELD"], "build,simulator,swift-test")
+
+    def test_run_child_inherits_the_held_gates(self):
+        """Fails if: the default runner starts the child without DEVCAP_HELD."""
+        out = tempfile.NamedTemporaryFile(delete=False)
+        out.close()
+        rc = ci_hosted.devcap_main(["run", "--pool", "build", "--", "sh", "-c", 'printf %s "$DEVCAP_HELD" > "$0"', out.name])
+        self.assertEqual((rc, Path(out.name).read_text()), (0, "build"))
+        os.unlink(out.name)
+
     def test_run_without_a_command_is_a_usage_error(self):
         self.assertEqual(ci_hosted.devcap_main(["run", "--pool", "build"], runner=lambda c: 0), 2)
         self.assertEqual(ci_hosted.devcap_main(["run", "--"], runner=lambda c: 0), 2)
@@ -85,11 +99,15 @@ class DevcapStandInTests(unittest.TestCase):
 
     def test_the_command_line_runs_through_without_a_hold(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = clean_env(DEVCAP_DIR=tmp, HOME=tmp)
+            devcap_dir, home = Path(tmp) / "devcap", Path(tmp) / "home"
+            devcap_dir.mkdir()
+            home.mkdir()
+            env = clean_env(DEVCAP_DIR=str(devcap_dir), HOME=str(home))
             out = subprocess.run([sys.executable, str(TOOLS / "ci_hosted.py"), "devcap", "run", "--pool", "build", "--hold", "60", "--", "echo", "ran"],
                                  env=env, capture_output=True, text=True)
             self.assertEqual((out.returncode, out.stdout.strip()), (0, "ran"), out.stderr)
-            self.assertEqual(list(Path(tmp).iterdir()), [], "hosted mode must not create devcap gates or state")
+            # Only the devcap directory must stay empty; the interpreter may create e.g. ~/Library in HOME.
+            self.assertEqual(list(devcap_dir.iterdir()), [], "hosted mode must not create devcap gates or state")
 
     def test_the_vendored_devcap_is_not_hosted_aware(self):
         self.assertNotIn("ci_hosted", (TOOLS / "devcap.py").read_text(encoding="utf-8"))

@@ -63,14 +63,3 @@ extension Trait where Self == HostedSuiteTrait {
     /// Opens windows: run this suite alone among the hosted suites (`AsyncLock.hosted`).
     static var hosted: HostedSuiteTrait { HostedSuiteTrait() }
 }
-
-/// Whether the nightly-only tests run: the full gallery launch matrix is ~hundreds of window launches, so a PR's
-/// `swift test` skips it. It runs when `FENTON_TIER` is `nightly` or `release`, when `FENTON_RUN_MATRIX=1`, or
-/// under `swift test --enable-code-coverage` (`tools/apple_coverage.sh`, which the UX coverage gate needs it for;
-/// SwiftPM sets `LLVM_PROFILE_FILE` for the test process then).
-enum NightlyTier {
-    static let isOn: Bool = {
-        let env = ProcessInfo.processInfo.environment
-        return ["nightly", "release"].contains(env["FENTON_TIER"] ?? "") || env["FENTON_RUN_MATRIX"] == "1" || env["LLVM_PROFILE_FILE"] != nil
-    }()
-}

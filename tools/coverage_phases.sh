@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Phase bookkeeping for the coverage run (sourced by the coverage script; tools/tests/test_coverage_phases.py drives it with stubs).
 # Needs ROOT, CLASS_DIR and CLASSIFY (tools/coverage_classify.py) from the caller. State, all in CLASS_DIR:
-#   failed.txt    `KIND id` per failing test id an instrumented phase named (KIND: hosted, journey, swift)
+#   failed.txt    `KIND id` per failing test id the instrumented phase named (KIND: swift)
 #   phases.txt    `NAME STATUS NIDS CRASHED UNEXPLAINED` per phase run: its exit status, ids named, a crash marker, failures the log cannot explain
 #   rerun-logs.txt  the logs of the plain reruns; the verdict reads positive evidence (a passed id) from them
 # Why per phase: one named failure must not explain a different phase that crashed, timed out or failed to build.
@@ -33,20 +33,6 @@ cov_rerun_plain() {
 
 # cov_ids_of KIND: the failing ids of a kind, comma separated.
 cov_ids_of() { { grep "^$1 " "$CLASS_DIR/failed.txt" || true; } | cut -d' ' -f2 | paste -sd, -; }
-
-# cov_rerun_ios: rerun failed hosted classes and journeys without --impact; the command lines come from coverage_classify.py.
-cov_rerun_ios() {
-  local uitest="${COV_IOS_UITEST:-$ROOT/tools/ios_uitest.sh}" hosted journey
-  hosted="$(cov_ids_of hosted)"; journey="$(cov_ids_of journey)"
-  if [[ -n "$hosted" ]]; then
-    echo "== ios: plain rerun of failed hosted tests: $hosted"
-    eval "cov_rerun_plain \"\$CLASS_DIR/rerun-hosted.log\" -- $(python3 "$CLASSIFY" rerun-cmd hosted "$hosted" --script "$uitest")"
-  fi
-  if [[ -n "$journey" ]]; then
-    echo "== ios: plain rerun of failed journeys: $journey"
-    eval "cov_rerun_plain \"\$CLASS_DIR/rerun-journeys.log\" -- $(python3 "$CLASSIFY" rerun-cmd journey "$journey" --script "$uitest")"
-  fi
-}
 
 # cov_rerun_swift: rerun the failed host tests with `swift test --filter` (no coverage), requiring that a test ran.
 cov_rerun_swift() {

@@ -1,0 +1,40 @@
+# command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).  A literal \n in a command is a newline.
+# `@write PATH TEXT` is a Write of TEXT to PATH (test_guard_tables.tool_payload); nothing is written. Every other row is a Bash command.
+# rules_guard is a TRIPWIRE on Edit, Write and MultiEdit payloads, not a wall: a file written by a shell command or a script is not seen (those rows allow);
+# tools/rules_lint.py in pr-checks is the check that cannot be skipped. Cleaning and dirtying edits of an existing file: test_rules_lint.HookTests.
+@write .agents/workflow/zz-table.md # T\n\nThe gate is decided 2026-11-10.	block	ISO date in a rules file
+@write .agents/workflow/zz-table.md # T\n\nThe gate holds since 2026/11/10.	block	slash date
+@write .agents/skills/zz-table/SKILL.md # T\n\nLanes land by pull request (Nov 10, 2026).	block	month-name date in a skill
+@write .claude/agents/zz-table.md # T\n\nThe cap holds from 10 November 2026.	block	day-month date in an agent file
+@write tools/triage/prompts/zz-table.md # T\n\nRounds are capped (owner, approved).	block	parenthesised attribution in a prompt
+@write AGENTS.md # T\n\nThe owner decided that lanes land by pull request.	block	attribution verb in the core file
+@write .agents/workflow/zz-table.md # T\n\nPer the owner, lanes land by pull request.	block	per the owner
+@write .agents/workflow/zz-table.md # T\n\nLanes land as PR 72 does.	block	PR number without a hash
+@write .agents/workflow/zz-table.md # T\n\nSee #1234 for the reason.	block	hash reference
+@write .agents/workflow/zz-table.md # T\n\nFixed in a1b2c3d4 for good.	block	commit sha
+@write .agents/workflow/zz-table.md # T\n\nThe hook previously allowed it.	block	word of change
+@write .agents/workflow/zz-table.md # T\n\nThe limit is 3 (was 5).	block	was-form
+@write .agents/workflow/zz-table.md # T\n\nFrom now on the runner lands lanes.	block	from now on
+@write .agents/workflow/zz-table.md # T\n\nOld: two rounds. New: three rounds.	block	before and after labels
+@write .claude/agents/zz-table.md # T\n\nword word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word	block	a line over the word limit
+@write .agents/notes/x.md # T\n\nDecided 2026-11-10 in PR 123.	block	a new folder under .agents takes the reference rules
+@write .agents/workflow/extra/y.md # T\n\nDecided 2026-11-10.	block	a subfolder of the rules folder is still checked
+@write .agents/skills/land-pr/notes.md # T\n\nDecided 2026-11-10.	block	a second file in a skill folder is still checked
+@write docs/zz-table.md # T\n\nA clean line.	block	markdown outside every layer: add it to a layer
+@write apple/zz-notes.md # T\n\nA clean line.	block	markdown outside every layer, under the app tree
+@write .claude/zz-notes.md # T\n\nA clean line.	block	markdown outside every layer, under .claude
+@write .agents/workflow/zz-table.md # T\n\nAgents state the default and link to its one home.	allow	clean rule text
+@write .agents/notes/x.md # T\n\nAgents state the default and link to its one home.	allow	clean text in a new .agents folder
+@write .agents/workflow/zz-table.md # T\n\nRun `git show abcdef1` and `gh pr view #123`.	allow	code spans are not rule text
+@write .agents/workflow/zz-table.md # T\n\nA case moves to the retired folder; the flag is used to select a mode.	allow	ordinary rule words
+@write .agents/workflow/zz-table.md # T\n\nThe runner pushes a lane the Reviewer passed; a landed lane is reaped.	allow	present-tense landing words
+@write PROGRESS.md # Plan\n\nShipped 2026-11-10 in PR 72.	allow	the state layer carries dates
+@write .agents/decisions/2026-11-10-zz-table.md # T\n\nDecision: the owner decided on 2026-11-10 (PR 72).	allow	the record layer carries why and when
+@write evals/zz/notes.md # T\n\nMeasured 2026-11-10.	allow	unchecked by the contract: eval data
+@write .claude/skills/swiftui-pro/zz.md # T\n\nUpdated 2026-11-10.	allow	unchecked by the contract: vendored skill
+@write build/notes/zz.md # T\n\nRun of 2026-11-10, PR 72.	allow	a path git ignores is not part of the repository
+@write tools/zz_table.py # written 2026-11-10 for PR 72	allow	not markdown
+@write /elsewhere/AGENTS.md # T\n\nDecided 2026-11-10.	allow	outside the repository
+echo 'Decided 2026-11-10' >> AGENTS.md	allow	tripwire limit: a shell write is not seen here; pr-checks runs the lint
+python3 -c "open('AGENTS.md','a').write('PR 72')"	allow	tripwire limit: a script write is not seen here
+cat AGENTS.md	allow	a read

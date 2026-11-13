@@ -75,10 +75,10 @@ class SelectTests(unittest.TestCase):
         journeys.update(c for p in (REPO / "apple" / "Apps" / "iOSUITests").glob("*.swift") for c in affected_tests.classes_in(p))
         stale = []
         for rule in MAP["rules"]:
-            for name in rule["swift"]:
+            for name in rule.get("swift", []):
                 if not any(re.search(name, known) for known in names):  # filters are regexes over type names
                     stale.append((rule["prefix"], name))
-            for name in rule["journeys"]:
+            for name in rule.get("journeys", []):
                 if name not in journeys:
                     stale.append((rule["prefix"], name))
         self.assertEqual(stale, [])
@@ -117,6 +117,16 @@ class SelectTests(unittest.TestCase):
         self.assertEqual(pick("apple/Sources/HassUI/App/Shell/Rail.swift")["families"], ["iphone", "duo", "ipad"])
         result = pick("apple/Tests/HassUITests/NoSuchRemovedTests.swift")
         self.assertEqual((result["unknown"], result["swift"]), ([], []))
+
+    def test_a_deleted_journey_target_file_needs_no_pick(self):
+        result = pick("apple/Apps/iOSUITests/NoSuchRemovedHelper.swift")
+        self.assertEqual((result["unknown"], result["journeys"], result["ignored"]),
+                         ([], [], ["apple/Apps/iOSUITests/NoSuchRemovedHelper.swift"]))
+
+    def test_a_deleted_journey_target_file_needs_no_pick(self):
+        result = pick("apple/Apps/iOSUITests/NoSuchRemovedHelper.swift")
+        self.assertEqual((result["unknown"], result["journeys"], result["ignored"]),
+                         ([], [], ["apple/Apps/iOSUITests/NoSuchRemovedHelper.swift"]))
 
     def test_every_rule_prefix_exists(self):
         missing = [rule["prefix"] for rule in MAP["rules"]
@@ -486,6 +496,127 @@ class PerFamilyTests(unittest.TestCase):
             for name in rule.get("layout_journeys", []):
                 self.assertIn(name, rule["journeys"], rule["prefix"])
             self.assertFalse(rule.get("layout_sensitive") and rule.get("layout_journeys"), rule["prefix"])
+
+
+class HostedSelectionTests(unittest.TestCase):
+    """The app-hosted classes (``apple/Apps/iOSTests``) a diff reaches: rules, the area convention, test files, helpers and picks."""
+    UK = "apple/Sources/HassUI/UIKitPort/"
+    CLASSES = affected_tests.hosted_classes()
+
+    def hosted(self, *files):
+        return pick(*files)["hosted"]
+
+    def test_the_classes_are_read_from_the_test_sources(self):
+        self.assertGreater(len(self.CLASSES), 100)
+        self.assertEqual(self.CLASSES["UKHostedChoresFormsTests"], "UKHostedChoresFormsTests")
+        self.assertEqual(self.CLASSES["UKHostedInventoryEditorTests"], "UKHostedInventoryTests")  # several classes share one file
+        self.assertNotIn("DemoHouseTestCase", self.CLASSES)  # a base class, not a test class
+
+    def test_the_area_convention_places_a_feature_without_a_rule(self):
+        got = self.hosted(self.UK + "Features/Chores/UKTodoForms.swift")
+        self.assertEqual(got, ["UKHostedChoresFormsTests", "UKHostedChoresGapTests", "UKHostedChoresLinksTests", "UKHostedChoresTests"])
+        self.assertEqual(affected_tests.area_hosted("Vacuums", self.CLASSES),
+                         [n for n in sorted(self.CLASSES) if n.startswith("UKHostedVacuum")])  # the singular matches the editor and sheet classes
+        self.assertEqual(self.hosted(self.UK + "Features/Climate/UKClimateSheet.swift"), ["UKHostedClimateSheetTests"])
+
+    def test_the_convention_reads_the_file_name_too(self):
+        self.assertIn("UKHostedInventoryEditorTests", affected_tests.area_hosted("Inventory", self.CLASSES))  # declared in UKHostedInventoryTests.swift
+        self.assertIn("LiveVideoSurfaceHostedTests", affected_tests.area_hosted("Cameras", self.CLASSES))  # declared in UKHostedCameraSurfaceTests.swift
+
+    def test_an_explicit_rule_beats_the_convention(self):
+        home = self.hosted(self.UK + "Features/Home/UKWeatherCard.swift")
+        self.assertNotIn("UKHostedHomeAssistantTests", home)  # the convention would take it for Home; it tests Settings
+        self.assertIn("UKHostedSharedHomeTests", home)
+        self.assertEqual(self.hosted(self.UK + "Features/HouseConfig/UKHouseLayoutGate.swift"), ["UKHostedHouseLayoutGateTests"])
+        self.assertIn("UKHostedWakeEditorTests", self.hosted(self.UK + "Features/Bedroom/UKBedroomKit.swift"))  # no Bed in the name
+
+    def test_the_longest_hosted_prefix_narrows_a_file(self):
+        self.assertEqual(self.hosted(self.UK + "Features/Settings/UKFeedback.swift"), ["UKHostedFeedbackTests"])
+        wide = self.hosted(self.UK + "Features/Settings/UKSettingsRows.swift")
+        self.assertIn("UKHostedFeedbackTests", wide)
+        self.assertGreater(len(wide), 5)
+
+    def test_a_hosted_only_rule_does_not_shadow_the_journey_rules(self):
+        result = pick(self.UK + "Features/Household/UKVacation.swift")
+        self.assertEqual(result["hosted"], ["UKHostedVacationTests"])
+        self.assertEqual(result["swift"], ["VacationModeController", "SoloTripController", "HouseholdAwayController"])
+        self.assertEqual(len(result["journeys"]), 4)
+
+    def test_shared_code_selects_the_classes_that_exercise_it_not_the_suite(self):
+        for file in (self.UK + "Design/UKRow.swift", self.UK + "Design/UKGlassTileView.swift", self.UK + "App/Shell/UKShellViewController.swift",
+                     self.UK + "App/Layout/UKReflow.swift", "apple/Sources/HassDesign/TileLayout.swift", "apple/Sources/HassUI/App/Layout/SplitPolicy.swift"):
+            got = self.hosted(file)
+            self.assertTrue(got, file)
+            self.assertLess(len(got), len(self.CLASSES) // 2, file)
+        self.assertIn("UKHostedTileTests", self.hosted(self.UK + "Design/UKGlassTileView.swift"))
+        self.assertIn("UKHostedShellTests", self.hosted(self.UK + "App/Shell/UKShellViewController.swift"))
+
+    def test_app_wide_code_selects_every_class(self):
+        for file in (self.UK + "Foundation/UKContext.swift", self.UK + "Gallery/UKGalleryChrome.swift"):
+            self.assertEqual(self.hosted(file), sorted(self.CLASSES), file)
+
+    def test_a_changed_hosted_test_file_selects_its_own_classes(self):
+        result = pick("apple/Apps/iOSTests/UKHostedInventoryTests.swift")
+        self.assertEqual(result["hosted"], ["UKHostedInventoryEditorTests", "UKHostedInventoryTests", "UKHostedScanTests"])
+        self.assertEqual((result["swift"], result["journeys"], result["unknown"], result["hosted_unknown"]), ([], [], [], []))
+
+    def test_a_changed_helper_selects_the_whole_suite(self):
+        for helper in ("UKHostedDriver", "HostedFeatureSupport", "DemoHouseTestCase", "UKHostedScene"):
+            self.assertEqual(self.hosted(f"apple/Apps/iOSTests/{helper}.swift"), sorted(self.CLASSES), helper)
+
+    def test_a_named_helper_file_selects_what_its_rule_lists(self):
+        got = self.hosted("apple/Apps/iOSTests/VacuumsByPosition.swift")
+        self.assertTrue(got and all(name.startswith("UKHostedVacuum") for name in got), got)
+
+    def test_a_deleted_or_non_swift_test_file_selects_nothing(self):
+        self.assertEqual(self.hosted("apple/Apps/iOSTests/UKHostedGoneTests.swift"), [])
+        self.assertEqual(self.hosted("apple/Apps/iOSTests/Info.plist"), [])
+
+    def test_an_unplaced_file_is_a_pick_never_a_widening(self):
+        result = pick(self.UK + "Features/Mystery/UKThing.swift", self.UK + "UKBrandNew.swift")
+        self.assertEqual(result["hosted"], [])
+        self.assertEqual(result["hosted_unknown"], [self.UK + "Features/Mystery/UKThing.swift", self.UK + "UKBrandNew.swift"])
+        self.assertEqual(result["unknown"], [])  # the journey and Swift suites place them by module
+
+    def test_sources_outside_the_port_and_no_rule_reach_no_hosted_class(self):
+        result = pick("apple/Sources/HassCore/Climate/X.swift", "apple/Sources/HassUI/Shell/Y.swift", "AGENTS.md")
+        self.assertEqual((result["hosted"], result["hosted_unknown"]), ([], []))
+
+    def test_every_real_uikit_port_file_is_placed(self):
+        files = [str(p.relative_to(REPO)) for p in (REPO / "apple/Sources/HassUI/UIKitPort").rglob("*.swift")]
+        self.assertGreater(len(files), 100)
+        result = pick(*files)
+        self.assertEqual(result["hosted_unknown"], [])
+
+    def test_every_class_name_in_a_rule_matches_a_class(self):
+        for rule in MAP["rules"]:
+            for name in rule.get("hosted", []):
+                self.assertTrue(affected_tests.expand_hosted([name], self.CLASSES), f"{rule['prefix']}: {name}")
+
+    def test_a_hosted_rule_lists_only_hosted_classes(self):
+        for rule in MAP["rules"]:
+            if "hosted" in rule:
+                self.assertIsInstance(rule["hosted"], list, rule["prefix"])
+                self.assertTrue(rule["hosted"], rule["prefix"])
+
+    def test_the_command_line_prints_the_classes_json_and_the_pick(self):
+        cli = CommandLineTests()
+        files = ["--files", self.UK + "Features/Climate/UKClimateSheet.swift"]
+        self.assertEqual(cli.run_main("--hosted", *files)[1].strip(), "UKHostedClimateSheetTests")
+        self.assertEqual(json.loads(cli.run_main("--json", *files)[1])["hosted"], ["UKHostedClimateSheetTests"])
+        self.assertIn("hosted:     UKHostedClimateSheetTests", cli.run_main(*files)[1])
+        code, out, err = cli.run_main("--hosted", "--files", self.UK + "Features/Mystery/UKThing.swift")
+        self.assertEqual((code, out.strip()), (3, ""))
+        self.assertIn("NEEDS A PICK", err)
+        self.assertIn("hosted", err)
+        code, _, err = cli.run_main("--json", "--files", self.UK + "Features/Mystery/UKThing.swift")
+        self.assertEqual(code, 3)
+        code, _, _ = cli.run_main("--journeys", "--files", self.UK + "Features/Mystery/UKThing.swift")
+        self.assertEqual(code, 0)  # --journeys and --swift do not ask for a hosted pick
+
+    def test_no_hosted_class_prints_nothing_and_exits_0(self):
+        code, out, _ = CommandLineTests().run_main("--hosted", "--files", "apple/Sources/HassCore/Climate/X.swift")
+        self.assertEqual((code, out.strip()), (0, ""))
 
 
 class UitestFlagTests(unittest.TestCase):

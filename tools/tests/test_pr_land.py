@@ -1,5 +1,6 @@
 """``tools/pr_land.py`` gating, ``tools/review/record.py``, the ``merge_guard`` hook and ship.sh's review rule."""
 
+import inspect
 import io
 import json
 import os
@@ -23,6 +24,9 @@ import merge_guard  # noqa: E402
 import pr_land  # noqa: E402
 import record  # noqa: E402
 import agent_model  # noqa: E402
+
+#: The real lookup, kept before the test classes patch it out.
+REAL_OPEN_PR_HEADS = pr_land.open_pr_heads
 
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
        "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
@@ -63,14 +67,22 @@ class ArmTests(unittest.TestCase):
 
     HEAD = "b" * 40
 
+    def setUp(self):
+        # The owner recipe looks up other open pull requests; no test here may reach the real gh.
+        patcher = mock.patch.object(pr_land, "open_pr_heads", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def info(self, **extra):
         return {"state": "OPEN", "isDraft": False, "headRefName": "agents/x", "headRefOid": self.HEAD, "mergeable": "MERGEABLE",
                 "baseRefName": "main", "labels": [], "files": [], "body": "", "title": "t", "author": {"login": "SFenton"},
                 "isCrossRepository": False, **extra}
 
-    def land(self, info=None, dry=False, kill=None, passed=True, ruleset=None, gate=None, denylist=None, merges=None, after=None):
+    def land(self, info=None, dry=False, kill=None, passed=True, ruleset=None, gate=None, denylist=None, merges=None, after=None,
+             reviews=None):
         """Run ``land`` and return ``((code, line), gh calls)``. ``merges`` is the list of ``(returncode, text)`` the successive
-        ``gh pr merge`` calls answer; ``after`` is the pull request JSON the post-arm ``pr view`` returns."""
+        ``gh pr merge`` calls answer; ``after`` is the pull request JSON the post-arm ``pr view`` returns; ``reviews`` is the list of
+        pages ``gh api .../reviews --paginate`` prints (default: GitHub has no review)."""
         calls = []
         answers = list(merges if merges is not None else [(0, "")])
 
@@ -82,11 +94,15 @@ class ArmTests(unittest.TestCase):
             if args[:3] == ["gh", "pr", "merge"]:
                 code, text = answers.pop(0)
                 return mock.Mock(returncode=code, stdout="", stderr=text)
+            if args[:2] == ["gh", "api"]:
+                return mock.Mock(returncode=0, stdout="".join(json.dumps(page) for page in reviews or [[]]), stderr="")
             return mock.Mock(returncode=0, stdout="", stderr="")
 
         def ui(number, info):
             if isinstance(gate, Exception):
                 raise gate
+            if callable(gate):
+                return gate(number, info)
             return "app-UI gate passed (0 app-UI file(s))"
         has_pass = passed if callable(passed) else (lambda sha: passed)
         patches = [mock.patch.object(pr_land, "run", fake_run), mock.patch.object(pr_land, "kill_switch", return_value=kill),
@@ -251,6 +267,88 @@ class ArmTests(unittest.TestCase):
         self.assertTrue(line.startswith(f"would arm #7 at {self.HEAD[:8]}"), line)
         self.assertEqual([c[:3] for c in calls], [["gh", "pr", "view"]])
 
+    APPROVAL = [[{"user": {"login": "SFenton"}, "state": "APPROVED", "commit_id": HEAD}]]
+    PARK = pr_land.GateRefused("Jev answered design.app_wide=unsure", park=True)
+
+    def test_an_approval_of_the_head_answers_a_park_and_the_arm_stays_pinned(self):
+        """Fails if: an approved park still blocks, the note omits the head, or the arm loses --match-head-commit."""
+        (code, line), _ = self.land(gate=self.PARK, reviews=self.APPROVAL, dry=True)
+        self.assertEqual(code, 0, line)
+        self.assertIn(f"app-UI gate answered by the owner's approval of {self.HEAD[:8]}", line)
+        (code, line), calls = self.land(gate=self.PARK, reviews=self.APPROVAL,
+                                        after={"state": "OPEN", "autoMergeRequest": {"enabledBy": {"login": "SFenton"}}})
+        self.assertEqual(code, 0, line)
+        self.assertEqual(self.merge_calls(calls)[0][-2:], ["--match-head-commit", self.HEAD])
+        self.assertIn(f"app-UI gate answered by the owner's approval of {self.HEAD[:8]}", line)  # the real arm line says it too
+        self.assertTrue(line.startswith(f"armed #7 at {self.HEAD[:8]}"), line)
+        (code, line), calls = self.land(gate=self.PARK)
+        self.assertEqual(code, 1, line)
+        self.assertIn("app-UI gate (gate)", line)
+        self.assertIn("the owner's approval of this exact head on GitHub answers this park, then the lander is run again", line)
+        self.assertFalse(self.merge_calls(calls))
+        (code, line), _ = self.land(gate=pr_land.GateRefused("no design decision record", "design"))
+        self.assertNotIn("answers this park", line)
+
+    def test_an_approval_of_the_head_lifts_the_needs_decision_label_only(self):
+        """Fails if: the label blocks an approved head, or stops blocking an unapproved one (or one approved at an older commit)."""
+        labelled = self.info(labels=[{"name": "Needs Decision"}])
+        (code, line), _ = self.land(info=labelled, reviews=self.APPROVAL, dry=True)
+        self.assertEqual(code, 0, line)
+        self.assertIn(f"Needs Decision lifted by the owner's approval of {self.HEAD[:8]}", line)
+        (code, line), _ = self.land(info=labelled, reviews=self.APPROVAL, after={"state": "OPEN", "autoMergeRequest": {"x": 1}})
+        self.assertIn("Needs Decision lifted by the owner's approval", line)
+        older = [[{"user": {"login": "SFenton"}, "state": "APPROVED", "commit_id": "a" * 40}]]
+        for reviews in (None, older):
+            (code, line), calls = self.land(info=labelled, reviews=reviews, dry=True)
+            self.assertEqual((code, "Needs Decision" in line), (1, True), line)
+
+    def test_an_approval_never_answers_anything_but_a_park_or_the_label(self):
+        """Fails if: an approval answers the owner-only path set, a missing design record, a contradicting Gate line, the denylist, a
+        missing review pass, a ruleset problem, the author and fork check, a conflict, another base, a closed PR or the kill switch."""
+        rows = {
+            "owner-only set": ({"gate": pr_land.GateRefused("the pull request changes the owner-only set: tools/pr_land.py", "paths")}, "owner-only set"),
+            "missing design record": ({"gate": pr_land.GateRefused("no design decision record", "design")}, "(design)"),
+            "contradicting gate line": ({"gate": pr_land.GateRefused("records Gate: app_wide=no but Jev answered yes")}, "Gate:"),
+            "gate crash": ({"gate": OSError("disk")}, "failed closed"),
+            "denylist": ({"denylist": "denylist: 1 new hit"}, "denylist: 1 new hit"),
+            "no review pass": ({"passed": False}, "no independent pass"),
+            "ruleset": ({"ruleset": ["the ruleset allows a bypass"]}, "the ruleset allows a bypass"),
+            "foreign author": ({"info": self.info(author={"login": "mallory"})}, "not a pull request by"),
+            "fork": ({"info": self.info(isCrossRepository=True)}, "not a pull request by"),
+            "conflicts": ({"info": self.info(mergeable="CONFLICTING", labels=[{"name": "Needs Decision"}])}, "merge conflicts"),
+            "base": ({"info": self.info(baseRefName="release")}, "the base is release"),
+            "kill switch": ({"kill": "/x/NO_LAND"}, "landing paused"),
+            "closed": ({"info": self.info(state="CLOSED")}, "pull request is closed"),
+        }
+        for name, (kwargs, text) in rows.items():
+            with self.subTest(name):
+                (code, line), calls = self.land(reviews=self.APPROVAL, **kwargs)
+                self.assertEqual(code, 1, line)
+                self.assertIn(text, line)
+                self.assertFalse(self.merge_calls(calls))
+
+    def test_the_approval_is_read_from_github_for_this_pull_request_only_when_needed(self):
+        """Fails if: the reviews are asked for when nothing needs an answer, or for another pull request."""
+        _, calls = self.land(dry=True)
+        self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [])
+        _, calls = self.land(gate=self.PARK, reviews=self.APPROVAL, dry=True)
+        self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [["gh", "api", "repos/SFenton/native-home/pulls/7/reviews", "--paginate"]])
+        _, calls = self.land(gate=self.PARK, info=self.info(labels=[{"name": "Needs Decision"}]), reviews=self.APPROVAL, dry=True)
+        self.assertEqual(len([c for c in calls if c[:2] == ["gh", "api"]]), 1)  # label and park share one read
+
+    def test_the_approval_is_read_after_the_review_pass_the_ruleset_and_the_gate(self):
+        """Fails if: the reviews are fetched before the review pass or ruleset, or before the app-UI gate has run (so the answer could be stale)."""
+        labelled = self.info(labels=[{"name": "Needs Decision"}])
+        for kwargs in ({"passed": False}, {"ruleset": ["the ruleset allows a bypass"]}):
+            _, calls = self.land(info=labelled, reviews=self.APPROVAL, **kwargs)
+            self.assertEqual([c for c in calls if c[:2] == ["gh", "api"]], [], kwargs)
+        order = []
+        real = pr_land.owner_approval
+        with mock.patch.object(pr_land, "owner_approval", side_effect=lambda n, h: order.append("approval") or True):
+            self.land(info=labelled, gate=lambda n, info: order.append("gate") or "passed", dry=True)
+        self.assertEqual(order, ["gate", "approval"])
+        self.assertIs(pr_land.owner_approval, real)
+
     OWNED_FILES = [{"path": "tools/ci_wait.py"}, {"path": ".github/workflows/pr-checks.yml"}]
 
     def printed(self, **kw):
@@ -259,6 +357,113 @@ class ArmTests(unittest.TestCase):
         with mock.patch("sys.stdout", out):
             result, calls = self.land(**kw)
         return result, out.getvalue(), calls
+
+    def test_the_owner_recipe_is_stack_aware(self):
+        """Fails if: a head that contains other open heads omits the carry line or keeps the commands out, a contained head still prints
+        commands, or no overlap / a failing lookup changes today's output."""
+        owned = self.info(files=self.OWNED_FILES, reviewDecision="REVIEW_REQUIRED")
+        plain = pr_land.owner_recipe("7", owned)
+        self.assertEqual(len(plain), 4)
+        heads = [("75", "1" * 40), ("78", "2" * 40), ("80", "3" * 40)]
+        patcher = mock.patch.object(pr_land, "fetch_missing_heads", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        contains = {("1" * 40, self.HEAD), ("2" * 40, self.HEAD), (self.HEAD, "3" * 40)}
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=heads[:2]), \
+                mock.patch.object(pr_land, "is_ancestor", side_effect=lambda a, b, repo=None: (a, b) in contains):
+            both = pr_land.owner_recipe("7", owned)
+        self.assertEqual(both[0], "carries #75, #78; they close as included")
+        self.assertEqual(both[1:], plain)
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=heads[2:]), \
+                mock.patch.object(pr_land, "is_ancestor", side_effect=lambda a, b, repo=None: (a, b) in contains):
+            inside = pr_land.owner_recipe("7", owned)
+        self.assertEqual(inside, ["do not merge; included in #80; merge #80 instead"])
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=heads), mock.patch.object(pr_land, "is_ancestor", return_value=False):
+            self.assertEqual(pr_land.owner_recipe("7", owned), plain)
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=[]):
+            self.assertEqual(pr_land.owner_recipe("7", owned), plain)
+
+    def test_a_containing_head_missing_locally_is_fetched_in_one_hardened_fetch(self):
+        """Fails if: a containing head this clone lacks is never fetched (so the full commands print), the fetch is not one `git fetch`
+        of the missing refs/pull refs through `_git`, or a failed fetch changes today's output."""
+        owned = self.info(files=self.OWNED_FILES, reviewDecision="REVIEW_REQUIRED")
+        plain = pr_land.owner_recipe("7", owned)
+        with TemporaryDirectory() as tmp:
+            def git(*args, cwd=tmp):
+                return subprocess.run(["git", "-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", *args], capture_output=True, text=True, check=True).stdout.strip()
+            git("init", "-q", "-b", "main", tmp)
+            git("commit", "-q", "--allow-empty", "-m", "a")
+            base = git("rev-parse", "HEAD")
+            git("commit", "-q", "--allow-empty", "-m", "b")
+            tip = git("rev-parse", "HEAD")
+            git("reset", "-q", "--hard", base)
+            heads = [("9", tip), ("10", "e" * 40)]
+            calls = []
+            real_git = pr_land._git
+
+            def fake_git(repo, *args):
+                calls.append(args)
+                if args[0] == "fetch":
+                    return mock.Mock(returncode=0, stdout="", stderr="")
+                return real_git(repo, *args)
+            # tip exists here, "e"*40 does not: only #10 is missing
+            with mock.patch.object(pr_land, "_git", side_effect=fake_git):
+                self.assertTrue(pr_land.fetch_missing_heads(heads, Path(tmp)))
+            fetches = [c for c in calls if c[0] == "fetch"]
+            self.assertEqual(fetches, [("fetch", "-q", "origin", "refs/pull/10/head")])
+            calls.clear()
+            with mock.patch.object(pr_land, "_git", side_effect=lambda repo, *a: mock.Mock(returncode=1, stdout="", stderr="no")):
+                self.assertFalse(pr_land.fetch_missing_heads(heads, Path(tmp)))
+            with mock.patch.object(pr_land, "_git", side_effect=OSError("no git")):
+                self.assertFalse(pr_land.fetch_missing_heads(heads, Path(tmp)))
+            self.assertTrue(pr_land.fetch_missing_heads([("9", tip)], Path(tmp)))
+        # end to end: a containing head absent until the fetch lands says "do not merge"; a failed fetch prints today's output
+        present = {"landed": False}
+
+        def ancestor(a, b, repo=None):
+            return present["landed"] and (a, b) == (self.HEAD, "3" * 40)
+
+        def fetch(heads, repo=None):
+            present["landed"] = True
+            return True
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=[("80", "3" * 40)]), \
+                mock.patch.object(pr_land, "is_ancestor", side_effect=ancestor), \
+                mock.patch.object(pr_land, "fetch_missing_heads", side_effect=fetch):
+            self.assertEqual(pr_land.owner_recipe("7", owned), ["do not merge; included in #80; merge #80 instead"])
+        present["landed"] = False
+        with mock.patch.object(pr_land, "open_pr_heads", return_value=[("80", "3" * 40)]), \
+                mock.patch.object(pr_land, "is_ancestor", side_effect=ancestor), \
+                mock.patch.object(pr_land, "fetch_missing_heads", return_value=False):
+            self.assertEqual(pr_land.owner_recipe("7", owned), plain)
+
+    def test_open_pr_heads_is_one_gh_call_and_any_failure_is_no_overlap(self):
+        """Fails if: the lookup takes more than one gh call, includes the PR itself, or raises on a failing or odd answer."""
+        real = REAL_OPEN_PR_HEADS
+        rows = json.dumps([{"number": 7, "headRefOid": "a" * 40}, {"number": 8, "headRefOid": "c" * 40}])
+        with mock.patch.object(pr_land, "run", return_value=mock.Mock(returncode=0, stdout=rows, stderr="")) as fake:
+            self.assertEqual(real("7"), [("8", "c" * 40)])
+            fake.assert_called_once()
+            self.assertEqual(fake.call_args.args[0][:3], ["gh", "pr", "list"])
+        for bad in (mock.Mock(returncode=1, stdout="", stderr="boom"), mock.Mock(returncode=0, stdout="not json", stderr=""),
+                    mock.Mock(returncode=0, stdout="{}", stderr="")):
+            with mock.patch.object(pr_land, "run", return_value=bad):
+                self.assertEqual(real("7"), [])
+        with mock.patch.object(pr_land, "run", side_effect=OSError("no gh")):
+            self.assertEqual(real("7"), [])
+
+    def test_is_ancestor_reads_git_history_and_an_unknown_commit_is_no(self):
+        """Fails if: a descendant is not seen as containing its ancestor, a sibling is, or a commit the clone lacks raises."""
+        with TemporaryDirectory() as tmp:
+            def git(*args):
+                return subprocess.run(["git", "-C", tmp, "-c", "user.name=t", "-c", "user.email=t@t", *args], capture_output=True, text=True, check=True).stdout.strip()
+            git("init", "-q", "-b", "main")
+            git("commit", "-q", "--allow-empty", "-m", "a")
+            first = git("rev-parse", "HEAD")
+            git("commit", "-q", "--allow-empty", "-m", "b")
+            second = git("rev-parse", "HEAD")
+            self.assertTrue(pr_land.is_ancestor(first, second, Path(tmp)))
+            self.assertFalse(pr_land.is_ancestor(second, first, Path(tmp)))
+            self.assertFalse(pr_land.is_ancestor("f" * 40, second, Path(tmp)))
 
     def test_the_owner_recipe_prints_only_for_codeowners_paths(self):
         """Fails if: the three owner commands print for a PR with no CODEOWNERS path, are missing or unpinned for one that has, or an agent run executes them."""
@@ -327,6 +532,90 @@ class ArmTests(unittest.TestCase):
         self.assertTrue(callable(pr_land.review_file_name))  # jev_miss still imports it
 
 
+class OwnerApprovalTests(unittest.TestCase):
+    """``pr_land.owner_approval`` reads the owner's review of the exact head from GitHub, and ``ui_gate`` marks a park by the gate's exit status."""
+
+    HEAD = "b" * 40
+    OLD = "c" * 40
+
+    @staticmethod
+    def review(login="SFenton", state="APPROVED", commit="b" * 40):
+        return {"user": {"login": login}, "state": state, "commit_id": commit}
+
+    def read(self, answer, code=0, head=None):
+        """``owner_approval`` against a fake ``gh api`` that prints ``answer`` (JSON pages joined as ``--paginate`` does)."""
+        text = answer if isinstance(answer, str) else "".join(json.dumps(page) for page in answer)
+        with mock.patch.object(pr_land, "run", return_value=mock.Mock(returncode=code, stdout=text, stderr="boom")):
+            return pr_land.owner_approval("7", head or self.HEAD)
+
+    def test_the_owner_approving_the_exact_head_counts(self):
+        """Fails if: the owner's approval of the head is not recognised (the login compares without case)."""
+        self.assertTrue(self.read([[self.review()]]))
+        self.assertTrue(self.read([[self.review("sfenton")]]))
+
+    def test_paged_reviews_are_read_and_the_latest_per_login_wins(self):
+        """Fails if: a second page is dropped, an earlier review outweighs a later one, or another login's review ends the owner's."""
+        self.assertTrue(self.read([[self.review("someone", "COMMENTED")], [self.review()]]))
+        self.assertTrue(self.read([[self.review("SFenton", "CHANGES_REQUESTED", self.OLD)], [self.review()]]))
+        self.assertTrue(self.read([[self.review(), self.review("sfenton-agent", "CHANGES_REQUESTED")]]))
+
+    def test_anything_but_a_live_approval_of_the_head_is_not_an_approval(self):
+        """Fails if: an older commit, another login, an app, a dismissal, a later review, an API error or a malformed answer counts."""
+        rows = {
+            "older commit": [[self.review(commit=self.OLD)]],
+            "agent login": [[self.review("sfenton-agent")]],
+            "app": [[self.review("s-h-coder[bot]")]],
+            "dismissed": [[self.review(state="DISMISSED")]],
+            "changes requested after": [[self.review(), self.review(state="CHANGES_REQUESTED")]],
+            "commented after": [[self.review()], [self.review(state="COMMENTED")]],
+            "commented only": [[self.review(state="COMMENTED")]],
+            "no reviews": [[]],
+            "no commit": [[{"user": {"login": "SFenton"}, "state": "APPROVED"}]],
+            "review without a user": [[{"state": "APPROVED", "commit_id": self.HEAD}, self.review()]],
+            "not a list": [{"message": "Not Found"}],
+            "not json": "<html>",
+            "empty output": "",
+            "half a page": json.dumps([self.review()]) + "[{",
+        }
+        for name, answer in rows.items():
+            with self.subTest(name):
+                self.assertFalse(self.read(answer))
+        self.assertFalse(self.read([[self.review()]], code=1))
+        self.assertFalse(self.read([[self.review()]], head=self.HEAD[:8]))
+        self.assertFalse(pr_land.owner_approval("7", ""))
+        self.assertFalse(pr_land.owner_approval("7; rm", self.HEAD))
+        with mock.patch.object(pr_land, "run", side_effect=OSError("no gh")):
+            self.assertFalse(pr_land.owner_approval("7", self.HEAD))
+
+    def test_it_asks_the_reviews_api_for_the_product_repo_and_nothing_else(self):
+        """Fails if: owner_approval reads anything an agent can write (labels, comments, files, process settings) or another repository."""
+        calls = []
+        with mock.patch.object(pr_land, "run", side_effect=lambda args, check=True: calls.append(args) or mock.Mock(returncode=0, stdout="[]")):
+            pr_land.owner_approval("7", self.HEAD)
+        self.assertEqual(calls, [["gh", "api", "repos/SFenton/native-home/pulls/7/reviews", "--paginate"]])
+        source = inspect.getsource(pr_land.owner_approval).split('"""')[2]  # the code, not its docstring
+        for needle in ("environ", "labels", "comments", "read_text", "open("):
+            self.assertNotIn(needle, source)
+
+    def test_the_park_exit_status_matches_the_lander(self):
+        """Fails if: pr_land and lane_land disagree on the exit status that marks a park."""
+        import lane_land
+        self.assertEqual(pr_land.PARK_EXIT, lane_land.PARK_EXIT)
+
+    def test_ui_gate_marks_only_the_park_exit_as_a_park(self):
+        """Fails if: a refusal other than the gate's typed park (exit 3) is marked a park, or the message text decides."""
+        cases = ((3, "refused (gate): Jev answered", True), (2, "refused (gate): Jev answered", False),
+                 (2, "refused (gate): app-wide or unsure and no owner request", False), (1, "boom", False))
+        with mock.patch.object(pr_land, "trusted_gate_clone", return_value=Path("/trusted/repo")), \
+                mock.patch.object(pr_land, "gate_lock", mock.MagicMock()), mock.patch.object(Path, "is_file", return_value=True):
+            for code, text, park in cases:
+                with self.subTest(code=code, text=text), mock.patch.object(
+                        pr_land.subprocess, "run", return_value=mock.Mock(returncode=code, stdout="", stderr="lane_land gate: " + text)):
+                    with self.assertRaises(pr_land.GateRefused) as cm:
+                        pr_land.ui_gate("9", {"baseRefName": "main", "headRefOid": "a" * 40})
+                    self.assertEqual(cm.exception.park, park)
+
+
 class LaneWorktreeReapTests(unittest.TestCase):
     """The arm no longer cleans up; ``ci_hygiene.py prune-worktrees`` reaps the lane worktree once GitHub squash-merged its branch."""
 
@@ -363,20 +652,23 @@ class LaneWorktreeReapTests(unittest.TestCase):
             self.assertFalse(lane.exists())
 
 
-open_real = open
-
 
 class UiGateInLandTests(unittest.TestCase):
-    """``pr_land.land`` runs the lander's app-UI gate (``lane_land.pr_gate``) before it merges; ``--owner-ack`` is owner-only."""
+    """``pr_land.land`` runs the lander's app-UI gate (``lane_land.pr_gate``) before it merges; there is no owner override."""
 
     HEAD = "a" * 40
+
+    def setUp(self):
+        patcher = mock.patch.object(pr_land, "open_pr_heads", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def info(self, **extra):
         return {"state": "OPEN", "isDraft": False, "headRefName": "feat/ui", "headRefOid": self.HEAD, "mergeable": "MERGEABLE",
                 "baseRefName": "main", "isCrossRepository": False, "labels": [],
                 "files": [{"path": "apple/Sources/HassUI/Chip.swift"}], "body": "", "title": "t", "author": {"login": "SFenton"}, **extra}
 
-    def land(self, gate=None, ack=False, dry=True, env=None, tty=True, info=None):
+    def land(self, gate=None, dry=True, env=None, tty=True, info=None):
         calls = []
 
         def fake_run(args, check=True):
@@ -398,7 +690,7 @@ class UiGateInLandTests(unittest.TestCase):
         for key in ("FENTON_HEADLESS", "HASS_TRIAGE_ISSUE"):
             if key not in (env or {}):
                 os.environ.pop(key, None)
-        return pr_land.land("9", dry, owner_ack=ack), calls
+        return pr_land.land("9", dry), calls
 
     def test_the_gate_runs_with_the_pr_info_and_a_pass_lets_it_land(self):
         seen = []
@@ -421,39 +713,17 @@ class UiGateInLandTests(unittest.TestCase):
                 self.assertTrue(line.startswith("blocked #9: app-UI gate"), line)
                 self.assertFalse([c for c in calls if c[:3] == ["gh", "pr", "merge"]])
 
-    def test_owner_ack_skips_the_gate_only_with_the_head_sha_typed_at_the_terminal(self):
-        def never(n, info):
-            raise AssertionError("gate ran")
-        with mock.patch.object(pr_land, "confirm_head_on_tty", return_value=True) as confirm:
-            (code, line), _ = self.land(gate=never, ack=True, tty=True)
-        self.assertEqual(code, 0, line)
-        self.assertIn("skipped by --owner-ack", line)
-        confirm.assert_called_once_with("9", self.HEAD)
-        with mock.patch.object(pr_land, "confirm_head_on_tty", return_value=False):
-            (code, line), calls = self.land(gate=never, ack=True, tty=True, dry=False)
-        self.assertEqual(code, 1, line)
-        self.assertIn("typed at the terminal", line)
-        self.assertFalse([c for c in calls if c[:3] == ["gh", "pr", "merge"]])
-
-    def test_confirm_head_on_tty_reads_the_terminal_and_wants_the_full_sha(self):
-        with TemporaryDirectory() as tmp:
-            tty = Path(tmp) / "tty"
-            for typed, ok in ((self.HEAD + "\n", True), (self.HEAD.upper() + "\n", True), (self.HEAD[:12] + "\n", False),
-                              ("\n", False), ("yes\n", False), ("", False)):
-                tty.write_text(typed)  # a real /dev/tty shows the prompt and returns only what is typed
-                with mock.patch.object(pr_land, "open", create=True, side_effect=lambda path, mode="r": (io.StringIO() if mode == "a" else open_real(path))):
-                    self.assertEqual(pr_land.confirm_head_on_tty("9", self.HEAD, str(tty)), ok, typed)
-            self.assertFalse(pr_land.confirm_head_on_tty("9", self.HEAD, str(Path(tmp) / "missing")))
-            self.assertFalse(pr_land.confirm_head_on_tty("9", "", str(tty)))
-
-    def test_an_abbreviated_flag_is_not_owner_ack(self):
+    def test_the_owner_override_flag_is_gone_in_every_spelling_and_so_are_its_helpers(self):
         import lane_land
-        for abbreviation in ("--owner", "--owner-a", "--ow", "--own"):
-            with self.subTest(flag=abbreviation), mock.patch.object(pr_land, "land", return_value=(0, "ok")) as fake, \
+        for flag in ("--owner-ack", "--owner", "--owner_ack", "--owner-a", "--ow", "--own"):
+            with self.subTest(flag=flag), mock.patch.object(pr_land, "land", return_value=(0, "ok")) as fake, \
                     mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit) as cm:
-                pr_land.main(["9", abbreviation])
-            self.assertEqual(cm.exception.code, 2)
+                pr_land.main(["9", flag])
+            self.assertEqual(cm.exception.code, 2)  # argparse (allow_abbrev=False) refuses it
             fake.assert_not_called()
+        self.assertNotIn("owner_ack", inspect.signature(pr_land.land).parameters)
+        for name in ("owner_session", "confirm_head_on_tty", "triage_session_env", "_triage_session"):
+            self.assertFalse(hasattr(pr_land, name), name)
         for argv in (["agents/x", "--into", "b", "--dry"], ["gate", "--p", "7"], ["gate", "--pr", "7", "--ro", "/x"]):
             with self.subTest(argv=argv), mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
                 lane_land.main(argv)
@@ -559,20 +829,26 @@ class UiGateInLandTests(unittest.TestCase):
             with self.assertRaises(pr_land.GateRefused):
                 pr_land.trusted_gate_clone(root, str(bare), "no-such-branch")
 
-    def test_owner_ack_is_refused_for_headless_runner_and_non_terminal_sessions(self):
-        def never(n, info):
-            raise AssertionError("gate ran")
-        for env, tty in (({"FENTON_HEADLESS": "1"}, True), ({"HASS_TRIAGE_ISSUE": "4"}, True), ({}, False)):
-            with self.subTest(env=env, tty=tty):
-                (code, line), calls = self.land(gate=never, ack=True, dry=False, env=env, tty=tty)
-                self.assertEqual(code, 2, line)
-                self.assertIn("owner-only", line)
-                self.assertEqual(calls, [])
+    def test_a_refused_owner_kept_pr_says_the_owner_approves_and_merges_on_github(self):
+        def refuse(n, info):
+            raise pr_land.GateRefused("touches the owner-only set: tools/pr_land.py")
+        info = self.info(files=[{"path": "tools/pr_land.py"}])
+        with mock.patch.object(pr_land, "print_owner_recipe") as recipe:
+            (code, line), calls = self.land(gate=refuse, dry=False, info=info)
+        self.assertEqual(code, 1, line)
+        self.assertTrue(line.startswith("blocked #9: app-UI gate"), line)
+        recipe.assert_called_once()
+        self.assertFalse([c for c in calls if c[:3] == ["gh", "pr", "merge"]])
+        header = pr_land.owner_recipe("9", {**info, "files": [{"path": ".github/CODEOWNERS"}]})[0]
+        self.assertIn("approves this pull request on GitHub", header)
+        self.assertNotIn("terminal", header)
 
-    def test_the_cli_flag_reaches_land(self):
-        with mock.patch.object(pr_land, "land", return_value=(0, "ok")) as fake, mock.patch("builtins.print"):
-            self.assertEqual(pr_land.main(["9", "--owner-ack"]), 0)
-        self.assertTrue(fake.call_args.args[4])
+    def test_the_needs_decision_refusal_names_the_pull_request_page(self):
+        (code, line), _ = self.land(gate=lambda n, info: "passed", dry=False, info=self.info(labels=[{"name": "Needs Decision"}]))
+        self.assertEqual(code, 1, line)
+        self.assertIn("approves this pull request on GitHub", line)
+        self.assertIn("which also lifts this label, and then the lander is run again", line)
+        self.assertNotIn("terminal", line)
 
 
 class RecordTests(unittest.TestCase):

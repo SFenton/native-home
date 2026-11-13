@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Plans the nightly journeys: shards of at most 60 UI tests per devcap hold, per test plan.
 
-    tools/nightly_plan.py [--max-tests 60] [--filter SUBSTRING] [--plans Gate,Live]
+    tools/nightly_plan.py [--max-tests 60] [--filter SUBSTRING] [--plans Gate] [--families iphone,duo,ipad]
 
 Prints one JSON line, ``{"include": [{"plan", "shard", "tests", "last", "filters": "<-only-testing:… …>"}]}``, for a
-workflow matrix. The plans partition the journeys (tools/test_plans.py): the nightly runs Gate and Live, the weekly run
-adds Capture, Perf is dispatched by hand. A shard is whole test classes (a class with more tests than the limit is split by
-method), so ``tools/ios_uitest.sh --parallel-families --plan PLAN --force FILTERS`` runs it on all three families at once with
-the script's own devcap holds. Shards are packed by test count, not by last-known durations (cheap and stable; a duration
+workflow matrix. The plans partition the journeys (tools/test_plans.py): the hosted nightly runs Gate (Live joins it when the
+live lane lands), the weekly run adds Capture, Perf is dispatched by hand. A shard is whole test classes (a class with more
+tests than the limit is split by method). With ``--families`` every shard is repeated once per family (shard-major, so the
+slow Duo legs interleave with the others) and each entry carries a ``family``: one hosted runner runs one family's shard.
+Without it the entries have no family. Shards are packed by test count, not by last-known durations (cheap and stable; a duration
 ledger can replace the count later). ``--filter`` keeps only classes whose name contains the substring (a tiny nightly).
 Stdlib only (macOS system Python 3.9).
 """
@@ -24,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 UITESTS = ROOT / "apple" / "Apps" / "iOSUITests"
 TARGET = "FentonHomeUITests"
 FAMILIES = ["iphone", "duo", "ipad"]
-DEFAULT_PLANS = ["Gate", "Live"]
+DEFAULT_PLANS = ["Gate"]  # Live (the real house) is added with its protected environment, not here
 CLASS_RE = re.compile(r"^\s*(?:final\s+)?class\s+(\w+)\s*:\s*\w*TestCase", re.M)
 TEST_RE = re.compile(r"^\s*func\s+(test\w*)\s*\(", re.M)
 
@@ -89,17 +90,31 @@ def plan(by_plan: Dict[str, Dict[str, List[str]]], max_tests: int = 60, needle: 
     return {"include": include}
 
 
+def with_families(document: Dict[str, object], families: List[str]) -> Dict[str, object]:
+    """Repeat every shard once per family (shard-major); ``shard`` stays the plan-wide shard number, shared by its families."""
+    include = [dict(entry, family=family) for entry in document["include"] for family in families]  # type: ignore[attr-defined]
+    return {"include": include}
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--max-tests", type=int, default=60)
     parser.add_argument("--filter", default="")
-    parser.add_argument("--plans", default=",".join(DEFAULT_PLANS), help="test plans to run (Gate,Live nightly; Capture weekly)")
+    parser.add_argument("--plans", default=",".join(DEFAULT_PLANS), help="test plans to run (Gate nightly; Capture weekly)")
+    parser.add_argument("--families", default="", help="repeat each shard per family (comma-separated iphone,duo,ipad)")
     args = parser.parse_args(argv)
     plans = [p for p in args.plans.split(",") if p]
     document = plan(scan_plans(plans), args.max_tests, args.filter or None)
     if not document["include"]:
         print("no UI tests match the filter", file=sys.stderr)
         return 1
+    families = [f for f in args.families.split(",") if f]
+    unknown = [f for f in families if f not in FAMILIES]
+    if unknown:
+        print("unknown family: %s" % ", ".join(unknown), file=sys.stderr)
+        return 2
+    if families:
+        document = with_families(document, families)
     print(json.dumps(document))
     return 0
 

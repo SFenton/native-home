@@ -13,7 +13,7 @@
 #   The refusals live in tools/ship_guard.sh (owner-only) and are also enforced on raw git commit/push by tools/hooks/commit_guard.py.
 #   --pr always opens a draft (--draft is accepted and implied): review and landing come afterwards, and
 #   tools/pr_land.py marks it ready and arms auto-merge once the gates pass. ship.sh never merges itself (pr-lifecycle.md).
-#   Without --pr only the branch is pushed.
+#   Without --pr only the branch is pushed. With --pr the title (title-check) and the description (body-check --strict, tools/pr_text.py) must pass first; there is no bypass.
 #   --update  for a lane branch you amended or rebased after it was pushed: pushes with `--force-with-lease=refs/heads/BRANCH:SHA`,
 #             where SHA is what `git ls-remote` reports for origin/BRANCH, and only when this checkout knows it (an ancestor of HEAD, or in the local
 #             branch's reflog because this checkout pushed it): a commit someone else pushed is refused, never overwritten. Then it posts the
@@ -50,6 +50,18 @@ while [[ $# -gt 0 ]]; do
     *) echo "ship: unknown option $1" >&2; exit 2 ;;
   esac
 done
+
+# The title and description are checked before anything is committed or pushed (pr-form.md): no bypass flag. A refusal prints the checker's own lines.
+PT="$(dirname "$0")/pr_text.py"
+if [[ -f "$PT" ]]; then
+  if [[ $PR == 1 && $UPDATE == 0 ]]; then
+    python3 "$PT" title-check "$SUBJECT" >&2 || { echo "ship: the title was refused (above); nothing was committed or pushed." >&2; exit 1; }
+  fi
+  if [[ ( $PR == 1 && $UPDATE == 0 ) || -n "$BODY" ]]; then
+    printf '%s\n' "$BODY" | python3 "$PT" body-check - --strict >&2 \
+      || { echo "ship: the description was refused (above); nothing was committed or pushed." >&2; exit 1; }
+  fi
+fi
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 GUARD="$(dirname "$0")/ship_guard.sh"   # owner-only safety checks (branch, secrets)
@@ -104,7 +116,7 @@ if [[ -f "$JA" ]]; then
 fi
 LC="$(dirname "$0")/lane_check.py"
 if [[ -f "$LC" ]]; then
-  python3 "$LC" check --base "$BASE" --only scan --only revert --only shape \
+  python3 "$LC" check --base "$BASE" --only scan --only revert --only shape --only scope \
     || { echo "ship: lane_check failed (above); nothing was pushed. Fix it and ship again." >&2; exit 1; }
 fi
 
@@ -157,10 +169,8 @@ if [[ $UPDATE == 1 ]]; then
     python3 "$(dirname "$0")/pr_land.py" "$PR_NUM" || echo "ship: not armed (see above); land it with tools/pr_land.sh $PR_NUM" >&2
   fi
 elif [[ $PR == 1 ]]; then
-  FOOTER="🤖 Generated with [Claude Code](https://claude.com/claude-code)"
-  ARGS=(pr create --base "$BASE" --head "$BRANCH" --title "$SUBJECT" --body "${BODY:+$BODY
-
-}$FOOTER" --assignee "${SHIP_ASSIGNEE:-SFenton}")
+  # The description is what the writer composed: no generated-by footer is added (pr_text.py body-check refuses one).
+  ARGS=(pr create --base "$BASE" --head "$BRANCH" --title "$SUBJECT" --body "$BODY" --assignee "${SHIP_ASSIGNEE:-SFenton}")
   ARGS+=(--draft)
   gh "${ARGS[@]}"
   PR_NUM="$(gh pr view "$BRANCH" --json number --jq .number 2>/dev/null || true)"

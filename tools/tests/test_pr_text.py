@@ -134,6 +134,19 @@ class TitleTests(unittest.TestCase):
 
 
 class BodyTests(unittest.TestCase):
+    def test_template_shows_summary_and_tests_only_with_the_markers(self):
+        """Fails if: the pull request template shows a heading besides Summary and Tests, status text, a review block or a
+        step list place, or loses a hidden marker pair other tools write into."""
+        text = (REPO / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"^#+ .*$", text, re.M), ["## Summary", "## Tests"])
+        shown = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        for word in ("Drafting", "Review verdict", "<details", "Status", "Waiting on", "Generated with"):
+            self.assertNotIn(word, shown)
+        for name in ("sh-status", "review"):
+            self.assertIn(f"<!-- {name}:start -->\n<!-- {name}:end -->", text)
+        self.assertNotIn("sh-timeline", text)
+        self.assertNotIn("sh-devices", text)
+
     def test_bare_old_template_fails(self):
         """Fails if: the old pull request template, unfilled, passes body-check."""
         template = REPO / ".github" / "pull_request_template.md"
@@ -285,28 +298,75 @@ class ComposeTests(unittest.TestCase):
     def test_worked_examples_have_no_errors(self):
         """Fails if: a composed worked example (PR #57 rewrite, the Duo visual PR) has any body-check error."""
         for summary, tests, evidence in ((SUMMARY_57, TESTS_57, ""), (SUMMARY_DUO, TESTS_DUO, EVIDENCE_DUO)):
-            text = pr_text.compose(summary, tests, evidence, status="Ready · Waiting on: owner approval")
+            text = pr_text.compose(summary, tests, evidence)
             self.assertEqual(errors_of(text), [])
 
     def test_shape_headings_and_markers(self):
-        """Fails if: Evidence appears without a file, a marker block or the closed review details is missing, or placeholder text appears."""
+        """Fails if: Evidence appears without a file, a hidden marker pair other tools find is missing, or placeholder text appears."""
         text = pr_text.compose(SUMMARY_57, TESTS_57)
         self.assertEqual(text.count("\n## "), 1)
         self.assertTrue(text.startswith("## Summary\n"))
         self.assertNotIn("## Evidence", text)
-        for marker in ("<!-- sh-timeline:start -->", "<!-- sh-timeline:end -->", "<!-- sh-status:start -->",
-                       "<!-- sh-status:end -->", "<!-- review:start -->", "<!-- review:end -->",
-                       "<details><summary>Review verdict</summary>"):
-            self.assertIn(marker, text)
-        self.assertNotIn("<details open", text)
+        self.assertNotIn("sh-timeline", text)
+        for pair in ("<!-- sh-status:start -->\n<!-- sh-status:end -->",
+                     "<!-- review:start -->\n<!-- review:end -->"):
+            self.assertIn(pair, text)
         self.assertNotIn("- [ ]", text)
         self.assertEqual(pr_text.placeholder_problems(text, pr_text.load_words()), [])
         self.assertIn("## Evidence", pr_text.compose(SUMMARY_DUO, TESTS_DUO, EVIDENCE_DUO))
 
-    def test_status_text_sits_between_its_markers(self):
-        """Fails if: the status text is outside the sh-status block."""
-        text = pr_text.compose(SUMMARY_57, TESTS_57, status="Ready · Waiting on: nobody")
-        self.assertIn("<!-- sh-status:start -->\nReady · Waiting on: nobody\n<!-- sh-status:end -->", text)
+    def test_composed_body_has_no_step_list_markers_or_footer(self):
+        """Fails if: ``compose`` writes the ``sh-timeline`` pair (a place for a step list) or a generated-by footer."""
+        text = pr_text.compose(SUMMARY_57, TESTS_57, request="81", quote="Fix it")
+        self.assertNotIn("sh-timeline", text)
+        self.assertNotIn("Generated with", text)
+        self.assertEqual(errors_of(text), [])
+
+    def test_no_status_text_and_no_review_block_is_shown(self):
+        """Fails if: a composed body shows status text ("Drafting" or any other), a "Review verdict" details block or anything
+        else below Tests, ``compose`` still takes a status, or a body without those is refused by body-check."""
+        for evidence in ("", EVIDENCE_DUO):
+            text = pr_text.compose(SUMMARY_DUO, TESTS_DUO, evidence)
+            seen = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+            for word in ("Drafting", "Review verdict", "<details", "Status", "Waiting on"):
+                self.assertNotIn(word, seen)
+            self.assertEqual(seen.split("## Tests\n")[1].split("## Evidence\n")[0].strip(), TESTS_DUO.strip())
+            self.assertEqual(errors_of(text), [])
+        with self.assertRaises(TypeError):
+            pr_text.compose(SUMMARY_57, TESTS_57, status="Ready")
+        with TemporaryDirectory() as tmp:
+            s, t = Path(tmp) / "s.md", Path(tmp) / "t.md"
+            s.write_text(SUMMARY_57, encoding="utf-8")
+            t.write_text(TESTS_57, encoding="utf-8")
+            with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+                pr_text.main(["compose", "--summary-file", str(s), "--tests-file", str(t), "--status", "Drafting"])
+
+    def test_evidence_needs_a_picture_of_its_own(self):
+        """Fails if: an ``## Evidence`` section that only links to pictures in the comments (or holds only words, or a picture
+        only inside an HTML comment) passes body-check or is composed, or one with an image, an ``<img>`` tag, a ``<video>``
+        tag or an uploaded asset on its own line is refused."""
+        linked = ["See the pictures in [the Verifier's comment](https://github.com/o/r/pull/7#issuecomment-1).",
+                  "- Before and after are in the comments.", "<!-- ![hidden](a.png) -->\nPictures are in the comments."]
+        own = [EVIDENCE_DUO, '<img src="https://github.com/user-attachments/assets/ab-1" alt="After, iPhone" width="280">',
+               '<video src="https://github.com/user-attachments/assets/ab-2" width="280" controls></video>',
+               "https://github.com/user-attachments/assets/ab-3"]
+        for evidence in linked:
+            text = body() + f"\n## Evidence\n{evidence}\n"
+            self.assertTrue(any("holds no picture of its own" in e for e in errors_of(text)), evidence)
+        for evidence in own:
+            self.assertEqual(errors_of(body() + f"\n## Evidence\n{evidence}\n"), [], evidence)
+        self.assertEqual(errors_of(body()), [])
+        with TemporaryDirectory() as tmp:
+            s, t, e = Path(tmp) / "s.md", Path(tmp) / "t.md", Path(tmp) / "e.md"
+            s.write_text(SUMMARY_57, encoding="utf-8")
+            t.write_text(TESTS_57, encoding="utf-8")
+            e.write_text(linked[0], encoding="utf-8")
+            code, out, _ = run_cli("compose", "--summary-file", str(s), "--tests-file", str(t), "--evidence-file", str(e))
+            self.assertEqual((code, out), (1, ""))
+            e.write_text(own[1], encoding="utf-8")
+            code, out, _ = run_cli("compose", "--summary-file", str(s), "--tests-file", str(t), "--evidence-file", str(e))
+            self.assertEqual(code, 0)
+            self.assertIn("## Evidence\n" + own[1], out)
 
     def test_request_lines_match_what_the_gate_reads(self):
         """Fails if: the quote or trailer lines do not match lane_land's OWNER_QUOTE and OWNER_REQUEST patterns."""
@@ -443,9 +503,10 @@ class DataFileTests(unittest.TestCase):
         """Fails if: the owner-edited data file loses a key, holds a pattern that does not compile, or maps a Mac area."""
         words = json.loads((TOOLS / "pr_text_words.json").read_text(encoding="utf-8"))
         for key in ("banned_stems", "banned_phrases", "internal_labels", "areas", "placeholder_strings", "marker_blocks",
-                    "path_roots", "path_extensions", "irregular_participles", "progressive_allow"):
+                    "path_roots", "path_extensions", "irregular_participles", "progressive_allow",
+                    "banned_footers", "elsewhere_phrases", "elsewhere_state_words"):
             self.assertTrue(words[key], key)
-        for pattern in words["internal_labels"]:
+        for pattern in words["internal_labels"] + words["banned_footers"] + words["elsewhere_phrases"]:
             re.compile(pattern)
         self.assertNotIn("mac", json.dumps([a for _, a in words["areas"]]).lower())
 
@@ -454,6 +515,150 @@ class DataFileTests(unittest.TestCase):
         words = {**pr_text.load_words(), "banned_stems": ["tile"]}
         self.assertTrue(pr_text.title_problems("Tiles keep their size", words))
         self.assertEqual(pr_text.title_problems("Tiles keep their size"), [])
+
+
+PR_81_BODY = "## Summary\nA failed Resume on a vacuum's Live Activity showed no reason, and the problem card now shows it in place of the instruction.\n\n- The buttons stay, VoiceOver reads the problem, the reason, then the buttons, and the Dynamic Island looks the same.\n- The card stays under 160 pt on all three families, and the reason wraps at the largest text size.\n\nThis pull request does not make a finished card go away. That is a second fault, in the Home Assistant integration that starts, updates and ends each Live Activity (`SFenton/ha-fenton-home`, files `custom_components/fenton_home/engine.py` and `live_jobs.py`):\n\n- Today the integration keeps a problem card that has a chore task until someone pushes Done or completes the task. A vacuum that was refilled, resumed and went back to its dock kept its card.\n- The correction: a problem card with a task also ends when the problem is clear and the device does its job again. The card goes back to the job card on Resume and ends when the vacuum docks. The chore task stays open in the task list.\n- It also adds log lines for each button push and each card change, to show next time if a push got to the server.\n- State: built and tested on branch `fix/problem-card-ends-when-job-resumes` (283 unit tests and 141 Home Assistant tests pass). It is not pushed, because the agent login does not have push access to that repository, and it is not installed on the Home Assistant server.\n\n## Tests\n- Model tests (`FentonActivityModelTests`): 83 of 83 passed.\n- iPhone: the full Live Activity journey class, 49 of 49 passed.\n- iPhone Duo (folded) and iPad: the reason, largest-text and height tests, 5 of 5 passed on each.\n- Hosted view tests (`ProblemCardNoticeTests`): 4 of 4 passed. Coverage of the changed files: logic 100%, views 99.31% (limit 95%).\n- Mockup checks and the pattern check passed.\n- Not run: iPhone Duo unfolded. The pose tool cannot control the simulator on this computer until it gets the macOS Accessibility permission.\n\n<!-- sh-status:start -->\n<!-- sh-status:end -->\n\n<!-- review:start -->\n<!-- review:end -->\n\n"
+
+OLD_SENTENCE = "A finished card still stays on screen, and that fix is in the server engine in a different repository."
+
+
+class FooterTests(unittest.TestCase):
+    """A description carries no generated-by footer."""
+
+    def test_footer_is_refused(self):
+        """Fails if: a body that ends with the generated-by line passes body-check, or the refusal is only a warning."""
+        text = body() + "\n\U0001F916 Generated with [Claude Code](https://claude.com/claude-code)\n"
+        self.assertTrue(any("Generated with" in e for e in errors_of(text)))
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "b.md"
+            path.write_text(text, encoding="utf-8")
+            code, out, _ = run_cli("body-check", str(path))
+        self.assertEqual(code, 1)
+        self.assertIn("footer", out)
+
+    def test_footer_in_other_wording_is_refused(self):
+        """Fails if: "Generated by Claude" slips through, or the line in a code fence (a quoted example) is refused."""
+        self.assertTrue(errors_of(body() + "\nGenerated by Claude Code\n"))
+        self.assertEqual(errors_of(body(summary="Pages load faster on iPhone. The old footer read `Generated with Claude Code`.")), [])
+        self.assertEqual(errors_of(body() + "\n```\nGenerated with Claude Code\n```\n"), [])
+
+    def test_body_without_footer_passes(self):
+        """Fails if: the footer check refuses an ordinary body."""
+        self.assertEqual(errors_of(body()), [])
+
+
+class ElsewhereTests(unittest.TestCase):
+    """A fix that lives somewhere else is named, with its place and its state."""
+
+    def test_pr_81_description_as_written_passes(self):
+        """Fails if: the hand-edited description of PR #81 (the form the owner asked for) is refused by body-check or draws a
+        warning about a fix made elsewhere."""
+        self.assertEqual(errors_of(PR_81_BODY), [])
+        self.assertEqual([w for w in warnings_of(PR_81_BODY) if "elsewhere" in w], [])
+        self.assertEqual(pr_text.elsewhere_problems(PR_81_BODY), [])
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "b.md"
+            path.write_text(PR_81_BODY, encoding="utf-8")
+            self.assertEqual(run_cli("body-check", str(path))[0], 0)
+
+    def test_the_old_sentence_is_refused_under_strict(self):
+        """Fails if: the sentence that sent the owner to "a different repository" without a name passes ``--strict``, the
+        refusal does not ask for the repository, the files, what changes and the state, or it is a hard error without
+        ``--strict``."""
+        text = body(summary=f"A failed Resume showed no reason, and the card now shows it. {OLD_SENTENCE}")
+        self.assertTrue(any("elsewhere" in w for w in warnings_of(text)))
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "b.md"
+            path.write_text(text, encoding="utf-8")
+            code, out, _ = run_cli("body-check", str(path), "--strict")
+            self.assertEqual(code, 1)
+            for ask in ("owner/repo", "files", "what changes", "state"):
+                self.assertIn(ask, out)
+            self.assertEqual(run_cli("body-check", str(path))[0], 0)
+
+    def test_each_phrase_is_refused_on_its_own(self):
+        """Fails if: any of the phrases the owner listed is let through when nothing names the place."""
+        for phrase in ("That fix is in a different repository.", "That fix is in another repository.",
+                       "That fix is in a separate pull request.", "That fix is made elsewhere.",
+                       "That fix is made upstream.", "That fix comes in a follow-up."):
+            text = body(summary=f"The card shows the reason. {phrase}")
+            self.assertTrue(pr_text.elsewhere_problems(text), phrase)
+
+    def test_a_name_without_a_state_is_refused(self):
+        """Fails if: text that names the repository but not where the change stands passes."""
+        text = body(summary="The card shows the reason. That fix is in a different repository, `SFenton/ha-fenton-home`.")
+        problems = pr_text.elsewhere_problems(text)
+        self.assertTrue(problems)
+        self.assertIn("no state given", problems[0])
+        self.assertNotIn("no repository", problems[0])
+
+    def test_a_state_without_a_name_is_refused(self):
+        """Fails if: text that gives a state but names no repository or pull request passes."""
+        text = body(summary="The card shows the reason. That fix is in a different repository and is not pushed.")
+        problems = pr_text.elsewhere_problems(text)
+        self.assertTrue(problems)
+        self.assertIn("no repository or pull request named", problems[0])
+
+    def test_name_and_state_pass_and_paths_and_and_or_are_not_names(self):
+        """Fails if: an ``owner/repo`` name or a pull request or issue link, with a state, is refused, or a file path or
+        "and/or" counts as a name."""
+        named = "That fix is in a different repository, `SFenton/ha-fenton-home` (files `custom_components/fenton_home/engine.py`). It is not pushed."
+        linked = "That fix is in a separate pull request, https://github.com/SFenton/ha-fenton-home/pull/12, which is open."
+        issue = "That fix is in a separate pull request, https://github.com/SFenton/ha-fenton-home/issues/3, which is open."
+        for ok in (named, linked, issue):
+            self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {ok}")), [], ok)
+        path_only = "That fix is made elsewhere, in tools/pr_note.py and custom_components/fenton_home/engine.py, and is merged."
+        self.assertTrue(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {path_only}")))
+        and_or = "That fix is made elsewhere, in and/or out of this change, and is merged."
+        self.assertTrue(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {and_or}")))
+
+    def test_the_whole_text_counts_not_one_section(self):
+        """Fails if: a repository and state given in a later section or bullet do not excuse the sentence that points elsewhere,
+        or the sentence alone (the owner's quoted one) is let through."""
+        alone = body(summary=OLD_SENTENCE)
+        self.assertTrue(pr_text.elsewhere_problems(alone))
+        later = ("## Summary\n" + OLD_SENTENCE + "\n\n## Tests\n- The fix is in `SFenton/ha-fenton-home` and is not pushed.\n")
+        self.assertEqual(pr_text.elsewhere_problems(later), [])
+        bullet = "## Summary\n" + OLD_SENTENCE + "\n- Later: `SFenton/ha-fenton-home`, built, not installed.\n"
+        self.assertEqual(pr_text.elsewhere_problems(bullet), [])
+
+    def test_the_server_engine_alone_does_not_point_elsewhere(self):
+        """Fails if: a phrase that names a part of the system, not another place, is refused ("the server engine", "in a pull
+        request comment"), or a plain "nothing else changes" is."""
+        for text in ("Nothing else changes elsewhere.", "Matches the upstream UIKit behavior.",
+                     "Read the server engine that starts, updates and ends each activity.",
+                     "The pictures are in a pull request comment.", "Nothing else changes."):
+            self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {text}")), [], text)
+
+    def test_the_eight_live_comments_of_pr_81_pass(self):
+        """Fails if: any of the eight step comments posted on pull request 81 (fixtures copied from the live pull request)
+        draws an elsewhere problem or is refused by the comment form gate of ``pr_note``."""
+        comments = json.loads((TOOLS / "tests" / "pr81_comments.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(comments), 8)
+        for text in comments:
+            self.assertEqual(pr_text.elsewhere_problems(text), [], text[:40])
+
+    def test_a_linked_pull_request_needs_a_state_beside_it(self):
+        """Fails if: a description that links a pull request (web address or owner/repo#N) with no state word in the same
+        paragraph or item passes ``--strict``, one with a state is refused, or the address itself counts as a state."""
+        bare = body(summary="The card shows the reason. The end fix is https://github.com/SFenton/ha-fenton-home/pull/14 for the server.")
+        self.assertTrue(pr_text.linked_state_problems(bare))
+        self.assertTrue(any("no state" in w for w in warnings_of(bare)))
+        short = body(summary="The card shows the reason.\n- The server fix is SFenton/ha-fenton-home#14.\n- It is built.")
+        self.assertTrue(pr_text.linked_state_problems(short))
+        for ok in ("The server fix is https://github.com/SFenton/ha-fenton-home/pull/14, which is open.",
+                   "The server fix is SFenton/ha-fenton-home#14, merged."):
+            self.assertEqual(pr_text.linked_state_problems(body(summary=f"The card shows the reason. {ok}")), [], ok)
+        self.assertEqual(pr_text.linked_state_problems(PR_81_BODY), [])
+
+    def test_phrases_live_in_the_data_file(self):
+        """Fails if: the phrases or state words are back in code (an edited word list does not change the result)."""
+        words = {**pr_text.load_words(), "elsewhere_phrases": ["(?i)\\bnowhere near\\b"]}
+        text = body(summary="The card shows the reason. That fix is nowhere near here.")
+        self.assertTrue(pr_text.elsewhere_problems(text, words))
+        self.assertEqual(pr_text.elsewhere_problems(body(summary=f"The card shows the reason. {OLD_SENTENCE}"), words), [])
+        for key in ("elsewhere_phrases", "elsewhere_state_words", "banned_footers"):
+            self.assertTrue(pr_text.load_words()[key], key)
 
 
 if __name__ == "__main__":

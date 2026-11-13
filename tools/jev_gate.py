@@ -16,14 +16,16 @@ and then one route hint from the answers (the orchestrator decides; it never low
 
 For a plan that is not read as invisible it then prints the app-UI gate (owner, 2026-11-03): `design.matches_request` when the
 plan has an `Owner's request:` section, else `design.app_wide`, ending in a machine-readable line
-`gate: autonomous|park basis=request|agent answer=yes|no|unsure|unavailable`. Unavailable Jev or a missing question file
+`gate: autonomous|park basis=request|agent answer=yes|no|unsure|unavailable`, with ` route=session|pr` appended to a `park` line (owner,
+2026-11-10: a headless session, the markers `merge_guard.headless()` reads, routes to the pull request; an interactive one decides in the
+session; see `.agents/workflow/autonomy.md#app-ui-gate`). Unavailable Jev or a missing question file
 parks (fail safe); the gate lines are printed even with no key. This plan-time gate trusts the plan's `Owner's request:` section as written; the landing gate (`tools/lane_land.py`) is where a
 quote must match a prompt the owner typed (`tools/hooks/owner_prompt_log.py`, last 14 days, 20+ characters) and where mockup edits
 that draw the same are not app UI (`rendered_ui_paths`, owner decisions 2026-11-04). Quote the owner's words in that section.
 The raise-only lines only raise. No key or an API error prints **nothing**, and silence never skips the Designer or
 lowers a level. It exits 0 when it ran, so a hint never stops work; a `--plan-file` that is missing or empty prints
 `jev_gate: cannot read <path>` to stderr and exits 2. Each answer is logged (no plan text) to `build/jev/gate.jsonl`.
-Every line is a guess to verify, never an instruction (`.agents/workflow/jev-corpus.md`,
+Every line is a guess to verify, never an instruction (`.agents/workflow/jev.md`,
 `.agents/workflow/agent-roster.md`). Standard library only.
 """
 
@@ -31,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -48,6 +51,32 @@ def _load(name: str) -> Any:
 
 
 jev = _load("jev_ask")
+
+
+def registered_session() -> bool:
+    """Is this process inside a T3-launched triage session (``tools/hooks/triage_session.py``)? A failed lookup counts as one."""
+    hooks = str(HERE / "hooks")
+    sys.path.insert(0, hooks)
+    try:
+        import triage_session
+        return bool(triage_session.registered())
+    except Exception:  # noqa: BLE001
+        return True
+    finally:
+        sys.path.remove(hooks)
+
+
+def route(markers: "dict[str, str] | None" = None) -> str:
+    """Where a parked question goes: ``pr`` for a headless session, ``session`` for an interactive one.
+
+    Headless is what ``tools/hooks/merge_guard.py`` ``headless()`` reads (``FENTON_HEADLESS=1``), the runner's ``HASS_TRIAGE_ISSUE``,
+    or a registered triage session. A registry lookup that fails answers ``pr`` (the behaviour before this field: finish
+    ``needs_decision``)."""
+    if markers is None:
+        markers = {k: os.environ.get(k, "") for k in ("FENTON_HEADLESS", "HASS_TRIAGE_ISSUE")}
+    if markers.get("FENTON_HEADLESS") == "1" or markers.get("HASS_TRIAGE_ISSUE"):
+        return "pr"
+    return "pr" if registered_session() else "session"
 
 
 def _verdict(decision: Any) -> bool | None:
@@ -125,7 +154,7 @@ def gate(plan: str, subject: str, questions: dict) -> tuple[str, list[str]]:
     Request-driven work (the plan carries an ``Owner's request:`` section): ``design.matches_request`` with the owner's
     words and the plan. An accepted yes is autonomous; no or unsure parks for the owner. Agent-initiated work: ``design.app_wide``
     on the plan. An accepted no is autonomous (a change local to a screen); yes or unsure parks. Jev unavailable or a question
-    file missing parks (fail safe). The last line is machine-readable: ``gate: <outcome> basis=<request|agent> answer=<..>``."""
+    file missing parks (fail safe). The last line is machine-readable: ``gate: <outcome> basis=<request|agent> answer=<..>``, plus ``route=<session|pr>`` on a park."""
     request = owner_request(plan)
     qid = "design.matches_request" if request is not None else "design.app_wide"
     basis = "request" if request is not None else "agent"
@@ -142,7 +171,8 @@ def gate(plan: str, subject: str, questions: dict) -> tuple[str, list[str]]:
         outcome = "autonomous" if answer is False else "park"
         reason = ("local to a screen" if outcome == "autonomous" else
                   "app-wide or unsure, and no owner asked for it: the owner decides")
-    return outcome, [f"Jev gate ({qid}={word}): {reason}", f"gate: {outcome} basis={basis} answer={word}"]
+    line = f"gate: {outcome} basis={basis} answer={word}" + (f" route={route()}" if outcome == "park" else "")
+    return outcome, [f"Jev gate ({qid}={word}): {reason}", line]
 
 
 def hints(plan: str, title: str = "", subject: str = "") -> list[str]:
@@ -198,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
             print(line)
     except Exception:  # noqa: BLE001 (no Jev: the raise-only hints are silent, but the gate fails safe)
         basis = "request" if owner_request(plan) is not None else "agent"
-        print(f"gate: park basis={basis} answer=unavailable")
+        print(f"gate: park basis={basis} answer=unavailable route={route()}")
     return 0
 
 

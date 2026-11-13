@@ -1,0 +1,1299 @@
+{
+ "_about": "Per-file counts of forbidden hits, long lines, words over budget and links and structure findings that layers with a ratchet may not exceed. Entries only fall (python3 tools/rules_lint.py --write-ratchet refuses a rise). Deleted when the reference layer is clean.",
+ "files": {
+  ".agents/design/README.md": {
+   "forbidden": 13,
+   "structure": 6
+  },
+  ".agents/design/action-navigation-tiles.md": {
+   "forbidden": 22,
+   "long_lines": 11,
+   "over_words": 610
+  },
+  ".agents/design/apple/README.md": {
+   "structure": 1
+  },
+  ".agents/design/apple/duo.md": {
+   "forbidden": 25,
+   "long_lines": 8
+  },
+  ".agents/design/apple/ipados.md": {
+   "forbidden": 16,
+   "long_lines": 7
+  },
+  ".agents/design/apple/iphone.md": {
+   "forbidden": 13,
+   "long_lines": 2
+  },
+  ".agents/design/apple/split-view.md": {
+   "forbidden": 32,
+   "long_lines": 19,
+   "over_words": 1324
+  },
+  ".agents/design/apple/system-api-audit.md": {
+   "forbidden": 15,
+   "long_lines": 6
+  },
+  ".agents/design/controller-bound-controls.md": {
+   "forbidden": 5,
+   "long_lines": 2
+  },
+  ".agents/design/direction-g-plan.md": {
+   "forbidden": 57,
+   "long_lines": 6,
+   "over_words": 1974
+  },
+  ".agents/design/direction-g.md": {
+   "forbidden": 125,
+   "long_lines": 51,
+   "over_words": 8581,
+   "links": 1
+  },
+  ".agents/design/duo-widths.md": {
+   "forbidden": 21,
+   "long_lines": 17,
+   "over_words": 2027
+  },
+  ".agents/design/feedback-media-compression.md": {
+   "forbidden": 3,
+   "long_lines": 2
+  },
+  ".agents/design/house-config-states.md": {
+   "forbidden": 13,
+   "long_lines": 17,
+   "over_words": 1496
+  },
+  ".agents/design/mockups/README.md": {
+   "forbidden": 5,
+   "long_lines": 6
+  },
+  ".agents/design/mockups/components/README.md": {
+   "over_words": 442
+  },
+  ".agents/design/mockups/components/bedroom/bed-side-tile/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/components/bedroom/bedroom-controls/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/cameras/camera-controls/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/cameras/camera-tile/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/chips/chip-rail/README.md": {
+   "forbidden": 4
+  },
+  ".agents/design/mockups/components/chips/sprinkler-controller-card/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/components/chips/status-chip/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/chips/status-pill/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/chips/status-rail/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/components/chores/chore-quick-links/README.md": {
+   "forbidden": 3
+  },
+  ".agents/design/mockups/components/chores/overdue-chores-badge/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/chores/todo-list-section/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/climate/climate-notice/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/climate/thermostat-hub-pill/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/controls/floating-action-bar/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/controls/primary-button/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/controls/segmented-choice/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/controls/thermostat-dial/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/devices/bathroom-fan-room-tile/README.md": {
+   "forbidden": 4,
+   "links": 1
+  },
+  ".agents/design/mockups/components/devices/fan-timer-controls/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/feedback/feedback-attachment-strip/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/food/recipe-ingredient-row/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/food/suggested-recipes-carousel/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/forms/content-unavailable/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/forms/schedule-date-fields/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/forms/settings-controls/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/grids/dynamic-grid-layout/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/grids/paged-row/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/icons/app-icon-artwork/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/icons/symbol-map/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/images/remote-image/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/inventory/inventory-empty-state/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/inventory/inventory-row/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/lists/module-list/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/live-activity/dynamic-island-compact/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/live-activity/dynamic-island-expanded/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/live-activity/live-activity-job-card/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/components/live-activity/live-activity-parts/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/live-activity/live-activity-problem-card/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/live-activity/live-activity-small/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/loading/arc-spinner/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/loading/content-gate/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/loading/pending-value-bar/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/location/location-account-section/README.md": {
+   "forbidden": 3,
+   "links": 1
+  },
+  ".agents/design/mockups/components/login/login-form-parts/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/login/login-header-mark/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/media/media-card-tile/README.md": {
+   "forbidden": 4
+  },
+  ".agents/design/mockups/components/media/media-remote-app-tile/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/media/media-remote-controls/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/modals/filter-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/modals/hass-modal/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/modals/modal-tab-bar/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/modals/option-picker-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/modals/sheet-edit-toolbar/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/motion/header-edge-fade/README.md": {
+   "forbidden": 12,
+   "long_lines": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/motion/motion-tokens/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/navigation/house-backdrop/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/navigation/navigation-flyout/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/components/navigation/profile-button/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/navigation/reconnecting-arc/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/components/navigation/shell-header-items/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/navigation/tab-bar/README.md": {
+   "forbidden": 3,
+   "links": 1
+  },
+  ".agents/design/mockups/components/rooms/guest-presence-section/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/rooms/light-group-tile/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/components/rooms/room-card-tile/README.md": {
+   "forbidden": 4
+  },
+  ".agents/design/mockups/components/rooms/room-chip/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/rooms/room-overview-tile/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/components/rooms/room-section-header/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/security/alarm-panel/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/security/security-door-tiles/README.md": {
+   "forbidden": 3,
+   "links": 1
+  },
+  ".agents/design/mockups/components/settings/appearance-settings-section/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/settings/household-toggle-tile/README.md": {
+   "forbidden": 2,
+   "long_lines": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/settings/settings-link-row/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/settings/settings-section-block/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/shell/scroll-fit/README.md": {
+   "forbidden": 4,
+   "links": 1
+  },
+  ".agents/design/mockups/components/surfaces/info-box/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/surfaces/page-section-header/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/tiles/brightness-tile/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/tiles/glass-tile/README.md": {
+   "forbidden": 3,
+   "links": 1
+  },
+  ".agents/design/mockups/components/tiles/image-card/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/tiles/quick-link-tile/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/components/tiles/tile-finish-layout/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/tokens/color-families/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/vacation/away-section/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/vacation/vacation-date-fields/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/vacuums/vacuum-map-canvas/README.md": {
+   "forbidden": 3
+  },
+  ".agents/design/mockups/components/vacuums/vacuum-status-chip/README.md": {
+   "forbidden": 4
+  },
+  ".agents/design/mockups/components/weather/weather-highlights-tiles/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/weather/weather-hourly-panel/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/components/weather/weather-summary-card/README.md": {
+   "forbidden": 4,
+   "links": 1
+  },
+  ".agents/design/mockups/components/widgets/camera-notification-content/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/components/widgets/home-live-activity-widget/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/widgets/push-notification-banner/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/components/widgets/spotlight-and-shortcuts/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/flows/flyout-navigation/README.md": {
+   "forbidden": 2,
+   "links": 2
+  },
+  ".agents/design/mockups/flows/launch-cold-signed-in/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/flows/launch-cold-signed-out/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/flows/notification-deep-link/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/flows/offline-reconnect/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/flows/push-pop-navigation/README.md": {
+   "forbidden": 1,
+   "links": 2
+  },
+  ".agents/design/mockups/flows/quick-links-to-page/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/flows/session-expired-welcome-back/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/flows/sheet-presentation/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/flows/sign-in-to-home-arrival/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/flows/sign-out/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/flows/tab-navigation/README.md": {
+   "forbidden": 1,
+   "links": 2
+  },
+  ".agents/design/mockups/flows/zoom-transition/README.md": {
+   "forbidden": 3,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/README.md": {
+   "over_words": 191
+  },
+  ".agents/design/mockups/modals/bedroom/bed-alarm-day-page/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/bedroom/bed-alarm-editor/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/bedroom/bed-power-off-dialog/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/bedroom/bed-side-sheet/README.md": {
+   "forbidden": 2,
+   "links": 4
+  },
+  ".agents/design/mockups/modals/bedroom/bed-temperature-scope-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/bedroom/schedule-delete-dialog/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/bedroom/wake-light-editor/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/bedroom/wake-light-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/cameras/camera-photos-denied-alert/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/cameras/camera-viewer/README.md": {
+   "forbidden": 9,
+   "long_lines": 2
+  },
+  ".agents/design/mockups/modals/chores/add-admin-todo-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/chores/add-grocery-item-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/chores/donetick-task-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/chores/rename-todo-item-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/chores/todo-delete-dialog/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/climate/climate-automation-details/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/climate/climate-room-detail/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/climate/climate-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/custom-lights/custom-light-sheet/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/modals/custom-lights/lighting-mode-picker/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/food/recipe-detail-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/food/recipe-filter-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/food/recipe-sort-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/home/room-group-detail/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/home/room-overview-air-quality/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/home/room-overview-climate/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/home/room-overview-contacts/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/home/room-overview-lights/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/modals/home/room-overview-occupancy/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/home/weather-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/inventory/inventory-delete-dialog/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/inventory/inventory-filter-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/inventory/inventory-item-editor/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/inventory/inventory-quantity-prompt/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/inventory/inventory-sort-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/inventory/scan-item-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/location/location-permission-sheet/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/modals/media/media-remote-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/room-devices/air-purifier-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/room-devices/bathroom-fan-sheet/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/modals/room-devices/grill-sheet/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/room-devices/humidifier-activity-editor/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/room-devices/humidifier-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/rooms/room-card-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/security/disarm-confirm-alert/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/security/security-system-sheet/README.md": {
+   "forbidden": 4
+  },
+  ".agents/design/mockups/modals/settings/app-icon-picker-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/settings/auto-reset-sheet/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/settings/feedback-discard-dialog/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/settings/feedback-form-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/settings/feedback-result-alerts/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/settings/ha-settings/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/settings/ha-sign-out-dialog/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/settings/presence-override-detail/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/settings/presence-overrides-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/shell/quick-links-rooms/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/shell/quick-links-security-system/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/modals/shell/quick-links/README.md": {
+   "forbidden": 5,
+   "long_lines": 1
+  },
+  ".agents/design/mockups/modals/shell/sign-out-alert/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/shell/sign-out-failed-alert/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/shell/your-summary/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/sprinklers/sprinkler-controller-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/sprinklers/sprinkler-schedule-page/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/sprinklers/sprinkler-water-page/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/vacation/solo-trip-editor-sheet/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/vacation/vacation-confirmation-sheet/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/modals/vacation/vacation-disable-alert/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/modals/vacuums/vacuum-area-editor/README.md": {
+   "forbidden": 4
+  },
+  ".agents/design/mockups/modals/vacuums/vacuum-outcome-report/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/modals/vacuums/vacuum-sheet/README.md": {
+   "forbidden": 6
+  },
+  ".agents/design/mockups/modals/vacuums/vacuum-switch-dialog/README.md": {
+   "forbidden": 3
+  },
+  ".agents/design/mockups/pages/bedroom/room-master-bedroom/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/chores/admin-todo/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/chores/chores/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/chores/groceries/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/chores/home-improvement-chores/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/chores/resident-chores/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/chores/unassigned-chores/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/climate/climate/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/custom-lights/custom-lights/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/food/food-hub/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/pages/food/recipes/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/pages/home/home/README.md": {
+   "forbidden": 3,
+   "links": 1
+  },
+  ".agents/design/mockups/pages/inventory/inventory-space/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/login/login/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/media/media/README.md": {
+   "forbidden": 4
+  },
+  ".agents/design/mockups/pages/rooms/room-kitchen/README.md": {
+   "forbidden": 3
+  },
+  ".agents/design/mockups/pages/rooms/room-page/README.md": {
+   "forbidden": 4,
+   "long_lines": 1
+  },
+  ".agents/design/mockups/pages/security/security/README.md": {
+   "forbidden": 4,
+   "long_lines": 1
+  },
+  ".agents/design/mockups/pages/settings/ha-web-page/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/settings/household-admin/README.md": {
+   "forbidden": 2,
+   "long_lines": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/pages/settings/household-car/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/settings/household-guests/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/settings/household-special-device-modes/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/settings/performance-screen/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/pages/settings/settings/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/shell/placeholder-screen/README.md": {
+   "forbidden": 1,
+   "links": 2
+  },
+  ".agents/design/mockups/pages/sprinklers/sprinklers/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/vacation/solo-trip/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/pages/vacation/vacation-chooser/README.md": {
+   "forbidden": 1,
+   "links": 1
+  },
+  ".agents/design/mockups/pages/vacation/vacation-mode/README.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/design/mockups/pages/vacuums/vacuums/README.md": {
+   "forbidden": 2
+  },
+  ".agents/design/mockups/pages/watch/watch-app/README.md": {
+   "forbidden": 1
+  },
+  ".agents/design/mockups/proposals/selection-tiles/README.md": {
+   "forbidden": 3,
+   "links": 1
+  },
+  ".agents/design/mockups/proposals/tile-rollout-settings-more/README.md": {
+   "forbidden": 1,
+   "long_lines": 1
+  },
+  ".agents/design/mockups/proposals/vacuum-sheet-redesign/README.md": {
+   "forbidden": 6,
+   "long_lines": 1
+  },
+  ".agents/design/motion-components.md": {
+   "forbidden": 6,
+   "long_lines": 3,
+   "over_words": 1481
+  },
+  ".agents/design/motion.md": {
+   "forbidden": 20,
+   "long_lines": 8,
+   "over_words": 2184
+  },
+  ".agents/design/profile-badge.md": {
+   "forbidden": 14,
+   "long_lines": 2
+  },
+  ".agents/design/profile-photos.md": {
+   "forbidden": 3,
+   "long_lines": 2
+  },
+  ".agents/design/reconnecting-spinner.md": {
+   "forbidden": 6,
+   "long_lines": 2
+  },
+  ".agents/design/section-sides.md": {
+   "forbidden": 26,
+   "long_lines": 24,
+   "over_words": 2719
+  },
+  ".agents/design/settings-version-row.md": {
+   "forbidden": 5
+  },
+  ".agents/design/setup-flow.md": {
+   "forbidden": 15,
+   "long_lines": 5
+  },
+  ".agents/design/sheet-bottom-gap.md": {
+   "forbidden": 5,
+   "long_lines": 1
+  },
+  ".agents/design/single-page-motion.md": {
+   "forbidden": 8,
+   "long_lines": 7
+  },
+  ".agents/design/vacuum-sheet-redesign.md": {
+   "forbidden": 11,
+   "long_lines": 5
+  },
+  ".agents/design/weather-card-header.md": {
+   "forbidden": 3
+  },
+  ".agents/design/weather-chevron-contrast.md": {
+   "forbidden": 3,
+   "long_lines": 1
+  },
+  ".agents/pages/README.md": {
+   "structure": 13
+  },
+  ".agents/pages/chores/ios.md": {
+   "forbidden": 34,
+   "long_lines": 10,
+   "over_words": 175
+  },
+  ".agents/pages/chores/spec.md": {
+   "forbidden": 3,
+   "long_lines": 4
+  },
+  ".agents/pages/climate/ios.md": {
+   "forbidden": 3,
+   "long_lines": 4
+  },
+  ".agents/pages/climate/spec.md": {
+   "forbidden": 5,
+   "long_lines": 2
+  },
+  ".agents/pages/custom-lights/ios.md": {
+   "forbidden": 2,
+   "long_lines": 1
+  },
+  ".agents/pages/food/ios.md": {
+   "forbidden": 13,
+   "long_lines": 8
+  },
+  ".agents/pages/food/spec.md": {
+   "forbidden": 3,
+   "long_lines": 1
+  },
+  ".agents/pages/home/ios.md": {
+   "forbidden": 4,
+   "long_lines": 3
+  },
+  ".agents/pages/inventory/ios.md": {
+   "forbidden": 4,
+   "long_lines": 8
+  },
+  ".agents/pages/inventory/spec.md": {
+   "forbidden": 2,
+   "long_lines": 5
+  },
+  ".agents/pages/media/ios.md": {
+   "long_lines": 2
+  },
+  ".agents/pages/rooms/ios.md": {
+   "forbidden": 5,
+   "long_lines": 4
+  },
+  ".agents/pages/rooms/spec.md": {
+   "forbidden": 2,
+   "long_lines": 2
+  },
+  ".agents/pages/security/ios.md": {
+   "forbidden": 2,
+   "long_lines": 2
+  },
+  ".agents/pages/settings/feedback.md": {
+   "forbidden": 5,
+   "long_lines": 2
+  },
+  ".agents/pages/settings/household.md": {
+   "forbidden": 5,
+   "long_lines": 2
+  },
+  ".agents/pages/settings/ios.md": {
+   "forbidden": 16,
+   "long_lines": 4
+  },
+  ".agents/pages/settings/location.md": {
+   "forbidden": 8,
+   "long_lines": 3
+  },
+  ".agents/pages/settings/profile.md": {
+   "forbidden": 5,
+   "long_lines": 4
+  },
+  ".agents/pages/sprinklers/ios.md": {
+   "forbidden": 1,
+   "long_lines": 2
+  },
+  ".agents/pages/sprinklers/spec.md": {
+   "long_lines": 2
+  },
+  ".agents/pages/vacation/ios.md": {
+   "forbidden": 6,
+   "long_lines": 2
+  },
+  ".agents/pages/vacation/spec.md": {
+   "forbidden": 1,
+   "long_lines": 6
+  },
+  ".agents/pages/vacuums/ios.md": {
+   "forbidden": 1,
+   "long_lines": 2
+  },
+  ".agents/pages/vacuums/spec.md": {
+   "forbidden": 3,
+   "long_lines": 4
+  },
+  ".agents/patterns/README.md": {
+   "forbidden": 2,
+   "long_lines": 1
+  },
+  ".agents/patterns/action-tiles.md": {
+   "forbidden": 16,
+   "long_lines": 7,
+   "over_words": 1353
+  },
+  ".agents/patterns/alerts.md": {
+   "forbidden": 4,
+   "long_lines": 4
+  },
+  ".agents/patterns/avatar.md": {
+   "forbidden": 2,
+   "long_lines": 3
+  },
+  ".agents/patterns/bedroom-devices.md": {
+   "long_lines": 4
+  },
+  ".agents/patterns/camera-streams.md": {
+   "forbidden": 6,
+   "long_lines": 12,
+   "over_words": 392
+  },
+  ".agents/patterns/check-row.md": {
+   "forbidden": 7,
+   "long_lines": 3
+  },
+  ".agents/patterns/content-gate.md": {
+   "forbidden": 8,
+   "long_lines": 5
+  },
+  ".agents/patterns/design-tokens.md": {
+   "long_lines": 2
+  },
+  ".agents/patterns/dynamic-grid.md": {
+   "forbidden": 16,
+   "long_lines": 10,
+   "over_words": 12
+  },
+  ".agents/patterns/entity-tile.md": {
+   "forbidden": 28,
+   "long_lines": 18,
+   "over_words": 1221
+  },
+  ".agents/patterns/floating-actions.md": {
+   "forbidden": 7,
+   "long_lines": 5
+  },
+  ".agents/patterns/header-edge-fade.md": {
+   "forbidden": 41,
+   "long_lines": 4,
+   "over_words": 1132,
+   "links": 1
+  },
+  ".agents/patterns/hinge-avoidance.md": {
+   "forbidden": 21,
+   "long_lines": 11,
+   "over_words": 244
+  },
+  ".agents/patterns/image-card.md": {
+   "forbidden": 2,
+   "long_lines": 4
+  },
+  ".agents/patterns/info-box.md": {
+   "forbidden": 2,
+   "long_lines": 1
+  },
+  ".agents/patterns/media-remote.md": {
+   "forbidden": 8,
+   "long_lines": 6
+  },
+  ".agents/patterns/modal-inventory.md": {
+   "forbidden": 12,
+   "long_lines": 9,
+   "over_words": 99
+  },
+  ".agents/patterns/modal-sheet.md": {
+   "forbidden": 71,
+   "long_lines": 23,
+   "over_words": 4904
+  },
+  ".agents/patterns/module-list.md": {
+   "forbidden": 4,
+   "long_lines": 4
+  },
+  ".agents/patterns/motion.md": {
+   "forbidden": 12,
+   "long_lines": 6,
+   "over_words": 225
+  },
+  ".agents/patterns/optimistic-actions.md": {
+   "forbidden": 4,
+   "long_lines": 2
+  },
+  ".agents/patterns/page-backdrop.md": {
+   "forbidden": 6,
+   "long_lines": 11
+  },
+  ".agents/patterns/page-base.md": {
+   "forbidden": 7,
+   "long_lines": 7
+  },
+  ".agents/patterns/page-indicator.md": {
+   "forbidden": 2
+  },
+  ".agents/patterns/resume-lifecycle.md": {
+   "forbidden": 2,
+   "long_lines": 3
+  },
+  ".agents/patterns/room-device-sheets.md": {
+   "forbidden": 5,
+   "long_lines": 3
+  },
+  ".agents/patterns/room-overview-sheet.md": {
+   "forbidden": 1,
+   "long_lines": 4
+  },
+  ".agents/patterns/rows.md": {
+   "forbidden": 2,
+   "long_lines": 4
+  },
+  ".agents/patterns/schedule-date-fields.md": {
+   "forbidden": 5
+  },
+  ".agents/patterns/scroll-fit.md": {
+   "forbidden": 2,
+   "long_lines": 1
+  },
+  ".agents/patterns/scroll-frame-rate.md": {
+   "forbidden": 8,
+   "long_lines": 3
+  },
+  ".agents/patterns/settings-section.md": {
+   "forbidden": 7,
+   "long_lines": 6
+  },
+  ".agents/patterns/state-message.md": {
+   "forbidden": 6,
+   "long_lines": 5
+  },
+  ".agents/patterns/status-pill.md": {
+   "forbidden": 4,
+   "long_lines": 2
+  },
+  ".agents/patterns/status-rail.md": {
+   "forbidden": 16,
+   "long_lines": 6,
+   "over_words": 210
+  },
+  ".agents/patterns/swipe-row.md": {
+   "forbidden": 4,
+   "long_lines": 7,
+   "links": 1
+  },
+  ".agents/patterns/tap-feedback.md": {
+   "forbidden": 2,
+   "long_lines": 1
+  },
+  ".agents/patterns/telemetry.md": {
+   "forbidden": 1,
+   "long_lines": 2
+  },
+  ".agents/patterns/thermostat-dial.md": {
+   "forbidden": 3,
+   "long_lines": 5
+  },
+  ".agents/patterns/ticker.md": {
+   "forbidden": 4,
+   "long_lines": 1
+  },
+  ".agents/patterns/vacuum-sheet.md": {
+   "forbidden": 7,
+   "long_lines": 10,
+   "over_words": 100
+  },
+  ".agents/patterns/valetudo-map.md": {
+   "forbidden": 3,
+   "long_lines": 1
+  },
+  ".agents/patterns/weather.md": {
+   "forbidden": 1,
+   "long_lines": 6,
+   "links": 1
+  },
+  ".agents/platforms/apple/README.md": {
+   "forbidden": 3,
+   "structure": 14
+  },
+  ".agents/platforms/apple/app-name.md": {
+   "forbidden": 7,
+   "long_lines": 5
+  },
+  ".agents/platforms/apple/architecture.md": {
+   "forbidden": 1,
+   "long_lines": 5
+  },
+  ".agents/platforms/apple/auth.md": {
+   "forbidden": 11,
+   "long_lines": 11,
+   "over_words": 536
+  },
+  ".agents/platforms/apple/badge.md": {
+   "forbidden": 2,
+   "long_lines": 2
+  },
+  ".agents/platforms/apple/capacity.md": {
+   "forbidden": 12,
+   "long_lines": 10,
+   "over_words": 858,
+   "links": 2
+  },
+  ".agents/platforms/apple/connection-lifecycle.md": {
+   "forbidden": 19,
+   "long_lines": 23,
+   "over_words": 2003
+  },
+  ".agents/platforms/apple/decision-uikit-replaces-swiftui.md": {
+   "forbidden": 6,
+   "long_lines": 1,
+   "links": 1
+  },
+  ".agents/platforms/apple/ha-operations.md": {
+   "forbidden": 4,
+   "long_lines": 10,
+   "over_words": 812
+  },
+  ".agents/platforms/apple/live-activities-ha-automations.md": {
+   "forbidden": 11,
+   "long_lines": 3
+  },
+  ".agents/platforms/apple/live-activities-per-job.md": {
+   "forbidden": 36,
+   "long_lines": 12,
+   "over_words": 6199
+  },
+  ".agents/platforms/apple/live-activities.md": {
+   "forbidden": 34,
+   "long_lines": 15,
+   "over_words": 4251
+  },
+  ".agents/platforms/apple/location.md": {
+   "forbidden": 22,
+   "long_lines": 21,
+   "over_words": 3066
+  },
+  ".agents/platforms/apple/mobile-app.md": {
+   "forbidden": 3,
+   "long_lines": 3
+  },
+  ".agents/platforms/apple/presence-inventory.md": {
+   "forbidden": 2,
+   "long_lines": 1
+  },
+  ".agents/platforms/apple/push.md": {
+   "forbidden": 27,
+   "long_lines": 13,
+   "over_words": 1191
+  },
+  ".agents/platforms/apple/testflight.md": {
+   "forbidden": 8,
+   "long_lines": 17,
+   "over_words": 1037,
+   "links": 1
+  },
+  ".agents/platforms/apple/uikit-port-design-lists.md": {
+   "forbidden": 1,
+   "long_lines": 2
+  },
+  ".agents/platforms/apple/uikit-port-design-tiles.md": {
+   "forbidden": 2,
+   "long_lines": 3
+  },
+  ".agents/platforms/apple/uikit-port-feature-lane.md": {
+   "forbidden": 2,
+   "links": 1
+  },
+  ".agents/platforms/apple/uikit-port-shell.md": {
+   "forbidden": 3,
+   "long_lines": 2
+  },
+  ".agents/platforms/apple/uikit-port.md": {
+   "forbidden": 22,
+   "long_lines": 14,
+   "over_words": 826,
+   "links": 1
+  },
+  ".agents/testing/apple/README.md": {
+   "forbidden": 36,
+   "long_lines": 33,
+   "over_words": 6348,
+   "links": 1,
+   "structure": 1
+  },
+  ".agents/testing/apple/accessibility.md": {
+   "forbidden": 32,
+   "long_lines": 19,
+   "over_words": 1666
+  },
+  ".agents/testing/apple/app-reuse.md": {
+   "forbidden": 16,
+   "long_lines": 12,
+   "over_words": 1823
+  },
+  ".agents/testing/apple/coverage.md": {
+   "long_lines": 1
+  },
+  ".agents/testing/apple/devices.md": {
+   "forbidden": 14,
+   "long_lines": 8,
+   "over_words": 205,
+   "links": 1
+  },
+  ".agents/testing/apple/ha-companion.md": {
+   "forbidden": 1
+  },
+  ".agents/testing/apple/journey-expectations.md": {
+   "long_lines": 2
+  },
+  ".agents/testing/apple/journey-speed.md": {
+   "forbidden": 31,
+   "long_lines": 59,
+   "over_words": 8667
+  },
+  ".agents/testing/apple/performance.md": {
+   "forbidden": 27,
+   "long_lines": 33,
+   "over_words": 8133,
+   "structure": 3
+  },
+  ".agents/testing/apple/strategy.md": {
+   "forbidden": 2,
+   "long_lines": 3
+  },
+  ".agents/testing/apple/suites.md": {
+   "long_lines": 2,
+   "links": 1
+  },
+  ".agents/testing/apple/test-speed-roadmap.md": {
+   "forbidden": 38,
+   "long_lines": 11,
+   "over_words": 3870
+  }
+ }
+}

@@ -33,7 +33,7 @@
     summary: 'When a device needs help the same activity becomes a problem card: a severity shape (octagon stopped, triangle carries on), the problem led by a two-word state, an instruction, up to three buttons. Red stopped and needs you; amber carries on.',
     source: ['apple/Sources/FentonActivityViews/ProblemCardView.swift', 'apple/Sources/FentonActivityViews/SeverityCircle.swift', 'apple/Sources/FentonActivityViews/ActivityStyle.swift', 'apple/Sources/FentonActivityModel/ActivityProblem.swift',
       'apple/Sources/FentonActivityModel/HomeActivityFixtures.swift'],
-    spec: ['.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
+    spec: ['.agents/design/live-activity-problem-notice.md', '.agents/platforms/apple/live-activities-per-job.md', '.agents/platforms/apple/live-activities.md'],
     patterns: [],
     hig: ['Live Activities', 'Color', 'Buttons'],
     entities: ['fenton_home problem content-state (spec section 5 table)'],
@@ -48,6 +48,8 @@
       flipped: { title: 'Done flipped', render: function (ctx) { return rows(ctx, function (r) { return ['navigation.stuck', 'power.critical_battery', 'dock.cover_open', 'dishwasher.error'].indexOf(r.code) >= 0; }, true); } },
       chips: { title: 'Unknown errors and chips', note: 'a chip rides on the leading side of the button row; never for a known code', render: function (ctx) { return rows(ctx, function (r) { return /vendor|unmapped/.test(r.code); }); } },
       pending: { title: 'Done pending', note: '"Completing…" replaces the buttons until the task closes', render: function (ctx) { return LA.stage([LA.fig(card('problem-completing', ctx), 'problem-completing')]); } },
+      notice: { title: 'A press failed (notice)', note: 'the notice takes the instruction\'s place until the next update: "Couldn\'t resume. Try again." from Home Assistant, "Couldn\'t reach Home" from the app; the buttons are back', render: function (ctx) {
+        return LA.stage(['problem-notice', 'problem-notice-stuck'].map(function (n) { return LA.fig(card(n, ctx), n); })); } },
       standby: { title: 'StandBy (no corner mark)', render: function (ctx) { return h('div', { style: { padding: '8px 4px' } }, LA.fig(LA.standby(ctx, LA.fx('problem-navigation-stuck'), { scale: 1.45 }), 'problem-navigation-stuck', 'corner mark dropped, scale illustrative')); } },
       table: { title: 'The section 5 table', note: 'wording, glyph and compact word per code', render: function () { return table(); } },
       ax5: { title: 'Accessibility 5', override: { ts: 'ax5' }, note: 'lines wrap instead of truncating; the buttons stack under them', render: function (ctx) { return LA.stage([card('problem-navigation-stuck', ctx), card('problem-vendor-unknown_error_88', ctx)].map(function (n, i) { return LA.fig(n, ['problem-navigation-stuck', 'problem-vendor-unknown_error_88'][i]); })); } },
@@ -62,6 +64,7 @@
     ],
     a11y: [
       { rule: 'Reading order', note: 'One phrase for the whole text block, "Main Floor Vacuum, needs help: Stuck in Kitchen. Move it somewhere flat, then tap Resume." (a chip is read after it), then the buttons. The circle, glyph and mark are hidden.' },
+      { rule: 'Failure notice', note: 'Its own static text (liveactivity.notice), read after the problem phrase and before the buttons. The phrase still speaks the instruction, which is not drawn while the notice stands. White and semibold, not the job card\'s amber, which is the warning card\'s problem-line colour.' },
       { rule: 'Severity is not colour alone', note: 'The phrase says "needs help" or "needs attention"; the shape is an octagon (stopped) or a triangle (carries on), the same two words lead the problem line, and the shape carries a glyph (alert, door, battery, water ...) and the problem line names the issue.' },
       { rule: 'Buttons', note: 'Up to three pills, Done last, each a 44 pt target named for its device ("Resume Main Floor Vacuum").' },
       { rule: 'Contrast', note: 'The severity light tints (#FFB4AE red, #FFD59A amber) and the 82% white message are checked at 4.5:1 or better on the gradient ground (ActivityStyleTests).' },
@@ -91,7 +94,8 @@
       'The wallpaper, clock and flashlight are kit stand-ins. Glyphs (alert, door, dock, edge, brush, battery, water, waste, mop, bag, question) are stand-ins for the SF Symbols in ActivityGlyphImage.swift. Promote to kit: glyph set and LA.problemCard in components/live-activity/_widgets-liveactivity.js.',
       'Not on the card: loading, empty, offline. A problem exists only while the engine reports one; the state is the card itself.',
     ],
-    changelog: [{ date: '2026-10-23', note: 'First pass: all 19 rows of the section 5 table, Done flipped, chips, banner, StandBy, AX5.' }],
+    changelog: [{ date: '2026-10-23', note: 'First pass: all 19 rows of the section 5 table, Done flipped, chips, banner, StandBy, AX5.' },
+      { date: '2026-11-10', note: 'Failure notice in place of the instruction after a failed press (R-43; design/live-activity-problem-notice.md).' }],
   });
 })();
 </script></body></html>

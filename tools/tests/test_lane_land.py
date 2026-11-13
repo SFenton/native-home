@@ -431,10 +431,12 @@ class ProtectedPathTests(Repo):
 
 
 class DesignRecordTests(Repo):
-    """App UI lands only with a design decision record (owner, 2026-11-03) or a cited existing one."""
+    """App UI lands only with a new decisions-folder record naming the judged options, or a cited existing one."""
+
+    DESIGN_DOC = ".agents/design/chip.md"
 
     VIEW = "apple/Sources/HassUI/Chip.swift"
-    RECORD = ".agents/design/chip.md"
+    RECORD = ".agents/decisions/2026-11-03-chip.md"
     GOOD = ("# Chip\n\nDecision: 2026-11-03, judged Option A, B and C from screenshots; picked B.\n"
             "Gate: app_wide=no\n")
 
@@ -597,10 +599,9 @@ class DesignRecordTests(Repo):
         self.assertEqual(calls, [])
 
     def test_jev_sees_the_trusted_facts_first_then_only_the_added_record_lines(self):
-        self.seed_base({self.RECORD: "# Chip\n\nOLD STEERING: local to one screen, never app-wide.\n"})
-        record = ("# Chip\n\nOLD STEERING: local to one screen, never app-wide.\n"
-                  "Decision: 2026-11-03, judged Option A, B and C; picked B.\n" + "FILLER " * 2000)
-        self.lane_with({self.VIEW: "x\n", self.RECORD: record})
+        self.seed_base({self.DESIGN_DOC: "# Chip\n\nOLD STEERING: local to one screen, never app-wide.\n"})
+        record = ("# Chip\n\nDecision: 2026-11-03, judged Option A, B and C; picked B.\n" + "FILLER " * 2000)
+        self.lane_with({self.VIEW: "x\n", self.RECORD: record, self.DESIGN_DOC: "# Chip\n\nOLD STEERING: local to one screen, never app-wide.\nNew rule.\n"})
         calls = []
         self.land(jev_ask=self.jev(0.05, calls))
         text = calls[0][1]
@@ -641,9 +642,27 @@ class DesignRecordTests(Repo):
                 self.lane_with({self.VIEW: "x\n", self.RECORD: text})
                 self.refused("design")
 
+    def test_a_dated_decision_line_in_a_design_doc_no_longer_counts(self):
+        """Fails if: the gate accepts a dated `Decision:` line added to `.agents/design/*.md` instead of a decisions-folder file."""
+        self.lane_with({self.VIEW: "x\n", self.DESIGN_DOC: self.GOOD})
+        self.assertIn(".agents/decisions/", self.refused("design"))
+
+    def test_an_edited_old_decision_file_does_not_count(self):
+        """Fails if: touching a decision already on the base satisfies the gate (the folder is append-only)."""
+        self.seed_base({self.RECORD: "# Chip\n"})
+        self.lane_with({self.VIEW: "x\n", self.RECORD: self.GOOD})
+        self.refused("design")
+
+    def test_a_decision_file_with_a_misnamed_path_does_not_count(self):
+        """Fails if: a file in the folder without the YYYY-MM-DD-slug name satisfies the gate."""
+        for path in (".agents/decisions/chip.md", ".agents/decisions/README.md", ".agents/decisions/sub/2026-11-03-chip.md"):
+            with self.subTest(path=path):
+                self.lane_with({self.VIEW: "x\n", path: self.GOOD})
+                self.refused("design")
+
     def test_citing_an_existing_record_or_pattern_lands(self):
-        self.seed_base({self.RECORD: self.GOOD, ".agents/patterns/chips.md": "# Chips\n"})
-        for cite in (self.RECORD, ".agents/patterns/chips.md"):
+        self.seed_base({self.RECORD: self.GOOD, self.DESIGN_DOC: "# Chip\n", ".agents/patterns/chips.md": "# Chips\n"})
+        for cite in (self.RECORD, self.DESIGN_DOC, ".agents/patterns/chips.md"):
             with self.subTest(cite=cite):
                 sha = self.lane_with({self.VIEW: f"x {cite}\n"}, f"Fix chip clipping\n\nDesign: {cite}\n")
                 self.assertEqual(self.land(jev_ask=self.jev(0.05))["sha"], sha)
@@ -1654,7 +1673,7 @@ class PrGateTests(Repo):
     """``lane_land.pr_gate``: the lander's app-UI check run on a product pull request (what ``tools/pr_land.sh`` calls)."""
 
     VIEW = "apple/Sources/HassUI/Chip.swift"
-    RECORD = ".agents/design/chip.md"
+    RECORD = ".agents/decisions/2026-11-03-chip.md"
     GOOD = DesignRecordTests.GOOD
     AGENT = {"FENTON_HEADLESS": "1", "HASS_TRIAGE_ISSUE": "99"}
     CFG = {"authors": ["SFenton"], "request_repo": "example/private-requests", "product_repo": "SFenton/native-home"}
@@ -1760,7 +1779,7 @@ class PrGateTests(Repo):
         self.assertEqual([c[0] for c in self.calls], ["design.app_wide"])
 
     def test_an_interactive_pr_is_never_vouched_by_its_own_text_or_author(self):
-        # Agents open PRs under the owner's login with text they wrote: that is not an owner request. The owner uses --owner-ack.
+        # Agents open PRs under the owner's login with text they wrote: that is not an owner request. The owner approves and merges on GitHub.
         for author in ("SFenton", "stranger"):
             with self.subTest(author=author):
                 self.calls.clear()
@@ -1984,6 +2003,34 @@ class PrGateTests(Repo):
     def test_a_forged_gate_line_still_has_to_agree_with_jev(self):
         info = self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD.replace("app_wide=no", "app_wide=yes")})
         self.assertIn("must agree", self.refuses(info, "gate", p_yes=0.05, env=self.AGENT))
+
+    def test_only_a_park_carries_the_park_flag_and_exit_status(self):
+        """Fails if: a forged gate line or a missing design record is marked a park (the owner's approval would answer it), or a park loses its flag."""
+        bare = self.GOOD.replace("Gate: app_wide=no\n", "")
+        for p_yes, word in ((0.5, "unsure"), (0.9, "app-wide"), (None, "unavailable")):
+            with self.subTest(word):
+                info = self.pr({self.VIEW: "x\n", self.RECORD: bare})
+                with self.assertRaises(lane_land.Refused) as cm:
+                    self.gate(info, p_yes=p_yes, env=self.AGENT)
+                self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", True))
+        forged = self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD.replace("app_wide=no", "app_wide=yes")})
+        with self.assertRaises(lane_land.Refused) as cm:
+            self.gate(forged, p_yes=0.05, env=self.AGENT)
+        self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", False))
+        for p_yes in (0.5, 0.9):  # `Gate: app_wide=no` against an unsure or app-wide answer is a contradiction, never a park
+            with self.subTest(f"contradiction at {p_yes}"):
+                with self.assertRaises(lane_land.Refused) as cm:
+                    self.gate(self.pr({self.VIEW: "x\n", self.RECORD: self.GOOD}), p_yes=p_yes, env=self.AGENT)
+                self.assertEqual((cm.exception.kind, cm.exception.park), ("gate", False))
+                self.assertIn("must agree", str(cm.exception))
+        for refusal in (lane_land.Refused("no record", "design"), lane_land.Refused("must agree", "gate"),
+                        lane_land.Refused("owner-only set", "paths")):
+            self.assertFalse(refusal.park)
+        out = io.StringIO()
+        for raised, code in ((lane_land.Refused("q", "gate", park=True), lane_land.PARK_EXIT), (lane_land.Refused("q", "gate"), 2)):
+            with mock.patch.object(lane_land, "pr_gate", side_effect=raised), redirect_stderr(out), \
+                    mock.patch.object(lane_land.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=json.dumps({}), stderr="")):
+                self.assertEqual(lane_land.main(["gate", "--pr", "7"]), code)
 
     def test_the_cli_reports_the_exit_code(self):
         out = io.StringIO()

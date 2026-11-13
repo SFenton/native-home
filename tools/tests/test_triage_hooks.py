@@ -23,7 +23,6 @@ sys.path.insert(0, str(TOOLS / "hooks"))
 import lane_land  # noqa: E402
 import merge_guard  # noqa: E402
 import owner_prompt_log  # noqa: E402
-import pr_land  # noqa: E402
 import push_guard  # noqa: E402
 import review_guard  # noqa: E402
 import signing_guard  # noqa: E402
@@ -166,27 +165,6 @@ class LandingToolTests(Base):
     def git(self, path):
         subprocess.run(["git", "init", "-q", str(path)], check=True)
 
-    def test_pr_land_owner_session_refuses_a_registered_session(self):
-        """Fails if: ack-base style owner checks pass in a T3 triage session whose environment lost the markers."""
-        self.git(self.work)
-        self.git(self.owner)
-        cwd = os.getcwd()
-        self.addCleanup(os.chdir, cwd)
-        os.chdir(self.work)
-        with mock.patch.dict(os.environ, {"T3CODE_THREAD_ID": "thr-9"}, clear=False):
-            os.environ.pop("FENTON_HEADLESS", None)
-            os.environ.pop("HASS_TRIAGE_ISSUE", None)
-            self.assertFalse(pr_land.owner_session(tty=True))
-            os.chdir(self.owner)
-            self.assertTrue(pr_land.owner_session(tty=True))
-        self.assertTrue(pr_land.owner_session({}, tty=True))  # an explicit environment is judged on its own
-
-    def test_pr_land_fails_closed_when_the_registry_module_is_gone(self):
-        """Fails if: an unloadable triage_session lets the owner check pass."""
-        with mock.patch.object(pr_land, "_triage_session", side_effect=ImportError("gone")):
-            self.assertEqual(pr_land.triage_session_env(), {"FENTON_HEADLESS": "1"})
-            self.assertFalse(pr_land.owner_session(tty=True))
-
     def test_lane_land_refuses_a_registered_session_to_land(self):
         """Fails if: lane_land.land runs for a T3 triage session that has no FENTON_HEADLESS in its tool shell."""
         self.git(self.work)
@@ -214,10 +192,9 @@ class LandingToolTests(Base):
     def test_the_tools_load_the_registry_module_by_path_in_a_fresh_interpreter(self):
         """Fails if: tools/hooks is not on the path and the by-path load breaks (it fails closed, so every landing would be refused)."""
         code = "import sys; sys.path[:] = [p for p in sys.path if 'hooks' not in p]; import {0}; print({0}.triage_session_env())"
-        for tool in ("lane_land", "pr_land"):
-            out = subprocess.run([sys.executable, "-c", code.format(tool)], cwd=str(TOOLS), capture_output=True, text=True,
-                                 env={"PATH": os.environ.get("PATH", ""), "HOME": str(self.tmp)})
-            self.assertEqual((out.stdout.strip(), out.stderr), ("None", ""), tool)
+        out = subprocess.run([sys.executable, "-c", code.format("lane_land")], cwd=str(TOOLS), capture_output=True, text=True,
+                             env={"PATH": os.environ.get("PATH", ""), "HOME": str(self.tmp)})
+        self.assertEqual((out.stdout.strip(), out.stderr), ("None", ""), "lane_land")
 
     def test_pr_gate_env_never_loses_a_runner_marker_to_a_record(self):
         """Fails if: lane_land.pr_gate lets a record override FENTON_HEADLESS or HASS_TRIAGE_* the process already carries."""

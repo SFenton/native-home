@@ -1,44 +1,29 @@
 # Coverage measurement
 
-> **What:** how `tools/apple_coverage.sh` measures the >=95% logic and >=95% UX line gates, now that the app is UIKit. **Read when:** the UX number looks wrong, or you add UIKit code.
+> **What:** how `tools/apple_coverage.sh` measures and gates the logic line bar on the Mac host; UX line coverage is not measured. **Read when:** the logic number looks wrong, a coverage run fails, or you add a source module.
 
-## Two sources, one report
+## What is measured, and where
 
-| Source | Runs | Measures |
-|---|---|---|
-| **Host** (`swift test --enable-code-coverage`, macOS host) | Core, Design, Telemetry, ActivityModel and hosted `HassUITests` | all logic; the UX files the Mac host can compile (HassDesign, HassUI outside the port) |
-| **Hosted tests** (`ios_uitest.sh --only iphone --hosted --impact DIR`) | `FentonHomeTests` (`apple/Apps/iOSTests`): XCTest cases that run *inside* the instrumented app on an iPhone simulator and drive UIKit view controllers and views directly, with fixture stores | the UIKit port, in seconds |
-| **Journeys** (`ios_uitest.sh --only iphone --plan Gate --full --impact DIR <class filters>`, in parts) | the XCUITest Gate plan on an iPhone simulator, against the app built with `CLANG_ENABLE_CODE_COVERAGE=YES CLANG_COVERAGE_MAPPING=YES` | everything the running app executes, including `apple/Sources/HassUI/UIKitPort/**` |
+- One source, one report: `swift test --enable-code-coverage` on the Mac host (a test runner only; macOS is not a product platform).
+- `tools/apple_coverage.sh` exports one LLVM report across every `*Tests.xctest` binary, and `tools/coverage_gate.py` requires 95% of the executable lines in the `logic` globs of `contracts/coverage-rules.json`.
+- No simulator, no instrumented app and no iOS profile take part. A full run takes one devcap `build` hold and is the nightly and release tier ([test tiers](README.md#test-tiers)).
+- A classified `logic` file with no LLVM record compiled to no instrumented code (declarations only): it counts as zero lines and the gate lists it. A whole module with no record is an error, because its test bundle was not exported.
 
-Why both: `UIKitPort` is iOS-only (`#if os(iOS)`), so the host build compiles it to nothing and `HassUITests` do not touch it; before 2026-11-02 its 261 files counted as zero and UX read 48.64%. The only tests that execute it are the journeys. The alternative of running the package tests on an iOS simulator would compile the port but still not execute it (no test calls it), so it would measure nothing the journeys do not.
+## UX source is unmeasured
 
-## How the journeys are measured
+- `HassDesign`, `HassUI` (including `UIKitPort`) and `FentonActivityViews` sit under `swift.unmeasured` in `contracts/coverage-rules.json`; `thresholds` names only `logic`.
+- Every file under `apple/Sources` still matches exactly one category, so a new module fails `coverage_gate.py --language swift --classify-only` by name until its pattern is added. `unmeasured` files get no report line, no threshold and no "no LLVM record" error, and `--files` skips them.
+- UX tests, accessibility tests, app-hosted tests and journeys are kept: every UI change owes a UX test and an accessibility test on each affected family ([testing](README.md)); the app-hosted and journey tiers are pass or fail ([test tiers](README.md#test-tiers)).
+- Branching logic belongs in `HassCore` or a model the host tests reach, so the gate sees it. A view controller that grows branching logic is a review finding. `FentonActivityViews` is checked by its UX and accessibility tests.
 
-The `--impact` build instruments the app with build settings, not `-enableCodeCoverage YES` (Xcode's own coverage overwrites the app's `LLVM_PROFILE_FILE` and has hung `xcodebuild` after the tests). `ImpactRecorder` points every app launch at `DIR/<Class>.<test>.<pid>.%c.profraw` (`%c` = continuous mode, so an app XCUITest kills still leaves a usable profile). `tools/coverage_ios.py export` merges all profiles with `llvm-profdata merge --input-files` and runs `llvm-cov export` against the `*_PackageProduct.framework` binaries (HassUI holds the port, HassCore and HassDesign), `FentonHome.debug.dylib` and `FentonHome` inside the products bundle (`~/Library/Caches/fenton/testproducts/<key>.xctestproducts`, key from `tools/products_cache.py key CLANG_ENABLE_CODE_COVERAGE=YES CLANG_COVERAGE_MAPPING=YES`).
+## `--changed`
 
-`tools/coverage_ios.py merge` writes one LLVM-format report with one record per file. A file in both reports (HassCore, HassDesign and HassUI compile for the Mac and for iOS) takes the record with the more covered lines: the two builds can differ in `#if` arms, and neither may lower the other. `coverage_gate.py` reads that report unchanged, with the unchanged `contracts/coverage-rules.json` (no exclusions, 95/95). Under `--files`, a changed file with no record fails loudly (`<N> records are under <prefix>, outside this checkout`) when `llvm_file_totals` skipped `/apple/(Sources|Apps|Tests)/` records from another checkout's path; with no such drops the declarations-only note stays.
+`tools/apple_coverage.sh --changed` runs the host suites the diff affects and gates only the changed files the rules class as `logic`. A diff that changes no logic file gates nothing and exits 0; a diff that maps to no host suite runs nothing. A changed logic file with no record fails loudly when records from another checkout's path were skipped. `tools/apple_coverage.sh --help` prints the detail.
 
-## Hosted tests: the fast path
+## Failures in a host test run are classified
 
-A UIKit page does not need a journey to be covered. `FentonHomeTests` is an app-hosted unit-test target (`TEST_HOST` = the app), so a test can `@testable import HassUI`, build a controller with the gallery's fixture context (`UKGalleryChrome.context()`; `UKGalleryRouter` and `UK<Lane>Gallery.swift` show how each page is built), put it in a window, lay it out and assert what it drew. Start from `apple/Apps/iOSTests/UKHostedPageTests.swift` (`HostedPage.show`, `descendants`, `labels`). These count: `--hosted` runs them under the same `CLANG_*` instrumented build as the journeys (same products-cache entry, so no second build), with `TEST_RUNNER_LLVM_PROFILE_FILE=DIR/FentonHomeTests.%p.%c.profraw` (continuous mode, like `ImpactRecorder`; `TEST_RUNNER_` variables reach the test host, which is the app), and `coverage_ios.py export` merges that profile with the journeys' because both come from the same binaries. The hosted phase of `tools/apple_coverage.sh` runs first and always, also under `--changed`.
+`swift test` runs under `tools/xc_watch.py` with `--require-tests`: a run that executes no test is `EMPTY` and fails. `tools/coverage_classify.py` and `tools/coverage_phases.sh` record each phase's exit status and the test ids it named.
 
-Rules for a hosted test: assert user-visible behaviour (text, state, targets), not line counts; stay on the main actor; no network, no sign-in; a page that needs the shell (push, sheets, navigator) is better covered by a journey. A hosted test never replaces the UX or accessibility journey a UI change owes, it adds the lines around it. Run one alone: `FENTON_DEVCAP_HOLD=900 tools/ios_uitest.sh --only iphone --hosted --impact /tmp/prof` (profiles in `/tmp/prof`, then `tools/coverage_ios.py export`).
-
-## Running it
-
-- Failures are classified (`tools/coverage_classify.py`, `tools/coverage_phases.sh`). Every phase run (hosted, each journey part, swift) records its exit status and the ids it named. A phase that exited 124, 125, 126 or above 128, or that failed without naming a test, fails the run whatever the quarantine says. Named ids rerun once without instrumentation: `ios_uitest.sh --only iphone --plan Gate --force --tests Class/test` for journeys, `FENTON_HOSTED_FILTER='Class' ... --hosted --force` (plain `--hosted`, no `--impact`) for hosted classes, `swift test --filter` under `xc_watch --require-tests` for host tests. A crash marker in a phase log (`signal code`, `Restarting after unexpected exit`, `crashed with signal`, `Test crashed`: SwiftPM and xcodebuild exit 1 for these) or a failure count the log cannot explain (more `Executed N tests, with F failures` or Swift Testing issues than named ids and issue lines) also fails the phase. The quarantine is checked against `gh` only for a `coverage-only` id that needs it; on a green run a bad entry is a warning. An id is `coverage-only` only when the rerun log shows it passed; anything else is `real`. The digest prints `coverage-only:`, `real:` and `timeout:`.
-- Full (nightly / release): `FENTON_TIER=nightly tools/apple_coverage.sh` via `tools/bg_run.py`. The iOS phase runs first (its own build and simulator holds, never nested in the host build hold): the hosted tests, then the Gate plan's classes in `FENTON_COV_IOS_PARTS` parts (default 4, balanced by test count by `tools/uitest_support.py parts`; every part is its own `ios_uitest.sh` run and device hold, all writing into the same profile directory, a failing part does not stop the next, and each part's result bundle is kept as `apple/.build/uitest-iphone-partN.xcresult` so an early part's failure keeps its screenshot), then the host phase, the merge, the gate, and a list of the 15 `UIKitPort` files with the most uncovered lines. A failing journey fails the gate.
-- `--changed`: the iOS phase runs only when a changed file is under `UIKitPort`, with that diff's journeys (`ios_uitest.sh --changed`); otherwise Mac host only, as before. When no host suite covers the diff but a changed file is under `UIKitPort`, the host `swift test` phase is skipped and only the iOS phase runs, gating just those files against the iOS report; a diff that maps to nothing at all still exits with "nothing to run".
-- `FENTON_COV_IOS=skip`: host numbers only. UIKitPort then reads zero; a diagnostic, never a certification.
-- The products cache is shared across worktrees (its key is content, not path), so `coverage_ios.py export` remaps the builder's `apple/Sources|Apps|Tests` source paths to this checkout and prints `remapped N records from <prefix>`; otherwise the gate drops those records as outside the root ("no LLVM record").
-- `FENTON_COV_IOS_PROFILES=DIR`: skip the journeys and export the profiles already in DIR (the products bundle must still be in the cache; it is pruned after two days).
-- Outputs: `apple/.build/coverage-ios/{profraw,ios.json}`; the merged report is `merged.json` beside the host's `all-bundles.json` (`swift test --show-codecov-path`).
-- iPhone only: Duo and iPad add layout branches, not new files; run them for coverage later if the number sits just under the bar.
-
-## Known limits
-
-- The Gate plan on iPhone is more than 2 h, longer than the 7200 s hold cap (first measurement 2026-11-02: 3013 tests ran, 93 failed after the hold killed the run). That is why the journeys now run in class-filtered parts, each under its own hold. Classes stay whole, so app reuse still holds.
-- The hosted tests' hold is sized from their count (`uitest_support.py hosted-hold`: 6 s a test plus ten minutes, 1800 to 7200 s). The fixed 1800 s it replaced ended the 683-test suite at 660 (2026-11-04), so the last 23 never ran and gave no coverage, and left the test host running into the journeys.
-- First complete measurement (2026-11-03, split run): UX 75.82% (54496/71873; 13784 more lines to 95%), logic 96.02%. The hosted example `UKHostedSettingsTests` took `UKSettingsViewController.swift` from 0/449 to 245/449 lines (all of UIKitPort 1338 to 3397 lines) in a 29 s run.
-- The current numbers, and the per-file gap to 95% by area, are in [coverage-baseline.md](coverage-baseline.md) (JSON beside the coverage outputs: `apple/.build/coverage-ios/baseline.json`). Regenerate with `tools/coverage_ios.py baseline apple/.build/.../merged.json --json … --md …` after a full run.
-- Gallery files (`UIKitPort/Gallery`) are fixture pages that only tests reach; the baseline says how much of the gap they are.
+- A timeout, an infrastructure exit, a crash marker or a failure with no named test fails the run whatever the quarantine says.
+- Each named id reruns once without instrumentation, after the export. An id is `coverage-only` only when the rerun passed; anything else is `real`.
+- The run fails for any `real` id and for a `coverage-only` id missing from `apple/coverage-quarantine.json` (each entry names an open `Workflow` issue). The 95% bar never changes and quarantined tests still count.

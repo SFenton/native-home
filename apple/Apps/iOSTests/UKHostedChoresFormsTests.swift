@@ -94,7 +94,12 @@ final class UKHostedChoresFormsTests: DemoHouseTestCase {
         defer { r.window.isHidden = true }
         let form = UKAddGroceryItemController(model: r.model, entityId: ChoresConfig.groceryEntityId)
         let modal = await present(form, on: r)
-        let field = try XCTUnwrap(FeatureHost.view("grocery.item", in: form.view) as? UITextField)
+        // The field takes focus as the form appears, and while the soft keyboard is up the list has no height and realises no cell
+        // (see `present`). How long the keyboard takes to leave after `endEditing` depends on what ran before, so wait for the
+        // field's row to be laid out rather than for a fixed time.
+        await FeatureHost.settleAsync(until: { FeatureHost.view("grocery.item", in: form.view) is UITextField })
+        let field = try XCTUnwrap(FeatureHost.view("grocery.item", in: form.view) as? UITextField,
+                                  "the Item field is on the form: \(FeatureHost.describeLists(in: modal.view)) keyboard guide=\(modal.view.keyboardLayoutGuide.layoutFrame)")
         field.text = "  Oat milk  "
         field.sendActions(for: .editingChanged)
         XCTAssertTrue(form.canConfirm)

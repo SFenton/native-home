@@ -63,7 +63,7 @@ class RuleTests(unittest.TestCase):
                 self.assertIsNotNone(condition, "%s/%s is a hosted Mac job without an if:" % (path.name, job))
                 self.assertIn(MACOS_GUARD, condition.group(1), "%s/%s lacks the HOSTED_MACOS guard" % (path.name, job))
                 self.assertNotIn("repository.private", condition.group(1), "%s/%s keys a Mac job on visibility" % (path.name, job))
-        self.assertEqual(found, 6)  # macos-build, macos-test, coverage-changed, build-release, runtimes smoke, ios-release ipa
+        self.assertEqual(found, 11)  # macos-build, macos-test, coverage-changed, build-release, runtimes smoke, ios-release ipa, nightly build, journeys, hosted, coverage and live
 
     def test_the_runner_label_variable_is_validated(self):
         for path in all_files():
@@ -210,6 +210,31 @@ class RuleTests(unittest.TestCase):
         self.assertIn("apple/.build/uitest-${{ matrix.family }}.xcresult/**", test)
         self.assertIn("include-hidden-files: true", test)
 
+    def test_the_hosted_unit_tests_run_on_iphone_only_after_the_journeys_and_fail_the_job(self):
+        test = jobs("pr-checks.yml")["macos-test"]
+        step = test.split("name: Hosted tests the diff reaches on iphone", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("id: hosted", step)
+        self.assertIn("tools/ci_macos.sh hosted iphone", step)
+        condition = step.split("if: ", 1)[1].split("\n", 1)[0]
+        for part in ("!cancelled()", "github.event_name == 'pull_request'", "matrix.family == 'iphone'"):
+            self.assertIn(part, condition)
+        timeout = int(re.search(r"timeout-minutes: (\d+)", step).group(1))
+        job = int(re.search(r"timeout-minutes: (\d+)", test).group(1))
+        self.assertGreaterEqual(timeout, 60)  # the whole suite fits
+        self.assertGreater(job, timeout + 30)  # and Smoke and the journeys still fit in front of it
+        self.assertNotIn("continue-on-error", step)  # a failed hosted step fails the job, as Smoke and the journeys do
+        self.assertLess(test.index("tools/ci_macos.sh journeys"), test.index("tools/ci_macos.sh hosted iphone"))
+        self.assertLess(test.index("tools/ci_macos.sh hosted iphone"), test.index("tools/ci_macos.sh swift-test"))
+        self.assertEqual(test.count("steps.hosted.outcome == 'failure'"), 2)  # the diagnostics and the kept results follow a failed hosted step
+        self.assertIn("uitest-${{ matrix.family }}-journeys.xcresult/**", test)  # the hosted run replaces the journeys' own bundle: both are kept
+        self.assertNotIn("hosted iphone", jobs("pr-checks.yml")["macos-build"])
+
+    def test_the_scope_filter_watches_every_file_that_decides_hosted_selection(self):
+        text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
+        app_tools = re.search(r"app_tools: '\{(.*?)\}'", text).group(1).split(",")
+        for path in ("tools/affected_tests.py", "tools/ios_uitest.sh", "tools/ci_macos.sh", "tools/uitest_support.py", "contracts/test-map*"):
+            self.assertIn(path, app_tools)
+
     def test_swift_test_rides_the_ipad_leg_and_the_spm_cache_follows_it(self):
         test = jobs("pr-checks.yml")["macos-test"]
         self.assertEqual(test.count("tools/ci_macos.sh swift-test"), 1)
@@ -248,7 +273,7 @@ class RuleTests(unittest.TestCase):
 
     def test_only_the_macos_test_job_installs_simslim(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
-        self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 2)  # macos-test, and coverage-changed (its iOS phase boots iPhone)
+        self.assertEqual(text.count("FENTON_INSTALL_SIMSLIM"), 1)  # macos-test; coverage-changed is host-only and boots no simulator
 
     def test_manual_runs_with_different_dry_run_flags_do_not_cancel_each_other(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
@@ -294,6 +319,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("github.event_name == 'pull_request'", cond)
         self.assertIn("needs.scope.outputs.app == 'true'", cond)
         self.assertNotIn("continue-on-error", job)
+        self.assertNotIn("FENTON_INSTALL_SIMSLIM", job)  # host-only: no simulator
         self.assertIn("coverage-changed", jobs("pr-checks.yml")["pr-checks"].split("steps:")[0])
 
     def test_a_green_main_closes_the_red_main_issue(self):

@@ -1,16 +1,20 @@
 # Workflow
 
-> **What:** how we work. **Read when:** starting any change.
+> **What:** the router to the process rules; each rule has one home here. **Read when:** you need a process rule and do not know its file.
 
 | File | Holds |
 |---|---|
-| [change-loop.md](change-loop.md) | The per-change procedure |
-| [pr-lifecycle.md](pr-lifecycle.md) | How a session ends: ship, review, `pr_land.sh`, the merge gate and its hook |
-| [ci.md](ci.md) | The Mac runner, `pr-checks`, `ios-release` and the 2 AM nightly run with its `Nightly Fix` issues |
-| [propose-first.md](propose-first.md) | Propose, build, judge, record: how a visible choice is decided without waiting on the owner |
-| [docs-conventions.md](docs-conventions.md) | Rules for `.agents` files |
-| [token-economy.md](token-economy.md) | No polling, session size, model routing, the test ladder, and the tools that enforce them |
-| [decision-models.md](decision-models.md) | Jev: the pre-read hint, the question registry, what it measurably can and cannot do |
-| [swiftui-pro.md](swiftui-pro.md) | How we apply the vendored SwiftUI Pro skill |
-| [versioning.md](versioning.md) | `YYMM.DD.NN` version tags, build stamping, `AppBuildInfo`, `Release-Note` trailers |
-| [triage-agent.md](triage-agent.md) | In-app reports → private request repo → the MacBook triage agent → verified PRs |
+| [agent-roster.md](agent-roster.md) | Who dispatches whom, the contracts (brief, status block, ledger, evidence pack), the guards, when to ask the owner |
+| [autonomy.md](autonomy.md) | The levels, the owner-only set, the app-UI gate |
+| [change-loop.md](change-loop.md) | The order of a change; rung 0, system API first |
+| [propose-first.md](propose-first.md) | How a visible choice is built, judged and recorded |
+| [pr-lifecycle.md](pr-lifecycle.md) | Worktrees, shipping, review, landing, PR notes |
+| [pr-form.md](pr-form.md) | The form of a pull request title, description and step comment |
+| [ci.md](ci.md) | What each workflow guards, the merge gate, waiting on CI |
+| [versioning.md](versioning.md) | Version tags, build stamping, release-note trailers |
+| [token-economy.md](token-economy.md) | Waiting without polling, models, test cost, capacity |
+| [docs-conventions.md](docs-conventions.md) | What a rule is, the home of everything else, the scope test |
+| [eval-gate.md](eval-gate.md) | Self-change lanes, post-mortems, the eval gate and its cases |
+| [jev.md](jev.md) | What a decision-model answer may do; adding and promoting questions |
+| [security.md](security.md) | House data, credentials, secret scans, untrusted input |
+| [triage-agent.md](triage-agent.md) | Headless sessions and the runner |

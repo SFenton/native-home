@@ -5,13 +5,18 @@ Commands::
 
     python3 tools/pr_text.py title-check TEXT
     python3 tools/pr_text.py body-check FILE [--strict]
-    python3 tools/pr_text.py compose --summary-file F --tests-file F [--evidence-file F] [--status TEXT]
+    python3 tools/pr_text.py compose --summary-file F --tests-file F [--evidence-file F]
                                      [--request N] [--request-quote TEXT]
     python3 tools/pr_text.py title-from FILE
     python3 tools/pr_text.py labels --base REF [--head REF] [--type TYPE] [--devices iphone,duo,ipad]
 
 The rules come from the pull-request timeline proposal: a title is one plain sentence of at most 70 characters; a body has a
-``## Summary`` and a ``## Tests`` section and nothing a person has to skip. The banned words, the internal-label patterns and
+``## Summary`` and a ``## Tests`` section and nothing a person has to skip. No status text and no review block is shown:
+``compose`` writes only the hidden marker pairs other tools find (``sh-status``, ``review``); a body carries no step list. An
+``## Evidence`` section is for pictures of its own (an image, a gif or a video): one that only links to pictures in the
+comments is refused. A body that carries a generated-by footer is refused, and under ``--strict`` so is a sentence that sends
+the reader to a fix made elsewhere (another repository, another pull request) when nothing in the description names it: the
+``owner/repo`` or a pull request link, and its state. The banned words, the internal-label patterns and
 the path-to-area table live in ``tools/pr_text_words.json``, which the owner can edit. Exit codes: 0 clean, 1 a problem (or a
 warning under ``--strict``), 2 bad usage. Standard library only.
 """
@@ -60,6 +65,10 @@ ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.*)$")
 BRACKET = re.compile(r"(?<![\w!\\\]])\[(?!!)([^\[\]\n]*)\](?![(\[:])")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])")
 ABBREVIATIONS = ("e.g.", "i.e.", "vs.", "etc.,")
+#: A picture of the section's own: a markdown image, an ``<img>`` or ``<video>`` tag, or an uploaded asset on its own line.
+OWN_PICTURE = re.compile(
+    r"!\[[^\]]*\]\([^)\s]+\)|<img\b[^>]*\bsrc=|<video\b[^>]*\bsrc=|^\s*https://github\.com/user-attachments/assets/\S+\s*$",
+    re.I | re.M)
 
 
 def marker_block(name: str) -> "re.Pattern[str]":
@@ -181,6 +190,89 @@ def progressive_hits(sentence: str, words: dict) -> list:
     return found
 
 
+def footer_problems(body: str, words: dict) -> list:
+    """One line when ``body`` carries a generated-by footer (``banned_footers``); code fences and inline code do not count."""
+    prose = INLINE_CODE.sub("", FENCE.sub("", body))
+    if any(re.search(pattern, prose) for pattern in words["banned_footers"]):
+        return ["the body carries a 'Generated with ...' footer; leave it out"]
+    return []
+
+
+#: An ``owner/repo`` name, not part of a longer path or a web address.
+REPO_NAME = re.compile(r"(?<![\w/.:-])([A-Za-z0-9][\w-]*)/([A-Za-z0-9][\w.-]*?)\.?(?![\w/-])")
+#: A link to a repository or to one of its pull requests.
+REPO_LINK = re.compile(r"https?://github\.com/[\w.-]+/[\w.-]+(?:/(?:pull|issues)/\d+)?", re.I)
+
+
+def names_repository(text: str, words: dict) -> bool:
+    """Whether ``text`` names a repository concretely: a GitHub link, or an ``owner/repo`` that is not a file path.
+
+    A bare ``owner/repo`` needs a capital letter, a digit, a hyphen, an underscore or a dot in it (so ``and/or`` is not one);
+    inside backticks any name will do."""
+    if REPO_LINK.search(text):
+        return True
+    roots, exts = set(words["path_roots"]), set(words["path_extensions"])
+    for m in REPO_NAME.finditer(text):
+        owner, repo = m.group(1), m.group(2).rstrip(".")
+        if owner in roots or repo.rsplit(".", 1)[-1] in exts and "." in repo:
+            continue
+        ticked = text[max(0, m.start() - 1):m.start()] == "`" and text[m.end():m.end() + 1] == "`"
+        if ticked or re.search(r"[A-Z0-9_.-]", owner + repo):
+            return True
+    return False
+
+
+def states_progress(text: str, words: dict) -> bool:
+    """Whether ``text`` says where the fix stands (``elsewhere_state_words``: merged, open, not pushed, not installed ...)."""
+    return any(re.search(rf"\b{re.escape(w)}\b", text, re.I) for w in words["elsewhere_state_words"])
+
+
+def elsewhere_problems(text: str, words: Optional[dict] = None) -> list:
+    """One line when ``text`` sends the reader to a fix made somewhere else and nothing in the whole text says where and how it stands.
+
+    A sentence with a phrase from ``elsewhere_phrases`` ("a different repository", "a separate pull request", "elsewhere",
+    "upstream", "in a follow-up"; "elsewhere" and "upstream" count only beside fix, correction or repair) is allowed when the text, anywhere, holds a concrete name (an ``owner/repo`` or a pull
+    request or issue link) and a state word (``elsewhere_state_words``). The line tells the writer what to add."""
+    words = words or load_words()
+    clean = COMMENT.sub("", FENCE.sub("", text))
+    hit = None
+    for _, unit in units(clean, keep_code=True):
+        for sentence in sentences(unit):
+            found = next(filter(None, (re.search(p, sentence) for p in words["elsewhere_phrases"])), None)
+            if found and not hit:
+                hit = (sentence, found)
+    if not hit:
+        return []
+    lacks = [label for label, ok in (("no repository or pull request named", names_repository(clean, words)),
+                                     ("no state given", states_progress(clean, words))) if not ok]
+    if not lacks:
+        return []
+    sentence, found = hit
+    return [f"{sentence[:60]!r} sends the reader elsewhere ({found.group(0)!r}) and the text has {' and '.join(lacks)}; "
+            f"add the repository (owner/repo or a pull request link), the files, what changes there, and its "
+            f"state (merged, open, not pushed, not installed)"]
+
+
+#: A link to a pull request: a web address, or ``owner/repo#N``.
+PR_LINK = re.compile(r"https?://github\.com/[\w.-]+/[\w.-]+/pull/\d+|(?<![\w/.-])[A-Za-z0-9][\w-]*/[A-Za-z0-9][\w.-]*#\d+")
+
+
+def linked_state_problems(text: str, words: Optional[dict] = None) -> list:
+    """One line for each paragraph or list item that links a pull request without a state word beside the link.
+
+    The state words are ``elsewhere_state_words`` (merged, open, closed, not pushed ...); the link's own address is not read.
+    Whether the state is still true is for the session that sees it change (pr-form.md, "Linked pull requests")."""
+    words = words or load_words()
+    clean = COMMENT.sub("", FENCE.sub("", text))
+    blocks = re.split(r"\n\s*\n|\n(?=\s*(?:[-*+]|\d+[.)])\s)", clean)
+    out = []
+    for block in blocks:
+        links = PR_LINK.findall(block)
+        if links and not states_progress(PR_LINK.sub(" ", block), words):
+            out.append(f"{links[0]!r} links a pull request with no state beside it; say its state (merged, open, closed, not pushed)")
+    return out
+
+
 def placeholder_problems(body: str, words: dict) -> list:
     """Template placeholder text left in ``body``: a bracketed ``[ ... ]`` that is not a link or checkbox, or an old instruction string."""
     problems = []
@@ -242,6 +334,11 @@ def first_summary_sentence(body: str, words: Optional[dict] = None) -> Optional[
     return None
 
 
+def has_own_picture(text: str) -> bool:
+    """Whether ``text`` holds a picture of its own (not a link to one elsewhere); comments and code fences do not count."""
+    return bool(OWN_PICTURE.search(COMMENT.sub("", FENCE.sub("", text))))
+
+
 def body_problems(body: str, words: Optional[dict] = None) -> tuple:
     """``(errors, warnings)`` for a pull request body; see the module notes for which rule is which."""
     words = words or load_words()
@@ -259,7 +356,12 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
     for heading in HEADING.finditer(strip_unlinted(body, words)):
         if heading.group(1).strip().lower() not in ALLOWED_SECTIONS:
             errors.append(f"extra section: ## {heading.group(1).strip()}; a body has only Summary, Tests and Evidence")
+    if "evidence" in found and not has_own_picture(found["evidence"]):
+        errors.append("## Evidence holds no picture of its own; leave the section out when the pictures are in the comments")
     errors += placeholder_problems(body, words)
+    errors += footer_problems(body, words)
+    warnings += elsewhere_problems(strip_unlinted(body, words), words)
+    warnings += linked_state_problems(strip_unlinted(body, words), words)
     first = first_summary_sentence(body, words)
     if first:
         for hit in label_hits(first, words):
@@ -294,14 +396,16 @@ def body_problems(body: str, words: Optional[dict] = None) -> tuple:
 
 # MARK: - Composer
 
-def compose(summary: str, tests: str, evidence: str = "", status: str = "Drafting", request: str = "", quote: str = "") -> str:
-    """The pull request body: Summary, Tests, Evidence when given, then the hidden marker blocks and the request lines."""
+def compose(summary: str, tests: str, evidence: str = "", request: str = "", quote: str = "") -> str:
+    """The pull request body: Summary, Tests, Evidence when given, then the hidden marker pairs and the request lines.
+
+    Nothing about status or review is shown, and no step list: the ``sh-status`` and ``review`` marker pairs are empty HTML
+    comments, kept so the tools that write between them still find their place."""
     parts = [f"## Summary\n{summary.strip()}", f"## Tests\n{tests.strip()}"]
     if evidence.strip():
         parts.append(f"## Evidence\n{evidence.strip()}")
-    parts.append("<!-- sh-timeline:start -->\n<!-- sh-timeline:end -->")
-    parts.append(f"<!-- sh-status:start -->\n{status.strip() or 'Drafting'}\n<!-- sh-status:end -->")
-    parts.append("<details><summary>Review verdict</summary>\n\n<!-- review:start -->\n<!-- review:end -->\n\n</details>")
+    parts.append("<!-- sh-status:start -->\n<!-- sh-status:end -->")
+    parts.append("<!-- review:start -->\n<!-- review:end -->")
     tail = []
     if quote.strip():
         tail.append(f'Owner\'s request: "{quote.strip()}"')
@@ -372,7 +476,6 @@ def main(argv: Optional[Sequence] = None) -> int:
     p.add_argument("--summary-file", required=True)
     p.add_argument("--tests-file", required=True)
     p.add_argument("--evidence-file")
-    p.add_argument("--status", default="Drafting")
     p.add_argument("--request")
     p.add_argument("--request-quote")
     p = sub.add_parser("title-from", help="print the first Summary sentence as a title")
@@ -403,7 +506,11 @@ def main(argv: Optional[Sequence] = None) -> int:
         if empty:
             print(f"error: empty {' and '.join(empty)} file", file=sys.stderr)
             return 1
-        sys.stdout.write(compose(summary, tests, evidence, args.status, args.request or "", args.request_quote or ""))
+        if evidence.strip() and not has_own_picture(evidence):
+            print("error: the evidence file holds no picture of its own; leave it out when the pictures are in the comments",
+                  file=sys.stderr)
+            return 1
+        sys.stdout.write(compose(summary, tests, evidence, args.request or "", args.request_quote or ""))
         return 0
     if args.command == "title-from":
         first = first_summary_sentence(read_text(args.file))

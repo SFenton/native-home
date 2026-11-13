@@ -2,7 +2,7 @@
 
 > **What:** how S+H shows each running household job, and each device problem, as its own Live Activity, kept current by Home Assistant while the app is closed. It covers the wire contract, the `fenton_home` job engine, every job kind and problem code, stop and cancel flows, slots and ordering, the views, tests and the lane plan. **Read when:** building or changing Live Activities, the widget extension, the `fenton_home` engine, or the Home Assistant side.
 
-Status: spec, owner-approved design (2026-10-17). **The app lane (§11, §12) is built** on `claude/live-activities-v2-app` (see the app-lane notes at the end of §11); the engine and relay lane (§9) and the Home Assistant config (§10) are not. It **supersedes** [live-activities.md](live-activities.md) §1 ("one activity, not many"), §3 (content state v1), §4 (presentation) and §6 (engine rules), and **retires** [live-activities-ha-automations.md](live-activities-ha-automations.md) once the engine ships. Everything else in those files (the token plumbing in §0, privacy, the Phase 1 targets) still holds.
+It **supersedes** [live-activities.md](live-activities.md) §1 ("one activity, not many"), §3 (content state v1), §4 (presentation) and §6 (engine rules), and **retires** [live-activities-ha-automations.md](live-activities-ha-automations.md) once the engine ships. The engine lives in `SFenton/ha-fenton-home`.
 
 Design source: the canvas **S+H Live Activity** (the owner's private mockup gallery, link kept outside the repo), boards 5 to 8: "Two jobs" and "Four jobs" stacks, "Corner mark follows your app icon", "Vacuum, one room per card", "Expanded island on every camera width", "Problem cards". The boards are the visual contract; this file is the behavioural one.
 
@@ -104,7 +104,7 @@ Explicit `CodingKeys` with snake_case keys. Times are Unix seconds as doubles (t
 | `problem` | `{severity, code, icon, problem, message, chips[≤1], task_id?}`? | Present ⇔ `phase == problem`. `severity` is `critical` or `warning`. `icon` is from the problem glyph set (§5). Strings are already worded by the engine |
 | `detail` | String? (≤ 32) | The small line under the title (13 pt). Hot flash only today: "Your side", "Resident A's side", "Resident B's side" or "Whole bed", plus " · by Resident B" / " · by Home" when it fits (dropped otherwise). Title stays the attribute `title` ("Hot Flash") and `headline` is null |
 | `short` | String? (≤ 10) | The compact island's trailing word when the card has no `value` (§8a): the room ("Kitchen"), "Paused" or "Area". Decoded with a default |
-| `notice` | String? (≤ 60) | One-update message from §7 ("Couldn't stop. Try again.", "No longer available"); shown in place of the value |
+| `notice` | String? (≤ 60) | One-update message from §7 ("Couldn't stop. Try again.", "No longer available"); shown in place of the value on a job card, and in place of the instruction on a problem card ([rule](../../design/live-activity-problem-notice.md)) |
 | `pending` | `{control, label, since_ts}`? | Written **only by the app** (§7). The engine never sends it, so any push clears it |
 | `url` | String? | Tap target, mapped by `ActivityDeepLink` |
 
@@ -267,7 +267,7 @@ Sequence for every control:
 3. **Confirm.**
    - **Stop and Dock** succeed → end now. The card disappears; that removal is the confirmation.
    - **Pause / Resume** → an update with the new phase.
-   - **Timeout or service error** → an update with the real current state (controls back) and `notice: "Couldn't {verb}. Try again."`, shown in place of the value for that update only.
+   - **Timeout or service error** → an update with the real current state (controls back) and `notice: "Couldn't {verb}. Try again."`, shown for that update only, in place of the value on a job card and of the instruction on a problem card.
 4. **If no push arrives at all** (the network is lost after the tap):
    - the stale date passes, and the view sees `context.isStale && pending != nil`;
    - it shows the controls again with a small "Not confirmed" line.
@@ -363,7 +363,7 @@ Where the build chose or departed from §8a:
 - **Rings** no longer dim when paused.
 - **Not changed.** Problem cards keep their own layout and the 40 pt mark.
 
-## 9. `fenton_home` changes (repo `SFenton/ha-fenton-push`)
+## 9. `fenton_home` changes (repo `SFenton/ha-fenton-home`)
 
 1. **`live_jobs.py` engine** (the Phase 2 engine in live-activities.md §7, re-scoped per job):
    - adapters per job kind (§4), each a pure function `(states) -> JobState | None` with unit tests on recorded state snapshots;
@@ -449,7 +449,7 @@ Where the build chose or departed from the text above, so the engine lane and re
   - AX5 layout;
   - reading order;
   - the expanded-island stand-in at the smallest and largest widths with an `H:MM:SS` value, asserting nothing is clipped (the trailing text's frame fits inside its region).
-- **Coverage** ≥ 95% logic / 95% UX (`tools/apple_coverage.sh`).
+- **Coverage** ≥ 95% logic (`tools/apple_coverage.sh`).
 - **Relay:** pytest green, plus HA's `ha core check` after the HACS update.
 - **Device checks (owner's phone; planner deploys):**
   1. Fan timer from the dashboard with the app closed → card. Stop → card gone, fan off.
@@ -466,7 +466,7 @@ Where the build chose or departed from the text above, so the engine lane and re
 
 | Lane | Repo | Scope | Depends on |
 |---|---|---|---|
-| A, engine and relay (Sonnet) | `SFenton/ha-fenton-push` | §9, fixtures | this spec |
+| A, engine and relay (Sonnet) | `SFenton/ha-fenton-home` | §9, fixtures | this spec |
 | B, app (Sonnet) | this repo | §11, §12; hand-written fixtures first | this spec (runs in parallel with A) |
 | C, HA config (planner) | owner's `/config` | §10 | A deployed through HACS |
 

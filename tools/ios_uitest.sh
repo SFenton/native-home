@@ -51,11 +51,11 @@
 #   at least 10 minutes, at most 7200 s (FENTON_DEVCAP_HOLD overrides).
 #   Run it through `tools/bg_run.py LABEL -- tools/ios_uitest.sh …` with run_in_background and end the turn: you get a digest, not a log.
 #   FENTON_DERIVED_DATA=DIR builds and tests with -derivedDataPath DIR (CI gives each run its own and deletes it; unset = Xcode's default).
-#   --impact DIR (spike) builds the app instrumented (CLANG_COVERAGE_MAPPING build settings, so its own products-cache entry) and has every app launch write
-#   DIR/<Class>.<test>.<pid>.profraw (TEST_RUNNER_FENTON_IMPACT_DIR); tools/test_impact.py extract turns that into a per-test line map.
-#   --hosted runs only the app-hosted unit tests, FentonHomeTests. With --impact DIR their profile goes into DIR; without it they run plain
-#   (the coverage run's classification rerun, tools/coverage_classify.py). FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
+#   --hosted runs only the app-hosted unit tests, FentonHomeTests. FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
 #   --tests does not select hosted tests (they are not UI tests); use FENTON_HOSTED_FILTER.
+#   --changed also runs the diff's hosted classes (tools/affected_tests.py --hosted) as one more `--hosted` run on iPhone after the journeys, with its own
+#   hold and ledger key; an unplaced UIKitPort/iOSTests file then exits 3. --no-hosted turns that leg off (pr-checks' journeys step passes it: its `hosted`
+#   step is the one place CI runs, and reports, hosted classes).
 #   --appearance draws every sheet in that appearance (FENTON_APPEARANCE; pages stay dark). Without it sheets follow the
 #   simulator's own setting.
 #   FENTON_CI_HOSTED=1 on a GitHub-hosted runner (RUNNER_ENVIRONMENT=github-hosted) is the hosted mode (tools/ci_hosted.py, .agents/workflow/ci.md): no devcap holds or pool (ci_hosted.py devcap
@@ -80,8 +80,8 @@ PLAN="Gate"
 PLAN_GIVEN=0
 SUITE_SPEC=""
 TESTS_SPEC=""
-IMPACT_DIR=""
 HOSTED=0
+NO_HOSTED=0
 BUILD_ONLY=0
 EXTRA=()
 while [[ $# -gt 0 ]]; do
@@ -95,8 +95,8 @@ while [[ $# -gt 0 ]]; do
     --full) FULL=1; shift ;;
     --allow-empty) ALLOW_EMPTY=1; echo "allow-empty: an empty run (no test ran, or every test skipped) is not a failure"; shift ;;
     --parallel-families) PARALLEL=1; shift ;;
-    --impact) IMPACT_DIR="$2"; shift 2 ;;
     --hosted) HOSTED=1; shift ;;
+    --no-hosted) NO_HOSTED=1; shift ;;
     --build-only) BUILD_ONLY=1; shift ;;
     --plan) PLAN="$2"; PLAN_GIVEN=1; shift 2 ;;
     --suite) SUITE_SPEC="${SUITE_SPEC:+$SUITE_SPEC,}$2"; shift 2 ;;
@@ -163,23 +163,10 @@ if [[ -n "$ENV_FILE" ]]; then
 fi
 
 export COVERAGE=NO
-if [[ -n "$IMPACT_DIR" ]]; then
-  mkdir -p "$IMPACT_DIR"; IMPACT_DIR="$(cd "$IMPACT_DIR" && pwd)"
-  export TEST_RUNNER_FENTON_IMPACT_DIR="$IMPACT_DIR"
-  # Instrument with build settings, not -enableCodeCoverage YES: Xcode's own coverage overwrites the app's LLVM_PROFILE_FILE
-  # (and drops its profiles in a temp directory), so a per-test file name never reaches the app. The settings also change the
-  # products-cache key. Coverage stays NO.
-  EXTRA+=(CLANG_ENABLE_CODE_COVERAGE=YES CLANG_COVERAGE_MAPPING=YES)
-  FORCE=1
-fi
 if [[ $HOSTED == 1 ]]; then
-  # The app-hosted unit tests (FentonHomeTests: UIKit view controllers driven directly inside the app). With --impact their profile goes
-  # to DIR/FentonHomeTests.<pid>.%c.profraw (TEST_RUNNER_ variables reach the test host, which is the instrumented app) and
-  # tools/coverage_ios.py export merges it with the journeys' profiles. Takes seconds once the products are cached.
-  # Without --impact the hosted tests run plain (no profile): the coverage run's classification rerun (tools/coverage_classify.py).
+  # The app-hosted unit tests (FentonHomeTests: UIKit view controllers driven directly inside the app).
   # FENTON_HOSTED_FILTER='Class1 Class2' runs only those hosted classes (bisecting a test that fails after another).
   if [[ -n "${FENTON_HOSTED_FILTER:-}" ]]; then for c in $FENTON_HOSTED_FILTER; do EXTRA+=(-only-testing:FentonHomeTests/$c); done; else EXTRA+=(-only-testing:FentonHomeTests); fi
-  [[ -z "$IMPACT_DIR" ]] || export TEST_RUNNER_LLVM_PROFILE_FILE="$IMPACT_DIR/FentonHomeTests.%p.%c.profraw"
   # Sized from the hosted test count (uitest_support.py hosted-hold): a fixed 1800 s ended the full suite part way and left its
   # app running into the journeys that followed.
   # shellcheck disable=SC2086  # FENTON_HOSTED_FILTER is a list of class names
@@ -198,18 +185,58 @@ affected() { python3 "$ROOT/tools/affected_tests.py" "$@" ${FENTON_AFFECTED_BASE
 BASE_EXTRA=("${EXTRA[@]+"${EXTRA[@]}"}")  # the caller's arguments, before --changed adds its journeys
 CHANGED_FAMILIES=""
 CHANGED_IPHONE=""; CHANGED_DUO=""; CHANGED_IPAD=""  # the -only-testing list each family runs under --changed
+# The worst status wins; a hang (125) or unhealthy simulator (126) outranks a plain failure so the digest says INFRA.
+worst() { local a="$1" b="$2"; if (( b == 0 )); then echo "$a"; elif (( a == 0 || a == 1 )); then echo "$b"; else echo "$a"; fi; }
+# --changed also runs the hosted unit-test classes the diff reaches (FentonHomeTests, tools/affected_tests.py --hosted), on the primary
+# family only, as one extra `--hosted` run of this script with its own device hold and its own ledger key (a rerun on the same tree skips
+# it). Not under --only duo|ipad, --plan Smoke, --suite/--tests, --hosted, --no-hosted or --build-only. CHANGED_HOSTED is the class list ("" = none);
+# HOSTED_PICK=1 when a UIKitPort or iOSTests file no rule places (affected_tests.py printed which; the run then fails with status 3).
+CHANGED_HOSTED=""; HOSTED_PICK=0
+if [[ $CHANGED == 1 && $HOSTED == 0 && $NO_HOSTED == 0 && $BUILD_ONLY == 0 && -z "$SUITE_SPEC$TESTS_SPEC" && "$PLAN" != Smoke && ( -z "$ONLY" || "$ONLY" == iphone ) ]]; then
+  HOSTED_RC=0
+  CHANGED_HOSTED="$(affected --hosted)" || HOSTED_RC=$?
+  [[ $HOSTED_RC == 3 ]] && HOSTED_PICK=1
+  [[ $HOSTED_RC == 0 || $HOSTED_RC == 3 ]] || { echo "ios_uitest: affected_tests.py --hosted failed (exit $HOSTED_RC)" >&2; exit "$HOSTED_RC"; }
+fi
+# finish STATUS: run the hosted leg (after the journeys), then exit with the worst of both. Dry run (FENTON_UITEST_PRINT_FILTERS=1) prints it.
+finish() {
+  local status="${1:-0}" hs=0 args=(--hosted --only iphone)
+  if [[ -n "$CHANGED_HOSTED" ]]; then
+    if [[ "${FENTON_UITEST_PRINT_FILTERS:-}" == 1 ]]; then
+      echo "hosted: $CHANGED_HOSTED"
+    else
+      [[ $FORCE == 1 ]] && args+=(--force)
+      echo "== changed: hosted classes on iphone (their own run and hold): $CHANGED_HOSTED"
+      FENTON_HOSTED_FILTER="$CHANGED_HOSTED" "$ROOT/tools/ios_uitest.sh" "${args[@]}" || hs=$?
+      echo "== changed: hosted run exit $hs"
+      status="$(worst "$status" "$hs")"
+    fi
+  fi
+  [[ $HOSTED_PICK == 1 ]] && status="$(worst "$status" 3)"
+  exit "$status"
+}
 if [[ $CHANGED == 1 ]]; then
   AFFECTED_STATUS=0
-  CHANGED_JOURNEYS="$(affected --journeys)" || AFFECTED_STATUS=$?
+  # Only the classes the chosen plan runs: a class its skippedTests lists (the Live-plan ShellJourneyTests under Gate) matches nothing under
+  # -only-testing and xcodebuild reports EMPTY. The dropped ones are named, not silently lost.
+  CHANGED_JOURNEYS="$(affected --journeys --plan "$PLAN")" || AFFECTED_STATUS=$?
+  CHANGED_ALL="$(affected --journeys || true)"
+  if [[ -n "$CHANGED_ALL" && "$CHANGED_ALL" != "$CHANGED_JOURNEYS" ]]; then
+    DROPPED=""
+    for arg in $CHANGED_ALL; do [[ " $CHANGED_JOURNEYS " == *" $arg "* ]] || DROPPED="$DROPPED ${arg##*/}"; done
+    echo "== changed: not in the $PLAN plan, so not run:$DROPPED"
+  fi
   if [[ -z "$CHANGED_JOURNEYS" ]]; then
     # Exit 3 = a changed file needs a targeted pick (affected_tests.py printed which); 0 = nothing needs a journey.
-    echo "== changed: no journey covers this diff; nothing to run"; exit "$AFFECTED_STATUS"
+    echo "== changed: no $PLAN-plan journey covers this diff; nothing to run"
+    [[ -n "$CHANGED_HOSTED" || $HOSTED_PICK == 1 ]] || exit "$AFFECTED_STATUS"
+    finish "$AFFECTED_STATUS"  # a diff the journeys do not reach can still reach hosted classes (a hosted test file, a helper)
   fi
   for arg in $CHANGED_JOURNEYS; do EXTRA+=("$arg"); done  # the iPhone list (the superset): count, hold and the full-suite check
   CHANGED_FAMILIES="$(affected --families || true)"
   CHANGED_IPHONE="$CHANGED_JOURNEYS"
-  CHANGED_DUO="$(affected --journeys --device duo || true)"
-  CHANGED_IPAD="$(affected --journeys --device ipad || true)"
+  CHANGED_DUO="$(affected --journeys --device duo --plan "$PLAN" || true)"
+  CHANGED_IPAD="$(affected --journeys --device ipad --plan "$PLAN" || true)"
   echo "== changed: $CHANGED_JOURNEYS on ${CHANGED_FAMILIES:-no family}"
   [[ "$CHANGED_DUO" == "$CHANGED_JOURNEYS" && "$CHANGED_IPAD" == "$CHANGED_JOURNEYS" ]] || \
     echo "== changed: per family: duo ${CHANGED_DUO:-(smoke)} | ipad ${CHANGED_IPAD:-(smoke)}"
@@ -219,7 +246,7 @@ if [[ $CHANGED == 1 ]]; then
     var="TEST_RUNNER_${pair%%=*}"
     if [[ -z "${!var:-}" ]]; then export "$var=${pair#*=}"; echo "== changed: $var=${pair#*=}"; fi
   done
-  [[ -n "$CHANGED_FAMILIES" ]] || exit 0
+  [[ -n "$CHANGED_FAMILIES" ]] || finish 0
 fi
 
 # --suite / --tests: resolve the selectors (tools/test_suites.py) to -only-testing lists per family; under --changed they are
@@ -431,7 +458,7 @@ recorded_skipped() {  # family -> 0 when the ledger holds a `skipped` record (ne
 }
 if [[ "${FENTON_UITEST_PRINT_FILTERS:-}" == 1 ]]; then  # dry run for the tool tests: what each family would run
   for family in iphone duo ipad; do wanted "$family" || continue; family_args "$family"; echo "$family: ${FAMILY_ARGS[*]-}"; done
-  exit 0
+  finish 0
 fi
 # Preflight: every selected family needs its base simulator in the devcap pool (devcap pick-sim draws pool members from the
 # device named here). A missing one is a gap, never a silent skip: one `GAP:` line (the digest shows it) and exit 78 for the run,
@@ -465,8 +492,8 @@ for family in iphone duo ipad; do
 done
 if [[ $PENDING == 0 ]]; then
   echo "== nothing to run"
-  if [[ $ALLOW_EMPTY == 0 ]]; then python3 "$ROOT/tools/uitest_support.py" tally "$FENTON_TALLY" || exit 1; fi
-  exit 0
+  if [[ $ALLOW_EMPTY == 0 ]]; then python3 "$ROOT/tools/uitest_support.py" tally "$FENTON_TALLY" || finish 1; fi
+  finish 0
 fi
 
 cd "$ROOT/apple"
@@ -529,8 +556,6 @@ process_family() {
   return $status
 }
 
-# The worst status wins; a hang (125) or unhealthy simulator (126) outranks a plain failure so the digest says INFRA.
-worst() { local a="$1" b="$2"; if (( b == 0 )); then echo "$a"; elif (( a == 0 || a == 1 )); then echo "$b"; else echo "$a"; fi; }
 STATUS=0
 mkdir -p "$ROOT/apple/.build"  # a fresh worktree has none, and the per-family logs live there
 # --changed keeps a copy of the run's output for the informational base-failure summary below (it never changes the exit status).
@@ -588,6 +613,11 @@ if [[ $STATUS == 0 && $ALLOW_EMPTY == 0 ]]; then
     fi
   fi
 fi
-# Informational only (tools/lane_base.py): which failures the base commit already has. It never changes $STATUS.
-if [[ $CHANGED == 1 && $STATUS != 0 ]]; then sleep 1; python3 "$ROOT/tools/lane_base.py" baseline summary --command ios_uitest --log "$ROOT/apple/.build/uitest-run.log" || true; fi
+# The hosted leg (--changed only; CHANGED_HOSTED is empty otherwise) runs after the journeys, whatever their status, and joins it.
+# Informational only (tools/lane_base.py): which failures the base commit already has. It never changes the status.
+if [[ $CHANGED == 1 ]]; then
+  HOSTED_STATUS=0; (finish "$STATUS") || HOSTED_STATUS=$?
+  STATUS=$HOSTED_STATUS
+  if [[ $STATUS != 0 ]]; then sleep 1; python3 "$ROOT/tools/lane_base.py" baseline summary --command ios_uitest --log "$ROOT/apple/.build/uitest-run.log" || true; fi
+fi
 exit $STATUS

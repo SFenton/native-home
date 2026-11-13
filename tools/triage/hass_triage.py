@@ -62,6 +62,17 @@ API = "https://api.github.com"
 UPLOADS = "https://uploads.github.com/user-attachments/assets"
 MAX_MEDIA_BYTES = 10 * 1024 * 1024
 ATTACHMENT_URL = re.compile(r"https://github\.com/user-attachments/(?:assets|files)/[A-Za-z0-9-]+(?:/[^\s)\"'<>]*)?")
+#: The comment the runner posts on the public pull request when the worker's text fails the house-data check.
+GENERIC_PULL_QUESTION = ("An owner decision is needed before this pull request can land. "
+                         "The question and options are on the request issue.")
+#: The issue comment the nightly park posts on the public product repository when the worker's text fails the house-data check.
+GENERIC_PARK_ISSUE = "An owner decision is needed before the pull request below can land."
+#: The decision comment the nightly intake posts on the public product repository, with no pull request to name, when the
+#: worker's text fails the house-data check.
+GENERIC_DECISION_ISSUE = "An owner decision is needed before this can continue."
+#: The last line of the pull request question: only what works today (nothing reads replies or approvals there yet).
+PULL_DECIDE_LINE = ("To decide: reply on the request issue with your pick, or approve and merge this pull request "
+                    "to accept the recommendation.")
 RUNNER_MARKER = re.compile(r"<!-- hass-triage:\d+:[a-z-]+ -->")
 MISSING_LABEL = re.compile(r"'([^']+)' not found")
 #: Lines of the worker log kept in the evidence archive.
@@ -104,7 +115,7 @@ OWNER_ONLY = {"fixed_set", "app_wide", "unmatched", "gate_unavailable"}
 JUDGE_NOTE = ("\n\nOwner rule (2026-11-03): a design or policy pick is not the owner's. Your last run finished "
               "`needs_decision` on {pr} for one. Build up to 3 options, capture screenshots and behaviour on the affected "
               "families, have the `designer` judge them and record the pick (`design-decision` skill), then land the "
-              "pick through `tools/pr_land.sh` like L0/L1. Finish `needs_decision` only for the fixed set or a `gate: park` "
+              "pick through `tools/pr_land.sh` like L0/L1. Finish `needs_decision` only for the fixed set or a `gate: park route=pr` "
               "from `tools/jev_gate.py`, with `decision.owner_only` set to `fixed_set`, `app_wide`, `unmatched` or "
               "`gate_unavailable`.\n")
 #: Failed attempts to file one ha-changes alert before it is listed as unfiled and later entries go on.
@@ -662,7 +673,7 @@ def preread_section(cfg: Dict[str, Any], title: str, body: str) -> str:
 
     Empty when ``cfg["jev"]["enabled"]`` is false, when there is no key (the file ``~/.config/fenton-hass/typesafe.key``, or ``TYPESAFE_API_KEY`` when there is no file), when the API fails or has
     nothing confident to say, and on any error: the prompt is then exactly what it was without Jev
-    (``tools/jev_hints.py``, ``.agents/workflow/decision-models.md``).
+    (``tools/jev_hints.py``, ``.agents/workflow/jev.md``).
     """
     if not (cfg.get("jev") or {}).get("enabled", True):
         return ""
@@ -796,7 +807,7 @@ def route_rule(issue: Dict[str, Any], nightly: bool, about_workflow: Optional[fl
 
 
 def route_text(rule: str, jev: Optional[str]) -> str:
-    """The ``{{ROUTE}}`` line of the prompt: the rule route only. A shadow answer is never shown (decision-models.md);
+    """The ``{{ROUTE}}`` line of the prompt: the rule route only. A shadow answer is never shown (.agents/workflow/jev.md);
     ``jev`` is recorded in the ledger and the shadow log, not here."""
     if rule == "steward-jev":
         return "Route: steward-first (no Workflow label, but Jev reads the request as about how the agents work)"
@@ -2660,7 +2671,7 @@ class Runner:
             text = (f"{decision.get('question', summary)}\n\n{options}\n\nRecommended: "
                     f"**{decision.get('recommendation', '?')}**. Reply with your choice and the agent continues on its "
                     "next run.")
-            post_update(self.gh, self.repo, n, "decision-needed", text)
+            self.post_decision(n, text, [], GENERIC_DECISION_ISSUE)
             self.gh.edit_labels(self.repo, n, add=["Needs Decision"], remove=["In Progress"])
             self.state.record(n, "needs_decision", decision.get("question", ""))
             return "needs_decision"
@@ -2680,7 +2691,8 @@ class Runner:
 
         Labels the pull request and the issue ``Needs Decision``, posts the options, and remembers the pull request so
         ``check_parked`` finishes the issue when the owner merges it and ``requeue`` builds the owner's pick when they
-        reply instead. The worktree stays."""
+        reply instead. The worktree stays. The issue comment goes through :meth:`post_decision`, which checks it when the issue
+        is on the public product repository (the nightly intake) and falls back to :data:`GENERIC_PARK_ISSUE` on a hit."""
         summary = str(status.get("summary", "")).strip()
         mockups = "\n".join(f"- {m}" for m in decision.get("mockups") or [])
         text = (f"{decision.get('question', summary)}\n\n{options}\n\nRecommended: "
@@ -2688,7 +2700,8 @@ class Runner:
         if mockups:
             text += f"\n\nMockups:\n{mockups}"
         text += (f"\n\nPull request: {pr}\n\nReply with your pick, or merge the PR to accept the recommendation.")
-        post_update(self.gh, self.repo, n, "decision-needed", text, status.get("screenshots") or [])
+        self.post_decision(n, text, status.get("screenshots") or [], f"{GENERIC_PARK_ISSUE}\n\nPull request: {pr}")
+        self.post_pull_question(pr, decision, options)
         self.gh.label_pull(pr, "Needs Decision")
         try:  # a coder's pull request is a draft (ship.sh): ready it so the owner can merge it to accept
             if self.gh.pull(pr).get("isDraft"):
@@ -2700,6 +2713,72 @@ class Runner:
         self.state.set_attempts(n, 0)
         self.state.record(n, "parked", pr)
         return "parked"
+
+    def post_decision(self, n: int, text: str, media: List[Dict[str, str]], fallback: str) -> None:
+        """Post the runner's ``decision-needed`` comment on this issue, the one place both decision comments go through.
+
+        When the issue is not on the request repository (the nightly intake is on the public product repository; the
+        comparison ignores case) the exact body that will be posted, captions and file names included, passes
+        :meth:`public_safe`; on a hit, or a checker that cannot run, the comment is ``fallback`` with no media. Any repository
+        other than the request repository is treated as public."""
+        request = str(self.cfg.get("request_repo") or "")
+        if self.repo.lower() != request.lower() and not self.public_safe(render_update(n, "decision-needed", text, media),
+                                                                         "issue comment"):
+            text, media = fallback, []
+        post_update(self.gh, self.repo, n, "decision-needed", text, media)
+
+    def public_safe(self, text: str, target: str = "pull request question") -> bool:
+        """May ``text`` go to the public product repository? Fails closed: ``False`` on any house-data hit (``tools/house_scan.py``
+        with the owner's denylist), the private request repository's name or an issue link into it, a denylist that is not
+        loaded, or any checker error. ``target`` names what is being checked in the log. Counts only are printed, never a
+        matched term."""
+        try:
+            import house_scan
+            deny = house_scan.load_denylist()
+            if not deny:
+                print(f"{target}: denylist not loaded; posting the generic comment")
+                return False
+            hits = house_scan.scan_text("pull-comment.md", text, house_scan.load_config(), deny)
+            name = str(self.cfg.get("request_repo") or "").strip()
+            leaked = bool(name) and any(part.lower() in text.lower() for part in {name, name.split("/")[-1]} if part)
+            if hits or leaked:
+                print(f"{target}: {len(hits) + int(leaked)} house-data hit(s); posting the generic comment")
+                return False
+            return True
+        except Exception as exc:  # noqa: BLE001  a checker that cannot run must never let text through
+            print(f"{target}: house-data check failed ({type(exc).__name__}); posting the generic comment")
+            return False
+
+    def post_pull_question(self, pr: str, decision: Dict[str, Any], options: str) -> None:
+        """Post the parked question on the pull request itself, as the runner's ``decision-needed`` marker comment.
+
+        The pull request is on the public product repository, so the worker's text is posted only after :meth:`public_safe`
+        passes; otherwise the comment is the fixed :data:`GENERIC_PULL_QUESTION` with no worker text. A second park edits the
+        runner's own marker comment in place when the text changed and does nothing when it did not; a marker comment by anyone
+        else is ignored. Nothing reads replies or approvals on the pull request yet, so the last line names only what works.
+        Fail safe: any failure is logged and the park goes on. The issue comment is unchanged."""
+        try:
+            number = int(pr.rstrip("/").rsplit("/", 1)[1])
+            repo = self.cfg["product_repo"]
+            numbered = "\n".join(f"{i}. **{o.get('key', i)}**: {o.get('summary', '')}" if isinstance(o, dict) else f"{i}. {o}"
+                                 for i, o in enumerate(decision.get("options") or [], 1)) or options
+            text = (f"{decision.get('question', '')}\n\n{numbered}\n\nRecommended: **{decision.get('recommendation', '?')}**.\n\n"
+                    f"{PULL_DECIDE_LINE}")
+            body = render_update(number, "decision-needed", text, [])
+            if not self.public_safe(body):
+                body = render_update(number, "decision-needed", GENERIC_PULL_QUESTION, [])
+            if self.gh.dry_run:
+                return
+            tag = marker(number, "decision-needed")
+            own = {x.lower() for x in [*self.authors, str(self.cfg.get("agent_login") or "")] if x}
+            for comment in self.gh.comments(repo, number):
+                if tag in (comment.get("body") or "") and author(comment).lower() in own:
+                    if (comment.get("body") or "").strip() != body.strip():
+                        self.gh.edit_comment(repo, int(comment["id"]), body)
+                    return
+            self.gh.create_comment(repo, number, body)
+        except Exception as exc:  # noqa: BLE001  the question on the pull request is a courtesy; the park must stay intact
+            print(f"{pr}: could not post the question on the pull request: {redact(str(exc))[:200]}")
 
     def finish_done(self, n: int, status: Dict[str, Any], pr: str) -> str:
         parts = [str(status.get("summary", "")).strip()]

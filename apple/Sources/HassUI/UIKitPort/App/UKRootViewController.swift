@@ -133,7 +133,10 @@ final class UKRootViewController: UIViewController {
                 let root = Unmanaged<UKRootViewController>.fromOpaque(observer).takeUnretainedValue()
                 MainActor.assumeIsolated {
                     let mask: UIInterfaceOrientationMask = name == "uk.debug.landscape" ? .landscapeLeft : .portrait
-                    root.view.window?.windowScene?.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { NSLog("ROTATE error %@", String(describing: $0)) }
+                    root.view.window?.windowScene?.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { @Sendable error in
+                        // UIKit calls the error handler on a background queue, so it must not inherit the main actor from this closure.
+                        NSLog("ROTATE error %@", String(describing: error))
+                    }
                 }
             }, name as CFString, nil, .deliverImmediately)
         }

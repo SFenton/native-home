@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,6 +47,11 @@ class FakeGitHub(ht.GitHub):
         self.variables: Dict[str, str] = {}
         self.next_id = 100
         self.branch_pull_list: List[Dict[str, Any]] = []
+        #: Every comment created or edited, as ``(repo, kind, body)``; ``kind`` is ``create`` or ``edit``.
+        self.posts: List[tuple] = []
+        FakeGitHub.created.append(self)
+
+    created: List["FakeGitHub"] = []
 
     def token(self) -> str:
         return "ghp_" + "x" * 30
@@ -67,12 +73,14 @@ class FakeGitHub(ht.GitHub):
 
     def create_comment(self, repo, n, body):
         self.calls.append(("comment", n, body))
+        self.posts.append((repo, "create", body))
         self.next_id += 1
         self.comment_store.setdefault(n, []).append({"id": self.next_id, "body": body, "user": {"login": "SFenton"},
                                                      "created_at": "2026-10-13T12:00:00Z"})
 
     def edit_comment(self, repo, comment_id, body):
         self.calls.append(("edit", comment_id, body))
+        self.posts.append((repo, "edit", body))
         for items in self.comment_store.values():
             for c in items:
                 if c["id"] == comment_id:
@@ -147,12 +155,27 @@ class Base(unittest.TestCase):
         self.with_tasks = False  # does a new worktree hold tools/tasks.py?
         self.check_rc = 0
         self.new_rc: List[int] = []
+        FakeGitHub.created = []
         self.home = Path(tempfile.mkdtemp(prefix="hass-triage-test-"))
         self.cfg = ht.load_config(self.home)
         self.paths = ht.Paths(self.cfg, self.home)
 
+    #: An invented stand-in for house data (never a real term). Tests that park put it in the worker's text and in the denylist.
+    CANARY = "zzcanaryhouse"
+
+    def assertNoPublicLeak(self):
+        """Fails if the canary is in any comment, created or edited, that a fake GitHub received for the public product repository."""
+        public = self.cfg["product_repo"]
+        for gh in FakeGitHub.created:
+            for repo, kind, body in gh.posts:
+                if repo == public:
+                    self.assertNotIn(self.CANARY, body, f"house-data canary reached a {kind} on the public repository")
+
     def tearDown(self):
-        shutil.rmtree(self.home, ignore_errors=True)
+        try:
+            self.assertNoPublicLeak()
+        finally:
+            shutil.rmtree(self.home, ignore_errors=True)
 
     def runner(self, gh: FakeGitHub, status: Optional[Dict[str, Any]] = None, code: int = 0, **kw) -> ht.Runner:
         def launch(n, worktree, prompt, log):
@@ -312,7 +335,11 @@ class PreReadTests(Base):
             text = self.render()
         self.assertIn(self.SECTION, text)
         self.assertLess(text.index("</issue-comments>"), text.index("## Pre-read"))
-        self.assertLess(text.index("## Pre-read"), text.index("## Rules you work under"))
+        # The section sits where the template puts it: before whatever heading follows the placeholder.
+        template = (ht.HERE / "prompts" / "worker.md").read_text(encoding="utf-8")
+        after = template.split("{{PREREAD}}", 1)[1]
+        following = next(line for line in after.splitlines() if line.startswith("## "))
+        self.assertLess(text.index("## Pre-read"), text.index(following))
         section.assert_called_once_with(self.cfg, "[Bug] Thing 9", "The Next run pill is cut off")
         self.assertNotIn("{{", text)
 
@@ -772,6 +799,7 @@ class NightlyIntakeTests(Base):
 
 
 PRODUCT_PR = "https://github.com/SFenton/native-home/pull/70"
+PR_NUMBER = 70
 
 
 class LabelRetryTests(Base):
@@ -1492,6 +1520,249 @@ class ParkTests(Base):
         self.assertEqual(runner.state.attempts(80), 0)
         self.assertFalse([c for c in self.commands if "worktree" in c and "remove" in c])
 
+    def pr_comments(self, gh):
+        return [c for c in gh.comment_store.get(PR_NUMBER, []) if ht.marker(PR_NUMBER, "decision-needed") in c["body"]]
+
+    def with_denylist(self, terms="zzfixtureterm\n"):
+        path = Path(tempfile.mkdtemp()) / "deny.txt"
+        path.write_text(terms)
+        path.chmod(0o600)
+        return mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": str(path)})
+
+    def park_with(self, question="Which chip layout?", option="Inline", n=90, gh=None, repo=""):
+        gh = gh or FakeGitHub([issue(n, labels=["Feature"])])
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        status = self.decision_status()
+        status["decision"]["question"] = question
+        status["decision"]["options"][0]["summary"] = option
+        runner = self.runner(gh, status)
+        if repo:
+            runner.cfg["request_repo"] = repo
+        with mock.patch("sys.stdout", new=io.StringIO()) as out:
+            runner.park(n, status, status["decision"], "- A", PRODUCT_PR)
+        return gh, runner, out.getvalue()
+
+    def test_park_asks_once_on_the_pull_request_and_once_on_the_issue(self):
+        with self.with_denylist():
+            gh, runner, _ = self.park()
+            on_pr = self.pr_comments(gh)
+            self.assertEqual(len(on_pr), 1)
+            for part in ("Which chip layout?", "1. **A**: Inline", "2. **B**: Stacked", "Recommended: **A**",
+                         "To decide: reply on the request issue with your pick, or approve and merge this pull request "
+                         "to accept the recommendation."):
+                self.assertIn(part, on_pr[0]["body"])
+            self.assertTrue(on_pr[0]["body"].split("\n\n<!--")[0].endswith("to accept the recommendation."))
+            self.assertNotIn("Reply `1`", on_pr[0]["body"])
+            self.assertEqual(len([c for c in gh.comment_store[80] if ht.marker(80, "decision-needed") in c["body"]]), 1)
+            before = len(gh.calls)
+            runner.park(80, self.decision_status(), self.decision_status()["decision"], "- A", PRODUCT_PR)  # identical repeat
+            self.assertEqual(len(gh.comment_store[PR_NUMBER]), 1)
+            self.assertFalse([c for c in gh.calls[before:] if c[0] == "edit" and c[1] == on_pr[0]["id"]])
+
+    def test_a_second_park_with_new_text_edits_the_runners_comment_in_place(self):
+        with self.with_denylist():
+            gh, _, _ = self.park_with()
+            gh, _, _ = self.park_with(question="Which toggle style?", gh=gh)
+            on_pr = self.pr_comments(gh)
+            self.assertEqual(len(on_pr), 1)
+            self.assertIn("Which toggle style?", on_pr[0]["body"])
+            self.assertNotIn("Which chip layout?", on_pr[0]["body"])
+
+    def canary_status(self, question="Which chip layout?"):
+        """A park whose question, option summary and recommendation all carry the canary."""
+        status = self.decision_status()
+        status["decision"]["question"] = f"{question} {self.CANARY}"
+        status["decision"]["options"][0]["summary"] = f"Inline {self.CANARY}"
+        status["decision"]["recommendation"] = f"A {self.CANARY}"
+        status["screenshots"] = [{"kind": "image", "file": f"chip-{self.CANARY}.png", "url": "https://example.test/chip.png",
+                                  "caption": f"Inline {self.CANARY}"}]
+        return status
+
+    def park_canary(self, gh, n, nightly, question="Which chip layout?"):
+        """Park issue ``n`` with canary text; ``nightly`` runs the nightly intake, whose issue is on the public repository."""
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        status = self.canary_status(question)
+        runner = self.runner(gh, status)
+        if nightly:
+            runner.intake = self.cfg["nightly"]
+            runner.repo = self.cfg["nightly"]["repo"]
+        with mock.patch("sys.stdout", new=io.StringIO()) as out:
+            runner.park(n, status, status["decision"], "\n".join(f"- {o['summary']}" for o in status["decision"]["options"]),
+                        PRODUCT_PR)
+        return runner, out.getvalue()
+
+    def issue_comments(self, gh, repo, n):
+        return [c for c in gh.comment_store.get(n, []) if ht.marker(n, "decision-needed") in c["body"]]
+
+    def test_a_park_never_sends_house_data_to_the_public_repository_on_either_intake(self):
+        """Fails if the canary reaches a pull request comment or, on the nightly intake, the issue comment on the product repository."""
+        for nightly, n in ((False, 120), (True, 121)):
+            with self.subTest(nightly=nightly), self.with_denylist(f"{self.CANARY}\n"):
+                gh = FakeGitHub([issue(n, labels=["Nightly Fix" if nightly else "Feature"])])
+                runner, out = self.park_canary(gh, n, nightly)
+                self.assertEqual(runner.state.data["parked"][str(n)]["pr"], PRODUCT_PR)
+                self.assertNotIn(self.CANARY, out)
+                self.assertTrue(gh.posts)
+                on_issue = self.issue_comments(gh, runner.repo, n)
+                self.assertEqual(len(on_issue), 1)
+                if nightly:  # the issue is on the public repository: fixed text, the pull request still named
+                    self.assertEqual(runner.repo, self.cfg["product_repo"])
+                    self.assertIn(PRODUCT_PR, on_issue[0]["body"])
+                    self.assertIn("hit(s)", out)
+                else:  # the private request repository keeps the full question
+                    self.assertIn("Which chip layout?", on_issue[0]["body"])
+                self.assertIn(ht.GENERIC_PULL_QUESTION, self.pr_comments(gh)[0]["body"])
+
+    def test_a_second_park_with_different_text_edits_in_place_and_never_leaks(self):
+        """Fails if a second park (new text, canary in it) leaves the canary, or a second comment, on the public repository."""
+        for nightly, n in ((False, 122), (True, 123)):
+            with self.subTest(nightly=nightly), self.with_denylist(f"{self.CANARY}\n"):
+                gh = FakeGitHub([issue(n, labels=["Nightly Fix" if nightly else "Feature"])])
+                self.park_canary(gh, n, nightly, question="First question?")
+                first = len(gh.posts)  # a start index, never a clear: tearDown must still see the first park
+                clean = self.decision_status()
+                clean["decision"]["question"] = "Second question?"
+                runner = self.runner(gh, clean)
+                if nightly:
+                    runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+                with mock.patch("sys.stdout", new=io.StringIO()):
+                    runner.park(n, clean, clean["decision"], "- A", PRODUCT_PR)
+                    runner.park(n, self.canary_status("Third question?"), self.canary_status("Third question?")["decision"],
+                                f"- {self.CANARY}", PRODUCT_PR)
+                self.assertEqual(len(self.pr_comments(gh)), 1)
+                self.assertEqual(len(self.issue_comments(gh, runner.repo, n)), 1)
+                self.assertTrue([p for p in gh.posts[first:] if p[1] == "edit"])
+
+    def test_a_canary_only_in_a_screenshot_caption_or_file_name_stays_off_the_public_issue(self):
+        """Fails if the park checks a body without the screenshots part but posts it with them."""
+        n = 124
+        with self.with_denylist(f"{self.CANARY}\n"):
+            gh = FakeGitHub([issue(n, labels=["Nightly Fix"])])
+            gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+            status = self.decision_status(screenshots=self.canary_status()["screenshots"])
+            runner = self.runner(gh, status)
+            runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+            with mock.patch("sys.stdout", new=io.StringIO()) as out:
+                runner.park(n, status, status["decision"], "- A", PRODUCT_PR)
+            on_issue = self.issue_comments(gh, runner.repo, n)
+            self.assertEqual(len(on_issue), 1)
+            self.assertIn(PRODUCT_PR, on_issue[0]["body"])
+            self.assertNotIn("Which chip layout?", on_issue[0]["body"])
+            self.assertNotIn(self.CANARY, out.getvalue())
+
+    def test_a_nightly_decision_without_a_parkable_pull_request_never_leaks(self):
+        """Fails if the plain decision comment on the public product repository carries worker text that fails the check."""
+        for n, pr in ((125, ""), (126, PRODUCT_PR)):
+            with self.subTest(pr=pr), self.with_denylist(f"{self.CANARY}\n"):
+                gh = FakeGitHub([issue(n, labels=["Nightly Fix"])])
+                if pr:
+                    gh.pulls[PRODUCT_PR] = {"state": "CLOSED", "labels": []}
+                status = self.canary_status()
+                status["pr"] = pr
+                runner = self.runner(gh, status)
+                runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+                with mock.patch("sys.stdout", new=io.StringIO()) as out:
+                    self.assertEqual(runner.work(n), "needs_decision")
+                on_issue = self.issue_comments(gh, runner.repo, n)
+                self.assertEqual(len(on_issue), 1)
+                self.assertIn(ht.GENERIC_DECISION_ISSUE, on_issue[0]["body"])
+                self.assertNotIn(self.CANARY, out.getvalue())
+                self.assertIn("issue comment", out.getvalue())
+
+    def test_a_clean_nightly_decision_without_a_pull_request_keeps_its_text(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(127, labels=["Nightly Fix"])])
+            runner = self.runner(gh, self.decision_status(pr=""))
+            runner.intake, runner.repo = self.cfg["nightly"], self.cfg["nightly"]["repo"]
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(runner.work(127), "needs_decision")
+            self.assertIn("Which chip layout?", self.issue_comments(gh, runner.repo, 127)[0]["body"])
+
+    def test_the_repository_match_ignores_case(self):
+        """Fails if a nightly repository spelled in another case skips the check."""
+        with self.with_denylist(f"{self.CANARY}\n"):
+            gh = FakeGitHub([issue(128, labels=["Nightly Fix"])])
+            gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+            status = self.canary_status()
+            runner = self.runner(gh, status)
+            runner.intake = self.cfg["nightly"]
+            runner.repo = self.cfg["nightly"]["repo"].upper()
+            self.assertNotEqual(runner.repo, self.cfg["nightly"]["repo"])
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                runner.park(128, status, status["decision"], "- A", PRODUCT_PR)
+            self.assertTrue([p for p in gh.posts if p[2].count(ht.GENERIC_PARK_ISSUE)])
+
+    def test_a_marker_comment_by_another_author_is_ignored(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(91, labels=["Feature"])])
+            tag = ht.marker(PR_NUMBER, "decision-needed")
+            gh.comment_store[PR_NUMBER] = [{"id": 5, "body": tag, "user": {"login": "stranger"}}]
+            gh, _, _ = self.park_with(gh=gh, n=91)
+            self.assertEqual(gh.comment_store[PR_NUMBER][0]["body"], tag)
+            self.assertEqual(len(gh.comment_store[PR_NUMBER]), 2)
+            self.assertIn("Which chip layout?", gh.comment_store[PR_NUMBER][1]["body"])
+
+    def assert_generic(self, gh, out, secret):
+        on_pr = self.pr_comments(gh)
+        self.assertEqual(len(on_pr), 1)
+        self.assertIn(ht.GENERIC_PULL_QUESTION, on_pr[0]["body"])
+        self.assertNotIn("Which chip layout?", on_pr[0]["body"])
+        self.assertNotIn(secret, on_pr[0]["body"])
+        self.assertNotIn(secret, out)
+
+    def test_a_denylisted_term_posts_the_generic_comment_and_prints_no_term(self):
+        with self.with_denylist("zzfixtureterm\n"):
+            gh, _, out = self.park_with(option="uses zzfixtureterm lamp")
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("hit(s)", out)
+
+    def test_the_private_repository_name_or_an_issue_link_posts_the_generic_comment(self):
+        repo = "Fixture/zzprivate-requests"
+        for n, leak in ((92, "zzprivate-requests"), (93, f"https://github.com/{repo}/issues/12")):
+            with self.with_denylist():
+                gh, _, out = self.park_with(option=f"see {leak}", n=n, repo=repo)
+            self.assert_generic(gh, out, "zzprivate-requests")
+
+    def test_an_unloaded_denylist_posts_the_generic_comment(self):
+        with mock.patch.dict(os.environ, {"HOUSE_SCAN_DENYLIST": str(Path(tempfile.mkdtemp()) / "none.txt")}):
+            gh, _, out = self.park_with()
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("denylist not loaded", out)
+
+    def test_a_checker_error_posts_the_generic_comment(self):
+        with self.with_denylist(), mock.patch("house_scan.scan_text", side_effect=RuntimeError("boom zzfixtureterm")):
+            gh, _, out = self.park_with()
+        self.assert_generic(gh, out, "zzfixtureterm")
+        self.assertIn("check failed", out)
+
+    def test_any_post_failure_leaves_the_park_intact(self):
+        with self.with_denylist():
+            gh = FakeGitHub([issue(94, labels=["Feature"])])
+            real = gh.comments
+
+            def comments(repo, n):
+                if n == PR_NUMBER:
+                    raise AttributeError("odd")
+                return real(repo, n)
+            gh.comments = comments
+            gh2, runner, _ = self.park_with(gh=gh, n=94)
+            self.assertIn("94", runner.state.data["parked"])
+
+    def test_a_failing_pull_request_post_never_stops_the_park(self):
+        gh = FakeGitHub([issue(86, labels=["Feature"])])
+        gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
+        create = gh.create_comment
+
+        def failing(repo, n, body):
+            if n == PR_NUMBER:
+                raise ht.TriageError("denied")
+            create(repo, n, body)
+        gh.create_comment = failing
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(self.runner(gh, self.decision_status()).work(86), "parked")
+        self.assertIn(("label_pull", PRODUCT_PR, "Needs Decision", ""), gh.calls)
+        self.assertEqual(len([c for c in gh.comment_store[86] if ht.marker(86, "decision-needed") in c["body"]]), 1)
+
     def test_a_design_pick_is_not_parked_it_is_sent_back_to_be_judged(self):
         gh = FakeGitHub([issue(85, labels=["Feature"])])
         gh.pulls[PRODUCT_PR] = {"state": "OPEN", "labels": []}
@@ -1961,6 +2232,17 @@ class PromptFileTests(Base):
             self.assertNotIn("{{", text, template)
             for part in ("R-5", "Route: x", "orchestrator", "pr_land.sh", "(Triage)", "devcap"):
                 self.assertIn(part, text, template)
+
+    def test_prompts_name_only_files_that_exist(self):
+        """Fails if: a prompt sends the session to a skill, agent file or tool that is not in the tree. Workflow rule docs are
+        left to the rule-surface lint, which knows their fixed names."""
+        root = ht.HERE.parents[1]
+        for path in sorted((ht.HERE / "prompts").glob("*.md")):
+            named = re.findall(r"`((?:\.agents|\.claude|tools)/[\w./-]+\.(?:md|py|sh|json))`", path.read_text())
+            self.assertTrue(named, path.name)
+            for rel in named:
+                if not rel.startswith(".agents/workflow/"):
+                    self.assertTrue((root / rel).exists(), f"{path.name}: {rel}")
 
     def test_worker_prompt_has_the_level_rules(self):
         text = (ht.HERE / "prompts" / "worker.md").read_text()

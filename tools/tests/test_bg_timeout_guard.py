@@ -11,7 +11,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hooks"))
 import bg_timeout_guard  # noqa: E402
 
-COVERAGE = "tools/apple_coverage.sh"
+COVERAGE = "tools/ios_uitest.sh --full"
 
 
 def run_hook(raw):
@@ -54,6 +54,10 @@ class BgTimeoutGuardTests(unittest.TestCase):
                     json.dumps({"tool_name": "Bash", "tool_input": {"command": 5, "run_in_background": True}})):
             with self.subTest(raw=raw[:20]):
                 self.assertEqual(run_hook(raw)[0], 0)
+
+    def test_the_coverage_script_is_not_a_long_job(self):
+        """Host-only since 2026-11-10 (about ten minutes): a background run needs no long timeout."""
+        self.assertEqual(run_hook(bash(command="tools/apple_coverage.sh", run_in_background=True))[0], 0)
 
     def test_an_unbalanced_quote_is_still_read(self):
         self.assertEqual(run_hook(bash(command="echo 'x; " + COVERAGE, run_in_background=True))[0], 2)

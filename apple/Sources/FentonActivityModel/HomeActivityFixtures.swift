@@ -43,8 +43,9 @@ public enum HomeActivityFixtures {
     /// Hot flash.
     public static let hotFlashNames = ["hotflash-cooling", "hotflash-holding", "hotflash-bysam", "hotflash-wholebed", "hotflash-byhome",
                                        "hotflash-alex-bysam"]
-    /// A press waiting, unconfirmed, and failed.
-    public static let stateNames = ["fan-pending", "fan-pending-stale", "fan-notice", "problem-completing"]
+    /// A press waiting, unconfirmed, and failed (a job card's notice, then a problem card's, amber and red).
+    public static let stateNames = ["fan-pending", "fan-pending-stale", "fan-notice", "problem-completing",
+                                    "problem-notice", "problem-notice-stuck"]
     /// Four jobs: the cap.
     public static let stackNames = ["fan", "dishwasher-percent", "washer", "dryer"]
     /// Every problem row of the spec's §5 table, as the table has it.
@@ -149,6 +150,12 @@ public enum HomeActivityFixtures {
             var base = problem(row, hasTask: true, now: t)
             base.state = base.state.awaiting(control: "done", now: now)
             return ActivityFixture(name: name, attributes: base.attributes, state: base.state)
+        case "problem-notice":
+            // Amber, a two-line instruction, Resume and Done: the engine's "Couldn't resume" after a press that did not take.
+            return problemNotice(name, code: "mop.clean_water_empty", notice: "Couldn't resume. Try again.", now: t)
+        case "problem-notice-stuck":
+            // Red, Resume, Dock and Done: the app's "Couldn't reach Home".
+            return problemNotice(name, code: "navigation.stuck", notice: "Couldn't reach Home", now: t)
         default: break
         }
         guard name.hasPrefix("problem-") else { return nil }
@@ -291,6 +298,13 @@ public enum HomeActivityFixtures {
                    message: "Refill the rinse aid.", buttons: [], hasTask: true,
                    device: "Dishwasher", tag: "job.dishwasher", kind: "dishwasher", symbol: "dishwasher"),
     ]
+
+    /// A problem card that shows a one-update failure notice: the row's own controls, no pending state.
+    private static func problemNotice(_ name: String, code: String, notice: String, now: TimeInterval) -> ActivityFixture? {
+        guard let row = problemRows.first(where: { $0.code == code }) else { return nil }
+        let base = problem(row, hasTask: true, now: now)
+        return ActivityFixture(name: name, attributes: base.attributes, state: base.state.failing(notice: notice))
+    }
 
     private static func problem(_ row: ProblemRow, hasTask: Bool, now: TimeInterval) -> Base {
         // As the engine sends them: the first control carries no role (primary), the others say `secondary`.

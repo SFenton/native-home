@@ -1,3 +1,5 @@
+> **History, not current (2026-11-10):** UX line coverage is no longer measured (owner, 2026-11-10); this baseline is the last UX and logic measurement, kept for reference. See [coverage](../../testing/apple/coverage.md).
+
 # Coverage baseline (combined run 2026-11-04, a6a9b30e: UX 95.61%, logic 96.09%)
 
 > **What:** measured UX and logic line coverage and the per-file gap to 95%, from `tools/coverage_ios.py baseline`. **Read when:** you pick files to write tests for. Regenerate after a full run (`.agents/testing/apple/coverage.md`).
