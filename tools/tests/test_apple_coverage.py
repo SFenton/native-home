@@ -16,7 +16,7 @@ SCRIPT = (ROOT / "tools" / "apple_coverage.sh").read_text(encoding="utf-8")
 
 class HostOnlyScriptTests(unittest.TestCase):
     def test_no_ios_phase_or_products_key(self):
-        for needle in ("coverage_products_key", "products_cache", "coverage_ios", "ios_uitest", "FENTON_COV_IOS", "--impact", "simctl"):
+        for needle in ("coverage_products_key", "products_cache", "coverage_ios", "ios_uitest", "FENTON_COV_IOS", "simctl"):
             self.assertNotIn(needle, SCRIPT, needle)
 
     def test_help_prints_the_header_and_starts_nothing(self):

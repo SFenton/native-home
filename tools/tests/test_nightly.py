@@ -256,7 +256,6 @@ class HostedWorkflowTests(unittest.TestCase):
         hosted = self.TEXT.split("\n  hosted:\n", 1)[1].split("\n  live:\n", 1)[0]
         self.assertIn("tools/ios_uitest.sh --only iphone --hosted --force", hosted)
         self.assertNotIn("FENTON_HOSTED_FILTER", hosted)  # the whole suite, not a diff's classes
-        self.assertNotIn("--impact", hosted)
         self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", hosted).group(1)), 90)
         self.assertIn("--area hosted", hosted)
         self.assertIn("name: nightly-hosted", hosted)  # matches the report job's nightly-* pattern

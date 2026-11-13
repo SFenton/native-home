@@ -229,8 +229,8 @@ def select(files: Iterable[str], test_map: Dict, root: Path = ROOT) -> Dict:
                 add(hosted, placed)
         if file.startswith(HOSTED_TESTS):
             continue  # hosted tests are not journeys or Swift package suites
-        if file.startswith(TESTS) and not (root / file).exists():
-            ignored.append(file)  # a deleted test file has nothing to run
+        if file.startswith((TESTS, JOURNEYS)) and not (root / file).exists():
+            ignored.append(file)  # a deleted test or journey-target file has nothing to run
             continue
         if file.startswith(TESTS) or file.startswith(JOURNEYS):
             hit = convention(file, root)  # a changed test file selects its own classes first
