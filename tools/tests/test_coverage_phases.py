@@ -178,7 +178,7 @@ class ScriptWiringTests(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "[]")
 
     def test_script_is_host_only(self) -> None:
-        for needle in ("FENTON_COV_IOS", "ios_uitest", "coverage_ios", "UIKitPort", "simctl", "--impact"):
+        for needle in ("FENTON_COV_IOS", "ios_uitest", "coverage_ios", "UIKitPort", "simctl"):
             self.assertNotIn(needle, self.SCRIPT)
         self.assertNotIn("cov_rerun_ios", (ROOT / "tools" / "coverage_phases.sh").read_text(encoding="utf-8"))
 

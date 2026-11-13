@@ -51,14 +51,11 @@
 #   at least 10 minutes, at most 7200 s (FENTON_DEVCAP_HOLD overrides).
 #   Run it through `tools/bg_run.py LABEL -- tools/ios_uitest.sh …` with run_in_background and end the turn: you get a digest, not a log.
 #   FENTON_DERIVED_DATA=DIR builds and tests with -derivedDataPath DIR (CI gives each run its own and deletes it; unset = Xcode's default).
-#   --impact DIR (spike) builds the app instrumented (CLANG_COVERAGE_MAPPING build settings, so its own products-cache entry) and has every app launch write
-#   DIR/<Class>.<test>.<pid>.profraw (TEST_RUNNER_FENTON_IMPACT_DIR); tools/test_impact.py extract turns that into a per-test line map.
-#   --hosted runs only the app-hosted unit tests, FentonHomeTests. With --impact DIR their profile goes into DIR; without it they run plain
-#   (the coverage run's classification rerun, tools/coverage_classify.py). FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
+#   --hosted runs only the app-hosted unit tests, FentonHomeTests (the coverage run's classification rerun, tools/coverage_classify.py). FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
 #   --tests does not select hosted tests (they are not UI tests); use FENTON_HOSTED_FILTER.
 #   --changed also runs the diff's hosted classes (tools/affected_tests.py --hosted) as one more `--hosted` run on iPhone after the journeys, with its own
 #   hold and ledger key; an unplaced UIKitPort/iOSTests file then exits 3. --no-hosted turns that leg off (pr-checks' journeys step passes it: its `hosted`
-#   step is the one place CI runs, and reports, hosted classes); --impact turns it off too (tools/apple_coverage.sh runs its own hosted phase).
+#   step is the one place CI runs, and reports, hosted classes).
 #   --appearance draws every sheet in that appearance (FENTON_APPEARANCE; pages stay dark). Without it sheets follow the
 #   simulator's own setting.
 #   FENTON_CI_HOSTED=1 on a GitHub-hosted runner (RUNNER_ENVIRONMENT=github-hosted) is the hosted mode (tools/ci_hosted.py, .agents/workflow/ci.md): no devcap holds or pool (ci_hosted.py devcap
@@ -83,7 +80,6 @@ PLAN="Gate"
 PLAN_GIVEN=0
 SUITE_SPEC=""
 TESTS_SPEC=""
-IMPACT_DIR=""
 HOSTED=0
 NO_HOSTED=0
 BUILD_ONLY=0
@@ -99,7 +95,6 @@ while [[ $# -gt 0 ]]; do
     --full) FULL=1; shift ;;
     --allow-empty) ALLOW_EMPTY=1; echo "allow-empty: an empty run (no test ran, or every test skipped) is not a failure"; shift ;;
     --parallel-families) PARALLEL=1; shift ;;
-    --impact) IMPACT_DIR="$2"; shift 2 ;;
     --hosted) HOSTED=1; shift ;;
     --no-hosted) NO_HOSTED=1; shift ;;
     --build-only) BUILD_ONLY=1; shift ;;
@@ -168,22 +163,10 @@ if [[ -n "$ENV_FILE" ]]; then
 fi
 
 export COVERAGE=NO
-if [[ -n "$IMPACT_DIR" ]]; then
-  mkdir -p "$IMPACT_DIR"; IMPACT_DIR="$(cd "$IMPACT_DIR" && pwd)"
-  export TEST_RUNNER_FENTON_IMPACT_DIR="$IMPACT_DIR"
-  # Instrument with build settings, not -enableCodeCoverage YES: Xcode's own coverage overwrites the app's LLVM_PROFILE_FILE
-  # (and drops its profiles in a temp directory), so a per-test file name never reaches the app. The settings also change the
-  # products-cache key. Coverage stays NO.
-  EXTRA+=(CLANG_ENABLE_CODE_COVERAGE=YES CLANG_COVERAGE_MAPPING=YES)
-  FORCE=1
-fi
 if [[ $HOSTED == 1 ]]; then
-  # The app-hosted unit tests (FentonHomeTests: UIKit view controllers driven directly inside the app). With --impact their profile goes
-  # to DIR/FentonHomeTests.<pid>.%c.profraw (TEST_RUNNER_ variables reach the test host, which is the instrumented app). Without
-  # --impact they run plain (no profile).
+  # The app-hosted unit tests (FentonHomeTests: UIKit view controllers driven directly inside the app).
   # FENTON_HOSTED_FILTER='Class1 Class2' runs only those hosted classes (bisecting a test that fails after another).
   if [[ -n "${FENTON_HOSTED_FILTER:-}" ]]; then for c in $FENTON_HOSTED_FILTER; do EXTRA+=(-only-testing:FentonHomeTests/$c); done; else EXTRA+=(-only-testing:FentonHomeTests); fi
-  [[ -z "$IMPACT_DIR" ]] || export TEST_RUNNER_LLVM_PROFILE_FILE="$IMPACT_DIR/FentonHomeTests.%p.%c.profraw"
   # Sized from the hosted test count (uitest_support.py hosted-hold): a fixed 1800 s ended the full suite part way and left its
   # app running into the journeys that followed.
   # shellcheck disable=SC2086  # FENTON_HOSTED_FILTER is a list of class names
@@ -206,10 +189,10 @@ CHANGED_IPHONE=""; CHANGED_DUO=""; CHANGED_IPAD=""  # the -only-testing list eac
 worst() { local a="$1" b="$2"; if (( b == 0 )); then echo "$a"; elif (( a == 0 || a == 1 )); then echo "$b"; else echo "$a"; fi; }
 # --changed also runs the hosted unit-test classes the diff reaches (FentonHomeTests, tools/affected_tests.py --hosted), on the primary
 # family only, as one extra `--hosted` run of this script with its own device hold and its own ledger key (a rerun on the same tree skips
-# it). Not under --only duo|ipad, --plan Smoke, --suite/--tests, --hosted, --no-hosted, --impact (the coverage run runs its own hosted phase) or --build-only. CHANGED_HOSTED is the class list ("" = none);
+# it). Not under --only duo|ipad, --plan Smoke, --suite/--tests, --hosted, --no-hosted or --build-only. CHANGED_HOSTED is the class list ("" = none);
 # HOSTED_PICK=1 when a UIKitPort or iOSTests file no rule places (affected_tests.py printed which; the run then fails with status 3).
 CHANGED_HOSTED=""; HOSTED_PICK=0
-if [[ $CHANGED == 1 && $HOSTED == 0 && $NO_HOSTED == 0 && -z "$IMPACT_DIR" && $BUILD_ONLY == 0 && -z "$SUITE_SPEC$TESTS_SPEC" && "$PLAN" != Smoke && ( -z "$ONLY" || "$ONLY" == iphone ) ]]; then
+if [[ $CHANGED == 1 && $HOSTED == 0 && $NO_HOSTED == 0 && $BUILD_ONLY == 0 && -z "$SUITE_SPEC$TESTS_SPEC" && "$PLAN" != Smoke && ( -z "$ONLY" || "$ONLY" == iphone ) ]]; then
   HOSTED_RC=0
   CHANGED_HOSTED="$(affected --hosted)" || HOSTED_RC=$?
   [[ $HOSTED_RC == 3 ]] && HOSTED_PICK=1

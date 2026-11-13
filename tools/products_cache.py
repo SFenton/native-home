@@ -7,7 +7,7 @@
 The key is a content hash of what the compile reads: every file under ``apple/`` that git tracks or would add (so a clean
 tree, a dirty one and the commit made from it agree, and the staging state does not matter), the build settings (sorted) and
 the Xcode version. It never sees the environment, the worktree path, the test filter, the plan or the device family, so every
-run on the same code shares one build, and ``--impact`` (``CLANG_*`` settings) gets its own.
+run on the same code shares one build.
 
 ``ensure`` prints one ``products: hit KEY …`` or ``products: built KEY …`` line, which ``tools/log_digest.py`` copies into the digest.
 """

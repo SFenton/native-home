@@ -104,11 +104,6 @@ class HostedLegTests(unittest.TestCase):
         self.assertEqual((hosted, out.returncode), ([], 0))  # the pick is the hosted step's to report, once
         self.assertNotIn("NEEDS A PICK", out.stderr)
 
-    def test_a_coverage_run_with_impact_does_not_run_the_hosted_leg(self):
-        # tools/apple_coverage.sh --changed runs `--changed --allow-empty --impact DIR` and its own hosted phase.
-        hosted, _, out = self.dry([self.CLIMATE, self.MYSTERY], "--impact", "/tmp/fenton-impact-test")
-        self.assertEqual((hosted, out.returncode), ([], 0))
-
     def test_the_hosted_run_is_its_own_run_with_the_class_filter_and_a_sized_hold(self):
         text = SCRIPT.read_text()
         self.assertIn('FENTON_HOSTED_FILTER="$CHANGED_HOSTED" "$ROOT/tools/ios_uitest.sh" "${args[@]}"', text)

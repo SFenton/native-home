@@ -125,7 +125,6 @@ class CiMacosTests(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("uitest --only iphone --hosted --force [FENTON_HOSTED_FILTER=UKHostedAATests UKHostedBBTests]", log)
         self.assertNotIn("--changed", log)
-        self.assertNotIn("--impact", log)
         self.assertEqual([p[0] for p in self.phases()], ["hosted-iphone"])
 
     def test_hosted_skips_when_the_diff_reaches_no_hosted_class(self):

@@ -105,12 +105,6 @@ class KeyTests(unittest.TestCase):
             subprocess.run(["git", "clone", "-q", str(self.root), other + "/c"], check=True, capture_output=True)
             self.assertEqual(self.key(), self.key(root=Path(other) / "c"))
 
-    def test_impact_settings_are_separate_and_order_is_not(self):
-        plain = self.key()
-        impact = self.key("CLANG_ENABLE_CODE_COVERAGE=YES", "CLANG_COVERAGE_MAPPING=YES")
-        self.assertNotEqual(plain, impact)
-        self.assertEqual(impact, self.key("CLANG_COVERAGE_MAPPING=YES", "CLANG_ENABLE_CODE_COVERAGE=YES"))
-
     def test_xcode_version_is_part_of_it(self):
         self.assertNotEqual(self.key(), pc.products_key([], self.root, xcode="Xcode 100\n"))
 
