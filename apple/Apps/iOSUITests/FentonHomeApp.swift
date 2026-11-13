@@ -58,7 +58,6 @@ enum FentonHomeApp {
     /// (`TEST_RUNNER_FENTON_APPEARANCE=light`, or `tools/ios_uitest.sh --appearance light`).
     static func makeApp() -> XCUIApplication {
         let app = target()
-        ImpactRecorder.apply(to: app)  // test impact recording; a no-op unless `ios_uitest.sh --impact` set the directory
         // The settings belong to the simulator, so every launch states them: none unless a journey asks.
         app.launchEnvironment["FENTON_SYSTEM_SETTINGS"] = "none"
         // The sign-in intro (1.2 s) is only for the journeys that are about it (`SignInJourneyTests`, `LaunchPerformanceTests`).

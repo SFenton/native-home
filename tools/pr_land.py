@@ -313,17 +313,78 @@ def owner_approval(number: str, head: str) -> bool:
     return bool(mine) and mine.get("state") == "APPROVED" and mine.get("commit_id") == head
 
 
+def open_pr_heads(number: str) -> List[Tuple[str, str]]:
+    """``(number, head sha)`` of every other open pull request, from one ``gh pr list`` call; ``[]`` when ``gh`` fails or answers oddly."""
+    try:
+        proc = run(["gh", "pr", "list", "-R", PRODUCT_REPO, "--state", "open", "--limit", "200", "--json", "number,headRefOid"], check=False)
+        rows = json.loads(proc.stdout or "[]") if proc.returncode == 0 else []
+        return [(str(r["number"]), str(r["headRefOid"])) for r in rows if str(r["number"]) != str(number) and r.get("headRefOid")]
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, subprocess.SubprocessError):
+        return []
+
+
+def is_ancestor(older: str, newer: str, repo: Optional[Path] = None) -> bool:
+    """True when commit ``older`` is an ancestor of (or equal to) ``newer``. A commit this clone lacks counts as no (git exits 128)."""
+    try:
+        return _git(repo or Path(__file__).resolve().parent.parent, "merge-base", "--is-ancestor", older, newer).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def fetch_missing_heads(heads: List[Tuple[str, str]], repo: Optional[Path] = None) -> bool:
+    """Fetch ``refs/pull/M/head`` for every ``(M, sha)`` whose commit this clone lacks, in one hardened ``git fetch``. True when nothing
+    was missing or the fetch worked; False when it failed (the caller then judges with what it has, as before the fetch existed)."""
+    where = repo or Path(__file__).resolve().parent.parent
+    try:
+        missing = [n for n, sha in heads if _git(where, "cat-file", "-e", f"{sha}^{{commit}}").returncode != 0]
+        if not missing:
+            return True
+        return _git(where, "fetch", "-q", "origin", *[f"refs/pull/{n}/head" for n in missing]).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def stack_overlap(number: str, head: str) -> Tuple[List[str], List[str]]:
+    """``(carried, included_in)``: the open pull requests whose head ``head`` contains, and those whose (different) head contains ``head``.
+
+    Git ancestry decides, never prose. Any lookup failure gives ``([], [])``, so the recipe is then exactly the plain one. Two pull requests
+    on the same head count as carried by each other, not as included."""
+    carried: List[str] = []
+    included: List[str] = []
+    others = open_pr_heads(number)
+    fetch_missing_heads(others)  # a head not fetched here is judged "not contained", today's output
+    for other, other_head in others:
+        if other_head == head:
+            carried.append(other)
+        elif is_ancestor(other_head, head):
+            carried.append(other)
+        elif is_ancestor(head, other_head):
+            included.append(other)
+    return carried, included
+
+
+def _hashed(numbers: List[str]) -> str:
+    return ", ".join(f"#{n}" for n in numbers)
+
+
 def owner_recipe(number: str, info: Dict[str, Any]) -> List[str]:
     """The owner-only landing recipe for a PR that touches a CODEOWNERS path, else ``[]``.
 
     The ruleset requires code-owner review, so GitHub will not merge such a PR on an agent's say-so: the owner marks it ready, approves
     it as code owner and squash-merges it pinned to the head. The three exact ``gh`` commands are printed for the owner; no agent runs them.
-    ``info`` is the ``gh pr view`` JSON (``files``, ``headRefOid``); :func:`pr_blockers.blockers` is the shared reading of the PR."""
+    ``info`` is the ``gh pr view`` JSON (``files``, ``headRefOid``); :func:`pr_blockers.blockers` is the shared reading of the PR.
+
+    Stack-aware (:func:`stack_overlap`): a head that contains other open pull requests' heads gets one line naming them before the commands;
+    a head contained in another open pull request's head gets one "do not merge" line and no commands."""
     if not pr_blockers.owned_files(info):
         return []
     head = str(info.get("headRefOid") or "")
+    carried, included = stack_overlap(number, head)
+    if included:
+        return [f"do not merge; included in {_hashed(included)}; merge {_hashed(included)} instead"]
     why = "; ".join(pr_blockers.blockers(info))
-    return [f"owner-only: #{number} touches CODEOWNERS paths ({why}); the owner approves this pull request on GitHub (their review of this exact head) and merges it there; the same steps as commands (agents never run these):",
+    note = [f"carries {_hashed(carried)}; they close as included"] if carried else []
+    return [*note, f"owner-only: #{number} touches CODEOWNERS paths ({why}); the owner approves this pull request on GitHub (their review of this exact head) and merges it there; the same steps as commands (agents never run these):",
             f"  gh pr ready {number} -R {PRODUCT_REPO}",
             f"  gh pr review {number} -R {PRODUCT_REPO} --approve",
             f"  gh pr merge {number} -R {PRODUCT_REPO} --squash --match-head-commit {head}"]

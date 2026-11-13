@@ -1,6 +1,6 @@
 # PR lifecycle
 
-> **What:** how work travels from a worktree to `main`: lanes, shipping, the independent review, the merge and the notes on the pull request. **Read when:** starting a lane, opening a pull request, reviewing one, or waking on a CI or review event.
+> **What:** how work travels from a worktree to `main`: lanes, shipping, review, landing and pull request notes. **Read when:** starting a lane, opening a pull request, reviewing one, or waking on a CI or review event.
 
 ## Worktrees
 
@@ -45,4 +45,4 @@
 - A change is followed from its pull request alone: the description is the living view, comments are point-in-time events.
 - `tools/pr_note.py` is the only writer of both. Notes written before the pull request exists queue and post when it opens.
 - Each role posts as its own identity with `--as <role>`: the Verifier posts evidence, the Designer the pick and verdict, the orchestrator handoff, owner and shipped notes and the status line.
-- The review summary in the description belongs to `tools/review/record.py`.
+- The review summary in the description belongs to `tools/review/record.py`. Titles, descriptions and comments follow [pr-form](pr-form.md).

@@ -272,8 +272,6 @@ targets:
         TEST_TARGET_NAME: FentonHome
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
-        # Registers the test impact observer once for every test class (ImpactRecorder.swift).
-        INFOPLIST_KEY_NSPrincipalClass: FentonImpactRecorder
   FentonHomeTests:
     type: bundle.unit-test
     platform: iOS

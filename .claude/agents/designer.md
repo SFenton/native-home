@@ -26,7 +26,7 @@ The ledger task, the surface, the level, the built options, the device families,
 - **Judgement** of up to 3 built options, with the `design-decision` skill. Judge from the evidence only; when a family's evidence is missing, end `needs_research`. Pick one, say why each other lost, record the decision, update the atlas mockup and return the pick as an `implementation_spec`. On `gate: park` do not pick: return the options for the gate's route ([autonomy](../../.agents/workflow/autonomy.md#app-ui-gate)).
 - **Verdict on evidence:** pass, or numbered changes (at most 3 rounds). Judge every pose in the manifest against the mockup and the HIG.
 
-Post each pick and verdict: `python3 tools/pr_note.py post pick|verdict --task T --round N --body-file F --as designer`.
+Post each pick and verdict with `python3 tools/pr_note.py post pick|verdict --task T --round N --body-file F --as designer` (`--step N`, `--now` optional); the body follows [pr-form](../../.agents/workflow/pr-form.md#step-comments).
 
 ## Writes
 

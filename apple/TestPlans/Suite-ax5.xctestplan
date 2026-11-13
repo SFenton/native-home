@@ -36,6 +36,7 @@
         "LiveActivityJourneyTests/testAX5CardProblemVendorError88StaysOnScreen()",
         "LiveActivityJourneyTests/testAX5CardVacuumLongStaysOnScreen()",
         "LiveActivityJourneyTests/testAX5CardVacuumStaysOnScreen()",
+        "LiveActivityJourneyTests/testAX5NoticeWrapsAndKeepsTargets()",
         "PerformanceJourneyTests/testPerformanceScreenAtAX5()",
         "RoomDevicesFanJourneyTests/testFanAX5GuestTimerOptions()",
         "RoomDevicesFanJourneyTests/testFanAX5MasterRemainingAndClear()",
