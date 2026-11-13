@@ -571,6 +571,31 @@ struct MobileAppRegistrarTests {
         #expect(list.pending.isEmpty)
     }
 
+    @Test func deviceTokensSurviveEveryRegistrationChange() throws {
+        // A list saved before tokens existed has none; the tokens round-trip with the list.
+        let old = try JSONDecoder().decode(MobileAppRegistrationList.self, from: Data(#"{"registrations":[]}"#.utf8))
+        #expect(old.tokens == DeviceTokens())
+        let tokens = DeviceTokens(push: "ab", startActivity: "ee")
+        let list = MobileAppRegistrationList(tokens: tokens)
+        #expect(try JSONDecoder().decode(MobileAppRegistrationList.self, from: JSONEncoder().encode(list)).tokens == tokens)
+
+        let saved = MobileAppRegistration(server: server, userID: "u1", webhookID: "w1")
+        let memory = InMemoryMobileAppRegistrationStore(tokens: tokens)
+        let keychain = KeychainMobileAppRegistrationStore(service: "com.sfenton.home.push.tests.\(UUID().uuidString)")
+        defer { keychain.setDeviceTokens(DeviceTokens()); keychain.remove(server: server, userID: "u1") }
+        for store in [memory, keychain] as [any MobileAppRegistrationStore] {
+            if store.deviceTokens == DeviceTokens() { store.setDeviceTokens(tokens) }
+            store.save(saved)
+            store.setActive(saved)
+            // Sign-out forgets the user's webhook and the active pointer, never the install's tokens.
+            store.setActive(nil)
+            store.remove(server: server, userID: "u1")
+            #expect(store.deviceTokens == tokens)
+            store.setDeviceTokens(DeviceTokens(push: "cd", startActivity: "ee"))
+            #expect(store.deviceTokens == DeviceTokens(push: "cd", startActivity: "ee"))
+        }
+    }
+
     @Test func firesActions() async throws {
         let saved = MobileAppRegistration(server: server, userID: "u1", webhookID: "w1")
         let transport = StubHTTPTransport([(200, "")])

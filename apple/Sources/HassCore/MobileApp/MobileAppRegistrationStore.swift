@@ -23,6 +23,12 @@ public protocol MobileAppRegistrationStore: MobileAppWebhookSource {
     func addPending(_ entry: PendingUnregister)
     /// Drops a removal that was confirmed (or can never succeed).
     func removePending(_ entry: PendingUnregister)
+    /// The install's last push tokens; nil while the store cannot be read (the Keychain before first unlock), which is
+    /// not the same as empty. They belong to the app, not a user, so sign-out and ``remove(server:userID:)`` leave them,
+    /// and a later sign-in's first registration carries them.
+    var deviceTokens: DeviceTokens? { get }
+    /// Saves the install's push tokens, replacing the previous pair.
+    func setDeviceTokens(_ tokens: DeviceTokens)
 }
 
 public extension MobileAppRegistrationStore {
