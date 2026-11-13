@@ -51,7 +51,7 @@
 #   at least 10 minutes, at most 7200 s (FENTON_DEVCAP_HOLD overrides).
 #   Run it through `tools/bg_run.py LABEL -- tools/ios_uitest.sh …` with run_in_background and end the turn: you get a digest, not a log.
 #   FENTON_DERIVED_DATA=DIR builds and tests with -derivedDataPath DIR (CI gives each run its own and deletes it; unset = Xcode's default).
-#   --hosted runs only the app-hosted unit tests, FentonHomeTests (the coverage run's classification rerun, tools/coverage_classify.py). FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
+#   --hosted runs only the app-hosted unit tests, FentonHomeTests. FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
 #   --tests does not select hosted tests (they are not UI tests); use FENTON_HOSTED_FILTER.
 #   --changed also runs the diff's hosted classes (tools/affected_tests.py --hosted) as one more `--hosted` run on iPhone after the journeys, with its own
 #   hold and ledger key; an unplaced UIKitPort/iOSTests file then exits 3. --no-hosted turns that leg off (pr-checks' journeys step passes it: its `hosted`

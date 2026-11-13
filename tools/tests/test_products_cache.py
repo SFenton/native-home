@@ -105,6 +105,12 @@ class KeyTests(unittest.TestCase):
             subprocess.run(["git", "clone", "-q", str(self.root), other + "/c"], check=True, capture_output=True)
             self.assertEqual(self.key(), self.key(root=Path(other) / "c"))
 
+    def test_settings_change_the_key_and_their_order_does_not(self):
+        plain = self.key()
+        with_settings = self.key("SWIFT_OPTIMIZATION_LEVEL=-Onone", "ENABLE_TESTABILITY=YES")
+        self.assertNotEqual(plain, with_settings)
+        self.assertEqual(with_settings, self.key("ENABLE_TESTABILITY=YES", "SWIFT_OPTIMIZATION_LEVEL=-Onone"))
+
     def test_xcode_version_is_part_of_it(self):
         self.assertNotEqual(self.key(), pc.products_key([], self.root, xcode="Xcode 100\n"))
 

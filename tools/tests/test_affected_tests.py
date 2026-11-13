@@ -118,6 +118,16 @@ class SelectTests(unittest.TestCase):
         result = pick("apple/Tests/HassUITests/NoSuchRemovedTests.swift")
         self.assertEqual((result["unknown"], result["swift"]), ([], []))
 
+    def test_a_deleted_journey_target_file_needs_no_pick(self):
+        result = pick("apple/Apps/iOSUITests/NoSuchRemovedHelper.swift")
+        self.assertEqual((result["unknown"], result["journeys"], result["ignored"]),
+                         ([], [], ["apple/Apps/iOSUITests/NoSuchRemovedHelper.swift"]))
+
+    def test_a_deleted_journey_target_file_needs_no_pick(self):
+        result = pick("apple/Apps/iOSUITests/NoSuchRemovedHelper.swift")
+        self.assertEqual((result["unknown"], result["journeys"], result["ignored"]),
+                         ([], [], ["apple/Apps/iOSUITests/NoSuchRemovedHelper.swift"]))
+
     def test_every_rule_prefix_exists(self):
         missing = [rule["prefix"] for rule in MAP["rules"]
                    if not list(REPO.glob(rule["prefix"] + "*"))]
