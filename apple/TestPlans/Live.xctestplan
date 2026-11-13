@@ -59,6 +59,7 @@
         "ChoresLiveJourneyTests",
         "ChromeJourneyTests/testChromeHomePassesAccessibilityAudit()",
         "ChromeJourneyTests/testChromeQuickLinksPassesAccessibilityAudit()",
+        "ChromeJourneyTests/testHeaderSheetsReopenAfterAnAppSwitchAndRotation()",
         "ChromeJourneyTests/testSectionRootsCarryShellItems()",
         "ClimateLiveJourneyTests",
         "ColumnRoutesJourneyTests",

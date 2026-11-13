@@ -18,6 +18,8 @@ final class ShellNavigator {
     var quickLinksSection: AppSection?
     /// The section whose stack is presenting the Account sheet (the header's Profile button), or nil.
     var accountSection: AppSection?
+    /// Counts every Profile or Quick Links request, so a repeated tap reaches the section even when the value did not change.
+    private(set) var headerSheetRequests = 0
     /// A sheet a link asked a room page to open (a Live Activity tap on a vacuum): the page and the card's `sheet`.
     /// The room page takes it with ``takeSheet(forPage:)`` once it is on screen.
     private(set) var pendingSheet: PendingSheet?
@@ -133,12 +135,14 @@ final class ShellNavigator {
     /// Presents the Quick Links sheet over the selected section, closing the flyout.
     func openQuickLinks() {
         isFlyoutOpen = false
+        headerSheetRequests += 1
         quickLinksSection = selection
     }
 
     /// Presents the Account sheet over the selected section, closing the flyout.
     func openAccount() {
         isFlyoutOpen = false
+        headerSheetRequests += 1
         accountSection = selection
     }
 
