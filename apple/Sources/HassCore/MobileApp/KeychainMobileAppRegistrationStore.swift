@@ -43,7 +43,7 @@ public final class KeychainMobileAppRegistrationStore: MobileAppRegistrationStor
         update { $0.removePending(entry) }
     }
 
-    public var deviceTokens: DeviceTokens { lock.withLock { read().tokens } }
+    public var deviceTokens: DeviceTokens? { lock.withLock { readList()?.tokens } }
 
     public func setDeviceTokens(_ tokens: DeviceTokens) {
         update { $0.tokens = tokens }
@@ -57,20 +57,24 @@ public final class KeychainMobileAppRegistrationStore: MobileAppRegistrationStor
 
     private func update(_ change: (inout MobileAppRegistrationList) -> Void) {
         lock.withLock {
-            var list = read()
+            // An unreadable item (locked before first unlock) is not an empty one: writing then would erase it.
+            guard var list = readList() else { return }
             change(&list)
             write(list)
         }
     }
 
-    private func read() -> MobileAppRegistrationList {
+    private func read() -> MobileAppRegistrationList { readList() ?? MobileAppRegistrationList() }
+
+    /// The saved list; empty when none was saved; nil when the item exists or may exist but cannot be read now.
+    private func readList() -> MobileAppRegistrationList? {
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else {
-            return MobileAppRegistrationList()
-        }
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return MobileAppRegistrationList() }
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
         return (try? JSONDecoder().decode(MobileAppRegistrationList.self, from: data)) ?? MobileAppRegistrationList()
     }
 

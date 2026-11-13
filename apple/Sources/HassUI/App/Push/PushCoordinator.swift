@@ -85,10 +85,11 @@ public final class PushCoordinator {
     ///   - userID: The signed-in Home Assistant user.
     ///   - userName: Their display name, which names a phone the system reports only as "iPhone".
     public func didConnect(userID: String, userName: String? = nil) async {
-        guard mobileApp.begin(userID: userID, userName: userName) else { return }
+        guard mobileApp.canBegin(userID: userID) else { return }
         isConnected = true
-        // Read before the first sync, so the sync knows whether the saved APNs token may go.
+        // Read before the user begins, so no sync runs before it knows whether the saved APNs token may go.
         await readSettings()
+        guard mobileApp.begin(userID: userID, userName: userName) else { return }
         if authorization == .granted { platform.registerForRemoteNotifications() }
         await mobileApp.sync()
     }

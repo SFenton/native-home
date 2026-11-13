@@ -24,6 +24,6 @@ public final class InMemoryMobileAppRegistrationStore: MobileAppRegistrationStor
     public func addPending(_ entry: PendingUnregister) { lock.withLock { list.addPending(entry) } }
     public func removePending(_ entry: PendingUnregister) { lock.withLock { list.removePending(entry) } }
 
-    public var deviceTokens: DeviceTokens { lock.withLock { list.tokens } }
+    public var deviceTokens: DeviceTokens? { lock.withLock { list.tokens } }
     public func setDeviceTokens(_ tokens: DeviceTokens) { lock.withLock { list.tokens = tokens } }
 }

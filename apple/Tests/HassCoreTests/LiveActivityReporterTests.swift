@@ -21,7 +21,7 @@ struct LiveActivityTokenReporterTests {
         let registered = Registered()
         let now = now
         let reporter = LiveActivityTokenReporter(client: client, webhook: { webhook }, registerStartToken: { registered.add($0) },
-                                                 lastKnownStartToken: lastKnown, now: { now })
+                                                 lastKnownStartToken: { lastKnown }, now: { now })
         return (reporter, client, webhook, registered)
     }
 

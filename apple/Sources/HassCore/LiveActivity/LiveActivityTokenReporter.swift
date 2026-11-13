@@ -21,6 +21,7 @@ public final class LiveActivityTokenReporter {
     private var tasks: [Task<Void, Never>] = []
     private var perActivity: [String: [Task<Void, Never>]] = [:]
     private var lastStartToken: String?
+    private let lastKnownStartToken: @MainActor @Sendable () -> String?
     /// Activities whose end ``endAll()`` already reported, so their lifecycle watcher does not report it again.
     private var reportedEnded: Set<String> = []
     private var followedTags: [String: String] = [:]
@@ -32,14 +33,14 @@ public final class LiveActivityTokenReporter {
     ///   - webhook: The signed-in registration's webhook sender, read at send time; nil while unregistered (a report
     ///     is then skipped and the next token change or launch sends it again).
     ///   - registerStartToken: Hands the start token (nil to remove it) to the registration, which syncs.
-    ///   - lastKnownStartToken: The token a launch before this one saved, so turning Live Activities on restores it even
-    ///     when the system has not yielded one yet this launch.
+    ///   - lastKnownStartToken: The token a launch before this one saved, read when Live Activities turn on, so they
+    ///     restore it even when the system has not yielded one yet this launch.
     ///   - now: The clock.
     public init(client: any LiveActivityClient, webhook: @escaping @Sendable () -> (any LiveActivityWebhookSending)?,
                 registerStartToken: @escaping @MainActor @Sendable (String?) async -> Void,
-                lastKnownStartToken: String? = nil,
+                lastKnownStartToken: @escaping @MainActor @Sendable () -> String? = { nil },
                 now: @escaping @Sendable () -> Date = { Date() }) {
-        lastStartToken = lastKnownStartToken
+        self.lastKnownStartToken = lastKnownStartToken
         self.client = client
         self.webhook = webhook
         self.registerStartToken = registerStartToken
@@ -93,7 +94,7 @@ public final class LiveActivityTokenReporter {
     func enablementChanged(_ isEnabled: Bool) async {
         guard isEnabled != enabled else { return }
         enabled = isEnabled
-        await registerStartToken(isEnabled ? lastStartToken : nil)
+        await registerStartToken(isEnabled ? (lastStartToken ?? lastKnownStartToken()) : nil)
     }
 
     /// Follows one activity: its update token, and its end.

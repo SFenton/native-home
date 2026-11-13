@@ -38,7 +38,7 @@ public final class LiveActivityCoordinator {
         reporter = LiveActivityTokenReporter(
             client: client, webhook: mobileApp.activityWebhookProvider(),
             registerStartToken: { [mobileApp] token in await mobileApp.registerStartActivityToken(token) },
-            lastKnownStartToken: mobileApp.lastStartActivityToken, now: now)
+            lastKnownStartToken: { [mobileApp] in mobileApp.knownStartActivityToken() }, now: now)
     }
 
     /// A coordinator that never starts anything.

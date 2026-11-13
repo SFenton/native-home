@@ -19,6 +19,29 @@ private func appData(_ request: URLRequest) -> [String: Any] {
     return (body["app_data"] as? [String: Any]) ?? ((body["data"] as? [String: Any])?["app_data"] as? [String: Any]) ?? [:]
 }
 
+/// A store whose tokens cannot be read while `locked` (the Keychain before first unlock); it counts token writes.
+private final class LockableStore: MobileAppRegistrationStore, @unchecked Sendable {
+    let inner: InMemoryMobileAppRegistrationStore
+    var locked = true
+    private(set) var tokenWrites = 0
+
+    init(tokens: DeviceTokens) { inner = InMemoryMobileAppRegistrationStore(tokens: tokens) }
+
+    func registration(server: HassServer, userID: String) -> MobileAppRegistration? { inner.registration(server: server, userID: userID) }
+    func save(_ registration: MobileAppRegistration) { inner.save(registration) }
+    func remove(server: HassServer, userID: String) { inner.remove(server: server, userID: userID) }
+    var active: MobileAppRegistration? { inner.active }
+    func setActive(_ registration: MobileAppRegistration?) { inner.setActive(registration) }
+    var pendingUnregisters: [PendingUnregister] { inner.pendingUnregisters }
+    func addPending(_ entry: PendingUnregister) { inner.addPending(entry) }
+    func removePending(_ entry: PendingUnregister) { inner.removePending(entry) }
+    var deviceTokens: DeviceTokens? { locked ? nil : inner.deviceTokens }
+    func setDeviceTokens(_ tokens: DeviceTokens) {
+        tokenWrites += 1
+        inner.setDeviceTokens(tokens)
+    }
+}
+
 /// The install's push tokens: seeded at launch, gated by permission, kept across sign-out.
 @MainActor
 struct DeviceTokenPersistenceTests {
@@ -85,11 +108,11 @@ struct DeviceTokenPersistenceTests {
         let transport = StubHTTPTransport([(200, configJSON), (200, "{}"), (200, configJSON), (200, "{}")])
         let mobileApp = coordinator(store, transport)
         #expect(mobileApp.begin(userID: "u1", userName: nil))
-        #expect(mobileApp.lastStartActivityToken == "ee")
+        #expect(mobileApp.knownStartActivityToken() == "ee")
         await mobileApp.registerStartActivityToken(nil)
         #expect(appData(transport.requests[1])["start_live_activity_token"] == nil)
         #expect(appData(transport.requests[1])["push_token"] as? String == "ab")
-        #expect(store.deviceTokens.startActivity == "ee", "kept for the next launch")
+        #expect(store.deviceTokens?.startActivity == "ee", "kept for the next launch")
         await mobileApp.registerStartActivityToken("ee")
         #expect(appData(transport.requests[3])["start_live_activity_token"] as? String == "ee")
     }
@@ -128,5 +151,54 @@ struct DeviceTokenPersistenceTests {
         #expect(mobileApp.begin(userID: "u1", userName: nil))
         await mobileApp.sync()
         #expect(transport.requests.isEmpty)
+    }
+
+    @Test func aStoreUnreadableAtFirstIsReadLaterAndNeverSentAsEmpty() async {
+        let store = LockableStore(tokens: saved)
+        let transport = StubHTTPTransport([(200, configJSON), (201, #"{"webhook_id":"w1"}"#)])
+        let mobileApp = MobileAppCoordinator(device: device, store: store, transport: transport)
+        mobileApp.sessionStarted(server: server) { "token" }
+        #expect(mobileApp.begin(userID: "u1", userName: nil))
+        await mobileApp.sync()
+        #expect(transport.requests.isEmpty, "nothing goes out while the saved tokens cannot be read")
+
+        // The system yields a rotated token meanwhile: it must not overwrite the unread pair.
+        #expect(mobileApp.setPushToken("cd"))
+        #expect(store.tokenWrites == 0)
+        #expect(store.inner.deviceTokens == saved)
+
+        store.locked = false
+        await mobileApp.sync()
+        let data = appData(transport.requests[1])
+        #expect(data["push_token"] as? String == "cd", "the newer token wins")
+        #expect(data["start_live_activity_token"] as? String == "ee", "the saved start token comes back")
+        #expect(store.inner.deviceTokens == DeviceTokens(push: "cd", startActivity: "ee"))
+    }
+
+    @Test func aStartTokenWithdrawnWhileUnreadableStaysWithdrawn() async {
+        let store = LockableStore(tokens: saved)
+        let transport = StubHTTPTransport([(200, configJSON), (201, #"{"webhook_id":"w1"}"#)])
+        let mobileApp = MobileAppCoordinator(device: device, store: store, transport: transport)
+        mobileApp.sessionStarted(server: server) { "token" }
+        #expect(mobileApp.begin(userID: "u1", userName: nil))
+        await mobileApp.registerStartActivityToken(nil)
+        store.locked = false
+        await mobileApp.sync()
+        #expect(appData(transport.requests[1])["push_token"] as? String == "ab")
+        #expect(appData(transport.requests[1])["start_live_activity_token"] == nil)
+        #expect(store.inner.deviceTokens?.startActivity == "ee", "kept for turning Live Activities on")
+    }
+
+    @Test func tokensAreWrittenOnlyWhenTheyChange() async {
+        let store = LockableStore(tokens: saved)
+        store.locked = false
+        let mobileApp = MobileAppCoordinator(device: device, store: store, transport: StubHTTPTransport([]))
+        #expect(!mobileApp.setPushToken("ab"))
+        _ = mobileApp.setStartActivityToken("ee")
+        _ = mobileApp.setStartActivityToken(nil)
+        _ = mobileApp.setStartActivityToken("ee")
+        #expect(store.tokenWrites == 0)
+        #expect(mobileApp.setPushToken("cd"))
+        #expect(store.tokenWrites == 1)
     }
 }

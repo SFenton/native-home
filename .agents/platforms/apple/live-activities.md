@@ -222,8 +222,7 @@ Engine rules:
 
 **Token registration (app).**
 
-- On launch, every token change and every enablement change (`activityEnablementUpdates`), on iOS 17.2+, the app adds `start_live_activity_token` (lowercase hex of `Activity<HomeActivityAttributes>.pushToStartToken`) to `app_data`, or removes it. That token is accepted by core's `SCHEMA_APP_DATA`. Sign-out already sends `app_data: {}`.
-- The push-to-start token is saved with the registration (`DeviceTokens`) and seeds every sync from launch, so no sync before the system re-yields it drops `start_live_activity_token` (Home Assistant ends the cards of a phone it thinks cannot show them). With Live Activities off at launch, `LiveActivityTokenReporter.start()` removes the seeded token; turning them on restores the last known one, the saved token included. Sign-out keeps it.
+- On launch, every token change and enablement change (`activityEnablementUpdates`), on iOS 17.2+, the app adds `start_live_activity_token` (lowercase hex of `Activity<HomeActivityAttributes>.pushToStartToken`) to `app_data`, or removes it. That token is accepted by core's `SCHEMA_APP_DATA`. Sign-out sends `app_data: {}`; [tokens persist](mobile-app.md#rules).
 - For each activity, it watches `Activity.activityUpdates`, which includes activities started by push, and their `pushTokenUpdates`. It then sends the webhook `{"type": "live_activity_token", "data": {"tag": …, "push_token": …, "expires_at": start + 8 h}}`.
 - The start relaunches the app in the background to collect the token (push guide; verified on a device in §0, check 3). Push-to-start pushes carry `input-push-token: 1` (iOS 18) to ask for it.
 
