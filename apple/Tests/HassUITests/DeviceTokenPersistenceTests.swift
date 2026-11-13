@@ -1,3 +1,4 @@
+import CoreSpotlight
 import Foundation
 import HassCore
 import HassTestSupport
@@ -200,5 +201,40 @@ struct DeviceTokenPersistenceTests {
         #expect(store.tokenWrites == 0)
         #expect(mobileApp.setPushToken("cd"))
         #expect(store.tokenWrites == 1)
+    }
+
+    @Test func theCoordinatorNamesThisPhoneOnTheEventsItFires() {
+        let mobileApp = coordinator(InMemoryMobileAppRegistrationStore(), StubHTTPTransport([]))
+        let info = mobileApp.eventDeviceInfo
+        #expect(info["sourceDevicePermanentID"] == "v" && info["sourceDeviceID"] == "v")
+        #expect(info["sourceDeviceName"]?.isEmpty == false)
+    }
+
+    @Test func pushOpensAPageAndASpotlightResult() {
+        let push = PushCoordinator.inert()
+        #if DEBUG
+        push.simulateConnected()
+        #endif
+        push.open(PushDestination(dashboardPath: "kitchen"))
+        #expect(push.pendingRequest?.destination == PushDestination(dashboardPath: "kitchen"))
+        #expect(push.open(spotlightUserInfo: [CSSearchableItemActivityIdentifier: "section.climate"]))
+        #expect(!push.open(spotlightUserInfo: nil))
+    }
+}
+
+/// The Keychain store's removal queue, which shares the item the tokens live in.
+struct KeychainPendingRemovalTests {
+    @Test func pendingRemovalsAndTokensShareOneItem() {
+        let store = KeychainMobileAppRegistrationStore(service: "com.sfenton.home.push.tests.\(UUID().uuidString)")
+        defer { store.setDeviceTokens(DeviceTokens()); store.removePending(PendingUnregister(server: server, webhookID: "w1")) }
+        let entry = PendingUnregister(server: server, webhookID: "w1")
+        #expect(store.deviceTokens == DeviceTokens(), "an empty item reads as empty, not unreadable")
+        store.addPending(entry)
+        store.setDeviceTokens(saved)
+        #expect(store.pendingUnregisters == [entry])
+        #expect(store.deviceTokens == saved)
+        store.removePending(entry)
+        #expect(store.pendingUnregisters.isEmpty)
+        #expect(store.deviceTokens == saved, "removing an entry keeps the tokens")
     }
 }

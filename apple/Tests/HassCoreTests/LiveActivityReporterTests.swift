@@ -55,6 +55,17 @@ struct LiveActivityTokenReporterTests {
         reporter.stop()
     }
 
+    @Test func withoutASavedTokenTurningOnSendsNothingUntilTheSystemYieldsOne() async {
+        let client = FakeLiveActivityClient(enabled: false)
+        let registered = Registered()
+        let reporter = LiveActivityTokenReporter(client: client, webhook: { nil }, registerStartToken: { registered.add($0) })
+        reporter.start()
+        #expect(await eventually { registered.all == [nil] })
+        client.setEnabled(true)
+        #expect(await eventually { registered.all == [nil, nil] })
+        reporter.stop()
+    }
+
     @Test func offAtLaunchRemovesTheSeededTokenAndOnRestoresTheSavedOne() async {
         let (reporter, client, _, registered) = make(enabled: false, lastKnown: "aa01")
         reporter.start()
