@@ -26,7 +26,10 @@ final class UKHostedGalleryDriveTests: DemoHouseTestCase {
             hostedSettle(0.25)
             let after = HostedDriver.topmost(root)
             if after !== top, depth > 0, pass == 0 { drive(root, depth: depth - 1) }
-            if after !== top, let presented = after.presentingViewController, depth == 0 { presented.dismiss(animated: false) }
+            if after !== top, let presented = after.presentingViewController, depth == 0 {
+                HostedPage.settlePresentations(of: root)
+                presented.dismiss(animated: false)
+            }
         }
     }
 
@@ -41,6 +44,9 @@ final class UKHostedGalleryDriveTests: DemoHouseTestCase {
             hostedSettle(0.8)
             drive(root)
             XCTAssertFalse(HostedPage.descendants(of: root.view).isEmpty, "\(variant.page.rawValue) \(variant.env) still draws after input")
+            // An alert or sheet the last press opened may still be animating in: dismissing it half way leaves UIKit's deferred
+            // transition asking a dismissed controller for its alert, which throws during the next variant's wait.
+            HostedPage.settlePresentations(of: root)
             root.dismiss(animated: false)
             window.isHidden = true
         }

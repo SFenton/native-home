@@ -32,7 +32,8 @@ enum HostedPage {
             guard let window = entry.value else { continue }
             window.isHidden = true
             // Release the page: a hidden window still holds its controllers, whose timers, observers and display links would keep
-            // running (and keep laying out) under every later test.
+            // running (and keep laying out) under every later test. A presentation still in flight finishes first (``settlePresentations(of:timeout:)``).
+            if let root = window.rootViewController { settlePresentations(of: root, timeout: 2) }
             window.rootViewController?.dismiss(animated: false)
             window.rootViewController = nil
             window.windowScene = nil
@@ -92,6 +93,25 @@ enum HostedPage {
         let end = Date().addingTimeInterval(timeout)
         while !condition(), Date() < end { wait(0.05); layoutTracked() }
         return condition()
+    }
+
+    /// Whether any controller in the presented chain above `root` (or `root` itself) is still presenting or dismissing.
+    static func isTransitioning(_ root: UIViewController) -> Bool {
+        var node: UIViewController? = root
+        while let current = node {
+            if current.isBeingPresented || current.isBeingDismissed { return true }
+            node = current.presentedViewController
+        }
+        return false
+    }
+
+    /// Lets every presentation above `root` finish before the test tears the page down. UIKit starts an animated presentation in a
+    /// block that runs after the next Core Animation commit; a sheet or alert dismissed (`dismiss(animated: false)`) or hidden before
+    /// that block runs is still asked for its transition duration in the next run-loop turn, and an alert controller then throws
+    /// `NSInternalInconsistencyException` ("A view controller not containing an alert controller was asked for its contained alert
+    /// controller") inside whatever wait comes next. A loaded machine takes longer than a fixed settle to reach that commit.
+    static func settlePresentations(of root: UIViewController, timeout: TimeInterval = 5) {
+        until(timeout) { !isTransitioning(root) }
     }
 
     /// The host app's first window scene, which a window needs to finish animated pushes, transitions and snapshots.
