@@ -606,6 +606,9 @@ enum FentonHomeApp {
                 .replacingOccurrences(of: "^[·•+\\-] ?", with: "", options: .regularExpression)
             let wanted = squeeze(text)
             if known.contains(where: { !$0.isEmpty && $0.contains(wanted) }) { continue }
+            // A notice's info glyph read as a leading "i" ("i Alex Away" for the label "Alex Away", iPad Solo Trip restore, CI,
+            // 2026-11-13): the rest must still be a label, or its first whole words.
+            if SystemDrawnTextRules.isInfoGlyphMisread(wanted, labels: known.filter { !$0.isEmpty }) { continue }
             // Text clipped at a container's edge (the weather ticker mid-scroll, "1 Hail And Damaging Wind Gl" for the card label's "…With
             // Hail And Damaging Wind Gusts…") reads with a partial word at each end: without those, two or more whole words must still be
             // in a label.
@@ -662,8 +665,9 @@ enum FentonHomeApp {
                         && (labelled.contains { $0.width < 120 && $0.height < 120 && $0.insetBy(dx: -2, dy: -2).contains(t.frame) }
                             || initialsOfShownName(t.text))
                 }
+                let pickers = app.datePickers.allElementsBoundByIndex.map(\.frame)
                 let isPickerTime = { (t: (text: String, frame: CGRect)) -> Bool in
-                    app.datePickers.firstMatch.exists && t.text.range(of: "^[0-9]{1,2}:[0-9]{2} ?[AP]M$", options: .regularExpression) != nil
+                    SystemDrawnTextRules.isPickerTime(t.text, frame: t.frame, pickers: pickers)
                 }
                 if !texts.isEmpty, texts.allSatisfy({ isClock($0) || isInitials($0) || isPickerTime($0) }) { return true }
             }
@@ -672,7 +676,11 @@ enum FentonHomeApp {
             // when every string recognised without an element sits inside the status bar band.
             if issue.auditType == .elementDetection, family == .iPad {
                 let texts = unlabelledTexts(in: app)
-                if !texts.isEmpty, texts.allSatisfy({ $0.frame.maxY < 32 }) { return true }
+                // The compact date picker's time chips ("9:00AM", no space on the iPad) are the system's too.
+                let pickers = app.datePickers.allElementsBoundByIndex.map(\.frame)
+                if !texts.isEmpty, texts.allSatisfy({
+                    $0.frame.maxY < 32 || SystemDrawnTextRules.isPickerTime($0.text, frame: $0.frame, pickers: pickers)
+                }) { return true }
             }
             // Same for the content behind an action-sheet popover noted as the audit started (the
             // audit can dismiss it): the popover's dismiss region hides it from assistive technologies.

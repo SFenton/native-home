@@ -14,6 +14,15 @@ final class FoodRecipeDetailJourneyTests: FoodJourneyTestCase {
         return app
     }
 
+    /// Recipe 6 opened again at AX5 on `tab` (the General tab when nil): the page the audit's AX5 evidence measures when it cannot be
+    /// enlarged in place. A Dynamic Type issue is waived only by that measurement.
+    private func recipe6AtAX5(tab: String? = nil) -> XCUIApplication {
+        let app = openRecipe6(arguments: FentonHomeApp.ax5)
+        if let tab { element("recipe.tabs", in: app).buttons[tab].tap() }
+        settleScreen()
+        return app
+    }
+
     /// The General tab, audited. Step 1 of the split tabs-and-groceries journey (`testRecipeDetail*Tab*`).
     func testRecipeDetailGeneralTabAudit() throws {
         let app = openRecipe6()
@@ -26,7 +35,7 @@ final class FoodRecipeDetailJourneyTests: FoodJourneyTestCase {
             XCTAssertEqual(split, frame.width > frame.height, "the pane shows only where a split is allowed")
         }
         keepScreenshot(app, "food-recipe-general-\(device)")
-        try audit(app)
+        try audit(app, ax5Page: { self.recipe6AtAX5() })
     }
 
     /// The Ingredients tab, audited before scrolling (rows scrolled half under the sheet's edge measure ~1.1:1).
@@ -38,7 +47,7 @@ final class FoodRecipeDetailJourneyTests: FoodJourneyTestCase {
         XCTAssertTrue((element("recipe.ingredient.0", in: app).value as? String ?? "").hasPrefix("On hand"), "an ingredient in stock reads as on hand first")
         settleScreen()
         keepScreenshot(app, "food-recipe-ingredients-\(device)")
-        try audit(app)
+        try audit(app, ax5Page: { self.recipe6AtAX5(tab: "Ingredients") })
     }
 
     /// The grocery action on the Ingredients tab.
@@ -65,7 +74,7 @@ final class FoodRecipeDetailJourneyTests: FoodJourneyTestCase {
         element("recipe.tabs", in: app).buttons["Instructions"].tap()
         XCTAssertTrue(app.staticTexts["Heat the oven to 425°F and zest the lemons."].appears(timeout: 5))
         keepScreenshot(app, "food-recipe-instructions-\(device)")
-        try audit(app)
+        try audit(app, ax5Page: { self.recipe6AtAX5(tab: "Instructions") })
     }
 
     /// Owner, 2026-10-16: a recipe opens full screen (the other sheets size to their content), and Instructions that fit
@@ -107,7 +116,15 @@ final class FoodRecipeDetailJourneyTests: FoodJourneyTestCase {
         XCTAssertTrue(element("recipe.openCookidoo", in: app).appears(timeout: 5))
         assertTarget(element("recipe.openCookidoo", in: app))
         keepScreenshot(app, "food-recipe-cookidoo-\(device)")
-        try audit(app)
+        try audit(app, ax5Page: {
+            let large = self.launch("recipes", arguments: FentonHomeApp.ax5)
+            self.waitForGrid(large)
+            self.element("recipes.card.1", in: large).tap()
+            XCTAssertTrue(self.element("recipe.tabs", in: large).appears(timeout: 10))
+            self.element("recipe.tabs", in: large).buttons["Instructions"].tap()
+            settleScreen()
+            return large
+        })
     }
 
     /// The Recipes grid at AX5. Step 1 of the split AX5 journey (`testRecipe*AtAX5`).
