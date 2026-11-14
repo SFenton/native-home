@@ -1247,9 +1247,9 @@
    "structure": 1
   },
   ".agents/testing/apple/accessibility.md": {
-   "forbidden": 22,
+   "forbidden": 21,
    "long_lines": 16,
-   "over_words": 1631
+   "over_words": 1617
   },
   ".agents/testing/apple/app-reuse.md": {
    "forbidden": 16,

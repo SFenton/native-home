@@ -198,16 +198,23 @@ enum FentonHomeApp {
     /// "Text clipped" on a labelled element is waived only when the element is fully inside the window on both
     /// pages and measured at least 1.35x taller at AX5 (the reason is logged); any other clip stays open.
     ///
+    /// `defaultPage` is the inverse, for a page that already starts at AX5 (`ax5Page` does not apply): it relaunches the same page
+    /// at the default size. An issue with no element passes only when the sampled texts both pages show are together at least 1.35x
+    /// taller at AX5 and none shrank (``AuditGrowth/pageGrew(_:)``); the AX5 page's screenshot is kept for the report. An issue
+    /// on a named element stays open, and so does a page that never comes up at the default size. It covers only that issue type: a
+    /// clip or any other audit type on such a page gets no such evidence.
+    ///
     /// `reflowing` lists identifier prefixes of controls left out of the page-growth sample because they reflow into a shorter row.
     ///
     /// `presenter` names a control on the page under a sheet: element-less "potentially inaccessible
     /// text" is the page showing around an iPad form sheet, accepted only while that control can't be hit.
     static func audit(
-        _ app: XCUIApplication, ax5Page: (() throws -> XCUIApplication)? = nil, presenter: XCUIElement? = nil,
-        reflowing reflowingIdentifiers: [String] = [],
+        _ app: XCUIApplication, ax5Page: (() throws -> XCUIApplication)? = nil, defaultPage: (() throws -> XCUIApplication)? = nil,
+        presenter: XCUIElement? = nil, reflowing reflowingIdentifiers: [String] = [],
         file: StaticString = #filePath, line: UInt = #line
     ) throws {
         var open: [String] = []
+        var unattributedAtAX5 = 0
         var unconfirmedType: [(label: String, height: CGFloat)] = []
         var unattributedType = 0
         var clipped: [(label: String, frame: CGRect, issue: String)] = []
@@ -329,6 +336,14 @@ enum FentonHomeApp {
                 if let floatingBarTop, facts.frame.midY > floatingBarTop { continue }
                 measured = String(format: " (rendered %.1f:1)", ratio)
             }
+            // A page that already starts at AX5 (`defaultPage` given) cannot be enlarged, so the evidence runs the other way: an issue
+            // with no element is accepted only when this page is at least 1.35x taller than the same page at the default size
+            // (decided after the loop). An issue on a named element stays open.
+            if defaultPage != nil, ax5Page == nil, issue.auditType == .dynamicType,
+               issue.compactDescription.localizedCaseInsensitiveContains("font sizes are"), facts?.label.isEmpty ?? true {
+                unattributedAtAX5 += 1
+                continue
+            }
             // "May be clipped at larger sizes" is disproved the same way as partial support: at AX5 the text is
             // 1.35x taller, so it wraps rather than clips (a FilterSection header wrapped to three lines, 2026-10-12).
             if ax5Page != nil, issue.auditType == .textClipped
@@ -356,6 +371,28 @@ enum FentonHomeApp {
                 + (element == nil && issue.auditType == .elementDetection
                     ? " UNLABELLED: " + unlabelledTexts(in: app).map { "'\($0.text)' \($0.frame)" }.joined(separator: "; ") : ""))
         }
+        // The relaunch at the default size replaces the AX5 page on screen, so the page as audited is read first (its texts, its
+        // screenshot) and the failure report below uses those, not what the relaunch left behind.
+        var pageRelaunched = false
+        var auditedShot: XCUIScreenshot?
+        if let defaultPage, unattributedAtAX5 > 0 {
+            let window = app.windows.firstMatch.frame
+            let large = uniqueContentTexts(in: app, reflowing: reflowingIdentifiers).filter { window.contains($0.value) }
+            auditedShot = app.screenshot()
+            pageRelaunched = true
+            let normal = try defaultPage()
+            if normal.windows.firstMatch.waitForExistence(timeout: 90) {
+                let pairs = AuditGrowth.pairs(smaller: uniqueContentTexts(in: normal, reflowing: reflowingIdentifiers), larger: large)
+                let text = pairs.map { String(format: "%.1f → %.1f", $0.0, $0.1) }.joined(separator: ", ")
+                if AuditGrowth.pageGrew(pairs) {
+                    print("Dynamic Type accepted: \(unattributedAtAX5) element-less issue(s); the page grew 1.35x from the default size (\(text))")
+                } else {
+                    open.append("Dynamic Type: \(unattributedAtAX5) issue(s) with no element, and the page at AX5 is not 1.35x taller than at the default size. Page check (\(pairs.count) texts, default → AX5): \(text)")
+                }
+            } else {
+                open.append("the default-size page showed no window within 90 s of the relaunch")
+            }
+        }
         // The screen as audited: taken now only when an AX5 check follows (it changes the screen); otherwise a passing audit pays for
         // no screenshot and a failing one takes it below, of the same unchanged screen.
         let needsAX5 = ax5Page != nil && (!unconfirmedType.isEmpty || unattributedType > 0 || !clipped.isEmpty)
@@ -366,24 +403,7 @@ enum FentonHomeApp {
             // different texts proves nothing. Read from one snapshot per page: per-label queries ran
             // hundreds of accessibility requests and crashed the iPad simulator's backboardd.
             func uniqueTexts(in app: XCUIApplication) -> [String: CGRect] {
-                guard let root = try? app.snapshot() else { return [:] }
-                var bars: [CGRect] = []
-                var texts: [(String, CGRect)] = []
-                func walk(_ node: XCUIElementSnapshot) {
-                    if node.elementType == .navigationBar { bars.append(node.frame) }
-                    // Buttons too: a Form button (a sheet's Reset row) is a button element, not static text.
-                    // A control that reflows at AX5 into a compact row (an image card) can get shorter, so it says nothing about
-                    // whether the page's text grew.
-                    if [.staticText, .button].contains(node.elementType), !node.label.isEmpty,
-                       !reflowingIdentifiers.contains(where: { node.identifier.hasPrefix($0) }) {
-                        texts.append((node.label, node.frame))
-                    }
-                    node.children.forEach(walk)
-                }
-                walk(root)
-                let content = texts.filter { text in !bars.contains { $0.intersects(text.1) } }
-                let counts = Dictionary(content.map { ($0.0, 1) }, uniquingKeysWith: +)
-                return Dictionary(content.filter { counts[$0.0] == 1 }, uniquingKeysWith: { first, _ in first })
+                uniqueContentTexts(in: app, reflowing: reflowingIdentifiers)
             }
             let before = uniqueTexts(in: app)
             // The page check samples the same texts and buttons uniqueTexts collects, on screen (inside the
@@ -445,8 +465,7 @@ enum FentonHomeApp {
                 let compared = sample.compactMap { label, height in largeHeights[label].map { (height, $0) } }
                 // "None shrank" allows half a point: the same fixed-size text measures 52.0 and 51.99 in two launches
                 // (folded Duo, FloatingActions page, 2026-10-17: every pair printed 52.0 → 52.0 and the check failed).
-                let pageGrew = !compared.isEmpty && compared.allSatisfy { $0.1 >= $0.0 - 0.5 }
-                    && compared.map(\.1).reduce(0, +) >= 1.35 * compared.map(\.0).reduce(0, +)
+                let pageGrew = AuditGrowth.pageGrew(compared)
                 var missed = false
                 var inconclusive: [String] = []
                 for (label, height) in unconfirmedType {
@@ -523,20 +542,44 @@ enum FentonHomeApp {
             }
         }
         if !open.isEmpty {
-            let screenshot = auditedScreen ?? XCTAttachment(screenshot: app.screenshot())
+            let screenshot = auditedScreen ?? XCTAttachment(screenshot: auditedShot ?? app.screenshot())
             screenshot.name = "Audited screen"
             screenshot.lifetime = .keepAlways
             XCTContext.runActivity(named: "Accessibility audit") { $0.add(screenshot) }
-            if open.contains(where: { $0.contains("Potentially inaccessible text") && $0.contains("Element:(null)") }) {
+            // Recognition would read the relaunched default-size page; the issues' own UNLABELLED lines were read before it.
+            if !pageRelaunched, open.contains(where: { $0.contains("Potentially inaccessible text") && $0.contains("Element:(null)") }) {
                 print("AUDIT-DIAG recognised text without an element: \(unlabelledTexts(in: app))")
             }
             if let shots = ProcessInfo.processInfo.environment["FENTON_SHOTS_DIR"], !shots.isEmpty {
                 try? FileManager.default.createDirectory(atPath: shots, withIntermediateDirectories: true)
                 let name = "audit-failed-\(family)-\(Date().timeIntervalSince1970.rounded()).png"
-                try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: shots).appendingPathComponent(name))
+                try? (auditedShot ?? app.screenshot()).pngRepresentation.write(to: URL(fileURLWithPath: shots).appendingPathComponent(name))
             }
             XCTFail("Accessibility audit:\n" + open.joined(separator: "\n"), file: file, line: line)
         }
+    }
+
+    /// The unique content texts and buttons on `app`'s page with their frames, read from one snapshot (per-label queries ran hundreds of
+    /// accessibility requests and crashed the iPad simulator's backboardd). Bar titles are left out (they barely scale and can repeat a
+    /// section header), and so is a text that appears twice, since comparing two different texts proves nothing. Buttons count too: a
+    /// Form button is a button element, not static text. A control in `reflowingIdentifiers` reflows into a shorter row at AX5, so it
+    /// says nothing about whether the page's text grew.
+    private static func uniqueContentTexts(in app: XCUIApplication, reflowing reflowingIdentifiers: [String]) -> [String: CGRect] {
+        guard let root = try? app.snapshot() else { return [:] }
+        var bars: [CGRect] = []
+        var texts: [(String, CGRect)] = []
+        func walk(_ node: XCUIElementSnapshot) {
+            if node.elementType == .navigationBar { bars.append(node.frame) }
+            if [.staticText, .button].contains(node.elementType), !node.label.isEmpty,
+               !reflowingIdentifiers.contains(where: { node.identifier.hasPrefix($0) }) {
+                texts.append((node.label, node.frame))
+            }
+            node.children.forEach(walk)
+        }
+        walk(root)
+        let content = texts.filter { text in !bars.contains { $0.intersects(text.1) } }
+        let counts = Dictionary(content.map { ($0.0, 1) }, uniquingKeysWith: +)
+        return Dictionary(content.filter { counts[$0.0] == 1 }, uniquingKeysWith: { first, _ in first })
     }
 
     /// The attributes of an audit issue's element, read once. Each live property read re-resolves the element's query (one
@@ -679,7 +722,7 @@ enum FentonHomeApp {
                 // The compact date picker's time chips ("9:00AM", no space on the iPad) are the system's too.
                 let pickers = app.datePickers.allElementsBoundByIndex.map(\.frame)
                 if !texts.isEmpty, texts.allSatisfy({
-                    $0.frame.maxY < 32 || SystemDrawnTextRules.isPickerTime($0.text, frame: $0.frame, pickers: pickers)
+                    SystemDrawnTextRules.isInStatusBar($0.frame) || SystemDrawnTextRules.isPickerTime($0.text, frame: $0.frame, pickers: pickers)
                 }) { return true }
             }
             // Same for the content behind an action-sheet popover noted as the audit started (the
