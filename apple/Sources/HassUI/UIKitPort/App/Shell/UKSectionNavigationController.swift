@@ -2,7 +2,12 @@
 import HassCore
 import HassDesign
 import HassTelemetry
+import OSLog
 import UIKit
+
+/// Header-sheet transitions (request, refusal and its reason, presented, dismissed and by which path, self-heal): if Profile or Quick
+/// Links ever go dead on a device, these show which guard held. No entity values or names.
+private let sheetLog = Logger(subsystem: "com.sfenton.home", category: "shell.sheet")
 
 /// One tab's stack: the UIKit counterpart of `MainTabView.sectionStack`. The ``ShellNavigator`` stays the source of truth for
 /// what is pushed (so route restore, push and Spotlight opens, Quick Links and the second tap on a tab work unchanged); this
@@ -33,6 +38,8 @@ final class UKSectionNavigationController: UINavigationController, UINavigationC
     private var routeOf: [ObjectIdentifier: ShellRoute] = [:]
     private var pendingQuickLink: HomeRoute?
     private var isPresentingHeaderSheet = false
+    /// The header sheet this controller presented, to tell a live one from stale state.
+    private weak var headerSheet: UIViewController?
     private var lastScrollToTop = 0
     private var lastFocusToken = 0
     private var reconciled = false
@@ -106,6 +113,8 @@ final class UKSectionNavigationController: UINavigationController, UINavigationC
         bag.observe { [weak self] in
             guard let self else { return }
             let sheet: ShellSheet? = self.navigator.sheet(in: self.section).wrappedValue
+            // A repeated tap on the same button is a new request, so stale state can heal.
+            _ = self.navigator.headerSheetRequests
             self.sheetChanged(sheet)
         }
     }
@@ -303,14 +312,46 @@ final class UKSectionNavigationController: UINavigationController, UINavigationC
 
     private func sheetChanged(_ sheet: ShellSheet?) {
         guard let sheet else {
-            if isPresentingHeaderSheet, presentedViewController != nil, !(presentedViewController?.isBeingDismissed ?? true) {
-                if pendingQuickLink != nil { holdsTouches = true }
-                dismiss(animated: true) { [weak self] in self?.sheetDismissed() }
+            guard isPresentingHeaderSheet else { return }
+            sheetLog.notice("request close, section \(self.section.rawValue, privacy: .public)")
+            if let presented = presentedViewController, presented === headerSheet {
+                // Only this section's own header sheet: whatever else is presented (a sibling's state, a system sheet) is left alone.
+                guard !presented.isBeingDismissed else { return }
+                if pendingQuickLink != nil {
+                    holdsTouches = true
+                    // The dismissal's completion releases the touches; if it never runs, this does.
+                    Task { @MainActor [weak self] in
+                        try? await Task.sleep(for: .seconds(3))
+                        guard let self, self.holdsTouches, self.presentedViewController == nil else { return }
+                        sheetLog.notice("released held touches after a dismissal that never completed")
+                        self.sheetDismissed()
+                    }
+                }
+                dismiss(animated: true) { [weak self] in
+                    sheetLog.notice("dismissed by close")
+                    self?.sheetDismissed()
+                }
+            } else {
+                // The shell thinks a sheet is up and it is not ours (or none is): run the dismissal's work now, dismiss nothing.
+                sheetLog.notice("self-heal: close requested, presented is not the header sheet (presented \(self.presentedViewController != nil, privacy: .public))")
+                sheetDismissed()
             }
             return
         }
-        guard !isPresentingHeaderSheet, presentedViewController == nil, isViewLoaded, view.window != nil else { return }
+        sheetLog.notice("request \(sheet == .account ? "account" : "quickLinks", privacy: .public), section \(self.section.rawValue, privacy: .public)")
+        // Self-heal: a sheet that left without telling us must not keep the header buttons dead.
+        if isPresentingHeaderSheet, presentedViewController == nil || presentedViewController !== headerSheet,
+           !(presentedViewController?.isBeingDismissed ?? false) {
+            sheetLog.notice("self-heal: stale presenting state reset (presented \(self.presentedViewController != nil, privacy: .public))")
+            isPresentingHeaderSheet = false
+            if holdsTouches, presentedViewController == nil, pendingQuickLink == nil { holdsTouches = false }
+        }
+        guard !isPresentingHeaderSheet, presentedViewController == nil, isViewLoaded, view.window != nil else {
+            sheetLog.notice("refused: presenting \(self.isPresentingHeaderSheet, privacy: .public), other presented \(self.presentedViewController != nil, privacy: .public), being dismissed \(self.presentedViewController?.isBeingDismissed ?? false, privacy: .public), in window \(self.viewIfLoaded?.window != nil, privacy: .public)")
+            return
+        }
         isPresentingHeaderSheet = true
+        sheetLog.notice("presenting")
         let sheetContext = pageContext.with { $0.surface = .sheet }
         let page: UIViewController
         let width: HassSheetWidth
@@ -331,16 +372,19 @@ final class UKSectionNavigationController: UINavigationController, UINavigationC
             // The modal's own presentation (detents that follow its content, grabber, width), not a copy of it: it re-fits on a rotation.
             modal.overrideUserInterfaceStyle = UKSystemAppearance.style(for: view)
             modal.present(from: self) { measurement?.settled() }
-            modal.presentationController?.delegate = self
+            modal.swipeDismissObserver = { [weak self] in self?.swipeDismissed() }
+            headerSheet = modal
         } else {
             // Any other page goes through the same modal class (``UKShellSheet``).
-            UKShellSheet.present(page, from: self, width: width, height: .full) { measurement?.settled() }
-            presentedViewController?.presentationController?.delegate = self
+            let modal = UKShellSheet.present(page, from: self, width: width, height: .full) { measurement?.settled() }
+            modal.swipeDismissObserver = { [weak self] in self?.swipeDismissed() }
+            headerSheet = modal
         }
     }
 
     fileprivate func sheetDismissed() {
         isPresentingHeaderSheet = false
+        headerSheet = nil
         // A page Quick Links chose pushes after the sheet has gone, so the push never races the dismissal.
         if let route = pendingQuickLink {
             pendingQuickLink = nil
@@ -361,9 +405,11 @@ final class UKSectionNavigationController: UINavigationController, UINavigationC
     }
 }
 
-extension UKSectionNavigationController: UIAdaptivePresentationControllerDelegate {
-    /// A swipe down closes the sheet: tell the navigator, then run the dismissal's work.
-    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+extension UKSectionNavigationController {
+    /// A swipe down closed the sheet (the modal's ``UKHassModalController/swipeDismissObserver``): tell the navigator, then run the
+    /// dismissal's work. The modal stays the sheet's delegate, so a re-configure under the open sheet cannot drop this.
+    fileprivate func swipeDismissed() {
+        sheetLog.notice("dismissed by swipe")
         navigator.sheet(in: section).wrappedValue = nil
         sheetDismissed()
     }

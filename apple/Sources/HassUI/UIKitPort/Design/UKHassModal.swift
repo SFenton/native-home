@@ -236,7 +236,8 @@ final class UKHassModalController: UINavigationController, UISheetPresentationCo
         UKSheetPlacement.fillsHeight(in: presentationController?.containerView ?? view.window ?? presentingWindow)
     }
 
-    private func configureSheet() {
+    /// Applies the sheet settings (detents, grabber, delegate); ``followPose()`` re-runs it under an open sheet. Internal for tests.
+    func configureSheet() {
         guard !options.isFullScreen, let sheet = sheetPresentationController else { return }
         sheet.delegate = self
         // A `.full` sheet has one detent, so a grabber would promise a resize that does not exist (HIG: Sheets); swipe down still dismisses it.
@@ -265,8 +266,13 @@ final class UKHassModalController: UINavigationController, UISheetPresentationCo
         }
     }
 
+    /// A presenter's ear for a swipe-down close, kept here because the modal is the sheet's delegate (``configureSheet()`` sets it again
+    /// on every re-configure, so a presenter that set itself as delegate would be dropped). Runs after `options.onDismissed`.
+    var swipeDismissObserver: (() -> Void)?
+
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         options.onDismissed?()
+        swipeDismissObserver?()
     }
 
     /// Runs when a swipe-down is refused because the sheet is modal in presentation (a form with unsaved input): the presenter asks

@@ -56,6 +56,50 @@ final class ChromeJourneyTests: JourneyTestCase {
         XCTAssertFalse(app.tabBars.buttons["Quick Links"].exists, "Quick Links is a header button, not a tab")
     }
 
+    // MARK: - Header sheets after an app switch
+
+    /// Profile and Quick Links keep opening after the summary was open across an app switch and a rotation (iPad and the Duo; the
+    /// iPhone is portrait-locked), closed by its X and by a swipe down. The sheets' controls stay reachable (their 44 pt targets are
+    /// audited in SummaryJourneyTests and ShellJourneyTests). XCUITest turns the unfolded Duo with `XCUIDevice.orientation` like the
+    /// iPad; the folded Duo has no landscape of its own, so it only switches apps.
+    func testHeaderSheetsReopenAfterAnAppSwitchAndRotation() throws {
+        let app = try FentonHomeApp.launchSignedIn()
+        for swipe in [false, true] {
+            let how = swipe ? "swipe" : "X"
+            app.openAccountSheet(tab: nil)
+            XCUIDevice.shared.press(.home)
+            app.activate()
+            let close = app.buttons["account.close"]
+            XCTAssertTrue(close.appears(timeout: 10), "The summary is still up after the app switch")
+            XCTAssertTrue(close.isHittable, "Close is reachable (the 44 pt size is audited by the Summary journeys)")
+            if [FentonHomeApp.Family.iPad, .iPhoneDuo].contains(FentonHomeApp.family) {
+                XCUIDevice.shared.orientation = .landscapeLeft
+                settleScreen()
+                XCUIDevice.shared.orientation = .portrait
+                settleScreen()
+            }
+            if swipe {
+                app.windows.firstMatch.swipeDown(velocity: .fast)
+            } else {
+                XCTAssertTrue(close.appears(timeout: 5), "No Close after the rotation")
+                close.tap()
+            }
+            XCTAssertTrue(close.disappears(timeout: 10), "The summary did not close (\(how))")
+            let quick = app.buttons["quickLinks.open"]
+            XCTAssertTrue(quick.appears(timeout: 10), "No Quick Links button")
+            XCTAssertTrue(quick.isHittable, "Quick Links is reachable (its 44 pt hit area is `ShellJourneyTests.testHeaderCircleQuickLinksHasA44PointHitArea`)")
+            quick.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["quickLinks.rooms"].appears(timeout: 10), "Quick Links did not open (\(how))")
+            let quickClose = app.buttons["quickLinks.close"]
+            XCTAssertTrue(quickClose.appears(timeout: 5), "Quick Links has no Close")
+            XCTAssertTrue(quickClose.isHittable, "Quick Links Close is reachable")
+            quickClose.tap()
+            XCTAssertTrue(quickClose.disappears(timeout: 10), "Quick Links did not close")
+        }
+        app.openAccountSheet(tab: nil)
+        XCTAssertTrue(app.buttons["account.close"].exists, "Profile opens once more")
+    }
+
     // MARK: - Captures
     //
     // One test per screen (`testCaptureChrome<Name>`; the glob `ChromeJourneyTests/testCaptureChrome*` recombines the original

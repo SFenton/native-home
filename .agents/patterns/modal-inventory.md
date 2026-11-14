@@ -7,6 +7,7 @@
 | | SwiftUI | UIKit |
 |---|---|---|
 | Presentation | `.sheet(...)` + `.hassSheet(width, height:, appearance:, fitKey:, predictedContentHeight:)` (`HassDesign/HassModal.swift`); 38 `.sheet` and 47 `hassSheet` sites | `UKHassModalController` (`UIKitPort/Design/UKHassModal.swift`), a `UINavigationController` over `UKHassModalOptions`; ~31 feature sites. `UKShellSheet.present` (`App/Page/UKShellSheet.swift`) is now a **thin wrapper over it** (the separate `UKSheetNavigationController` with its own detents, grabber, placement and pose handling is deleted) |
+| Dismissal hooks | `onDismiss` of `.sheet` | `UKHassModalOptions.onDismissed` / `onClose`; a presenter hears a swipe close through `UKHassModalController.swipeDismissObserver`, never by setting the sheet's delegate ([modal-sheet](modal-sheet.md)) |
 | Chrome | `HassModal` / `HassPathModal` (inline title, circle-X, system ground) | `UKHassModal.applyChrome` (same) |
 | Duo rule | `HassSheetPresentation` reads `DuoSheetPolicy.fillsHeight(hinge:)`, `SheetPlacementModifier`, `LeadingHalfSizing` | `UKHassModalController.updateDetents` / `configureSheet`, `UKSheetPlacement.place` / `fillsHeight`, `PoseWatch` for fold, unfold and rotation under an open sheet |
 | Safe area | SwiftUI scroll content and `List` respect the side safe areas natively; backgrounds `ignoresSafeArea()` | every sheet page is a `UKPageViewController` (content inset by the side safe areas); a backdrop uses `setSheetBackdrop`; the modal hosts any non-page in `UKPageHost` |

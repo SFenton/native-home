@@ -104,7 +104,7 @@ final class UKHostedShellTests: XCTestCase {
         let sheet = try XCTUnwrap(home.presentedViewController, "Quick Links opens as a sheet over Home")
         let presentation = try XCTUnwrap(sheet.presentationController)
         // The system calls this after an interactive dismissal; the sheet itself is already on its way out.
-        home.presentationControllerDidDismiss(presentation)
+        presentation.delegate?.presentationControllerDidDismiss?(presentation)
         XCTAssertNil(rig.navigator.quickLinksSection, "the navigator no longer thinks the sheet is up")
         XCTAssertTrue(rig.navigator.isAtRoot(.home), "nothing was pushed")
     }
