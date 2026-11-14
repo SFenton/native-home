@@ -42,9 +42,11 @@ without duplicate keys. No YAML extensions or dependency installation.
 
 Required manifest: name, description, matching slug, bounded version, unique amd64/aarch64 arch,
 ingress=true, ingress_port=4800, panel_admin=true, ports={"4800/tcp":null},
-options={"live_actions":false}. Optional schema is exactly {"live_actions":"bool"}.
+options={"auth_token":"","enable_live_actions":false}. Optional schema must contain only
+enable_live_actions="bool" and auth_token="str"|"str?"|"password"|"password?".
 Other allowed fields: url, panel_icon, panel_title, ports_description, startup="application",
-boot="manual"|"auto", boolean init and homeassistant_api. No image, environment, mounts,
+boot="manual"|"auto", stage="experimental", backup="cold", boolean init and homeassistant_api.
+No image, environment, mounts,
 privileges, host access, additional options, Supervisor API or Docker API access.
 
 Preflight refuses unhealthy/unsupported Supervisor, installed local_<slug>, any existing source
@@ -92,17 +94,23 @@ def validate_manifest(body: bytes, slug: str) -> str:
     allowed = {
         "name", "description", "slug", "version", "arch", "url", "startup", "boot", "init",
         "ingress", "ingress_port", "panel_admin", "panel_icon", "panel_title", "ports",
-        "ports_description", "options", "schema", "homeassistant_api",
+        "ports_description", "options", "schema", "homeassistant_api", "stage", "backup",
     }
     if not isinstance(config, dict) or set(config) - allowed:
         raise InstallError("manifest has unsupported fields (no image, mounts, privileges, host access or environment)")
     if (config.get("slug") != slug or config.get("ingress") is not True or config.get("panel_admin") is not True
             or type(config.get("ingress_port")) is not int or config["ingress_port"] != 4800
-            or config.get("ports") != {"4800/tcp": None} or config.get("options") != {"live_actions": False}
-            or type(config["options"].get("live_actions")) is not bool):
-        raise InstallError("manifest requires matching slug, admin-only ingress on 4800, no published ports and options.live_actions=false")
-    if "schema" in config and config["schema"] != {"live_actions": "bool"}:
-        raise InstallError("manifest schema may only expose live_actions as bool")
+            or config.get("ports") != {"4800/tcp": None}
+            or config.get("options") != {"auth_token": "", "enable_live_actions": False}
+            or type(config["options"].get("enable_live_actions")) is not bool):
+        raise InstallError("manifest requires matching slug, admin-only ingress on 4800, no published ports, blank auth_token "
+                           "and options.enable_live_actions=false")
+    if "schema" in config:
+        schema = config["schema"]
+        if (not isinstance(schema, dict) or set(schema) != {"auth_token", "enable_live_actions"}
+                or schema.get("enable_live_actions") != "bool"
+                or schema.get("auth_token") not in ("str", "str?", "password", "password?")):
+            raise InstallError("manifest schema may only expose auth_token as str/password and enable_live_actions as bool")
     if (not isinstance(config.get("version"), str) or not VERSION.fullmatch(config["version"])
             or not isinstance(config.get("arch"), list) or not config["arch"]
             or any(a not in ("amd64", "aarch64") for a in config["arch"])
@@ -113,8 +121,9 @@ def validate_manifest(body: bytes, slug: str) -> str:
             raise InstallError("manifest requires a short name and description")
     if (config.get("startup", "application") != "application" or config.get("boot", "manual") not in ("manual", "auto")
             or ("init" in config and type(config["init"]) is not bool)
-            or ("homeassistant_api" in config and type(config["homeassistant_api"]) is not bool)):
-        raise InstallError("manifest has unsupported startup or API settings")
+            or ("homeassistant_api" in config and type(config["homeassistant_api"]) is not bool)
+            or config.get("stage", "experimental") != "experimental" or config.get("backup", "cold") != "cold"):
+        raise InstallError("manifest has unsupported startup, stage, backup or API settings")
     return config["version"]
 
 

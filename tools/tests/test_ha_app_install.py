@@ -29,7 +29,10 @@ SECRET = "demo-private-option"
 def manifest():
     return {"name": "Demo Studio", "description": "A test app", "slug": SLUG, "version": "1.2.3",
             "arch": ["amd64", "aarch64"], "ingress": True, "ingress_port": 4800, "panel_admin": True,
-            "ports": {"4800/tcp": None}, "options": {"live_actions": False}, "schema": {"live_actions": "bool"}}
+            "startup": "application", "boot": "auto", "stage": "experimental", "backup": "cold", "init": True,
+            "homeassistant_api": True, "ports": {"4800/tcp": None},
+            "options": {"auth_token": "", "enable_live_actions": False},
+            "schema": {"auth_token": "password?", "enable_live_actions": "bool"}}
 
 
 class FakeSsh:
@@ -298,14 +301,42 @@ class InstallTests(unittest.TestCase):
                 self.failure()
         self.assertEqual(self.ssh.actions, [])
 
+    def test_normalized_native_home_studio_manifest_freezes_without_yaml_parser(self):
+        config = {**manifest(), "name": "Native Home Studio", "slug": "native_home_studio", "version": "0.1.0"}
+        (self.source / "config.yaml").write_text(json.dumps(config))
+        frozen = app.freeze_source(str(self.source), [self.root], hc.SECRET_NAME, "native_home_studio")
+        self.assertEqual(frozen["version"], "0.1.0")
+        with tarfile.open(fileobj=io.BytesIO(base64.b64decode(frozen["archive"])), mode="r:") as archive:
+            staged = json.loads(archive.extractfile("config.yaml").read())
+        self.assertEqual(staged, config)
+        self.assertEqual(self.ssh.actions, [])
+
+    def test_manifest_accepts_only_controlled_token_and_live_action_schemas(self):
+        for token_type in ("str", "str?", "password", "password?"):
+            config = {**manifest(), "schema": {"auth_token": token_type, "enable_live_actions": "bool"}}
+            self.assertEqual(app.validate_manifest(json.dumps(config).encode(), SLUG), "1.2.3")
+        config = manifest()
+        del config["schema"]
+        self.assertEqual(app.validate_manifest(json.dumps(config).encode(), SLUG), "1.2.3")
+
     def test_manifest_refuses_privilege_ports_live_actions_and_nonlocal_images(self):
         changes = [{"ingress": False}, {"panel_admin": False}, {"ingress_port": 4801}, {"slug": "other"},
-                   {"ports": {"4800/tcp": 4800}}, {"options": {"live_actions": True}},
-                   {"options": {"live_actions": 0}}, {"options": {"live_actions": False, "password": SECRET}},
-                   {"schema": {"live_actions": "bool?"}}, {"image": "example/image"},
+                   {"ports": {"4800/tcp": 4800}}, {"options": {"auth_token": "", "enable_live_actions": True}},
+                   {"options": {"auth_token": "", "enable_live_actions": 0}},
+                   {"options": {"auth_token": SECRET, "enable_live_actions": False}},
+                   {"options": {"auth_token": " ", "enable_live_actions": False}},
+                   {"options": {"auth_token": None, "enable_live_actions": False}},
+                   {"options": {"auth_token": "", "enable_live_actions": False, "password": SECRET}},
+                   {"options": {"live_actions": False}},
+                   {"schema": {"auth_token": "password?", "enable_live_actions": "bool?"}},
+                   {"schema": {"auth_token": "list", "enable_live_actions": "bool"}},
+                   {"schema": {"auth_token": "str", "enable_live_actions": "bool", "extra": "str"}},
+                   {"image": "example/image"}, {"full_access": True},
                    {"map": ["config:rw"]}, {"docker_api": True}, {"hassio_api": True},
                    {"host_network": True}, {"privileged": ["SYS_ADMIN"]}, {"environment": {"TOKEN": SECRET}},
-                   {"arch": []}, {"arch": ["amd64", "amd64"]}, {"version": ""}, {"startup": "services"}]
+                   {"host_pid": True}, {"devices": ["/dev/example"]}, {"hassio_role": "admin"}, {"auth_api": True},
+                   {"arch": []}, {"arch": ["amd64", "amd64"]}, {"version": ""}, {"startup": "services"},
+                   {"stage": "stable"}, {"backup": "hot"}]
         for update in changes:
             with self.subTest(update=update):
                 (self.source / "config.yaml").write_text(json.dumps({**manifest(), **update}))
