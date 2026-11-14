@@ -6,6 +6,7 @@
     tools/ha_change.py apply --files LOCAL:REMOTE [LOCAL:REMOTE ...] --reason TEXT
     tools/ha_change.py restart --reason TEXT
     tools/ha_change.py hacs-install OWNER/REPO --reason TEXT
+    tools/ha_change.py addon-install --source build/ha/APP --slug SLUG --reason TEXT --owner-approved
     tools/ha_change.py revert SLUG [--reason TEXT]
 
 Every command takes ``--host ALIAS`` before the command name (default ``hass``): ``--host hass-test`` targets the test instance
@@ -267,8 +268,8 @@ class HaChange:
         self.log_path = Path(os.path.expanduser(str(log_path or DEFAULT_LOG)))
 
     # -- plumbing
-    def ssh(self, remote: str, input: Optional[str] = None) -> "subprocess.CompletedProcess[str]":
-        return self.run(["ssh", "-o", "BatchMode=yes", self.host, remote], input=input)
+    def ssh(self, remote: str, input: Optional[str] = None, timeout: int = 900) -> "subprocess.CompletedProcess[str]":
+        return self.run(["ssh", "-o", "BatchMode=yes", self.host, remote], input=input, timeout=timeout)
 
     def must(self, remote: str, what: str, input: Optional[str] = None) -> str:
         proc = self.ssh(remote, input)
@@ -637,6 +638,14 @@ class HaChange:
         self.log("revert", "ok", reason, [], slug)
         self.out(f"restored backup {slug}")
 
+    def addon_install(self, source: str, slug: str, reason: str, owner_approved: bool = False) -> str:
+        """First-install-only local Supervisor app; explicit owner opt-in, no Core restart or automatic full restore."""
+        from ha_app_install import InstallError, install
+        try:
+            return install(self, source, slug, reason, owner_approved, SECRET_NAME)
+        except InstallError as exc:
+            raise _Logged(str(exc)) from None
+
 
 def main(argv: Optional[List[str]] = None, change: Optional[HaChange] = None) -> int:
     ap = argparse.ArgumentParser(prog="ha_change.py", description=__doc__.split("\n\n")[0])
@@ -652,6 +661,13 @@ def main(argv: Optional[List[str]] = None, change: Optional[HaChange] = None) ->
     h = sub.add_parser("hacs-install")
     h.add_argument("repo")
     h.add_argument("--reason", required=True)
+    from ha_app_install import HELP
+    app = sub.add_parser("addon-install", help="first install of an owner-approved, ingress-only local app",
+                         description=HELP, formatter_class=argparse.RawDescriptionHelpFormatter)
+    app.add_argument("--source", required=True, help="frozen build context below this checkout/build/ha")
+    app.add_argument("--slug", required=True)
+    app.add_argument("--reason", required=True)
+    app.add_argument("--owner-approved", action="store_true", help="explicit owner authorization for this app installation")
     v = sub.add_parser("revert")
     v.add_argument("slug")
     v.add_argument("--reason", default="revert")
@@ -674,6 +690,8 @@ def main(argv: Optional[List[str]] = None, change: Optional[HaChange] = None) ->
             change.restart(args.reason)
         elif args.cmd == "hacs-install":
             change.hacs_install(args.repo, args.reason)
+        elif args.cmd == "addon-install":
+            change.addon_install(args.source, args.slug, args.reason, args.owner_approved)
         else:
             change.revert(args.slug, args.reason)
     except (ChangeError, subprocess.TimeoutExpired, OSError) as exc:
