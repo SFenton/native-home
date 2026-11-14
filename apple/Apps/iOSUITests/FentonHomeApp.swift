@@ -606,10 +606,9 @@ enum FentonHomeApp {
                 .replacingOccurrences(of: "^[·•+\\-] ?", with: "", options: .regularExpression)
             let wanted = squeeze(text)
             if known.contains(where: { !$0.isEmpty && $0.contains(wanted) }) { continue }
-            // A notice's leading info glyph read as a letter ("i Alex Away" for the label "Alex Away", iPad Solo Trip restore, CI,
-            // 2026-11-13): the rest must still be in a label.
-            if let rest = SystemDrawnTextRules.droppingLeadingGlyphLetter(wanted),
-               known.contains(where: { !$0.isEmpty && $0.contains(rest) }) { continue }
+            // A notice's info glyph read as a leading "i" ("i Alex Away" for the label "Alex Away", iPad Solo Trip restore, CI,
+            // 2026-11-13): the rest must still be a label, or its first whole words.
+            if SystemDrawnTextRules.isInfoGlyphMisread(wanted, labels: known.filter { !$0.isEmpty }) { continue }
             // Text clipped at a container's edge (the weather ticker mid-scroll, "1 Hail And Damaging Wind Gl" for the card label's "…With
             // Hail And Damaging Wind Gusts…") reads with a partial word at each end: without those, two or more whole words must still be
             // in a label.

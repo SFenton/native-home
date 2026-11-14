@@ -20,10 +20,17 @@ enum SystemDrawnTextRules {
         isTimeChip(text) && isInsidePicker(frame, pickers: pickers)
     }
 
-    /// `text` without a leading glyph that recognition read as one lowercase letter ("i Alex Away" for the notice's info glyph and
-    /// "Alex Away"), or `nil` when it does not start that way. The caller still requires the rest to be in a label.
-    static func droppingLeadingGlyphLetter(_ text: String) -> String? {
-        guard text.range(of: "^[a-z] [^ ]", options: .regularExpression) != nil else { return nil }
-        return String(text.dropFirst(2))
+    /// Whether `text` is a label's text read with the info glyph in front ("i alex away" for the notice "Alex Away"): a leading "i"
+    /// and a space, then at least four characters that equal one of `labels` or start it as whole words. Both sides are lowercased
+    /// and whitespace-squeezed by the caller.
+    static func isInfoGlyphMisread(_ text: String, labels: [String]) -> Bool {
+        guard text.hasPrefix("i ") else { return false }
+        let rest = String(text.dropFirst(2))
+        guard rest.count >= 4 else { return false }
+        return labels.contains { label in
+            guard label.hasPrefix(rest) else { return false }
+            // Whole words: the label ends there or the next character is not a letter or digit ("alex away, since 9").
+            return label.dropFirst(rest.count).first.map { !$0.isLetter && !$0.isNumber } ?? true
+        }
     }
 }
