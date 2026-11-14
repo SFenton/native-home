@@ -51,6 +51,36 @@ private func userInfo(_ fenton: [String: Any]) -> [AnyHashable: Any] {
 @Suite(.hosted, .demoHouse)
 @MainActor
 struct PushCoordinatorTests {
+    @Test func aSavedApnsTokenGoesOutOnlyWhilePermissionIsGranted() async throws {
+        let probe = PlatformProbe()
+        probe.status = .denied
+        let registration = MobileAppRegistration(server: server, userID: "u1", webhookID: "w1")
+        let store = InMemoryMobileAppRegistrationStore([registration], active: registration,
+                                                       tokens: DeviceTokens(push: "ab", startActivity: "ee"))
+        let transport = StubHTTPTransport([(200, configJSON), (200, "{}"), (200, configJSON), (200, "{}"), (200, configJSON), (200, "{}")])
+        let push = PushCoordinator(platform: probe.platform, store: store, transport: transport)
+        push.sessionStarted(server: server) { "token" }
+        await push.didConnect(userID: "u1")
+        let denied = try #require(body(transport.requests[1])["data"] as? [String: Any])
+        #expect((denied["app_data"] as? [String: Any])?["push_token"] == nil, "launch with permission refused")
+        #expect(probe.remoteRegistrations == 0)
+
+        // Turned on in iOS Settings: the registration gains the saved token without waiting for the system's.
+        probe.status = .granted
+        await push.refreshSettings()
+        let granted = try #require(body(transport.requests[3])["data"] as? [String: Any])
+        #expect((granted["app_data"] as? [String: Any])?["push_token"] as? String == "ab")
+        #expect((granted["app_data"] as? [String: Any])?["start_live_activity_token"] as? String == "ee")
+
+        // Turned off again: websocket-only.
+        probe.status = .denied
+        await push.refreshSettings()
+        await push.refreshSettings()
+        #expect(transport.requests.count == 6, "an unchanged answer syncs nothing")
+        let revoked = try #require(body(transport.requests[5])["data"] as? [String: Any])
+        #expect((revoked["app_data"] as? [String: Any])?["push_token"] == nil)
+    }
+
     @Test func registersOnConnectAndUpdatesOnToken() async throws {
         let probe = PlatformProbe()
         let transport = StubHTTPTransport([(200, configJSON), (201, #"{"webhook_id":"w1"}"#), (200, configJSON), (200, "{}")])

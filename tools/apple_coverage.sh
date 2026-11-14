@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SwiftPM coverage gate: runs every package test bundle with LLVM coverage on the macOS host and requires 95% logic lines
-# (the `logic` globs of contracts/coverage-rules.json: HassCore, HassTelemetry, FentonActivityModel, HassDemoHouse).
-# Ported from FestivalNativeApps. UX source (HassDesign, HassUI, FentonActivityViews) is classified `unmeasured`: its line
+# (the `logic` globs of contracts/coverage-rules.json: HassCore, HassTelemetry, FentonActivityModel, HassDemoHouse and the view-free HassUI files).
+# Ported from FestivalNativeApps. View source (HassDesign, FentonActivityViews, the HassUI views) is classified `unmeasured`: its line
 # coverage is not measured or gated (.agents/testing/apple/coverage.md). The UX tests, accessibility tests,
 # hosted tests and journeys still run, under their own plans; nothing here starts a simulator.
 #

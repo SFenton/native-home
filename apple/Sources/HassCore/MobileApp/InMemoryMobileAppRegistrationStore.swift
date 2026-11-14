@@ -7,8 +7,8 @@ public final class InMemoryMobileAppRegistrationStore: MobileAppRegistrationStor
 
     /// Creates a store, optionally pre-filled.
     public init(_ registrations: [MobileAppRegistration] = [], active: MobileAppRegistration? = nil,
-                pending: [PendingUnregister] = []) {
-        list = MobileAppRegistrationList(registrations: registrations, active: active, pending: pending)
+                pending: [PendingUnregister] = [], tokens: DeviceTokens = DeviceTokens()) {
+        list = MobileAppRegistrationList(registrations: registrations, active: active, pending: pending, tokens: tokens)
     }
 
     public func registration(server: HassServer, userID: String) -> MobileAppRegistration? {
@@ -23,4 +23,7 @@ public final class InMemoryMobileAppRegistrationStore: MobileAppRegistrationStor
     public var pendingUnregisters: [PendingUnregister] { lock.withLock { list.pending } }
     public func addPending(_ entry: PendingUnregister) { lock.withLock { list.addPending(entry) } }
     public func removePending(_ entry: PendingUnregister) { lock.withLock { list.removePending(entry) } }
+
+    public var deviceTokens: DeviceTokens? { lock.withLock { list.tokens } }
+    public func setDeviceTokens(_ tokens: DeviceTokens) { lock.withLock { list.tokens = tokens } }
 }

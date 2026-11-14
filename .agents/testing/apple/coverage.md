@@ -1,6 +1,6 @@
 # Coverage measurement
 
-> **What:** how `tools/apple_coverage.sh` measures and gates the logic line bar on the Mac host; UX line coverage is not measured. **Read when:** the logic number looks wrong, a coverage run fails, or you add a source module.
+> **What:** how `tools/apple_coverage.sh` measures and gates the logic line bar on the Mac host; view line coverage is not measured. **Read when:** the logic number looks wrong, a coverage run fails, or you add a source module.
 
 ## What is measured, and where
 
@@ -9,12 +9,13 @@
 - No simulator, no instrumented app and no iOS profile take part. A full run takes one devcap `build` hold and is the nightly and release tier ([test tiers](README.md#test-tiers)).
 - A classified `logic` file with no LLVM record compiled to no instrumented code (declarations only): it counts as zero lines and the gate lists it. A whole module with no record is an error, because its test bundle was not exported.
 
-## UX source is unmeasured
+## Classification
 
-- `HassDesign`, `HassUI` (including `UIKitPort`) and `FentonActivityViews` sit under `swift.unmeasured` in `contracts/coverage-rules.json`; `thresholds` names only `logic`.
-- Every file under `apple/Sources` still matches exactly one category, so a new module fails `coverage_gate.py --language swift --classify-only` by name until its pattern is added. `unmeasured` files get no report line, no threshold and no "no LLVM record" error, and `--files` skips them.
-- UX tests, accessibility tests, app-hosted tests and journeys are kept: every UI change owes a UX test and an accessibility test on each affected family ([testing](README.md)); the app-hosted and journey tiers are pass or fail ([test tiers](README.md#test-tiers)).
-- Branching logic belongs in `HassCore` or a model the host tests reach, so the gate sees it. A view controller that grows branching logic is a review finding. `FentonActivityViews` is checked by its UX and accessibility tests.
+- `contracts/coverage-rules.json` is the source. `logic` is gated; `unmeasured` (views) gets no report line, threshold or "no LLVM record" error.
+- Every file under `apple/Sources` matches exactly one category, so an unmatched or doubly matched file fails `coverage_gate.py --language swift --classify-only` by name.
+- A `HassUI` file named `*Model.swift` or `*Model+*.swift` is logic; a view name is unmeasured; any other name fails until you place it.
+- Every UI change owes a UX test and an accessibility test per affected family ([testing](README.md)); the app-hosted and journey tiers are pass or fail ([test tiers](README.md#test-tiers)).
+- Branching logic belongs in `HassCore` or a model the host tests reach. A view controller that grows branching logic is a review finding.
 
 ## `--changed`
 

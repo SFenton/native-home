@@ -2161,6 +2161,15 @@
    "journeys": []
   },
   {
+   "prefix": "apple/Tests/HassUITests/FakeRecipeService.swift",
+   "swift": [
+    "RecipeCollectionModelTests",
+    "RecipeDetailModelTests",
+    "SuggestedRecipesModelTests"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Tests/HassUITests/HostedGate.swift",
    "swift": [
     "HassUITests"

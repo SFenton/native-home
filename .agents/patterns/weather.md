@@ -37,7 +37,7 @@ Web source: `ha-sfenton-react-dash@f5a7bf9` `src/components/hass/WeatherSummary.
 
 ## House config
 
-The weather, air-quality and sun entity ids (`WeatherEntities.weather`, `.airQuality`, `.sun`; document paths `home.weatherEntityId`, `home.airQualityEntityId`, `home.sunEntityId`, the last two optional) are facades over the loaded house document; with no document they answer empty (architecture.md, "House config facades"). `WeatherForecastStore` binds the id when it is created, so a changed id reaches a card the next time it is built; the rules above still hold.
+The weather, air-quality and sun entity ids (`WeatherEntities.weather`, `.airQuality`, `.sun`; document paths `home.weatherEntityId`, `home.airQualityEntityId`, `home.sunEntityId`, the last two optional) are facades over the loaded house document; with no document they answer empty (architecture.md, "House config facades"). `WeatherForecastStore` reads the id each time a fetch is due, never at creation, so a document that arrives after the card is built (a first sign-in) reaches it: the card's driver tracks the id and starts the first fetch. While the id is empty the store sends no call, arms no timer and leaves both feeds pending, so the card shows its placeholders. A failed fetch shows the deck line (`WeatherCopy.forecastFailure`), never Home Assistant's own text; the server's reason goes to Telemetry only (`weather.forecastFailed`). The rules above still hold.
 
 ## Guards
 

@@ -5,7 +5,8 @@ import Observation
 /// The signed-in session's one `mobile_app` registration, shared by push, location and sensors
 /// (`.agents/platforms/apple/mobile-app.md`).
 ///
-/// Owns the session's ``MobileAppRegistrar``, the user it registered for, and the APNs token. ``PushCoordinator``
+/// Owns the session's ``MobileAppRegistrar``, the user it registered for, and the install's APNs and push-to-start tokens
+/// (kept in the store across launches and sign-out, so no sync drops one). ``PushCoordinator``
 /// starts the session, supplies the token and fires notification buttons through it; ``LocationCoordinator`` sends
 /// through ``webhookSource`` and starts when ``registration`` appears.
 @MainActor
@@ -38,9 +39,24 @@ public final class MobileAppCoordinator {
     }()
     @ObservationIgnored private(set) var userID: String?
     @ObservationIgnored private var userName: String?
+    /// The last APNs token the system issued, seeded from the store at launch so the first sync carries it.
     @ObservationIgnored private var token: String?
-    /// The Home activity's push-to-start token (nil while Live Activities are off or unsupported).
+    /// The Home activity's push-to-start token a sync sends: seeded from the store at launch, nil while Live Activities
+    /// are off or unsupported.
     @ObservationIgnored private var startActivityToken: String?
+    /// The last push-to-start token the system issued, kept while Live Activities are off so turning them on restores it.
+    @ObservationIgnored private var lastStartActivityToken: String?
+    /// The pair last read from or written to the store, so a write happens only when a token changed.
+    @ObservationIgnored private var savedTokens: DeviceTokens?
+    /// Whether the store has been read. A launch before first unlock cannot read it; the read repeats until it can, and
+    /// no sync goes out before then, so an unreadable store is never sent as "no tokens".
+    @ObservationIgnored private var tokensLoaded = false
+    /// Live Activities were turned off this launch, so a late read must not bring the start token back.
+    @ObservationIgnored private var startTokenWithdrawn = false
+    /// Whether notification permission is granted; nil until the system's answer is read. While it is false a sync
+    /// sends no APNs token, so the registration stays websocket-only like a phone that never had permission. While it
+    /// is nil a sync carries the saved token, so it never drops what Home Assistant already has.
+    @ObservationIgnored private(set) var notificationsGranted: Bool?
     /// The running sync, so a token arriving mid-sync waits for it instead of racing it.
     @ObservationIgnored private var syncTask: Task<Void, Never>?
     /// The registration and user the person link last succeeded for, so a reconnect doesn't repeat it.
@@ -65,6 +81,29 @@ public final class MobileAppCoordinator {
         self.transport = transport
         self.isEnabled = isEnabled
         self.allowsRegistration = allowsRegistration
+        loadTokens()
+    }
+
+    /// Reads the saved tokens once the store can be read. A token the system yielded first wins over a saved one; a
+    /// start token withdrawn this launch stays withdrawn. Writes back what the store lacks.
+    /// - Returns: Whether the store has been read.
+    @discardableResult
+    private func loadTokens() -> Bool {
+        if tokensLoaded { return true }
+        guard let saved = store.deviceTokens else { return false }
+        tokensLoaded = true
+        savedTokens = saved
+        token = token ?? saved.push
+        lastStartActivityToken = lastStartActivityToken ?? saved.startActivity
+        if !startTokenWithdrawn { startActivityToken = startActivityToken ?? saved.startActivity }
+        persistTokens()
+        return true
+    }
+
+    /// The last push-to-start token the system issued, from this launch or a saved one; nil when none or unreadable.
+    func knownStartActivityToken() -> String? {
+        loadTokens()
+        return lastStartActivityToken
     }
 
     /// Where location and sensor commands go: the signed-in user's webhook, read at send time.
@@ -116,10 +155,14 @@ public final class MobileAppCoordinator {
                                        allowsRegistration: allowsRegistration)
     }
 
+    /// Whether ``begin(userID:userName:)`` would take this user, so the caller reads permission before it does.
+    func canBegin(userID: String) -> Bool { isEnabled && registrar != nil && self.userID != userID }
+
     /// Takes the signed-in user, once per session.
     /// - Returns: Whether the user is new to this session (a reconnect as the same user returns false), so the
     ///   caller syncs; false too when disabled or before a session starts.
     func begin(userID: String, userName: String?) -> Bool {
+        loadTokens()
         guard isEnabled, registrar != nil, self.userID != userID else { return false }
         self.userID = userID
         self.userName = userName
@@ -129,17 +172,41 @@ public final class MobileAppCoordinator {
     /// The system issued an APNs token (lowercase hex).
     /// - Returns: Whether it differs from the last one, so the caller syncs.
     func setPushToken(_ hex: String) -> Bool {
+        loadTokens()
         guard hex != token else { return false }
         token = hex
+        persistTokens()
+        return true
+    }
+
+    /// The system's notification answer was read.
+    /// - Returns: Whether it differs from the last answer, so the caller syncs.
+    func setNotificationsGranted(_ granted: Bool) -> Bool {
+        guard granted != notificationsGranted else { return false }
+        notificationsGranted = granted
         return true
     }
 
     /// The Home activity's push-to-start token changed, or Live Activities were turned off (nil).
     /// - Returns: Whether it differs from the last one, so the caller syncs.
     func setStartActivityToken(_ hex: String?) -> Bool {
+        startTokenWithdrawn = hex == nil
+        loadTokens()
+        if let hex { lastStartActivityToken = hex }
+        persistTokens()
         guard hex != startActivityToken else { return false }
         startActivityToken = hex
         return true
+    }
+
+    /// Keeps the last tokens for the next launch. Turning Live Activities off drops the token from the next sync only;
+    /// the last one stays here so turning them on restores it.
+    private func persistTokens() {
+        guard tokensLoaded else { return }
+        let tokens = DeviceTokens(push: token, startActivity: lastStartActivityToken)
+        guard tokens != savedTokens else { return }
+        savedTokens = tokens
+        store.setDeviceTokens(tokens)
     }
 
     /// Takes the Home activity's push-to-start token (nil removes it) and syncs the registration when it changed, so
@@ -164,8 +231,10 @@ public final class MobileAppCoordinator {
     /// Registers or updates for the session's user with the current token. Waits for a running sync first.
     public func sync() async {
         await syncTask?.value
-        guard isEnabled, let registrar, let userID else { return }
-        let token = token, userName = userName, startActivityToken = startActivityToken
+        // The saved tokens must be read first: a sync without them would drop what Home Assistant already has.
+        guard isEnabled, let registrar, let userID, loadTokens() else { return }
+        // Permission refused or revoked: the stored token is stale, so the registration goes websocket-only.
+        let token = notificationsGranted == false ? nil : token, userName = userName, startActivityToken = startActivityToken
         let task = Task { [weak self] in
             guard let outcome = try? await registrar.sync(userID: userID, userName: userName, token: token,
                                                           startActivityToken: startActivityToken) else { return }

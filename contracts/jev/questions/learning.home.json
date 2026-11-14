@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 15,
+  "version": 17,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -156,7 +156,7 @@
     ".agents/testing/apple/README.md": "Apple testing: test phases, device matrix, accessibility rules and coverage bars (ported from FestivalNativeApps). (read when: adding or changing Swift code.)",
     ".agents/testing/apple/accessibility.md": "Apple accessibility audits: audit rules and evidence (from FestivalNativeApps). (read when: writing the accessibility test a UI change ships with.)",
     ".agents/testing/apple/app-reuse.md": "App reuse in journeys: one running app per journey class, reset between tests instead of relaunched (pilot, 2026-10-30). (read when: a journey class launches the gallery in every test, or a reused test misbehaves.)",
-    ".agents/testing/apple/coverage.md": "Coverage measurement: how `tools/apple_coverage.sh` measures and gates the logic line bar on the Mac host; UX line coverage is not measured. (read when: the logic number looks wrong, a coverage run fails, or you add a source module.)",
+    ".agents/testing/apple/coverage.md": "Coverage measurement: how `tools/apple_coverage.sh` measures and gates the logic line bar on the Mac host; view line coverage is not measured. (read when: the logic number looks wrong, a coverage run fails, or you add a source module.)",
     ".agents/testing/apple/devices.md": "Device matrix: the simulators every journey runs on and how to run them. (read when: running UI or accessibility tests.)",
     ".agents/testing/apple/ha-companion.md": "Home Assistant companion app: the official Home Assistant iOS app built from source onto our simulators, for side-by-side comparison of pages and modals. (read when: checking a native page against how Home Assistant's own app presents the same entities.)",
     ".agents/testing/apple/journey-expectations.md": "Journey expectations",

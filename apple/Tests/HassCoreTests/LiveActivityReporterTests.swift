@@ -14,13 +14,14 @@ struct LiveActivityTokenReporterTests {
         var all: [String?] { lock.withLock { values } }
     }
 
-    private func make(enabled: Bool = true, webhook: RecordingActivityWebhook? = RecordingActivityWebhook())
+    private func make(enabled: Bool = true, webhook: RecordingActivityWebhook? = RecordingActivityWebhook(),
+                      lastKnown: String? = nil)
         -> (LiveActivityTokenReporter, FakeLiveActivityClient, RecordingActivityWebhook?, Registered) {
         let client = FakeLiveActivityClient(enabled: enabled)
         let registered = Registered()
         let now = now
         let reporter = LiveActivityTokenReporter(client: client, webhook: { webhook }, registerStartToken: { registered.add($0) },
-                                                 now: { now })
+                                                 lastKnownStartToken: { lastKnown }, now: { now })
         return (reporter, client, webhook, registered)
     }
 
@@ -50,7 +51,38 @@ struct LiveActivityTokenReporterTests {
         #expect(await eventually { client.isWatching })
         client.emitStartToken("cc03")
         client.setEnabled(true)
-        #expect(await eventually { registered.all == ["cc03"] })
+        #expect(await eventually { registered.all == [nil, "cc03"] })
+        reporter.stop()
+    }
+
+    @Test func withoutASavedTokenTurningOnSendsNothingUntilTheSystemYieldsOne() async {
+        let client = FakeLiveActivityClient(enabled: false)
+        let registered = Registered()
+        let reporter = LiveActivityTokenReporter(client: client, webhook: { nil }, registerStartToken: { registered.add($0) })
+        reporter.start()
+        #expect(await eventually { registered.all == [nil] })
+        client.setEnabled(true)
+        #expect(await eventually { registered.all == [nil, nil] })
+        reporter.stop()
+    }
+
+    @Test func offAtLaunchRemovesTheSeededTokenAndOnRestoresTheSavedOne() async {
+        let (reporter, client, _, registered) = make(enabled: false, lastKnown: "aa01")
+        reporter.start()
+        #expect(await eventually { registered.all == [nil] })
+        // The system has yielded nothing this launch; the token a past launch saved comes back.
+        client.setEnabled(true)
+        #expect(await eventually { registered.all == [nil, "aa01"] })
+        reporter.stop()
+    }
+
+    @Test func onAtLaunchSendsNothingUntilTheSystemYieldsADifferentToken() async {
+        let (reporter, client, _, registered) = make(lastKnown: "aa01")
+        reporter.start()
+        #expect(await eventually { client.isWatching })
+        #expect(registered.all.isEmpty, "the registration was already seeded")
+        client.emitStartToken("bb02")
+        #expect(await eventually { registered.all == ["bb02"] })
         reporter.stop()
     }
 
