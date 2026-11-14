@@ -30,6 +30,7 @@ A facade is a computed `static var` returning `HouseConfigSource.active.read { $
 
 Rules:
 
+- **Structure built from facades is rebuilt on a new document or hash**, never on a cached launch: [page-base](../../patterns/page-base.md).
 - **No house literal in `apple/Sources`.** A new entity id, name or address in code is a `house_scan` hit (`tools/house_scan.py`; the allowlist holds only generic ids such as service names, SF Symbol names and accessibility identifiers). A fallback is empty, never a default house.
 - **No `static let` that reads a facade.** It freezes the first value until relaunch. Make it a computed `static var` (`WeatherEntities.weather`, `QuickLinks.securityEntityId`, `UKSecurityChips.chips`, the vehicle tiles). The `weather/static-let-reads-house-facade` guard in `contracts/patterns.json` checks every `static let` against its `facades` map (type to names); add each new facade's names to the map.
 - **No `Dictionary(uniqueKeysWithValues:)` on server data** (a repeated key traps): use `uniquingKeysWith: { first, _ in first }` (`HomeConfig.guestToggleRules`, `VacuumController.roomOrders(for:)`, `SpotlightCatalog`). The `weather/unique-keys-in-facade-files` guard flags it in files that name a facade.

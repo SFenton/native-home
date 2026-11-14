@@ -10,7 +10,7 @@ import UIKit
 /// is wide enough (web `ResponsiveSectionGrid`).
 @MainActor
 final class UKSprinklersViewController: UKPageViewController {
-    private let controllers: [SprinklerController]
+    private var controllers: [SprinklerController]
     private let initialDetail: SprinklerDetail?
     /// A controller whose sheet opens as soon as the page is on screen (gallery and journeys).
     private var pendingOpen: SprinklerController?
@@ -41,10 +41,37 @@ final class UKSprinklersViewController: UKPageViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        buildSections()
+        column.sideInset = HassTokens.Spacing.l
+        column.splitIdentifier = "sprinklers.columns.split"
+        column.isRegular = { [weak self] in self?.traitCollection.horizontalSizeClass == .regular }
+        column.offeredHeight = { [weak self] in self?.scroll.bounds.height ?? 0 }
+        column.onSplitChange = { [weak self] split in self?.place(cardsSplit: split) }
+        scroll = UKPageScrollView(content: column, padding: UIEdgeInsets(
+            top: HassTokens.Spacing.m, left: 0, bottom: HassTokens.Spacing.m, right: 0))
+        scroll.accessibilityIdentifier = "sprinklers.scroll"
+        install(scrollView: scroll)
+        grid.followsFold = true
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (page: UKSprinklersViewController, _) in page.rescale() }
+        rescale()
+        bag.observe { [weak self] in
+            guard let self else { return }
+            column.hinge = context.shell?.windowHinge
+        }
+    }
+
+    /// Builds a card per controller from the house document and hands them to the columns. Called from `viewDidLoad` and again by
+    /// ``houseLayoutDidChange()``.
+    private func buildSections() {
         cards = controllers.map { controller in
             UKSprinklerControllerCard(controller: controller, context: context) { [weak self] in self?.open(controller) }
         }
-        grid.setItems(cards.map { UKGridItem($0) })
+        if column.isSplit {
+            grid.setItems([])
+            grid.isHidden = true
+        } else {
+            grid.setItems(cards.map { UKGridItem($0) })
+        }
         for card in cards {
             card.onHeightChange = { [weak self] in
                 guard let self, self.isViewLoaded else { return }
@@ -63,22 +90,14 @@ final class UKSprinklersViewController: UKPageViewController {
             sections.append(.init(card, side: side, levelWith: index > 0 ? 2 : nil, visibility: .splitOnly))
         }
         column.setSections(sections)
-        column.sideInset = HassTokens.Spacing.l
-        column.splitIdentifier = "sprinklers.columns.split"
-        column.isRegular = { [weak self] in self?.traitCollection.horizontalSizeClass == .regular }
-        column.offeredHeight = { [weak self] in self?.scroll.bounds.height ?? 0 }
-        column.onSplitChange = { [weak self] split in self?.place(cardsSplit: split) }
-        scroll = UKPageScrollView(content: column, padding: UIEdgeInsets(
-            top: HassTokens.Spacing.m, left: 0, bottom: HassTokens.Spacing.m, right: 0))
-        scroll.accessibilityIdentifier = "sprinklers.scroll"
-        install(scrollView: scroll)
-        grid.followsFold = true
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (page: UKSprinklersViewController, _) in page.rescale() }
-        rescale()
-        bag.observe { [weak self] in
-            guard let self else { return }
-            column.hinge = context.shell?.windowHinge
-        }
+    }
+
+    override func houseLayoutDidChange() {
+        let caller = context.roomsCaller
+        controllers = SprinklersConfig.controllers.map { SprinklerController(config: $0, store: context.store, caller: caller) }
+        cards.forEach { $0.removeFromSuperview() }
+        buildSections()
+        scroll.contentChanged(animated: false)
     }
 
     /// Moves the cards between the flat grid and the columns, starting from the frames they had so the reflow slides them.

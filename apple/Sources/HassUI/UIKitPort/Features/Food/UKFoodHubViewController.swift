@@ -97,7 +97,7 @@ final class UKFoodHubViewController: UKPageViewController, UKColumnsHosting {
         tiles.append(tile)
         if let subtitle {
             let store = context.store
-            bag.observe { [weak tile] in
+            structureBag.observe { [weak tile] in
                 guard let tile else { return }
                 var counted = model
                 counted.subtitle = subtitle { store.entity($0).state }
@@ -105,6 +105,15 @@ final class UKFoodHubViewController: UKPageViewController, UKColumnsHosting {
             }
         }
         return tile
+    }
+
+    /// Holds the observations of the tiles' count lines, which come from the house document's food spaces, so a rebuild ends the old ones.
+    private let structureBag = UKObservationBag()
+
+    override func houseLayoutDidChange() {
+        structureBag.removeAll()
+        tiles = []
+        buildSections()
     }
 
     private func buildSections() {

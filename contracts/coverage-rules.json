@@ -129,6 +129,7 @@
       "apple/Sources/HassUI/Features/Food/RecipeFilters.swift",
       "apple/Sources/HassUI/Features/Gallery/GalleryAvatarPhotos.swift",
       "apple/Sources/HassUI/Features/Gallery/GalleryHouse.swift",
+      "apple/Sources/HassUI/Features/Gallery/GalleryHouseRig.swift",
       "apple/Sources/HassUI/Features/Gallery/GalleryReset.swift",
       "apple/Sources/HassUI/Features/Gallery/WeatherFixtureCaller.swift",
       "apple/Sources/HassUI/Features/Gallery/WeatherFixtures.swift",
