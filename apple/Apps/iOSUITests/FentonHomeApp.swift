@@ -198,6 +198,12 @@ enum FentonHomeApp {
     /// "Text clipped" on a labelled element is waived only when the element is fully inside the window on both
     /// pages and measured at least 1.35x taller at AX5 (the reason is logged); any other clip stays open.
     ///
+    /// `defaultPage` is the inverse, for a page that already starts at AX5 (`ax5Page` does not apply): it relaunches the same page
+    /// at the default size. An issue with no element passes only when the sampled texts both pages show are together at least 1.35x
+    /// taller at AX5 and none shrank (``AuditGrowth/pageGrew(_:)``); the AX5 page's screenshot is kept for the report. An issue
+    /// on a named element stays open, and so does a page that never comes up at the default size. It covers only that issue type: a
+    /// clip or any other audit type on such a page gets no such evidence.
+    ///
     /// `reflowing` lists identifier prefixes of controls left out of the page-growth sample because they reflow into a shorter row.
     ///
     /// `presenter` names a control on the page under a sheet: element-less "potentially inaccessible
@@ -365,15 +371,15 @@ enum FentonHomeApp {
                 + (element == nil && issue.auditType == .elementDetection
                     ? " UNLABELLED: " + unlabelledTexts(in: app).map { "'\($0.text)' \($0.frame)" }.joined(separator: "; ") : ""))
         }
-        // The screen as audited: taken now only when an AX5 check follows (it changes the screen); otherwise a passing audit pays for
-        // no screenshot and a failing one takes it below, of the same unchanged screen.
+        // The relaunch at the default size replaces the AX5 page on screen, so the page as audited is read first (its texts, its
+        // screenshot) and the failure report below uses those, not what the relaunch left behind.
+        var pageRelaunched = false
+        var auditedShot: XCUIScreenshot?
         if let defaultPage, unattributedAtAX5 > 0 {
             let window = app.windows.firstMatch.frame
             let large = uniqueContentTexts(in: app, reflowing: reflowingIdentifiers).filter { window.contains($0.value) }
-            let audited = XCTAttachment(screenshot: app.screenshot())
-            audited.name = "Audited screen (AX5)"
-            audited.lifetime = .keepAlways
-            XCTContext.runActivity(named: "Accessibility audit") { $0.add(audited) }
+            auditedShot = app.screenshot()
+            pageRelaunched = true
             let normal = try defaultPage()
             if normal.windows.firstMatch.waitForExistence(timeout: 90) {
                 let pairs = AuditGrowth.pairs(smaller: uniqueContentTexts(in: normal, reflowing: reflowingIdentifiers), larger: large)
@@ -387,6 +393,8 @@ enum FentonHomeApp {
                 open.append("the default-size page showed no window within 90 s of the relaunch")
             }
         }
+        // The screen as audited: taken now only when an AX5 check follows (it changes the screen); otherwise a passing audit pays for
+        // no screenshot and a failing one takes it below, of the same unchanged screen.
         let needsAX5 = ax5Page != nil && (!unconfirmedType.isEmpty || unattributedType > 0 || !clipped.isEmpty)
         let auditedScreen = needsAX5 ? XCTAttachment(screenshot: app.screenshot()) : nil
         if let ax5Page, needsAX5 {
@@ -534,17 +542,18 @@ enum FentonHomeApp {
             }
         }
         if !open.isEmpty {
-            let screenshot = auditedScreen ?? XCTAttachment(screenshot: app.screenshot())
+            let screenshot = auditedScreen ?? XCTAttachment(screenshot: auditedShot ?? app.screenshot())
             screenshot.name = "Audited screen"
             screenshot.lifetime = .keepAlways
             XCTContext.runActivity(named: "Accessibility audit") { $0.add(screenshot) }
-            if open.contains(where: { $0.contains("Potentially inaccessible text") && $0.contains("Element:(null)") }) {
+            // Recognition would read the relaunched default-size page; the issues' own UNLABELLED lines were read before it.
+            if !pageRelaunched, open.contains(where: { $0.contains("Potentially inaccessible text") && $0.contains("Element:(null)") }) {
                 print("AUDIT-DIAG recognised text without an element: \(unlabelledTexts(in: app))")
             }
             if let shots = ProcessInfo.processInfo.environment["FENTON_SHOTS_DIR"], !shots.isEmpty {
                 try? FileManager.default.createDirectory(atPath: shots, withIntermediateDirectories: true)
                 let name = "audit-failed-\(family)-\(Date().timeIntervalSince1970.rounded()).png"
-                try? app.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: shots).appendingPathComponent(name))
+                try? (auditedShot ?? app.screenshot()).pngRepresentation.write(to: URL(fileURLWithPath: shots).appendingPathComponent(name))
             }
             XCTFail("Accessibility audit:\n" + open.joined(separator: "\n"), file: file, line: line)
         }
