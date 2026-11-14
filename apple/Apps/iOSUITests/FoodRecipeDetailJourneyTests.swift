@@ -132,7 +132,11 @@ final class FoodRecipeDetailJourneyTests: FoodJourneyTestCase {
         let app = launch("recipes", arguments: FentonHomeApp.ax5)
         waitForGrid(app)
         keepScreenshot(app, "food-recipes-\(device)-ax5")
-        try audit(app)
+        try audit(app, defaultPage: {
+            let normal = self.launch("recipes")
+            self.waitForGrid(normal)
+            return normal
+        })
     }
 
     /// Recipe 6's General tab at AX5. Step 2: a fresh AX5 launch and the card tapped.
@@ -149,6 +153,10 @@ final class FoodRecipeDetailJourneyTests: FoodJourneyTestCase {
         XCTAssertTrue(element("recipe.tabs", in: app).appears(timeout: 10))
         settleScreen()
         keepScreenshot(app, "food-recipe-general-\(device)-ax5")
-        try audit(app)
+        try audit(app, defaultPage: {
+            let normal = self.openRecipe6()
+            settleScreen()
+            return normal
+        })
     }
 }

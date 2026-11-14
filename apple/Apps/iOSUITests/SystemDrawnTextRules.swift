@@ -20,11 +20,18 @@ enum SystemDrawnTextRules {
         isTimeChip(text) && isInsidePicker(frame, pickers: pickers)
     }
 
-    /// Whether `text` is a label's text read with the info glyph in front ("i alex away" for the notice "Alex Away"): a leading "i"
-    /// and a space, then at least four characters that equal one of `labels` or start it as whole words. Both sides are lowercased
-    /// and whitespace-squeezed by the caller.
+    /// Whether `frame` lies in the iPad's status bar band, which the system draws (clock, date, battery) and recognition reads with no
+    /// element. Frames are in points from the window's top; the band is its first 32.
+    static func isInStatusBar(_ frame: CGRect) -> Bool {
+        frame.maxY < 32
+    }
+
+    /// Whether `text` is a label's text read with its info glyph in front ("i alex away" or "¿ alex away" for the notice "Alex Away"):
+    /// one leading character that is an "i" or a symbol (not a letter or digit), a space, then at least four characters that equal one
+    /// of `labels` or start it as whole words. Both sides are lowercased and whitespace-squeezed by the caller.
     static func isInfoGlyphMisread(_ text: String, labels: [String]) -> Bool {
-        guard text.hasPrefix("i ") else { return false }
+        guard let glyph = text.first, text.dropFirst().first == " ",
+              glyph == "i" || (!glyph.isLetter && !glyph.isNumber && !glyph.isWhitespace) else { return false }
         let rest = String(text.dropFirst(2))
         guard rest.count >= 4 else { return false }
         return labels.contains { label in

@@ -2222,6 +2222,14 @@
    ]
   },
   {
+   "prefix": "apple/Apps/iOSUITests/AuditGrowth.swift",
+   "swift": [],
+   "journeys": [
+    "AuditGrowthTests",
+    "FoodRecipeDetailJourneyTests"
+   ]
+  },
+  {
    "prefix": "apple/Apps/iOSUITests/AppReuse.swift",
    "swift": [],
    "journeys": [
