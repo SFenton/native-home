@@ -88,7 +88,7 @@ struct ServerUIContractCorpusTests {
         }
     }
 
-    /// Two decodes of the same bytes are the same document, member by member, and an edited copy is not.
+    /// Two decodes of the same bytes are the same document, member by member.
     @Test(arguments: cases.filter { $0.outcome == "accept" })
     func twoDecodesOfAnAcceptedFileAreEqual(_ item: Case) throws {
         let bytes = try Data(contentsOf: Self.directory.appendingPathComponent(item.file))

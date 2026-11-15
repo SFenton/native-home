@@ -21,7 +21,10 @@ struct MediaRemoteConfigShapeTests {
         let action = MediaRemoteAction.state(entityId: nil, cases: [branch], otherwise: off)
         let tile = MediaRemoteDevice("Console", entityId: "media_player.demo_console", icon: "gamecontroller", action: action,
                                      activeStates: ["on"], stateLabels: ["on": "Awake"])
-        #expect(tile.id == "Console" && tile == tile)
+        var copy = tile
+        #expect(tile.id == "Console" && copy == tile)
+        copy.title = "Other"
+        #expect(copy != tile)
         #expect(tile != MediaRemoteDevice("Console", entityId: "media_player.demo_other", icon: "gamecontroller", action: action))
         #expect(MediaRemoteAction.service("switch", "turn_on", target: "switch.demo_a") == .command(off))
     }
@@ -36,7 +39,7 @@ struct MediaRemoteConfigShapeTests {
                                   "switch.demo_power": "on", "select.demo_input": "HDMI 2 Console"]) == "on")
         #expect(resolver.resolve(["sensor.demo_cloud": "Idle"]) == "off")
         #expect(resolver.resolve(["sensor.demo_cloud": "unavailable"]) == "unavailable")
-        _ = MediaRemoteStateResolver.consoleState.resolve([:])
+        #expect(MediaRemoteStateResolver.consoleState.resolve([:]) == "unavailable")
     }
 
     @Test func theHueSyncTabReadsEveryEntityItShows() {

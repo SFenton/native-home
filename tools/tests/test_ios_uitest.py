@@ -280,9 +280,10 @@ class SuiteSelectionTests(unittest.TestCase):
 
     def test_a_single_affected_journey_reaches_the_suite_intersection(self):
         """Fails if: the per-family list is passed as ``--within VALUE``; argparse reads a lone ``-only-testing:...`` value as an option."""
-        text = SCRIPT.read_text()
-        self.assertIn('sel "--within=$CHANGED_IPHONE"', text)
-        self.assertNotIn('sel --within "', text)
+        title = "apple/Sources/HassUI/UIKitPort/App/Page/UKFixedBarTitle.swift"  # maps to the one journey PageTitleJourneyTests
+        got, out = dry("--changed", "--tests", "PageTitleJourneyTests", files=[title])
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(got["iphone"], ["-only-testing:FentonHomeUITests/PageTitleJourneyTests"])
 
     def test_changed_with_no_overlap_runs_nothing(self):
         got, out = dry("--changed", "--suite", "camera", files=self.LOGIN)

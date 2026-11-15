@@ -2492,8 +2492,7 @@
     "StateTile"
    ],
    "hosted": [
-    "UKHostedStateTileTransitionTests",
-    "UKHostedStateTileViewTests"
+    "UKHostedStateTile*Tests"
    ],
    "journeys": [
     "StateTileJourneyTests"
@@ -2523,8 +2522,7 @@
    "prefix": "apple/Apps/iOSTests/UKHostedStateTile",
    "swift": [],
    "hosted": [
-    "UKHostedStateTileTransitionTests",
-    "UKHostedStateTileViewTests"
+    "UKHostedStateTile*Tests"
    ],
    "journeys": []
   },

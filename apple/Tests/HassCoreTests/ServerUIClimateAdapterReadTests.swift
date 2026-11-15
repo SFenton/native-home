@@ -149,14 +149,14 @@ struct ServerUIClimateAdapterReadTests {
         let (adapter, store) = try adapter(#"{"entityId":"switch.demo_predictive","rangeCommitEntityIds":[],"sensorEntityId":"sensor.demo_prediction"}"#,
                                            ["switch.demo_predictive": "on"])
         store.apply([EntityState(entityId: "sensor.demo_prediction", state: "pre_cool", attributes: [
-            "reason": .string("warming_trend"), "weather_entity": .string("weather.demo"), "adjustment_status": .string("heating"),
+            "reason": .string("warming_trend"), "weather_entity": .string("weather.demo_home"), "adjustment_status": .string("heating"),
             "temperature_unit": .string("°C"), "indoor_temperature": .number(21), "predicted_temperature": .number(23),
             "comfort_low": .number(19), "comfort_high": .number(24), "forecast_low": .number(16), "forecast_high": .number(29)
         ])])
         #expect(adapter.status(try status("recommendation")) == "Pre-cooling")
         #expect(adapter.status(try status("adjustment")) == "Heating")
         #expect(adapter.status(try status("reason")) == "warming_trend")
-        #expect(adapter.status(try status("weather")) == "weather.demo")
+        #expect(adapter.status(try status("weather")) == "weather.demo_home")
         #expect(adapter.status(try status("indoor")) == ClimateLogic.temperature(21, unit: "°C"))
         #expect(adapter.status(try status("predicted")) == ClimateLogic.temperature(23, unit: "°C"))
         #expect(adapter.status(try status("comfortLow")) == ClimateLogic.temperature(19, unit: "°C"))
