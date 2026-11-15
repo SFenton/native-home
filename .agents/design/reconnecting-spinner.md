@@ -20,7 +20,7 @@ The chip under the header was text, a second colour (orange) and sat over page c
 
 ## Code
 
-`HassCore/Connection/ReconnectingPolicy.swift` (delay, fade, lead), `ReconnectingIndicator.swift` (the two flags); `HassUI/App/Shell/ReconnectingArc.swift` (arc and host modifier), `ShellHeader.swift` (`ShellHeaderItems`), `OfflineChip.swift` and `OfflineOverlay.swift` (what is left of the old chip). Tests: `ReconnectingPolicyTests` (indicator phases), `SignInMotionTests` (arc, offline chip), `HeaderButtonsJourneyTests.testReconnectingArcSitsLeftOfQuickLinksAtTheSameGap` (gallery `FENTON_GALLERY_RECONNECTING=1`).
+`HassCore/Connection/ReconnectingPolicy.swift` (delay, fade, lead), `ReconnectingIndicator.swift` (the two flags); `HassUI/App/Shell/ReconnectingArc.swift` (the arc), `UIKitPort/App/Shell/UKShellHeaderItems.swift` and `UKReconnectingHost.swift` (the header items and the host). Tests: `ReconnectingPolicyTests` (indicator phases), `SignInMotionTests` (arc, offline chip), `HeaderButtonsJourneyTests.testReconnectingArcSitsLeftOfQuickLinksAtTheSameGap` (gallery `FENTON_GALLERY_RECONNECTING=1`).
 
 ## Dynamic Type (owner, 2026-10-24)
 

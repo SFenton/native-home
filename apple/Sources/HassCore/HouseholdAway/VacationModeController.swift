@@ -16,6 +16,8 @@ public final class VacationModeController {
     /// Household Away, for a backend vacation plan and the Solo Trip conflict.
     public let household: HouseholdAwayController
 
+    /// Explicit helper targets, or the legacy house configuration for existing feature callers.
+    public let targets: Vacation.Targets?
     @ObservationIgnored private let caller: any HassServiceCalling
     @ObservationIgnored private let overlay: OptimisticOverlay
     @ObservationIgnored private let now: @MainActor () -> Date
@@ -35,6 +37,10 @@ public final class VacationModeController {
     public private(set) var confirmedRange: Vacation.DateRange?
     /// The turn-off alert is showing.
     public private(set) var isConfirmingDisable = false
+    /// At least one ordered helper batch has not finished.
+    public private(set) var pendingBatches = 0
+    /// A helper call failed; the remainder of that batch was not sent.
+    public private(set) var commandFailed = false
     @ObservationIgnored private var confirmedRangeTimer: Task<Void, Never>?
 
     /// How long confirmed dates wait for the helpers' echo before the live values win again.
@@ -47,6 +53,7 @@ public final class VacationModeController {
         store: EntityStore,
         household: HouseholdAwayController,
         caller: any HassServiceCalling,
+        targets: Vacation.Targets? = nil,
         scheduler: any RevertScheduler = TaskRevertScheduler(),
         now: @escaping @MainActor () -> Date = { .now },
         calendar: Calendar = .current
@@ -54,10 +61,11 @@ public final class VacationModeController {
         self.store = store
         self.household = household
         self.caller = caller
+        self.targets = targets
         self.now = now
         self.calendar = calendar
-        var rules: [String: OptimisticOverlay.ClearRule] = [Vacation.modeEntityId: .liveChange]
-        for item in Vacation.checklist { rules[item.entityId] = .liveChange }
+        var rules: [String: OptimisticOverlay.ClearRule] = [targets?.modeEntityId ?? Vacation.modeEntityId: .liveChange]
+        for item in targets?.checklist ?? Vacation.checklist { rules[item.entityId] = .liveChange }
         overlay = OptimisticOverlay(rules: rules, scheduler: scheduler)
         liveDidChange()
         observeLive()
@@ -67,33 +75,47 @@ public final class VacationModeController {
 
     private func live(_ entityId: String) -> String? { store.entity(entityId).state?.state }
     private func displayed(_ entityId: String) -> String? { overlay.displayed(entityId, live: live(entityId)) }
+    private var modeId: String { targets?.modeEntityId ?? Vacation.modeEntityId }
+    private var invalidDatesId: String { targets?.invalidDatesPendingEntityId ?? Vacation.invalidDatesPendingEntityId }
+    private var startId: String { targets?.startEntityId ?? Vacation.startEntityId }
+    private var endId: String { targets?.endEntityId ?? Vacation.endEntityId }
+    /// Checklist order and labels supplied by the source.
+    public var checklist: [Vacation.ChecklistItem] { targets?.checklist ?? Vacation.checklist }
+    /// Drafts, confirmations and running commands must survive a publication update.
+    public var hasPendingInteraction: Bool {
+        isConfirming || isConfirmingDisable || pendingBatches > 0 || household.pending
+            || confirmedRange != nil || !overlay.pending.isEmpty
+    }
 
     /// The mode entity is missing, unavailable or unknown.
     public var modeUnavailable: Bool {
-        guard let state = live(Vacation.modeEntityId) else { return true }
+        guard let state = live(modeId) else { return true }
         return state == "unavailable" || state == "unknown"
     }
 
     /// The mode shows on (optimistically).
-    public var modeOn: Bool { displayed(Vacation.modeEntityId) == "on" }
+    public var modeOn: Bool { displayed(modeId) == "on" }
 
     /// The confirmation sheet is open.
     public var isConfirming: Bool { pendingRange != nil }
 
     /// The helpers' saved range.
     public var savedRange: Vacation.DateRange {
-        Vacation.DateRange(startState: live(Vacation.startEntityId), endState: live(Vacation.endEntityId), now: now(), calendar: calendar)
+        Vacation.DateRange(startState: live(startId), endState: live(endId), now: now(), calendar: calendar)
     }
 
     /// The range shown: the sheet's draft while confirming, the just-confirmed dates until they echo, else the saved one.
     public var dateRange: Vacation.DateRange { pendingRange ?? confirmedRange ?? savedRange }
 
     /// Start is not before end.
-    public var invalidDateRange: Bool { dateRange.isInvalid(calendar: calendar) }
+    public var invalidDateRange: Bool {
+        dateRange.start.date(in: calendar) == nil || dateRange.end.date(in: calendar) == nil
+            || dateRange.isInvalid(calendar: calendar)
+    }
 
     /// Home Assistant paused the vacation for invalid dates (or they are invalid now).
     public var recoveringInvalidDates: Bool {
-        !isConfirming && (invalidDateRange || live(Vacation.invalidDatesPendingEntityId) == "on")
+        !isConfirming && (invalidDateRange || live(invalidDatesId) == "on")
     }
 
     /// A backend Household Away vacation is engaged.
@@ -118,7 +140,7 @@ public final class VacationModeController {
     }
 
     /// Every checklist task is done.
-    public var checklistComplete: Bool { Vacation.checklist.allSatisfy(isChecked) }
+    public var checklistComplete: Bool { !checklist.isEmpty && checklist.allSatisfy(isChecked) }
 
     /// Show the "finish the checklist" error.
     public var showsPreChecklistError: Bool {
@@ -173,10 +195,10 @@ public final class VacationModeController {
     /// clear the alert's binding before or after it runs the button's action.
     public func confirmDisable() {
         isConfirmingDisable = false
-        guard cardEnabled else { return }
+        guard cardEnabled, !cardDisabled, !soloTripEngaged else { return }
         confirmedRange = nil
-        overlay.commit(Vacation.modeEntityId, value: "off", live: live(Vacation.modeEntityId), revertAfter: Self.optimisticRevert)
-        send(Vacation.disableCalls())
+        overlay.commit(modeId, value: "off", live: live(modeId), revertAfter: Self.optimisticRevert)
+        send(Vacation.disableCalls(targets: targets))
     }
 
     /// Dismisses the turn-off alert, leaving the vacation on.
@@ -184,7 +206,7 @@ public final class VacationModeController {
 
     /// Checks or unchecks a task.
     public func toggle(_ item: Vacation.ChecklistItem) {
-        guard !isUnavailable(item) else { return }
+        guard checklist.contains(item), !isUnavailable(item) else { return }
         let checked = isChecked(item)
         overlay.commit(item.entityId, value: checked ? "off" : "on", live: live(item.entityId), revertAfter: Self.optimisticRevert)
         if checklistComplete { blockedEnableAttempted = false }
@@ -202,14 +224,15 @@ public final class VacationModeController {
 
     /// Saves the sheet's dates and enables the mode.
     public func confirm() {
-        let range = pendingRange ?? dateRange
-        guard !range.isInvalid(calendar: calendar) else { return }
-        send(Vacation.confirmCalls(range))
+        guard let range = pendingRange, range.start.date(in: calendar) != nil, range.end.date(in: calendar) != nil,
+              !range.isInvalid(calendar: calendar),
+              checklistComplete, !modeUnavailable, !household.pending, !soloTripEngaged, !cardEnabled else { return }
+        send(Vacation.confirmCalls(range, targets: targets))
         confirmedRange = range
         scheduleConfirmedRangeRevert()
         pendingRange = nil
         blockedEnableAttempted = false
-        overlay.commit(Vacation.modeEntityId, value: "on", live: live(Vacation.modeEntityId), revertAfter: Self.optimisticRevert)
+        overlay.commit(modeId, value: "on", live: live(modeId), revertAfter: Self.optimisticRevert)
     }
 
     /// Saves one inline date change; a fix to paused dates re-enables the vacation.
@@ -217,15 +240,16 @@ public final class VacationModeController {
     ///   - range: The range after the change.
     ///   - changedEnd: The end changed (else the start).
     public func updateSavedRange(_ range: Vacation.DateRange, changedEnd: Bool) {
+        guard range.start.date(in: calendar) != nil, range.end.date(in: calendar) != nil else { return }
         let recovering = recoveringInvalidDates
         // Show the edited range until it echoes, so the untouched side doesn't fall back to a stale helper.
         confirmedRange = range
         scheduleConfirmedRangeRevert()
         var calls = [changedEnd
-            ? Vacation.setDateTime(Vacation.endEntityId, range.end)
-            : Vacation.setDateTime(Vacation.startEntityId, range.start)]
+            ? Vacation.setDateTime(endId, range.end)
+            : Vacation.setDateTime(startId, range.start)]
         if recovering, !range.isInvalid(calendar: calendar), range.isFuture(now: now(), calendar: calendar) {
-            calls += Vacation.recoveryCalls()
+            calls += Vacation.recoveryCalls(targets: targets)
         }
         send(calls)
     }
@@ -234,13 +258,25 @@ public final class VacationModeController {
 
     @ObservationIgnored private var lastSend: Task<Void, Never>?
 
-    /// Sends calls in order after any earlier batch; failures are left to the live state (web fire-and-forget).
+    /// Clears the displayed transport failure after the user acknowledges it.
+    public func clearCommandError() { commandFailed = false }
+
+    /// Sends calls in order after any earlier batch; never enables after a failed date write.
     private func send(_ calls: [ServiceCall]) {
         let previous = lastSend
         let caller = caller
-        lastSend = Task { @MainActor in
+        if pendingBatches == 0 { commandFailed = false }
+        pendingBatches += 1
+        lastSend = Task { @MainActor [self] in
             await previous?.value
-            for call in calls { try? await caller.call(call) }
+            defer { pendingBatches -= 1 }
+            for call in calls {
+                do { try await caller.call(call) }
+                catch {
+                    commandFailed = true
+                    break
+                }
+            }
         }
     }
 
@@ -263,7 +299,7 @@ public final class VacationModeController {
 
     private func observeLive() {
         withObservationTracking {
-            for id in Vacation.pageEntityIds { _ = store.entity(id).state }
+            for id in targets?.pageEntityIds ?? Vacation.pageEntityIds { _ = store.entity(id).state }
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.liveDidChange()

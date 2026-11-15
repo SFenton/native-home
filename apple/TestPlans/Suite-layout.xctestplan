@@ -20,23 +20,9 @@
       },
       "parallelizable": false,
       "selectedTests": [
-        "AdaptiveLayoutJourneyTests",
-        "BedroomWideLayoutJourneyTests",
-        "ChoresWideLayoutJourneyTests",
-        "ClimateWideLayoutJourneyTests",
-        "ColumnRoutesJourneyTests",
-        "FoodWideLayoutJourneyTests",
-        "HomePagesJourneyTests",
         "LayoutJourneyTests",
         "ModalSizingJourneyTests",
-        "NavigationJourneyTests",
-        "RoomDevicesHumidifierPoseJourneyTests",
-        "RoomsWideLayoutJourneyTests",
-        "SectionSidesJourneyTests",
-        "SheetBottomGapJourneyTests",
-        "ShellJourneyTests",
-        "TileLayoutJourneyTests",
-        "VacuumSplitPoseJourneyTests"
+        "TileLayoutJourneyTests"
       ]
     }
   ],

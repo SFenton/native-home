@@ -1,0 +1,34 @@
+{
+  "localState": [
+    {"id":"enabled","type":"boolean","initial":false},
+    {"id":"count","type":"number","initial":2,"minimum":0,"maximum":10,"step":2},
+    {"id":"name","type":"string","initial":"Sample","maxLength":40},
+    {"id":"panel","type":"choice","initial":"details","options":[{"id":"details","label":"Details"},{"id":"options","label":"Options"}]}
+  ],
+  "components": [
+    {
+      "id":"shell-section","title":"Sample controls","type":"section","layout":{"span":1},
+      "props":{"header":"Sample controls","footer":"Synthetic scene values only","style":"plain","density":"thin","hasGlyphs":false,"spacing":{"type":"token","name":"m"}},
+      "children":[
+        {"id":"shell-row","title":"Sample row","type":"row","layout":{"span":1},"props":{
+          "primary":{"type":"literal","value":"Sample item"},"secondary":{"type":"literal","value":"Read-only detail"},
+          "value":{"type":"literal","value":"Ready"},"accessory":"none","loadingText":"Reading item","unavailableText":"No item"}},
+        {"id":"shell-toggle","title":"Enabled","type":"local-control","layout":{"span":1},"props":{"stateId":"enabled","kind":"toggle","placeholder":""}},
+        {"id":"shell-stepper","title":"Count","type":"local-control","layout":{"span":1},"props":{"stateId":"count","kind":"stepper","placeholder":""}},
+        {"id":"shell-name","title":"Name","type":"local-control","layout":{"span":1},"props":{"stateId":"name","kind":"text-field","placeholder":"Sample name"}},
+        {"id":"shell-button","title":"Enable sample","type":"primary-button","layout":{"span":1},"props":{},
+         "action":{"type":"set-local","stateId":"enabled","value":{"type":"boolean","value":true}}},
+        {"id":"shell-panels","title":"Sample panels","type":"local-tabs","layout":{"span":1},
+         "props":{"stateId":"panel","transition":"canonical-swap@1"},"tabs":[
+           {"id":"details","label":"Details","children":[
+             {"id":"shell-details","title":"Details","type":"text","layout":{"span":1},"props":{"value":{"type":"literal","value":"Sample details"},"style":"body","unavailableText":"No details"}}]},
+           {"id":"options","label":"Options","children":[
+             {"id":"shell-choice","title":"Panel","type":"local-control","layout":{"span":1},"props":{"stateId":"panel","kind":"segmented-choice","placeholder":""}}]}
+         ]},
+        {"id":"shell-rows","title":"Sample items","type":"row-collection","layout":{"span":1},"props":{
+          "providerId":"sample-items","loadingText":"Reading items","emptyText":"No items","unavailableText":"Items unavailable",
+          "errorText":"Items failed","staleText":"Last known items"}}
+      ]
+    }
+  ]
+}

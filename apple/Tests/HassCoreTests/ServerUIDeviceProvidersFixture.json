@@ -1,0 +1,54 @@
+{
+  "envelopeVersion": "2.0", "publisherId": "publisher-demo", "revision": 1,
+  "updatedAt": "2026-11-13T16:00:00Z", "publishedAt": "2026-11-13T16:01:00Z",
+  "capabilities": ["sh.backdrop@1", "sh.bindings@1", "sh.chrome@1", "sh.composition@1", "sh.custom-lights@1", "sh.page@1", "sh.shell@1", "sh.sprinkler-controller@1", "sh.symbols@1"],
+  "assetManifestSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "document": {
+    "schemaVersion": "2.0", "id": "device-demo", "name": "Synthetic device assemblies",
+    "theme": {"appearance": "dark", "tokens": "canonical@1", "typography": "dynamic-type@1", "background": {"type": "solid", "token": "shell-base@1"}},
+    "navigation": {"initialPageId": "page-demo", "initialTabId": null, "initialArguments": {}, "tabs": [],
+      "policy": {"type": "canonical-shell@1", "tabSwitch": "preserve-cut@1", "reselect": "pop-root-then-scroll@1", "stackMotion": "canonical-stack@1", "restoration": "scene@1", "selectionWhileModal": "reject"},
+      "chrome": {"groups": [{"id": "menu", "placement": "leading", "horizontal": "separate-circles@1", "vertical": "shared@1",
+        "items": [{"id": "menu-button", "type": "shell-menu", "label": "Sections", "visibility": "root-when-menu-available",
+          "icon": {"type": "sf-symbol", "name": "line.3.horizontal", "rendering": "canonical", "unavailable": "reject"}}]}]}},
+    "pages": [{
+      "id": "page-demo", "title": "Synthetic devices", "parameters": {}, "navigation": {"type": "stack"},
+      "icon": {"type": "sf-symbol", "name": "lightbulb", "rendering": "canonical", "unavailable": "reject"}, "toolbar": {"type": "inherit"},
+      "layout": {"type": "column", "padding": {"top": {"type": "token", "name": "m"}, "leading": {"type": "token", "name": "m"}, "bottom": {"type": "token", "name": "m"}, "trailing": {"type": "token", "name": "m"}}, "spacing": {"type": "token", "name": "m"}, "maxWidth": {"type": "unbounded"}, "scroll": "content-fit@1", "chrome": "canonical-page@1", "ground": "host"},
+      "components": [
+        {"id": "manual", "title": "Manual", "type": "custom-light-control", "layout": {"span": 1}, "props": {"sourceId": "lights", "kind": "manual"}},
+        {"id": "mode", "title": "Mode", "type": "custom-light-control", "layout": {"span": 1}, "props": {"sourceId": "lights", "kind": "mode"}},
+        {"id": "brightness", "title": "Demo light", "type": "custom-light-control", "layout": {"span": 1}, "props": {"sourceId": "lights", "kind": "brightness", "entityId": "light.demo_a"}},
+        {"id": "color", "title": "Color", "type": "custom-light-control", "layout": {"span": 1}, "props": {"sourceId": "lights", "kind": "color", "entityId": "light.demo_a"}},
+        {"id": "reset", "title": "Reset", "type": "custom-light-control", "layout": {"span": 1}, "props": {"sourceId": "lights", "kind": "reset", "entityId": "light.demo_a"}},
+        {"id": "reset-all", "title": "Reset all", "type": "custom-light-control", "layout": {"span": 1}, "props": {"sourceId": "lights", "kind": "reset-all", "confirmation": {"title": "Reset?", "message": "Reset the demo lights.", "confirmLabel": "Reset", "cancelLabel": "Cancel"}}},
+        {"id": "copy", "title": "Copy", "type": "custom-light-control", "layout": {"span": 1}, "props": {"sourceId": "lights", "kind": "copy-color", "entityId": "light.demo_a", "copySourceId": "light.demo_b"}},
+        {"id": "status", "title": "Status", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "status"}},
+        {"id": "rain", "title": "Rain delay", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "rain-delay"}},
+        {"id": "duration", "title": "Duration", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "duration", "zone": 0}},
+        {"id": "days", "title": "Days", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "days", "zone": 0}},
+        {"id": "times", "title": "Start times", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "times", "zone": 0}},
+        {"id": "budget", "title": "Budget", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "budget", "zone": 0}},
+        {"id": "enabled", "title": "Program enabled", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "program-enabled", "zone": 0}},
+        {"id": "start", "title": "Run program", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "start-program", "zone": 0}},
+        {"id": "blocker", "title": "Watering", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "water-blocker"}},
+        {"id": "apply", "title": "Apply", "type": "sprinkler-control", "layout": {"span": 1}, "props": {"sourceId": "sprinkler", "kind": "apply", "zone": 0}}
+      ]
+    }],
+    "modals": [], "dataSources": [
+      {"id": "lights", "kind": "model", "model": "custom-lights@1", "inputs": {
+        "sectionTitle": "Demo lights", "manualTitle": "Manual", "modeTitle": "Mode", "manualEntityId": "input_boolean.demo_manual",
+        "modeEntityId": "input_select.demo_mode", "groupEntityId": "light.demo_group", "customMode": "Custom", "fallbackModes": ["Default", "Custom"],
+        "palettes": [], "lights": [{"title": "A", "entityId": "light.demo_a"}, {"title": "B", "entityId": "light.demo_b"}],
+        "resetKelvin": 2000, "resetBrightness": 255, "resetTransition": 1
+      }},
+      {"id": "sprinkler", "kind": "model", "model": "sprinkler-controller@1", "inputs": {
+        "controller": {"id": "demo-sprinkler", "title": "Demo sprinkler", "batteryEntityId": "sensor.demo_battery", "faultEntityId": "binary_sensor.demo_fault",
+          "hubConnectedEntityId": "binary_sensor.demo_hub", "modeEntityId": "select.demo_mode", "nextWateringEntityId": "sensor.demo_next",
+          "rainDelayEntityId": "switch.demo_rain", "smartWateringEntityId": "switch.demo_smart", "stateEntityId": "sensor.demo_sprinkler",
+          "zones": [{"valveEntityId": "valve.demo_zone", "programEntityId": "switch.demo_program", "historyEntityId": "sensor.demo_history"}]},
+        "lowBatteryPercent": 25, "defaultStartTime": "07:00"
+      }}
+    ], "variables": {}, "assets": [], "liveActivities": []
+  }
+}

@@ -64,6 +64,12 @@ protocol UKColumnPopGuarding: AnyObject {
     var columnPopDecision: UKColumnPopDecision { get }
 }
 
+/// A domain-owned draft may need its own discard/release operation before a column leaves.
+@MainActor
+protocol UKColumnExitRequesting: UKColumnPopGuarding {
+    func requestColumnExit(leaving: [UIViewController], completion: @escaping () -> Void)
+}
+
 /// Column navigation: the one way a page opens another page beside it, in the UIKit port (owner, 2026-11-01).
 ///
 /// **Miller columns, two visible at a time.** The columns are `[root] + entries`. The window shows the last two: with no entries, the
@@ -129,6 +135,9 @@ final class UKColumnsViewController: UIViewController {
     var onUserPop: ((_ taggedDepth: Int) -> Void)?
     /// Called when ``isWide`` changes.
     var onWideChange: ((Bool) -> Void)?
+    /// Publication and navigation coordinators must wait for retained column transitions to settle.
+    var isTransitioning: Bool { openingPending || animations > 0 || backAnimator != nil }
+    var onSettled: (() -> Void)?
 
     /// - Parameters:
     ///   - rootController: The root column when it is a controller; it becomes a child of this one.
@@ -407,7 +416,7 @@ final class UKColumnsViewController: UIViewController {
     func closeAll(animated: Bool = true) {
         guard let top = entries.last else { return }
         let all = entries
-        guarded(top) { [weak self] in
+        guarded(top, leaving: all.map(\.controller)) { [weak self] in
             guard let self, self.entries.last === top else { return }
             self.commit([], animated: animated)
             self.reportPop(all)
@@ -415,7 +424,17 @@ final class UKColumnsViewController: UIViewController {
     }
 
     /// Runs `proceed` when the open page allows it now, after the discard confirmation, or never (a save in flight).
-    private func guarded(_ entry: UKColumnEntry, _ proceed: @escaping () -> Void) {
+    private func guarded(_ entry: UKColumnEntry, leaving: [UIViewController]? = nil, _ proceed: @escaping () -> Void) {
+        if let page = entry.controller as? UKColumnExitRequesting {
+            var responded = false
+            page.requestColumnExit(leaving: leaving ?? [entry.controller]) { [weak self] in
+                guard !responded else { return }
+                responded = true
+                guard self?.entries.last?.controller === entry.controller else { return }
+                proceed()
+            }
+            return
+        }
         switch (entry.controller as? UKColumnPopGuarding)?.columnPopDecision ?? .allow {
         case .allow: proceed()
         case .block: UKTapFeedback.failure()
@@ -526,6 +545,7 @@ final class UKColumnsViewController: UIViewController {
             self.refreshState()
             self.fadeInPlaceholder()
             self.view.setNeedsLayout()
+            self.onSettled?()
         }
         guard animate else {
             for entry in removed { remove(entry) }
@@ -654,6 +674,21 @@ final class UKColumnsViewController: UIViewController {
             let old = entries
             let next = Array(entries.dropLast())
             guard let top = old.last else { return }
+            if let page = top.controller as? UKColumnExitRequesting {
+                var asking = true, approved = false, responded = false
+                page.requestColumnExit(leaving: [top.controller]) { [weak self] in
+                    guard !responded else { return }
+                    responded = true
+                    guard let self, self.isWide, self.entries.last === top else { return }
+                    if asking { approved = true }
+                    else {
+                        self.commit(next, animated: true)
+                        self.reportPop([top])
+                    }
+                }
+                asking = false
+                guard approved else { return }
+            }
             if next.isEmpty { ensurePlaceholder(); placeholder?.view.alpha = 0 }
             view.layoutIfNeeded()
             let animator = UIViewPropertyAnimator(duration: MotionTokens.standardDuration, curve: .easeOut) { [self] in
@@ -677,6 +712,7 @@ final class UKColumnsViewController: UIViewController {
                 self.refreshState()
                 self.fadeInPlaceholder()
                 self.view.setNeedsLayout()
+                self.onSettled?()
             }
             backAnimator = animator
         case .changed:

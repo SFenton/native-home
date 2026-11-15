@@ -341,7 +341,7 @@ struct HotFlashActionsTests {
 
 @Suite(.demoHouse)
 struct AlarmModeActionsTests {
-    let provider = AlarmModeActions()
+    let provider = StateStyleActions(.alarm, entityId: SecurityConfig.alarmEntityId)
     private let panel = SecurityConfig.alarmEntityId
 
     private func spec(_ state: String?) throws -> TileActionSpec {
@@ -383,7 +383,7 @@ struct AlarmModeActionsTests {
     }
 
     @Test func theConfirmationMatchesTheSecuritySheetsWords() {
-        #expect(AlarmModeActions.disarmConfirmation.confirmVerb == SecurityConfig.disarmMode.buttonTitle)
+        #expect(StateStyle.alarmDisarmConfirmation.confirmVerb == SecurityConfig.disarmMode.buttonTitle)
         #expect(provider.entityId == SecurityConfig.alarmEntityId)
         #expect(provider.stateTextCandidates.contains("Armed Home") && provider.stateTextCandidates.contains("Triggered"))
     }
@@ -484,7 +484,7 @@ struct RolloutRegistrationTests {
         #expect(TileActionKind.scriptPower.restingActionCount == ScriptPowerActions.all[0].actions(for: nil).count)
         #expect(TileActionKind.bedSidePower.restingActionCount == BedSidePowerActions(MasterBedroom.bed(.left)).actions(for: nil).count)
         #expect(TileActionKind.hotFlash.restingActionCount == HotFlashActions(MasterBedroom.bed(.left)).actions(for: nil).count)
-        #expect(TileActionKind.alarmMode.restingActionCount == AlarmModeActions().actions(for: nil).count)
+        #expect(TileActionKind.alarmMode.restingActionCount == StateStyleActions(.alarm, entityId: SecurityConfig.alarmEntityId).actions(for: nil).count)
         #expect(TileActionKind.sprinkler.restingActionCount == SprinklerActions(SprinklersConfig.controllers[1]).actions(for: nil).count)
         #expect(TileActionKind.selection.restingActionCount == 1)
         #expect(TileActionKind.roomLightsPower.restingActionCount == 1)

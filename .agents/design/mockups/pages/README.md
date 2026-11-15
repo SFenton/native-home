@@ -87,10 +87,11 @@
 | [Settings (tab root)](settings/settings/settings.html) | `settings` | shipped | iphone, duo, ipad | opens `ha-settings`, `feedback-form-sheet`, `app-icon-picker-sheet` |
 | [Special Device Modes](settings/household-special-device-modes/household-special-device-modes.html) | `household-special-device-modes` | shipped | iphone, duo, ipad | from `settings` |
 
-## shell (1)
+## shell (2)
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
+| [Layout recovery boundary (no published layout on screen)](shell/server-ui-boundary/server-ui-boundary.html) | `server-ui-boundary` | shipped | iphone, duo, ipad | opens `sign-out-alert` |
 | [Placeholder screen (coming in a later update)](shell/placeholder-screen/placeholder-screen.html) | `placeholder-screen` | placeholder | iphone, duo, ipad |  |
 
 ## sprinklers (1)

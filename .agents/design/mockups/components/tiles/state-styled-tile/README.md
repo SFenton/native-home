@@ -1,0 +1,8 @@
+# State-styled tile (component)
+> **What:** the one tile for doors, locks, blinds, the alarm, robots and sensors, with a class and a style per state. **Read when:** you build or change the tile, its transition component or a built-in style.
+- Mockup: [state-styled-tile.html](state-styled-tile.html) · status shipped
+- Source: `apple/Sources/HassCore/TileActions/StateStyle.swift`, `StateStyle+BuiltIn.swift`, `StateStyleActions.swift`, `apple/Sources/HassDesign/TileActions/StateTileLook.swift`, `apple/Sources/HassUI/UIKitPort/Design/UKStateTileTransition.swift`, `UKTileActions.swift`, `UKGlassTileFaceView.swift`, `UKArcSpinnerView.swift` · Spec: `.agents/design/state-styled-tile.md`, `.agents/design/state-styles.md` · Patterns: action-tiles, entity-tile, optimistic-actions, motion
+- States covered: the five classes and the active flag, storyboard (closed, opening, closing, open, error), built-in styles, request phase in the app and through a Home Assistant script, Reduce Motion, offline, long text, ax5
+- Motion: per-layer continuity (one arc through Opening and Closing), the disc and arc cross-fade, the garage sequence, the 1 s flap guard, the warning pulse, the error wiggle (bounce on iOS 17), breathe
+- Devices: iPhone, Duo folded, Duo unfolded portrait and landscape, iPad portrait and landscape
+- Open notes: the arc replaces the disc while a tap does nothing (option D: `proposals/state-tile-indicator`). Symbol effect timings are the system's and are approximated. The builder is the kit's `StateTile` (`_kit/components/StateTile.js`). The look differs from the fixed shapes in two places, listed in `.agents/design/state-styles.md`.

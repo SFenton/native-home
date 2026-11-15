@@ -28,7 +28,7 @@
   Mock.mount(C.pageConfig('groceries', {
     title: 'Groceries (Grocery List)',
     summary: 'The shared grocery list: one list "Grocery List" of checkable items on the dimmed house photo, an Add Groceries button, swipe to delete. No editor and no due dates. Fixture items.',
-    source: ['apple/Sources/HassUI/Features/Home/HomeRoute.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordList.swift'],
     entities: ['todo.demo_todo_1'],
     defaultTitle: 'Three items on the list',
     reviews: { hig: [{ rule: 'Buttons: a labelled primary action for the page', verdict: 'pass', note: 'Add Groceries is the one floating action (floating-actions.md).' }], swiftui: [] },

@@ -6,7 +6,7 @@ import UIKit
 // MARK: - Scroll gate
 
 /// Tells the tickers inside a scroll view when it is moving, so they pause (`pausesTickersWhileScrolling()`). Install with
-/// ``UIScrollView/ukPausesTickersWhileScrolling()``; it observes the scroll view's offset and needs no delegate.
+/// ``UKTickerScrollGate/install(on:)``; it observes the scroll view's offset and needs no delegate.
 @MainActor
 final class UKTickerScrollGate: NSObject {
     static let didChange = Notification.Name("UKTickerScrollGateDidChange")
@@ -55,15 +55,6 @@ final class UKTickerScrollGate: NSObject {
         if scrollView.isDragging || scrollView.isDecelerating || scrollView.isTracking { moved() } else { isScrolling = false }
     }
 }
-
-extension UIScrollView {
-    /// Tells the tickers inside this scroll view when it is moving, so they pause.
-    func ukPausesTickersWhileScrolling() {
-        UKTickerScrollGate.install(on: self)
-    }
-}
-
-// MARK: - Ticker
 
 /// One line of text that scrolls like a ticker when it is wider than the room it has (`TickerLabel`, pattern: `.agents/patterns/ticker.md`).
 ///

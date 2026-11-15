@@ -11,3 +11,14 @@ Agents read current rules and current designs. Nothing in this folder is a rule:
 | [header-edge-fade-decisions.md](header-edge-fade-decisions.md) | How the header edge fade and the leading page title reached rules R1 to R7 |
 | [mockup-batch-brief.md](mockup-batch-brief.md) | The brief given to the authors who built the mockup atlas on 2026-10-23 |
 | [audit/](audit/README.md) | The 2026-10-13 duplication and SwiftUI Pro audit, and the 2026-10-22 token-burn report |
+| [pages-climate-ios.md](pages-climate-ios.md) | The compiled Climate page, sheets and tab notes, before the server-driven root |
+| [pages-rooms-ios.md](pages-rooms-ios.md) | The compiled Rooms, Room and Room overview implementation notes |
+| [pages-vacuums-ios.md](pages-vacuums-ios.md) | The compiled Vacuums page implementation notes |
+| [pages-media-ios.md](pages-media-ios.md) | The compiled Media page implementation notes |
+| [pages-settings-ios.md](pages-settings-ios.md) | The compiled Settings page and its tab implementation notes |
+| [platforms-uikit-port-shell.md](platforms-uikit-port-shell.md) | The compiled UIKit shell, tab catalog and navigator |
+| [platforms-uikit-port-food.md](platforms-uikit-port-food.md) | The compiled Food port notes |
+| [testing-test-speed-roadmap.md](testing-test-speed-roadmap.md) | The test-speed roadmap for the compiled journeys |
+| [testing-journey-speed.md](testing-journey-speed.md) | Journey-speed measurements for the compiled journeys |
+| [patterns-modal-inventory.md](patterns-modal-inventory.md) | The full modal inventory of the compiled app |
+| [design-direction-g-plan.md](design-direction-g-plan.md) | The Direction G rollout plan |

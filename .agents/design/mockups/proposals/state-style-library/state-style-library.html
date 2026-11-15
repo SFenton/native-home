@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Studio style library · component mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<style>
+  .sl { display: grid; grid-template-columns: 230px minmax(420px, 1.5fr) minmax(280px, 1fr); gap: 0; border: 1px solid var(--k-line); border-radius: 12px; overflow: hidden; background: var(--k-surface); color: var(--k-fg); font: 13px/1.4 var(--font); min-width: 980px; }
+  .sl > div { padding: 14px; } .sl > div + div { border-left: 1px solid var(--k-line); }
+  .sl .grp { font: 600 11px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--k-fg2); margin: 12px 0 6px; } .sl .grp:first-child { margin-top: 0; }
+  .sl .item { display: flex; justify-content: space-between; gap: 8px; padding: 7px 9px; border-radius: 8px; } .sl .item.sel { background: var(--k-accent-soft); }
+  .sl .item small, .sl small { color: var(--k-fg2); } .sl .hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; } .sl .hd b { font-size: 17px; }
+  .sl .btn { border: 1px solid var(--k-line); border-radius: 7px; padding: 4px 10px; background: transparent; color: var(--k-fg); font: 13px var(--font); } .sl .btn.pri { background: var(--k-accent); border-color: var(--k-accent); color: #fff; } .sl .btn[disabled] { opacity: .45; }
+  .sl table { border-collapse: collapse; width: 100%; } .sl th { text-align: left; font: 600 11px var(--font); color: var(--k-fg2); padding: 4px 6px; } .sl td { padding: 6px; border-top: 1px solid var(--k-line); vertical-align: middle; } .sl td:nth-child(5), .sl td:nth-child(6) { white-space: nowrap; }
+  .sl .menu { border: 1px solid var(--k-line); border-radius: 6px; padding: 2px 7px; white-space: nowrap; display: inline-block; } .sl .menu::after { content: " ▾"; color: var(--k-fg2); }
+  .sl .cls { border-radius: 99px; padding: 2px 8px; font-weight: 600; white-space: nowrap; } .sl .cls.resting { background: color-mix(in srgb, var(--k-fg2) 16%, transparent); } .sl .cls.in-progress { background: var(--k-accent-soft); color: var(--k-accent); }
+  .sl .cls.warning { background: color-mix(in srgb, var(--k-warn) 18%, transparent); color: var(--k-warn); } .sl .cls.error { background: color-mix(in srgb, var(--k-bad) 14%, transparent); color: var(--k-bad); } .sl .cls.unknown { border: 1px dashed var(--k-line); color: var(--k-fg2); }
+  .sl .note { border: 1px solid var(--k-line); border-radius: 8px; padding: 8px 10px; margin: 10px 0; color: var(--k-fg2); } .sl .note.warn { border-color: var(--k-warn); color: var(--k-fg); }
+  .sl .ov { color: var(--k-accent); font-weight: 600; } .sl .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+  .sl .chip { border: 1px solid var(--k-line); border-radius: 99px; padding: 3px 10px; cursor: pointer; background: transparent; color: var(--k-fg); font: 13px var(--font); } .sl .chip.sel { background: var(--k-accent); border-color: var(--k-accent); color: #fff; }
+  .sl .pv { display: grid; gap: 10px; } .sl .pv .cap { font: 600 11px var(--font); color: var(--k-fg2); margin-bottom: 4px; } .sl .pv .k-swatch { padding: 12px; border-radius: 12px; }
+  .sl .sw { display: inline-block; width: 26px; height: 15px; border-radius: 99px; background: var(--k-line); position: relative; vertical-align: -3px; } .sl .sw.on { background: var(--k-ok); } .sl .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; } .sl .sw.on::after { left: 13px; }
+  .sl .sym { display: inline-grid; width: 18px; height: 18px; vertical-align: -4px; margin-right: 4px; } .sl .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, ST = window.StateTile, G = ST.garage('Garage Door');
+  var STYLES = [['Built in', [['Garage door', 2], ['Lock', 3], ['Blind', 0], ['Alarm', 1], ['Robot', 1], ['Detector', 4], ['Notice', 6], ['Switch', 14]]], ['Saved', [['Side gate', 1], ['Quiet lock', 0]]]];
+  var ROWS = [['closed', 'resting', false, 'door.garage.closed', 'Off', 'None', 'Closed'], ['open', 'resting', true, 'door.garage.open', 'Doors', 'None', 'Open'],
+    ['opening', 'in-progress', true, 'arrow.uturn.down', 'Doors', 'Arc spinner', 'Opening'], ['closing', 'in-progress', true, 'arrow.uturn.up', 'Doors', 'Arc spinner', 'Closing'],
+    ['Request sent', 'in-progress', true, 'door.garage.open', 'Doors', 'Arc spinner', 'Sending {verb}…'], ['Request failed', 'error', false, 'door.garage.closed', 'Error', 'Wiggle once', 'Error'],
+    ['unavailable', 'unknown', false, 'door.garage.closed', 'Off', 'None', 'Unavailable'], ['unknown', 'unknown', false, 'door.garage.closed', 'Off', 'None', 'Unknown'], ['Anything else', 'unknown', false, 'door.garage.closed', 'Off', 'None', '{state}']];
+  var COLOR = { Off: '#3a3a3c', Doors: 'var(--fam-contact-fill)', Error: '#FF6961', Warning: '#FFB340' };
+  function list(sel) {
+    return h('div', STYLES.map(function (g) { return [h('div.grp', g[0])].concat(g[1].map(function (s) { return h('div.item' + (s[0] === sel ? '.sel' : ''), h('span', s[0]), h('small', s[1] ? 'Used by ' + s[1] + (s[1] === 1 ? ' tile' : ' tiles') : 'Not used')); })); }).reduce(function (a, b) { return a.concat(b); }, []),
+      h('div', { style: { marginTop: '14px' } }, h('button.btn', 'New Style')));
+  }
+  function menu(t) { return h('span.menu', t); }
+  function rows(ov) {
+    return h('table', h('thead', h('tr', ['State', 'Class', 'Lit', 'Icon', 'Colour', 'Indicator', 'Text'].map(function (x) { return h('th', x); }))),
+      h('tbody', ROWS.map(function (r, i) {
+        var o = ov && ov[i];
+        return h('tr', h('td', r[0]), h('td', h('span.cls.' + r[1], r[1] === 'in-progress' ? 'In progress' : r[1].charAt(0).toUpperCase() + r[1].slice(1))), h('td', h('span.sw' + (r[2] ? '.on' : ''))),
+          h('td', h('span.sym', { html: Mock.icon(o && o.icon || r[3]) }), o && o.icon ? h('span.ov', 'This tile') : null), h('td', h('span.dot', { style: { background: COLOR[r[4]] } }), menu(r[4])), h('td', menu(r[5])),
+          h('td', o && o.text ? [o.text, ' ', h('span.ov', 'This tile')] : r[6]));
+      })));
+  }
+  function request() {
+    return h('div', h('div.grp', 'Request'), h('table', h('tbody',
+      h('tr', h('td', 'Runs in'), h('td', menu('The app'), ' ', h('small', 'or a Home Assistant script'))),
+      h('tr', h('td', 'Ignore taps while in progress'), h('td', h('span.sw.on'), ' ', h('small', 'for 2 s'))),
+      h('tr', h('td', 'In progress until'), h('td', menu('Resting or error'))),
+      h('tr', h('td', 'No answer after'), h('td', menu('10 s'), ' ', h('small', 'then error'))),
+      h('tr', h('td', 'No change after'), h('td', menu('45 s'), ' ', h('small', 'then error'))),
+      h('tr', h('td', 'Show the error for'), h('td', menu('8 s'))))));
+  }
+  function preview() {
+    var looks = [['Closed', G.closed], ['Sending Open…', G.sendingOpen], ['Opening', G.opening], ['Closing', G.closing], ['Open', G.open], ['Error', G.error], ['Unavailable', G.unknown]];
+    var tiles = [['iPhone', 370], ['iPhone Duo, folded', 351], ['iPad', 262]].map(function (d) { var t = ST.tile(G.closed, { placement: 'swap' }); return { el: h('div', h('div.cap', d[0] + ' · ' + d[1] + ' pt'), h('div.k-swatch.page.g-dark', h('div.in', { style: { maxWidth: d[1] + 'px' } }, t))), tile: t }; });
+    var chips = h('div.chips', looks.map(function (l, i) {
+      var b = h('button' + '.chip' + (i === 0 ? '.sel' : ''), { type: 'button' }, l[0]);
+      b.addEventListener('click', function () { Array.prototype.forEach.call(chips.children, function (c) { c.classList.remove('sel'); }); b.classList.add('sel');
+        tiles.forEach(function (t) { ST.apply(t.tile, l[1]).then(function () { if (l[1].cls === 'error') ST.once(t.tile, 'wiggle'); }); }); });
+      return b; }));
+    return h('div', h('div.grp', 'Preview'), h('small', 'Pick a state: the tiles move as the app will.'), chips, h('div.pv', tiles.map(function (t) { return t.el; })),
+      h('div.note', 'VoiceOver: “Garage Door, Closed. Opens the door.”'));
+  }
+  function library(o) {
+    o = o || {};
+    var head = h('div.hd', h('b', o.name || 'Garage door'), h('small', o.used || 'Built in · used by 2 tiles'), h('span', { style: { flex: 1 } }),
+      h('button.btn', 'Duplicate'), h('button.btn', { disabled: o.builtin !== false ? '' : null }, 'Rename'), h('button.btn', { disabled: '' }, 'Delete'));
+    var banner = o.banner || h('div.note', 'A built-in style cannot be changed. Duplicate it to make your own.');
+    return h('div.sl', list(o.sel || 'Garage door'), h('div', head, banner, h('div.grp', 'States'), rows(o.ov), request()), preview());
+  }
+  function inspector() {
+    var ov = {}; ov[2] = { icon: 'stop.fill' }; ov[4] = { text: 'Asking the door…' };
+    return h('div.sl', { style: { gridTemplateColumns: 'minmax(560px, 1.6fr) minmax(280px, 1fr)' } },
+      h('div', h('div.hd', h('b', 'Garage Door'), h('small', 'Tile · cover, garage')),
+        h('table', h('tbody', h('tr', h('td', 'Entity'), h('td', menu('Garage Door'), ' ', h('small', 'cover · garage · can open, close'))),
+          h('tr', h('td', 'Style'), h('td', menu('Garage door'), ' ', h('small', 'shared with 1 other tile')), h('td', h('button.btn', 'Edit Style'), ' ', h('button.btn', 'Save as New Style…'))))),
+        h('div.note', '2 layers changed on this tile only. The style and the other tile keep theirs. ', h('button.btn', 'Reset All')),
+        h('div.grp', 'States'), rows(ov)), preview());
+  }
+  function S(title, build, note) { return { title: title, note: note, render: function () { return build(); } }; }
+
+  Mock.mount({
+    kind: 'proposal', id: 'state-style-library', title: 'Studio style library', area: 'proposals', status: 'proposed', frame: false,
+    summary: 'How the Studio shows state styles. A style is a named object in the document: a state map (which class each Home Assistant state is, and whether it is lit) and a look per state (icon, colour, indicator, words), plus the request settings. Tiles apply a style by reference; the library shows how many tiles use each, duplicates one, and a tile may change single layers without forking the style. A Studio surface, drawn here because its preview uses the app\'s tile.',
+    source: ['apple/Sources/HassCore/TileActions/StateStyle.swift'],
+    spec: ['.agents/design/state-styles.md', '.agents/design/state-styled-tile.md'],
+    patterns: ['action-tiles'],
+    hig: ['Color', 'Accessibility'],
+    kitComponents: ['GlassTile', 'ArcSpinner'],
+    devices: ['ipad-landscape'],
+    states: {
+      'library': S('Library: a built-in style', function () { return library(); }, 'Left: built-in and saved styles with "Used by N tiles". Middle: the state map and the look per state, read-only for a built-in. Right: the three families; pick a state to play the transition.'),
+      'saved': S('A saved style in use', function () { return library({ sel: 'Side gate', name: 'Side gate', used: 'Saved · used by 1 tile', builtin: false, banner: h('div.note.warn', 'Changes here apply to 1 tile that uses this style.') }); }, 'Editable. Delete is offered only when no tile uses the style.'),
+      'override': S('A tile: one style, two layers changed here', function () { return inspector(); }, 'The tile keeps its link to the style. Changed layers are marked "This tile" and can be reset one by one or all at once.'),
+    },
+    sections: [
+      { id: 'rules', title: 'Rules', build: function () {
+        return h('ul', { style: { maxWidth: '78ch' } }, [
+          'Choosing an entity fills the state map from Home Assistant: its states and their names, with a default class and lit flag for each by domain and device class. States the Studio has only seen in history are listed as Unclassified and stay unknown until the author classes them.',
+          'Every map ends with "Anything else". Its class is unknown, or resting for entities whose states are open-ended (a person\'s zone, a sensor value, a select).',
+          'Indicator is a closed menu: None, Arc spinner, Pulse, Breathe while a state holds; Bounce once and Wiggle once on arrival. The menu says "Pulse on iOS 17" beside Breathe and "Bounce on iOS 17" beside Wiggle. Arc spinner is offered only for a state with no action: the arc stands in the disc\'s place and means a tap does nothing. A state with an action says "No arc while this state has an action".',
+          'Colour is a palette token; a colour that fails the contrast preflight cannot be published.',
+          'Built-in styles are read-only: Duplicate makes a saved copy. A saved style shows how many tiles change before an edit is kept. Delete needs zero uses.',
+          '"Save as New Style…" on a tile makes a saved style from the style plus that tile\'s changed layers, and points the tile at it.',
+          '"Runs in: a Home Assistant script" asks for the script and the error timer, checks that both exist (read-only) and warns when either is missing; the publication then falls back to the app\'s own timings. The Studio installs nothing.',
+        ].map(function (t) { return h('li', t); }));
+      } },
+    ],
+    motion: [{ id: 'scrub', what: 'Picking a state in the preview plays the app\'s own transition on all three tiles', token: 'as the state-styled tile: colour state 0.6 s, disc and arc cross-fade quick 0.2 s, symbol replace', state: 'library', source: 'Studio (ha-native-home-app), lane L9a', reduce: 'as the tile: cross-fade 0.2 s, no effects',
+      play: function (stage) { var c = stage.querySelectorAll('.chip'); function tap(i, ms) { return function () { c[i].click(); return Mock.sleep(ms); }; } return [tap(1, 1100), tap(2, 1800), tap(3, 1800), tap(4, 1200), tap(5, 1600), tap(0, 800)].reduce(function (p, f) { return p.then(f); }, Promise.resolve()); } }],
+    a11y: [{ rule: 'State and class are words', note: 'Each class chip carries its name; colour only repeats it.' }, { rule: 'Preview reads the spoken value', note: 'The preview prints what VoiceOver will say for the picked state.' }],
+    reviews: { date: '2026-11-14', hig: [{ rule: 'Accessibility: "Convey state and function with shapes or icons in addition to color"', verdict: 'pass', note: 'Class chips are labelled; overrides are marked with words.', by: 'apple-hig skill' }], swiftui: [{ rule: 'Not applicable', verdict: 'pass', note: 'A web tool; no SwiftUI.', by: 'swiftui-pro skill' }] },
+    notes: ['The Studio is a desktop web tool in ha-native-home-app; this page fixes the content and behaviour, and lane L9a draws it with the Studio\'s own panels and controls.', 'Local helper proposals/state-styled-tile/_state-tile.js: promote to kit.', 'Generic names only; no house data.'],
+    changelog: [{ date: '2026-11-14', note: 'First pass: library, a saved style, per-tile overrides.' }, { date: '2026-11-14', note: 'Owner picks: the preview draws the arc in the disc\'s place (option D); Arc spinner only for a state with no action.' }],
+  });
+})();
+</script></body></html>

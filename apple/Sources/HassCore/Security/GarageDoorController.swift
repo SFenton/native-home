@@ -4,8 +4,8 @@ import Observation
 /// One garage door's open/close command state machine (web `useGarageDoorCommand.ts` and `garageDoorState.ts`).
 ///
 /// A tap sends `cover.open_cover` or `cover.close_cover` chosen from the live state and shows the moving state
-/// (`opening` / `closing`) at once. The tile reads "Sending Open…" for at least ``Timing/sendingFeedback``, then
-/// waits quietly for the door. Taps are ignored until Home Assistant acknowledges the call and
+/// (`opening` / `closing`) at once. The tile reads "Sending Open…" until Home Assistant acknowledges the call; how long that look is held
+/// is the state-styled tile's flap guard (`MotionTokens.StateTile.minimumInProgress`), not a timer here. Taps are ignored until Home Assistant acknowledges the call and
 /// ``Timing/lockout`` has passed, so a double tap can't reverse the door. The request fails, and the tile shows
 /// "Error" for ``Timing/failureHold``, when the call errors, isn't acknowledged within ``Timing/serviceTimeout``,
 /// the connection drops, or the door doesn't move within ``Timing/confirmTimeout``. Any live state change ends
@@ -39,7 +39,6 @@ public final class GarageDoorController {
 
     /// Timer lengths (`constants/garageDoors.ts`).
     public struct Timing: Sendable, Equatable {
-        public var sendingFeedback: Duration = .seconds(1)
         public var lockout: Duration = .seconds(2)
         public var serviceTimeout: Duration = .seconds(10)
         public var confirmTimeout: Duration = .seconds(45)
@@ -53,7 +52,6 @@ public final class GarageDoorController {
         var id: Int
         var command: Command
         var acknowledged = false
-        var feedbackElapsed = false
         var lockoutElapsed = false
     }
 
@@ -71,6 +69,8 @@ public final class GarageDoorController {
     public private(set) var isInteractionLocked = false
     /// The optimistic moving state, shown until a live change or a failure.
     public private(set) var optimisticState: String?
+    /// Actual service-call lifetime, independent of feedback timeouts and live acknowledgements.
+    public private(set) var networkCount = 0
 
     /// The state the tile shows.
     public var displayState: String { optimisticState ?? liveState }
@@ -131,9 +131,6 @@ public final class GarageDoorController {
         opens = command.opens
         phase = .sending
 
-        schedule(after: timing.sendingFeedback) { [weak self] in
-            self?.update(id) { $0.feedbackElapsed = true }
-        }
         schedule(after: timing.lockout) { [weak self] in
             self?.update(id) { $0.lockoutElapsed = true }
         }
@@ -148,12 +145,14 @@ public final class GarageDoorController {
             self.fail(id)
         }
         let call = ServiceCall("cover", command.service, target: entityId)
-        inFlight = Task { [weak self, caller] in
+        networkCount += 1
+        inFlight = Task { [self, caller] in
+            defer { networkCount -= 1 }
             do {
                 try await caller.call(call)
-                self?.update(id) { $0.acknowledged = true }
+                update(id) { $0.acknowledged = true }
             } catch {
-                self?.fail(id)
+                fail(id)
             }
         }
     }
@@ -194,7 +193,7 @@ public final class GarageDoorController {
         guard var request = active, request.id == id else { return }
         change(&request)
         active = request
-        if request.acknowledged, request.feedbackElapsed, phase == .sending { phase = .pending }
+        if request.acknowledged, phase == .sending { phase = .pending }
         if request.acknowledged, request.lockoutElapsed, isInteractionLocked { isInteractionLocked = false }
     }
 

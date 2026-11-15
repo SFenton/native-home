@@ -28,6 +28,8 @@ public final class HumidifierScheduleController {
     public private(set) var error: String?
     /// Only administrators edit (web: `is_admin !== false`, so unknown counts as allowed).
     public private(set) var canEdit = true
+    /// New composition adapters require a confirmed administrator, not the legacy unknown-role allowance.
+    public private(set) var roleVerified = false
     private var schedule: HassSchedule?
 
     @ObservationIgnored private let storage: any HassScheduleStoring
@@ -89,7 +91,12 @@ public final class HumidifierScheduleController {
     public func load() async {
         loading = true
         defer { loading = false }
-        if let admin = try? await storage.userIsAdmin() { canEdit = admin }
+        do {
+            canEdit = try await storage.userIsAdmin()
+            roleVerified = true
+        } catch {
+            roleVerified = false
+        }
         do {
             guard let found = try await storage.listSchedules().first(where: { $0.id == config.scheduleId }) else {
                 error = "The humidifier schedule helper was not found."

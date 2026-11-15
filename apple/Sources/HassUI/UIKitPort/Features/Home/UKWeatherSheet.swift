@@ -3,120 +3,41 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// The Weather modal (`WeatherSheet`, web `WeatherForecastSheet`): hero, the Today briefing, hourly conditions in three modes, the
-/// next seven days and the highlight tiles. Dark appearance throughout: the condition gradient is always dark. It reads the same
-/// ``WeatherForecastStore`` as the Home card, so opening it never reloads.
+/// The same Dynamic Type hero in the legacy sheet and configured weather compositions.
 @MainActor
-enum UKWeatherSheet {
-    /// The sheet as a modal: full height, dark, with Close.
-    static func controller(context: UKContext, forecasts: WeatherForecastStore) -> UKHassModalController {
-        var options = UKHassModalOptions(title: "Weather")
-        options.appearance = .dark
-        options.height = .full
-        options.width = .page
-        return UKHassModalController(root: UKWeatherSheetViewController(context: context, forecasts: forecasts), options: options)
-    }
-}
+final class UKWeatherHeroView: UIStackView {
+    private let temperature = UILabel()
+    private let condition = UILabel.uk(.title3, weight: .bold, ink: UKWeatherInk.onDark, alignment: .center)
+    private let highLow = UILabel.uk(.subheadline, weight: .semibold, ink: UKWeatherInk.onDarkSecondary, alignment: .center)
 
-@MainActor
-final class UKWeatherSheetViewController: UKPageViewController {
-    private let forecasts: WeatherForecastStore
-    private let sky = UKWeatherBackdropView(scene: .neutral)
-    private let scroll = UIScrollView()
-    private let stack = UIStackView()
-    private let heroTemperature = UILabel()
-    private let heroCondition = UILabel.uk(.title3, weight: .bold, ink: UKWeatherInk.onDark, alignment: .center)
-    private let heroHighLow = UILabel.uk(.subheadline, weight: .semibold, ink: UKWeatherInk.onDarkSecondary, alignment: .center)
-    private let briefing = UKWeatherBriefingPanel()
-    private let hourly = UKWeatherHourlyPanel()
-    private let daily = UKWeatherDailyPanel()
-    private let highlights = UKWeatherHighlightsPanel()
-    private var mode: WeatherHourlyMode = .condition
-
-    init(context: UKContext, forecasts: WeatherForecastStore) {
-        self.forecasts = forecasts
-        super.init(context: context.with { $0.surface = .sheet }, title: "Weather")
-        overrideUserInterfaceStyle = .dark
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        temperature.textColor = UKWeatherInk.onDark
+        temperature.textAlignment = .center
+        temperature.numberOfLines = 0
+        temperature.accessibilityIdentifier = "weather.hero.temperature"
+        condition.accessibilityIdentifier = "weather.hero.condition"
+        highLow.accessibilityIdentifier = "weather.hero.highLow"
+        for label in [temperature, condition, highLow] { addArrangedSubview(label) }
+        axis = .vertical
+        spacing = HassTokens.Spacing.xs
+        isLayoutMarginsRelativeArrangement = true
+        directionalLayoutMargins = NSDirectionalEdgeInsets(top: HassTokens.Spacing.m, leading: 0, bottom: HassTokens.Spacing.m, trailing: 0)
+        ukOnContentSizeChange { [weak self] in
+            guard let self else { return }
+            let scaled = UIFontMetrics(forTextStyle: .largeTitle).scaledValue(for: 76, compatibleWith: traitCollection)
+            temperature.font = UIFont.systemFont(ofSize: scaled, weight: .thin).ukMonospacedDigit()
+        }
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.accessibilityIdentifier = "weather.sheet"
-        // The gradient runs edge to edge under the rail; the scroller is the page's content, inside the side safe areas.
-        setSheetBackdrop(sky, ground: sky.baseColor)
-        scroll.showsVerticalScrollIndicator = false
-        install(scrollView: scroll)
-        // The forecast stretches and springs back even when it fits (the page's scroll-fit rule would stop it).
-        scroll.alwaysBounceVertical = true
-        stack.axis = .vertical
-        stack.spacing = HassTokens.Spacing.l
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -HassTokens.Spacing.xl),
-            stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor, constant: HassTokens.Spacing.l),
-            stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor, constant: -HassTokens.Spacing.l),
-        ])
-        stack.addArrangedSubview(makeHero())
-        for panel in [briefing, hourly, daily, highlights] as [UIView] { stack.addArrangedSubview(panel) }
-        hourly.onModeChange = { [weak self] mode in
-            guard let self else { return }
-            self.mode = mode
-            reload()
-        }
-        bag.observe { [weak self] in self?.reload() }
-        view.ukOnContentSizeChange { [weak self] in
-            guard let self else { return }
-            let scaled = UIFontMetrics(forTextStyle: .largeTitle).scaledValue(for: 76, compatibleWith: traitCollection)
-            heroTemperature.font = UIFont.systemFont(ofSize: scaled, weight: .thin).ukMonospacedDigit()
-            hourly.restyle()
-        }
-    }
-
-    private func makeHero() -> UIView {
-        heroTemperature.textColor = UKWeatherInk.onDark
-        heroTemperature.textAlignment = .center
-        heroTemperature.numberOfLines = 0
-        heroTemperature.accessibilityIdentifier = "weather.hero.temperature"
-        heroCondition.accessibilityIdentifier = "weather.hero.condition"
-        heroHighLow.accessibilityIdentifier = "weather.hero.highLow"
-        let hero = UIStackView(arrangedSubviews: [heroTemperature, heroCondition, heroHighLow])
-        hero.axis = .vertical
-        hero.spacing = HassTokens.Spacing.xs
-        hero.isLayoutMarginsRelativeArrangement = true
-        hero.directionalLayoutMargins = NSDirectionalEdgeInsets(top: HassTokens.Spacing.m, leading: 0, bottom: HassTokens.Spacing.m, trailing: 0)
-        return hero
-    }
-
-    /// Reads the entities and the store and writes every section.
-    private func reload() {
-        let entities = context.store
-        let current = WeatherCurrent(entity: entities.entity(WeatherEntities.weather).state)
-        let sun = WeatherSunInput(entity: entities.entity(WeatherEntities.sun).state)
-        let night = sun?.isNight ?? false
-        let aqi = entities.entity(WeatherEntities.airQuality).state
-        let hourlyFeed = forecasts.hourly
-        let dailyFeed = forecasts.daily
-        let scene = WeatherScene(condition: current.drawnCondition, isNight: night)
-        sky.configure(scene: scene)
-        view.backgroundColor = sky.baseColor
-        heroTemperature.text = current.degreeText
-        heroCondition.text = current.conditionLabel
-        if let today = dailyFeed.forecasts.first {
-            let text = WeatherFormat.modalHighLow(today)
-            heroHighLow.text = text
-            heroHighLow.isHidden = text.isEmpty
-        } else {
-            heroHighLow.isHidden = true
-        }
-        briefing.update(briefing: forecasts.briefing, current: current, night: night)
-        hourly.update(feed: hourlyFeed, current: current, mode: mode)
-        daily.update(feed: dailyFeed, current: current, mode: mode)
-        highlights.update(hourly: hourlyFeed.forecasts, daily: dailyFeed.forecasts.first, current: current, sun: sun, aqiState: aqi)
+    func update(current: WeatherCurrent, today: WeatherForecast?) {
+        temperature.text = current.degreeText
+        condition.text = current.conditionLabel
+        highLow.text = today.map { WeatherFormat.modalHighLow($0) }
+        highLow.isHidden = highLow.text?.isEmpty != false
     }
 }
 
@@ -138,6 +59,7 @@ extension UIFont {
 /// The "Today" panel: a headline with an icon, then a few narrative sentences (`WeatherBriefingPanel`).
 @MainActor
 final class UKWeatherBriefingPanel: UIView {
+    var captionText: String = WeatherCopy.text("headline.label") { didSet { caption.text = captionText } }
     private let surface = UKWeatherSurfaceView(spacing: HassTokens.Spacing.m)
     private let header = UIStackView()
     private let iconHost = UIView()
@@ -236,6 +158,11 @@ final class UKWeatherBriefingPanel: UIView {
 @MainActor
 final class UKWeatherHourlyPanel: UIView {
     var onModeChange: (WeatherHourlyMode) -> Void = { _ in }
+    private var modes = WeatherHourlyMode.allCases
+    private var compactHours = 5
+    private var regularHours = 7
+    private var loadingLabel = "Loading 24-hour conditions"
+    private var emptyLabel: String?
 
     private let surface = UKWeatherSurfaceView(spacing: HassTokens.Spacing.m)
     private let title = UILabel.uk(.headline, weight: .semibold, ink: UKWeatherInk.onDark)
@@ -271,7 +198,7 @@ final class UKWeatherHourlyPanel: UIView {
         picker.accessibilityIdentifier = "weather.mode"
         picker.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
         picker.addAction(UIAction { [weak self] _ in
-            guard let self, let mode = WeatherHourlyMode.allCases[safe: picker.selectedSegmentIndex] else { return }
+            guard let self, let mode = modes[safe: picker.selectedSegmentIndex] else { return }
             self.mode = mode
             onModeChange(mode)
         }, for: .valueChanged)
@@ -290,6 +217,28 @@ final class UKWeatherHourlyPanel: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    /// Overrides composition only; native mode labels, charts and paging behavior remain canonical.
+    func configure(title: String, modes: [WeatherHourlyMode], compactHours: Int, regularHours: Int, loading: String, empty: String) {
+        self.title.text = title
+        if self.modes != modes {
+            self.modes = modes
+            picker.removeAllSegments()
+            for (index, mode) in modes.enumerated() {
+                let image = UIImage(systemName: WeatherSymbols.mode(mode))
+                image?.accessibilityLabel = mode.label
+                picker.insertSegment(with: image, at: index, animated: false)
+            }
+        }
+        if self.compactHours != compactHours || self.regularHours != regularHours {
+            carouselKind = ""
+        }
+        if loadingLabel != loading { carouselKind = "" }
+        self.compactHours = compactHours
+        self.regularHours = regularHours
+        loadingLabel = loading
+        emptyLabel = empty
+    }
+
     /// Lays the header out for the current text size: title and picker side by side, or stacked at accessibility sizes.
     func restyle() {
         let stacked = traitCollection.ukIsAccessibilitySize
@@ -307,8 +256,8 @@ final class UKWeatherHourlyPanel: UIView {
         super.layoutSubviews()
         // The system segmented control names each segment through its image; the hint rides on the segment view.
         let segments = picker.subviews.sorted { $0.frame.minX < $1.frame.minX }
-        if segments.count == WeatherHourlyMode.allCases.count {
-            for (segment, mode) in zip(segments, WeatherHourlyMode.allCases) {
+        if segments.count == modes.count {
+            for (segment, mode) in zip(segments, modes) {
                 segment.accessibilityLabel = mode.label
                 segment.accessibilityHint = mode.hint
             }
@@ -318,7 +267,7 @@ final class UKWeatherHourlyPanel: UIView {
     func update(feed: WeatherForecastFeed, current: WeatherCurrent, mode: WeatherHourlyMode) {
         let previousMode = self.mode
         self.mode = mode
-        picker.selectedSegmentIndex = WeatherHourlyMode.allCases.firstIndex(of: mode) ?? 0
+        picker.selectedSegmentIndex = modes.firstIndex(of: mode) ?? 0
         subhead.text = switch mode {
         case .condition: "Temperature (\(WeatherFormat.unitWithoutDegree(current.temperatureUnit, fallback: "F")))"
         case .precipitation: "Precipitation chance (%)"
@@ -327,17 +276,17 @@ final class UKWeatherHourlyPanel: UIView {
         let label = WeatherCopy.text("carousel.conditions")
         if feed.showsPlaceholders {
             guard carouselKind != "placeholder" else { return }
-            install(UKWeatherCarouselView(cells: (0..<24).map { _ in UKWeatherModalHourPlaceholder() }, compactPerPage: 5, regularPerPage: 7, label: label,
+            install(UKWeatherCarouselView(cells: (0..<24).map { _ in UKWeatherModalHourPlaceholder() }, compactPerPage: compactHours, regularPerPage: regularHours, label: label,
                                           identifier: "weather.hour"), kind: "placeholder")
             carousel?.isAccessibilityElement = true
-            carousel?.accessibilityLabel = "Loading 24-hour conditions"
+            carousel?.accessibilityLabel = loadingLabel
         } else if feed.forecasts.isEmpty {
             content.arrangedSubviews.forEach { $0.removeFromSuperview() }
             carousel = nil
             carouselHost = nil
             carouselKind = "message"
             lastKey = 0
-            content.addArrangedSubview(messageLabel(feed.error ?? WeatherCopy.text("forecast.hourlyEmpty")))
+            content.addArrangedSubview(messageLabel(feed.error ?? emptyLabel ?? WeatherCopy.text("forecast.hourlyEmpty")))
         } else {
             var hasher = Hasher()
             hasher.combine(feed.forecasts)
@@ -350,7 +299,7 @@ final class UKWeatherHourlyPanel: UIView {
             guard key != lastKey || carouselKind != "hours" else { return }
             lastKey = key
             if carouselKind != "hours" || carousel == nil {
-                install(UKWeatherCarouselView(cells: [], compactPerPage: 5, regularPerPage: 7, label: label, identifier: "weather.hour"), kind: "hours")
+                install(UKWeatherCarouselView(cells: [], compactPerPage: compactHours, regularPerPage: regularHours, label: label, identifier: "weather.hour"), kind: "hours")
             }
             carousel?.isAccessibilityElement = false
             carousel?.accessibilityLabel = nil
@@ -394,6 +343,9 @@ final class UKWeatherHourlyPanel: UIView {
 /// The "Next Seven Days" panel: one row per day, in the mode picked in the Conditions panel (`WeatherDailyPanel`).
 @MainActor
 final class UKWeatherDailyPanel: UIView {
+    var titleText: String = "Next Seven Days" { didSet { title.text = titleText } }
+    var loadingLabel = "Loading seven-day weather forecast" { didSet { if loadingLabel != oldValue { last = nil } } }
+    var emptyLabel: String? { didSet { if emptyLabel != oldValue { last = nil } } }
     private let surface = UKWeatherSurfaceView(spacing: HassTokens.Spacing.m)
     private let title = UILabel.uk(.headline, weight: .semibold, ink: UKWeatherInk.onDark)
     private let list = UIStackView()
@@ -439,11 +391,11 @@ final class UKWeatherDailyPanel: UIView {
                 list.addArrangedSubview(bar)
             }
             list.isAccessibilityElement = true
-            list.accessibilityLabel = "Loading seven-day weather forecast"
+            list.accessibilityLabel = loadingLabel
         } else if feed.forecasts.isEmpty {
             list.spacing = 0
             let label = UILabel.uk(.subheadline, ink: UKWeatherInk.onDarkSecondary)
-            label.text = feed.error ?? WeatherCopy.text("forecast.dailyEmpty")
+            label.text = feed.error ?? emptyLabel ?? WeatherCopy.text("forecast.dailyEmpty")
             label.accessibilityIdentifier = "weather.daily.message"
             label.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
             list.addArrangedSubview(label)
@@ -572,6 +524,9 @@ final class UKWeatherDayRow: UIView {
 /// fewer columns instead of clipping.
 @MainActor
 final class UKWeatherHighlightsPanel: UIView {
+    typealias Highlight = WeatherHighlights.PanelItem
+    var titleText: String = "Highlights" { didSet { title.text = titleText } }
+    var order: [Highlight] = [.aqi, .precipitation, .accumulation, .humidity, .cloud, .feels, .uv, .wind, .sun, .visibility, .pressure]
     private let title = UILabel.uk(.headline, weight: .semibold, ink: UKWeatherInk.onDark)
     private let grid = UKDynamicGridView(configuration: UKGridConfiguration(minCellWidth: DynamicGridMetrics.tileMinWidth, maxColumns: 4))
     private var host: UKAutoSizingHost!
@@ -608,13 +563,20 @@ final class UKWeatherHighlightsPanel: UIView {
     func update(hourly: [WeatherForecast], daily: WeatherForecast?, current: WeatherCurrent, sun: WeatherSunInput?, aqiState: EntityState?) {
         last = (hourly, daily, current, sun, aqiState)
         var items: [UKGridItem] = []
-        if let aqiState { items.append(UKGridItem(UKWeatherTiles.aqi(WeatherHighlights.airQuality(state: aqiState.state)), span: 2)) }
-        items.append(UKGridItem(UKWeatherTiles.chance(hourly), span: 2))
-        items.append(UKGridItem(UKWeatherTiles.accumulation(hourly, unit: current.precipitationUnit ?? WeatherUnits.defaultPrecipitationUnit), span: 2))
-        items.append(UKGridItem(UKWeatherTiles.metric(hourly, humidity: true), span: 2))
-        items.append(UKGridItem(UKWeatherTiles.metric(hourly, humidity: false), span: 2))
-        for tile in WeatherHighlights.tiles(current: current, today: daily, sun: sun) {
-            items.append(UKGridItem(UKWeatherTiles.highlight(tile, sun: sun, traits: traitCollection), span: tile.kind == .wind ? 2 : 1))
+        let tiles = WeatherHighlights.tiles(current: current, today: daily, sun: sun)
+        for kind in order {
+            switch kind {
+            case .aqi:
+                if let aqiState { items.append(UKGridItem(UKWeatherTiles.aqi(WeatherHighlights.airQuality(state: aqiState.state)), span: 2)) }
+            case .precipitation: items.append(UKGridItem(UKWeatherTiles.chance(hourly), span: 2))
+            case .accumulation:
+                items.append(UKGridItem(UKWeatherTiles.accumulation(hourly, unit: current.precipitationUnit ?? WeatherUnits.defaultPrecipitationUnit), span: 2))
+            case .humidity, .cloud: items.append(UKGridItem(UKWeatherTiles.metric(hourly, humidity: kind == .humidity), span: 2))
+            default:
+                if let tile = tiles.first(where: { $0.kind.rawValue == kind.rawValue }) {
+                    items.append(UKGridItem(UKWeatherTiles.highlight(tile, sun: sun, traits: traitCollection), span: tile.kind == .wind ? 2 : 1))
+                }
+            }
         }
         grid.setItems(items)
         host.contentChanged()

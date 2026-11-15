@@ -253,4 +253,90 @@ struct VacationModeControllerTests {
         let solo = make(away: awayEntity("active", awayAttributes(mode: "solo_trip", traveler: "sam")))
         #expect(solo.controller.soloTripEngaged)
     }
+
+    @Test func configuredTargetsKeepChecklistAndAllWritesOnTheirOwnHelpers() async throws {
+        let checklist = [
+            Vacation.ChecklistItem(title: "Secure doors", entityId: "input_boolean.example_doors"),
+            Vacation.ChecklistItem(title: "Check windows", entityId: "input_boolean.example_windows"),
+        ]
+        let targets = try Vacation.Targets(modeEntityId: "input_boolean.example_mode",
+            invalidDatesPendingEntityId: "input_boolean.example_invalid",
+            startEntityId: "input_datetime.example_start", endEntityId: "input_datetime.example_end", checklist: checklist)
+        let store = makeStore([
+            targets.modeEntityId: "off", targets.invalidDatesPendingEntityId: "off",
+            targets.startEntityId: "2026-10-20 09:00:00", targets.endEntityId: "2026-10-27 18:00:00",
+            checklist[0].entityId: "on", checklist[1].entityId: "on",
+        ])
+        store.apply([awayEntity()])
+        let caller = RecordingCaller()
+        let household = HouseholdAwayController(store: store, responder: ScriptedResponder())
+        let controller = VacationModeController(store: store, household: household, caller: caller, targets: targets,
+            now: { AwayTestClock.now }, calendar: AwayTestClock.calendar)
+        #expect(controller.checklist == checklist)
+        controller.toggle(.init(title: "Foreign", entityId: "input_boolean.demo_not_in_source"))
+        controller.tapCard()
+        #expect(controller.hasPendingInteraction)
+        controller.confirm()
+        await controller.drain()
+        #expect(caller.calls.map { $0.data["entity_id"] } == [
+            targets.startEntityId, targets.endEntityId, targets.invalidDatesPendingEntityId, targets.modeEntityId,
+        ])
+        #expect(controller.hasPendingInteraction)
+        let confirmed = controller.dateRange
+        store.apply([
+            EntityState(entityId: targets.startEntityId, state: confirmed.start.date + " " + confirmed.start.timeWithSeconds),
+            EntityState(entityId: targets.endEntityId, state: confirmed.end.date + " " + confirmed.end.timeWithSeconds),
+            EntityState(entityId: targets.modeEntityId, state: "on"),
+        ])
+        for _ in 0..<100 where controller.hasPendingInteraction { await Task.yield() }
+        #expect(!controller.hasPendingInteraction)
+    }
+
+    @Test func confirmingRevalidatesChecklistAndDoesNotEnableAfterFailedDateWrite() async throws {
+        let h = make(checklist: allDone)
+        h.controller.tapCard()
+        h.store.apply([EntityState(entityId: Vacation.checklist[0].entityId, state: "off")])
+        h.controller.confirm()
+        await h.controller.drain()
+        #expect(h.caller.calls.isEmpty)
+        #expect(h.controller.isConfirming)
+
+        h.store.apply([EntityState(entityId: Vacation.checklist[0].entityId, state: "on")])
+        h.caller.failNext = true
+        h.controller.confirm()
+        #expect(h.controller.pendingBatches == 1)
+        await h.controller.drain()
+        #expect(h.controller.commandFailed)
+        #expect(h.caller.calls.count == 1)
+        #expect(h.caller.calls[0].service == "set_datetime")
+        #expect(h.controller.pendingBatches == 0)
+    }
+
+    @Test func malformedDraftCannotBeConfirmedOrWrittenInline() async {
+        let h = make(checklist: allDone)
+        h.controller.tapCard()
+        let malformed = Vacation.DateRange(start: WallClock(date: "invalid", time: "09:00"),
+                                           end: WallClock(date: "2026-10-30", time: "10:00"))
+        h.controller.updatePendingRange(malformed)
+        #expect(h.controller.invalidDateRange)
+        h.controller.confirm()
+        h.controller.updateSavedRange(malformed, changedEnd: false)
+        await h.controller.drain()
+        #expect(h.caller.calls.isEmpty)
+    }
+
+    @Test func explicitTargetsRejectDuplicatesWrongDomainsAndEmptyChecklist() throws {
+        let item = Vacation.ChecklistItem(title: "Task", entityId: "input_boolean.example_task")
+        func make(_ mode: String, _ start: String, _ tasks: [Vacation.ChecklistItem]) throws -> Vacation.Targets {
+            try .init(modeEntityId: mode, invalidDatesPendingEntityId: "input_boolean.example_invalid",
+                      startEntityId: start, endEntityId: "input_datetime.example_end", checklist: tasks)
+        }
+        #expect(throws: AwayTargetValidation.Error.invalidTarget) { try make("switch.example", "input_datetime.example_start", [item]) }
+        #expect(throws: AwayTargetValidation.Error.invalidTarget) { try make("input_boolean.example_mode", "input_datetime.example_start", []) }
+        #expect(throws: AwayTargetValidation.Error.invalidTarget) { try make("input_boolean.example_mode", "input_datetime.example_start", [item, item]) }
+        #expect(throws: AwayTargetValidation.Error.invalidTarget) { try make("input_boolean.example_mode", "input_datetime.example_end", [item]) }
+        #expect(throws: AwayTargetValidation.Error.invalidTarget) {
+            try HouseholdAway.Targets(statusEntityId: "sensor.example\n", commandService: "example")
+        }
+    }
 }

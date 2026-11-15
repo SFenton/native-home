@@ -33,6 +33,8 @@ final class UKSmoothContentSwapView<Key: Equatable>: UIView {
     private let makeContent: (Key) -> UIView
     private let container = UIView()
     private var running = false
+    /// Publication cannot replace a panel while its canonical transition is in flight.
+    var isTransitioning: Bool { running }
     private var generation = 0
 
     init(initial: Key, makeContent: @escaping (Key) -> UIView) {

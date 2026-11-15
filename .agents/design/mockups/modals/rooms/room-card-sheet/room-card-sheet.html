@@ -30,8 +30,7 @@
   Mock.mount({
     kind: 'modal', id: 'room-card-sheet', title: 'Room card sheet (groups, items, fallbacks)', area: 'rooms', status: 'shipped',
     summary: 'What a room card or chip opens when it has no sheet of its own: the room\'s lights, climate, occupancy or door sheet, a list of vents, the house-wide door sheet (Back Deck, Garage), a read-only fallback, or a message. One large page sheet with Close; the body follows RoomController.sheet(for:). Follows the system appearance.',
-    source: ['apple/Sources/HassUI/Features/Rooms/RoomSheets.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift', 'apple/Sources/HassCore/Rooms/RoomGroups.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift', 'apple/Sources/HassCore/Rooms/RoomGroups.swift', 'apple/Sources/HassDesign/HassModal.swift'],
     spec: ['.agents/pages/rooms/ios.md', '.agents/pages/rooms/spec.md', '.agents/patterns/room-overview-sheet.md', '.agents/patterns/modal-sheet.md'],
     patterns: ['modal-sheet', 'room-overview-sheet', 'entity-tile', 'dynamic-grid', 'optimistic-actions', 'header-edge-fade', 'motion'],
     hig: ['Sheets', 'Toolbars', 'Color', 'Dark Mode', 'Typography', 'Dynamic Type', 'Empty states (ContentUnavailableView)'],

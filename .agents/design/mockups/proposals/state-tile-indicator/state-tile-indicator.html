@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>State-styled tile: where the in-progress arc sits · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, ST = window.StateTile;
+  var PLACE = { a: 'slot', b: 'inline', c: 'ring', d: 'swap' };
+  var G = ST.garage('Garage Door'), G2 = ST.garage('Workshop Door'), LK = ST.lock('Front Door'), LK2 = ST.lock('Back Door'), BL = ST.blind('Office Blind'), AL = ST.alarm('Security System');
+
+  function tiles(place) {
+    var o = { placement: place };
+    return [ST.tile(G.sendingOpen, o), ST.tile(G2.opening, o), ST.tile(BL.closing, o), ST.tile(LK.unlocking, o), ST.tile(AL.arming, o), ST.tile(ST.misc.sensorOpening, o), ST.tile(LK2.locked, o), ST.tile(ST.garage('Shed Door').error, o)];
+  }
+  function page(ctx, place, extra) {
+    return Mock.page(ctx, { title: 'Security', section: 'security', body: [K.PageSectionHeader({ title: 'Doors' }), K.TileGrid({ items: tiles(place), min: 232, max: 4 })].concat(extra || []) });
+  }
+  function opt(key, title, note) { return { title: title, note: note, render: function (ctx) { return page(ctx, PLACE[key]); } }; }
+  function story(place) {
+    return function (stage) {
+      var t = stage.querySelector('.ui-tile'), o = { placement: place };
+      return ST.run(t, [[G.closed, 700], [G.sendingOpen, 1000], [G.opening, 1800], [G.sendingClose, 1000], [G.closing, 1800], [G.closed, 900]], o);
+    };
+  }
+  /* D's own looks. A gate with no action while it moves, and a contact sensor with no disc. */
+  function gate(text, icon, cls, x) { return Object.assign({ title: 'Side Gate', text: text, icon: icon, cls: cls, indicator: cls === 'in-progress' ? 'arc' : 'none', action: cls === 'in-progress' ? null : { verb: 'Open' } }, x || {}); }
+  var GT = { closed: gate('Closed', 'door.garage.closed', 'resting'), opening: gate('Opening', 'door.garage.open', 'in-progress', { active: true }), closing: gate('Closing', 'door.garage.open', 'in-progress', { active: true }) };
+  function sensor(text, cls, active) { return { title: 'Patio Door Sensor', text: text, icon: active ? 'door.garage.open' : 'door.garage.closed', cls: cls, active: active, indicator: cls === 'in-progress' ? 'arc' : 'none', action: null, behavior: 'inert' }; }
+  var SN = { closed: sensor('Closed', 'resting', false), opening: sensor('Opening', 'in-progress', true), closing: sensor('Closing', 'in-progress', true) };
+  var GE = ST.garage('Shed Door'), D = { placement: 'swap' };
+  function cap(text, look) { return h('div', h('div.cap', text), ST.tile(look, D)); }
+  function film(title, frames, note) {
+    return [K.PageSectionHeader({ title: title }), h('div.st-film', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' } }, frames.map(function (f, i) { return cap((i + 1) + ' · ' + f[0], f[1]); })), note ? h('p.st-note', note) : null];
+  }
+  function flat(a) { return a.reduce(function (o, x) { return o.concat(x); }, []).filter(Boolean); }
+  /* One tile per sequence, in the order the motion list plays them. */
+  function stagePage(ctx) {
+    return Mock.page(ctx, { title: 'Security', section: 'security', body: [K.PageSectionHeader({ title: 'D · one tile per sequence' }),
+      K.TileGrid({ items: [ST.tile(LK.locked, D), ST.tile(GT.closed, D), ST.tile(G.closed, D), ST.tile(GE.closed, D), ST.tile(SN.closed, D)], min: 232, max: 4 }),
+      h('p.st-note', 'Play a sequence from the motion list. Lock: taps ignored while it moves. Side Gate: no action while it moves. Garage Door: Reverse while it moves. Shed Door: the request fails. Patio Door Sensor: no disc.')] });
+  }
+  function boards(ctx) {
+    return Mock.page(ctx, { title: 'Security', section: 'security', body: flat([
+      film('Resting, in progress, resting', [['Locked', LK.locked], ['Unlocking', LK.unlocking], ['Unlocked', LK.unlocked]], 'Frame 2 has no disc: a tap does nothing. The disc comes back in frame 3 already showing Lock.'),
+      film('In progress to in progress', [['Opening', GT.opening], ['Closing', GT.closing]], 'One arc, never restarted, and the disc does not flash between the two: only the words change.'),
+      film('A state that still takes a tap keeps its disc', [['Sending Open…', G.sendingOpen], ['Opening', G.opening], ['Closing', BL.closing], ['Arming', AL.arming]], 'Reverse, Stop and Disarm stay on their discs and those states have no arc. The words and the filled face say it is moving.'),
+      film('In progress to error', [['Sending Open…', GE.sendingOpen], ['Error', GE.error]], 'The arc fades out as the disc fades in on the error face; the glyph wiggles once when the fade ends.'),
+      film('A tile with no disc', [['Closed', SN.closed], ['Opening', SN.opening], ['Closing', SN.closing]], 'The glyph fades out and a glyph-sized arc takes its place. The tile was never a button, so nothing about tapping changes.'),
+      film('Busy is not unavailable', [['Unlocking', LK.unlocking], ['Unavailable', LK.unknown]], 'Busy: no disc, an arc. Unavailable: the disc stays, dimmed, with no arc.'),
+    ]) });
+  }
+  function table(head, rows) {
+    return h('div.k-table-wrap', h('table', h('thead', h('tr', head.map(function (x) { return h('th', x); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (x) { return h('td', x); })); }))));
+  }
+
+  Mock.mount({
+    kind: 'proposal', id: 'state-tile-indicator', title: 'State-styled tile: where the in-progress arc sits', area: 'proposals', status: 'decided', decision: '.agents/decisions/2026-11-14-state-styled-tile.md',
+    summary: 'Decided: D. The owner chose none of A, B or C: "It should replace the disc entirely. Still smaller than the actual disc, but the actual disc should fade in/out appropriately; this signifies that the user can\'t currently interact with the tile." While a tap does nothing the disc, fill and glyph, fades out and a 28 pt arc stands in its 44 pt slot; when a tap works again the arc fades out and the disc fades back in. A state that still takes a tap (Stop, Reverse, Disarm) keeps its disc and has no arc. A, B and C stay below as the rejected record. Second answer: alarm pending, lock open and vacuum paused default to warning.',
+    source: ['apple/Sources/HassCore/TileActions/StateStyle.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKArcSpinnerView.swift'],
+    spec: ['.agents/design/state-styled-tile.md', '.agents/design/state-styles.md', '.agents/patterns/action-tiles.md'],
+    patterns: ['action-tiles', 'motion', 'entity-tile'],
+    hig: ['Progress indicators', 'Buttons', 'Motion', 'SF Symbols', 'Accessibility', 'VoiceOver', 'Color'],
+    kitComponents: ['GlassTile', 'TileGrid', 'ArcSpinner', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'd': opt('d', 'D · The arc replaces the disc (chosen)', 'While a tap does nothing the disc fades out and a 28 pt arc in the tile\'s ink stands in its place. Reverse, Stop and Disarm keep their discs. The sensor has no disc: its glyph gives way to the arc.'),
+      'd-states': { title: 'D · storyboards', render: boards },
+      'd-motion': { title: 'D · one tile per sequence (for Play)', render: stagePage },
+      'd-reduce': { title: 'D · Reduce Motion', override: { reduceMotion: true }, render: function (ctx) { return page(ctx, PLACE.d, [h('p.st-note', 'The disc and the arc still cross-fade in 0.2 s: a fade is what Reduce Motion asks for. The arc turns at half speed; the error glyph does not wiggle.')]); } },
+      'd-ax5': { title: 'D · Accessibility 5 text size', override: { ts: 'ax5' }, render: function (ctx) {
+        return Mock.page(ctx, { title: 'Security', section: 'security', body: [K.PageSectionHeader({ title: 'D' }), K.TileGrid({ items: [ST.tile(G.sendingOpen, D), ST.tile(G2.opening, D), ST.tile(LK.unlocking, D), ST.tile(SN.opening, D), ST.tile(GE.error, D)], min: 232, max: 4 }),
+          h('p.st-note', 'The arc is 7/11 of the disc at every text size: 28 pt in the 44 pt disc, 42 pt in the 66 pt disc the app draws from Accessibility 1 up.')] }); } },
+      'warnings': { title: 'Warning defaults: alarm pending, lock open, vacuum paused', render: function (ctx) {
+        return Mock.page(ctx, { title: 'Security', section: 'security', body: [K.PageSectionHeader({ title: 'Warning by default' }), K.TileGrid({ items: [ST.tile(AL.pending, D), ST.tile(LK.open, D), ST.tile(ST.misc.robotPaused, D)], min: 232, max: 4 }),
+          h('p.st-note', 'Amber glyph and state text on the dense face, one pulse on arrival and on each page visit. Each keeps its disc: Disarm, Lock and Resume stay one tap away.')] }); } },
+      'a': opt('a', 'A · Arc in the disc when a tap does nothing (rejected)', 'The disc shows one thing: what a tap does, or the arc while taps are ignored. Moving doors with Reverse, Stop or Disarm show that glyph and no arc.'),
+      'b': opt('b', 'B · Arc beside the state text (rejected)', 'A 16 pt arc leads the state line on every in-progress tile; the disc always shows the action, dimmed while taps are ignored.'),
+      'c': opt('c', 'C · Ring on the disc, glyph kept (rejected)', 'The arc runs round the disc, 5 pt outside it, for the whole in-progress class; the glyph inside stays the action, dimmed while taps are ignored.'),
+      'ax5': { title: 'A, B and C · Accessibility 5 text size', override: { ts: 'ax5' }, render: function (ctx) {
+        return Mock.page(ctx, { title: 'Security', section: 'security', body: [K.PageSectionHeader({ title: 'A' }), K.TileGrid({ items: [ST.tile(G.sendingOpen, { placement: 'slot' }), ST.tile(G2.opening, { placement: 'slot' })], min: 232, max: 4 }),
+          K.PageSectionHeader({ title: 'B' }), K.TileGrid({ items: [ST.tile(G.sendingOpen, { placement: 'inline' }), ST.tile(G2.opening, { placement: 'inline' })], min: 232, max: 4 }),
+          K.PageSectionHeader({ title: 'C' }), K.TileGrid({ items: [ST.tile(G.sendingOpen, { placement: 'ring' }), ST.tile(G2.opening, { placement: 'ring' })], min: 232, max: 4 })] }); } },
+    },
+
+    sections: [
+      { id: 'pick', title: 'The pick: D, and why A, B and C lost', build: function () {
+        return h('div', table(['', 'D · the arc replaces the disc (chosen)', 'A · in the disc', 'B · beside the text', 'C · ring on the disc'], [
+          ['What "a tap does nothing" looks like', 'No disc at all: an arc where it was', 'The disc stays and looks like a button', 'A dimmed disc, which reads as unavailable', 'A dimmed glyph inside a turning ring'],
+          ['Arc size at the default text size', '28 pt, 3 pt ring, in the 44 pt slot', '16 pt inside the disc', '16 pt beside the text', '54 pt, outside the disc'],
+          ['Arc colour', 'The face\'s primary ink, the title\'s colour', 'The disc\'s glyph ink', 'The state text\'s ink', 'The face\'s primary ink'],
+          ['Layout', 'Nothing moves: the slot stays 44 pt', 'Nothing moves', 'The state line shifts 22 pt', 'Needs a 54 pt footprint'],
+          ['A state that still takes a tap', 'Disc, no arc', 'Disc, no arc', 'Disc and arc', 'Disc and ring'],
+          ['Why it lost', '', 'The owner: the disc must go, so the tile stops looking tappable', 'Moves layout on a live update; the smallest arc', 'A white ring round a white disc is faint; a second geometry for tiles with no disc'],
+        ]),
+        table(['Disc', 'Arc', 'Ring', 'Text sizes'], [
+          ['44 pt', '28 pt', '3 pt', 'Up to Large, the default'],
+          ['44 to 66 pt', '7/11 of the disc', '3/44 of the disc', 'Extra Large to Extra Extra Extra Large'],
+          ['66 pt', '42 pt', '4.5 pt', 'Accessibility 1 to Accessibility 5'],
+        ]),
+        h('p', { style: { maxWidth: '78ch' } }, 'The same on iPhone, iPhone Duo folded and unfolded, and iPad: the tile sits in the dynamic grid and knows no device. 28 pt is the selection ring\'s size in the same 44 pt target. A tile with no disc uses a glyph-sized arc: 20 pt, scaled with the glyph.'),
+        h('p', { style: { maxWidth: '78ch' } }, 'Settled inside D by the Designer: a state that still takes a tap keeps its disc and has no arc. The arc means "not now", so it cannot sit on a tile that will Stop, Reverse or Disarm when tapped, and HIG Progress indicators says "When it\'s feasible, let people halt processing". On a garage door that can reverse, the arc therefore shows through Sending and the disc returns with Reverse once the door moves. A style whose moving states author no action keeps one arc through the whole travel.'));
+      } },
+      { id: 'trade', title: 'The record: what A, B and C traded', build: function () {
+        return h('div', table(['', 'A · in the disc', 'B · beside the text', 'C · ring on the disc'], [
+          ['Shipped door, lock and alarm tiles', 'Drawn exactly as shipped', 'Changed: the disc arc goes, a small arc joins the state line', 'Changed: the centre arc becomes a ring, and it also turns while a door moves'],
+          ['Opening to Closing on a door with Reverse or Stop', 'No arc in either state (the disc shows Reverse or Stop)', 'One arc turns through both', 'One ring turns through both'],
+          ['Tiles with no disc (read-only sensor)', 'Arc takes the glyph\'s place', 'Same rule as every tile', 'Needs a ring round a bare glyph, a second geometry'],
+          ['Layout', 'Nothing moves', 'The state line shifts 22 pt when the arc comes and goes', 'Nothing moves, but the ring has to sit 5 pt outside the disc (54 pt across in a 72 pt row)'],
+          ['Seen in the captures (iPhone, Duo folded, iPad landscape)', 'The clearest arc: dark on the white disc', 'Legible, the smallest; the dimmed disc reads as unavailable', 'A white ring round a white disc reads as a faint halo'],
+          ['HIG Progress indicators: "Display progress indicators in a consistent location."', 'Disc, when shown', 'State line, always', 'Disc, always'],
+        ]));
+      } },
+      { id: 'classes', title: 'Second answer: all three default to warning', build: function () {
+        return h('div', table(['State', 'Was drawn as', 'Default'], [
+          ['Alarm `pending` (entry delay)', 'Armed', 'Warning; Disarm stays on its disc'],
+          ['Lock `open` (unlatched)', 'Unlocked', 'Warning; a tap locks'],
+          ['Vacuum `paused`', 'Idle', 'Warning; a tap resumes'],
+        ]), h('p', { style: { maxWidth: '78ch' } }, 'Amber glyph and state text on the dense face, one pulse on arrival and on each page visit, no haptic and no announcement. An author can still set any state to another class in the Studio.'));
+      } },
+    ],
+
+    motion: [
+      { id: 'd-settle', what: 'D: Locked, Unlocking, Unlocked, Locking, Locked. The disc fades out as the arc fades in, and back; the disc returns already showing the next action.', token: 'disc and arc opacity: quick 0.2 s ease-out, cross-faded from the same frame; colour: state 0.6 s; the hidden disc\'s glyph is set with no effect', state: 'd-motion',
+        source: 'new: the per-layer transition component (lane L7a)', reduce: 'the same 0.2 s cross-fade; colour cross-fades at 0.2 s; the arc turns at half speed',
+        play: function (stage) { return ST.run(stage.querySelectorAll('.ui-tile')[0], [[LK.locked, 700], [LK.unlocking, 1600], [LK.unlocked, 1200], [LK.locking, 1600], [LK.locked, 800]], D); } },
+      { id: 'd-continuity', what: 'D: Closed, Opening, Closing, Closed on a gate with no action while it moves. One arc through both; no disc flash at the change.', token: 'indicator layer untouched while its value is equal; text at once', state: 'd-motion',
+        source: 'new (lane L7a)', reduce: 'as above',
+        play: function (stage) { return ST.run(stage.querySelectorAll('.ui-tile')[1], [[GT.closed, 700], [GT.opening, 1800], [GT.closing, 1800], [GT.closed, 900]], D); } },
+      { id: 'd-reverse', what: 'D: a garage door that can reverse. The arc through Sending Open…, then the disc returns with Reverse; a tap, the arc again through Sending Close…, Reverse, Closed.', token: 'quick 0.2 s each way; Sending stands at least 1 s (the flap guard)', state: 'd-motion',
+        source: 'GarageDoorController, StateStyle; new presentation (lane L7a)', reduce: 'as above',
+        play: function (stage) { return ST.run(stage.querySelectorAll('.ui-tile')[2], [[G.closed, 600], [G.sendingOpen, 1000], [G.opening, 1800], [G.sendingClose, 1000], [G.closing, 1800], [G.closed, 900]], D); } },
+      { id: 'd-error', what: 'D: Sending Open… fails. The arc fades out while the disc fades in on the error face, then the glyph wiggles once (bounces once on iOS 17).', token: 'quick 0.2 s cross-fade; colour state 0.6 s; Wiggle once when the disc\'s fade-in ends (system timing)', state: 'd-motion',
+        source: 'new (lane L7a); the error face, haptic and announcement are the tile\'s today', reduce: 'the cross-fade only; no wiggle',
+        play: function (stage) { return ST.run(stage.querySelectorAll('.ui-tile')[3], [[GE.closed, 700], [GE.sendingOpen, 1200], [GE.error, 1600, 'wiggle'], [GE.closed, 800]], D); } },
+      { id: 'd-nodisc', what: 'D: a sensor with no disc. Closed, Opening, Closing, Closed: the glyph gives way to a glyph-sized arc, one arc through both.', token: 'glyph and arc opacity: quick 0.2 s', state: 'd-motion',
+        source: 'new (lane L7a)', reduce: 'as above',
+        play: function (stage) { return ST.run(stage.querySelectorAll('.ui-tile')[4], [[SN.closed, 700], [SN.opening, 1600], [SN.closing, 1600], [SN.closed, 900]], D); } },
+      { id: 'story-a', what: 'A (rejected): closed, Sending Open, Opening, tap Reverse, Sending Close, Closing, Closed. The arc sits inside the disc in the two Sending steps.', token: 'colour state 0.6 s; arc opacity quick 0.2 s; glyph symbol replace (system)', state: 'a',
+        source: 'UKTileActions (disc glyph and arc swap)', reduce: 'colour cross-fades at 0.2 s, the glyph cuts, the arc turns at half speed', play: story('slot') },
+      { id: 'story-b', what: 'B (rejected): the same sequence. One arc beside the text from Sending Open to Closed.', token: 'colour state 0.6 s; arc opacity quick 0.2 s', state: 'b',
+        source: 'not built in the app', reduce: 'as A', play: story('inline') },
+      { id: 'story-c', what: 'C (rejected): the same sequence. One ring from Sending Open to Closed; only the glyph inside and the words change.', token: 'colour state 0.6 s; ring opacity quick 0.2 s', state: 'c',
+        source: 'not built in the app', reduce: 'as A', play: story('ring') },
+    ],
+
+    a11y: [
+      { rule: 'Not available now', note: 'While the arc stands in for the disc the tile keeps its button trait and gains the not-enabled trait, has no hint and does not respond to Voice Control or Switch Control. VoiceOver reads "Front Door, Unlocking, in progress, dimmed". The arc itself is not an element.' },
+      { rule: 'Available again', note: 'When the disc returns the not-enabled trait goes and the hint comes back; the settled state is announced without moving focus ("Front Door, Unlocked").' },
+      { rule: 'A state that still takes a tap', note: 'Stays enabled with its hint: "Garage Door, Opening, in progress. Reverses the door".' },
+      { rule: 'Navigation tiles', note: 'Only the disc gives way to the arc. The body still opens its page and keeps its chevron and its traits; its value says "in progress".' },
+      { rule: 'A tile with no disc', note: 'Never a button, so its traits do not change; its value gains "in progress".' },
+      { rule: 'Motion is never the only signal', note: 'Each in-progress state has its own words; the missing disc and the arc\'s shape say "not now" with the arc held still. With Reduce Motion the arc turns at half speed and the swap stays a 0.2 s fade.' },
+      { rule: 'Targets', note: 'The disc slot stays 44 pt (66 pt at accessibility sizes). The arc is not a target.' },
+      { rule: 'Contrast', note: 'The arc takes the face\'s primary ink, the colour of the title, so it clears 3:1 on the unlit and the filled face; it never takes the warning or error ink.' },
+    ],
+    reviews: { date: '2026-11-14', hig: [
+      { rule: 'Buttons, iOS and iPadOS: "For actions that don\'t complete instantly, show an activity indicator in the button"; "The system shows it beside the label and hides any button image."', verdict: 'pass', note: 'The tile is the button; the arc is inside it and its image, the disc, is hidden. Departure inside the pass: the disc\'s fill goes too, by the owner\'s choice.', by: 'apple-hig skill' },
+      { rule: 'Progress indicators: "When it\'s feasible, let people halt processing"', verdict: 'pass', note: 'A state with Stop, Reverse or Disarm keeps its disc and shows no arc.', by: 'apple-hig skill' },
+      { rule: 'Progress indicators: "Display progress indicators in a consistent location."', verdict: 'pass', note: 'Always the disc\'s slot; the glyph\'s slot on a tile with no disc.', by: 'apple-hig skill' },
+      { rule: 'Progress indicators: "Keep indicators moving."', verdict: 'pass', note: 'One arc element turns for as long as the state holds, at half speed under Reduce Motion.', by: 'apple-hig skill' },
+      { rule: 'Motion: "Keep feedback animations brief and precise."', verdict: 'pass', note: 'One 0.2 s cross-fade, opacity only, started in the frame of the tap.', by: 'apple-hig skill' },
+      { rule: 'Motion: "Make motion optional: never make it the only way to communicate important information"', verdict: 'pass', note: 'Words, the missing disc and the not-enabled trait carry it.', by: 'apple-hig skill' },
+      { rule: 'Accessibility: "When Reduce Motion is on, reduce automatic and repetitive animation"; best practices include "replacing axis transitions with fades"', verdict: 'pass', note: 'The swap is already a fade; the arc slows to half speed.', by: 'apple-hig skill' },
+      { rule: 'Color: "Avoid using the same color to mean different things"', verdict: 'pass', note: 'The arc is never amber or red.', by: 'apple-hig skill' },
+      { rule: 'VoiceOver: "be sure to keep labels current as interface and content change"', verdict: 'pass', note: 'Value, hint and traits change with the disc.', by: 'apple-hig skill' },
+    ], swiftui: [{ rule: 'Not applicable', verdict: 'pass', note: 'The tile is UIKit; no SwiftUI is proposed.', by: 'swiftui-pro skill' }] },
+    notes: ['Owner pick 2026-11-14: D, and all three warning defaults. The earlier gate result for A, B and C was gate: park basis=request answer=unsure route=session; the owner answered in session.', 'Built in lane L7a: D is the shipped tile (components/tiles/state-styled-tile); this page keeps the rejected placements as the record.', 'The builder is the kit\'s StateTile (_kit/components/StateTile.js).', 'Generic names only; no house data.'],
+    changelog: [{ date: '2026-11-14', note: 'Options A, B and C built on iPhone, Duo and iPad for the owner.' }, { date: '2026-11-14', note: 'Owner picked D (the arc replaces the disc); D built for every window at the default size and AX5; warning defaults recorded.' }],
+  });
+})();
+</script></body></html>

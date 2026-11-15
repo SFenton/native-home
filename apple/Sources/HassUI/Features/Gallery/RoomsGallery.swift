@@ -3,29 +3,6 @@ import HassCore
 import HassDesign
 import SwiftUI
 
-/// The gallery's service caller: records every call for the "Last call" line, and answers calls that return a
-/// response (wake light, Solo Trip) like Home Assistant through the bedroom gallery's recorder, so the Master
-/// Bedroom's wake-light and bed sheets open here too.
-@MainActor
-final class RoomsGalleryCaller: HassServiceResponding {
-    let recorder: GalleryServiceRecorder
-    let bedroom: BedroomGalleryRecorder
-
-    init(recorder: GalleryServiceRecorder, bedroom: BedroomGalleryRecorder) {
-        self.recorder = recorder
-        self.bedroom = bedroom
-    }
-
-    func callService(_ domain: String, _ service: String, data: [String: any Sendable]) async throws {
-        try await recorder.callService(domain, service, data: data)
-    }
-
-    func callServiceWithResponse(_ domain: String, _ service: String, data: [String: any Sendable]) async throws -> JSONValue {
-        try? await recorder.callService(domain, service, data: data)
-        return try await bedroom.callServiceWithResponse(domain, service, data: data)
-    }
-}
-
 /// Synthetic states for every room card, group, counter and Quick Links tile (not a copy of the live house).
 enum RoomsFixtures {
     @MainActor static func store() -> EntityStore {
@@ -48,13 +25,13 @@ enum RoomsFixtures {
         // Guest fan's entities unavailable (no buttons, "Unavailable").
         let fanScenario = ProcessInfo.processInfo.environment["FENTON_GALLERY_SCENARIO"]
         let fans = BathroomFanConfig.all
-        let devices = (fans.first.map { RoomDeviceFixture.fanStates($0, power: "off", locked: false, pending: false, now: Date()) } ?? [])
-            + (fans.dropFirst().first.map { RoomDeviceFixture.fanStates($0, power: "on", locked: true, pending: true, now: Date()) } ?? [])
+        let devices = (fans.first.map { RoomDeviceFixture.fanStates($0, power: "off", locked: false, pending: false, now: GalleryFixtureClock.shared.now) } ?? [])
+            + (fans.dropFirst().first.map { RoomDeviceFixture.fanStates($0, power: "on", locked: true, pending: true, now: GalleryFixtureClock.shared.now) } ?? [])
             + AirPurifierConfig.all.flatMap { RoomDeviceFixture.purifierStates($0, mode: "Auto", percentage: 33) }
             + RoomDeviceFixture.grillStates
         for state in devices { byId[state.entityId] = state }
         if fanScenario == "fan-unavailable" {
-            for state in (fans.first.map { RoomDeviceFixture.fanStates($0, power: "off", locked: false, pending: false, now: Date()) } ?? []) {
+            for state in (fans.first.map { RoomDeviceFixture.fanStates($0, power: "off", locked: false, pending: false, now: GalleryFixtureClock.shared.now) } ?? []) {
                 byId[state.entityId] = EntityState(entityId: state.entityId, state: "unavailable", attributes: [:])
             }
         }

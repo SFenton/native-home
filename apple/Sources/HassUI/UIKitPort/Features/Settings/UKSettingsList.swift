@@ -205,29 +205,6 @@ final class UKSettingsCell: UICollectionViewListCell, UKSettingsRowCell {
     }
 }
 
-/// A row view that picks its arrangement from the width it is given (`ViewThatFits`).
-@MainActor
-protocol UKWidthAdapting: UIView {
-    /// Chooses the arrangement for `width`; returns whether it changed (the list then measures the row again).
-    func adapt(toWidth width: CGFloat) -> Bool
-}
-
-extension UKWidthAdapting {
-    /// Call from `layoutSubviews`: adapts to the width the row was given and asks the list to measure again when that changed it.
-    func adaptToBounds() {
-        guard adapt(toWidth: bounds.width) else { return }
-        var view = superview
-        while let current = view, !(current is UICollectionView) { view = current.superview }
-        guard let list = view as? UICollectionView else {
-            // In the stack the row measures through Auto Layout.
-            invalidateIntrinsicContentSize()
-            DispatchQueue.main.async { [weak self] in self?.superview?.setNeedsLayout() }
-            return
-        }
-        DispatchQueue.main.async { UIView.performWithoutAnimation { list.collectionViewLayout.invalidateLayout() } }
-    }
-}
-
 extension UIColor {
     /// `overlay` drawn over this colour (both resolved in the current traits): the pressed wash over a module tint.
     func ukBlend(with overlay: UIColor) -> UIColor {

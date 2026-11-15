@@ -17,21 +17,13 @@ struct UKContext {
     /// The live connection, nil in a gallery.
     var connection: HassConnection?
     var session: AppSession?
-    /// The house config store a ``UKHouseLayoutGate`` follows, when it is not the session's (a hosted test injects one).
-    var houseConfigStore: HouseConfigStore?
-    /// The source the gate reads the document from, when it is not ``HouseConfigSource/active`` (a hosted test injects one: the
-    /// task-local scope does not survive an observation re-run).
-    var houseConfigSource: HouseConfigSource?
     /// The people's photos (`PersonAvatars` in the environment); nil draws every monogram. A gallery passes its fixture's.
     var avatars: PersonAvatars?
     var push: PushCoordinator?
     var location: LocationCoordinator?
     var backdrop: HouseBackdropStore?
     var motion: MotionPolicy?
-    var navigator: ShellNavigator?
     var sessionModels: SessionModels?
-    /// The section whose stack this screen is in.
-    var section: AppSection?
     /// What the shell publishes to every page in the environment (navigation style, chrome, hinge, arrival, the window's
     /// size): `nil` in a gallery that draws no shell (``UKShellEnvironment``).
     var shell: UKShellEnvironment?

@@ -1,7 +1,6 @@
 import XCTest
 
-/// Screenshots of every room device sheet (a Capture plan class: no source rule selects it). One test per sheet; run the
-/// `room-devices-capture` suite for the set.
+/// Screenshots of the grill sheet (a Capture plan class: no source rule selects it). Run the `room-devices-capture` suite for the set.
 @MainActor
 final class RoomDevicesCaptureJourneyTests: RoomDevicesJourneyTestCase {
 
@@ -16,12 +15,5 @@ final class RoomDevicesCaptureJourneyTests: RoomDevicesJourneyTestCase {
         }
     }
 
-    func testCaptureDeviceFanGuest() { captureDevice("fan-guest", ready: "fan.power") }
-    func testCaptureDeviceFanMaster() { captureDevice("fan-master", ready: "fan.power") }
-    func testCaptureDevicePurifierAuto() { captureDevice("purifier-auto", ready: "purifier.mode") }
     func testCaptureDeviceGrill() { captureDevice("grill", ready: "grill.header") }
-    func testCaptureDeviceHumidifierControls() { captureDevice("humidifier", ready: "humidifier.power") }
-    func testCaptureDeviceHumidifierSchedules() { captureDevice("humidifier", ready: "humidifier.power", tab: "schedules") }
-    func testCaptureDeviceHumidifierInfo() { captureDevice("humidifier", ready: "humidifier.power", tab: "info") }
-    func testCaptureDeviceHumidifierFault() { captureDevice("humidifier-fault", ready: "humidifier.power") }
 }

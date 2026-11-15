@@ -6,40 +6,10 @@ import Testing
 @testable import HassUI
 import HassTestSupport
 
-/// Shell sections, the navigation menu, the profile button, the modal tab bar and the arrival motion: rules the UIKit shell reads.
+/// The navigation style, the profile button, the modal tab bar and the arrival motion: rules the UIKit shell reads.
 @Suite(.demoHouse)
 struct SharedShellAndChromeRulesTests {
-    // MARK: Sections and menu
-
-    @Test func everySectionHasATitleAnIconAndAnIdentifierAndFollowsItsPushSection() {
-        let expected: [(AppSection, String, String, PushSection)] = [
-            (.home, "Home", "mdi:home", .home), (.security, "Security", "mdi:shield", .security),
-            (.climate, "Climate", "mdi:thermostat", .climate), (.chores, "Chores", "mdi:clipboard-list", .chores),
-            (.settings, "Settings", "mdi:cog", .settings),
-        ]
-        #expect(AppSection.allCases.count == expected.count)
-        for (section, title, icon, push) in expected {
-            #expect(section.title == title)
-            #expect(section.mdiIcon == icon)
-            #expect(!section.symbol.isEmpty)
-            #expect(section.navigationIdentifier == "nav.\(section.rawValue)")
-            #expect(AppSection(push) == section)
-            #expect(section.id == section.rawValue)
-        }
-        #expect(NavigationMenu.primary == AppSection.allCases)
-    }
-
-    @Test func onlyChoresCarriesAnOverdueBadge() {
-        #expect(NavigationMenu.accessibilityLabel(for: .chores, overdue: 3) == "Chores, 3 overdue")
-        #expect(NavigationMenu.accessibilityLabel(for: .chores, overdue: 0) == "Chores")
-        #expect(NavigationMenu.accessibilityLabel(for: .chores, overdue: nil) == "Chores")
-        #expect(NavigationMenu.accessibilityLabel(for: .home, overdue: 5) == "Home")
-        #expect(NavigationMenu.badge(for: .chores, overdue: 3) == 3)
-        #expect(NavigationMenu.badge(for: .chores, overdue: 0) == nil)
-        #expect(NavigationMenu.badge(for: .security, overdue: 3) == nil)
-        #expect(NavigationMenu.badgeText(for: .chores, overdue: 3) == "3")
-        #expect(NavigationMenu.badgeText(for: .home, overdue: 3) == nil)
-    }
+    // MARK: Navigation style
 
     @Test func wideWindowsGetAFlyoutUnlessAHingeSplitsThemAndTheChromeFollows() {
         #expect(ShellNavigationStyle.resolve(isRegularWidth: true) == .flyout)
@@ -110,8 +80,8 @@ struct SharedShellAndChromeRulesTests {
         #expect(ModalTabBarStyle.accessibilityTitle("Alarms", badge: 3) == "Alarms, 3 items")
         #expect(ModalTabBarStyle.badgeText(3) == "3")
         #expect(ModalTabBarStyle.iconSegmentHeight >= 44 && ModalTabBarStyle.titledSegmentHeight > ModalTabBarStyle.iconSegmentHeight)
-        let segment = ModalTabSegment(item: AppSection.home, title: "Home", symbol: nil, badge: 0)
-        #expect(segment.id == AppSection.home.id)
+        let segment = ModalTabSegment(item: ModalTabItem(id: "home"), title: "Home", symbol: nil, badge: 0)
+        #expect(segment.id == "home")
     }
 
     @Test func everyModalTabHasAnMDIIconAndAnSFSymbol() {
@@ -161,3 +131,5 @@ struct SharedShellAndChromeRulesTests {
         #expect(HomeArrival.duration == .milliseconds(900))
     }
 }
+
+private struct ModalTabItem: Hashable, Identifiable { let id: String }

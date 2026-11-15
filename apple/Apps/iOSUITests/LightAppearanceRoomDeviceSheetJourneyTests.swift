@@ -1,6 +1,6 @@
 import XCTest
 
-/// The air purifier, humidifier and grill sheets in the light appearance (`Features/RoomDevices`).
+/// The grill sheet in the light appearance (`Features/RoomDevices`).
 @MainActor
 final class LightAppearanceRoomDeviceSheetJourneyTests: LightAppearanceJourneyTestCase {
     private func auditDevice(_ device: String, ready: String) throws {
@@ -12,12 +12,6 @@ final class LightAppearanceRoomDeviceSheetJourneyTests: LightAppearanceJourneyTe
             return app
         }
     }
-
-    /// The air purifier sheet.
-    func testRoomDevicePurifierSheetPassesAuditInLight() throws { try auditDevice("purifier-auto", ready: "purifier.mode") }
-
-    /// The humidifier's dial.
-    func testRoomDeviceHumidifierSheetPassesAuditInLight() throws { try auditDevice("humidifier", ready: "humidifier.power") }
 
     /// The grill sheet.
     func testRoomDeviceGrillSheetPassesAuditInLight() throws { try auditDevice("grill", ready: "grill.header") }

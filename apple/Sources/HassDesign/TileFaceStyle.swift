@@ -15,6 +15,9 @@ public enum TileFaceStyle: Equatable, Sendable {
     case tinted
     /// Something is wrong (no response, a fault): dark dense ground, red glyph and red state.
     case error
+    /// Something needs attention and nothing has failed (a lock left open, an alarm entry delay): the error face's recipe, dense ground,
+    /// with the warning ink and no full-face fill.
+    case warning
     /// A navigation tile with its own solid fill (`0xRRGGBB`, ``RoomPalette``): white ink and a filled white glyph
     /// whether or not the thing it opens is "on".
     case colored(UInt32)
@@ -24,11 +27,14 @@ public enum TileFaceStyle: Equatable, Sendable {
     ///   - family: The device's colour family, or nil when the caller passes only a tint.
     ///   - isActive: Whether the device is on.
     ///   - isError: Whether the tile reports a fault.
+    ///   - isWarning: Whether the tile needs attention without a fault; a fault wins.
     ///   - isUnavailable: Whether the entity is unavailable (drawn off and dimmed).
     ///   - solidFill: A fill the caller owns (a room's colour); it wins over the family unless the tile is in error or
     ///     unavailable.
-    public static func resolve(family: ColorFamily?, isActive: Bool, isError: Bool, isUnavailable: Bool, solidFill: UInt32? = nil) -> Self {
+    public static func resolve(family: ColorFamily?, isActive: Bool, isError: Bool, isWarning: Bool = false, isUnavailable: Bool,
+                               solidFill: UInt32? = nil) -> Self {
         if isError { return .error }
+        if isWarning, !isUnavailable { return .warning }
         if let solidFill, !isUnavailable { return .colored(solidFill) }
         if isUnavailable || !isActive { return .off }
         guard let family else { return .tinted }

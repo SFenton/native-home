@@ -38,8 +38,6 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
     /// This page is a tab's root (the shell sets it): it gets the menu button in flyout layouts and is what a second tap on its
     /// tab scrolls.
     var isSectionRoot = false
-    /// The route a push opened this page for (the shell sets it); nil for roots and sheets.
-    var route: ShellRoute?
     /// The name its navigation is measured under (`measuresNavigation`); nil for a tab root.
     var measuredPageName: String?
 
@@ -115,14 +113,7 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
         }
         navigationItem.backButtonDisplayMode = .default
         bindChrome()
-        if let kind = houseLayoutSkeleton { houseGate = UKHouseLayoutGate(page: self, kind: kind) }
     }
-
-    /// The skeleton a page that draws from the house layout shows while there is none (``UKHouseLayoutGate``): `.home` for Home, `.page`
-    /// for every other layout-driven page. nil, the default, is a page that never depends on the document (navigation chrome,
-    /// the Settings root, Profile, the Home Assistant modal).
-    var houseLayoutSkeleton: HouseSkeletonPlan.Kind? { nil }
-    private var houseGate: UKHouseLayoutGate?
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
@@ -247,7 +238,6 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         UKScrollRate.attachAll(in: view)
-        if case let .home(route)? = route, let section = context.section { context.navigator?.routeAppeared(route, in: section) }
     }
 
     #if DEBUG
@@ -294,11 +284,6 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
             let page = Unmanaged<UKPageViewController>.fromOpaque(observer).takeUnretainedValue()
             MainActor.assumeIsolated { page.openQuickLinks() }
         }, "uk.debug.quickLinks" as CFString, nil, .deliverImmediately)
-        CFNotificationCenterAddObserver(center, me, { _, observer, _, _, _ in
-            guard let observer else { return }
-            let page = Unmanaged<UKPageViewController>.fromOpaque(observer).takeUnretainedValue()
-            MainActor.assumeIsolated { _ = UKHomeAssistantSettings.present(context: page.context, from: page.navigationController?.tabBarController ?? page) }
-        }, "uk.debug.haSettings" as CFString, nil, .deliverImmediately)
         runDebugScrollSteps()
     }
 
@@ -337,7 +322,6 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        if case let .home(route)? = route, let section = context.section { context.navigator?.routeDisappeared(route, in: section) }
     }
 
     // MARK: Scroll view
@@ -408,16 +392,16 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
 
     // MARK: Chrome
 
-    /// Header actions; a gallery or a test overrides them. They only ask the navigator to present a sheet.
-    func openQuickLinks() { context.navigator?.openQuickLinks() }
-    func openAccount() { context.navigator?.openAccount() }
-    func openMenu() { context.navigator?.openFlyout() }
+    /// Header actions; a gallery or a test overrides them.
+    func openQuickLinks() {}
+    func openAccount() {}
+    func openMenu() {}
 
-    /// Header buttons show when there is a navigator to ask (or a subclass overrides the actions and sets this).
-    var showsHeaderButtons: Bool { context.navigator != nil }
+    /// Header buttons show when a subclass overrides the actions and sets this.
+    var showsHeaderButtons: Bool { false }
 
     /// The name the Profile button shows (a gallery overrides it with a fixture).
-    var headerProfileName: String? { context.navigator?.profileName }
+    var headerProfileName: String? { UserDefaults.standard.string(forKey: RememberedAccountStore.nameKey) }
 
     /// The photo the Profile button draws when the signed-in person has one (a gallery overrides it with a fixture's).
     var headerAvatar: AvatarBox? { context.avatars?.viewerBox ?? context.session?.avatars.viewerBox }

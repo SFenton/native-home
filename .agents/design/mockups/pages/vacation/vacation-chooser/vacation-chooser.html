@@ -18,7 +18,7 @@
   Mock.mount({
     kind: 'page', id: 'vacation-chooser', title: 'Vacation (chooser)', area: 'vacation', status: 'shipped',
     summary: 'Settings > Vacation: a list of the two away modes, Vacation and Solo Trip, each opening its own page. When a mode is already engaged the chooser is skipped and its page shows at once.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsEntry.swift', 'apple/Sources/HassCore/Config/VacationConfig.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripCopy.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKVacation.swift', 'apple/Sources/HassCore/Config/VacationConfig.swift', 'apple/Sources/HassCore/HouseholdAway/SoloTripCopy.swift'],
     spec: ['.agents/pages/vacation/spec.md', '.agents/pages/vacation/ios.md'],
     patterns: ['module-list', 'settings-section', 'header-edge-fade', 'page-backdrop', 'motion'],
     hig: ['Lists and tables', 'Navigation bars', 'Layout', 'Dynamic Type'],

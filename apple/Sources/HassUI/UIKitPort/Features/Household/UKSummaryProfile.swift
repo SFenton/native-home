@@ -8,7 +8,7 @@ import UIKit
 /// The signed-in person at the top of the Profile tab, centred as in Apple's account sheets: a large monogram, their name and
 /// the server they are signed in to (`AccountHeader`).
 @MainActor
-final class UKAccountHeaderView: UIView {
+final class UKAccountHeaderView: UIView, UKGridMeasuring {
     private let avatar = UILabel()
     private let avatarFallback = UIImageView()
     private let avatarHolder = UIView()
@@ -71,19 +71,30 @@ final class UKAccountHeaderView: UIView {
         avatarHolder.layer.cornerRadius = size / 2
         avatar.font = .systemFont(ofSize: size * 0.4, weight: .semibold)
         avatarFallback.image = UIImage(systemName: "person.fill", withConfiguration: UIImage.SymbolConfiguration(font: .ukFont(.largeTitle)))
+        ukRemeasureContainers()
+    }
+
+    func gridHeight(forWidth width: CGFloat) -> CGFloat {
+        ceil(systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+                                     withHorizontalFittingPriority: .required,
+                                     verticalFittingPriority: .fittingSizeLevel).height)
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        CGSize(width: size.width, height: gridHeight(forWidth: size.width))
     }
 
     /// Draws the signed-in person's photo on the disc while they have one (`AccountHeader.avatar`).
     func bindAvatar(_ box: @escaping @MainActor () -> AvatarBox?) { photo.bind(box) }
 
-    func update(name: String?, server: String) {
+    func update(name: String?, server: String, fallbackName: String = "Signed In") {
         let initials = ProfileButton.initials(name)
         avatar.text = initials
         avatar.isHidden = initials == nil
         avatarFallback.isHidden = initials != nil
-        nameLabel.text = name ?? "Signed In"
+        nameLabel.text = name ?? fallbackName
         serverLabel.text = server
-        accessibilityLabel = [name ?? "Signed In", server].joined(separator: ", ")
+        accessibilityLabel = [name ?? fallbackName, server].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 }
 
@@ -173,94 +184,4 @@ final class UKMonogramAvatar: UIView {
 
 // MARK: - Profile tab
 
-/// The Summary sheet's Profile tab: the app's own extras. Who is signed in and to which server, who is home, Location on phones,
-/// and Sign Out behind the sheet's alert (`ProfileTab`).
-@MainActor
-final class UKProfileTabViewController: UKPaneViewController {
-    private let context: UKContext
-    private let bag = UKObservationBag()
-    private let container = UKColumnContainer(spacing: HassTokens.Spacing.xl, padding: HassTokens.Spacing.l, maxWidth: nil)
-    private let header = UKAccountHeaderView()
-    private let peopleSlot = UIStackView.ukColumn(spacing: 0)
-    private let signOutRow = UKSignOutRow(identifier: "account.signOut")
-    private let groups = UIStackView.ukColumn(spacing: HassTokens.Spacing.xl)
-    private var personIds: [String]
-    private var peopleSignature = ""
-    private let confirmSignOut: () -> Void
-    private let showLocation: () -> Void
-    private let serverLine: String
-
-    var sheetFitScrollView: UIScrollView? { container.scrollView }
-
-    /// The people's photos; nil (a gallery without them) draws every monogram.
-    private var avatars: PersonAvatars? { context.avatars ?? context.session?.avatars }
-
-    /// A confirmed sign-out is waiting on the server: the Sign Out row shows the arc and the rest of the tab is off.
-    var isSigningOut = false { didSet { applySigningOut() } }
-
-    init(context: UKContext, confirmSignOut: @escaping () -> Void, showLocation: @escaping () -> Void) {
-        self.context = context
-        self.confirmSignOut = confirmSignOut
-        self.showLocation = showLocation
-        // The person ids are read once when the sheet opens: people rarely come and go, and the section then observes their states.
-        personIds = context.store.allValues.keys.filter { $0.hasPrefix("person.") }.sorted()
-        serverLine = context.connection.map { HomeAssistantSettingsView.displayedServer($0.server, redacting: ScreenshotPrivacy.isRedacting) } ?? "Home Assistant"
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        let scroll = container.scrollView
-        scroll.accessibilityIdentifier = "account.list"
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scroll)
-        scroll.ukPin(to: view)
-
-        header.bindAvatar { [weak self] in self?.avatars?.viewerBox }
-        groups.addArrangedSubview(header)
-        groups.addArrangedSubview(peopleSlot)
-        if let location = context.location {
-            groups.addArrangedSubview(UKLocationAccountSection(location: location) { [weak self] in self?.showLocation() })
-        }
-        signOutRow.onTap = { [weak self] in self?.confirmSignOut() }
-        let signOut = UKGroupedSection(header: nil, rows: [signOutRow], footer: nil)
-        container.column.addArrangedSubview(groups)
-        container.column.addArrangedSubview(signOut)
-
-        bag.observe { [weak self] in
-            guard let self else { return }
-            self.header.update(name: self.context.navigator?.profileName, server: self.serverLine)
-        }
-        bag.observe { [weak self] in self?.refreshPeople() }
-    }
-
-    private func refreshPeople() {
-        let people = ProfileSummary.people(personIds.compactMap { context.store.entity($0).state })
-        let signature = people.map { "\($0.id)|\($0.name)|\($0.state)" }.joined(separator: ";")
-        guard signature != peopleSignature else { return }
-        peopleSignature = signature
-        peopleSlot.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        peopleSlot.isHidden = people.isEmpty
-        guard !people.isEmpty else { return }
-        let title = UKFormText.header("People at Home", style: .subheadline)
-        title.font = .ukFont(.subheadline, weight: .semibold)
-        title.accessibilityIdentifier = "profile.people"
-        // Explicit ink: the plain footer measured 3.3:1 in the Account sheet's audit.
-        let footer = UILabel.uk(.footnote, ink: UKDesignSurface.secondaryInSheet)
-        footer.text = ProfileSummary.homeSummary(people)
-        peopleSlot.addArrangedSubview(UKGroupedSection(header: title, rows: people.map { UKPersonRow(person: $0, avatar: avatars?.box(for: $0.id)) }, footer: footer))
-    }
-
-    private func applySigningOut() {
-        guard isViewLoaded else { return }
-        signOutRow.update(isSigningOut: isSigningOut)
-        groups.isUserInteractionEnabled = !isSigningOut
-        groups.alpha = isSigningOut ? CGFloat(HassTokens.ControlState.disabledOpacity) : 1
-    }
-}
-
-extension UKProfileTabViewController: UKSheetFitting {}
 #endif

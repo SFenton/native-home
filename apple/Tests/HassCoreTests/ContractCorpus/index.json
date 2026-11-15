@@ -1,0 +1,1623 @@
+{
+  "format": 1,
+  "description": "Shared Studio and app publication corpus. Accept files must decode; reject files must fail with exactly the first issue (code, pointer, capability), sorted by pointer then code. houseScripts lists the script service names the house document declares for its remotes.",
+  "cases": [
+    {
+      "file": "accept/fixture-composition-first-slice.json",
+      "outcome": "accept",
+      "note": "Shared fixture, byte-identical to the app test fixture."
+    },
+    {
+      "file": "accept/fixture-device-providers.json",
+      "outcome": "accept",
+      "note": "Shared fixture, byte-identical to the app test fixture."
+    },
+    {
+      "file": "accept/fixture-home-domains.json",
+      "outcome": "accept",
+      "note": "Shared fixture, byte-identical to the app test fixture."
+    },
+    {
+      "file": "accept/fixture-home-primitives.json",
+      "outcome": "accept",
+      "note": "Shared fixture, byte-identical to the app test fixture."
+    },
+    {
+      "file": "accept/fixture-remote-composition.json",
+      "outcome": "accept",
+      "note": "Shared fixture, byte-identical to the app test fixture."
+    },
+    {
+      "file": "accept/family-collection.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-module-settings-rows.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-vacuum-area.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-name.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bootstrap-message.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-climate-fan.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-activity-presentation.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-wake-episode.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-delete.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-wake-hold-explanation.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-weekdays.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-humidifier-scheduling.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-room-chip.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-local-controls.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-profile-account.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-inventory-list.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-todo-counts.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-stop.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-snooze.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-wake-summary.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-time.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-save.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-date.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-reload.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-enabled.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-wake-link.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-feedback.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-bed-target.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-inventory-summary.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-surface-title-source.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-kind.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-reading.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-power.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-target.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-tile.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-add.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-wake-tile.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-stage.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-wake-ramp.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bed-mode.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-alarm-ramp.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bedroom-collection-links.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-sprinkler-state.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-grill.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-air-purifier.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-bathroom-fan.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-vacuum-auto-clean.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-section-title.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-supporting-text-styles.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-sheet-fit.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-settings-controls.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-household-away-status.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-collection-navigation.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-pinned-tabs.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-shell-header.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-adaptive-presentation.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-navigation-columns.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/family-full-screen-modal.json",
+      "outcome": "accept",
+      "note": "Captured from a document the Studio test suite compiles; the app compiler accepts it."
+    },
+    {
+      "file": "accept/device-media-remote-config.json",
+      "outcome": "accept",
+      "note": "A remote that uses every slot with only commands its slot allows, including speaker targets."
+    },
+    {
+      "file": "accept/device-bedroom-config.json",
+      "outcome": "accept",
+      "note": "A two-bed bedroom config with no scripts or topics; those resolve from the house document by role."
+    },
+    {
+      "file": "accept/device-remote-house-script.json",
+      "outcome": "accept",
+      "note": "A remote script call is accepted only when the house document declares that script.",
+      "houseScripts": [
+        "demo_power"
+      ]
+    },
+    {
+      "file": "accept/family-modal-handoff.json",
+      "outcome": "accept",
+      "note": "A present action that replaces an already presented modal needs sh.modal-handoff@1; Home, weather and climate nodes only accept reject."
+    },
+    {
+      "file": "reject/home-node-action-replace.json",
+      "outcome": "reject",
+      "note": "A status chip, room tile, weather panel or climate control may only reject a presented modal; replace is not in the app grammar.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/0/components/0/children/0/action/ifPresented"
+      }
+    },
+    {
+      "file": "accept/collection-pull-to-refresh-true.json",
+      "outcome": "accept",
+      "note": "pullToRefresh is an optional collection boolean; true adds no capability beyond sh.collection@1."
+    },
+    {
+      "file": "accept/collection-pull-to-refresh-false.json",
+      "outcome": "accept",
+      "note": "pullToRefresh false is accepted and the same as omitting it."
+    },
+    {
+      "file": "reject/collection-pull-to-refresh-not-boolean.json",
+      "outcome": "reject",
+      "note": "pullToRefresh must be a boolean.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/pullToRefresh"
+      }
+    },
+    {
+      "file": "reject/bedroom-old-bed-script-tonight.json",
+      "outcome": "reject",
+      "note": "The app dropped tonightScript from a bed; unknown keys are rejected.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/0/inputs/beds/0/configuration/tonightScript"
+      }
+    },
+    {
+      "file": "reject/bedroom-old-bed-script-outside.json",
+      "outcome": "reject",
+      "note": "The app dropped outsideScheduleScript from a bed.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/0/inputs/beds/0/configuration/outsideScheduleScript"
+      }
+    },
+    {
+      "file": "reject/bedroom-old-environment-topic.json",
+      "outcome": "reject",
+      "note": "The app dropped scheduleSetTopic; topics resolve from the house document.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/0/inputs/environment/scheduleSetTopic"
+      }
+    },
+    {
+      "file": "reject/bedroom-old-environment-hot-flash-script.json",
+      "outcome": "reject",
+      "note": "The app dropped hotFlashBrokerScript.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/0/inputs/environment/hotFlashBrokerScript"
+      }
+    },
+    {
+      "file": "reject/bedroom-old-environment-away-script.json",
+      "outcome": "reject",
+      "note": "The app dropped householdAwayScript.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/0/inputs/environment/householdAwayScript"
+      }
+    },
+    {
+      "file": "accept/remote-button-service-outside-slot.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: play_media is not a pad-button service)."
+    },
+    {
+      "file": "accept/remote-button-switch-select.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: select.select_option is not a pad-button service)."
+    },
+    {
+      "file": "accept/remote-app-volume-service.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: media_player.volume_up is not an app-tile service)."
+    },
+    {
+      "file": "accept/remote-app-switch-domain.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: switch is not an app-tile domain)."
+    },
+    {
+      "file": "accept/remote-device-play-media.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: play_media is not a device-tile service)."
+    },
+    {
+      "file": "accept/remote-card-out-of-vocabulary.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: A page-card command is checked as a device tile)."
+    },
+    {
+      "file": "reject/remote-target-domain-mismatch.json",
+      "outcome": "reject",
+      "note": "A target must belong to the called domain.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/0/inputs/power"
+      }
+    },
+    {
+      "file": "reject/remote-script-with-target.json",
+      "outcome": "reject",
+      "note": "A script call carries no target.",
+      "houseScripts": [
+        "demo_power"
+      ],
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/0/inputs/power"
+      }
+    },
+    {
+      "file": "accept/remote-script-not-in-house.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: A script the house document does not declare is rejected)."
+    },
+    {
+      "file": "accept/remote-state-action-case-out-of-vocabulary.json",
+      "outcome": "accept",
+      "note": "Any service is accepted since the full-control actions decision (was rejected by the closed per-slot vocabulary: Every command of a state action is checked, including conditional cases)."
+    },
+    {
+      "file": "reject/capability-unknown.json",
+      "outcome": "reject",
+      "note": "A declared capability the app does not know is rejected before any other mismatch.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/9",
+        "capability": "sh.future-capability@1"
+      }
+    },
+    {
+      "file": "reject/capability-manifest-mismatch.json",
+      "outcome": "reject",
+      "note": "The declared capabilities must equal the requirements the document derives.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    },
+    {
+      "file": "reject/envelope-version-1.json",
+      "outcome": "reject",
+      "note": "Schema 1 is gone from the app.",
+      "issue": {
+        "code": "unsupported_schema",
+        "pointer": "/envelopeVersion"
+      }
+    },
+    {
+      "file": "reject/document-schema-1.json",
+      "outcome": "reject",
+      "note": "Schema 1 documents are rejected.",
+      "issue": {
+        "code": "unsupported_schema",
+        "pointer": "/document/schemaVersion"
+      }
+    },
+    {
+      "file": "reject/reserved-key-proto.json",
+      "outcome": "reject",
+      "note": "The reserved key __proto__ is rejected at any depth.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/theme/__proto__"
+      }
+    },
+    {
+      "file": "reject/duplicate-key-exact.json",
+      "outcome": "reject",
+      "note": "Two identical keys in one object.",
+      "issue": {
+        "code": "duplicate_key",
+        "pointer": "/document/name2"
+      }
+    },
+    {
+      "file": "reject/duplicate-key-nfc-composed-then-decomposed.json",
+      "outcome": "reject",
+      "note": "A composed key and its decomposed form are one key after Unicode normalisation.",
+      "issue": {
+        "code": "duplicate_key",
+        "pointer": "/document/café"
+      }
+    },
+    {
+      "file": "reject/duplicate-key-nfc-decomposed-then-composed.json",
+      "outcome": "reject",
+      "note": "The same pair in the other order; the second occurrence is reported.",
+      "issue": {
+        "code": "duplicate_key",
+        "pointer": "/document/café"
+      }
+    },
+    {
+      "file": "reject/duplicate-key-nfc-hangul.json",
+      "outcome": "reject",
+      "note": "Precomposed and conjoining Hangul are one key.",
+      "issue": {
+        "code": "duplicate_key",
+        "pointer": "/document/각"
+      }
+    },
+    {
+      "file": "reject/unknown-field-not-a-duplicate.json",
+      "outcome": "reject",
+      "note": "Keys that are not canonically equivalent are distinct; this fails as an unknown field, not as a duplicate.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/cafe"
+      }
+    },
+    {
+      "file": "accept/routes-plain.json",
+      "outcome": "accept",
+      "note": "A route with only the original fields still decodes; no route-links capability is required."
+    },
+    {
+      "file": "accept/routes-authored-links.json",
+      "outcome": "accept",
+      "note": "Routes with aliases, keywords, siri, a viewer-only visibleWhen and linkPrefixes; needs sh.route-links@1 and sh.visible-when@1."
+    },
+    {
+      "file": "reject/routes-alias-is-another-routes-path.json",
+      "outcome": "reject",
+      "note": "An alias may not equal another route's path: a link must name one route.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/extensions/routes/0/aliases/0"
+      }
+    },
+    {
+      "file": "reject/routes-alias-repeated-across-routes.json",
+      "outcome": "reject",
+      "note": "An alias is unique across every route.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/extensions/routes/0/aliases/0"
+      }
+    },
+    {
+      "file": "reject/routes-visible-when-reads-person-state.json",
+      "outcome": "reject",
+      "note": "A route's visibleWhen takes viewer predicates only; viewer-person reads entity state and is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/extensions/routes/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/routes-aliases-without-capability.json",
+      "outcome": "reject",
+      "note": "Aliases need sh.route-links@1 in the manifest.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    },
+    {
+      "file": "reject/routes-too-many-aliases.json",
+      "outcome": "reject",
+      "note": "At most eight aliases per route.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/extensions/routes/0/aliases"
+      }
+    },
+    {
+      "file": "reject/routes-siri-not-boolean.json",
+      "outcome": "reject",
+      "note": "siri must be a boolean.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/extensions/routes/0/siri"
+      }
+    },
+    {
+      "file": "reject/routes-link-prefixes-empty.json",
+      "outcome": "reject",
+      "note": "linkPrefixes, when authored, lists at least one slug.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/extensions/linkPrefixes"
+      }
+    },
+    {
+      "file": "reject/routes-alias-not-a-path.json",
+      "outcome": "reject",
+      "note": "An alias is a plain lower-case path like a route path.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/extensions/routes/0/aliases/0"
+      }
+    },
+    {
+      "file": "accept/todo-collection-task-page.json",
+      "outcome": "accept",
+      "note": "A task page with a resident variant and a list only some users see, shown by a todo collection node."
+    },
+    {
+      "file": "accept/todo-collection-grocery-page.json",
+      "outcome": "accept",
+      "note": "A grocery page: Add creates an item on one of its own lists."
+    },
+    {
+      "file": "accept/todo-collection-admin-page.json",
+      "outcome": "accept",
+      "note": "An admin to-do page whose Add action is the admin form; hidden while Vacation Mode is on."
+    },
+    {
+      "file": "accept/todo-collection-source-without-collection.json",
+      "outcome": "accept",
+      "note": "A defined todo collection no node uses is accepted; it costs nothing."
+    },
+    {
+      "file": "accept/todo-collection-collection-without-source.json",
+      "outcome": "accept",
+      "note": "A todo collection node whose provider no source defines still compiles: the app shows nothing for it and reads no house configuration."
+    },
+    {
+      "file": "reject/todo-collection-duplicate-list.json",
+      "outcome": "reject",
+      "note": "A page lists each entity once.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/1/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-not-a-todo.json",
+      "outcome": "reject",
+      "note": "A list is a todo entity.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-bad-entity.json",
+      "outcome": "reject",
+      "note": "An entity id has the form domain.object.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/dataSources/2/inputs/lists/0/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-no-lists.json",
+      "outcome": "reject",
+      "note": "A page has at least one list.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/dataSources/2/inputs/lists"
+      }
+    },
+    {
+      "file": "reject/todo-collection-script-not-a-script.json",
+      "outcome": "reject",
+      "note": "A completion script is a script entity.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/completionScript/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-grocery-entity-not-listed.json",
+      "outcome": "reject",
+      "note": "The grocery Add action names one of the page's own lists.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/dataSources/2/inputs/addAction/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-admin-entity-not-listed.json",
+      "outcome": "reject",
+      "note": "The admin Add action names one of the page's own lists.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/dataSources/2/inputs/addAction/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-add-action-unknown-type.json",
+      "outcome": "reject",
+      "note": "Add creates a task, a grocery item or an admin to-do.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/dataSources/2/inputs/addAction/type"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-admin.json",
+      "outcome": "reject",
+      "note": "A list rule names user ids; an administrator rule is not accepted there.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-admin-and-users.json",
+      "outcome": "reject",
+      "note": "A list rule that also asks for an administrator is not accepted.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-reads-an-entity.json",
+      "outcome": "reject",
+      "note": "A list rule cannot read an entity: a list is read where only the user id is known.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/3/inputs/lists/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-unknown-policy.json",
+      "outcome": "reject",
+      "note": "A restricted list stays hidden until the user is known; show and keep are refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/whenUnknown"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-policy-without-rule.json",
+      "outcome": "reject",
+      "note": "whenUnknown means nothing without a visibleWhen.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/whenUnknown"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-missing-flag.json",
+      "outcome": "reject",
+      "note": "A list says whether completed items are hidden.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/dataSources/2/inputs/lists/0/hideCompleted"
+      }
+    },
+    {
+      "file": "reject/todo-collection-personalization-unknown-field.json",
+      "outcome": "reject",
+      "note": "The resident variant has a title for the resident and one for everyone else, and nothing more.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/2/inputs/personalization/tint"
+      }
+    },
+    {
+      "file": "reject/todo-collection-unknown-input.json",
+      "outcome": "reject",
+      "note": "A todo collection takes the fields of its schema and no others.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/2/inputs/colour"
+      }
+    },
+    {
+      "file": "reject/todo-collection-read-from-collection.json",
+      "outcome": "reject",
+      "note": "A todo collection has no values to bind; a text cannot read from it.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/value/from/path"
+      }
+    },
+    {
+      "file": "reject/todo-collection-capability-missing-from-manifest.json",
+      "outcome": "reject",
+      "note": "A document that declares a todo collection must list its capability.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    },
+    {
+      "file": "accept/grammar-call-service-button.json",
+      "outcome": "accept",
+      "note": "A button calls any domain and service with a literal target and optimistic state."
+    },
+    {
+      "file": "accept/grammar-call-service-script-and-lock.json",
+      "outcome": "accept",
+      "note": "Any script name and a lock service with an authored confirmation are accepted; the app keeps no allow list."
+    },
+    {
+      "file": "accept/grammar-call-service-operands.json",
+      "outcome": "accept",
+      "note": "Call data and target built from every operand kind: read, viewer, format, map, math, list and object."
+    },
+    {
+      "file": "accept/grammar-bound-toggle-tile.json",
+      "outcome": "accept",
+      "note": "A bound toggle on a glass tile with on and off calls."
+    },
+    {
+      "file": "accept/grammar-bound-toggle-row-in-module-list.json",
+      "outcome": "accept",
+      "note": "A bound toggle row is allowed in a module list; a bound control without a visibleWhen rule."
+    },
+    {
+      "file": "accept/grammar-bound-slider.json",
+      "outcome": "accept",
+      "note": "A bound slider reads a number attribute and sends the control value."
+    },
+    {
+      "file": "accept/grammar-bound-stepper.json",
+      "outcome": "accept",
+      "note": "A bound stepper with a range, a value format and a clamped control value."
+    },
+    {
+      "file": "accept/grammar-bound-choice.json",
+      "outcome": "accept",
+      "note": "A bound choice: each option has its own selectedWhen predicate and call."
+    },
+    {
+      "file": "accept/grammar-bound-button.json",
+      "outcome": "accept",
+      "note": "A bound button with a confirmation and no control value."
+    },
+    {
+      "file": "accept/grammar-visible-when-node.json",
+      "outcome": "accept",
+      "note": "A node shown by a combined predicate (state, viewer, viewer-person, numeric, not) with an explicit unknown policy."
+    },
+    {
+      "file": "accept/grammar-visible-when-default-unknown.json",
+      "outcome": "accept",
+      "note": "A rule with no whenUnknown keeps the node as it was (the default) and uses any/state only."
+    },
+    {
+      "file": "accept/grammar-visible-when-in-grid-and-plain-section.json",
+      "outcome": "accept",
+      "note": "A rule hides a child in place in a tile grid and in a plain section."
+    },
+    {
+      "file": "accept/grammar-visible-when-tab.json",
+      "outcome": "accept",
+      "note": "A navigation tab hidden by a rule."
+    },
+    {
+      "file": "accept/grammar-selected-when-local-tabs.json",
+      "outcome": "accept",
+      "note": "Local tabs choose their panel from entity state (selectedWhen, first match)."
+    },
+    {
+      "file": "reject/grammar-call-domain-uppercase.json",
+      "outcome": "reject",
+      "note": "A domain must match ^[a-z][a-z0-9_]{0,63}$.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/domain"
+      }
+    },
+    {
+      "file": "reject/grammar-call-service-with-space.json",
+      "outcome": "reject",
+      "note": "A service must match ^[a-z][a-z0-9_]{0,63}$.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/service"
+      }
+    },
+    {
+      "file": "reject/grammar-call-target-unknown-key.json",
+      "outcome": "reject",
+      "note": "A target key must be entity_id, device_id, area_id, floor_id or label_id.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/action/target/entityid"
+      }
+    },
+    {
+      "file": "reject/grammar-call-target-literal-not-text.json",
+      "outcome": "reject",
+      "note": "A literal target must be text or a list of text.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/target/entity_id/value"
+      }
+    },
+    {
+      "file": "reject/grammar-call-target-key-also-in-data.json",
+      "outcome": "reject",
+      "note": "A target key cannot also be a data field.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/target/entity_id"
+      }
+    },
+    {
+      "file": "reject/grammar-call-optimistic-unknown-source.json",
+      "outcome": "reject",
+      "note": "An optimistic value names a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/optimistic/0/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-call-optimistic-not-ha-entity.json",
+      "outcome": "reject",
+      "note": "An optimistic value needs an ha-entity source, not a model source.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/action/optimistic/0/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-call-control-outside-bound-control.json",
+      "outcome": "reject",
+      "note": "The control value exists only on a bound control's own call.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v"
+      }
+    },
+    {
+      "file": "reject/grammar-call-unknown-field.json",
+      "outcome": "reject",
+      "note": "A call carries no fields beyond the grammar.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/action/extra"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-unknown-source.json",
+      "outcome": "reject",
+      "note": "A read names a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-not-ha-entity.json",
+      "outcome": "reject",
+      "note": "A read in an expression needs an ha-entity source.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-path-not-state-or-attributes.json",
+      "outcome": "reject",
+      "note": "An ha-entity read path is [\"state\"] or [\"attributes\", ...].",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/path"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-path-proto.json",
+      "outcome": "reject",
+      "note": "A path segment cannot be a prototype name.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/path/0"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-state-as-boolean.json",
+      "outcome": "reject",
+      "note": "The state is text, so it cannot be read as a boolean.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/as"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-depth-over-eight.json",
+      "outcome": "reject",
+      "note": "Expressions nest at most eight levels.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/args/0/args/0/args/0/args/0/args/0/args/0/args/0"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-list-over-64.json",
+      "outcome": "reject",
+      "note": "A list holds at most 64 items.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/items"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-literal-text-over-2000.json",
+      "outcome": "reject",
+      "note": "A literal text is at most 2,000 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/value"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-math-arity.json",
+      "outcome": "reject",
+      "note": "divide takes exactly two arguments.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/args"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-format-missing-argument.json",
+      "outcome": "reject",
+      "note": "Every {hole} of a format pattern needs an argument.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/pattern"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-template.json",
+      "outcome": "reject",
+      "note": "There is no template operand and no client-side Jinja.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/type"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-viewer-field.json",
+      "outcome": "reject",
+      "note": "A viewer fact is userId, isAdmin or personEntityId.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/field"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-literal-null.json",
+      "outcome": "reject",
+      "note": "A literal cannot be null.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/value"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-unknown-source.json",
+      "outcome": "reject",
+      "note": "A predicate names a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/visibleWhen/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-not-ha-entity.json",
+      "outcome": "reject",
+      "note": "A predicate needs an ha-entity source.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/visibleWhen/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-empty-in.json",
+      "outcome": "reject",
+      "note": "A state predicate lists at least one state.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/visibleWhen/in"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-numeric-without-bound.json",
+      "outcome": "reject",
+      "note": "A numeric predicate needs above or below.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-viewer-empty.json",
+      "outcome": "reject",
+      "note": "A viewer predicate needs isAdmin or userIds.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-all-empty.json",
+      "outcome": "reject",
+      "note": "all needs at least one predicate.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/visibleWhen/of"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-time.json",
+      "outcome": "reject",
+      "note": "There is no time predicate yet.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/visibleWhen/type"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-control-operand.json",
+      "outcome": "reject",
+      "note": "A predicate operand cannot use the control value.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/visibleWhen/above"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-depth-over-eight.json",
+      "outcome": "reject",
+      "note": "Predicates nest at most eight levels.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/visibleWhen/of/of/of/of/of/of/of/of"
+      }
+    },
+    {
+      "file": "reject/grammar-when-unknown-without-rule.json",
+      "outcome": "reject",
+      "note": "whenUnknown means nothing without a visibleWhen.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/whenUnknown"
+      }
+    },
+    {
+      "file": "reject/grammar-visible-when-in-module-list.json",
+      "outcome": "reject",
+      "note": "A module list lets no child go: a visibleWhen on one of its rows is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-visible-when-in-paged-row.json",
+      "outcome": "reject",
+      "note": "A paged row lets no child go.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-visible-when-in-room-section.json",
+      "outcome": "reject",
+      "note": "A room section lets no child go.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-selected-when-unknown-tab.json",
+      "outcome": "reject",
+      "note": "An automatic rule names one of the local tabs.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/automatic/0/tabId"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-toggle-missing-off-action.json",
+      "outcome": "reject",
+      "note": "A bound toggle needs onAction and offAction.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/offAction"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-toggle-extra-action.json",
+      "outcome": "reject",
+      "note": "A toggle sends through onAction and offAction only.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-toggle-missing-is-on.json",
+      "outcome": "reject",
+      "note": "A bound toggle reads isOn.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/isOn"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-button-with-surface.json",
+      "outcome": "reject",
+      "note": "Only a toggle has a surface.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/surface"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-stepper-step-does-not-divide.json",
+      "outcome": "reject",
+      "note": "A stepper's range must be reachable in whole steps.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/range"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-stepper-format-without-hole.json",
+      "outcome": "reject",
+      "note": "A stepper format carries a {value} hole.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/format"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-slider-with-range.json",
+      "outcome": "reject",
+      "note": "A slider is the canonical 0 to 100 row and takes no range.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/range"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-button-control-value.json",
+      "outcome": "reject",
+      "note": "A button has no control value.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-button-in-module-list.json",
+      "outcome": "reject",
+      "note": "Only a bound toggle row, stepper, slider or choice fits a module list.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/type"
+      }
+    },
+    {
+      "file": "accept/state-style-authored-vacuum.json",
+      "outcome": "accept",
+      "note": "A saved style over a vacuum with a tile that overrides one state layer by layer."
+    },
+    {
+      "file": "accept/state-style-every-built-in-copy.json",
+      "outcome": "accept",
+      "note": "A library holding the eight built-in styles as saved copies, each with its explicit fallback."
+    },
+    {
+      "file": "accept/state-style-request-lifecycle.json",
+      "outcome": "accept",
+      "note": "Request settings with pending words, a Home Assistant script and its error timer, and a state action with a confirmation."
+    },
+    {
+      "file": "accept/state-style-built-in-only-tile.json",
+      "outcome": "accept",
+      "note": "A tile with a built-in style and no library: it requires the capability and nothing else."
+    },
+    {
+      "file": "accept/state-style-unknown-style-id-falls-back.json",
+      "outcome": "accept",
+      "note": "A style id the library does not define is accepted; the app uses the tile's built-in style."
+    },
+    {
+      "file": "accept/state-style-library-without-tiles.json",
+      "outcome": "accept",
+      "note": "A library no tile uses is accepted; it costs nothing."
+    },
+    {
+      "file": "accept/state-style-style-without-base-or-built-in.json",
+      "outcome": "accept",
+      "note": "A style with no built-in base on a tile with no built-in style of its own."
+    },
+    {
+      "file": "accept/state-style-override-arc-on-state-without-action.json",
+      "outcome": "accept",
+      "note": "An arc override on a state that has no action is accepted."
+    },
+    {
+      "file": "reject/state-style-arc-spinner-on-state-with-action.json",
+      "outcome": "reject",
+      "note": "The arc stands in for the disc, so a rule whose state has an action refuses it.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/1/indicator"
+      }
+    },
+    {
+      "file": "reject/state-style-arc-spinner-on-unknown-class.json",
+      "outcome": "reject",
+      "note": "An unavailable state never shows an arc, so busy and unavailable differ.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/4/indicator"
+      }
+    },
+    {
+      "file": "reject/state-style-fallback-arc-with-action.json",
+      "outcome": "reject",
+      "note": "The fallback rule follows the same rule about the arc.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/fallback/indicator"
+      }
+    },
+    {
+      "file": "reject/state-style-override-arc-on-state-with-action.json",
+      "outcome": "reject",
+      "note": "A tile's arc override follows the resolved style: the state it names has an action.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding/overrides/0/indicator"
+      }
+    },
+    {
+      "file": "reject/state-style-override-arc-on-built-in-state-with-action.json",
+      "outcome": "reject",
+      "note": "With no library style the tile's built-in style decides: a lock's locking state has an action.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding/overrides/0/indicator"
+      }
+    },
+    {
+      "file": "reject/state-style-unavailable-state-not-unknown-class.json",
+      "outcome": "reject",
+      "note": "`unavailable` and `unknown` are the unknown class in every style.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/4/class"
+      }
+    },
+    {
+      "file": "reject/state-style-duplicate-style-id.json",
+      "outcome": "reject",
+      "note": "A library names each style id once.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/stateStyles/styles/0/id"
+      }
+    },
+    {
+      "file": "reject/state-style-fallback-missing.json",
+      "outcome": "reject",
+      "note": "Every style ends with a fallback rule.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/stateStyles/styles/0/fallback"
+      }
+    },
+    {
+      "file": "reject/state-style-indicator-not-in-list.json",
+      "outcome": "reject",
+      "note": "The indicator list is closed.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/stateStyles/styles/0/rules/1/indicator"
+      }
+    },
+    {
+      "file": "reject/state-style-colour-not-in-list.json",
+      "outcome": "reject",
+      "note": "The colour layer is a palette token, never a value.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/stateStyles/styles/0/rules/1/colour"
+      }
+    },
+    {
+      "file": "reject/state-style-colour-warning-token.json",
+      "outcome": "reject",
+      "note": "The colour layer has two tokens, unlit and lit; a class is never a token.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/stateStyles/styles/0/rules/1/colour"
+      }
+    },
+    {
+      "file": "reject/state-style-colour-on-warning-class.json",
+      "outcome": "reject",
+      "note": "A colour token is for a resting or in-progress state; a warning keeps the face of its class.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/3/colour"
+      }
+    },
+    {
+      "file": "reject/state-style-colour-on-error-class.json",
+      "outcome": "reject",
+      "note": "An error keeps the face of its class, so a rule of that class refuses a colour token.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/4/colour"
+      }
+    },
+    {
+      "file": "reject/state-style-override-colour-on-warning-state.json",
+      "outcome": "reject",
+      "note": "A tile's colour override follows the resolved style: a paused vacuum is a warning and keeps its face.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding/overrides/0/colour"
+      }
+    },
+    {
+      "file": "reject/state-style-class-not-in-list.json",
+      "outcome": "reject",
+      "note": "A state has one of the five classes.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/stateStyles/styles/0/rules/1/class"
+      }
+    },
+    {
+      "file": "reject/state-style-rule-unknown-field.json",
+      "outcome": "reject",
+      "note": "A rule takes the fields of its schema and no others.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/stateStyles/styles/0/rules/1/tint"
+      }
+    },
+    {
+      "file": "reject/state-style-rule-without-states.json",
+      "outcome": "reject",
+      "note": "A rule names at least one state; the fallback is the rule that names none.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/stateStyles/styles/0/rules/1/states"
+      }
+    },
+    {
+      "file": "reject/state-style-base-not-built-in.json",
+      "outcome": "reject",
+      "note": "A base is one of the eight built-in styles.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/stateStyles/styles/0/base"
+      }
+    },
+    {
+      "file": "reject/state-style-action-otherwise-without-feature.json",
+      "outcome": "reject",
+      "note": "`otherwise` is the same action without a feature, so it needs `requiresFeature`.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/2/action/otherwise"
+      }
+    },
+    {
+      "file": "reject/state-style-request-script-without-timer.json",
+      "outcome": "reject",
+      "note": "The lifecycle names its script and its error timer together.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/request/errorTimer"
+      }
+    },
+    {
+      "file": "reject/state-style-request-script-not-a-script.json",
+      "outcome": "reject",
+      "note": "The lifecycle script is a script entity.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/request/script"
+      }
+    },
+    {
+      "file": "reject/state-style-request-seconds-over-limit.json",
+      "outcome": "reject",
+      "note": "A timing has an upper bound.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/stateStyles/styles/0/request/settleTimeoutSeconds"
+      }
+    },
+    {
+      "file": "reject/state-style-tile-without-style-or-built-in.json",
+      "outcome": "reject",
+      "note": "A tile names a library style, a built-in style, or both.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding"
+      }
+    },
+    {
+      "file": "reject/state-style-tile-entity-not-the-style-domain.json",
+      "outcome": "reject",
+      "note": "A tile's entity is in the domain its style acts on.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding/entityId"
+      }
+    },
+    {
+      "file": "reject/state-style-tile-entity-not-the-built-in-domain.json",
+      "outcome": "reject",
+      "note": "A tile's built-in style acts on its own domain.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding/builtIn"
+      }
+    },
+    {
+      "file": "reject/state-style-tile-entity-malformed.json",
+      "outcome": "reject",
+      "note": "An entity id has the form domain.object.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/binding/entityId"
+      }
+    },
+    {
+      "file": "reject/state-style-override-without-a-layer.json",
+      "outcome": "reject",
+      "note": "An override sets at least one layer.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding/overrides/0"
+      }
+    },
+    {
+      "file": "reject/state-style-override-state-twice.json",
+      "outcome": "reject",
+      "note": "A tile overrides a state once.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/binding/overrides/1/state"
+      }
+    },
+    {
+      "file": "reject/state-style-tile-binding-unknown-field.json",
+      "outcome": "reject",
+      "note": "A binding takes the fields of its schema and no others.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/binding/tint"
+      }
+    },
+    {
+      "file": "reject/state-style-capability-missing-from-manifest.json",
+      "outcome": "reject",
+      "note": "A document that carries a style library must list the capability.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    }
+  ]
+}

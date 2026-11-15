@@ -15,15 +15,15 @@
 | Delete | Button "Delete <Noun>" (Alarm, Activity, Task, Item); title "Delete <name>?". A name longer than `AlertCopy.titleNameLimit` (28) moves to the message and the title is "Delete <Noun>?". `AlertCopy.delete(_:named:detail:)` builds it. |
 | Role | Destructive only where data or the session is lost: Delete, Sign Out, Reset Measurements. Disarm, Turn Off, Use Rooms or Use Area (owner, 2026-10-28: not "Switch to"), End Solo Trip and the bulk light resets are **plain**, and the plain confirming button is the bold default (`.keyboardShortcut(.defaultAction)`). A destructive button is never the default. |
 | Cancel | Every alert and dialog has "Cancel" with the cancel role, leading. A dialog lists it too; a popover drops it by itself. |
-| Failure | Say what happened and offer the next step: "Couldn't Sign Out" / "Signing out needs a connection so this phone stops reporting its location. Connect and try again." with Try Again and Cancel. One string per failure, shared by every site. |
+| Failure | Say what happened and offer the next step: "Couldn't Sign Out" / "Signing out needs a connection so this {{device}} stops reporting its location. Connect and try again." ("this iPhone" or "this iPad", the device's own name; `AlertCopy.signOutFailed(device:)`) with Try Again and Cancel. One string per failure, shared by every site. |
 | Retry label | "Try Again" everywhere (`AlertCopy.tryAgain`): Recipes, Inventory, the Home Assistant web page, a failed sign-out. |
 | Confirm or not | Confirm what is bulk or hard to undo (every light, the whole telemetry log, ending a Solo Trip, a single-unit inventory delete from the editor as from the page). Do not confirm what is cheap to redo: grocery removal goes at once (the swipe is the deliberate act), Clear Image Cache is instant. High AQI Mode is reversible but changes every purifier at once, so it asks (`AlertCopy.highAqiMode(turningOn:)`, owner 2026-10-26; `HouseholdToggleTile(confirmation:)`). |
-| Validation | An invalid quantity in a quantity prompt cannot keep the alert open; it reports on the row (`InventoryPresentation.submit`). |
+| Validation | An invalid quantity in a quantity prompt cannot keep the alert open; it reports on the row. |
 | Discard guard | Not here: the form sheets' "Discard changes?" guard is owned by the sheets pattern ([modal-sheet](modal-sheet.md)). |
 
 ## Sites
 
-Sign Out: `YourSummarySheet`, `HomeAssistantSettingsView` (the failure alert is a sibling of the Sign Out button so the button owns one presenter). Vacation: `VacationModeScreen`. Alarm: `SecuritySystemSheet`. Vacuum: `VacuumControlsTab` (the Use Rooms and Use Area tiles), `View.switchToRoomsAlert` (room tiles and map, one presenter). Solo Trip: `SoloTripScreen`. Lights: `CustomLightsScreen`, `CustomLightSheet`. Diagnostics: `PerformanceScreen`. Deletes: `WakeLightSheet`, `BedAlarmEditor`, `HumidifierSchedulesTab`, `DonetickTaskFormFields` (on the Delete Task button), `TodoListSection` (on the row; `TodoListSection.Deletion` says confirm, immediate or unavailable), `InventoryRow` and `BatchSection` (on the row or the Delete button).
+Sign Out: `YourSummarySheet`, `HomeAssistantSettingsView` (the failure alert is a sibling of the Sign Out button so the button owns one presenter). Vacation, Solo Trip, the alarm, the vacuum Use Rooms and Use Area tiles (one presenter for room tiles and map), lights and diagnostics each present from their own sheet. Deletes confirm on the control that triggers them: the wake light and bed alarm editors, the humidifier schedules, the Delete Task button, a to-do row (confirm, immediate or unavailable) and an inventory row or batch.
 
 ## Guards
 

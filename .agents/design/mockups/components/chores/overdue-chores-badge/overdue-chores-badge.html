@@ -25,7 +25,7 @@
   Mock.mount({
     kind: 'component', id: 'overdue-chores-badge', title: 'Overdue chores badge (tab, flyout, profile)', area: 'chores', status: 'shipped', frame: true,
     summary: 'The count of the signed-in resident\'s overdue chores, published to the shell by a view modifier: a red badge on the Chores tab (iPhone and unfolded-portrait Duo tab bar, Duo vertical rail), a capsule on the Chores row of the flyout (iPad, and the menu button on iPhone and the unfolded Duo in portrait) and, with expired food, on the Profile button. Nothing for a viewer who is not a resident.',
-    source: ['apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassCore/Profile/ProfileSummary.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassCore/Profile/ProfileSummary.swift'],
     spec: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md', '.agents/design/apple/ipados.md'], patterns: [],
     hig: ['Tab bars', 'Badging'], entities: ['todo.demo_todo_10', 'todo.demo_todo_13'],
     kitComponents: ['TabBar', 'NavigationFlyout', 'ProfileButton', 'RailGroup'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],

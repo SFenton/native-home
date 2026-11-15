@@ -4,8 +4,7 @@ import UIKit
 /// Gives a screen that is not a ``UKPageViewController`` the page chrome anyway, with the screen's view filling
 /// ``UKPageViewController/contentView``.
 ///
-/// **On the wallpaper** the shell wraps what ``UKScreens`` returns in it, so a screen that has not been ported yet
-/// (``UKPlaceholderViewController``) and a plain controller look like every other page: the wallpaper, the header buttons, the title and
+/// **On the wallpaper** the shell wraps a plain controller in it, so it looks like every other page: the wallpaper, the header buttons, the title and
 /// the fade. The largest scroll view the screen shows becomes the page's scroll view once it is on screen.
 ///
 /// **In a sheet** (``sheetWrapped(_:)``, owner 2026-10-31): ``UKHassModalController`` wraps every root and every pushed controller that is

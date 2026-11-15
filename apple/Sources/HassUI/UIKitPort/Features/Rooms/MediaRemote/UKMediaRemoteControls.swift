@@ -18,9 +18,30 @@ import UIKit
 final class UKRemoteRoundButton: UKRemoteControl {
     enum Role { case key, power }
 
-    let controller: MediaRemoteController
-    let button: MediaRemoteButton
+    struct Appearance: Equatable {
+        let label: String
+        let symbol: String?
+        let rotation: Double
+        init(label: String, symbol: String?, rotation: Double = 0) {
+            self.label = label
+            self.symbol = symbol
+            self.rotation = rotation
+        }
+    }
+
+    struct State {
+        var semantics: ControlSemantics = .command
+        var tone: IconTone?
+        var enabled = true
+        var value: String?
+        var inputLabels: [String]?
+    }
+
+    let appearance: Appearance
     let role: Role
+    private let readState: () -> State
+    private let press: () -> Void
+    private var boundController: MediaRemoteController?
     var iconStyle: UIFont.TextStyle { didSet { if iconStyle != oldValue { updateGlyph() } } }
     var diameter: CGFloat {
         didSet {
@@ -52,11 +73,14 @@ final class UKRemoteRoundButton: UKRemoteControl {
     private var shownTone: IconTone?
     private var hasShownTone = false
 
-    init(controller: MediaRemoteController, button: MediaRemoteButton, role: Role = .key, diameter: CGFloat,
-         iconStyle: UIFont.TextStyle = .title2, fill: UIColor? = UKDesignSurface.sheetCell) {
-        self.controller = controller
-        self.button = button
+    /// Canonical value/closure presentation, also used by configured remote atoms.
+    init(appearance: Appearance, role: Role = .key, diameter: CGFloat,
+         iconStyle: UIFont.TextStyle = .title2, fill: UIColor? = UKDesignSurface.sheetCell,
+         state: @escaping () -> State, press: @escaping () -> Void) {
+        self.appearance = appearance
         self.role = role
+        readState = state
+        self.press = press
         self.diameter = diameter
         self.iconStyle = iconStyle
         self.fill = fill
@@ -76,16 +100,33 @@ final class UKRemoteRoundButton: UKRemoteControl {
         }
         disc.alpha = 0
         ring.alpha = 0
-        dot.isHidden = button.hasIcon
-        glyph.isHidden = !button.hasIcon
-        accessibilityLabel = button.label
-        accessibilityIdentifier = role == .power ? "remote.power" : "remote.button.\(button.label)"
+        dot.isHidden = appearance.symbol != nil
+        glyph.isHidden = appearance.symbol == nil
+        accessibilityLabel = appearance.label
+        accessibilityIdentifier = role == .power ? "remote.power" : "remote.button.\(appearance.label)"
         addAction(UIAction { [weak self] _ in self?.fire() }, for: .touchUpInside)
         ukOnContentSizeChange { [weak self] in self?.updateGlyph() }
         registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (self: Self, _) in self.updateRing() }
         updateRing()
         bag.observe { [weak self] in self?.refresh() }
     }
+
+    convenience init(controller: MediaRemoteController, button: MediaRemoteButton, role: Role = .key, diameter: CGFloat,
+                     iconStyle: UIFont.TextStyle = .title2, fill: UIColor? = UKDesignSurface.sheetCell) {
+        self.init(appearance: .init(label: button.label, symbol: button.hasIcon ? UKRemoteStyle.symbol(button.icon) : nil,
+                                   rotation: button.iconRotationDegrees),
+                  role: role, diameter: diameter, iconStyle: iconStyle, fill: fill, state: {
+            State(semantics: controller.semantics(for: button), tone: controller.iconTone(for: button),
+                  value: role == .power ? (controller.isControlOff ? "Off" : "On") : nil,
+                  inputLabels: role == .power ? [button.label, controller.powerTitle] : nil)
+        }, press: {})
+        boundController = controller
+        boundPress = { [weak self] in
+            if let target = controller.press(button) { self?.onTextPrompt(target) }
+        }
+    }
+
+    private var boundPress: (() -> Void)?
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
@@ -103,13 +144,13 @@ final class UKRemoteRoundButton: UKRemoteControl {
     // MARK: Drawing
 
     private func updateGlyph() {
-        guard button.hasIcon else { return }
-        let style: UIFont.TextStyle = button.icon == "mdi:circle" ? .footnote : iconStyle
+        guard let symbol = appearance.symbol else { return }
+        let style: UIFont.TextStyle = symbol == UKRemoteStyle.symbol("mdi:circle") ? .footnote : iconStyle
         let font = UKFont.preferred(style, weight: .semibold, traits: traitCollection)
         glyph.transform = .identity
-        glyph.image = UIImage(systemName: UKRemoteStyle.symbol(button.icon), withConfiguration: UIImage.SymbolConfiguration(font: font))
+        glyph.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(font: font))
         glyph.sizeToFit()
-        glyph.transform = CGAffineTransform(rotationAngle: button.iconRotationDegrees * .pi / 180)
+        glyph.transform = CGAffineTransform(rotationAngle: appearance.rotation * .pi / 180)
         setNeedsLayout()
     }
 
@@ -172,25 +213,20 @@ final class UKRemoteRoundButton: UKRemoteControl {
     // MARK: State
 
     private func refresh() {
-        let semantics = controller.semantics(for: button)
-        var value = applySemantics(semantics)
-        switch role {
-        case .power:
-            // A toggle power button reads On/Off as a switch; a command one still reads the device's state.
-            if case .toggle = semantics {} else { value = controller.isControlOff ? "Off" : "On" }
-            accessibilityUserInputLabels = [button.label, controller.powerTitle]
-        case .key:
-            if let keyboardOpen { value = keyboardOpen ? "Expanded" : "Collapsed" }
-        }
+        let state = readState()
+        var value = applySemantics(state.semantics)
+        if let explicit = state.value { value = explicit }
+        if let keyboardOpen { value = keyboardOpen ? "Expanded" : "Collapsed" }
+        accessibilityUserInputLabels = state.inputLabels
         accessibilityValue = value
-        isEnabled = !(disabledRule?(controller) ?? false)
-        if button.hasIcon { applyTone(controller.iconTone(for: button)) }
+        isEnabled = state.enabled && !(boundController.map { disabledRule?($0) ?? false } ?? false)
+        if appearance.symbol != nil { applyTone(state.tone) }
     }
 
     private func fire() {
         UKTapFeedback.tap()
         onPress()
-        if let target = controller.press(button) { onTextPrompt(target) }
+        if let boundPress { boundPress() } else { press() }
     }
 }
 
@@ -202,21 +238,15 @@ final class UKRemoteRoundButton: UKRemoteControl {
 /// controls" (`remote.dpad`), power read first.
 @MainActor
 final class UKRemoteDPadView: UIView, UKGridMeasuring {
-    let controller: MediaRemoteController
-    let keyboard: UKRemoteKeyboardState
     /// The pad must fit the width it is given (the leading column in two columns); false for no limit.
     let limitsToBounds: Bool
 
     private let bag = UKObservationBag()
-    private let power: UKRemoteRoundButton
+    private let power: UKRemoteRoundButton?
     private let rows: [[UKRemoteRoundButton?]]
-    private let keyboardKey: UKRemoteRoundButton?
 
-    init(controller: MediaRemoteController, keyboard: UKRemoteKeyboardState, limitsToBounds: Bool,
-         onTextPrompt: @escaping (String) -> Void) {
-        self.controller = controller
-        self.keyboard = keyboard
-        self.limitsToBounds = limitsToBounds
+    convenience init(controller: MediaRemoteController, keyboard: UKRemoteKeyboardState, limitsToBounds: Bool,
+                     onTextPrompt: @escaping (String) -> Void) {
         let config = controller.config
         func key(_ button: MediaRemoteButton) -> UKRemoteRoundButton {
             let key = UKRemoteRoundButton(controller: controller, button: button, role: .key, diameter: 76, iconStyle: .title1)
@@ -227,28 +257,32 @@ final class UKRemoteDPadView: UIView, UKGridMeasuring {
         // Power stays enabled while the directions are disabled: it is how the device turns on.
         let powerKey = UKRemoteRoundButton(controller: controller, button: config.power, role: .power, diameter: 76, iconStyle: .title1)
         let keyboardKey = config.keyboard.map(key)
-        power = powerKey
-        self.keyboardKey = keyboardKey
-        rows = [
+        self.init(label: "\(config.title) remote controls", rows: [
             [key(config.back), key(config.up), powerKey],
             [key(config.left), key(config.select), key(config.right)],
             [key(config.home), key(config.down), keyboardKey],
-        ]
+        ], power: powerKey, limitsToBounds: limitsToBounds)
+        bag.observe {
+            keyboardKey?.keyboardOpen = keyboard.prompt.isOpen
+            let hidden = controller.hidesKeyboard
+            if keyboardKey?.isHidden != hidden { keyboardKey?.isHidden = hidden }
+        }
+    }
+
+    /// Ordered, authored slots over the same native geometry and press controls.
+    init(label: String, rows: [[UKRemoteRoundButton?]], power: UKRemoteRoundButton?, limitsToBounds: Bool) {
+        self.rows = rows
+        self.power = power
+        self.limitsToBounds = limitsToBounds
         super.init(frame: .zero)
         for button in rows.flatMap({ $0 }).compactMap({ $0 }) { addSubview(button) }
         isAccessibilityElement = false
         accessibilityContainerType = .semanticGroup
-        accessibilityLabel = "\(config.title) remote controls"
+        accessibilityLabel = label
         accessibilityIdentifier = "remote.dpad"
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
             self.setNeedsLayout()
             self.ukInvalidateEnclosingLayout()
-        }
-        bag.observe { [weak self] in
-            guard let self else { return }
-            keyboardKey?.keyboardOpen = keyboard.prompt.isOpen
-            let hidden = controller.hidesKeyboard
-            if keyboardKey?.isHidden != hidden { keyboardKey?.isHidden = hidden }
         }
     }
 
@@ -286,7 +320,7 @@ final class UKRemoteDPadView: UIView, UKGridMeasuring {
     override var accessibilityElements: [Any]? {
         get {
             let others = rows.flatMap { $0 }.compactMap { $0 }.filter { $0 !== power && !$0.isHidden }
-            return [power] + others
+            return power.map { [$0] + others } ?? others
         }
         set {}
     }
@@ -299,19 +333,23 @@ final class UKRemoteDPadView: UIView, UKGridMeasuring {
 final class UKRemoteTransportRow: UIView, UKGridMeasuring {
     private let buttons: [UKRemoteRoundButton?]
 
-    init(controller: MediaRemoteController) {
+    convenience init(controller: MediaRemoteController) {
         let config = controller.config
         func key(_ button: MediaRemoteButton) -> UKRemoteRoundButton {
             let key = UKRemoteRoundButton(controller: controller, button: button, role: .key, diameter: 56, iconStyle: .title2)
             key.disabledRule = { $0.controlsDisabled }
             return key
         }
-        buttons = [key(config.pause), nil, key(config.play)]
+        self.init(label: "Playback", buttons: [key(config.pause), nil, key(config.play)])
+    }
+
+    init(label: String, buttons: [UKRemoteRoundButton?]) {
+        self.buttons = buttons
         super.init(frame: .zero)
         for button in buttons.compactMap({ $0 }) { addSubview(button) }
         isAccessibilityElement = false
         accessibilityContainerType = .semanticGroup
-        accessibilityLabel = "Playback"
+        accessibilityLabel = label
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
             self.setNeedsLayout()
             self.ukInvalidateEnclosingLayout()
@@ -346,7 +384,18 @@ final class UKRemoteTransportRow: UIView, UKGridMeasuring {
 /// (VoiceOver adjust), so a drag sends one service call (``SliderDraft``).
 @MainActor
 final class UKRemoteVolumeCard: UKRemoteMeasuredView {
-    private let controller: MediaRemoteController
+    struct State {
+        var percent: Double
+        var disabled: Bool
+        var visible: Bool = true
+        var failed: Bool = false
+    }
+
+    private let readState: () -> State
+    private let commit: (Double) -> Void
+    private let editingChanged: (Bool) -> Void
+    private let unavailableText: String
+    private let errorText: String
     private let titleLabel = UILabel()
     private let percentLabel = UILabel()
     private let slider = UKRemoteSlider()
@@ -356,8 +405,7 @@ final class UKRemoteVolumeCard: UKRemoteMeasuredView {
     private let bag = UKObservationBag()
     private var volume = SliderDraft()
 
-    init(controller: MediaRemoteController) {
-        self.controller = controller
+    convenience init(controller: MediaRemoteController) {
         let config = controller.config
         func key(_ button: MediaRemoteButton) -> UKRemoteRoundButton {
             let key = UKRemoteRoundButton(controller: controller, button: button, role: .key, diameter: HassTokens.minTarget,
@@ -365,15 +413,31 @@ final class UKRemoteVolumeCard: UKRemoteMeasuredView {
             key.disabledRule = { $0.volumeDisabled }
             return key
         }
-        mute = key(config.volumeMute)
-        down = key(config.volumeDown)
-        up = key(config.volumeUp)
+        self.init(title: config.volumeTitle, mute: key(config.volumeMute), down: key(config.volumeDown), up: key(config.volumeUp),
+                  unavailableText: "Unavailable", errorText: "Didn't Respond", state: {
+            State(percent: Double(controller.volumePercent), disabled: controller.volumeDisabled,
+                  visible: controller.showsVolume, failed: controller.volumeWriteFailed)
+        }, commit: { controller.setVolume(percent: Int($0.rounded())) })
+    }
+
+    /// The canonical release-to-commit card, independent of entity storage or command routing.
+    init(title: String, mute: UKRemoteRoundButton, down: UKRemoteRoundButton, up: UKRemoteRoundButton,
+         unavailableText: String, errorText: String, state: @escaping () -> State,
+         commit: @escaping (Double) -> Void, editingChanged: @escaping (Bool) -> Void = { _ in }) {
+        self.mute = mute
+        self.down = down
+        self.up = up
+        self.unavailableText = unavailableText
+        self.errorText = errorText
+        readState = state
+        self.commit = commit
+        self.editingChanged = editingChanged
         super.init(frame: .zero)
         backgroundColor = UKDesignSurface.sheetCell
         layer.cornerRadius = HassTokens.Radius.module
         layer.cornerCurve = .continuous
 
-        titleLabel.text = config.volumeTitle
+        titleLabel.text = title
         titleLabel.textColor = UKDesignInk.primary
         titleLabel.numberOfLines = 0
         titleLabel.isAccessibilityElement = false
@@ -393,12 +457,13 @@ final class UKRemoteVolumeCard: UKRemoteMeasuredView {
         slider.maximumValue = 100
         slider.step = 1
         slider.tintColor = UKDesignInk.action
-        slider.accessibilityLabel = "\(config.volumeTitle) volume"
+        slider.accessibilityLabel = "\(title) volume"
         slider.accessibilityIdentifier = "remote.volume"
         slider.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
         slider.addAction(UIAction { [weak self] _ in self?.beginEditing() }, for: .touchDown)
         slider.addAction(UIAction { [weak self] _ in self?.changed() }, for: .valueChanged)
-        slider.addAction(UIAction { [weak self] _ in self?.endEditing() }, for: [.touchUpInside, .touchUpOutside, .touchCancel])
+        slider.addAction(UIAction { [weak self] _ in self?.endEditing() }, for: [.touchUpInside, .touchUpOutside])
+        slider.addAction(UIAction { [weak self] _ in self?.cancelEditing() }, for: .touchCancel)
 
         let top = UIStackView(arrangedSubviews: [titleLabel, percentLabel, mute])
         top.axis = .horizontal
@@ -417,7 +482,7 @@ final class UKRemoteVolumeCard: UKRemoteMeasuredView {
 
         isAccessibilityElement = false
         accessibilityContainerType = .semanticGroup
-        accessibilityLabel = config.volumeTitle
+        accessibilityLabel = title
         accessibilityIdentifier = "remote.section.volume"
         bag.observe { [weak self] in self?.refresh() }
     }
@@ -429,21 +494,20 @@ final class UKRemoteVolumeCard: UKRemoteMeasuredView {
         set {}
     }
 
-    private var commit: (Double) -> Void {
-        { [controller] in controller.setVolume(percent: Int($0.rounded())) }
-    }
-
     private func refresh() {
-        let shown = volume.shown(live: Double(controller.volumePercent))
+        let state = readState()
+        let shown = volume.shown(live: state.percent)
         let whole = Int(shown.rounded())
-        percentLabel.text = "\(whole)%"
+        percentLabel.text = state.failed ? errorText : state.disabled ? unavailableText : "\(whole)%"
         if abs(Double(slider.value) - shown) > 0.01 { slider.setValue(Float(shown), animated: false) }
-        slider.accessibilityValue = "\(whole) percent"
-        slider.isEnabled = !controller.volumeDisabled
+        slider.accessibilityValue = state.failed ? errorText : state.disabled ? unavailableText : "\(whole) percent"
+        slider.isEnabled = !state.disabled
+        if isHidden == state.visible { isHidden = !state.visible; ukInvalidateEnclosingLayout() }
     }
 
     private func beginEditing() {
-        volume.editingChanged(true, live: Double(controller.volumePercent), commit: commit)
+        editingChanged(true)
+        volume.editingChanged(true, live: readState().percent, commit: commit)
     }
 
     private func changed() {
@@ -453,7 +517,14 @@ final class UKRemoteVolumeCard: UKRemoteMeasuredView {
     }
 
     private func endEditing() {
-        volume.editingChanged(false, live: Double(controller.volumePercent), commit: commit)
+        volume.editingChanged(false, live: readState().percent, commit: commit)
+        editingChanged(false)
+        refresh()
+    }
+
+    private func cancelEditing() {
+        volume.draft = nil
+        editingChanged(false)
         refresh()
     }
 }
@@ -464,8 +535,23 @@ final class UKRemoteVolumeCard: UKRemoteMeasuredView {
 /// row, stacked at accessibility sizes.
 @MainActor
 final class UKRemoteKeyboardForm: UKRemoteMeasuredView, UITextFieldDelegate {
-    private let controller: MediaRemoteController
-    private let keyboard: UKRemoteKeyboardState
+    struct State {
+        var text: String
+        var isOpen: Bool
+        var canSubmit: Bool
+        var sending = false
+        var failed = false
+    }
+
+    private let readState: () -> State
+    private let edit: (String) -> Void
+    private let sendText: () -> Void
+    private let cancelPrompt: () -> Void
+    private let error: UKInlineAlertView
+    private let errorText: String
+    private var wasOpen = false
+    private var wasFailed = false
+    private let managesVisibility: Bool
     private let caption = UILabel.uk(.subheadline, ink: UKDesignSurface.secondaryInSheet)
     private let field = UITextField()
     private let send = UIButton(type: .system)
@@ -473,15 +559,32 @@ final class UKRemoteKeyboardForm: UKRemoteMeasuredView, UITextFieldDelegate {
     private let row = UIStackView()
     private let bag = UKObservationBag()
 
-    init(controller: MediaRemoteController, keyboard: UKRemoteKeyboardState) {
-        self.controller = controller
-        self.keyboard = keyboard
+    convenience init(controller: MediaRemoteController, keyboard: UKRemoteKeyboardState) {
+        self.init(copy: .init(label: "Text to send", placeholder: "Enter text", sendLabel: "Send", cancelLabel: "Cancel",
+                              errorText: "Couldn't send text. Try again."), managesVisibility: false, state: {
+            State(text: keyboard.prompt.text, isOpen: keyboard.prompt.isOpen, canSubmit: !keyboard.prompt.isBlank)
+        }, edit: { keyboard.prompt.text = $0 }, submit: { keyboard.prompt.submit(with: controller) },
+                  cancel: { keyboard.prompt.close() })
+    }
+
+    /// Native field, focus and Dynamic Type behavior with an injected draft and acknowledged submission.
+    init(copy: ServerUICompositionDocument.RemoteKeyboardCopy, managesVisibility: Bool = true,
+         identifier: String = "remote.keyboard",
+         state: @escaping () -> State, edit: @escaping (String) -> Void,
+         submit: @escaping () -> Void, cancel cancelAction: @escaping () -> Void) {
+        readState = state
+        self.edit = edit
+        sendText = submit
+        cancelPrompt = cancelAction
+        error = UKInlineAlertView(copy.errorText, severity: .error)
+        errorText = copy.errorText
+        self.managesVisibility = managesVisibility
         super.init(frame: .zero)
-        caption.text = "Text to send"
+        caption.text = copy.label
         caption.isAccessibilityElement = false
 
         field.borderStyle = .roundedRect
-        field.placeholder = "Enter text"
+        field.placeholder = copy.placeholder
         field.font = .ukFont(.body)
         field.adjustsFontForContentSizeCategory = true
         // Free text for a TV: no autocapitalization or autocorrection (web `autoCapitalize="none"`).
@@ -489,28 +592,27 @@ final class UKRemoteKeyboardForm: UKRemoteMeasuredView, UITextFieldDelegate {
         field.autocorrectionType = .no
         field.returnKeyType = .send
         field.delegate = self
-        field.accessibilityLabel = "Text to send"
-        field.accessibilityIdentifier = "remote.keyboard.field"
+        field.accessibilityLabel = copy.label
+        field.accessibilityIdentifier = identifier + ".field"
         field.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         field.addAction(UIAction { [weak self] _ in
             guard let self else { return }
-            let text = field.text ?? ""
-            if keyboard.prompt.text != text { keyboard.prompt.text = text }
+            edit(field.text ?? "")
         }, for: .editingChanged)
 
         var sendConfiguration = UIButton.Configuration.filled()
-        sendConfiguration.title = "Send"
+        sendConfiguration.title = copy.sendLabel
         sendConfiguration.buttonSize = .large
         send.configuration = sendConfiguration
-        send.accessibilityIdentifier = "remote.keyboard.send"
+        send.accessibilityIdentifier = identifier + ".send"
         send.addAction(UIAction { [weak self] _ in self?.submit() }, for: .touchUpInside)
         var cancelConfiguration = UIButton.Configuration.tinted()
-        cancelConfiguration.title = "Cancel"
+        cancelConfiguration.title = copy.cancelLabel
         cancelConfiguration.buttonSize = .large
         cancel.configuration = cancelConfiguration
-        cancel.accessibilityIdentifier = "remote.keyboard.cancel"
-        cancel.addAction(UIAction { [weak self] _ in self?.keyboard.prompt.close() }, for: .touchUpInside)
+        cancel.accessibilityIdentifier = identifier + ".cancel"
+        cancel.addAction(UIAction { [weak self] _ in self?.cancelPrompt() }, for: .touchUpInside)
 
         let buttons = UIStackView(arrangedSubviews: [send, cancel])
         buttons.axis = .horizontal
@@ -529,7 +631,8 @@ final class UKRemoteKeyboardForm: UKRemoteMeasuredView, UITextFieldDelegate {
         row.addArrangedSubview(field)
         row.addArrangedSubview(buttonsHost)
         row.spacing = HassTokens.Spacing.s
-        let column = UIStackView(arrangedSubviews: [caption, row])
+        error.isHidden = true
+        let column = UIStackView(arrangedSubviews: [caption, row, error])
         column.axis = .vertical
         column.spacing = HassTokens.Spacing.s
         addSubview(column)
@@ -538,9 +641,20 @@ final class UKRemoteKeyboardForm: UKRemoteMeasuredView, UITextFieldDelegate {
 
         bag.observe { [weak self] in
             guard let self else { return }
-            let prompt = keyboard.prompt
-            if field.text != prompt.text { field.text = prompt.text }
-            send.isEnabled = !prompt.isBlank
+            let state = readState()
+            // Do not replace marked text while an input method is composing it.
+            if field.markedTextRange == nil, field.text != state.text { field.text = state.text }
+            send.isEnabled = state.canSubmit && !state.sending
+            cancel.isEnabled = !state.sending
+            if error.isHidden == state.failed { error.isHidden = !state.failed; ukInvalidateEnclosingLayout() }
+            if state.failed, !wasFailed { UIAccessibility.post(notification: .announcement, argument: errorText) }
+            wasFailed = state.failed
+            if managesVisibility {
+                if isHidden == state.isOpen { isHidden = !state.isOpen; ukInvalidateEnclosingLayout() }
+                if state.isOpen, !wasOpen { DispatchQueue.main.async { [weak self] in self?.focus() } }
+                if !state.isOpen { endEditing(true) }
+            }
+            wasOpen = state.isOpen
         }
     }
 
@@ -559,7 +673,8 @@ final class UKRemoteKeyboardForm: UKRemoteMeasuredView, UITextFieldDelegate {
     }
 
     private func submit() {
-        keyboard.prompt.submit(with: controller)
+        guard readState().canSubmit, !readState().sending else { return }
+        sendText()
     }
 
     /// Moves the insertion point into the field.
@@ -571,81 +686,21 @@ final class UKRemoteKeyboardForm: UKRemoteMeasuredView, UITextFieldDelegate {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         // Opened from the pad while another section showed (two columns): focus once the field is here.
-        if window != nil, keyboard.prompt.isOpen, !isHidden { DispatchQueue.main.async { [weak self] in self?.focus() } }
+        if window != nil, readState().isOpen, !isHidden { DispatchQueue.main.async { [weak self] in self?.focus() } }
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         submit()
         return false
     }
+
+    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+        !readState().sending
+    }
+
+    func textFieldShouldClear(_ textField: UITextField) -> Bool { !readState().sending }
 }
 
 // MARK: - Remote section
 
-/// The Remote section's column (`RemoteControlsTab`, with the pad above it in one column): the pad, the inline keyboard while open,
-/// the volume card while the remote shows one, and the transport keys; 24 pt apart.
-@MainActor
-final class UKRemoteControlsView: UIView, UKGridMeasuring {
-    private let controller: MediaRemoteController
-    private let keyboard: UKRemoteKeyboardState
-    private let column = UKColumnView(spacing: HassTokens.Spacing.xl)
-    private let keyboardForm: UKRemoteKeyboardForm
-    private let volumeCard: UKRemoteVolumeCard
-    private let transport: UKRemoteTransportRow
-    private let bag = UKObservationBag()
-    private var hasRun = false
-
-    /// - Parameter padPrompt: Non-nil puts the pad above the section (one column); its keyboard key reports through it.
-    init(controller: MediaRemoteController, keyboard: UKRemoteKeyboardState, padPrompt: ((String) -> Void)?) {
-        self.controller = controller
-        self.keyboard = keyboard
-        keyboardForm = UKRemoteKeyboardForm(controller: controller, keyboard: keyboard)
-        volumeCard = UKRemoteVolumeCard(controller: controller)
-        transport = UKRemoteTransportRow(controller: controller)
-        super.init(frame: .zero)
-        var views: [UIView] = []
-        if let padPrompt {
-            views.append(UKRemoteDPadView(controller: controller, keyboard: keyboard, limitsToBounds: false, onTextPrompt: padPrompt))
-        }
-        views += [keyboardForm, volumeCard, transport]
-        column.setViews(views)
-        addSubview(column)
-        keyboardForm.isHidden = true
-        bag.observe { [weak self] in self?.refresh() }
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func gridHeight(forWidth width: CGFloat) -> CGFloat { column.gridHeight(forWidth: width) }
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        column.frame = bounds
-    }
-
-    private func refresh() {
-        let open = keyboard.prompt.isOpen
-        let showsVolume = controller.showsVolume
-        let animated = hasRun && window != nil
-        hasRun = true
-        column.setNeedsLayout()
-        if volumeCard.isHidden == showsVolume { volumeCard.isHidden = !showsVolume }
-        if keyboardForm.isHidden == open {
-            keyboardForm.isHidden = !open
-            if open {
-                keyboardForm.alpha = 0
-                UKMotion.animate(.standard) { [self] in
-                    keyboardForm.alpha = 1
-                    if animated { column.layoutIfNeeded() }
-                }
-                // The field takes focus once it is on screen.
-                DispatchQueue.main.async { [weak self] in self?.keyboardForm.focus() }
-            } else {
-                keyboardForm.endEditing(true)
-            }
-        }
-        ukInvalidateEnclosingLayout()
-    }
-}
 #endif

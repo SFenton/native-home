@@ -14,6 +14,11 @@ Web source: `ha-sfenton-react-dash@9ac2a46:src/components/hass/ValetudoMapCard.t
 | Canvas and scene | `HassUI/Features/Vacuums/ValetudoMapView.swift` |
 | Fixture maps for the gallery and tests | `ValetudoMapFixtures` in `ValetudoMapStyle.swift` |
 
+- Configured `vacuum-control/map` uses `UKVacuumMapFrame` over the same retained
+  `VacuumMapState`, loader and scene. Authored height caps, copy and room/skip
+  overlay do not create another map client. The normal canvas remains no-zoom;
+  only `area-editor` reuses the canonical pan/pinch viewport, draw/move/resize
+  gestures and accessibility alternatives. No entity write occurs per map frame.
 - The map camera's `entity_picture` is a PNG whose `zTXt` chunk holds the Mapped JSON (zlib); pixels are run-length `[x, y, count]` or compressed per layer. Decoding is pure and tested against the web's expectations.
 - `ValetudoMapScene` rasterises floor, segments and walls once into one pixel per cell, scaled with nearest-neighbour sampling, so pan and zoom only redraw vectors and icons.
 - Focus crops a shared map to a vacuum's rooms (Studio, Media Room) and keeps walls only near them; area drawing is limited to the interaction bounds.

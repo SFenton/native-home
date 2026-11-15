@@ -81,16 +81,16 @@ The UIKit app replaces the SwiftUI app, so every tile class and behaviour of the
 
 | Class | UIKit file |
 |---|---|
-| power on purifier, humidifier (navigation + power disc), source select, script power (Switch, Streamer), bed side power | `Features/Rooms/UKRoomCards.swift` (`provision`), Media page cards in `UKMediaViewController` |
-| room lights power | `UKRoomOverviewViewController.roomTile` (Home overview Lights cards) |
-| alarm mode | `UKQuickLinksRootPage.tile` (Security System) |
+| power on purifier, humidifier (navigation + power disc), source select, script power (Switch, Streamer), bed side power | `UKServerUIRooms` room cards and the Media page's cards |
+| room lights power | `UKRoomOverview` (Home overview Lights cards) |
+| alarm mode | the Security System navigation tile |
 | lights and switches | `UKRoomsBind.lightTile`, `UKLightGroupTileView`, `UKBrightnessTileView`, Custom Lights |
 | sprinkler | `UKSprinklerControllerCard` (tile + Stop Watering disc, then the module of pills) |
-| vacuum robots | `UKVacuumsViewController.buildRobots` (start/pause and dock discs, optimistic) |
-| Chores links | `UKChoreQuickLinksView` (navigation tile, state line "3 open · 2 overdue") |
+| vacuum robots | `UKServerUIVacuumView` (start/pause and dock discs, optimistic) |
+| Chores links | the Chores navigation tile (state line "3 open · 2 overdue") |
 | Admin, Auto-Reset, High AQI, Guest Controls, car Doors, power recovery | `UKHouseholdTiles` |
 | Vacation Mode, Solo Trip toggle and travelers | `UKVacation.swift` |
 | Hot Flash Mode | `UKBedSpecialModesTab` (one disc; the countdown is the state line) |
 | fan sheet Power and Lock, grill Keep Warm and Smoke Boost | `UKRoomDeviceSheets.swift` |
 
-`UKRoomCards.provision` lists every `TileActionKind`: a room card that reaches a class it does not draw trips an `assertionFailure` in DEBUG, so a future catalog class cannot silently fall through to a plain tile.
+The room card provisioner lists every `TileActionKind`: a room card that reaches a class it does not draw trips an `assertionFailure` in DEBUG, so a future catalog class cannot silently fall through to a plain tile.

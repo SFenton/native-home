@@ -35,6 +35,32 @@ final class UKHostedDesignRowTests: XCTestCase {
 
     // MARK: Row
 
+    func testRowPaddingDoesNotAbsorbTheInsetOfItsPinnedContainer() {
+        let host = UIViewController()
+        let window = HostedPage.show(host)
+        defer { window.isHidden = true }
+        for style in [UKRowStyle.module, .grouped, .form] {
+            let row = UKRowView(.init("Cancel", style: style))
+            host.view.addSubview(row)
+            defer { row.removeFromSuperview() }
+            row.frame = CGRect(x: 0, y: host.view.bounds.height - 100, width: host.view.bounds.width, height: 50)
+            func height() -> CGFloat {
+                host.view.layoutIfNeeded()
+                row.layoutIfNeeded()
+                return row.systemLayoutSizeFitting(CGSize(width: row.bounds.width, height: 0),
+                    withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
+            }
+            for category in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge] {
+                row.traitOverrides.preferredContentSizeCategory = category
+                host.additionalSafeAreaInsets.bottom = 0
+                let expected = height()
+                host.additionalSafeAreaInsets.bottom = 200
+                XCTAssertEqual(height(), expected, accuracy: 0.5,
+                               "A row's container owns safe-area clearance; its text keeps the style's padding.")
+            }
+        }
+    }
+
     func testACentredActionShowsItsBusyTitleAndAnArcInPlaceOfTheTitleWhileTheServerWaits() {
         let idle = UKRowContent.centeredAction("Sign Out", ink: .systemRed, busyTitle: "Signing Out")
         XCTAssertEqual(idle.title, "Sign Out")

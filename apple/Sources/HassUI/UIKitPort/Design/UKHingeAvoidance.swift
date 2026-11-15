@@ -50,53 +50,6 @@ public enum UKHinge {
     }
 }
 
-/// Centres its child and moves it off the hinge only when the hinge crosses it (`avoidsHinge()`). A no-op without a hinge.
-///
-/// ```swift
-/// let host = UKHingeAvoidingView(child: dial)       // the child sizes itself by its own constraints inside the host's width
-/// ```
-public final class UKHingeAvoidingView: UIView {
-    public let child: UIView
-    private var childX: NSLayoutConstraint!
-    private var childWidth: NSLayoutConstraint!
-
-    public init(child: UIView) {
-        self.child = child
-        super.init(frame: .zero)
-        addSubview(child)
-        child.translatesAutoresizingMaskIntoConstraints = false
-        childX = child.leadingAnchor.constraint(equalTo: leadingAnchor)
-        childWidth = child.widthAnchor.constraint(equalToConstant: 0)
-        NSLayoutConstraint.activate([childX, childWidth, child.topAnchor.constraint(equalTo: topAnchor), child.bottomAnchor.constraint(equalTo: bottomAnchor)])
-        NotificationCenter.default.addObserver(self, selector: #selector(hingeChanged), name: UKHinge.didChange, object: nil)
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-
-    @objc private func hingeChanged() { setNeedsLayout() }
-
-    public override func layoutSubviews() {
-        super.layoutSubviews()
-        guard bounds.width > 0 else { return }
-        // The width the child takes when offered the whole container; the band decides from that, not from a width the move
-        // itself would change.
-        childWidth.isActive = false
-        let natural = child.systemLayoutSizeFitting(CGSize(width: bounds.width, height: UIView.layoutFittingCompressedSize.height),
-                                                    withHorizontalFittingPriority: .defaultHigh, verticalFittingPriority: .fittingSizeLevel).width
-        childWidth.isActive = true
-        let objectWidth = min(natural > 0 ? natural : bounds.width, bounds.width)
-        let container = convert(bounds, to: nil)
-        // Position and width only: the height follows the placement and must not feed back.
-        let band = HingeAvoidance.band(in: CGRect(x: container.minX.rounded(), y: 0, width: container.width.rounded(), height: 0), hinge: UKHinge.frame)
-        let place = HingeAvoidance.placement(objectWidth: objectWidth, containerWidth: bounds.width, band: band)
-        if childX.constant != place.x || childWidth.constant != place.width {
-            childX.constant = place.x
-            childWidth.constant = place.width
-            super.layoutSubviews()
-        }
-    }
-}
-
 /// Keeps a page sheet's form clear of the hinge by using the wider side of it (`clearsHinge()`; a sheet can be sized but not
 /// offset, so the content takes the inset). A no-op wherever no vertical hinge crosses the sheet.
 public final class UKHingeClearingView: UIView {

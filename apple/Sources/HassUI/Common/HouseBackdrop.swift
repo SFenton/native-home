@@ -10,11 +10,8 @@ import UIKit
 
 // MARK: - Store
 
-/// The blurred photo of the house behind every page (web `AppShell.module.css` `.backdrop`: the image served by
-/// Home Assistant at `/local/images/house.webp`; pattern: `.agents/patterns/page-backdrop.md`).
-///
-/// The photo itself loads through ``ImagePipeline`` (disk cache, conditional revalidation, updates when the server's
-/// file changes; `.agents/patterns/image-cache.md`). The blur happens once, not per frame: ``BackdropRenderer`` makes
+/// The blurred photo behind every page. The photo is a verified publication asset handed in by the server-driven host
+/// (`init(verifiedPhoto:directory:blur:)`; pattern: `.agents/patterns/page-backdrop.md`). The blur happens once, not per frame: ``BackdropRenderer`` makes
 /// the finished wallpaper for the window's pixel size and the Background Blur setting (``BackdropBlurSettings``), and
 /// the view only draws it. A render is kept in memory and on disk by what shaped it, so going back to a slider position
 /// or relaunching reuses it, and the previous render stays up until a new one is ready (no blank, no flash; AGENTS.md
@@ -31,9 +28,8 @@ final class HouseBackdropStore {
     /// Renders Core Image has drawn (stored renders that were loaded do not count).
     @ObservationIgnored private(set) var renderCount = 0
 
-    @ObservationIgnored private let source: URL
     @ObservationIgnored private let directory: URL
-    @ObservationIgnored private let photos: @Sendable (URL) -> AsyncStream<CGImage>
+    @ObservationIgnored private let photos: @Sendable () -> AsyncStream<CGImage>
     @ObservationIgnored private let renderGap: Duration
     @ObservationIgnored private var refreshed = false
     @ObservationIgnored private var photo: (image: CGImage, digest: String)?
@@ -43,17 +39,28 @@ final class HouseBackdropStore {
     @ObservationIgnored private var renderTask: Task<Void, Never>?
     @ObservationIgnored private var isDirty = false
 
-    /// Creates the store and loads the render that was on screen when the app last ran.
-    /// - Parameters:
-    ///   - server: The signed-in server, which serves the photo.
-    ///   - directory: Where renders are cached.
-    ///   - blur: The Background Blur setting.
-    ///   - renderGap: How long to wait between back-to-back renders while the setting keeps changing.
-    ///   - photos: The photo's images, cached first then fresh (tests pass a stub).
-    init(server: HassServer, directory: URL = HouseBackdropStore.defaultDirectory,
-         blur: BackdropBlurSettings = BackdropBlurSettings(), renderGap: Duration = HouseBackdropStore.defaultRenderGap,
-         photos: @escaping @Sendable (URL) -> AsyncStream<CGImage> = HouseBackdropStore.pipelinePhotos) {
-        source = Self.imageURL(for: server)
+    /// Uses an already downloaded, verified and decoded publication asset without another network request.
+    ///
+    /// The caller supplies an account/publisher/document/asset-scoped render directory and isolated blur settings.
+    /// This source seam does not validate assets or accept a publication; stage a successful render before promotion.
+    convenience init(verifiedPhoto: CGImage, directory: URL, blur: BackdropBlurSettings) {
+        self.init(directory: directory, blur: blur, renderGap: Self.defaultRenderGap) {
+            AsyncStream { continuation in
+                continuation.yield(verifiedPhoto)
+                continuation.finish()
+            }
+
+        }
+    }
+
+    /// A solid publication has no compiled or network photo source.
+    static func empty(directory: URL, blur: BackdropBlurSettings = BackdropBlurSettings(initialPercent: 0)) -> HouseBackdropStore {
+        HouseBackdropStore(directory: directory, blur: blur,
+                           renderGap: .zero, photos: { AsyncStream { $0.finish() } })
+    }
+
+    private init(directory: URL, blur: BackdropBlurSettings, renderGap: Duration,
+                 photos: @escaping @Sendable () -> AsyncStream<CGImage>) {
         self.directory = directory
         self.blur = blur
         self.renderGap = renderGap
@@ -74,7 +81,7 @@ final class HouseBackdropStore {
         let directory = directory
         // Renders from an older recipe are never read again; drop them off the main thread.
         Task.detached(priority: .background) { BackdropRenderer.removeRetired(in: directory) }
-        for await photo in photos(source) {
+        for await photo in photos() {
             let digest = await Task.detached(priority: .utility) { BackdropRenderer.digest(of: photo) }.value
             self.photo = (photo, digest)
             requestRender()
@@ -147,33 +154,10 @@ final class HouseBackdropStore {
     nonisolated static let memoryRenders = 4
     /// The pause between back-to-back renders while the slider moves: about seven live previews a second.
     nonisolated static let defaultRenderGap: Duration = .milliseconds(140)
-    /// The longest side the photo is decoded at: enough for the densest phone at the sharpest setting.
-    nonisolated static let photoPixels = 2560
-
-    /// `<server>/local/images/house.webp`, Home Assistant's public `www` folder (no sign-in needed).
-    nonisolated static func imageURL(for server: HassServer) -> URL {
-        server.baseURL.appending(path: "local/images/house.webp")
-    }
-
-    /// The photo from the shared ``ImagePipeline``, decoded at ``photoPixels``.
-    nonisolated static func pipelinePhotos(_ url: URL) -> AsyncStream<CGImage> {
-        ImagePipeline.shared.images(for: url, maxPixel: photoPixels)
-    }
-
-    /// The store a signed-in session shows. Debug builds honour `FENTON_BACKDROP_FIXTURE=1` (UI tests): a bright
-    /// synthetic photo rendered into a throwaway folder with its own settings, so a journey can tell wallpaper from
-    /// the plain base color whatever the house photo looks like, and never touches the real cached render or the
-    /// saved Background Blur.
-    static func session(for server: HassServer) -> HouseBackdropStore {
-        #if DEBUG
-        if let fixture = fixture(for: server) { return fixture }
-        #endif
-        return HouseBackdropStore(server: server)
-    }
 
     #if DEBUG
     /// The fixture store when `FENTON_BACKDROP_FIXTURE=1`; `FENTON_BACKDROP_BLUR=<percent>` starts it at that setting.
-    static func fixture(for server: HassServer) -> HouseBackdropStore? {
+    static func fixture() -> HouseBackdropStore? {
         let environment = ProcessInfo.processInfo.environment
         // The `FENTON_GALLERY_BACKDROP_*` forms are gallery settings a reused journey app can change between tests; they win.
         guard (environment["FENTON_GALLERY_BACKDROP_FIXTURE"] ?? environment["FENTON_BACKDROP_FIXTURE"]) == "1" else { return nil }
@@ -184,7 +168,7 @@ final class HouseBackdropStore {
         }
         // `FENTON_BACKDROP_PHOTO=<path>` shows that image instead (side-by-side screenshots with the web).
         let photo = environment["FENTON_BACKDROP_PHOTO"].flatMap { BackdropRenderer.load(URL(fileURLWithPath: $0)) } ?? fixturePhoto()
-        return HouseBackdropStore(server: server, directory: folder, blur: BackdropBlurSettings(defaults: suite)) { _ in
+        return HouseBackdropStore(directory: folder, blur: BackdropBlurSettings(defaults: suite), renderGap: defaultRenderGap) {
             AsyncStream { continuation in
                 if let photo { continuation.yield(photo) }
                 continuation.finish()
@@ -192,8 +176,14 @@ final class HouseBackdropStore {
         }
     }
 
-    /// A bright, detailed photo: diagonal orange to sky blue crossed by cream bands, so the blur setting shows in it. After the darkest scrim stop (0.64) it still measures about ten times the plain base color's luminance.
+    /// Uses the same image decoding path as a published PNG, including its color profile and alpha representation.
     nonisolated static func fixturePhoto() -> CGImage? {
+        guard let bytes = fixturePhotoData(), let source = CGImageSourceCreateWithData(bytes as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    /// A bright, detailed fixture PNG that can be published unchanged for paired gallery observations.
+    nonisolated static func fixturePhotoData() -> Data? {
         guard let context = CGContext(data: nil, width: 960, height: 640, bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpaceCreateDeviceRGB(),
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
@@ -206,7 +196,12 @@ final class HouseBackdropStore {
         for row in 0..<4 {
             context.fill(CGRect(x: 0, y: 70 + row * 140, width: 960, height: 70))
         }
-        return context.makeImage()
+        guard let image = context.makeImage() else { return nil }
+        let bytes = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(bytes, "public.png" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return bytes as Data
     }
     #endif
 

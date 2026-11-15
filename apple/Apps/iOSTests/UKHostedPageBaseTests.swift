@@ -27,8 +27,6 @@ final class HostedScrollPage: UKPageViewController {
 final class UKHostedPageBaseTests: DemoHouseTestCase {
     private func context(menu: Bool = false, inBar: Bool = false) -> UKContext {
         var context = UKGalleryChrome.context()
-        context.navigator = ShellNavigator()
-        context.section = .home
         context.shell?.chrome = ShellChrome(showsMenuButton: menu, titleInHeader: !menu)
         context.shell?.headerEdgeCap = 96
         context.shell?.inVerticalBar = inBar
@@ -39,131 +37,6 @@ final class UKHostedPageBaseTests: DemoHouseTestCase {
         let navigation = UINavigationController(rootViewController: page)
         UKNavigationBarStyle.apply(to: navigation.navigationBar, large: true)
         return (navigation, HostedPage.show(navigation, size: size))
-    }
-
-    func testTheBarCarriesQuickLinksAndProfileThatAskTheNavigator() {
-        let context = context()
-        context.navigator?.profileName = "Alex Demo"
-        let page = HostedScrollPage(context: context, title: "Climate")
-        let (_, window) = host(page)
-        defer { window.isHidden = true }
-        let items = page.navigationItem.rightBarButtonItems ?? []
-        XCTAssertTrue(items.contains { $0.accessibilityIdentifier == "quickLinks.open" }, "Quick Links is on the bar")
-        XCTAssertEqual(page.navigationItem.title ?? page.title, "Climate")
-        let quick = items.first { $0.accessibilityIdentifier == "quickLinks.open" }
-        quick?.primaryAction?.performWithSender(nil, target: nil)
-        XCTAssertEqual(page.opened, ["quick"])
-        XCTAssertEqual(page.headerProfileName, "Alex Demo")
-    }
-
-    /// Each page's bar items carry the same stable identifiers on iOS 26, so the bar treats Profile and Quick Links as the same
-    /// items across a push and a pop instead of cross-fading them (a bar item cannot be shared between two pages: UIKit moves it).
-    func testPagesCarryStableBarItemIdentifiersAndKeepTheirItemsAcrossPushAndPop() throws {
-        let context = context()
-        context.navigator?.profileName = "Alex Demo"
-        let first = HostedScrollPage(context: context, title: "Climate")
-        let second = HostedScrollPage(context: context, title: "Lights")
-        let (navigation, window) = host(first)
-        defer { window.isHidden = true }
-        navigation.pushViewController(second, animated: false)
-        HostedPage.wait(0.3)
-        let a = first.navigationItem.rightBarButtonItems ?? []
-        let b = second.navigationItem.rightBarButtonItems ?? []
-        XCTAssertFalse(a.isEmpty)
-        XCTAssertEqual(a.count, b.count)
-        if #available(iOS 26.0, *) {
-            XCTAssertEqual(a.count, 3)
-            XCTAssertEqual(a.compactMap(\.identifier), b.compactMap(\.identifier))
-            XCTAssertEqual(Set(b.compactMap(\.identifier)), [UKShellHeaderItems.profileIdentifier, UKShellHeaderItems.quickLinksIdentifier])
-        }
-        navigation.popViewController(animated: false)
-        HostedPage.wait(0.3)
-        let profile = HostedPage.descendants(of: window).compactMap { $0 as? UKProfileButtonView }.first
-        XCTAssertNotNil(profile?.window, "Profile is on the window after the pop")
-        XCTAssertTrue(profile?.isUserInteractionEnabled ?? false)
-        XCTAssertEqual(first.navigationItem.rightBarButtonItems?.count, a.count)
-    }
-
-    /// The Duo's vertical bar: the rail's Profile and Quick Links carry the stable identifiers on both pages and are still there after
-    /// a push and a pop.
-    func testVerticalBarPagesCarryMatchingIdentifiersAcrossPushAndPop() throws {
-        guard #available(iOS 26.0, *), UKGlassEra.hasGlass else { throw XCTSkip("the rail's items are an iOS 26 glass-bar feature") }
-        let context = context(inBar: true)
-        context.navigator?.profileName = "Alex Demo"
-        let first = HostedScrollPage(context: context, title: "Climate")
-        let second = HostedScrollPage(context: context, title: "Lights")
-        let (navigation, window) = host(first)
-        defer { window.isHidden = true }
-        navigation.pushViewController(second, animated: false)
-        HostedPage.wait(0.3)
-        let expected = [UKShellHeaderItems.profileIdentifier, UKShellHeaderItems.quickLinksIdentifier]
-        func identifiers(_ page: UIViewController) -> [String] {
-            let items = page.navigationItem.rightBarButtonItems ?? page.navigationItem.trailingItemGroups.flatMap(\.barButtonItems)
-            return items.compactMap(\.identifier)
-        }
-        XCTAssertEqual(identifiers(first), expected)
-        XCTAssertEqual(identifiers(second), expected)
-        navigation.popViewController(animated: false)
-        HostedPage.wait(0.3)
-        XCTAssertEqual(identifiers(first), expected, "Profile and Quick Links are still on the rail after the pop")
-        let profile = (first.navigationItem.rightBarButtonItems ?? []).first
-        XCTAssertEqual(profile?.accessibilityIdentifier, "nav.profile")
-    }
-
-    /// A live text-size change rebuilds the page's header items, so the rail's system badge takes the new size, capped at xLarge, and the
-    /// rail's Large Content title carries the count.
-    func testALiveTextSizeChangeRefontsTheRailBadge() throws {
-        guard #available(iOS 26.0, *), UKGlassEra.hasGlass else { return }
-        let context = context(inBar: true)
-        context.shell?.attentionCount = 12
-        context.navigator?.profileName = "Alex Demo"
-        let page = HostedScrollPage(context: context, title: "Climate")
-        let (_, window) = host(page)
-        defer { window.isHidden = true }
-        let rail = { () -> UIBarButtonItem? in
-            let grouped = page.navigationItem.trailingItemGroups.flatMap(\.barButtonItems)
-            return (grouped + (page.navigationItem.rightBarButtonItems ?? [])).first { $0.accessibilityIdentifier == "nav.profile" }
-        }
-        let expected = { (category: UIContentSizeCategory) in UKShellHeaderItems.badgeFont(category: category).pointSize }
-        page.traitOverrides.preferredContentSizeCategory = .large
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-        let large = try XCTUnwrap(rail()?.badge?.font?.pointSize)
-        XCTAssertEqual(large, expected(.large))
-        XCTAssertEqual(rail()?.title, "\(UKShellHeaderItems.profileMenuTitle), 9+", "the Large Content Viewer names the count")
-        if case let .some(menu as UIAction) = rail()?.menuRepresentation {
-            XCTAssertEqual(menu.title, UKShellHeaderItems.profileMenuTitle, "the overflow menu keeps the owner-named \"Your Summary\"")
-        } else {
-            XCTFail("the rail item has its own menu representation")
-        }
-        page.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-        let ax5 = try XCTUnwrap(rail()?.badge?.font?.pointSize)
-        XCTAssertEqual(ax5, expected(.extraLarge), "AX5 holds at the xLarge size")
-        XCTAssertGreaterThan(ax5, large)
-        XCTAssertEqual(rail()?.accessibilityValue, ProfileButton.accessibilityValue(name: "Alex Demo", attentionCount: 12))
-    }
-
-    func testDefaultHeaderActionsOpenTheNavigatorsSheetsAndFlyout() {
-        let context = context(menu: true)
-        let page = UKPageViewController(context: context, title: "Home")
-        page.isSectionRoot = true
-        let (_, window) = host(page)
-        defer { window.isHidden = true }
-        page.openQuickLinks()
-        XCTAssertEqual(context.navigator?.quickLinksSection, .home)
-        page.openAccount()
-        XCTAssertEqual(context.navigator?.accountSection, .home)
-        let menu = page.navigationItem.leftBarButtonItem
-        XCTAssertEqual(menu?.accessibilityIdentifier, "nav.open", "a section root has the menu button where the flyout shows")
-        XCTAssertEqual(menu?.accessibilityLabel, "Open Navigation")
-        menu?.primaryAction?.performWithSender(nil, target: nil)
-        XCTAssertTrue(context.navigator?.isFlyoutOpen == true, "the menu button opens the flyout")
-        page.focusMenuButton()
-        XCTAssertEqual(page.navigationItem.largeTitleDisplayMode, .automatic)
-        context.shell?.chrome = ShellChrome(showsMenuButton: false, titleInHeader: true)
-        HostedPage.wait(0.2)
-        XCTAssertNil(page.navigationItem.leftBarButtonItem, "the menu button leaves with the flyout")
-        XCTAssertEqual(page.navigationItem.largeTitleDisplayMode, .never, "the title moves into the header")
     }
 
     func testASheetPageHasNoShellButtonsAndAnInlineTitle() {
@@ -211,7 +84,6 @@ final class UKHostedPageBaseTests: DemoHouseTestCase {
         XCTAssertEqual(leading.first { $0.accessibilityIdentifier == "columns.back" }?.isHidden, true, "nothing open hides the item")
         page.setColumnBar(nil)
         XCTAssertTrue(page.navigationItem.leadingItemGroups.isEmpty, "a narrow window takes the group away")
-        XCTAssertFalse(page.navigationItem.rightBarButtonItems?.isEmpty ?? true, "the shell's items sit on the bar again")
     }
 
     func testScrollToTopReturnsToTheTopOfTheContent() {

@@ -353,6 +353,8 @@ class UKRowView: UIView, UKSurfaceStyled {
 
         leadingStack.axis = .horizontal
         leadingStack.alignment = .center
+        // The container clears safe areas; row padding must not absorb a pinned bar's own inset.
+        leadingStack.insetsLayoutMarginsFromSafeArea = false
         leadingStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         root.alignment = .center

@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 17,
+  "version": 18,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -11,6 +11,7 @@
     ".agents/design/README.md": "Design: per-platform design decisions. (read when: making any visual or navigation choice.)",
     ".agents/design/action-navigation-tiles.md": "Action and navigation tiles: the decided convention for tiles that do something, tiles that open something, and tiles that only show state, plus the motion of their action buttons. (read when: adding, changing or reviewing any tile with an action, a chevron, or no action at all; building the action...",
     ".agents/design/apple/README.md": "Apple design: HIG-backed decisions per Apple form factor. (read when: changing layout, navigation or presentation on an Apple device.)",
+    ".agents/design/apple/app-shortcuts-and-spotlight.md": "App Shortcuts and Spotlight: the HIG choices behind the phrases, symbols and result titles for routes. (read when: changing `SHShortcuts`, a phrase, a symbol, or what a route shows in Spotlight.)",
     ".agents/design/apple/duo.md": "iPhone Duo: foldable iPhone adaptation. (read when: changing layout that a fold or hinge can cross.)",
     ".agents/design/apple/ipados.md": "iPadOS: iPad navigation decisions. (read when: building for regular width.)",
     ".agents/design/apple/iphone.md": "iPhone: iPhone navigation and presentation decisions. (read when: building any iPhone screen.)",
@@ -97,6 +98,7 @@
     ".agents/patterns/resume-lifecycle.md": "Resume lifecycle: the rule that a background and foreground leaves the app exactly as the first launch did, and the census that proves it. (read when: adding anything that registers on launch or resume (an observer, a subscription, a task, a timer, a display link, a player, a socket), or when scroll...",
     ".agents/patterns/room-device-sheets.md": "Room device sheets: the device sheets opened from room tiles: bathroom fan, air quality (purifier), humidifier, grill. (read when: adding or changing one of them, or a new device sheet that follows the same shape.)",
     ".agents/patterns/room-overview-sheet.md": "Room overview sheet: the room-by-room sheets behind Home's Lights, Climate, Occupancy, Contact Sensors and Air Quality chips, and the room detail they push. (read when: changing any of those sheets, the Security page's Contact Sensors sheet, or a room page's lights, climate, occupancy or contact she...",
+    ".agents/patterns/routes.md": "Routes: the one way the app opens an authored place: a plain path the accepted publication resolves. (read when: adding a way into a page (push link, Live Activity link, Spotlight, Siri, Shortcuts), or when a link opens the wrong page.)",
     ".agents/patterns/rows.md": "Rows (UIKit port): the one list row: slots for a leading glyph, check or avatar, the text (title, subtitle, value) and a trailing accessory or chevron. (read when: you are about to draw a title with a glyph, a value, a switch, a menu, a check or a chevron on one line, in a module list, a form cell,...",
     ".agents/patterns/schedule-date-fields.md": "Schedule date fields: date-and-time pickers for schedules. (read when: a page edits a start, end or alarm time.)",
     ".agents/patterns/scroll-fit.md": "Scroll fit: a vertical scroll view scrolls and bounces only when its content is taller than its viewport. (read when: adding a page, sheet, list or any vertical `ScrollView`, `List` or `Form`, or adding pull-to-refresh.)",

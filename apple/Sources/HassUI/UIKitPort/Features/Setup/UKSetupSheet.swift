@@ -16,7 +16,8 @@ final class UKNotificationSetupStepViewController: UKSetupStepPageViewController
         let primary = UKPrimaryButton(NotificationPermissionCopy.stepAction) { Task { await setup.continueNotifications() } }
         primary.accessibilityIdentifier = "setup.notifications.primary"
         super.init(barTitle: SetupStep.notifications.barTitle, content: UKSetupStepContent(
-            symbol: "bell.badge.fill", title: NotificationPermissionCopy.title, message: NotificationPermissionCopy.message,
+            symbol: "bell.badge.fill", title: NotificationPermissionCopy.title,
+            message: [NotificationPermissionCopy.message, setup.explanation(for: .notifications)].compactMap { $0 }.joined(separator: "\n\n"),
             footnote: NotificationPermissionCopy.stepFootnote, identifier: "setup.notifications", actions: [primary]))
     }
 
@@ -81,7 +82,8 @@ final class UKTimeSensitiveSetupStepViewController: UKSetupStepPageViewControlle
                 Task { await setup.finishTimeSensitive() }
             })
         }
-        return UKSetupStepContent(symbol: "bell.and.waves.left.and.right.fill", title: copy.title, message: copy.message,
+        return UKSetupStepContent(symbol: "bell.and.waves.left.and.right.fill", title: copy.title,
+                                  message: [copy.message, setup.explanation(for: .timeSensitive)].compactMap { $0 }.joined(separator: "\n\n"),
                                   points: TimeSensitiveCopy.points, footnote: copy.footnote, identifier: "setup.timeSensitive",
                                   status: status, actions: actions)
     }
@@ -152,7 +154,8 @@ final class UKSetupSheet {
             UKTimeSensitiveSetupStepViewController(setup: setup, openURL: openURL)
         case .location:
             if let location = setup.location {
-                UKLocationPermission.make(location: location, onClose: { [weak setup] in setup?.close() }, sheetTitle: SetupStep.location.barTitle)
+                UKLocationPermission.make(location: location, onClose: { [weak setup] in setup?.close() },
+                    sheetTitle: SetupStep.location.barTitle, explanation: setup.explanation(for: .location))
             } else {
                 UKPageViewController(sheetTitle: step.barTitle)
             }

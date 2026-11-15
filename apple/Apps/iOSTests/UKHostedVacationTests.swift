@@ -4,51 +4,32 @@ import UIKit
 import XCTest
 @testable import HassUI
 
-/// Vacation (chooser, Vacation Mode, Solo Trip) on the gallery's fixture house, which answers like Home Assistant, so a tap's
+/// Vacation (Vacation Mode, Solo Trip) on the gallery's fixture house, which answers like Home Assistant, so a tap's
 /// service call and the page's reaction both show.
 @MainActor
 final class UKHostedVacationTests: DemoHouseTestCase {
+    func testConfiguredVacationDateCopySurvivesUpdates() {
+        let range = Vacation.DateRange(start: WallClock(date: "2026-10-12", time: "08:00"),
+                                       end: WallClock(date: "2026-10-14", time: "18:00"))
+        let view = UKVacationDateFieldsView(range: range, invalid: true, identifierPrefix: "example.dates",
+                                           commitDelay: nil, description: "Choose your dates",
+                                           startLabel: "Leave", endLabel: "Return", errorText: "Choose a later return") { _, _ in }
+        view.frame = CGRect(x: 0, y: 0, width: 390, height: 600)
+        view.layoutIfNeeded()
+        view.update(range: range, invalid: true)
+        view.layoutIfNeeded()
+        let labels = HostedPage.labels(in: view)
+        XCTAssertTrue(labels.contains("Choose your dates"))
+        XCTAssertTrue(labels.contains("Choose a later return"))
+        XCTAssertTrue(labels.contains("Leave"))
+        XCTAssertTrue(labels.contains("Return"))
+    }
+
     private struct Screen {
         let page: UIViewController
         let house: VacationGalleryHouse
         let host: UIViewController
         let window: UIWindow
-    }
-
-    private func screen(_ scenario: VacationFixtures.Scenario, viewer: HouseholdResident = .resident1) async -> Screen {
-        let house = VacationGalleryHouse(store: VacationFixtures.store(scenario), delay: .milliseconds(30))
-        let context = UKGalleryChrome.context(store: house.store, caller: house)
-        let page = UKVacationViewController(context: context, responder: house, caller: house, currentUserId: { viewer.haUserId })
-        let host = UKGalleryChrome.wrap(page, context: context)
-        let window = HostedPage.show(host, size: CGSize(width: 393, height: 1800))
-        await FeatureHost.settleAsync(0.4)
-        return Screen(page: page, house: house, host: host, window: window)
-    }
-
-    private func has(_ identifier: String, _ screen: Screen) -> Bool { FeatureHost.view(identifier, in: screen.page.view) != nil }
-
-    // MARK: Chooser
-
-    func testTheChooserOffersBothAwayModesAndPushesEach() async {
-        let s = await screen(.idle)
-        defer { s.window.isHidden = true }
-        XCTAssertTrue(has("vacation.chooser.vacationMode", s) && has("vacation.chooser.soloTrip", s))
-        XCTAssertTrue(FeatureHost.press("vacation.chooser.vacationMode", in: s.page.view))
-        await FeatureHost.settleAsync(0.6)
-        XCTAssertEqual(s.page.navigationController?.viewControllers.count, 2, "Vacation Mode is pushed")
-        XCTAssertTrue(FeatureHost.view(VacationModeTile.identifier, in: s.page.navigationController!.topViewController!.view) != nil)
-        s.window.isHidden = true
-        let other = await screen(.idle)
-        defer { other.window.isHidden = true }
-        XCTAssertTrue(FeatureHost.press("vacation.chooser.soloTrip", in: other.page.view))
-        await FeatureHost.settleAsync(0.6)
-        XCTAssertNotNil(FeatureHost.view("soloTrip.toggle", in: other.page.navigationController!.topViewController!.view))
-    }
-
-    func testTheChooserSaysWhenSoloTripNeedsSetup() async {
-        let s = await screen(.unavailable)
-        defer { s.window.isHidden = true }
-        XCTAssertTrue(HostedPage.labels(in: s.page.view).contains(SoloTripCopy.setupRequiredSubtitle))
     }
 
     // MARK: Vacation Mode
@@ -131,8 +112,15 @@ final class UKHostedVacationTests: DemoHouseTestCase {
     // MARK: Solo Trip
 
     private func soloPage(_ scenario: VacationFixtures.Scenario) async -> (Screen, UIViewController) {
-        let s = await screen(scenario)
-        return (s, s.page)
+        let house = VacationGalleryHouse(store: VacationFixtures.store(scenario), delay: .milliseconds(30))
+        let context = UKGalleryChrome.context(store: house.store, caller: house)
+        let page = UKVacationSubpageViewController(
+            content: UKSoloTripContent(context: context, household: HouseholdAwayController(store: house.store, responder: house), viewer: .resident1),
+            context: context)
+        let host = UKGalleryChrome.wrap(page, context: context)
+        let window = HostedPage.show(host, size: CGSize(width: 393, height: 1800))
+        await FeatureHost.settleAsync(0.5)
+        return (Screen(page: page, house: house, host: host, window: window), page)
     }
 
     func testAnActiveSoloTripShowsTheTravelerAndEndsAfterAsking() async throws {

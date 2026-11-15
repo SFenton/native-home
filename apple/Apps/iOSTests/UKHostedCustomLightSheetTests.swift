@@ -72,4 +72,58 @@ final class UKHostedCustomLightSheetTests: DemoHouseTestCase {
         XCTAssertEqual(measured?.width, 150)
         XCTAssertGreaterThanOrEqual(measured?.height ?? 0, 44, "a swatch is at least a 44 pt target")
     }
+
+    func testInjectedGroupIsUsedAndConfirmationRechecksAvailability() async throws {
+        let light = CustomLightsConfig.Light(entityId: "light.demo_custom", title: "Test light")
+        let settings = try CustomLightsSettings(
+            sectionTitle: "Garden", manualTitle: "Manual", modeTitle: "Scene",
+            manualEntityId: "input_boolean.demo_manual", modeEntityId: "input_select.demo_mode",
+            groupEntityId: "light.demo_group", customMode: "Personal", fallbackModes: ["Normal", "Personal"],
+            modeSwatches: [:], lights: [light], resetKelvin: 2000, resetBrightness: 255, resetTransition: 1)
+        let store = EntityStore()
+        let source = EntityState(entityId: light.entityId, state: "on", attributes: [
+            "supported_color_modes": .array([.string("rgb")]), "rgb_color": .array([.number(255), .number(0), .number(0)]),
+        ])
+        store.replaceAll([source, EntityState(entityId: settings.groupEntityId, state: "on")])
+        let caller = LoggingResponder()
+        let page = UKCustomLightSheetViewController(light: light, context: UKGalleryChrome.context(store: store, caller: caller), settings: settings)
+        let window = HostedPage.show(UINavigationController(rootViewController: page), size: CGSize(width: 393, height: 900))
+        defer { window.isHidden = true }
+        FeatureHost.settle(0.3)
+        let apply = try XCTUnwrap(HostedDriver.control("customLight.applyAll", in: page.view))
+        apply.sendActions(for: .touchUpInside)
+        let shown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: page)?.isBeingPresented == false })
+        XCTAssertTrue(shown)
+        let alert = try XCTUnwrap(FeatureHost.alert(on: page))
+        store.apply([EntityState(entityId: settings.groupEntityId, state: "unavailable")])
+        let confirm = try XCTUnwrap(alert.actions.first { $0.style != .cancel })
+        XCTAssertTrue(FeatureHost.answer(alert, confirm.title))
+        let dismissed = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: page) == nil })
+        XCTAssertTrue(dismissed)
+        XCTAssertTrue(caller.calls.isEmpty)
+
+        store.apply([EntityState(entityId: settings.groupEntityId, state: "on")])
+        apply.sendActions(for: .touchUpInside)
+        let reopened = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: page)?.isBeingPresented == false })
+        XCTAssertTrue(reopened)
+        let next = try XCTUnwrap(FeatureHost.alert(on: page))
+        let nextConfirm = try XCTUnwrap(next.actions.first { $0.style != .cancel })
+        XCTAssertTrue(FeatureHost.answer(next, nextConfirm.title))
+        let sent = await FeatureHost.settleAsync(until: { !caller.calls.isEmpty })
+        XCTAssertTrue(sent)
+        XCTAssertEqual(caller.calls, ["light.turn_on"])
+        XCTAssertEqual(caller.data.last?["entity_id"] as? String, "light.demo_group")
+    }
+
+    func testModeButtonUsesConfiguredLabelOrderAndSelection() throws {
+        let button = UKLightingModeButton(title: "Scene") { _ in }
+        button.configure(mode: "Personal", swatch: [], modes: ["Normal", "Personal"])
+        XCTAssertEqual(button.accessibilityLabel, "Scene")
+        XCTAssertEqual(button.accessibilityValue, "Personal")
+        let menu = try XCTUnwrap(button.menu)
+        let actions = try menu.children.map { try XCTUnwrap($0 as? UIAction) }
+        XCTAssertEqual(menu.title, "Scene")
+        XCTAssertEqual(actions.map(\.title), ["Normal", "Personal"])
+        XCTAssertEqual(actions.map(\.state), [.off, .on])
+    }
 }

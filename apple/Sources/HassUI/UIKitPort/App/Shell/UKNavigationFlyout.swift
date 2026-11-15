@@ -3,6 +3,16 @@ import HassCore
 import HassDesign
 import UIKit
 
+/// A flyout row's presentation, independent of the app's compiled section catalog.
+struct UKFlyoutDestination: Equatable {
+    let id: String
+    let title: String
+    let symbol: String
+    let identifier: String
+    var badge: String?
+    var spokenLabel: String?
+}
+
 /// The regular-width navigation panel: an overlay that slides in from the leading edge over a full-window scrim, like the web's
 /// `drawer-only` layout. The UIKit counterpart of ``NavigationFlyout``: it never pushes or resizes the content
 /// (`.agents/design/apple/ipados.md`).
@@ -11,7 +21,7 @@ import UIKit
 /// the whole window (so nothing under the panel answers while it is open or still sliding away), the dimming scrim with its close
 /// target beside the panel, and the panel with its heading and one row per section.
 final class UKNavigationFlyoutView: UIView {
-    private let navigator: ShellNavigator
+    private let onDismiss: () -> Void
     private weak var shell: UKShellEnvironment?
     private let shield = UIView()
     private let dim = UIView()
@@ -22,8 +32,9 @@ final class UKNavigationFlyoutView: UIView {
     private var isSettling = false
     private var settleToken = 0
 
-    init(navigator: ShellNavigator, shell: UKShellEnvironment?) {
-        self.navigator = navigator
+    /// Reuses the canonical panel, animation, touch shield and accessibility with an arbitrary destination catalog.
+    init(shell: UKShellEnvironment?, onDismiss: @escaping () -> Void, onSelect: @escaping (String) -> Void) {
+        self.onDismiss = onDismiss
         self.shell = shell
         super.init(frame: .zero)
         backgroundColor = .clear
@@ -38,12 +49,12 @@ final class UKNavigationFlyoutView: UIView {
         addSubview(dim)
         closeTarget.accessibilityLabel = "Close Navigation"
         closeTarget.accessibilityIdentifier = "nav.flyout.scrim"
-        closeTarget.addAction(UIAction { [weak self] _ in self?.navigator.dismissFlyout() }, for: .touchUpInside)
+        closeTarget.addAction(UIAction { [weak self] _ in self?.onDismiss() }, for: .touchUpInside)
         addSubview(closeTarget)
         panel.accessibilityIdentifier = "nav.flyout"
-        panel.onEscape = { [weak self] in self?.navigator.dismissFlyout() }
-        panel.onClose = { [weak self] in self?.navigator.dismissFlyout() }
-        panel.onSelect = { [weak self] in self?.navigator.select($0) }
+        panel.onEscape = { [weak self] in self?.onDismiss() }
+        panel.onClose = { [weak self] in self?.onDismiss() }
+        panel.onSelect = onSelect
         addSubview(panel)
         // The panel's rows come first for VoiceOver; the close target is reachable after them.
         accessibilityElements = [panel, closeTarget]
@@ -51,16 +62,6 @@ final class UKNavigationFlyoutView: UIView {
         dim.alpha = 0
         closeTarget.isHidden = true
         panel.isHidden = true
-        bag.observe { [weak self] in
-            guard let self else { return }
-            self.setOpen(self.navigator.isFlyoutOpen)
-        }
-        bag.observe { [weak self] in
-            guard let self else { return }
-            let overdue = self.navigator.overdueChores
-            let selection = self.navigator.selection
-            self.panel.update(selection: selection, overdue: overdue)
-        }
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKNavigationFlyoutView, _) in
             view.panel.contentSizeChanged()
             view.setNeedsLayout()
@@ -72,11 +73,20 @@ final class UKNavigationFlyoutView: UIView {
 
     /// The overlay is invisible to touches except while the flyout is open or settling closed.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard isOpen || isSettling else { return nil }
+        guard isBlockingTouches else { return nil }
         return super.hitTest(point, with: event)
     }
 
-    @objc private func dismissTapped() { navigator.dismissFlyout() }
+    /// Also lets a publication coordinator avoid replacing destinations while the close animation shields touches.
+    var isBlockingTouches: Bool { isOpen || isSettling }
+
+    /// Applies values without reconstructing surviving rows or restarting an in-progress animation.
+    func update(destinations: [UKFlyoutDestination], selection: String?, isOpen: Bool) {
+        panel.update(destinations: destinations, selection: selection)
+        setOpen(isOpen)
+    }
+
+    @objc private func dismissTapped() { onDismiss() }
 
     // MARK: Layout
 
@@ -174,7 +184,7 @@ final class UKNavigationFlyoutView: UIView {
         return [escape]
     }
 
-    @objc private func escapePressed() { navigator.dismissFlyout() }
+    @objc private func escapePressed() { onDismiss() }
     override var canBecomeFirstResponder: Bool { isOpen }
 }
 
@@ -187,10 +197,12 @@ final class UKFlyoutPanel: UIView {
     private let heading = UILabel()
     private let closeButton = UIButton(type: .system)
     private let headingRow = UIStackView()
-    private var rows: [AppSection: UKFlyoutRow] = [:]
+    private var rows: [String: UKFlyoutRow] = [:]
+    private var destinations: [UKFlyoutDestination] = []
+    private let filler = UIView()
     var onEscape: () -> Void = {}
     var onClose: () -> Void = {}
-    var onSelect: (AppSection) -> Void = { _ in } {
+    var onSelect: (String) -> Void = { _ in } {
         didSet { rows.values.forEach { $0.onSelect = onSelect } }
     }
 
@@ -245,23 +257,15 @@ final class UKFlyoutPanel: UIView {
         headingRow.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: HassTokens.Spacing.m, bottom: HassTokens.Spacing.s, trailing: HassTokens.Spacing.m)
         headingRow.addArrangedSubview(heading)
         stack.addArrangedSubview(headingRow)
-        for section in NavigationMenu.primary {
-            let row = UKFlyoutRow(section: section)
-            rows[section] = row
-            row.onSelect = { [weak self] in self?.onSelect($0) }
-            stack.addArrangedSubview(row)
-        }
         // SwiftUI's VStack is `.top`-aligned inside a `minHeight` frame: the rows keep their size and the room left over sits below
         // them. A stack stretched to the safe area would hand that room to the heading row (rows pushed to the bottom).
-        let filler = UIView()
         filler.isAccessibilityElement = false
         filler.setContentHuggingPriority(UILayoutPriority(1), for: .vertical)
         filler.setContentCompressionResistancePriority(UILayoutPriority(1), for: .vertical)
-        if let last = stack.arrangedSubviews.last { stack.setCustomSpacing(0, after: last) }
         stack.addArrangedSubview(filler)
         accessibilityViewIsModal = true
         isAccessibilityElement = false
-        accessibilityElements = [heading, closeButton] + NavigationMenu.primary.compactMap { rows[$0] }
+        accessibilityElements = [heading, closeButton]
         contentSizeChanged()
         // The panel reads its own trait: the flyout's callback can run before the new size has reached this subview.
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKFlyoutPanel, _) in view.contentSizeChanged() }
@@ -275,8 +279,24 @@ final class UKFlyoutPanel: UIView {
         return true
     }
 
-    func update(selection: AppSection, overdue: Int?) {
-        for (section, row) in rows { row.update(isCurrent: section == selection, overdue: overdue) }
+    func update(destinations: [UKFlyoutDestination], selection: String?) {
+        if self.destinations.map(\.id) != destinations.map(\.id) {
+            for row in rows.values { row.removeFromSuperview() }
+            rows = rows.filter { id, _ in destinations.contains { $0.id == id } }
+            for (index, destination) in destinations.enumerated() {
+                let row = rows[destination.id] ?? UKFlyoutRow(destination: destination)
+                rows[destination.id] = row
+                row.onSelect = { [weak self] in self?.onSelect($0) }
+                stack.insertArrangedSubview(row, at: index + 1)
+                stack.setCustomSpacing(stack.spacing, after: row)
+            }
+            if let last = destinations.last.flatMap({ rows[$0.id] }) { stack.setCustomSpacing(0, after: last) }
+            accessibilityElements = [heading, closeButton] + destinations.compactMap { rows[$0.id] }
+        }
+        self.destinations = destinations
+        for destination in destinations {
+            rows[destination.id]?.update(destination: destination, isCurrent: destination.id == selection)
+        }
     }
 
     /// At accessibility sizes the panel can take the whole window, with no scrim strip to tap: a close button joins the heading.
@@ -308,7 +328,7 @@ final class UKFlyoutPanel: UIView {
 /// One destination in the panel: the section's symbol, its name and, for Chores, the overdue count. The current section sits on an
 /// accent tint, with the primary ink (white on the light accent measured 2.5:1 in the iPad audit).
 final class UKFlyoutRow: UIControl {
-    let section: AppSection
+    private(set) var destination: UKFlyoutDestination
     private let icon = UIImageView()
     private let title = UILabel()
     private let badge = UKInsetLabel()
@@ -316,10 +336,9 @@ final class UKFlyoutRow: UIControl {
     private let content = UIStackView()
     private var iconWidth: NSLayoutConstraint?
     private var isCurrent = false
-    private var overdue: Int?
 
-    init(section: AppSection) {
-        self.section = section
+    init(destination: UKFlyoutDestination) {
+        self.destination = destination
         super.init(frame: .zero)
         highlight.backgroundColor = tintColor.withAlphaComponent(0.18)
         highlight.layer.cornerRadius = HassTokens.Radius.chip
@@ -334,7 +353,7 @@ final class UKFlyoutRow: UIControl {
         title.textColor = .label
         title.adjustsFontForContentSizeCategory = true
         title.numberOfLines = 0
-        title.text = section.title
+        title.text = destination.title
         badge.textColor = .white
         badge.font = UKShellFont.preferred(.caption1, weight: .bold)
         badge.adjustsFontForContentSizeCategory = true
@@ -366,38 +385,40 @@ final class UKFlyoutRow: UIControl {
             width,
         ])
         isAccessibilityElement = true
-        accessibilityIdentifier = section.navigationIdentifier
+        accessibilityIdentifier = destination.identifier
         accessibilityTraits = .button
         addAction(UIAction { [weak self] _ in
             guard let self else { return }
-            self.onSelect(self.section)
+            self.onSelect(self.destination.id)
         }, for: .touchUpInside)
-        update(isCurrent: false, overdue: nil)
+        update(destination: destination, isCurrent: false)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     /// A tap on the row selects its section.
-    var onSelect: (AppSection) -> Void = { _ in }
+    var onSelect: (String) -> Void = { _ in }
 
-    func update(isCurrent: Bool, overdue: Int?) {
+    func update(destination: UKFlyoutDestination, isCurrent: Bool) {
+        self.destination = destination
         self.isCurrent = isCurrent
-        self.overdue = overdue
         highlight.isHidden = !isCurrent
-        let text = NavigationMenu.badgeText(for: section, overdue: overdue)
+        let text = destination.badge
         badge.isHidden = text == nil
         badge.text = text
+        title.text = destination.title
+        accessibilityIdentifier = destination.identifier
         title.font = UKShellFont.preferred(.body, weight: isCurrent ? .semibold : .regular)
-        icon.image = UIImage(systemName: section.symbol, withConfiguration: UIImage.SymbolConfiguration(font: UKShellFont.preferred(.body, weight: .semibold)))
-        accessibilityLabel = NavigationMenu.accessibilityLabel(for: section, overdue: overdue)
+        icon.image = UIImage(systemName: destination.symbol, withConfiguration: UIImage.SymbolConfiguration(font: UKShellFont.preferred(.body, weight: .semibold)))
+        accessibilityLabel = destination.spokenLabel ?? destination.title
         accessibilityTraits = isCurrent ? [.button, .selected] : .button
         setNeedsLayout()
     }
 
     func contentSizeChanged() {
         iconWidth?.constant = UKShellFont.scaled(28, relativeTo: .body, traits: traitCollection)
-        update(isCurrent: isCurrent, overdue: overdue)
+        update(destination: destination, isCurrent: isCurrent)
     }
 
     override func tintColorDidChange() {

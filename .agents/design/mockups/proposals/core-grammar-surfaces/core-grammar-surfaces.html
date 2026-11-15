@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Core grammar surfaces · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, I = Mock.icon;
+
+  /* Local helpers (promote to kit): the canonical control row of UKServerUILocalControl, the toggle line, the choice chips. */
+  var css = [
+    '.cg-col{display:flex;flex-direction:column;gap:16px;width:100%;min-width:0}',
+    '.cg-cap{margin:0 0 -8px;font:600 12px/1.3 var(--font);color:var(--ink-sheet-2);text-transform:uppercase;letter-spacing:.02em}',
+    '.cg-note{margin:0;font-size:13px;line-height:1.35;color:var(--ink-sheet-2)}',
+    '.cg-card{background:var(--sheet-cell);border-radius:var(--radius-module);overflow:hidden}',
+    '.cg-row{display:flex;flex-direction:column;gap:8px;padding:10px 16px;min-height:52px;justify-content:center;position:relative}',
+    '.cg-row + .cg-row::before{content:"";position:absolute;top:0;left:16px;right:0;height:.5px;background:var(--sep)}',
+    '.cg-top{display:flex;align-items:center;gap:12px;min-height:32px}',
+    '.cg-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}',
+    '.cg-ti{font-size:var(--fs-body);color:var(--ink)}',
+    '.cg-su{font-size:var(--fs-foot);color:var(--ink-sheet-2)}',
+    '.cg-val{font-size:var(--fs-body);color:var(--ink-sheet-2);font-variant-numeric:tabular-nums}',
+    '.cg-menu{display:inline-flex;align-items:center;gap:6px;min-height:44px;border:0;background:none;color:var(--ink-action);font:400 var(--fs-body)/1.2 var(--font);padding:0;cursor:pointer;text-align:left}',
+    '.cg-off{opacity:.5;pointer-events:none}',
+    '.cg-arc{display:inline-grid;place-items:center;color:var(--ink);transition:opacity var(--t-quick) ease-out}',
+    '.cg-ax .cg-arc .ui-arc{width:24px !important;height:24px !important}',
+    '.cg-ax .cg-top{flex-direction:column;align-items:flex-start;gap:8px}',
+    '.cg-ax .cg-tx{flex:none;width:100%}',
+    '.cg-line{display:flex;align-items:center;gap:12px;min-height:44px}',
+    '.cg-line .cg-tx{flex:1}',
+    '.cg-plain{padding:14px 16px;display:flex;flex-direction:column;gap:12px}',
+    '.cg-hd{font:600 var(--fs-sub)/1.25 var(--font);color:var(--ink);margin:0;display:flex;align-items:center;gap:8px}',
+    '.cg-field{display:flex;flex-direction:column;gap:8px;min-width:0}',
+    '.cg-grid{display:grid;gap:8px}',
+    '.cg-chip{width:100%;min-height:44px;border-radius:12px;border:0;background:var(--sheet-cell);color:var(--ink);font:400 var(--fs-sub)/1.2 var(--font);padding:6px 8px;cursor:pointer;overflow-wrap:anywhere}',
+    '.cg-chip.sel{background:#0071E3;color:#fff;font-weight:600}',
+    '.cg-rail{display:flex;gap:8px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}',
+    '.cg-rail .cg-chip{width:auto;flex:none;border-radius:999px;padding:6px 16px;white-space:nowrap}',
+    '.cg-join{display:grid;gap:2px;padding:2px;border-radius:12px;background:var(--sheet-cell)}',
+    '.cg-join button{min-width:0;min-height:44px;border:0;border-radius:10px;background:none;color:var(--ink);font:400 var(--fs-sub)/1.2 var(--font);cursor:pointer;overflow-wrap:anywhere}',
+    '.cg-join button.sel{background:var(--ink);color:var(--sheet-cell);font-weight:600}',
+    '.cg-film{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}',
+    '.cg-ax .cg-film{grid-template-columns:1fr}',
+    '.cg-btn{align-self:flex-start}',
+  ].join('\n');
+  document.head.appendChild(h('style', css));
+
+  function bodyScale(ctx) { return ctx.ts === 'ax5' ? 3.1 : ctx.ts === 'xxxl' ? 1.35 : 1; }
+  function contentW(ctx) { return (ctx.compact ? ctx.w : Math.min(540, ctx.w - 64)) - 32; }
+  function arc(shown) { var a = h('span.cg-arc', K.ArcSpinner({ size: 'inline', label: 'In progress' })); if (shown === false) a.style.opacity = 0; return a; }
+  /* One control row: title line (title, status line under it, arc, value, accessory), then a body control. */
+  function row(title, o) {
+    o = o || {};
+    var tx = h('div.cg-tx', h('span.cg-ti', title), o.sub ? h('span.cg-su', o.sub) : null);
+    var top = h('div.cg-top', tx, o.arc ? arc() : null, o.value ? h('span.cg-val', o.value) : null, o.acc ? h('span' + (o.off ? '.cg-off' : ''), o.acc) : null);
+    return h('div.cg-row', top, o.body ? h('div' + (o.off ? '.cg-off' : ''), o.body) : null, o.alert ? K.InlineAlert({ message: o.alert, severity: 'error' }) : null);
+  }
+  function card() { return h('div.cg-card', [].slice.call(arguments)); }
+  function seg(options, sel, label) { return K.SegmentedChoice({ options: options, selected: sel, label: label }); }
+  function menu(value, label) { return h('button', { 'class': 'cg-menu',  type: 'button', 'aria-haspopup': 'menu', 'aria-label': label + ', ' + value }, h('span', value), h('span', { html: I('chevron.up.chevron.down', { size: '.8em' }), 'aria-hidden': 'true' })); }
+  function sw(on, label) { return K.Toggle({ on: on, label: label }); }
+  function slider(v, label) { return K.Slider({ value: v, label: label }); }
+  function line(title, on, o) {
+    o = o || {};
+    return h('div.cg-line', h('div.cg-tx', h('span.cg-ti', title), o.sub ? h('span.cg-su', o.sub) : null), o.arc ? arc() : null, h('span' + (o.off ? '.cg-off' : ''), sw(on, title)));
+  }
+  function cap(t) { return h('p.cg-cap', t); }
+  function note(t) { return h('p.cg-note', t); }
+  function col(ctx, kids) { return h('div.cg-col' + (ctx.axSize ? '.cg-ax' : ''), kids); }
+
+  var MODES = ['Auto', 'Manual', 'Sleep'], SPEEDS = ['Low', 'Medium', 'High', 'Turbo', 'Quiet'];
+  var LENGTHS = ['15 Minutes', '30 Minutes', '1 Hour', '2 Hours', '4 Hours', '8 Hours'];
+
+  function chipGrid(ctx, title, sel, o) {
+    o = o || {};
+    var n = Math.max(1, Math.min(5, LENGTHS.length, Math.floor((contentW(ctx) + 8) / (120 * bodyScale(ctx) + 8))));
+    var items = LENGTHS.map(function (v) { return h('button', { 'class': 'cg-chip' + (v === sel ? ' sel' : ''),  type: 'button', 'aria-pressed': v === sel ? 'true' : 'false' }, v === sel ? '✓ ' + v : v); });
+    return h('div.cg-field', { role: 'group', 'aria-label': title }, h('p.cg-hd', title, o.arc ? arc() : null), o.sub ? h('span.cg-su', o.sub) : null,
+      h('div.cg-grid' + (o.off ? '.cg-off' : ''), { style: { gridTemplateColumns: 'repeat(' + n + ', 1fr)' } }, items));
+  }
+  function chipRail(title, sel) {
+    return h('div.cg-field', { role: 'group', 'aria-label': title }, h('p.cg-hd', title), h('div.cg-rail', LENGTHS.map(function (v) { return h('button', { 'class': 'cg-chip' + (v === sel ? ' sel' : ''),  type: 'button', 'aria-pressed': v === sel ? 'true' : 'false' }, v); })));
+  }
+  function chipJoin(ctx, title, sel) {
+    var n = ctx.axSize ? (ctx.compact ? 1 : 3) : (ctx.compact ? 3 : 6);
+    return h('div.cg-field', { role: 'group', 'aria-label': title }, h('p.cg-hd', title), h('div.cg-join', { role: 'radiogroup', style: { gridTemplateColumns: 'repeat(' + n + ', 1fr)' } },
+      LENGTHS.map(function (v) { return h('button' + (v === sel ? '.sel' : ''), { type: 'button', role: 'radio', 'aria-checked': v === sel ? 'true' : 'false' }, v); })));
+  }
+
+  function presenter(ctx) { return Mock.page(ctx, { title: 'Bedroom', section: 'rooms', body: [K.PageSectionHeader({ title: 'Devices' }), K.TileGrid({ items: [{ title: 'Humidifier', subtitle: 'On · 45%', symbol: 'humidifier', isActive: true }, { title: 'Ceiling Fan', subtitle: 'Off', symbol: 'fan' }], min: 150, max: 4 })] }); }
+  function sheet(ctx, kids, extra) {
+    return Mock.sheet(ctx, Object.assign({ title: 'Humidifier', detent: 'large', size: 'form', trailing: 'close', presenter: presenter(ctx), content: col(ctx, kids) }, extra || {}));
+  }
+
+  /* ---- Settled: what ships today, or a registered rule applied to a new field ---- */
+  function settled(ctx) {
+    return sheet(ctx, [
+      cap('Choice · segmented, 2 to 4 options'), card(row('Mode', { body: seg(MODES, 'Auto', 'Mode') })),
+      cap('Choice · menu, 5 or more'), card(row('Fan Speed', { acc: menu('Medium', 'Fan Speed') }), row('Display', { acc: sw(true, 'Display') }), row('Child Lock', { acc: sw(false, 'Child Lock') })),
+      cap('Toggle · line, inside a card'), h('div.cg-card.cg-plain', h('p.cg-hd', 'Night Light'), line('Night Light', true), line('Dim After 10 Minutes', false)),
+      cap('Slider · range 30 to 70, step 5, format {value}%'), card(row('Target Humidity', { value: '45%', body: slider(.375, 'Target Humidity') })),
+    ]);
+  }
+  function unavailable(ctx) {
+    return sheet(ctx, [
+      cap('Unavailable: the control dims, the status line says why'),
+      card(row('Mode', { sub: 'Unavailable', body: seg(MODES, null, 'Mode'), off: true })),
+      card(row('Fan Speed', { sub: 'Unavailable', acc: menu('Medium', 'Fan Speed'), off: true }), row('Display', { sub: 'Unavailable', acc: sw(true, 'Display'), off: true })),
+      h('div.cg-card.cg-plain', line('Night Light', false, { sub: 'Unavailable', off: true })),
+      card(row('Target Humidity', { sub: 'Unavailable', body: slider(.375, 'Target Humidity'), off: true })),
+      note('The switch, menu and thumb keep the last value shown. The slider drops its number: the status line stands in for it. Words are the authored unavailable text.'),
+    ]);
+  }
+  function sliderFilm(ctx) {
+    function f(c, r) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, note(c), card(r)); }
+    return sheet(ctx, [cap('Slider: during a drag and after release'), h('div.cg-film', [
+      f('1 · Resting on the live value', row('Target Humidity', { value: '45%', body: slider(.375, 'Target Humidity') })),
+      f('2 · Dragging: the thumb snaps to each step, the number follows, one tick per step. Live updates wait.', row('Target Humidity', { value: '55%', body: slider(.625, 'Target Humidity') })),
+      f('3 · Released: the call goes out by its commit mode; the thumb shows the optimistic value', row('Target Humidity', { value: '55%', body: slider(.625, 'Target Humidity') })),
+      f('4 · Failed: the thumb goes back; the caption stays 4 s', row('Target Humidity', { value: '45%', body: slider(.375, 'Target Humidity'), alert: 'Couldn’t set 55%. Check the connection.' })),
+    ]), note('immediate: a call at every step. release: one call when the finger lifts. debounced: one call once the value has rested for the app’s delay (what ships).')]);
+  }
+  function ask(ctx, destructive) {
+    var buttons = destructive ? [{ title: 'Delete Every Night', role: 'destructive' }, { title: 'Delete Tonight Only', role: 'destructive' }, { title: 'Cancel', role: 'cancel' }]
+      : [{ title: 'Tonight Only' }, { title: 'Every Night' }, { title: 'Cancel', role: 'cancel' }];
+    var dialog = K.ConfirmationDialog({ title: destructive ? 'Delete Schedule?' : 'Change Which Nights?', buttons: buttons, ctx: ctx, anchor: { top: Math.max(40, (ctx.h - 620) / 2) + 262, left: (ctx.w - Math.min(540, ctx.w - 64)) / 2 + 16 } });
+    return sheet(ctx, [cap('ask: an action sheet whose options each send a call'), card(row('Target Humidity', { value: '55%', body: slider(.625, 'Target Humidity') })),
+      h('div.cg-btn', K.PrimaryButton({ title: destructive ? 'Delete Schedule' : 'Apply', inline: true })),
+      note(ctx.regular ? 'Regular width: a popover anchored to the control that raised it, with no Cancel; a tap outside cancels.' : 'Compact width: the action sheet with a separate Cancel.')], { alert: dialog });
+  }
+
+  /* ---- Question 1: a call in flight with no optimistic value ---- */
+  function q1(ctx, key) {
+    function frames(a, b, c) {
+      function f(t, r) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, note(t), card(r)); }
+      return h('div.cg-film', [f('1 · At the tap on Sleep', a), f('2 · Waiting on Home Assistant', b), f('3 · It answers', c)]);
+    }
+    var live = function (o) { return row('Mode', Object.assign({ body: seg(MODES, 'Auto', 'Mode') }, o || {})); };
+    var moved = function (o) { return row('Mode', Object.assign({ body: seg(MODES, 'Sleep', 'Mode') }, o || {})); };
+    var body = key === 'a' ? frames(moved(), moved(), moved()) : key === 'b' ? frames(live(), live({ arc: true }), moved()) : frames(moved(), moved({ arc: true }), moved());
+    var text = { a: 'A · Held value. The control keeps the tapped value itself until Home Assistant answers or 2 s pass. No indicator.',
+      b: 'B · Arc on the title line. The control keeps the live value; an arc fades in at the end of the title line after 150 ms and out when the call ends.',
+      c: 'C · Both. The control holds the tapped value and shows the arc.' }[key];
+    return sheet(ctx, [cap('Pending, no optimistic value'), note(text), body,
+      cap('The same on a switch row and a toggle line'), card(row('Display', key === 'a' ? { acc: sw(true, 'Display') } : key === 'b' ? { arc: true, acc: sw(false, 'Display') } : { arc: true, acc: sw(true, 'Display') })),
+      note('A call that declares an optimistic value shows it at the tap in every option, with no arc: that rule is already set.')]);
+  }
+
+
+  /* ---- Pending (owner direction): optimistic value, then the arc after the optimism timeout, then live or failed ---- */
+  var ST = window.StateTile, DSWAP = { placement: 'swap' };
+  function tl(text, cls, active) { return ST.tile({ title: 'Boost', text: text, icon: 'power', cls: cls, active: active, indicator: cls === 'in-progress' ? 'arc' : 'none', action: cls === 'in-progress' ? null : { symbol: 'power', verb: active ? 'Turn Off' : 'Turn On' } }, DSWAP); }
+  function frame(t, kids) { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 } }, note(t), kids); }
+  function runButton(title, running) {
+    var b = K.PrimaryButton({ title: title, symbol: running ? null : 'moon', inline: true });
+    if (running) { b.insertBefore(h('span', { style: { display: 'inline-grid', marginRight: '8px', verticalAlign: 'middle' } }, K.ArcSpinner({ size: 'inline', label: 'In progress' })), b.firstChild); b.setAttribute('aria-disabled', 'true'); }
+    return b;
+  }
+  function pending(ctx, keep) {
+    var on = function (o) { return row('Display', Object.assign({ acc: sw(true, 'Display') }, o || {})); }, off = function (o) { return row('Display', Object.assign({ acc: sw(false, 'Display') }, o || {})); };
+    var sleep = function (o) { return row('Mode', Object.assign({ body: seg(MODES, 'Sleep', 'Mode') }, o || {})); }, auto = function (o) { return row('Mode', Object.assign({ body: seg(MODES, 'Auto', 'Mode') }, o || {})); };
+    var waitRow = keep ? on({ arc: true }) : off({ arc: true }), waitSeg = keep ? sleep({ arc: true }) : auto({ arc: true });
+    return sheet(ctx, [cap(keep ? 'Not chosen: the tapped value stays under the arc' : 'Pending: optimistic, then the arc, then live'),
+      keep ? note('The alternative to frame 2. It keeps showing a value Home Assistant has not reported; the rule shows Home Assistant’s value under the arc.') : null,
+      h('div.cg-film', [
+        frame('1 · At the tap: the optimistic value, no indicator. It holds until Home Assistant confirms or the optimism timeout passes (2 s here).', [card(on(), sleep()), K.TileGrid({ items: [tl('On', 'resting', true)], min: 150, max: 1 })]),
+        frame('2 · No confirmation by the timeout: the control shows Home Assistant’s value and the arc fades in. On a tile the arc stands in the disc’s place.', [card(waitRow, waitSeg), K.TileGrid({ items: [tl('Turning On…', 'in-progress', !!keep)], min: 150, max: 1 })]),
+        frame('3 · The first change of what is watched: the arc fades out and the live value shows.', [card(on(), sleep()), K.TileGrid({ items: [tl('On', 'resting', true)], min: 150, max: 1 })]),
+        frame('Or · No change by the ceiling (10 s here): the failed face for 4 s.', [card(off({ alert: 'Didn’t Respond' }), auto({ alert: 'Didn’t Respond' })), K.TileGrid({ items: [tl('Didn’t Respond', 'error', false)], min: 150, max: 1 })]),
+      ]),
+      keep ? null : note('A confirmation before the timeout ends at frame 1 with nothing else drawn. A rejected call goes straight to the failed face.')]);
+  }
+  function pendingButton(ctx) {
+    return sheet(ctx, [cap('A button that runs a script: nothing to hold, so it watches the script'),
+      h('div.cg-film', [
+        frame('1 · Resting.', h('div.cg-btn', runButton('Run Bedtime', false))),
+        frame('2 · The script reports on: the arc takes the symbol’s place inside the button, which takes no taps. Shown once the wait passes 150 ms.', h('div.cg-btn', runButton('Run Bedtime', true))),
+        frame('3 · The script reports off: the symbol returns.', h('div.cg-btn', runButton('Run Bedtime', false))),
+      ]),
+      cap('Watching nothing'), h('div.cg-btn', runButton('Run Bedtime', false)), note('The button shows its press state and nothing more. A rejected call still reports a failure.')]);
+  }
+  function studioPanel() {
+    function f(label, control, hint) { return h('div', { style: { display: 'grid', gridTemplateColumns: '220px 1fr', gap: '6px 16px', alignItems: 'center', padding: '8px 0', borderTop: '1px solid rgba(128,128,128,.3)' } }, h('span', { style: { fontWeight: 600 } }, label), control, hint ? h('span') : null, hint ? h('span', { style: { opacity: .75, fontSize: '13px' } }, hint) : null); }
+    function box(t) { return h('span', { style: { display: 'inline-block', padding: '5px 10px', border: '1px solid rgba(128,128,128,.45)', borderRadius: '6px', justifySelf: 'start' } }, t); }
+    return h('div', { style: { maxWidth: '760px', padding: '14px 18px', border: '1px solid rgba(128,128,128,.45)', borderRadius: '10px' } },
+      h('div', { style: { margin: '0 0 8px', fontWeight: 700 } }, 'While Home Assistant answers'),
+      f('Watch', box('This control’s value ▾'), 'Also: Another entity or attribute… · The script’s running state · Nothing'),
+      f('Show the tapped value for', box('2 s'), 'Default for light.turn_on. Then the arc, unless Home Assistant has confirmed.'),
+      f('Give up after', box('10 s'), 'Default for light.turn_on. Never shorter than the time above.'),
+      f('Then', box('Show “Didn’t Respond” ▾'), 'Also: Stop waiting quietly'),
+      f('Arc', box('On ▾'), 'Off: the value goes back at the timeout with no arc.'),
+      h('div', { style: { margin: '10px 0 0', fontSize: '13px', opacity: .75 } }, 'Preview: Tap · No answer by the timeout · Change arrives · No answer by the ceiling · Rejected. Each step redraws the control at iPhone, Duo and iPad widths.'));
+  }
+
+  /* ---- Question 2: where a disabled control's reason sits ---- */
+  function q2(ctx, key) {
+    var why = 'Turn on the humidifier first.';
+    if (key === 'a') return sheet(ctx, [cap('Disabled with a reason'), note('A · On the control’s own status line: the line under its title.'),
+      card(row('Mode', { sub: why, body: seg(MODES, 'Auto', 'Mode'), off: true }), row('Fan Speed', { sub: 'Only in Manual mode.', acc: menu('Medium', 'Fan Speed'), off: true }), row('Display', { acc: sw(true, 'Display') })),
+      h('div.cg-card.cg-plain', line('Night Light', false, { sub: why, off: true })),
+      K.TileGrid({ items: [{ title: 'Boost', subtitle: 'Off · Tank empty', symbol: 'power', isUnavailable: true }, { title: 'Quiet Mode', subtitle: 'On', symbol: 'moon', isActive: true }], min: 150, max: 2 }),
+      note('A tile carries it after its state: “Off · Tank empty”.')]);
+    return sheet(ctx, [cap('Disabled with a reason'), note('B · In a footer under the group, as the sprinkler schedule does today.'),
+      card(row('Mode', { body: seg(MODES, 'Auto', 'Mode'), off: true }), row('Fan Speed', { acc: menu('Medium', 'Fan Speed'), off: true }), row('Display', { acc: sw(true, 'Display') })),
+      h('p.ui-formfoot', 'Turn on the humidifier to change the mode. Fan Speed works only in Manual mode.'),
+      h('div.cg-card.cg-plain', line('Night Light', false, { off: true })), h('p.ui-formfoot', why),
+      K.TileGrid({ items: [{ title: 'Boost', subtitle: 'Off', symbol: 'power', isUnavailable: true }, { title: 'Quiet Mode', subtitle: 'On', symbol: 'moon', isActive: true }], min: 150, max: 2 }), h('p.ui-formfoot', 'Boost needs water in the tank.')]);
+  }
+
+  /* ---- Question 3: the chips surface ---- */
+  function q3(ctx, key) {
+    var c = key === 'a' ? chipGrid(ctx, 'Turn Off After', '1 Hour') : key === 'b' ? chipRail('Turn Off After', '1 Hour') : chipJoin(ctx, 'Turn Off After', '1 Hour');
+    var text = { a: 'A · Wrapping grid: the shipped choice grid of the wake-light ramp. Cells are at least 120 pt, scaled with the text; at most 5 columns.',
+      b: 'B · One scrolling rail of capsules. Options past the edge are off screen until scrolled.',
+      c: 'C · Joined segments that wrap: the shipped fan timer row.' }[key];
+    return sheet(ctx, [cap('Choice · chips'), note(text), c,
+      key === 'a' ? chipGrid(ctx, 'Unavailable', null, { sub: 'Unavailable', off: true }) : null,
+      cap('Beside the other surfaces'), card(row('Mode', { body: seg(MODES, 'Auto', 'Mode') }), row('Fan Speed', { acc: menu('Medium', 'Fan Speed') }))]);
+  }
+
+  function table(head, rows) {
+    return h('div.k-table-wrap', h('table', h('thead', h('tr', head.map(function (x) { return h('th', x); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (x) { return h('td', x); })); }))));
+  }
+  function st(title, fn, override) { var s = { title: title, render: fn }; if (override) s.override = override; return s; }
+  var AX = { ts: 'ax5' };
+
+  Mock.mount({
+    kind: 'proposal', id: 'core-grammar-surfaces', title: 'Core grammar surfaces', area: 'proposals', status: 'decided', decision: '.agents/decisions/2026-11-14-core-grammar-surfaces-owner-picks.md',
+    summary: 'Decided. The generic authored controls that replace the family composites: choice as segmented, menu or chips; the toggle line; a disabled control\u2019s reason; the ask action sheet; slider range, format and commit; unavailable on every surface; and what a control shows while Home Assistant answers. The owner picked the control\u2019s own status line for a disabled reason (Q2 A) and the wrapping grid for chips (Q3 A), and gave a new direction for Q1: the optimistic value, then the arc after an optimism timeout until a change, with per-control settings.',
+    source: ['apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIShellPrimitives.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIControlBinding.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUIBoundControl.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKControllerControls.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPercentSliderRow.swift',
+      'apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKDeviceKit.swift', 'apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedroomKit.swift', 'apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift'],
+    spec: ['.agents/design/core-grammar-surfaces.md', '.agents/design/pending-controls.md', '.agents/patterns/alerts.md', '.agents/patterns/optimistic-actions.md', '.agents/patterns/settings-section.md', '.agents/patterns/rows.md', '.agents/patterns/option-picker.md'],
+    patterns: ['rows', 'option-picker', 'alerts', 'optimistic-actions', 'settings-section'],
+    hig: ['Segmented controls', 'Pop-up buttons', 'Toggles', 'Sliders', 'Action sheets', 'Alerts', 'Popovers', 'Progress indicators', 'Typography', 'Accessibility', 'Writing', 'Designing for iPhone Duo'],
+    kitComponents: ['StateTile', 'SegmentedChoice', 'Toggle', 'Slider', 'ConfirmationDialog', 'InlineAlert', 'ArcSpinner', 'GlassTile', 'TileGrid', 'PrimaryButton'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': st('Settled · the surfaces as they ship', settled),
+      'unavailable': st('Settled · unavailable on every surface', unavailable),
+      'slider': st('Settled · slider during a drag and after release', sliderFilm),
+      'ask': st('Settled · ask (sheet on compact, popover on regular)', function (ctx) { return ask(ctx, false); }),
+      'ask-destructive': st('Settled · ask with destructive options', function (ctx) { return ask(ctx, true); }),
+      'ax5': st('Settled · Accessibility 5', settled, AX),
+      'ask-ax5': st('Settled · ask at Accessibility 5', function (ctx) { return ask(ctx, false); }, AX),
+      'pending': st('Pending · optimistic, then the arc, then live (chosen)', function (ctx) { return pending(ctx, false); }),
+      'pending-button': st('Pending · a button that runs a script', pendingButton),
+      'pending-ax5': st('Pending · Accessibility 5', function (ctx) { return pending(ctx, false); }, AX),
+      'pending-reduce': st('Pending · Reduce Motion', function (ctx) { return pending(ctx, false); }, { reduceMotion: true }),
+      'pending-keep': st('Pending · the tapped value kept under the arc (not chosen)', function (ctx) { return pending(ctx, true); }),
+      'q1-a': st('Q1 · A held value (not chosen)', function (ctx) { return q1(ctx, 'a'); }),
+      'q1-b': st('Q1 · B arc on the title line (not chosen)', function (ctx) { return q1(ctx, 'b'); }),
+      'q1-c': st('Q1 · C both (not chosen)', function (ctx) { return q1(ctx, 'c'); }),
+      'q2-a': st('Q2 · A the control’s own status line (chosen)', function (ctx) { return q2(ctx, 'a'); }),
+      'q2-b': st('Q2 · B a footer under the group (rejected)', function (ctx) { return q2(ctx, 'b'); }),
+      'q2-a-ax5': st('Q2 · A at Accessibility 5', function (ctx) { return q2(ctx, 'a'); }, AX),
+      'q2-b-ax5': st('Q2 · B at Accessibility 5', function (ctx) { return q2(ctx, 'b'); }, AX),
+      'q3-a': st('Q3 · A wrapping grid (chosen)', function (ctx) { return q3(ctx, 'a'); }),
+      'q3-b': st('Q3 · B scrolling rail (rejected)', function (ctx) { return q3(ctx, 'b'); }),
+      'q3-c': st('Q3 · C joined segments that wrap (rejected)', function (ctx) { return q3(ctx, 'c'); }),
+      'q3-a-ax5': st('Q3 · A at Accessibility 5', function (ctx) { return q3(ctx, 'a'); }, AX),
+      'q3-b-ax5': st('Q3 · B at Accessibility 5', function (ctx) { return q3(ctx, 'b'); }, AX),
+      'q3-c-ax5': st('Q3 · C at Accessibility 5', function (ctx) { return q3(ctx, 'c'); }, AX),
+    },
+
+    sections: [
+      { id: 'questions', title: 'The three questions and the answers', build: function () {
+        return h('div', table(['Question', 'A', 'B', 'C', 'Answer'], [
+          ['Q1 · A call in flight that declares no optimistic value', 'The control holds the tapped value, no indicator', 'The control keeps the live value; an arc at the end of the title line', 'Held value and the arc',
+            'None of the three. The owner: \u201cNeed you to intelligently define an optimism timeout that\u2019s then changed to the arc spinner until a change occurs. Users should also be able to configure- ex a button might just trigger a script or something?\u201d See the Pending states and the tables below.'],
+          ['Q2 · Where a disabled control’s reason sits', 'The line under the control’s own title; a tile after its state', 'A footer under the group (the sprinkler schedule today)', '',
+            'A, the owner\u2019s pick. The sprinkler footer stays: its group has one cause.'],
+          ['Q3 · The chips look', 'Wrapping grid (the shipped choice grid)', 'One scrolling rail', 'Joined segments that wrap (the shipped fan timer row)',
+            'A, the owner\u2019s pick. The fan timer row changes look when its lane folds it in.'],
+        ]));
+      } },
+      { id: 'pending-defaults', title: 'Pending: phases, defaults and where each number comes from', build: function () {
+        return h('div', table(['Phase', 'Shows', 'Ends'], [
+          ['Optimistic', 'The tapped value, no indicator', 'Confirmation (silently), or the optimism timeout'],
+          ['Waiting', 'Home Assistant’s value and the arc: end of the title line on a row, inside a button, the disc’s place on a tile', 'The first change of what is watched, or the ceiling'],
+          ['Failed', 'The value back, the failed face for 4 s', 'A rejected call at any time; no change by the ceiling'],
+        ]), table(['Call', 'Watch', 'Optimism timeout', 'Ceiling', 'Source'], [
+          ['light, switch, fan, input helpers, select, number', 'The control’s value', '2 s', '10 s', 'ha-sfenton-react-dash@7c4ebf9:src/hooks/useOptimisticState.ts:3 (2000 ms); 10 s is the acknowledgement time of the garage and blind styles and useWakeLightController.ts:14'],
+          ['climate, humidifier, water heater, vacuum, media player', 'The control’s value', '8 s', '30 s', 'HumidifierModalContent.tsx:95 and VacuumCard.tsx:98 (8000 ms); VacuumCard.tsx:99 and DashboardViewPage.tsx:3468 (30000 ms)'],
+          ['cover, lock, valve, alarm', 'The control’s value', '2 s', '45 s', 'Home Assistant reports opening, closing, locking and unlocking as their own states, so the first change comes early; 45 s is the settle time of the garage and blind styles'],
+          ['script', 'The script’s running state', 'none', 'none while it runs', 'Home Assistant: “Its state is on while the script is running, and off otherwise.”'],
+          ['scene, button and anything else', 'Nothing', 'none', '10 s for the call itself', 'No state to watch'],
+        ]), h('p', { style: { maxWidth: '78ch' } }, 'Not sourced: Home Assistant publishes no settle time per domain, so the 8 s and 30 s rows rest on the dashboard’s values for its cloud devices. Nothing here was timed on a device.'));
+      } },
+      { id: 'studio', title: 'The authored settings (Studio panel sketch)', build: function () { return studioPanel(); } },
+      { id: 'settled', title: 'Settled without a pick, and what settles each', build: function () {
+        return h('div', table(['Surface', 'Draws', 'Settled by'], [
+          ['Choice · segmented', 'The system segmented control under the row title; the menu form at accessibility sizes', 'option-picker pattern; HIG Segmented controls'],
+          ['Choice · menu', 'A pop-up button as the row accessory with the up-down chevron; under the title at accessibility sizes', 'rows and settings-section patterns; HIG Pop-up buttons'],
+          ['Choice with no surface named', 'Segmented for 2 to 4 options, else the menu', 'What ships'],
+          ['Toggle · line', 'A body-size label and a trailing switch, at least 44 pt, inside a card or sheet group', 'What ships (the Display and Alarm Enabled lines)'],
+          ['Unavailable', 'Control at 50%, no input, the authored unavailable text on the status line', 'What ships; the say-why rule for the slider’s words'],
+          ['ask', 'An action sheet anchored to its control; popover with no Cancel on regular width', 'alerts pattern; the shipped bed scope sheet; HIG Action sheets'],
+          ['Slider range and format', 'The shipped slider row with the authored range, step and value text', 'What ships'],
+          ['Commit modes', 'When the call goes out; nothing drawn changes', 'Timing only; debounced is what ships and the default'],
+          ['A failed call', 'The value goes back; an inline error under the control for 4 s', 'optimistic-actions pattern'],
+        ]));
+      } },
+    ],
+
+    motion: [
+      { id: 'arc-in', what: 'The optimistic value gives way to the arc at the optimism timeout; the arc fades out at the first change.', token: 'arc opacity quick 0.2 s ease-out, both ways; on a tile the disc and arc cross-fade on quick and the 1.0 s flap guard holds the look', state: 'pending',
+        source: 'new (lane L0); UKArcSpinnerView inline; UKStateTileTransition on a tile', reduce: 'the same fades; the arc turns at half speed',
+        play: function (stage) {
+          var arcs = [].slice.call(stage.querySelectorAll('.cg-arc')); if (!arcs.length) return Promise.resolve();
+          arcs.forEach(function (a) { a.style.opacity = 0; });
+          return Mock.sleep(2000).then(function () { arcs.forEach(function (a) { a.style.opacity = 1; }); return Mock.sleep(1800); }).then(function () { arcs.forEach(function (a) { a.style.opacity = 0; }); return Mock.sleep(500); }).then(function () { arcs.forEach(function (a) { a.style.opacity = 1; }); });
+        } },
+    ],
+    a11y: [
+      { rule: 'One element per control', note: 'The switch, menu, segmented control or slider carries the title as its label. The row text is not a second element.' },
+      { rule: 'Status line', note: 'Unavailable text or a disabled reason is appended to the control’s accessibility value, and the control has the not-enabled trait.' },
+      { rule: 'Arc', note: 'Not an element. The control\u2019s value gains \u201cin progress\u201d while it shows. A button or tile under the arc has the not-enabled trait. Nothing is announced when it appears.' },
+      { rule: 'Failure', note: 'Announced once through the failure announcer; focus does not move.' },
+      { rule: 'Slider', note: 'One adjustable element; a swipe moves one step; the value is the formatted text.' },
+      { rule: 'Targets', note: 'Every control, chip and menu button is at least 44 pt.' },
+      { rule: 'Text size', note: 'Nothing truncates through Accessibility 5: the accessory moves under the title, the segmented control becomes its menu, chips fall to one column.' },
+      { rule: 'ask', note: 'The system action sheet: VoiceOver lands on the title; Cancel is last on compact width; Escape cancels with a keyboard.' },
+    ],
+    reviews: { date: '2026-11-14', hig: [
+      { rule: 'Segmented controls: “Limit segments: aim for at most about 5-7 in a wide interface, about 5 on iPhone.”', verdict: 'pass', note: 'Segmented is 2 to 4 options.', by: 'apple-hig skill' },
+      { rule: 'Pop-up buttons: “Consider it when space is limited and options needn’t stay visible”', verdict: 'pass', note: 'The menu surface is for 5 or more options and secondary settings.', by: 'apple-hig skill' },
+      { rule: 'Toggles, iOS and iPadOS: “Use the switch style only in a list row”', verdict: 'departure', note: 'The toggle line is a row without its own card, inside a card or sheet group. It ships today on six screens; kept so no screen changes.', by: 'apple-hig skill' },
+      { rule: 'Action sheets: “Use an action sheet, not an alert, for choices related to an intentional action.”', verdict: 'pass', note: 'ask follows the tap on its control.', by: 'apple-hig skill' },
+      { rule: 'Action sheets: “Make destructive choices visually prominent: destructive style, placed at the top.”', verdict: 'pass', note: 'The Studio orders destructive options first.', by: 'apple-hig skill' },
+      { rule: 'Action sheets, iOS and iPadOS: “Avoid letting an action sheet scroll.”', verdict: 'pass', note: '2 to 4 options. Not measured on a device at Accessibility 5.', by: 'apple-hig skill' },
+      { rule: 'Popovers: “Point the arrow as directly as possible at the revealing element”; iOS and iPadOS: “Avoid popovers in compact views.”', verdict: 'pass', note: 'The source is the control; compact width gets the sheet.', by: 'apple-hig skill' },
+      { rule: 'Progress indicators: “Display progress indicators in a consistent location.”', verdict: 'pass', note: 'The end of the title line on a row, the symbol\u2019s place in a button, the disc\u2019s place on a tile.', by: 'apple-hig skill' },
+      { rule: 'Typography: “Keep text truncation to a minimum as font size increases.”; “consider stacking text above secondary items”', verdict: 'pass', note: 'See the Accessibility 5 states.', by: 'apple-hig skill' },
+      { rule: 'Color: “Avoid relying solely on color”', verdict: 'pass', note: 'Unavailable and disabled always carry words.', by: 'apple-hig skill' },
+      { rule: 'Sliders: “Consider adding a text field and stepper, especially for wide ranges”', verdict: 'pass', note: 'The Studio warns above 40 steps and offers the stepper.', by: 'apple-hig skill' },
+      { rule: 'Buttons, iOS and iPadOS: \u201cFor actions that don\u2019t complete instantly, show an activity indicator in the button\u201d', verdict: 'pass', note: 'A button whose script runs shows the arc in place of its symbol.', by: 'apple-hig skill' },
+      { rule: 'Progress indicators: \u201cKeep indicators moving. If a process stalls, explain the problem and what people can do.\u201d', verdict: 'pass', note: 'The ceiling hands over to the failed face and its words.', by: 'apple-hig skill' },
+    ], swiftui: [{ rule: 'Not applicable', verdict: 'pass', note: 'The controls are UIKit; no SwiftUI is proposed.', by: 'swiftui-pro skill' }] },
+    notes: ['The gate parked the three questions (gate: park basis=request answer=unsure route=session) and the owner answered in session. Settled inside the owner\u2019s Q1 direction by the Designer: under the arc the control shows Home Assistant\u2019s value, not the tapped one (state pending-keep is the alternative).',
+      'Drawn from the rules in the kit; nothing here is a device capture. The page states loading, refreshing, empty, error, offline, reconnecting and long-text are not drawn: the proposal shows controls, not a page.',
+      'Captions and notes inside the frames are annotations, not app text, and keep one size. Local helpers to promote to kit: the control row (row), the toggle line (line), the choice chips (chipGrid, chipRail, chipJoin). Chip column counts are computed from the sheet width; the app’s dynamic grid decides the real cell width.',
+      'The Studio panel is a content sketch; the Studio draws it with its own controls. The popover anchor in the ask states is placed by hand near the Apply button.',
+      'Generic names only; no house data.'],
+    changelog: [{ date: '2026-11-14', note: 'Settled surfaces and options for Q1, Q2 and Q3 built for iPhone, Duo and iPad at the default size and Accessibility 5.' }, { date: '2026-11-14', note: 'Owner answers: Q2 A, Q3 A, and for Q1 the optimistic value, then the arc after an optimism timeout until a change, with per-control settings. Pending states, defaults and the Studio panel added.' }],
+  });
+})();
+</script></body></html>

@@ -219,6 +219,8 @@ targets:
         product: FentonActivityModel
       - package: FentonHomeApple
         product: FentonActivityViews
+      - package: FentonHomeApple
+        product: HassTelemetry
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
     entitlements:

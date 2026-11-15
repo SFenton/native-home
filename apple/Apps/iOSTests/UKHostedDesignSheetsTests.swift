@@ -209,7 +209,7 @@ final class UKHostedDesignSheetsTests: XCTestCase {
     func testControlsChangedWhileThePageScrollsWaitForItToStopThenAppear() {
         let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 393, height: 600))
         scroll.contentSize = CGSize(width: 393, height: 2000)
-        scroll.ukPausesTickersWhileScrolling()
+        UKTickerScrollGate.install(on: scroll)
         let tile = UKGlassTileView(model: remote(1, subtitle: "Off"))
         tile.gridFullRow = true
         let host = UIViewController()

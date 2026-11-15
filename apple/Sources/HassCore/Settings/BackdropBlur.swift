@@ -62,7 +62,7 @@ public final class BackdropBlurSettings {
 
     /// Called with the new percentage after a change.
     @ObservationIgnored public var onChange: (@MainActor (Int) -> Void)?
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let defaults: UserDefaults?
 
     /// Creates the settings from what is saved.
     /// - Parameter defaults: Where the setting lives; tests pass a throwaway suite.
@@ -71,12 +71,18 @@ public final class BackdropBlurSettings {
         percent = BackdropBlur.percent(fromStored: defaults.object(forKey: BackdropBlur.defaultsKey))
     }
 
+    /// Publication-scoped settings without global preferences or persistent account data.
+    public init(initialPercent: Int) {
+        defaults = nil
+        percent = BackdropBlur.clamp(initialPercent)
+    }
+
     /// Saves a new setting (clamped) and calls ``onChange`` when it differs from the current one.
     public func set(_ newValue: Int) {
         let clamped = BackdropBlur.clamp(newValue)
         guard clamped != percent else { return }
         percent = clamped
-        defaults.set(clamped, forKey: BackdropBlur.defaultsKey)
+        defaults?.set(clamped, forKey: BackdropBlur.defaultsKey)
         onChange?(clamped)
     }
 

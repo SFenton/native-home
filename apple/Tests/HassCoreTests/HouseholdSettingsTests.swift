@@ -15,7 +15,21 @@ struct HouseholdSettingsTests {
         let store = makeStore(states, attributes: attributes)
         let caller = RecordingCaller()
         let scheduler = ManualScheduler()
-        return (HouseholdSettingsController(store: store, caller: caller, scheduler: scheduler), store, caller, scheduler)
+        return (HouseholdSettingsController(store: store, caller: caller, scheduler: scheduler, targets: Self.demoTargets), store, caller, scheduler)
+    }
+
+    /// Every toggle entity across the pages, which take optimistic on/off values.
+    static var demoToggleIds: [String] {
+        (Config.Admin.securityTiles + Config.Admin.relayTiles + Config.Admin.showSpecificTiles + Config.Admin.autoResetTiles
+            + [Config.SpecialDeviceModes.highAqiTile] + Config.Guests.tiles).map(\.entityId)
+    }
+
+    /// The targets the demo house's lists name, written out by the test (the controller no longer reads the lists itself).
+    static var demoTargets: HouseholdSettingsController.Targets {
+        .init(toggleEntityIds: demoToggleIds,
+              presenceTitles: Dictionary(Config.Admin.presenceRooms.map { ($0.presenceEntityId, $0.title) }, uniquingKeysWith: { first, _ in first }),
+              relayEntityId: Config.Admin.relayControlEntityId, guestEntityId: HomeConfig.guestToggles.first?.entityId,
+              powerRecoveryEntityId: Config.Admin.powerRecoveryAutomation)
     }
 
     // MARK: Config
@@ -37,7 +51,7 @@ struct HouseholdSettingsTests {
     }
 
     @Test func toggleIdsAreUniqueAndCoverEveryPage() {
-        let ids = Config.toggleEntityIds
+        let ids = Self.demoToggleIds
         #expect(Set(ids).count == ids.count)
         #expect(ids.contains("input_boolean.demo_mode_1"))
         #expect(ids.contains("input_boolean.demo_mode_2"))
@@ -307,5 +321,113 @@ struct HouseholdSettingsTests {
         controller.flip("input_boolean.demo_mode_1", title: "High AQI Mode")
         await controller.waitForCalls()
         #expect(heard.isEmpty)
+    }
+
+    @Test func injectedTargetsObserveAndConfirmWithoutHouseConfiguration() async throws {
+        let toggle = "switch.demo_toggle", room = "switch.demo_room"
+        let store = makeStore([toggle: "off", room: "on", "input_boolean.demo_guest": "on"])
+        let caller = RecordingCaller()
+        let scheduler = ManualScheduler()
+        let settings = HouseholdSettingsController(
+            store: store, caller: caller, scheduler: scheduler,
+            targets: .init(toggleEntityIds: [toggle], presenceTitles: [room: "Synthetic Room"],
+                           relayEntityId: toggle, guestEntityId: "input_boolean.demo_guest"))
+        settings.flip(toggle)
+        settings.setPresence(room, to: .quieted)
+        #expect(settings.toggle(toggle).isOn)
+        #expect(settings.presence(room) == .quieted)
+        await settings.waitForCalls()
+        store.apply([
+            EntityState(entityId: toggle, state: "on"),
+            EntityState(entityId: room, state: "on", attributes: ["automation_state": .string("quieted")])
+        ])
+        for _ in 0..<20 where !settings.overlay.pending.isEmpty { await Task.yield() }
+        #expect(settings.overlay.pending.isEmpty)
+        #expect(settings.showsRelayGuestModeWarning)
+        #expect(caller.calls.count == 2)
+    }
+
+    @Test func targetAdapterRejectsInvalidAndStaleCommands() throws {
+        typealias Target = HouseholdSettingsTarget
+        #expect(throws: Target.Failure.invalidTarget) {
+            try Target(kind: .presence, entityId: "automation.demo_item", title: "Room")
+        }
+
+        #expect(throws: Target.Failure.invalidTarget) {
+            try Target(kind: .toggle, entityId: "switch.demo_item\n", title: "Toggle")
+        }
+        let target = try Target(kind: .toggle, entityId: "switch.demo_item", title: "Toggle")
+        let store = makeStore([target.entityId: "off"])
+        let caller = RecordingCaller()
+        let adapter = HouseholdSettingsTargetAdapter(target: target, store: store, caller: caller)
+        let old = adapter.controller.toggle(target.entityId)
+        store.apply([EntityState(entityId: target.entityId, state: "on")])
+        #expect(throws: Target.Failure.stale) { try adapter.flip(expected: old) }
+        #expect(caller.calls.isEmpty)
+        store.apply([EntityState(entityId: target.entityId, state: "unavailable")])
+        #expect(throws: Target.Failure.unavailable) { try adapter.flip(expected: old) }
+    }
+
+    @Test func readOnlyTargetsCannotBecomeCommands() throws {
+        let target = try HouseholdSettingsTarget(kind: .readOnly, entityId: "lock.demo_car", title: "Car Doors")
+        let caller = RecordingCaller()
+        let adapter = HouseholdSettingsTargetAdapter(target: target, store: makeStore([target.entityId: "locked"]), caller: caller)
+        #expect(throws: HouseholdSettingsTarget.Failure.invalidTarget) {
+            try adapter.flip(expected: adapter.controller.toggle(target.entityId))
+        }
+        #expect(throws: HouseholdSettingsTarget.Failure.invalidTarget) { try adapter.triggerPowerRecovery() }
+        #expect(caller.calls.isEmpty && !adapter.hasPendingIntent)
+    }
+
+    @Test func pendingIncludesServiceLifetimeAfterOptimismExpires() async throws {
+        let target = try HouseholdSettingsTarget(kind: .toggle, entityId: "switch.demo_item", title: "Toggle")
+        let scheduler = ManualScheduler()
+        let caller = HeldHouseholdCaller()
+        let adapter = HouseholdSettingsTargetAdapter(target: target, store: makeStore([target.entityId: "off"]),
+                                                      caller: caller, scheduler: scheduler)
+        try adapter.flip(expected: adapter.controller.toggle(target.entityId))
+        #expect(adapter.hasPendingIntent)
+        scheduler.fireAll()
+        #expect(adapter.hasPendingIntent)
+        while caller.continuation == nil { await Task.yield() }
+        caller.continuation?.resume()
+        caller.continuation = nil
+        await adapter.controller.waitForCalls()
+        #expect(!adapter.hasPendingIntent)
+    }
+
+    @Test func presenceAdapterReportsFailureForInjectedTitle() async throws {
+        let target = try HouseholdSettingsTarget(kind: .presence, entityId: "switch.demo_room", title: "Synthetic Room")
+        let caller = RecordingCaller()
+        caller.failNext = true
+        let adapter = HouseholdSettingsTargetAdapter(target: target, store: makeStore([target.entityId: "on"]), caller: caller)
+        var failures: [String] = []
+        adapter.controller.onFailure = { failures.append($0) }
+        try adapter.selectPresence(.paused, expected: .enabled)
+        #expect(adapter.controller.presence(target.entityId) == .paused)
+        await adapter.controller.waitForCalls()
+        #expect(adapter.controller.presence(target.entityId) == .enabled)
+        #expect(adapter.controller.presenceFailed(target.entityId))
+        #expect(failures == ["Couldn't change Synthetic Room. It shows its current state."])
+    }
+
+    @Test func injectedPowerRecoveryUsesOnlyItsValidatedTarget() async throws {
+        let target = try HouseholdSettingsTarget(kind: .powerRecovery, entityId: "automation.demo_recovery", title: "Recover")
+        let caller = RecordingCaller()
+        let store = makeStore([target.entityId: "unavailable"])
+        let adapter = HouseholdSettingsTargetAdapter(target: target, store: store, caller: caller)
+        #expect(throws: HouseholdSettingsTarget.Failure.unavailable) { try adapter.triggerPowerRecovery() }
+        store.apply([EntityState(entityId: target.entityId, state: "on")])
+        try adapter.triggerPowerRecovery()
+        await adapter.controller.waitForCalls()
+        #expect(caller.calls == [.init(domain: "automation", service: "trigger", data: ["entity_id": target.entityId])])
+    }
+}
+
+@MainActor
+private final class HeldHouseholdCaller: HassServiceCalling {
+    var continuation: CheckedContinuation<Void, Never>?
+    func callService(_ domain: String, _ service: String, data: [String: any Sendable]) async throws {
+        await withCheckedContinuation { continuation = $0 }
     }
 }

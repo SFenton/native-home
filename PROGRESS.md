@@ -16,12 +16,15 @@ A lane reads anything and edits only what it owns; ask in your report for a chan
 
 ## 2. Now
 
-- **Rules reset (T-rules-reset, 2026-11-10):** the rule surface is re-layered with one home per rule, budgets and a lint. Lane A rewrites `AGENTS.md`, `.agents/workflow`, the agent files, triage prompts, skills and this file; lane B sweeps the reference docs. Open, owner-only: `.githooks/pre-push` does not run `tools/rules_lint.py` yet and its comment names a deleted doc. Open, separate changes: the deleted docs still named in the tab-bar mockup and in `contracts/jev/derived/` (`candidates.json`, `measurements.md`).
-- **House config at runtime:** the schema, store and transport are in `HassCore/Config/HouseConfig*.swift` and `AppSession` reads the store. Open: the mockups scrub, and renaming the house-bound names in code and tests with schema v2.
+- **Server-driven UI is the only root.** The compiled shell, tab catalog and pages are removed; `UKServerUIRenderer` composes the layout from the publication in Home Assistant (`fenton_home/ui_publication`), and the Studio is the only writer ([architecture](.agents/platforms/apple/architecture.md#server-driven-root)). Reader enrollment and the publisher endpoint are gone.
+- **Transport and state.** `fenton_home` 1.4.1 is deployed to prod; the prod publication is at revision 2. The last-good cache is keyed by origin and user.
+- **Rules reset:** the rule surface is re-layered with one home per rule, budgets and a lint ([docs-conventions](.agents/workflow/docs-conventions.md)). Open, owner-only: `.githooks/pre-push` does not run `tools/rules_lint.py` yet. The reference-layer ratchet in `contracts/rules-ratchet.json` falls as files are trimmed.
+- **House config at runtime:** the schema, store and transport are in `HassCore/Config/HouseConfig*.swift` and `AppSession` reads the store. Open: the mockups scrub, and renaming the house-bound names in code and tests.
 - **Release pipeline:** a push to `main` bumps the version and builds a signed IPA on a hosted runner (`ios-release.yml`). Owner steps: [checklist](.agents/platforms/apple/testflight.md#release-pipeline-owner-checklist).
 
 ## 3. Next
 
+- **Server-driven lanes still open:** routes; folding the house config into the publication; setup; the copy table; chrome items; retiring the fixed-shape providers; Studio ergonomics; logic coverage to 95%; the U12 renderer collaborators; unfolded Duo evidence.
 - **Hosted CI:** remove the Linux skips in `test_devcap`, `test_hass_creds`, `test_xc_watch` and `test_agent_roster`; the repository variables `HOSTED_MACOS` and `DENYLIST_STRICT` are the owner's to switch on.
 - **Jev key:** the owner places the key file the Jev tools read ([jev](.agents/workflow/jev.md)).
 - **Location and device sensors:** the `mobile_app` registration runs in shadow; next are the device readers and sensors ([location](.agents/platforms/apple/location.md), [mobile-app](.agents/platforms/apple/mobile-app.md)).
@@ -29,9 +32,8 @@ A lane reads anything and edits only what it owns; ask in your report for a chan
 
 ## 4. Backlog
 
-- Duo Back label: the pushed page's system Back reports an empty accessibility label on the folded Duo; label it and restore the Duo assertion in `SinglePageMotionJourneyTests`.
+- Duo Back label: the pushed page's system Back reports an empty accessibility label on the folded Duo; label it and restore the Duo assertion in the single-page motion journey.
 - iPad flyout stays open after choosing a section; the iPad single-page journeys skip until it is fixed.
-- Navigation and shell journeys that fail on iPhone and the folded Duo (`NavigationJourneyTests`, `ShellJourneyTests`): each needs its own fix.
 - Measured against felt performance: deferred by the owner.
 
 ## 5. Where to look

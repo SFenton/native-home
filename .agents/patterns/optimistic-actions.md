@@ -6,7 +6,7 @@
 - **Behavior (web parity):**
   - `perform(call, showing: [OptimisticIntent], resetting: [OptimisticReset])` shows the intents immediately, then sends the call.
   - The pending value clears quietly when the live value matches it (`.confirmation`), or on any live change (`.liveChange`).
-  - If neither happens, it reverts after `revertAfter` (default `OptimisticActions.defaultRevert`, 2 s, web `DEFAULT_OPTIMISTIC_REVERT_MS`).
+  - If neither happens by `revertAfter`, the optimism timeout (default `OptimisticActions.defaultRevert`, 2 s, web `DEFAULT_OPTIMISTIC_REVERT_MS`), the value reverts and the control waits under the arc.
   - A failed call rolls back exactly the values it committed, using generations, so an older failure never undoes a newer tap, **and shows the failed face for 4 s** (see Failure below).
 - **Clear rule:**
   - Use `.confirmation` for selects, modes and switches Home Assistant echoes as-is.
@@ -19,7 +19,7 @@
   - **Sliders and dials:** `TransientFailure` + `FailureCaption` under the control, one footnote line in the error ink (`ClimateThermostatDial`: "Couldn't set 68°. Check the connection.").
   - **No optimistic value to roll back** (Power Recovery, a script): `markFailed(key)` on any key, or `perform(..., failing: key)`.
   - Announcements go through `announceFailure(_:)` (HassDesign), one place to swap for `Announcer`.
-- **Pending state (decided with the failed face).** A control keeps its optimistic colour while `isPending`; a long call (lock, garage, alarm) may show a small spinner in place of its trailing glyph, a static ellipsis under Reduce Motion. Not built as a tile-wide input yet: the tile outline stays out; the failed face is the new state.
+- **Pending state.** A control keeps its optimistic colour while `isPending`. The waiting arc, its ceiling, the defaults by call and the authored settings are in [pending-controls](../design/pending-controls.md); `failsOnTimeout` is a ceiling equal to the timeout.
 - **Telemetry:** each call is a `ServiceCall` signpost, each confirmation an `OptimisticConfirm` interval, and rollbacks are counted (`optimistic.rollbacks`).
 - **Adopting:**
   - New controllers use `OptimisticActions`.

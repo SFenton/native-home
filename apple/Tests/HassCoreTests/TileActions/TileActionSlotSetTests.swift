@@ -21,7 +21,7 @@ struct TileActionSlotSetTests {
 
     @Test func lockStatesAreOneSet() {
         let sets = ["locked", "unlocked", "locking", "unlocking", "jammed", "unavailable"].map {
-            TileActionSlotSet(LockActions(entityId: "lock.demo_a").actions(for: EntityState(entityId: "lock.demo_a", state: $0)))
+            TileActionSlotSet(StateStyleActions(.lock, entityId: "lock.demo_a").actions(for: EntityState(entityId: "lock.demo_a", state: $0)))
         }
         #expect(Set(sets.map(\.ids)).count == 1 && sets.allSatisfy { $0 == sets[0] })
     }
@@ -29,7 +29,7 @@ struct TileActionSlotSetTests {
     @Test func garageDoorKeepsOneSetAcrossRoles() {
         let attributes: [String: JSONValue] = ["supported_features": .number(11)]
         let states = ["closed", "opening", "open", "closing"].map {
-            TileActionSlotSet(CoverActions(entityId: "cover.demo_a").actions(for: EntityState(entityId: "cover.demo_a", state: $0, attributes: attributes)))
+            TileActionSlotSet(StateStyleActions(.garageDoor, entityId: "cover.demo_a").actions(for: EntityState(entityId: "cover.demo_a", state: $0, attributes: attributes)))
         }
         #expect(states.allSatisfy { $0 == states[0] } && states[0].ids == ["door"])
     }

@@ -50,6 +50,8 @@ enum AlertCopy {
 
     /// The retry label everywhere (Recipes, Inventory, the Home Assistant web page, a failed sign-out).
     static let tryAgain = "Try Again"
+    /// The busy title of ``tryAgain`` while the retry runs, with the one-character ellipsis (owner rewording group 9).
+    static let tryingAgain = "Trying Again…"
 
     // MARK: - Feedback
 
@@ -68,13 +70,14 @@ enum AlertCopy {
         confirm: Action(title: "Sign Out", role: .destructive)
     )
 
-    /// Sign Out did not complete; one string for both sign-out sites. It states the reason: signing out asks the server
-    /// to unlink this phone so it stops reporting its location, and there is deliberately no local-only sign out.
-    static let signOutFailed = Spec(
-        title: "Couldn't Sign Out",
-        message: "Signing out needs a connection so this phone stops reporting its location. Connect and try again.",
-        confirm: Action(title: tryAgain, role: .plain)
-    )
+    /// Sign Out did not complete; one string for every sign-out site. It states the reason: signing out asks the server
+    /// to unlink this device so it stops reporting its location, and there is deliberately no local-only sign out.
+    /// - Parameter device: The device the message names (`{{device}}`: "iPhone" or "iPad"); the device's own name, never "phone".
+    static func signOutFailed(device: LocationDevice) -> Spec {
+        Spec(title: "Couldn't Sign Out",
+             message: "Signing out needs a connection so this \(device.name) stops reporting its location. Connect and try again.",
+             confirm: Action(title: tryAgain, role: .plain))
+    }
 
     // MARK: - Reversible changes (plain confirm)
 

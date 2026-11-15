@@ -4,65 +4,9 @@ import UIKit
 import XCTest
 @testable import HassUI
 
-/// The household topics (Admin, Special Device Modes, Guests, Car) and the Location permission walk-through, hosted.
+/// The Location permission walk-through, hosted.
 @MainActor
 final class UKHostedHouseholdTests: DemoHouseTestCase {
-    private func topic(_ page: HouseholdSettingsPage, unavailable: Bool = false) -> (UIViewController, HouseholdGalleryRecorder, UIWindow) {
-        let store = HouseholdSettingsFixtures.store(unavailable: unavailable)
-        let recorder = HouseholdGalleryRecorder(store: store)
-        let context = UKGalleryChrome.context(store: store, caller: recorder)
-        let screen = UKHouseholdSettingsViewController.make(page: page, context: context)
-        let window = HostedPage.show(UKGalleryChrome.wrap(screen, context: context), size: CGSize(width: 393, height: 2600))
-        FeatureHost.settle(0.6)
-        return (screen, recorder, window)
-    }
-
-    private func tapEveryTile(in screen: UIViewController, skipping skipped: [String] = []) {
-        let tiles = HostedPage.descendants(of: screen.view).compactMap { $0 as? UKGlassTileView }
-        for tile in tiles where tile.isEnabled && !skipped.contains(where: { (tile.accessibilityIdentifier ?? "").hasPrefix($0) }) {
-            tile.sendActions(for: .touchUpInside)
-            FeatureHost.settle(0.05)
-            // A question first: confirm it so the action runs.
-            if let alert = FeatureHost.alert(on: screen), let confirm = alert.actions.last { FeatureHost.answer(alert, confirm.title) }
-            screen.shownSheet?.dismiss(animated: false)
-        }
-    }
-
-    func testEveryTopicShowsItsTilesAndATapCallsHomeAssistant() {
-        for page in HouseholdSettingsPage.allCases {
-            let (screen, recorder, window) = topic(page)
-            defer { window.isHidden = true }
-            XCTAssertNotNil(FeatureHost.view("household.\(page.rawValue)", in: screen.view), "\(page.rawValue) is on screen")
-            let tiles = HostedPage.descendants(of: screen.view).compactMap { $0 as? UKGlassTileView }
-            XCTAssertFalse(tiles.isEmpty, "\(page.rawValue) has tiles")
-            tapEveryTile(in: screen)
-            FeatureHost.settle(0.6)
-            XCTAssertNotEqual(recorder.lastCall, "None", "\(page.rawValue): tapping tiles calls a service")
-        }
-    }
-
-    func testUnavailableEntitiesLockTheirTiles() {
-        for page in HouseholdSettingsPage.allCases {
-            let (screen, recorder, window) = topic(page, unavailable: true)
-            defer { window.isHidden = true }
-            // Power recovery dims and fires nothing while its automation is unavailable (owner, 2026-11-03).
-            tapEveryTile(in: screen)
-            FeatureHost.settle(0.3)
-            XCTAssertEqual(recorder.lastCall, "None", "\(page.rawValue): nothing is sent for an unavailable entity")
-        }
-    }
-
-    func testWithoutAConnectionATopicIsAPlaceholder() {
-        let context = UKContext(store: EntityStore(), caller: nil)
-        XCTAssertTrue(UKHouseholdSettingsViewController.make(page: .admin, context: context) is UKPlaceholderViewController)
-        XCTAssertNotNil(UKScreens.destination(for: .guests, context: context))
-        XCTAssertTrue(UKScreens.vacation(context) is UKPlaceholderViewController)
-    }
-
-    func testYourSummaryEntryBuildsTheSheet() {
-        XCTAssertNotNil(UKScreens.yourSummary(UKGalleryChrome.context()))
-    }
-
     // MARK: Location
 
     func testEachPermissionStageSaysWhereYouAreAndWhatNext() {
@@ -112,5 +56,26 @@ final class UKHostedHouseholdTests: DemoHouseTestCase {
         page.permission = LocationGallery.answer(to: page.permission)
         FeatureHost.settle(0.3)
         XCTAssertNotEqual(before, HostedPage.labels(in: page.view), "the page follows the new permission")
+    }
+}
+
+/// The permission each stage of the location page shows (the gallery's stage table, kept for these tests).
+private enum LocationGallery {
+    static func answer(to permission: LocationPermission) -> LocationPermission {
+        switch permission.authorization {
+        case .notDetermined: LocationPermission(authorization: .whenInUse)
+        case .whenInUse: LocationPermission(authorization: .always)
+        case .always, .denied, .restricted: permission
+        }
+    }
+
+    static func permission(for stage: LocationPermission.Stage) -> LocationPermission {
+        switch stage {
+        case .notDetermined: .notDetermined
+        case .whenInUse: LocationPermission(authorization: .whenInUse)
+        case .always: LocationPermission(authorization: .always)
+        case .denied: LocationPermission(authorization: .denied)
+        case .reducedAccuracy: LocationPermission(authorization: .always, isPrecise: false)
+        }
     }
 }

@@ -85,11 +85,13 @@ public enum WakeLight {
             self.bedSides = bedSides
         }
 
-        /// A new one-time alarm for tomorrow at 07:00 (web `createWakeLightAlarm`).
-        public static func new(id: String, label: String = "Morning Alarm", now: Date = .now, defaults: Defaults = .standard,
+        /// A 07:00 alarm: one-time tomorrow by default, or scheduled on workdays when requested by the native editor.
+        public static func new(id: String, label: String = "Morning Alarm", kind: Kind = .once, now: Date = .now, defaults: Defaults = .standard,
                                calendar: Calendar = .current) -> Alarm {
             let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
-            return Alarm(id: id, label: label, kind: .once, localTime: "07:00", date: WakeLight.dateString(tomorrow, calendar: calendar),
+            return Alarm(id: id, label: label, kind: kind, localTime: "07:00",
+                         weekdays: kind == .weekly ? Weekday.workdays : [],
+                         date: kind == .once ? WakeLight.dateString(tomorrow, calendar: calendar) : nil,
                          rampMinutes: defaults.rampMinutes)
         }
 
@@ -368,6 +370,13 @@ public enum WakeLight {
     }
 
     // MARK: - Display
+
+    /// Explains the hold duration, or why an older integration cannot edit it.
+    public static func postWakeHoldExplanation(contractVersion: Int) -> String {
+        contractVersion >= 6
+            ? "How long the lights stay at full brightness after the wake time before normal lighting resumes."
+            : "Post-wake hold requires a wake light integration update."
+    }
 
     /// The tile and sheet subtitle (web `tileSubtitle`).
     public static func subtitle(_ snapshot: Snapshot, modal: Bool = false, calendar: Calendar = .current) -> String {

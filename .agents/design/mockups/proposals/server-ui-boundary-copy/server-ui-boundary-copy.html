@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Layout recovery boundary: the words · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../pages/shell/_server-ui-boundary.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, SB = Mock.SB;
+  /* Both options place the state in the leading region on a partly folded Duo (the state-message pattern); only the words and one glyph differ. */
+  function S(copy, key, o) { return function (ctx) { return SB.screen(ctx, key, Object.assign({ copy: copy, leadingOnHinge: true }, o)); }; }
+  var A = function (key, o) { return S('approved', key, o); }, B = function (key, o) { return S('proposed', key, o); };
+
+  function words() {
+    var a = SB.approved('iPhone'), b = SB.proposed('iPhone');
+    var rows = [
+      ['Waiting, title', a.waiting.title, b.waiting.title, 'Same in both: owner-approved group 9 (a visible progress label ends in …)'],
+      ['Nothing published, glyph', a.unpublished.symbol, b.unpublished.symbol, 'A warning triangle marks a failure; nothing failed here. The house-layout record used house for "not set up yet"'],
+      ['Nothing published, message', a.unpublished.message, b.unpublished.message, 'The Studio’s title in Home Assistant is Native Home Studio; no product is called the Configurator. B also speaks to a person who cannot publish, and says the layout arrives by itself'],
+      ['Newer layout, title', a.update.title, b.update.title, 'The house-layout record already titles this state Update S+H'],
+      ['Newer layout, message', a.update.message, b.update.message, 'copy.md Voice: the product is "S+H"'],
+      ['Failed, title', a.unavailable.title, b.unavailable.title, 'copy.md Terms: a failed load is "Unable to Load <Subject>"; "Unavailable" is an entity with no state'],
+      ['Failed, message', a.unavailable.message, b.unavailable.message, 'copy.md Voice: what happened, then the next step; one noun, "saved layout"'],
+      ['Failed with no actions, message', a.unavailableBare.message, b.unavailableBare.message, 'A names Try Again and Clear, and neither is on screen'],
+      ['Clear, button', a.clearTitle, b.clearTitle, 'One noun for the saved layout'],
+      ['Clear, alert title', a.alerts.clear.title, b.alerts.clear.title, 'The alert asks about the button’s own words'],
+      ['Clear, alert message', a.alerts.clear.message, b.alerts.clear.message, 'copy.md Voice: active voice; Terms: "this iPhone" or "this iPad"'],
+      ['Sign out, alert', a.alerts.signOut.title + ' ' + a.alerts.signOut.message, b.alerts.signOut.title + ' ' + b.alerts.signOut.message, 'Same in both: owner-approved group 7 (the shared sign-out alert)'],
+    ];
+    return h('table', h('thead', h('tr', h('th', 'String'), h('th', 'A · as built'), h('th', 'B · to the copy pattern'), h('th', 'Why B differs'))),
+      h('tbody', rows.map(function (r) { return h('tr', r.map(function (c) { return h('td', c); })); })));
+  }
+
+  Mock.mount({
+    kind: 'proposal', id: 'server-ui-boundary-copy', title: 'Layout recovery boundary: the words', area: 'proposals', status: 'proposed',
+    summary: 'For the owner: which words the recovery boundary carries. A keeps the strings the branch ships, with the two rewordings already approved (the ellipsis on Getting Your Layout… and the shared sign-out alert). B rewords the rest to the copy pattern: Native Home Studio in place of the Configurator, Unable to Load the Layout, Update S+H, Clear Saved Layout, and a message that names only the actions on screen. The layout, the actions and the states are the same in both. The Designer recommends B.',
+    source: ['apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecoveryBoundary.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProductionHost.swift'],
+    spec: ['.agents/decisions/2026-11-14-server-ui-boundary.md', '.agents/design/server-ui-boundary.md', '.agents/patterns/copy.md'],
+    patterns: ['copy', 'state-message', 'alerts'],
+    hig: ['Writing', 'Feedback', 'Loading', 'Alerts'],
+    kitComponents: ['ContentUnavailableView', 'PrimaryButton', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'a-waiting': { title: 'A · waiting', render: A('waiting') },
+      'b-waiting': { title: 'B · waiting (same words)', render: B('waiting') },
+      'a-unpublished': { title: 'A · nothing published', render: A('unpublished') },
+      'b-unpublished': { title: 'B · nothing published', render: B('unpublished') },
+      'a-update': { title: 'A · newer layout', render: A('update') },
+      'b-update': { title: 'B · newer layout', render: B('update') },
+      'a-failed': { title: 'A · failed', render: A('unavailable') },
+      'b-failed': { title: 'B · failed', render: B('unavailable') },
+      'a-failed-bare': { title: 'A · failed, no actions to offer', render: A('unavailableBare') },
+      'b-failed-bare': { title: 'B · failed, no actions to offer', render: B('unavailableBare') },
+      'a-clear': { title: 'A · clear, the question', render: A('unavailable', { alert: 'clear' }) },
+      'b-clear': { title: 'B · clear, the question', render: B('unavailable', { alert: 'clear' }) },
+      'sign-out': { title: 'Both · sign out, the shared alert', render: B('waiting', { alert: 'signOut' }) },
+      'sign-out-failed': { title: 'Both · sign out failed, the shared alert', render: B('waiting', { alert: 'signOutFailed' }) },
+      'b-ax5': { title: 'B · failed at Accessibility 5', override: { ts: 'ax5' }, render: B('unavailable') },
+    },
+
+    sections: [{ id: 'words', title: 'The words, side by side', build: words }],
+
+    a11y: [
+      { rule: 'Reading order', note: 'Unchanged by the choice: the title (a heading), the message, Try Again, Clear, Sign Out.' },
+      { rule: 'Labels', note: 'Every button is read by its visible title in both options.' },
+      { rule: 'Dynamic Type', note: 'B’s longest message is 157 characters, inside the 160 budget; it wraps and the column scrolls.' },
+    ],
+
+    reviews: {
+      date: '2026-11-14', by: 'apple-hig skill, swiftui-pro skill (design lens), from the code and this drawing; no device capture',
+      hig: [
+        { rule: 'Writing: "Keep and reference a list of common terms for consistency."', verdict: 'fix', note: 'A: the Configurator, Unavailable, and three nouns for one saved layout. B uses the term list.', by: 'apple-hig skill' },
+        { rule: 'Feedback: "If a command can’t be carried out, say so and explain why"', verdict: 'fix', note: 'A: the failed state gives no reason, and with no actions it names two buttons that are absent. B says S+H could not use the layout and names only what is on screen.', by: 'apple-hig skill' },
+        { rule: 'Writing: "Write clear error messages. … avoid blame, and say how to fix it"', verdict: 'pass', note: 'Both options say how to go on in every state.', by: 'apple-hig skill' },
+        { rule: 'Writing: "Use possessive pronouns sparingly"', verdict: 'pass', note: 'Both keep "your Home Assistant" as the sign-in screen does; B’s failed title drops the possessive.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Dynamic Type: text scales and wraps', verdict: 'pass', note: 'The strings are longer in B by at most 68 characters; the labels wrap and the column scrolls.', by: 'swiftui-pro skill' },
+        { rule: 'User-facing text is never a literal in a view', verdict: 'fix', note: 'Either option moves the host’s literals beside the other compiled boundary strings.', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'The app-UI gate parked this choice for the owner in session (tools/jev_gate.py: park, basis request, answer no, route session). The Designer does not pick it.',
+      'B’s sentence "S+H shows it as soon as it’s published" rests on the subscription answering after every publish (architecture.md, Server-driven root, Transport).',
+      'B’s message for the state with no actions says to sign out and sign in again; the Coder confirms that sign-out clears the saved layout before shipping that sentence.',
+      'No device capture exists for this surface.',
+    ],
+    changelog: [{ date: '2026-11-14', note: 'Options A and B built with the kit on all six windows.' }],
+  });
+})();
+</script></body></html>

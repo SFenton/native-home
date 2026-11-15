@@ -46,6 +46,7 @@ final class UKLocationPermissionViewController: UKPageViewController, UKSheetFit
     private let isPushed: Bool
     private let footer: UIView?
     private let sheetTitle: String
+    private let explanation: String?
 
     private let container = UKColumnContainer(
         spacing: HassTokens.Spacing.xl,
@@ -76,8 +77,10 @@ final class UKLocationPermissionViewController: UKPageViewController, UKSheetFit
     ///   - sheetTitle: The navigation title; "Location Settings" everywhere (Setup step, Your Summary, gallery).
     ///   - footer: Content under the action (the debug gallery's last-action line), inside the scroll content.
     init(permission: LocationPermission, canAskForAlways: Bool = true, onRequestPermission: @escaping () -> Void,
-         onOpenSettings: (() -> Void)? = nil, onClose: @escaping () -> Void, isPushed: Bool = false, sheetTitle: String = "Location Settings", footer: UIView? = nil) {
+         onOpenSettings: (() -> Void)? = nil, onClose: @escaping () -> Void, isPushed: Bool = false, sheetTitle: String = "Location Settings", footer: UIView? = nil,
+         explanation: String? = nil) {
         self.sheetTitle = sheetTitle
+        self.explanation = explanation
         self.permission = permission
         self.canAskForAlways = canAskForAlways
         self.onRequestPermission = onRequestPermission
@@ -142,7 +145,7 @@ final class UKLocationPermissionViewController: UKPageViewController, UKSheetFit
         let copy = copy
         updateSymbol()
         titleLabel.text = copy.title
-        messageLabel.text = copy.message
+        messageLabel.text = [copy.message, explanation].compactMap { $0 }.joined(separator: "\n\n")
         statusRow.update(permission)
         pointsStack.isHidden = !copy.showsPoints
         footnoteLabel.text = copy.footnote
@@ -194,10 +197,11 @@ final class UKLocationPermissionViewController: UKPageViewController, UKSheetFit
 @MainActor
 enum UKLocationPermission {
     static func make(location: LocationCoordinator, onClose: @escaping () -> Void, isPushed: Bool = false,
-                     sheetTitle: String = "Location Settings") -> UIViewController {
+                     sheetTitle: String = "Location Settings", explanation: String? = nil) -> UIViewController {
         let page = UKLocationPermissionViewController(
             permission: location.reporter.permission, canAskForAlways: !location.hasAskedForAlways,
-            onRequestPermission: { location.requestPermission() }, onClose: onClose, isPushed: isPushed, sheetTitle: sheetTitle)
+            onRequestPermission: { location.requestPermission() }, onClose: onClose, isPushed: isPushed, sheetTitle: sheetTitle,
+            explanation: explanation)
         let bag = UKObservationBag()
         bag.observe { [weak page] in
             page?.permission = location.reporter.permission
@@ -210,44 +214,68 @@ enum UKLocationPermission {
 
 // MARK: - Account section
 
+/// Presentation values for a location account section; permission operations stay with its owner.
+struct UKLocationAccountContent {
+    let status: String
+    let warning: String?
+    let linkNotice: String?
+    let footer: String
+    let hint: String
+
+    @MainActor
+    static func current(_ location: LocationCoordinator) -> Self {
+        let permission = location.reporter.permission
+        return Self(
+            status: LocationPermissionCopy.status(permission),
+            warning: LocationAccountSection.warning(stage: permission.stage),
+            linkNotice: LocationAccountSection.linkNotice(location.mobileAppPresenceLink),
+            footer: location.linksPresence ? LocationAccountSection.footer : LocationAccountSection.footerWithoutPerson,
+            hint: "Shows location access for this \(location.linksPresence ? "iPhone" : "iPad")."
+        )
+    }
+}
+
 /// The Summary sheet's Profile-tab Location section (`LocationAccountSection`): Share Location with the permission state, which
 /// opens the permission screen, and why this iPhone isn't on its person yet, if it isn't.
 @MainActor
 final class UKLocationAccountSection: UIView {
-    private let location: LocationCoordinator
-    private let row = UKGroupedRowButton(title: "Share Location", symbol: "location.fill", identifier: "account.location")
+    private let row: UKGroupedRowButton
     private let warning = UKErrorSlot()
     private let linkNotice = UKErrorSlot()
+    private let footerLabel: UILabel
     private let bag = UKObservationBag()
 
-    /// What reporting does, under the row: an iPad reports to its own device and is never added to a person.
-    private static func footer(_ location: LocationCoordinator) -> String {
-        location.linksPresence ? LocationAccountSection.footer : LocationAccountSection.footerWithoutPerson
-    }
-
-    /// - Parameter show: Opens the permission screen.
-    init(location: LocationCoordinator, show: @escaping () -> Void) {
-        self.location = location
+    /// Renders supplied copy and state without owning permission or navigation.
+    init(title: String, rowTitle: String, symbol: String, content: UKLocationAccountContent, show: @escaping () -> Void) {
+        row = UKGroupedRowButton(title: rowTitle, symbol: symbol, identifier: "account.location")
+        footerLabel = UKFormText.footer(content.footer)
         super.init(frame: .zero)
         row.onTap = show
-        row.hint = "Shows location access for this \(location.linksPresence ? "iPhone" : "iPad")."
-        let header = UKFormText.header("Location", style: .subheadline)
+        let header = UKFormText.header(title, style: .subheadline)
         header.font = .ukFont(.subheadline, weight: .semibold)
-        // The warning sits under the card, above what reporting does, so the card keeps its corners.
-        let footerLabel = UKFormText.footer(Self.footer(location))
         let warnings = UIStackView.ukColumn([warning, linkNotice, footerLabel], spacing: HassTokens.Spacing.s)
         let section = UKGroupedSection(header: header, rows: [row], footer: warnings)
         addSubview(section)
         section.ukPin(to: self)
+        update(content)
+    }
+
+    /// Binds the existing feature to its coordinator without changing its permission flow.
+    convenience init(location: LocationCoordinator, show: @escaping () -> Void) {
+        self.init(title: "Location", rowTitle: "Share Location", symbol: "location.fill",
+                  content: .current(location), show: show)
         bag.observe { [weak self] in
-            guard let self else { return }
-            let permission = location.reporter.permission
-            let status = LocationPermissionCopy.status(permission)
-            self.row.value = status
-            self.row.refresh()
-            self.warning.showWarning(LocationAccountSection.warning(stage: permission.stage), identifier: "account.location.warning")
-            self.linkNotice.showWarning(LocationAccountSection.linkNotice(location.mobileAppPresenceLink), identifier: "account.location.link")
+            self?.update(.current(location))
         }
+    }
+
+    func update(_ content: UKLocationAccountContent) {
+        row.value = content.status
+        row.hint = content.hint
+        warning.showWarning(content.warning, identifier: "account.location.warning")
+        linkNotice.showWarning(content.linkNotice, identifier: "account.location.link")
+        footerLabel.text = content.footer
+        ukRemeasureContainers()
     }
 
     @available(*, unavailable)

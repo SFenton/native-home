@@ -3,29 +3,34 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// The security system card (direction G mockup n3; web `SecurityControls`; SwiftUI `AlarmPanel`): a badge filled with the mode's
-/// colour, the mode as a fact with when it began, and the four mode buttons. On the Security page it sits on a module, in a sheet on
-/// the sheet's cell colour. A triggered alarm reddens the card.
-///
-/// Arming sends at once; Disarm asks first. The tapped mode shows until Home Assistant reports a change (rolled back if the call
-/// fails; `.agents/patterns/optimistic-actions.md`). Tapping the current mode does nothing.
-///
-/// ```swift
-/// let card = UKAlarmPanelView(context: context, caller: caller) { [weak self] in self }   // the controller the disarm alert rises from
-/// ```
+/// Canonical alarm presentation over values and closures. Uses the existing native grid, button,
+/// motion and inline-alert primitives; no entity reads, service calls or confirmation live here.
 @MainActor
-final class UKAlarmPanelView: UIView, UKGridMeasuring {
+class UKAlarmPanelControl: UIView, UKGridMeasuring {
+    /// Presentation-only values; the host owns observation, formatting, commands and confirmation.
+    struct Value {
+        let title: String
+        let subtitle: String
+        let accessibilityLabel: String
+        let accessibilityValue: String
+        let symbol: String
+        let badgeFill: UInt32
+        let washFill: UInt32
+        let selectedState: String?
+        let unavailable: Bool
+        let pending: Bool
+        let triggered: Bool
+        let failure: String?
+    }
+
+    var onSelect: ((String) -> Void)?
     /// Space between the mode buttons: 12 pt around bezelled controls, so a mis-tap on Disarm beside Home is less likely.
     static let modeSpacing = AlarmPanel.modeSpacing
     /// What the card says for 4 s after Home Assistant rejects a mode change (the tapped mode rolls back).
     static let failureMessage = AlarmPanel.failureMessage
-    /// The badge fill when the panel's state is unknown or hidden.
-    private static let neutralBadge: UInt32 = 0x636366
-
-    private let context: UKContext
-    private let caller: any HassServiceCalling
-    private let presenter: () -> UIViewController?
     private let surface: TileSurface
+    private let modeIdentifierPrefix: String
+    private let failureIdentifier: String
 
     private let module = UKModuleView(.thin)
     private let sheetGround = UIView()
@@ -38,23 +43,26 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
     private let grid = UKDynamicGridView(configuration: UKGridConfiguration(minCellWidth: 64, maxColumns: 4, spacing: HassTokens.Spacing.m, equalRowHeights: true))
     private var buttons: [UKAlarmModeButton] = []
     private var alert: UKInlineAlertView?
-    private let bag = UKObservationBag()
-    private var actions: OptimisticActions?
     private var wasFailed = false
     private var hasRendered = false
+    private var value: Value?
+    private var failureText: String?
 
     var hinge: CGRect? {
         get { grid.hinge }
         set { grid.hinge = newValue }
     }
+    var followsFold: Bool {
+        get { grid.followsFold }
+        set { grid.followsFold = newValue }
+    }
 
-    /// - Parameters:
-    ///   - presenter: The controller the disarm confirmation is presented from.
-    init(context: UKContext, caller: any HassServiceCalling, presenter: @escaping () -> UIViewController?) {
-        self.context = context
-        self.caller = caller
-        self.presenter = presenter
-        surface = context.surface
+    /// The surface chooses the existing page/sheet material; hosts supply every state-dependent value.
+    init(surface: TileSurface, modes: [UKAlarmModeButton.Value], headerIdentifier: String = "security.system.state",
+         modeIdentifierPrefix: String = "security.mode", failureIdentifier: String = "security.alarm.failure") {
+        self.surface = surface
+        self.modeIdentifierPrefix = modeIdentifierPrefix
+        self.failureIdentifier = failureIdentifier
         super.init(frame: .zero)
         layer.cornerRadius = HassTokens.Radius.module
         layer.cornerCurve = .continuous
@@ -68,17 +76,14 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
             sheetGround.isUserInteractionEnabled = false
             addSubview(sheetGround)
         }
-        wash.backgroundColor = UIColor(rgb: ColorFamily.securityTriggered.spec.fill ?? 0xD70015)
         wash.alpha = 0
         wash.isUserInteractionEnabled = false
         addSubview(wash)
 
         header.isAccessibilityElement = true
-        header.accessibilityLabel = "Security System"
-        header.accessibilityIdentifier = "security.system.state"
+        header.accessibilityIdentifier = headerIdentifier
         addSubview(header)
         badge.isUserInteractionEnabled = false
-        badge.backgroundColor = UIColor(rgb: Self.neutralBadge)
         badgeIcon.contentMode = .center
         badgeIcon.tintColor = .white
         badge.addSubview(badgeIcon)
@@ -89,9 +94,10 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
         header.addSubview(titleLabel)
         header.addSubview(subtitleLabel)
 
-        buttons = SecurityConfig.modeButtons.map { mode in
-            let button = UKAlarmModeButton(mode: mode)
-            button.onTap = { [weak self] in self?.select(mode) }
+        buttons = modes.map { mode in
+            let button = UKAlarmModeButton(value: mode)
+            button.accessibilityIdentifier = modeIdentifierPrefix + "." + mode.state
+            button.onTap = { [weak self] in self?.onSelect?(mode.state) }
             return button
         }
         grid.setItems(buttons.map { UKGridItem($0) })
@@ -104,9 +110,8 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
             grid.configuration.minCellWidth = UKFont.scaled(64, relativeTo: .footnote, traits: traitCollection)
             invalidateLayout()
         }
-        registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: UKAlarmPanelView, _) in view.bindState() }
+        registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: UKAlarmPanelControl, _) in view.refresh() }
         NotificationCenter.default.addObserver(self, selector: #selector(transparencyChanged), name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
-        bindState()
     }
 
     @available(*, unavailable)
@@ -114,7 +119,23 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
 
     deinit { NotificationCenter.default.removeObserver(self) }
 
-    @objc private func transparencyChanged() { bindState() }
+    @objc private func transparencyChanged() { refresh() }
+
+    private func refresh() { if let value { configure(value) } }
+
+    /// Keeps button identities stable when copy, symbols, colors or ordering are republished.
+    func setModes(_ modes: [UKAlarmModeButton.Value]) {
+        let existing = Dictionary(buttons.map { ($0.value.state, $0) }, uniquingKeysWith: { first, _ in first })
+        buttons = modes.map { mode in
+            let button = existing[mode.state] ?? UKAlarmModeButton(value: mode)
+            button.setValue(mode)
+            button.accessibilityIdentifier = modeIdentifierPrefix + "." + mode.state
+            button.onTap = { [weak self] in self?.onSelect?(mode.state) }
+            return button
+        }
+        if grid.items.map(\.view) != buttons { grid.setItems(buttons.map { UKGridItem($0) }) }
+        refresh()
+    }
 
     // MARK: State
 
@@ -129,36 +150,19 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
         }
     }
 
-    /// (Re)binds the card to the alarm entity and the optimistic path, which exists only after the first tap.
-    private func bindState() {
-        bag.removeAll()
-        let box = context.store.entity(SecurityConfig.alarmEntityId)
-        bag.observe { [weak self] in
-            guard let self else { return }
-            let live = box.state
-            let shown = actions?.shown(SecurityConfig.alarmEntityId) ?? live?.state
-            let unavailable = live?.isUnavailable ?? true
-            let redacting = ScreenshotPrivacy.isRedacting
-            let triggered = !redacting && shown == "triggered"
-            let failed = actions?.isFailed(SecurityConfig.alarmEntityId) ?? false
-            render(shown: shown, live: live, unavailable: unavailable, redacting: redacting, triggered: triggered, failed: failed)
-        }
-    }
-
-    private func render(shown: String?, live: EntityState?, unavailable: Bool, redacting: Bool, triggered: Bool, failed: Bool) {
-        let animated = hasRendered && window != nil
+    func configure(_ value: Value, animated: Bool = true) {
+        self.value = value
+        let triggered = value.triggered, unavailable = value.unavailable
+        let failed = value.failure != nil
+        let animated = animated && hasRendered && window != nil
         hasRendered = true
         let isLight = traitCollection.userInterfaceStyle == .light
         // Header: the same facts as the SwiftUI header.
-        let family = redacting || unavailable ? nil : ColorFamily.security(alarmState: shown)
-        let title = redacting ? "Hidden" : (unavailable ? "Unavailable" : SecurityConfig.panelTitle(shown))
-        let since = redacting || unavailable ? nil : live.flatMap { SecurityConfig.sinceText($0.lastChanged) }
-        let subtitle = ["Security System", since].compactMap { $0 }.joined(separator: " · ")
-        let symbol = SymbolMap.symbol(for: redacting ? "mdi:shield-outline" : SecurityConfig.alarmIcon(for: shown))
-        titleLabel.text = title
-        subtitleLabel.text = subtitle
-        header.accessibilityValue = redacting ? "Hidden" : [title, since].compactMap { $0 }.joined(separator: ", ")
-        badgeIcon.image = UKFont.symbol(symbol, style: .title3, weight: .bold, filled: true, traits: traitCollection)
+        titleLabel.text = value.title
+        subtitleLabel.text = value.subtitle
+        header.accessibilityLabel = value.accessibilityLabel
+        header.accessibilityValue = value.accessibilityValue
+        badgeIcon.image = UKFont.symbol(value.symbol, style: .title3, weight: .bold, filled: true, traits: traitCollection)
         badgeIcon.alpha = unavailable ? 0.5 : 1
 
         // The subtitle's ink: the sheet's secondary ink, a stronger one over a light sheet's red alarm wash, or the module's on a page.
@@ -168,7 +172,8 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
         } else {
             subtitleInk = UIColor(HassTokens.RGB.Surface.secondaryOnModule)
         }
-        let badgeFill = UIColor(rgb: family?.spec.fill ?? Self.neutralBadge)
+        let badgeFill = UIColor(rgb: value.badgeFill)
+        wash.backgroundColor = UIColor(rgb: value.washFill)
         let washAlpha: CGFloat
         switch surface {
         case .sheet: washAlpha = triggered ? (isLight ? 0.16 : 0.42) : 0
@@ -183,26 +188,30 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
         if animated { UKMotion.stateColor(colors) } else { colors() }
 
         for button in buttons {
-            button.configure(isSelected: !redacting && shown == button.mode.state, isUnavailable: unavailable, onAlarm: triggered, animated: animated)
+            button.configure(isSelected: value.selectedState == button.value.state,
+                             isUnavailable: unavailable || value.pending, onAlarm: triggered, animated: animated)
         }
 
         // The failure line takes room for 4 s after a rejected change.
-        if failed != (alert != nil) {
+        if value.failure != failureText {
+            alert?.removeFromSuperview()
+            alert = nil
             if failed {
-                let alert = UKInlineAlertView(Self.failureMessage, severity: .error)
-                alert.accessibilityIdentifier = "security.alarm.failure"
+                let alert = UKInlineAlertView(value.failure ?? Self.failureMessage, severity: .error)
+                alert.accessibilityIdentifier = failureIdentifier
                 addSubview(alert)
                 self.alert = alert
             } else {
                 alert?.removeFromSuperview()
                 alert = nil
             }
+            failureText = value.failure
             updateAccessibilityElements()
             invalidateLayout()
         }
         if failed, !wasFailed {
             UKTapFeedback.failure()
-            Announcer.announce(Self.failureMessage)
+            Announcer.announce(value.failure ?? Self.failureMessage)
         }
         wasFailed = failed
         invalidateLayout()
@@ -210,30 +219,6 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
 
     private func updateAccessibilityElements() {
         accessibilityElements = [header] + buttons + (alert.map { [$0] } ?? [])
-    }
-
-    // MARK: Actions
-
-    /// Sends the mode, asking first when it disarms.
-    private func select(_ mode: SecurityConfig.AlarmMode) {
-        let live = context.store.entity(SecurityConfig.alarmEntityId).state?.state
-        let current = actions?.shown(SecurityConfig.alarmEntityId) ?? live
-        guard current != mode.state else { return }
-        if mode.needsConfirmation {
-            guard let presenter = presenter() else { return }
-            UKAlerts.alert(AlertCopy.disarm, from: presenter) { [weak self] in self?.send(SecurityConfig.disarmMode) }
-        } else {
-            send(mode)
-        }
-    }
-
-    private func send(_ mode: SecurityConfig.AlarmMode) {
-        let created = actions == nil
-        let actions = actions ?? OptimisticActions(store: context.store, rules: [SecurityConfig.alarmEntityId: .liveChange], caller: caller)
-        self.actions = actions
-        if created { bindState() }
-        // Live change clears it: the panel reports "arming" on the way, and the page should follow the truth.
-        actions.perform(mode.call, showing: [OptimisticIntent(SecurityConfig.alarmEntityId, value: mode.state)])
     }
 
     // MARK: Layout
@@ -307,7 +292,15 @@ final class UKAlarmPanelView: UIView, UKGridMeasuring {
 /// `SecurityCard`). At least 64 pt tall, with equal heights across the row.
 @MainActor
 final class UKAlarmModeButton: UIControl {
-    let mode: SecurityConfig.AlarmMode
+    struct Value {
+        let state: String
+        let label: String
+        let symbol: String
+        let fill: UInt32
+        let hint: String
+    }
+
+    private(set) var value: Value
     var onTap: (() -> Void)?
 
     private let fill = UIView()
@@ -319,8 +312,18 @@ final class UKAlarmModeButton: UIControl {
     private var onAlarm = false
     private var configured = false
 
-    init(mode: SecurityConfig.AlarmMode) {
-        self.mode = mode
+    convenience init(mode: SecurityConfig.AlarmMode) {
+        self.init(value: Self.legacy(mode))
+    }
+
+    static func legacy(_ mode: SecurityConfig.AlarmMode) -> Value {
+        .init(state: mode.state, label: mode.buttonTitle, symbol: AlarmModeButton.symbol(for: mode),
+              fill: ColorFamily.security(alarmState: mode.state)?.spec.fill ?? 0x636366,
+              hint: mode.needsConfirmation ? "Disarms the security system" : "Sets the security system to \(mode.title)")
+    }
+
+    init(value: Value) {
+        self.value = value
         super.init(frame: .zero)
         fill.isUserInteractionEnabled = false
         fill.layer.cornerRadius = HassTokens.Spacing.l
@@ -332,14 +335,14 @@ final class UKAlarmModeButton: UIControl {
         icon.isUserInteractionEnabled = false
         label.numberOfLines = 0
         label.textAlignment = .center
-        label.text = mode.buttonTitle
+        label.text = value.label
         label.isUserInteractionEnabled = false
         addSubview(fill)
         fill.addSubview(edge)
         addSubview(icon)
         addSubview(label)
-        accessibilityLabel = mode.buttonTitle
-        accessibilityIdentifier = "security.mode.\(mode.state)"
+        accessibilityLabel = value.label
+        accessibilityIdentifier = "security.mode.\(value.state)"
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
         ukOnContentSizeChange { [weak self] in
             guard let self else { return }
@@ -366,6 +369,15 @@ final class UKAlarmModeButton: UIControl {
         onTap?()
     }
 
+    func setValue(_ value: Value) {
+        self.value = value
+        label.text = value.label
+        accessibilityLabel = value.label
+        refreshIcon()
+        refreshColors(animated: false)
+        setNeedsLayout()
+    }
+
     func configure(isSelected: Bool, isUnavailable: Bool, onAlarm: Bool, animated: Bool) {
         let colorsChanged = isChosen != isSelected || self.onAlarm != onAlarm
         isChosen = isSelected
@@ -374,7 +386,7 @@ final class UKAlarmModeButton: UIControl {
         isEnabled = !isUnavailable
         accessibilityTraits = isSelected ? [.button, .selected] : [.button]
         if isUnavailable { accessibilityTraits.insert(.notEnabled) }
-        accessibilityHint = isSelected ? "" : (mode.needsConfirmation ? "Disarms the security system" : "Sets the security system to \(mode.title)")
+        accessibilityHint = isSelected ? "" : value.hint
         icon.alpha = isUnavailable ? 0.5 : 1
         refreshIcon()
         if colorsChanged, animated, configured {
@@ -387,7 +399,7 @@ final class UKAlarmModeButton: UIControl {
 
     private func refreshIcon() {
         // The button's glyph (mockup n3): what each mode means for the people inside.
-        icon.image = UKFont.symbol(AlarmModeButton.symbol(for: mode), style: .title3, filled: isChosen, traits: traitCollection)
+        icon.image = UKFont.symbol(value.symbol, style: .title3, filled: isChosen, traits: traitCollection)
     }
 
     private func refreshColors(animated: Bool) {
@@ -395,8 +407,8 @@ final class UKAlarmModeButton: UIControl {
         icon.tintColor = ink
         label.textColor = ink
         let finish = UKDesign.effectiveFinish(.standard, traits: traitCollection)
-        if isChosen, let rgb = ColorFamily.security(alarmState: mode.state)?.spec.fill {
-            fill.backgroundColor = UIColor(rgb: rgb)
+        if isChosen {
+            fill.backgroundColor = UIColor(rgb: value.fill)
             // A chosen mode is a filled tile: the same edge and sheen as the tiles (`tintedGlassEdge`), nothing with the solid finish.
             edge.image = finish == .solid ? nil : Self.glassEdge(size: fill.bounds.size, scale: traitCollection.displayScale)
         } else if onAlarm {
@@ -447,53 +459,4 @@ final class UKAlarmModeButton: UIControl {
 
 // MARK: - Hosts
 
-/// The alarm card's host. On the Security page (`avoidsHinge: true`) the card takes the whole content width (owner, 2026-10-30), on the
-/// phone, the Duo in every pose and the iPad, so its four mode buttons share the Doors tiles' four columns, and divide 2 + 2 around the
-/// fold through the band-aware grid (`SecurityPage`; `.agents/patterns/hinge-avoidance.md`). In a sheet it is capped at the readable
-/// 560 pt and centred. The page's group is `security.alarm.card`.
-@MainActor
-final class UKAlarmCardHost: UIView, UKGridMeasuring {
-    let card: UKAlarmPanelView
-    private let avoidsHinge: Bool
-    private var hinge: CGRect?
-
-    /// The widest the alarm card runs on the page (HIG Layout: readable width).
-    static let alarmWidth = SecurityPage.alarmWidth
-
-    init(card: UKAlarmPanelView, avoidsHinge: Bool) {
-        self.card = card
-        self.avoidsHinge = avoidsHinge
-        super.init(frame: .zero)
-        addSubview(card)
-        if avoidsHinge {
-            accessibilityContainerType = .semanticGroup
-            accessibilityIdentifier = "security.alarm.card"
-        }
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func setHinge(_ hinge: CGRect?) {
-        guard hinge != self.hinge else { return }
-        self.hinge = hinge
-        card.hinge = hinge
-        setNeedsLayout()
-    }
-
-    private func placement(width: CGFloat) -> (x: CGFloat, width: CGFloat) {
-        if avoidsHinge { return (0, width) }
-        return HingeAvoidance.placement(objectWidth: min(Self.alarmWidth, width), containerWidth: width, band: nil)
-    }
-
-    func gridHeight(forWidth width: CGFloat) -> CGFloat { card.gridHeight(forWidth: placement(width: width).width) }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let place = placement(width: bounds.width)
-        card.frame = CGRect(x: place.x, y: 0, width: place.width, height: card.gridHeight(forWidth: place.width))
-    }
-}
 #endif

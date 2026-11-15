@@ -10,6 +10,26 @@ import Observation
 @MainActor
 @Observable
 public final class HouseholdSettingsController {
+    /// Immutable targets for a controller instance. Composition callers supply these explicitly;
+    /// the legacy feature can continue to use its configured defaults.
+    public struct Targets: Equatable, Sendable {
+        public let toggleEntityIds: [String]
+        public let presenceTitles: [String: String]
+        public let relayEntityId: String?
+        public let guestEntityId: String?
+        public let powerRecoveryEntityId: String?
+
+        public init(toggleEntityIds: [String], presenceTitles: [String: String],
+                    relayEntityId: String? = nil, guestEntityId: String? = nil,
+                    powerRecoveryEntityId: String? = nil) {
+            self.toggleEntityIds = toggleEntityIds
+            self.presenceTitles = presenceTitles
+            self.relayEntityId = relayEntityId
+            self.guestEntityId = guestEntityId
+            self.powerRecoveryEntityId = powerRecoveryEntityId
+        }
+    }
+
     // MARK: - Displays
 
     /// How a toggle tile shows.
@@ -43,6 +63,9 @@ public final class HouseholdSettingsController {
     /// reverts after ``revertAfter`` with no word to say why.
     @ObservationIgnored public var onFailure: (@MainActor (String) -> Void)?
     @ObservationIgnored private var inFlight: [Task<Void, Never>] = []
+    /// Targets are fixed for the lifetime of the controller.
+    public let targets: Targets
+    private var executing: [String: Int] = [:]
     @ObservationIgnored private let toggleIds: [String]
     @ObservationIgnored private let presenceIds: [String]
 
@@ -56,11 +79,14 @@ public final class HouseholdSettingsController {
     ///   - store: Live state.
     ///   - caller: Where service calls go: the connection in the app, a recorder in tests and the gallery.
     ///   - scheduler: Runs revert timers.
-    public init(store: EntityStore, caller: any HassServiceCalling, scheduler: any RevertScheduler = TaskRevertScheduler()) {
+    ///   - targets: The entities the controller drives, built from the document's controls by the caller.
+    public init(store: EntityStore, caller: any HassServiceCalling, scheduler: any RevertScheduler = TaskRevertScheduler(),
+                targets: Targets) {
         self.store = store
         self.caller = caller
-        toggleIds = HouseholdSettingsConfig.toggleEntityIds
-        presenceIds = HouseholdSettingsConfig.Admin.presenceRooms.map(\.presenceEntityId)
+        self.targets = targets
+        toggleIds = targets.toggleEntityIds
+        presenceIds = targets.presenceTitles.keys.sorted()
         var rules: [String: OptimisticOverlay.ClearRule] = [:]
         for id in toggleIds { rules[id] = .confirmation }
         for id in presenceIds { rules[Self.presenceKey(id)] = .confirmation }
@@ -106,8 +132,8 @@ public final class HouseholdSettingsController {
 
     /// Relay Control Mode and Guest Room guest mode are both on (web `showRelayGuestModeWarning`, live state).
     public var showsRelayGuestModeWarning: Bool {
-        store.entity(HouseholdSettingsConfig.Admin.relayControlEntityId).state?.state == "on"
-            && (HomeConfig.guestToggles.first.map { store.entity($0.entityId).state?.state == "on" } ?? false)
+        guard let relay = targets.relayEntityId, let guest = targets.guestEntityId else { return false }
+        return store.entity(relay).state?.state == "on" && store.entity(guest).state?.state == "on"
     }
 
     // MARK: - Presence modes
@@ -123,22 +149,27 @@ public final class HouseholdSettingsController {
     public func presenceFailed(_ entityId: String) -> Bool { overlay.isFailed(Self.presenceKey(entityId)) }
 
     /// Whether the Power Recovery automation failed to run and its tile still shows the failed face.
-    public var powerRecoveryFailed: Bool { overlay.isFailed(HouseholdSettingsConfig.Admin.powerRecoveryAutomation) }
+    public var powerRecoveryFailed: Bool {
+        targets.powerRecoveryEntityId.map { overlay.isFailed($0) } ?? false
+    }
 
     /// Sets a room's presence mode. Does nothing while the room is unavailable.
     public func setPresence(_ entityId: String, to mode: PresenceOverrideState) {
         let live = PresenceOverrideState(entity: store.entity(entityId).state)
         guard live != .unavailable, let call = mode.command(for: entityId) else { return }
         perform(call, key: Self.presenceKey(entityId), value: mode.rawValue, live: live.rawValue,
-                failure: Self.failureText(title: HouseholdSettingsConfig.Admin.presenceRooms.first { $0.presenceEntityId == entityId }?.title))
+                failure: Self.failureText(title: targets.presenceTitles[entityId]))
     }
 
     // MARK: - Commands and read-only tiles
 
     /// Runs the living room power recovery automation (`automation.trigger`).
     public func triggerPowerRecovery() {
-        perform(ServiceCall("automation", "trigger", target: HouseholdSettingsConfig.Admin.powerRecoveryAutomation),
-                key: HouseholdSettingsConfig.Admin.powerRecoveryAutomation, value: nil, live: nil)
+        guard let id = targets.powerRecoveryEntityId, !id.isEmpty else {
+            onFailure?(Self.failureText(title: nil))
+            return
+        }
+        perform(ServiceCall("automation", "trigger", target: id), key: id, value: nil, live: nil)
     }
 
     /// How a read-only tile shows (web `EntityActionCard` without an action).
@@ -169,13 +200,24 @@ public final class HouseholdSettingsController {
 
     // MARK: - Calls
 
+    /// A service request is outstanding even if its optimistic display has already reverted.
+    /// Publication guards must also retain controls while confirmation UI is open.
+    public func isExecuting(_ key: String) -> Bool { (executing[key] ?? 0) > 0 }
+
     private func perform(_ call: ServiceCall, key: String?, value: String?, live: String?, failure: String? = nil) {
         if let key { overlay.clearFailure(key) }
         let generation = key.flatMap { key in
             value.flatMap { overlay.commit(key, value: $0, live: live, revertAfter: Self.revertAfter) }
         }
+        if let key { executing[key, default: 0] += 1 }
         let caller = caller
         let task = Task { @MainActor [weak self] in
+            defer {
+                if let key, let self {
+                    let remaining = (self.executing[key] ?? 1) - 1
+                    self.executing[key] = remaining > 0 ? remaining : nil
+                }
+            }
             do {
                 try await caller.call(call)
             } catch {

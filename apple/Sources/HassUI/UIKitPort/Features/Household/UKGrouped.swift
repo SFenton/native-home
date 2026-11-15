@@ -103,9 +103,13 @@ final class UKSignOutRow: UKRowButton {
     /// What the row says and VoiceOver reads while busy.
     static let busyTitle = SignOutRow.busyTitle
     private var isBusy = false
+    private let title: String
+    private let pendingTitle: String
 
-    init(identifier: String) {
-        super.init(UKRowView(Self.content(isBusy: false)))
+    init(identifier: String, title: String = "Sign Out", pendingTitle: String = UKSignOutRow.busyTitle) {
+        self.title = title
+        self.pendingTitle = pendingTitle
+        super.init(UKRowView(Self.content(title: title, pendingTitle: pendingTitle, isBusy: false)))
         accessibilityIdentifier = identifier
     }
 
@@ -113,8 +117,8 @@ final class UKSignOutRow: UKRowButton {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     /// The row sits on the module's card with a 16 pt inset.
-    private static func content(isBusy: Bool) -> UKRowContent {
-        var content = UKRowContent.centeredAction("Sign Out", ink: UKDesignInk.danger, busyTitle: busyTitle, isBusy: isBusy)
+    private static func content(title: String, pendingTitle: String, isBusy: Bool) -> UKRowContent {
+        var content = UKRowContent.centeredAction(title, ink: UKDesignInk.danger, busyTitle: pendingTitle, isBusy: isBusy)
         content.horizontalPadding = HassTokens.Spacing.l
         return content
     }
@@ -124,7 +128,7 @@ final class UKSignOutRow: UKRowButton {
         isBusy = isSigningOut
         // A busy row ignores taps; VoiceOver's double tap lands on it and does nothing.
         isUserInteractionEnabled = !isSigningOut
-        row.update(Self.content(isBusy: isSigningOut))
+        row.update(Self.content(title: title, pendingTitle: pendingTitle, isBusy: isSigningOut))
     }
 
     override var accessibilityValue: String? {

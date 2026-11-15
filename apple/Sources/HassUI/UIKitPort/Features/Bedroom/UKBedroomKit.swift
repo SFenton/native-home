@@ -30,7 +30,7 @@ final class UKBedroomSectionHeader: UIStackView {
 /// schedule rows). With ``onOpen`` the icon and text are a button (VoiceOver, Switch Control and Full Keyboard Access); the
 /// trailing control stays its own sibling element.
 @MainActor
-final class UKBedroomRow: UKRowView {
+final class UKBedroomRow: UKRowView, UKGridMeasuring {
     private let openControl: UKCheckToggle?
     private var title: String
     private var openAction: (() -> Void)?
@@ -74,12 +74,56 @@ final class UKBedroomRow: UKRowView {
         return text.isEmpty ? nil : text
     }
 
+    /// Preserves the row's Auto Layout height when a manually measured column hosts it.
+    func gridHeight(forWidth width: CGFloat) -> CGFloat {
+        systemLayoutSizeFitting(
+            CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required,
+            verticalFittingPriority: .fittingSizeLevel
+        ).height
+    }
+
     /// Replaces the detail lines under the title.
     func setLines(_ lines: [String]) {
         var content = rowContent
         content.subtitle = Self.joined(lines)
         update(content, accessory: accessory)
         openControl?.accessibilityLabel = ([title] + lines).joined(separator: ", ")
+    }
+
+    /// Keeps the native tap target and trailing switch stable as a keyed alarm changes.
+    func configure(symbol: String, title: String, lines: [String], isMuted: Bool, onOpen: (() -> Void)?) {
+        self.title = title
+        openAction = onOpen
+        var content = rowContent
+        content.title = title
+        content.symbol = symbol
+        content.glyph = isMuted ? UKDesignInk.secondary : UKDesignInk.primary
+        content.subtitle = Self.joined(lines)
+        update(content, accessory: accessory)
+        openControl?.isEnabled = onOpen != nil
+        openControl?.accessibilityLabel = ([title] + lines).joined(separator: ", ")
+    }
+
+    /// The mirrored schedule belongs to another device; its native link stays outside the alarm card.
+    static func linkedEditorButton(label: String, identifier: String, action: @escaping () -> Void) -> UIButton {
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: "arrow.up.forward.app")
+        configuration.imagePadding = HassTokens.Spacing.s
+        configuration.title = label
+        configuration.baseForegroundColor = UKDesignInk.primary
+        configuration.contentInsets = .zero
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = UKFont.rowTitle()
+            return attributes
+        }
+        let button = UIButton(configuration: configuration)
+        button.contentHorizontalAlignment = .leading
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
+        button.accessibilityIdentifier = identifier
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        return button
     }
 }
 
@@ -221,6 +265,35 @@ final class UKChoiceGrid<Value: Hashable>: UIStackView {
     }
 }
 
+// MARK: - Labeled alarm fields
+
+/// Canonical field headings and reload treatment shared by native and authored alarm editors.
+@MainActor
+enum UKBedroomField {
+    static func labeled(_ title: String, field: UIView) -> UIStackView {
+        let heading = UILabel.uk(.subheadline, weight: .semibold, ink: UKDesignInk.primary)
+        heading.text = title
+        let column = UIStackView(arrangedSubviews: [heading, field])
+        column.axis = .vertical
+        column.spacing = HassTokens.Spacing.s
+        return column
+    }
+
+    static func reloadButton(title: String, identifier: String) -> UIButton {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.tinted()
+        configuration.cornerStyle = .capsule
+        configuration.buttonSize = .large
+        configuration.title = title
+        configuration.baseForegroundColor = UKInk.action
+        configuration.baseBackgroundColor = UKInk.action
+        button.configuration = configuration
+        button.accessibilityIdentifier = identifier
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
+        return button
+    }
+}
+
 /// A Sunday to Saturday day picker (`WeekdayPicker`; web day chips).
 @MainActor
 final class UKWeekdayPicker: UIStackView {
@@ -231,7 +304,14 @@ final class UKWeekdayPicker: UIStackView {
     private let onChange: ([Weekday]) -> Void
 
     /// - Parameter title: The heading above the chips, or nil when the surrounding section already names them.
-    init(title: String?, days: [Weekday], identifier: String, onChange: @escaping ([Weekday]) -> Void) {
+    convenience init(title: String?, days: [Weekday], identifier: String, onChange: @escaping ([Weekday]) -> Void) {
+        self.init(title: title, days: days, choices: Weekday.allCases.map { ($0, $0.shortLabel) },
+                  identifier: identifier, accessibilityLabel: { day, _ in day.label }, onChange: onChange)
+    }
+
+    /// Authored order and visible labels, retaining the canonical checkmarks and weekday semantics.
+    init(title: String?, days: [Weekday], choices: [(Weekday, String)], identifier: String,
+         accessibilityLabel: (Weekday, String) -> String = { _, label in label }, onChange: @escaping ([Weekday]) -> Void) {
         self.days = days
         self.onChange = onChange
         host = UKGridHost(grid)
@@ -243,11 +323,11 @@ final class UKWeekdayPicker: UIStackView {
             heading.text = title
             addArrangedSubview(heading)
         }
-        for day in Weekday.allCases {
-            chips[day] = UKChipButton(title: day.shortLabel, accessibilityTitle: day.label, shape: .capsule, spacing: 2, boldWhenSelected: true,
+        for (day, label) in choices {
+            chips[day] = UKChipButton(title: label, accessibilityTitle: accessibilityLabel(day, label), shape: .capsule, spacing: 2, boldWhenSelected: true,
                                       identifier: "\(identifier).\(day.rawValue)") { [weak self] in self?.toggle(day) }
         }
-        grid.setItems(Weekday.allCases.compactMap { chips[$0] }.map { UKGridItem($0) })
+        grid.setItems(choices.compactMap { chips[$0.0] }.map { UKGridItem($0) })
         grid.configuration.minCellWidth = UKFont.scaled(52, relativeTo: .body, traits: traitCollection)
         addArrangedSubview(host)
         isAccessibilityElement = false

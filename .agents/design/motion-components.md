@@ -69,7 +69,7 @@ Owner, 2026-10-18: "make sure background color changes are animated, and that ev
 
 | Component | State | Today | Status | Fix at | Test |
 |---|---|---|---|---|---|
-| **Bedroom** bed side and wake light cards (`RoomCardView`) | active, family | `GlassTile` | Inherits | `GlassTileFace` | — |
+| **Bedroom** cards | active, family | `GlassTile` | Inherits | `GlassTileFace` | — |
 | **Bedroom** `ChoiceGrid` | selected, disabled | Fill and ink jump | Fix | Fill and ink on `state` | `BedroomComponentsTests` |
 | **Bedroom** `WeekdayPicker` | selected day | Capsule fill jumps | Fix | `state` | `BedroomComponentsTests` |
 | **Bedroom** `BedroomRow` | none at runtime | — | Static | — | — |
@@ -97,16 +97,16 @@ Owner, 2026-10-18: "make sure background color changes are animated, and that ev
 | **Inventory** `InventoryRow` | selected, busy | Selected fill jumps | Fix | `state` | `InventoryRowTests` |
 | **Inventory** `CameraStatusPill`, `ScanProductHeader`, `StateMessage` | none | — | Static | — | — |
 | **Location** `LocationStatusRow` | permission | Cell fixed | Static | — | — |
-| **Media** `MediaCardTile` | playing | `GlassTile` | Inherits | `GlassTileFace` | — |
+| **Media** cards | playing | `GlassTile` | Inherits | `GlassTileFace` | — |
 | **MediaRemote** `RemoteIconButton` | pressed | 0.12 snappy | OK, move to token | `quick` | existing |
 | **MediaRemote** `PowerButton` | power | Not animated | Fix | `state` | `MediaRemoteTests` |
 | **MediaRemote** `AppTile` | active | `GlassTile` | Inherits | `GlassTileFace` | — |
 | **RoomDevices** `GrillControls` flame badge | on/off | Fill jumps | Fix | `state` | `RoomDevicesTests` |
 | **RoomDevices** `DeviceStatusPill` | status | Not animated | Fix | `state` (or adopt `StatusPill`) | `RoomDevicesTests` |
 | **RoomDevices** `BathroomFanRoomTile` | power, lock | `GlassTile` | Inherits | `GlassTileFace` (fan lane owns the layout) | — |
-| **Rooms** `RoomCardTile`, `QuickLinkTile` | active, alarm fill | `GlassTile` | Inherits | `GlassTileFace` (fillRGB is part of the key) | — |
+| **Rooms** cards, Quick Links | active, alarm fill | `GlassTile` | Inherits | `GlassTileFace` (fillRGB is part of the key) | — |
 | **Rooms** `RoomChip` | filled | `StatusChipButton` | OK | — | — |
-| **Security** `SecurityDoorTile`, `LockTile`, `GarageDoorTile` | open/closed, locked/jammed | `GlassTile` | Inherits | `GlassTileFace`; lock glyph `.symbolEffect(.replace)` | `SecurityTilesTests` |
+| **Security** tiles | open/closed, locked/jammed | `GlassTile` | Inherits | `GlassTileFace`; lock glyph `.symbolEffect(.replace)` | `SecurityTilesTests` |
 | **Security** `AlarmModeButton` | selected, mode | Fill and ink jump | Fix | `state` (the selected fill carries `.tintedGlassEdge`, which fades with it) | `SecuritySystemSheetTests` |
 | **Security** `AlarmPanel` | alarm state, triggered | Overlay jumps | Fix | `state` (no pulse: the triggered colour holds steady) | `SecuritySystemSheetTests` |
 | **Settings** `HouseholdActionTile`, `VehicleDoorsTile`, `GlassStateTile` | active | `GlassTile` | Inherits | `GlassTileFace` | — |

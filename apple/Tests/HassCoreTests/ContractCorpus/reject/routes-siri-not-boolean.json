@@ -1,0 +1,156 @@
+{
+  "envelopeVersion": "2.0",
+  "publisherId": "publisher-corpus",
+  "revision": 1,
+  "updatedAt": "2026-11-14T10:00:00Z",
+  "publishedAt": "2026-11-14T10:00:01Z",
+  "capabilities": [
+    "sh.activity-presentation@1",
+    "sh.backdrop@1",
+    "sh.chrome@1",
+    "sh.composition@1",
+    "sh.native-extensions@1",
+    "sh.page@1",
+    "sh.route-links@1",
+    "sh.shell@1",
+    "sh.symbols@1"
+  ],
+  "assetManifestSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "document": {
+    "schemaVersion": "2.0",
+    "id": "synthetic-document",
+    "name": "Native composition",
+    "theme": {
+      "appearance": "dark",
+      "tokens": "canonical@1",
+      "typography": "dynamic-type@1",
+      "background": {
+        "type": "solid",
+        "token": "shell-base@1"
+      }
+    },
+    "navigation": {
+      "initialPageId": "page-home",
+      "initialTabId": null,
+      "initialArguments": {},
+      "tabs": [],
+      "policy": {
+        "type": "canonical-shell@1",
+        "tabSwitch": "preserve-cut@1",
+        "reselect": "pop-root-then-scroll@1",
+        "stackMotion": "canonical-stack@1",
+        "restoration": "scene@1",
+        "selectionWhileModal": "reject"
+      },
+      "chrome": {
+        "groups": [
+          {
+            "id": "group-shell",
+            "placement": "leading",
+            "horizontal": "separate-circles@1",
+            "vertical": "shared@1",
+            "items": [
+              {
+                "id": "item-menu",
+                "type": "shell-menu",
+                "label": "Sections",
+                "icon": {
+                  "type": "sf-symbol",
+                  "name": "line.3.horizontal",
+                  "rendering": "canonical",
+                  "unavailable": "fallback"
+                },
+                "visibility": "root-when-menu-available"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "pages": [
+      {
+        "id": "page-home",
+        "title": "Home",
+        "icon": {
+          "type": "sf-symbol",
+          "name": "square.grid.2x2",
+          "rendering": "canonical",
+          "unavailable": "fallback"
+        },
+        "parameters": {},
+        "toolbar": {
+          "type": "inherit"
+        },
+        "layout": {
+          "type": "column",
+          "padding": {
+            "top": {
+              "type": "token",
+              "name": "m"
+            },
+            "leading": {
+              "type": "token",
+              "name": "m"
+            },
+            "bottom": {
+              "type": "token",
+              "name": "m"
+            },
+            "trailing": {
+              "type": "token",
+              "name": "m"
+            }
+          },
+          "spacing": {
+            "type": "token",
+            "name": "m"
+          },
+          "maxWidth": {
+            "type": "unbounded"
+          },
+          "scroll": "content-fit@1",
+          "chrome": "canonical-page@1",
+          "ground": "host"
+        },
+        "components": [],
+        "navigation": {
+          "type": "stack"
+        }
+      }
+    ],
+    "modals": [],
+    "dataSources": [],
+    "variables": {},
+    "assets": [],
+    "liveActivities": [
+      {
+        "id": "native-d3faa3f8febd26566de56fd1",
+        "jobId": "vacuum.demo_unit",
+        "type": "activity-presentation@1",
+        "title": "Cleaning",
+        "glyph": "vacuum",
+        "tint": "engine",
+        "source": "activity-engine@1",
+        "privacy": "system-sensitive@1",
+        "updates": "engine@1",
+        "intents": "engine-safe@1"
+      }
+    ],
+    "extensions": {
+      "type": "native-extensions@1",
+      "watch": "stub@1",
+      "routes": [
+        {
+          "id": "route-1",
+          "path": "home",
+          "pageId": "page-home",
+          "title": "Home",
+          "summary": "Opens home",
+          "icon": "house.fill",
+          "siri": "yes"
+        }
+      ],
+      "cameras": []
+    }
+  }
+}

@@ -36,7 +36,7 @@
   Mock.mount({
     kind: 'component', id: 'guest-presence-section', title: 'Guests Staying Over section', area: 'home', status: 'shipped', frame: false,
     summary: 'Shown on Home (between the weather card and the cameras) and on Security only while a guest toggle is on: a header, one footnote and three occupancy tiles that toggle each room\'s stay. With every toggle off the section draws nothing. First pass: the stay toggles only (the web also has more security copy).',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassCore/Config/HomeConfig.swift (guestToggles)', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift'],
     spec: ['.agents/pages/home/spec.md', '.agents/pages/security/ios.md', '.agents/patterns/entity-tile.md'],
     patterns: ['entity-tile', 'dynamic-grid', 'optimistic-actions'],
     hig: ['Toggles', 'Layout', 'Color', 'Dynamic Type'],

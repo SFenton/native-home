@@ -103,12 +103,3 @@ extension OptimisticActions {
         return perform(call, showing: spec.optimistic + spec.tracking, failing: failureKey)
     }
 }
-
-extension EntityState {
-    /// This state with `value` over it (an optimistic value), or itself when `value` is nil or already the state. Providers
-    /// are fed the *shown* state, so the view applies the overlay before asking.
-    func showing(_ value: String?) -> EntityState {
-        guard let value, value != state else { return self }
-        return EntityState(entityId: entityId, state: value, attributes: attributes, lastChanged: lastChanged)
-    }
-}

@@ -1,6 +1,6 @@
 # Live Activities, one per job (spec v2)
 
-> **What:** how S+H shows each running household job, and each device problem, as its own Live Activity, kept current by Home Assistant while the app is closed. It covers the wire contract, the `fenton_home` job engine, every job kind and problem code, stop and cancel flows, slots and ordering, the views, tests and the lane plan. **Read when:** building or changing Live Activities, the widget extension, the `fenton_home` engine, or the Home Assistant side.
+> **What:** how S+H shows each running household job, and each device problem, as its own Live Activity, kept current by Home Assistant while the app is closed. It covers the wire contract, the `fenton_home` job engine, every job kind and problem code, stop and cancel flows, slots and ordering, the views and tests. **Read when:** building or changing Live Activities, the widget extension, the `fenton_home` engine, or the Home Assistant side.
 
 It **supersedes** [live-activities.md](live-activities.md) §1 ("one activity, not many"), §3 (content state v1), §4 (presentation) and §6 (engine rules), and **retires** [live-activities-ha-automations.md](live-activities-ha-automations.md) once the engine ships. The engine lives in `SFenton/ha-fenton-home`.
 
@@ -63,6 +63,36 @@ Rules:
 - **One attributes type.** `HomeActivityAttributes` stays. Core holds one push-to-start token per registration (`app_data.start_live_activity_token`), and the type name is the wire `attributes-type`. Renaming it would orphan the token.
 
 ## 3. Wire contract v2
+
+### Authored presentation delivery
+
+An accepted schema-2 publication may include `liveActivities` using
+`sh.activity-presentation@1`. Each entry has a stable editor `id` and an exact
+engine `jobId` (attributes `tag` without `job.`), bounded title, supported glyph
+and existing tint (or `engine` to keep mode-dependent colors). `source`,
+`privacy`, `updates` and `intents` are fixed to
+`activity-engine@1`, `system-sensitive@1`, `engine@1` and `engine-safe@1`.
+It cannot author state, commands, timers, push payloads or new activities.
+
+Publication commit writes the validated, bounded, protected app-group projection.
+Every existing widget/island/job/problem/small card reads it through `ActivityCard`;
+an unmatched job uses its canonical engine appearance. Pending/stale controls,
+URLs, problem severity and accessibility semantics remain native. Appearance
+becomes visible at the next system render/content update; there is no second
+content writer, synthetic update, polling loop or extra push to force a redraw.
+
+The optional `native-extensions@1` projection supplies camera-notification copy
+for an exact camera entity, but never changes payload actions, stream targets or
+snapshot authorization. Navigation routes stay in the app rather than the
+extension file. The file contains no credentials, HA state, assets or service
+calls; malformed/oversize/duplicate payloads are rejected. An account marker
+fences restore and late writes; logout removes it before clearing the payload.
+Failed native promotion rolls the projection back to its prior accepted copy.
+
+The widget bundle still contains only its existing Live Activity. Watch remains
+the canonical target stub (`watch: "stub@1"`), not a newly invented dashboard.
+App Shortcuts remain OS-declared intents; their existing destinations, Spotlight
+entries and notification links resolve to authored page/tab/modal attachments.
 
 ### Attributes (static, sent on start)
 
@@ -461,30 +491,3 @@ Where the build chose or departed from the text above, so the engine lane and re
   8. Hot flash: start your side → Cooling, then the countdown, then Complete. Have the other person start your side → "by Resident B" on yours.
   9. A vacuum problem → card, no household push on your phones. Tap Done → the Choreapp task completes and the card ends.
   7. Watch Smart Stack.
-
-## 13. Lanes and order
-
-| Lane | Repo | Scope | Depends on |
-|---|---|---|---|
-| A, engine and relay (Sonnet) | `SFenton/ha-fenton-home` | §9, fixtures | this spec |
-| B, app (Sonnet) | this repo | §11, §12; hand-written fixtures first | this spec (runs in parallel with A) |
-| C, HA config (planner) | owner's `/config` | §10 | A deployed through HACS |
-
-Merge order: B can merge first (v1 stays decodable). Deploy B to the phone. Then deploy A through HACS, run the device checks, then C. Review diffs A's generated fixtures against B's hand-written ones before either merges.
-
-## 14. Owner answers (2026-10-17) and open questions
-
-Answered:
-1. Dishwasher finished → **Complete** for 5 minutes.
-2. Washer → card only during the spin. No estimates for the washer or dryer → count-up; Complete for 5 minutes on the done signal.
-3. (Dryer learner) → dropped.
-4. Cards go to **everyone** with S+H.
-5. Hot flash → yes (§4a). Not now: EV, grill, sprinklers.
-6. Problem cards **replace** the household push for S+H people. They live until the Choreapp task completes, and have a Done button.
-
-Round 5 (2026-10-17):
-7. Problems with no task (low battery, error 75, unknown numbered, unmapped, dishwasher `actionrequired`/`error`) have **no Done**. They end when they clear. Unmapped cards carry no chips; unknown numbered errors keep only the "Error N" chip.
-8. The second resident and S+H → **later**. The owner wants to use and develop it more first. Until then that resident keeps the Companion pushes, and the engine's per-person routing leaves them on push automatically.
-9. Problem cards go to **everyone** in the household, home or not.
-
-No open questions remain for v2.

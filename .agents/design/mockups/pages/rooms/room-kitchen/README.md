@@ -3,7 +3,7 @@
 > **What:** the Kitchen: Groceries section (Grocery List, Food) plus Appliances and Climate. **Read when:** you change the Kitchen page or KitchenGroceriesSection.
 
 - Mockup: [room-kitchen.html](room-kitchen.html) · status in flight (`claude/section-sides`) (action and navigation tiles, #186) · reviewed 2026-10-23 (author draft; skill reviewers replace it)
-- Source: `apple/Sources/HassUI/` RoomScreen.swift (KitchenGroceriesSection); RoomTiles.swift; HassCore/Rooms/RoomsConfig.swift (kitchen, Groceries)
+- Source: `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRooms.swift`, `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage.swift` (the publication authors the layout)
 - Spec: .agents/pages/rooms/spec.md, ios.md, .agents/pages/chores/ios.md · Patterns: status-rail, entity-tile, dynamic-grid
 - States covered: default, loading, refreshing, error, offline, reconnecting (+ was), counts, groceries-1, dishwasher-running, active, long-text, groceries-only (code branch), ax5, placeholder
 - Motion: dishwasher start (face cross-fade), Door chip colour; transitions: Grocery List and Food pushes, dishwasher sheet

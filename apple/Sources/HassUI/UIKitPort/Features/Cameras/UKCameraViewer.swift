@@ -101,11 +101,6 @@ final class UKCameraViewerScrollView: UIScrollView {
     private var aspect: CGFloat = 4.0 / 3.0
     private var isSplit = false
 
-    /// The page's padding (`HassTokens.Spacing.l`).
-    private let padding = UKPageMetrics.side
-    /// The widest the stacked layout runs.
-    private static let stackedMaxWidth: CGFloat = 720
-
     override init(frame: CGRect) {
         super.init(frame: frame)
         alwaysBounceVertical = true
@@ -139,34 +134,10 @@ final class UKCameraViewerScrollView: UIScrollView {
         return CameraViewerLayout.usesSplit(window: window.size ?? size, isRegularWidth: regular, container: size)
     }
 
-    private struct Plan {
-        var video: CGRect
-        var controls: CGRect
-        var controlsAxis: UKCameraControlsView.LayoutAxis
-        var height: CGFloat
-    }
-
-    private func plan(width: CGFloat, split: Bool) -> Plan {
-        let inner = max(0, width - 2 * padding)
-        guard let controls else { return Plan(video: .zero, controls: .zero, controlsAxis: .horizontal, height: 0) }
-        if split {
-            // Equal halves that need no measured width.
-            let half = max(0, (inner - padding) / 2)
-            let videoHeight = half / aspect
-            let controlsHeight = controls.measuredHeight(forWidth: half, axis: .vertical)
-            let top = padding
-            return Plan(video: CGRect(x: padding, y: top, width: half, height: videoHeight),
-                        controls: CGRect(x: padding + half + padding, y: top, width: half, height: controlsHeight),
-                        controlsAxis: .vertical, height: top + max(videoHeight, controlsHeight) + padding)
+    private func plan(width: CGFloat, split: Bool) -> UKCameraViewerGeometry.Plan {
+        UKCameraViewerGeometry.plan(width: width, split: split, aspect: aspect) { [weak controls] width, axis in
+            controls?.measuredHeight(forWidth: width, axis: axis) ?? 0
         }
-        let columnWidth = min(inner, Self.stackedMaxWidth)
-        let x = padding + (inner - columnWidth) / 2
-        let videoHeight = columnWidth / aspect
-        let controlsHeight = controls.measuredHeight(forWidth: columnWidth, axis: .horizontal)
-        let gap = HassTokens.Spacing.xl
-        return Plan(video: CGRect(x: x, y: padding, width: columnWidth, height: videoHeight),
-                    controls: CGRect(x: x, y: padding + videoHeight + gap, width: columnWidth, height: controlsHeight),
-                    controlsAxis: .horizontal, height: padding + videoHeight + gap + controlsHeight + padding)
     }
 
     /// The stacked layout's content height at a width: what the sheet's height is computed from before it opens.
@@ -197,7 +168,7 @@ final class UKCameraViewerScrollView: UIScrollView {
 /// Snapshot, Sound and Record (web `ActionPill`s in `CameraModalContent`; `CameraControls`).
 @MainActor
 final class UKCameraControlsView: UIView {
-    enum LayoutAxis { case horizontal, vertical }
+    typealias LayoutAxis = UKCameraControlStripView.LayoutAxis
 
     var axis: LayoutAxis = .horizontal { didSet { if axis != oldValue { setNeedsLayout() } } }
     /// The controller the Photos-access alert is presented from.
@@ -207,7 +178,7 @@ final class UKCameraControlsView: UIView {
     private let context: UKContext
     private let model: CameraLiveModel
     private let caller: any HassServiceCalling
-    private let group = UIView()
+    private let group: UKCameraControlStripView
     private let snapshotButton = UKCameraControlButton()
     private let soundButton = UKCameraControlButton()
     private let recordButton = UKCameraControlButton()
@@ -236,14 +207,13 @@ final class UKCameraControlsView: UIView {
             self.caller = CameraControlsNoCaller()
         }
         failureCaption = UKFailureCaptionView(recordFailure)
+        group = UKCameraControlStripView(buttons: camera.recordCall != nil
+                                        ? [snapshotButton, soundButton, recordButton] : [snapshotButton, soundButton],
+                                        caption: failureCaption)
         super.init(frame: .zero)
         group.accessibilityContainerType = .semanticGroup
         group.accessibilityLabel = "\(camera.title) camera controls"
         addSubview(group)
-        group.addSubview(snapshotButton)
-        group.addSubview(soundButton)
-        if camera.recordCall != nil { group.addSubview(recordButton) }
-        addSubview(failureCaption)
         snapshotButton.onTap = { [weak self] in self?.snapshot = .saving; self?.snapshotChanged() }
         soundButton.onTap = { [weak self] in
             guard let self else { return }
@@ -383,56 +353,16 @@ final class UKCameraControlsView: UIView {
 
     // MARK: Layout
 
-    private var buttons: [UKCameraControlButton] { camera.recordCall != nil ? [snapshotButton, soundButton, recordButton] : [snapshotButton, soundButton] }
-
-    /// Accessibility sizes stack the controls: three across break their labels mid-word at AX5.
-    private func effectiveAxis(_ axis: LayoutAxis) -> LayoutAxis {
-        axis == .horizontal && !traitCollection.ukIsAccessibilitySize ? .horizontal : .vertical
-    }
-
-    private func buttonFrames(width: CGFloat, axis: LayoutAxis) -> (frames: [CGRect], height: CGFloat) {
-        let spacing = HassTokens.Spacing.m
-        let items = buttons
-        switch effectiveAxis(axis) {
-        case .horizontal:
-            let each = max(0, (width - spacing * CGFloat(items.count - 1)) / CGFloat(items.count))
-            let height = items.map { $0.height(forWidth: each) }.max() ?? 0
-            return (items.indices.map { CGRect(x: CGFloat($0) * (each + spacing), y: 0, width: each, height: height) }, height)
-        case .vertical:
-            var y: CGFloat = 0
-            var frames: [CGRect] = []
-            for item in items {
-                let height = item.height(forWidth: width)
-                frames.append(CGRect(x: 0, y: y, width: width, height: height))
-                y += height + spacing
-            }
-            return (frames, max(0, y - spacing))
-        }
-    }
-
-    private func captionHeight(width: CGFloat) -> CGFloat {
-        failureCaption.systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-                                               withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
-    }
-
     func measuredHeight(forWidth width: CGFloat, axis: LayoutAxis) -> CGFloat {
-        let layout = buttonFrames(width: width, axis: axis)
-        let caption = captionHeight(width: width)
-        return layout.height + (caption > 0 ? HassTokens.Spacing.s + caption : 0)
+        group.measuredHeight(forWidth: width, axis: axis)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: measuredHeight(forWidth: size.width, axis: axis)) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let layout = buttonFrames(width: bounds.width, axis: axis)
-        group.frame = CGRect(x: 0, y: 0, width: bounds.width, height: layout.height)
-        let mirror = effectiveUserInterfaceLayoutDirection == .rightToLeft
-        for (button, frame) in zip(buttons, layout.frames) {
-            button.frame = mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame
-        }
-        let caption = captionHeight(width: bounds.width)
-        failureCaption.frame = CGRect(x: 0, y: layout.height + (caption > 0 ? HassTokens.Spacing.s : 0), width: bounds.width, height: caption)
+        group.axis = axis
+        group.frame = bounds
     }
 }
 

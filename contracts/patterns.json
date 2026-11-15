@@ -61,7 +61,9 @@
       },
       "owns": [
         "apple/Sources/HassDesign/TileActions/**",
-        "apple/Sources/HassCore/TileActions/**"
+        "apple/Sources/HassCore/TileActions/**",
+        "apple/Sources/HassDesign/TileActions/StateTileLook.swift",
+        "apple/Sources/HassDesign/TileActions/StateTileLookChange.swift"
       ],
       "guards": [],
       "related": {
@@ -133,10 +135,6 @@
       "web": [],
       "canonical": {
         "apple": [
-          {
-            "path": "apple/Sources/HassUI/UIKitPort/Design/UKAvatarView.swift",
-            "symbol": "UKAvatarView"
-          },
           {
             "path": "apple/Sources/HassCore/Profile/PersonAvatars.swift",
             "symbol": "PersonAvatars"
@@ -228,12 +226,23 @@
           {
             "path": "apple/Sources/HassCore/Cameras/CameraStream.swift",
             "symbol": "CameraStreamRetention"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKCameraControlStrip.swift",
+            "symbol": "UKCameraControlStripView"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKCameraViewerGeometry.swift",
+            "symbol": "UKCameraViewerGeometry"
           }
         ]
       },
       "owns": [
         "apple/Sources/HassUI/Features/Cameras/**",
-        "apple/Sources/HassCore/Cameras/**"
+        "apple/Sources/HassCore/Cameras/**",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUICamera.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Cameras/**",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUICamera*.swift"
       ],
       "guards": [],
       "related": {
@@ -416,7 +425,6 @@
         "apple/Sources/HassDesign/ThermostatTileFace.swift",
         "apple/Sources/HassDesign/ColorFamily*.swift",
         "apple/Sources/HassDesign/FinishColor.swift",
-        "apple/Sources/HassDesign/QuickLinkPalette.swift",
         "apple/Sources/HassDesign/RoomPalette.swift",
         "apple/Sources/HassDesign/LitTile.swift",
         "apple/Sources/HassDesign/BrightnessTile.swift",
@@ -560,10 +568,6 @@
           {
             "path": "apple/Sources/HassDesign/HingeAvoidance.swift",
             "symbol": "HingeAvoidance"
-          },
-          {
-            "path": "apple/Sources/HassUI/UIKitPort/App/Layout/UKHingedPanes.swift",
-            "symbol": "UKHingedPanes"
           },
           {
             "path": "apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns.swift",
@@ -735,8 +739,8 @@
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/HassUI/Features/MediaRemote/MediaRemoteSheet.swift",
-            "symbol": "MediaRemoteSheet"
+            "path": "apple/Sources/HassUI/Features/MediaRemote/MediaRemoteControls.swift",
+            "symbol": "DirectionalPad"
           }
         ]
       },
@@ -1105,11 +1109,7 @@
         "apple": [
           {
             "path": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift",
-            "symbol": "UKBathroomFanSheet"
-          },
-          {
-            "path": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift",
-            "symbol": "UKAirPurifierSheet"
+            "symbol": "UKGrillSheet"
           }
         ]
       },
@@ -1148,8 +1148,8 @@
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
-            "symbol": "RoomOverviewSheet"
+            "path": "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift",
+            "symbol": "RoomOverviewStyle"
           }
         ]
       },
@@ -1265,8 +1265,8 @@
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdParts.swift",
-            "symbol": "UKSectionBlock"
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKSettingsSection.swift",
+            "symbol": "UKInlineAlertView"
           }
         ]
       },
@@ -1376,8 +1376,8 @@
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKStatusRail.swift",
-            "symbol": "UKStatusRail"
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift",
+            "symbol": "UKChipRailView"
           }
         ]
       },
@@ -1524,10 +1524,6 @@
           {
             "path": "apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift",
             "symbol": "ThermostatDial"
-          },
-          {
-            "path": "apple/Sources/HassUI/UIKitPort/Design/UKClimateThermostatDial.swift",
-            "symbol": "UKClimateThermostatDial"
           }
         ]
       },
@@ -1604,8 +1600,8 @@
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumSheet.swift",
-            "symbol": "UKVacuumSheet"
+            "path": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIVacuumView.swift",
+            "symbol": "UKServerUIVacuumView"
           }
         ]
       },
@@ -1687,14 +1683,6 @@
       ],
       "canonical": {
         "apple": [
-          {
-            "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCard.swift",
-            "symbol": "UKWeatherCardView"
-          },
-          {
-            "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift",
-            "symbol": "UKWeatherSheet"
-          },
           {
             "path": "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCarousel.swift",
             "symbol": "UKWeatherCarouselView"
@@ -1819,11 +1807,9 @@
               "statusEntityId"
             ],
             "HouseholdSettingsConfig": [
-              "icons",
-              "toggleEntityIds"
+              "icons"
             ],
             "HouseholdTileActions": [
-              "autoLockEntityId",
               "doors"
             ],
             "HumidifierConfig": [
@@ -2221,6 +2207,104 @@
         "patterns": [
           "check-row",
           "module-list"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "routes",
+      "title": "Routes",
+      "status": "current",
+      "doc": ".agents/patterns/routes.md",
+      "summary": "the one way the app opens an authored place: a plain path resolved by the accepted publication, for push links, Live Activity links, Spotlight and Siri or Shortcuts.",
+      "keywords": [
+        "route",
+        "deep link",
+        "push link",
+        "alias",
+        "link prefix",
+        "spotlight",
+        "siri",
+        "app shortcut",
+        "open intent"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/Routes/RouteRequest.swift",
+            "symbol": "RouteRequest"
+          },
+          {
+            "path": "apple/Sources/HassCore/ServerUIRendering/ServerUIExtensionRoutes.swift",
+            "symbol": "RouteTarget"
+          },
+          {
+            "path": "apple/Sources/FentonActivityModel/RouteCatalog.swift",
+            "symbol": "RouteCatalog"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/Routes/**",
+        "apple/Sources/HassCore/Push/PushLink.swift",
+        "apple/Sources/HassCore/Spotlight/**",
+        "apple/Sources/FentonActivityModel/RouteCatalog.swift",
+        "apple/Sources/FentonActivityModel/RouteVisibility.swift",
+        "apple/Apps/iOS/RouteEntity.swift",
+        "apple/Apps/iOS/RouteQuery.swift",
+        "apple/Apps/iOS/OpenRouteIntent.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "copy",
+      "title": "Copy",
+      "status": "current",
+      "doc": ".agents/patterns/copy.md",
+      "summary": "how the app words itself: voice, terms, case, length, string ids, and which text the house can override.",
+      "keywords": [
+        "copy",
+        "wording",
+        "string",
+        "strings table",
+        "sh.strings",
+        "term list",
+        "capitalization",
+        "maxLength",
+        "placeholder",
+        "plural",
+        "accessibility label",
+        "PluralCopy",
+        "WeatherCopy"
+      ],
+      "web": [
+        "src/i18n/copy.ts"
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/Weather/WeatherCopy.swift",
+            "symbol": "WeatherCopy"
+          },
+          {
+            "path": "apple/Sources/HassCore/Text/PluralCopy.swift",
+            "symbol": "PluralCopy"
+          }
+        ]
+      },
+      "owns": [],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "alerts",
+          "state-message"
         ]
       },
       "supersedes": [],

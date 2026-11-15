@@ -50,15 +50,21 @@ public enum RoomOverview {
     /// The one-line state under the sheet's name (`.agents/design/direction-g.md`, Sheets; mockup n2): "3 of 12 On",
     /// "2 Rooms Occupied", "2 Open". Nil where the sheet's tiles already carry the figures (Climate, Air Quality).
     public static func sheetSubtitle(_ kind: RoomOverviewKind, read: Read) -> String? {
+        sheetSubtitle(kind, groups: groups(kind), read: read)
+    }
+
+    /// The same sheet copy over explicit membership, without consulting the active house.
+    public static func sheetSubtitle(_ kind: RoomOverviewKind, groups: [RoomGroup], read: Read) -> String? {
+        let ids = unique(groups.flatMap { $0.items.map(\.entityId) })
         switch kind {
         case .lights:
-            let on = activeLightCount(read: read)
-            return on == 0 ? "All Off" : "\(on) of \(lightEntityIds.count) On"
+            let on = ids.count { RoomFormat.isActive(read($0)) }
+            return on == 0 ? "All Off" : "\(on) of \(ids.count) On"
         case .occupancy:
-            let rooms = groups(.occupancy).count(where: { occupiedCount($0, read: read) > 0 })
+            let rooms = groups.count(where: { occupiedCount($0, read: read) > 0 })
             return rooms == 0 ? "All Clear" : "\(rooms) \(rooms == 1 ? "Room" : "Rooms") Occupied"
         case .contacts:
-            return contactCountSummary(openContactCount(read: read))
+            return contactCountSummary(ids.count { RoomFormat.isOpen(read($0)) })
         case .climate, .airQuality:
             return nil
         }
@@ -366,8 +372,13 @@ public enum RoomOverview {
     public static func airQualityChipSummary(read: Read) -> String {
         let chip = HomeConfig.statusChips.first { $0.tone == .air }
         let detailId = chip?.detailEntityId
-        let aqi = RoomFormat.compact(chip.flatMap { read($0.entityId) })
-        let pm25 = RoomFormat.compact(detailId.flatMap(read))
+        return airQualityChipSummary(aqi: chip.flatMap { read($0.entityId) }, pm25: detailId.flatMap(read))
+    }
+
+    /// The same chip copy over injected range entities, without consulting the house configuration.
+    public static func airQualityChipSummary(aqi: EntityState?, pm25: EntityState?) -> String {
+        let aqi = RoomFormat.compact(aqi)
+        let pm25 = RoomFormat.compact(pm25)
         return "AQI \(aqi) · PM2.5 \(pm25)"
     }
 

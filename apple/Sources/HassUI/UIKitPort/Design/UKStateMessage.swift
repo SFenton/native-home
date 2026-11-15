@@ -24,7 +24,7 @@ final class UKStateMessageView: UIView {
     ///   - actionTitle: The one action (an error's "Try Again"), or nil for a state with none.
     ///   - actionIdentifier: The action button's own accessibility identifier (default `state.action`).
     ///   - action: What the action does; the button shows only with both this and `actionTitle`.
-    ///   - actionBusyTitle: While non-nil the action is running: the button shows an inline arc and this title ("Trying Again").
+    ///   - actionBusyTitle: While non-nil the action is running: the button shows an inline arc and this title ("Trying Again…").
     ///   - identifier: The state's accessibility identifier (default `state.message`).
     init(symbol: String, title: String, message: String? = nil, actionTitle: String? = nil, actionIdentifier: String? = nil,
          action: (() -> Void)? = nil, actionBusyTitle: String? = nil, identifier: String? = nil) {
@@ -87,7 +87,7 @@ final class UKStateMessageView: UIView {
     /// A failed load's state with a Try Again button (``LoadFailure/stateMessage(identifier:retryIdentifier:retrying:retry:)``).
     convenience init(_ failure: LoadFailure, identifier: String, retryIdentifier: String, retrying: Bool, retry: @escaping () -> Void) {
         self.init(symbol: failure.symbol, title: failure.title, message: failure.message, actionTitle: AlertCopy.tryAgain,
-                  actionIdentifier: retryIdentifier, action: retry, actionBusyTitle: retrying ? "Trying Again" : nil, identifier: identifier)
+                  actionIdentifier: retryIdentifier, action: retry, actionBusyTitle: retrying ? AlertCopy.tryingAgain : nil, identifier: identifier)
     }
 }
 
@@ -119,26 +119,6 @@ final class UKCenteredStateMessageView: UIScrollView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         if !state.hasAction, contentSize.height <= bounds.height + 0.5 { return nil }
         return super.hitTest(point, with: event)
-    }
-}
-
-/// A sheet page whose whole body is one ``UKStateMessageView`` (a route that no longer exists, a tab with nothing to show): a real
-/// ``UKPageViewController`` with the sheet surface, so it keeps the standard header and rail inset (modal-sheet, "Modal standard").
-final class UKStatePageViewController: UKPageViewController {
-    private let state: UKStateMessageView
-
-    init(title: String?, state: UKStateMessageView) {
-        self.state = state
-        super.init(sheetTitle: title)
-        navigationItem.title = title
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        install(scrollView: UKCenteredStateMessageView(state))
     }
 }
 

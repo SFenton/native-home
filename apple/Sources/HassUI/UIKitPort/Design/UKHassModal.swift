@@ -76,7 +76,7 @@ struct UKHassModalOptions {
 /// Pages pushed inside the modal call ``UKHassModal/applyChrome(to:)`` (or push through ``push(_:animated:)``); the page's own
 /// `navigationItem` buttons merge with Close the way a SwiftUI `.toolbar` does.
 @MainActor
-final class UKHassModalController: UINavigationController, UISheetPresentationControllerDelegate, UINavigationControllerDelegate {
+final class UKHassModalController: UKNativeExitNavigationController, UISheetPresentationControllerDelegate, UINavigationControllerDelegate {
     let options: UKHassModalOptions
     /// Receives the measured height of a fitted sheet's content.
     let fit: SheetFitModel

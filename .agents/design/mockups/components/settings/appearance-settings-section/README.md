@@ -3,7 +3,7 @@
 > **What:** the Appearance section of the Settings list on the page and sheet surfaces. **Read when:** you change `AppearanceSettingsSection.swift` or `PercentSliderRow`.
 
 - Mockup: [appearance-settings-section.html](appearance-settings-section.html) · shipped · reviewed 2026-10-23 (apple-hig and swiftui-pro skill review)
-- Source: `apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift`, `apple/Sources/HassUI/Features/Food/RecipesScreen.swift`
+- Source: `apple/Sources/HassUI/UIKitPort/Design/UKPercentSliderRow.swift`, `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPreferencesProvider.swift`, `apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon.swift` (the publication authors the layout)
 - Spec: `.agents/pages/settings/ios.md`, `.agents/patterns/page-backdrop.md`, `.agents/patterns/settings-section.md`  · Patterns: page-backdrop, settings-section
 - States covered: default, blur-changed, reduce-transparency, icon-badge-off, icon-unsupported, icon-changed, ax5.
 - Motion: blur-drag (value render, no token), badge-toggle (standard and state).

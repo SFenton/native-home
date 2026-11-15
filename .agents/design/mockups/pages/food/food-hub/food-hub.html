@@ -18,8 +18,7 @@
   Mock.mount({
     kind: 'page', id: 'food-hub', title: 'Food & Recipes hub', area: 'food', status: 'shipped',
     summary: 'A page pushed under Home: Suggested Recipes (five paged pages of recipe cards), the All Recipes tile, All Food and five Food Spaces tiles in their web colours. It waits behind the page load gate until the suggestions settle. Sample data is fixture data.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Food/UKFoodHubViewController.swift', 'apple/Sources/HassUI/Features/Food/FoodRoute.swift', 'apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassUI/Features/Food/FoodFamilies.swift',
-      'apple/Sources/HassCore/Config/FoodConfig.swift', 'apple/Sources/HassDesign/ImageCard.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift', 'apple/Sources/HassUI/Features/Gallery/FoodGallery.swift'],
+    source: ['apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassCore/Config/FoodConfig.swift', 'apple/Sources/HassDesign/ImageCard.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift', 'apple/Sources/HassUI/Features/Gallery/FoodGallery.swift'],
     spec: ['.agents/pages/food/spec.md', '.agents/pages/food/ios.md'],
     patterns: ['content-gate', 'image-card', 'entity-tile', 'dynamic-grid', 'page-backdrop', 'motion'],
     hig: ['Collections', 'Page controls', 'Navigation', 'Loading', 'Color', 'Dynamic Type', 'Split views'],

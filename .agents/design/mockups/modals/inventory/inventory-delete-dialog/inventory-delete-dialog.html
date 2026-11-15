@@ -14,7 +14,7 @@
   Mock.mount({
     kind: 'modal', id: 'inventory-delete-dialog', title: 'Delete item confirmation', area: 'inventory', status: 'shipped',
     summary: 'Deleting a single unit (the trailing swipe or a one-batch card) asks "Delete <item> from the <place>?" in a confirmation dialog: a red Delete and the system Cancel. An action sheet on compact width, a popover on regular width. More than one in stock asks how many instead (see the quantity prompt).',
-    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift (requestDelete)', 'apple/Sources/HassCore/Inventory/InventoryListModel.swift (delete)'],
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift'],
     spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md'],
     patterns: ['floating-actions'],
     hig: ['Action sheets', 'Alerts', 'Popovers', 'Dynamic Type'],

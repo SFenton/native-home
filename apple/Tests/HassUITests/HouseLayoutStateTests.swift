@@ -89,7 +89,7 @@ struct HouseLayoutStateTests {
         #expect(newer.adminMessage == newer.memberMessage)
         let timeout = HouseConfigCopy.entry(.timedOut)
         #expect(timeout.title == "Unable to Load the House Layout" && timeout.actionTitle == "Try Again" && timeout.action == .tryAgain)
-        #expect(HouseConfigCopy.tryAgainBusy == "Trying Again")
+        #expect(HouseConfigCopy.tryAgainBusy == "Trying Again…")
         #expect(HouseConfigCopy.skeletonLabel == "Getting your home from Home Assistant")
     }
 
@@ -155,66 +155,5 @@ struct HouseLayoutStateTests {
         #expect(HouseLayoutSummary(hasDocument: false, status: .loading, missing: []).value == "Waiting for Home Assistant")
         #expect(HouseLayoutSummary(hasDocument: false, status: nil, missing: []).value == "Waiting for Home Assistant")
         #expect(HouseLayoutSummary(hasDocument: false, status: .invalid, missing: []).footer == nil)
-    }
-
-    // MARK: - Skeleton shapes
-
-    @Test func homeHasFourChipsTheModuleABarAndFourCameraTiles() {
-        let plan = HouseSkeletonPlan.make(.home, width: 390)
-        let roles = plan.shapes.map(\.role)
-        #expect(roles.filter { $0 == .chip }.count == 4 && roles.filter { $0 == .module }.count == 1)
-        #expect(roles.filter { $0 == .bar }.count == 1 && roles.filter { $0 == .tile }.count == 4)
-        for tile in plan.shapes where tile.role == .tile {
-            #expect(abs(tile.frame.height / tile.frame.width - HouseSkeletonPlan.tileAspect) < 0.001, "Tiles are 1 : 0.78")
-        }
-        let columns = Set(plan.shapes.filter { $0.role == .tile }.map(\.frame.minX))
-        #expect(columns.count == 2, "Two columns on a compact width")
-        #expect(plan.shapes.allSatisfy { $0.frame.minX >= 0 && $0.frame.maxX <= 390 && $0.frame.maxY <= plan.height })
-    }
-
-    @Test func tilesTakeFourColumnsFromSevenHundredPoints() {
-        #expect(HouseSkeletonPlan.columns(forWidth: 699) == 2 && HouseSkeletonPlan.columns(forWidth: 700) == 4)
-        let wide = HouseSkeletonPlan.make(.home, width: 820)
-        #expect(Set(wide.shapes.filter { $0.role == .tile }.map(\.frame.minX)).count == 4)
-    }
-
-    @Test func aPartlyFoldedHomeUsesFoldColumns() throws {
-        let band: ClosedRange<CGFloat> = 370...430
-        let plan = HouseSkeletonPlan.make(.home, width: 800, band: band)
-        let chips = plan.shapes.filter { $0.role == .chip }
-        let module = try #require(plan.shapes.first { $0.role == .module })
-        let tiles = plan.shapes.filter { $0.role == .tile }
-        #expect(chips.count == 4 && tiles.count == 4)
-        #expect(chips.allSatisfy { $0.frame.maxY <= module.frame.minY }, "The rail is on top")
-        #expect(module.frame.maxX <= band.lowerBound, "The module leads")
-        #expect(tiles.allSatisfy { $0.frame.minX >= band.upperBound }, "The tiles trail")
-        #expect(Set(tiles.map(\.frame.minX)).count == 2, "Two columns in the trailing region")
-    }
-
-    @Test func anotherPageHasABarAndFourTilesThenABarAndTwo() {
-        let plan = HouseSkeletonPlan.make(.page, width: 390)
-        #expect(plan.shapes.map(\.role) == [.bar, .tile, .tile, .tile, .tile, .bar, .tile, .tile])
-        #expect(plan.shapes.filter { $0.role == .chip || $0.role == .module }.isEmpty)
-    }
-
-    @Test func aBandMeansNothingToTheGenericPage() {
-        #expect(HouseSkeletonPlan.make(.page, width: 800, band: 370...430) == HouseSkeletonPlan.make(.page, width: 800, band: nil))
-    }
-
-    // MARK: - Debug switches
-
-    @Test func theGalleryValuesForceTheirStates() {
-        #expect(HouseLayoutDebug.forced("loading") == .init(status: .loading, hasDocument: false))
-        #expect(HouseLayoutDebug.forced("offline") == .init(status: .loading, hasDocument: false))
-        #expect(HouseLayoutDebug.forced("missing")?.status == .integrationMissing)
-        #expect(HouseLayoutDebug.forced("notconfigured")?.status == .notConfigured)
-        #expect(HouseLayoutDebug.forced("invalid")?.status == .invalid)
-        #expect(HouseLayoutDebug.forced("newer")?.status == .newerSchema(found: 99))
-        #expect(HouseLayoutDebug.forced("timeout")?.status == .timedOut)
-        #expect(HouseLayoutDebug.forced("cached-missing") == .init(status: .integrationMissing, hasDocument: true))
-        let entity = HouseLayoutDebug.forced("entity-missing")
-        #expect(entity?.status == .ready && entity?.hasDocument == true && entity?.missing == HouseLayoutDebug.sampleMissing)
-        #expect(HouseLayoutDebug.forced("nonsense") == nil && HouseLayoutDebug.forced(nil) == nil)
-        #expect(HouseLayoutDebug.role("admin") == .admin && HouseLayoutDebug.role("member") == .member && HouseLayoutDebug.role("x") == nil)
     }
 }

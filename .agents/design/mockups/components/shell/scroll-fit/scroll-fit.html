@@ -185,7 +185,7 @@
   Mock.mount({
     kind: 'component', id: 'scroll-fit', title: 'Scroll fit: scroll only when there is something to scroll', area: 'shell', status: 'shipped',
     summary: 'Owner decision 2026-10-24, one rule app-wide: a vertical scroll view whose content fits its viewport is static (no bounce, no drag response, no indicator); one whose content is taller scrolls and bounces as normal. The decision is geometry, so the same screen is static on an iPad and scrolls on an iPhone or the folded Duo, and flips at an accessibility text size. Pull-to-refresh lists are the one exception.',
-    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassUI/UIKitPort/App/Page/UKScrollFit.swift'],
+    source: ['apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassDesign/SheetFit.swift', 'apple/Sources/HassUI/UIKitPort/App/Page/UKScrollFit.swift'],
     spec: ['.agents/patterns/scroll-fit.md', '.agents/patterns/modal-sheet.md', '.agents/design/apple/split-view.md'],
     patterns: ['modal-sheet'],
     hig: ['Scroll views', 'Sheets', 'Layout', 'Dynamic Type', 'Pull to refresh'],

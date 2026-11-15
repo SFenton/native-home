@@ -471,8 +471,7 @@ class PerFamilyTests(unittest.TestCase):
                 self.assertEqual(out.getvalue().count("-only-testing"), expected, device)
 
     def test_real_split_suites_send_only_their_pose_class_to_duo_and_ipad(self):
-        for file, pose in (("apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKHumidifierSheet.swift", "RoomDevicesHumidifierPoseJourneyTests"),
-                           ("apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumSheet.swift", "VacuumSplitPoseJourneyTests"),
+        for file, pose in (("apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumSheet.swift", "VacuumSplitPoseJourneyTests"),
                            ("apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumsViewController.swift", "VacuumSplitPoseJourneyTests"),
                            ("apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift", "FoodWideLayoutJourneyTests"),
                            ("apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipeDetail.swift", "FoodWideLayoutJourneyTests"),
@@ -528,7 +527,6 @@ class HostedSelectionTests(unittest.TestCase):
         self.assertNotIn("UKHostedHomeAssistantTests", home)  # the convention would take it for Home; it tests Settings
         self.assertIn("UKHostedSharedHomeTests", home)
         self.assertEqual(self.hosted(self.UK + "Features/HouseConfig/UKHouseLayoutGate.swift"), ["UKHostedHouseLayoutGateTests"])
-        self.assertIn("UKHostedWakeEditorTests", self.hosted(self.UK + "Features/Bedroom/UKBedroomKit.swift"))  # no Bed in the name
 
     def test_the_longest_hosted_prefix_narrows_a_file(self):
         self.assertEqual(self.hosted(self.UK + "Features/Settings/UKFeedback.swift"), ["UKHostedFeedbackTests"])

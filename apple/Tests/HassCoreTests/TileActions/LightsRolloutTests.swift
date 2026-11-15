@@ -123,14 +123,14 @@ struct LightsRolloutCatalogTests {
 @Suite(.demoHouse)
 struct SecuritySystemQuickLinkDiscTests {
     func spec(_ state: String?) -> TileActionSpec {
-        AlarmModeActions().actions(for: state.map { EntityState(entityId: QuickLinks.securityEntityId, state: $0) })[0]
+        StateStyleActions(.alarm, entityId: SecurityConfig.alarmEntityId).actions(for: state.map { EntityState(entityId: QuickLinks.securityEntityId, state: $0) })[0]
     }
 
     @Test func disarmedOffersArmHomeAndArmedOffersAConfirmedDisarm() {
         #expect(spec("disarmed").verb == "Arm Home" && spec("disarmed").confirmation == nil)
         #expect(spec("disarmed").call?.service == "alarm_arm_home" && spec("disarmed").call?.target == QuickLinks.securityEntityId)
         for armed in ["armed_home", "armed_away", "armed_night", "triggered"] {
-            #expect(spec(armed).verb == "Disarm" && spec(armed).confirmation == AlarmModeActions.disarmConfirmation, Comment(rawValue: armed))
+            #expect(spec(armed).verb == "Disarm" && spec(armed).confirmation == StateStyle.alarmDisarmConfirmation, Comment(rawValue: armed))
             #expect(spec(armed).call?.service == "alarm_disarm", Comment(rawValue: armed))
         }
     }

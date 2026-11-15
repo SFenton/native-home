@@ -307,7 +307,7 @@ final class UKBadgedTabSegments<Item: Hashable & Identifiable>: UIView {
 /// let page = UKPinnedBarViewController(content: sheetContent, bar: bar.inset())     // along the bottom, over the content
 /// ```
 public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
-    let segments: [ModalTabSegment<Item>]
+    private(set) var segments: [ModalTabSegment<Item>]
     public let label: String
     public let identifier: String
     private let hasSymbols: Bool
@@ -315,6 +315,7 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
     private let onSelect: (Item) -> Void
     private var badged: UKBadgedTabSegments<Item>?
     private var segmented: UISegmentedControl?
+    private var menuButton: UIButton?
     public var selection: Item {
         didSet {
             guard selection != oldValue else { return }
@@ -347,10 +348,18 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
         return wrapper
     }
 
+    /// Refreshes counts without replacing the selected content panel.
+    public func updateBadges(_ badge: (Item) -> Int) {
+        guard segments.contains(where: { $0.badge != badge($0.item) }) else { return }
+        segments = segments.map { .init(item: $0.item, title: $0.title, symbol: $0.symbol, badge: badge($0.item)) }
+        rebuild()
+    }
+
     private func rebuild() {
         subviews.forEach { $0.removeFromSuperview() }
         badged = nil
         segmented = nil
+        menuButton = nil
         let form = ModalTabBarStyle.form(hasSymbols: hasSymbols, hasBadges: hasBadges, compactWidth: traitCollection.horizontalSizeClass == .compact,
                                          accessibilitySize: traitCollection.preferredContentSizeCategory.isAccessibilityCategory)
         let glass = UKNavigationGlassView(shape: .capsule)
@@ -361,6 +370,7 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
         case .menu:
             // Titles, not icons: at accessibility sizes the section names are what a reader needs.
             let button = UIButton(type: .system)
+            menuButton = button
             button.showsMenuAsPrimaryAction = true
             button.contentHorizontalAlignment = .leading
             var configuration = UIButton.Configuration.plain()
@@ -373,16 +383,12 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
             // One line, truncating, as a menu picker's label: a wrapped title made the bar taller than the page it covers.
             button.titleLabel?.numberOfLines = 1
             button.titleLabel?.lineBreakMode = .byTruncatingTail
-            button.menu = UIMenu(children: segments.map { segment in
-                UIAction(title: ModalTabBarStyle.accessibilityTitle(segment.title, badge: segment.badge),
-                         state: segment.item == selection ? .on : .off) { [weak self] _ in self?.choose(segment.item) }
-            })
             button.accessibilityLabel = label
-            button.accessibilityValue = segments.first { $0.item == selection }?.title
             button.accessibilityIdentifier = identifier
             inner.addSubview(button)
             button.ukPin(to: inner, insets: UIEdgeInsets(top: 0, left: HassTokens.Spacing.m, bottom: 0, right: HassTokens.Spacing.m))
             button.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
+            syncNative()
         case .badged, .badgedWithTitles:
             // A system segmented control draws a title or an image, never a badge: draw our own segments on the same capsule.
             let segmentsView = UKBadgedTabSegments(segments: segments, showsTitles: form == .badgedWithTitles, selection: selection, identifier: identifier, label: label)
@@ -418,6 +424,15 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
 
     private func syncNative() {
         segmented?.selectedSegmentIndex = segments.firstIndex { $0.item == selection } ?? UISegmentedControl.noSegment
+        if let button = menuButton {
+            let title = segments.first { $0.item == selection }?.title
+            button.configuration?.title = title
+            button.accessibilityValue = title
+            button.menu = UIMenu(children: segments.map { segment in
+                UIAction(title: ModalTabBarStyle.accessibilityTitle(segment.title, badge: segment.badge),
+                         state: segment.item == selection ? .on : .off) { [weak self] _ in self?.choose(segment.item) }
+            })
+        }
     }
 
     private func choose(_ item: Item) {

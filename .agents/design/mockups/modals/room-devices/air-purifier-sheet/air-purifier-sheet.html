@@ -21,8 +21,7 @@
   Mock.mount({
     kind: 'modal', id: 'air-purifier-sheet', title: 'Air purifier sheet', area: 'room-devices', status: 'shipped',
     summary: 'Opened from a room\'s Air Quality tile and from the Air Quality chip\'s room overview. Each section is one short choice: Fan Mode, then Auto\'s sub-mode or Manual\'s speed. The header subtitle is the AQI and PM2.5 summary.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift', 'apple/Sources/HassUI/Features/RoomDevices/RoomDeviceSheetChrome.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift',
-      'apple/Sources/HassCore/RoomDevices/AirPurifierController.swift', 'apple/Sources/HassCore/Config/RoomDeviceConfig.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift', 'apple/Sources/HassUI/Features/RoomDevices/RoomDeviceSheetChrome.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift', 'apple/Sources/HassCore/RoomDevices/AirPurifierController.swift', 'apple/Sources/HassCore/Config/RoomDeviceConfig.swift'],
     spec: ['.agents/patterns/room-device-sheets.md', '.agents/patterns/option-picker.md'],
     patterns: ['room-device-sheets', 'modal-sheet', 'option-picker'],
     hig: ['Sheets', 'Segmented controls', 'Pop-up buttons', 'Dynamic Type'],

@@ -225,7 +225,6 @@ struct HouseConfigFlipDTests {
             #expect(FoodConfig.spaces.isEmpty)
             #expect(Vacation.pageEntityIds.count == 4)
             #expect(HouseholdSettingsConfig.Admin.autoResetTiles.isEmpty)
-            #expect(HouseholdTileActions.autoLockEntityId.isEmpty)
         }
     }
 

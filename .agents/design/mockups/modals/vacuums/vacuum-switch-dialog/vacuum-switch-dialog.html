@@ -22,7 +22,7 @@
   Mock.mount({
     kind: 'modal', id: 'vacuum-switch-dialog', title: 'Use Area / Use Rooms (confirmation)', area: 'vacuums', status: 'shipped',
     summary: 'Rooms and Area cannot both be set, so choosing the other asks first. One system alert from the Use Area and Use Rooms tiles, the Rooms section and the map, with the same words on every path.',
-    source: ['apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassCore/Vacuums/VacuumController.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassCore/Vacuums/VacuumController.swift'],
     spec: ['.agents/patterns/vacuum-sheet.md', '.agents/pages/vacuums/spec.md'],
     patterns: ['vacuum-sheet', 'modal-sheet'],
     hig: ['Alerts', 'Buttons'],

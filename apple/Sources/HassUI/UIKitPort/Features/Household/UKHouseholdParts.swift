@@ -214,31 +214,6 @@ final class UKColumnContainer {
 
 // MARK: - Sections
 
-/// A titled block of a page: `SettingsSection` (title, paragraphs, controls) and `AwaySection` (a title and a description) in
-/// one. The header reads as a heading to VoiceOver; paragraphs are `subheadline` in the wallpaper's fixed white on a page and the
-/// sheet's secondary ink in a sheet.
-@MainActor
-enum UKSectionBlock {
-    /// `SettingsSection(title:paragraphs:)`: 20 pt bold header, subheadline paragraphs, then the controls a little lower.
-    static func settings(title: String, paragraphs: [String], content: UIView, surface: TileSurface = .page) -> UIStackView {
-        let stack = UIStackView.ukColumn(spacing: HassTokens.Spacing.s)
-        let header = UILabel.uk(.title3, weight: .bold, ink: UKDesignInk.primary)
-        header.text = title
-        header.accessibilityTraits = .header
-        stack.addArrangedSubview(header)
-        for paragraph in paragraphs {
-            let label = UILabel.uk(.subheadline, ink: surface == .page ? UKDesignInk.onDark : UKDesignInk.secondary)
-            label.text = paragraph
-            stack.addArrangedSubview(label)
-        }
-        if let last = stack.arrangedSubviews.last { stack.setCustomSpacing(HassTokens.Spacing.s + HassTokens.Spacing.xs, after: last) }
-        stack.addArrangedSubview(content)
-        return stack
-    }
-}
-
-// MARK: - Colours
-
 /// The household tile tints (`HassTokens.Tint.settingsSwitch`, `.settingsControl`) and the away pages' colours (`AwayTint`).
 enum UKHouseholdTint {
     static let settingsSwitch = UIColor(HassTokens.RGB.Tint.settingsSwitch)
@@ -249,25 +224,6 @@ enum UKHouseholdTint {
 }
 
 // MARK: - Page base
-
-/// A page that is one centred column in a scroll view, with an optional bar under it for a gallery's last-call line.
-@MainActor
-class UKHouseholdColumnPage: UKPageViewController {
-    override var houseLayoutSkeleton: HouseSkeletonPlan.Kind? { .page }
-    let container = UKColumnContainer(spacing: HassTokens.Spacing.xl)
-    var column: UIStackView { container.column }
-    init(context: UKContext, title: String?, accessoryBar: UIView? = nil) {
-        super.init(context: context, title: title)
-        bottomAccessory = accessoryBar
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        install(scrollView: container.scrollView)
-    }
-}
-
-// MARK: - Sheets
 
 /// A scroll view of padded content for a household sheet: it names its scroller for the sheet-fit measurement, so a fitted
 /// sheet opens as tall as its tiles (``SheetFitModel``).
@@ -306,23 +262,6 @@ final class UKHouseholdSheetContentController: UKPageViewController, UKSheetFitt
         ])
     }
 }
-
-/// A modal built from a content controller (`HassModal`): the title, Close with the household's identifier and the sheet's
-/// width and height.
-@MainActor
-enum UKHouseholdSheets {
-    static func modal(root: UIViewController, title: String, closeIdentifier: String, width: HassSheetWidth, height: HassSheetHeight,
-                      fitKey: String, onDismissed: (() -> Void)? = nil) -> UKHassModalController {
-        var options = UKHassModalOptions(title: title, fitKey: fitKey)
-        options.closeIdentifier = closeIdentifier
-        options.width = width
-        options.height = height
-        options.onDismissed = onDismissed
-        return UKHassModalController(root: root, options: options)
-    }
-}
-
-// MARK: - Gallery bar
 
 /// Makes the controller that presents a sheet the one that shows alerts and further sheets: the nearest presented controller.
 extension UIViewController {

@@ -49,7 +49,7 @@
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the mark stays 96 pt; the monogram grows with the large title', render: function (ctx) { return h('div.k-swatch-grid', [sw('fresh', headerNode(ctx, { mode: 'fresh' })), sw('welcome back', headerNode(ctx, { mode: 'welcome', name: 'Alex Morgan', first: 'Alex' }))]); } },
     },
     motion: [
-      { id: 'mark-spring', what: 'The mark springs in: 0.86 to 1.03, then settles to 1', token: 'rise easeOut 0.28 s from 0.15 s, then emphasized spring(response 0.5, damping 0.8) (MotionTokens.Intro.markRise, emphasized)', source: 'apple/Sources/HassUI/Features/Login/LoginView.swift playIntro', state: 'fresh',
+      { id: 'mark-spring', what: 'The mark springs in: 0.86 to 1.03, then settles to 1', token: 'rise easeOut 0.28 s from 0.15 s, then emphasized spring(response 0.5, damping 0.8) (MotionTokens.Intro.markRise, emphasized)', source: 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift playIntro', state: 'fresh',
         reduce: 'no scale, no spring: the whole header takes part in one 0.35 s cross-fade',
         note: 'In the real screen the mark is inside the header, whose opacity waits for the title at 0.46 s, so the rise is not visible there (see pages/login notes). Shown on its own here.',
         play: function (stage) { return spring(stage.querySelector('.ll-mark'), Mock.settings.reduceMotion); } },

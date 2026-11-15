@@ -122,6 +122,12 @@ final class CameraStreamPool {
 
     // MARK: - Models
 
+    /// A pooled identity cannot silently attach a different stream after publication.
+    func accepts(_ camera: HomeConfig.Camera) -> Bool {
+        guard let existing = models[camera.id]?.camera else { return true }
+        return existing.rtcStreamId == camera.rtcStreamId
+    }
+
     /// The shared model for a camera, created on first use (not started).
     ///
     /// A memoizing lookup: views call it from `body`, and since the cache is not observed, filling it never

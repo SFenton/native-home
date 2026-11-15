@@ -16,6 +16,11 @@ struct MotionTokensTests {
         #expect(MotionTokens.arrivalStagger == 0.06)
     }
 
+    @Test func theStateTileHoldsItsInProgressLookForASecond() {
+        #expect(MotionTokens.StateTile.minimumInProgress == 1.0)
+        #expect(MotionTokens.StateTile.minimumInProgress > MotionTokens.stateDuration, "longer than a colour fade, so the fade is seen")
+    }
+
     @Test func reduceMotionColourFadeIsShorterButStillAFade() {
         #expect(MotionTokens.stateReduced != MotionTokens.state)
         #expect(MotionTokens.stateReduced == .easeInOut(duration: 0.2))

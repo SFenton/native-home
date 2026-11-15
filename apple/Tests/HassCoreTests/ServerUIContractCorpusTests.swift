@@ -1,0 +1,99 @@
+import Foundation
+import HassTestSupport
+import Testing
+@testable import HassCore
+
+// MARK: - Shared Studio and app corpus
+
+/// Runs the shared publication corpus (`ContractCorpus/`, copied byte for byte from the Studio) through the app compiler.
+///
+/// Every `accept/` file must decode; every `reject/` file must throw the first issue `index.json` records (code, pointer and
+/// capability); `capabilities.json` must equal the compiler's supported list. The corpus README says how to refresh the copy.
+@Suite(.timeLimit(.minutes(2)))
+@MainActor
+struct ServerUIContractCorpusTests {
+    /// One `index.json` entry.
+    struct Case: Decodable, Sendable, CustomTestStringConvertible {
+        struct Issue: Decodable, Equatable, Sendable {
+            let code: String
+            let pointer: String
+            let capability: String?
+        }
+
+        let file: String
+        let outcome: String
+        let houseScripts: [String]?
+        let issue: Issue?
+
+        var testDescription: String { file }
+    }
+
+    private struct Index: Decodable { let format: Int; let cases: [Case] }
+
+    nonisolated static let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .appendingPathComponent("ContractCorpus", isDirectory: true)
+
+    nonisolated static let cases: [Case] = {
+        // A missing or malformed index yields no cases, and `indexIsCompleteAndWellFormed` then fails loudly.
+        guard let data = try? Data(contentsOf: directory.appendingPathComponent("index.json")),
+              let index = try? JSONDecoder().decode(Index.self, from: data) else { return [] }
+        return index.cases
+    }()
+
+    /// The house document a case needs: one remote that declares exactly the named scripts, else the demo house.
+    private static func house(for item: Case) -> HouseConfigSource {
+        guard let scripts = item.houseScripts else {
+            let source = HouseConfigSource()
+            source.set(DemoHouse.config)
+            return source
+        }
+        return ServerUIRemoteTestProvider.houseSource(scripts: scripts)
+    }
+
+    @Test func indexIsCompleteAndWellFormed() throws {
+        let data = try Data(contentsOf: Self.directory.appendingPathComponent("index.json"))
+        let index = try JSONDecoder().decode(Index.self, from: data)
+        #expect(index.format == 1)
+        let listed = index.cases.map(\.file)
+        #expect(Set(listed).count == listed.count, "a file is listed twice")
+        var onDisk: Set<String> = []
+        for folder in ["accept", "reject"] {
+            let names = try FileManager.default.contentsOfDirectory(atPath: Self.directory.appendingPathComponent(folder).path)
+            onDisk.formUnion(names.filter { $0.hasSuffix(".json") }.map { "\(folder)/\($0)" })
+        }
+        #expect(onDisk == Set(listed), "index.json and the files on disk disagree")
+        #expect(index.cases.allSatisfy { $0.outcome == "accept" || ($0.outcome == "reject" && $0.issue != nil) })
+        #expect(index.cases.contains { $0.outcome == "accept" } && index.cases.contains { $0.outcome == "reject" })
+    }
+
+    @Test(arguments: cases)
+    func fileDecodesWithTheRecordedOutcome(_ item: Case) throws {
+        let bytes = try Data(contentsOf: Self.directory.appendingPathComponent(item.file))
+        let result: Result<ServerUICompositionPublication, any Error> = HouseConfigSource.$scoped.withValue(Self.house(for: item)) {
+            Result { try ServerUICompositionPublication.decode(bytes) }
+        }
+        switch item.outcome {
+        case "accept":
+            if case .failure(let error) = result { Issue.record("\(item.file) must decode, got \(error)") }
+        case "reject":
+            guard case .failure(let error) = result else {
+                Issue.record("\(item.file) must be rejected")
+                return
+            }
+            let thrown = try #require(error as? ServerUICompositionError, "\(item.file) threw \(error)")
+            #expect(Case.Issue(code: thrown.code.rawValue, pointer: thrown.pointer, capability: thrown.capability) == item.issue,
+                    "\(item.file) threw \(thrown)")
+        default:
+            Issue.record("\(item.file) has unknown outcome \(item.outcome)")
+        }
+    }
+
+    @Test func supportedCapabilitiesEqualTheCorpusList() throws {
+        let data = try Data(contentsOf: Self.directory.appendingPathComponent("capabilities.json"))
+        let corpus = try JSONDecoder().decode([String].self, from: data)
+        #expect(corpus == corpus.sorted(), "capabilities.json must be sorted")
+        let supported = ServerUICompositionPublication.supportedCapabilities
+        #expect(Set(supported).count == supported.count, "a capability is listed twice")
+        #expect(supported.sorted() == corpus)
+    }
+}

@@ -13,9 +13,13 @@ public final class SprinklerController: Identifiable {
     public let config: SprinklersConfig.Controller
     /// The last failed call's message (web `serviceError`), cleared by the next command.
     public private(set) var errorMessage: String?
+    public private(set) var pendingCallCount = 0
+    /// Actual calls remain pinned even after their optimistic feedback expires.
+    public var hasPendingCommands: Bool { pendingCallCount > 0 || !overlay.pending.isEmpty }
 
     @ObservationIgnored private let store: EntityStore
     @ObservationIgnored private let caller: any HassServiceCalling
+    @ObservationIgnored private let lowBatteryPercent: Double?
     /// Optimistic values (web `useOptimisticState` per value).
     @ObservationIgnored let overlay: OptimisticOverlay
     @ObservationIgnored private var inFlight: [Task<Void, Never>] = []
@@ -41,10 +45,11 @@ public final class SprinklerController: Identifiable {
     ///   - caller: Where service calls go: the connection in the app, a recorder in tests.
     ///   - scheduler: Runs revert timers.
     public init(config: SprinklersConfig.Controller, store: EntityStore, caller: any HassServiceCalling,
-                scheduler: any RevertScheduler = TaskRevertScheduler()) {
+                scheduler: any RevertScheduler = TaskRevertScheduler(), lowBatteryPercent: Double? = nil) {
         self.config = config
         self.store = store
         self.caller = caller
+        self.lowBatteryPercent = lowBatteryPercent
         var rules: [String: OptimisticOverlay.ClearRule] = [
             Key.activeValve: .confirmation, Key.rainDelay: .confirmation, Key.smartWatering: .confirmation,
         ]
@@ -61,7 +66,9 @@ public final class SprinklerController: Identifiable {
     // MARK: - Reading
 
     /// The live snapshot (observes every entity it reads).
-    public var snapshot: SprinklerSnapshot { SprinklerSnapshot(config: config, store: store) }
+    public var snapshot: SprinklerSnapshot {
+        SprinklerSnapshot(config: config, lowBatteryPercent: lowBatteryPercent) { store.entity($0).state }
+    }
 
     /// The valve shown watering: optimistic, else live; `nil` when none.
     public var activeValve: String? {
@@ -168,12 +175,15 @@ public final class SprinklerController: Identifiable {
     private typealias Intent = (key: String, value: String, live: String)
 
     private func start(_ call: ServiceCall, intents: [Intent]) {
-        let task = Task { @MainActor [weak self] in _ = await self?.run(call, intents: intents) }
+        pendingCallCount += 1
+        let task = Task { @MainActor [self] in _ = await run(call, intents: intents, alreadyPending: true) }
         inFlight.append(task)
     }
 
     /// Commits the intents, calls the service and undoes them if it fails.
-    private func run(_ call: ServiceCall, intents: [Intent]) async -> Bool {
+    private func run(_ call: ServiceCall, intents: [Intent], alreadyPending: Bool = false) async -> Bool {
+        if !alreadyPending { pendingCallCount += 1 }
+        defer { pendingCallCount -= 1 }
         errorMessage = nil
         let commits = intents.compactMap { intent in
             overlay.commit(intent.key, value: intent.value, live: intent.live, revertAfter: SprinklersConfig.optimisticRevert)

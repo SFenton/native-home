@@ -19,7 +19,7 @@ enum UKPerformanceGallery {
         case "gate": root = UKGateDemoViewController()
         case "grid": root = UKGridWorkloadViewController()
         case "chips": root = UKChipRailWorkloadViewController()
-        default: root = UKPlaceholderViewController(title: "Performance", symbol: "gauge.with.needle")
+        default: root = UKGalleryNoteViewController(title: "Performance", symbol: "gauge.with.needle")
         }
         return UKGalleryGround.navigation(root: root)
     }

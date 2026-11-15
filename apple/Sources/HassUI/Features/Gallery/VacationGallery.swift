@@ -110,13 +110,13 @@ enum VacationFixtures {
         .object(["sleepypod_live_follow": .bool(on), "sleepypod_schedule": .bool(on), "wake_light_source": .bool(on)])
     }
 
-    @MainActor static func store(_ scenario: Scenario, now: Date = .now, calendar: Calendar = .current) -> EntityStore {
+    @MainActor static func store(_ scenario: Scenario, now: Date = GalleryFixtureClock.shared.now, calendar: Calendar = .current) -> EntityStore {
         let store = EntityStore()
         store.replaceAll(states(scenario, now: now, calendar: calendar), freshness: .live)
         return store
     }
 
-    static func states(_ scenario: Scenario, now: Date = .now, calendar: Calendar = .current) -> [EntityState] {
+    static func states(_ scenario: Scenario, now: Date = GalleryFixtureClock.shared.now, calendar: Calendar = .current) -> [EntityState] {
         func stamp(_ days: Int, hour: Int = 9) -> String {
             let day = calendar.date(byAdding: .day, value: days, to: now) ?? now
             let wall = WallClock(calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day, calendar: calendar)

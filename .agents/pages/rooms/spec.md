@@ -30,3 +30,12 @@ Rooms (room grid inside the sheet), Security System (alarm state, tinted by stat
 ## Room grid
 
 All sixteen rooms ranked by `counter.demo_media_room_<room>` (ties keep config order). Opening a room calls `script.turn_on` on `script.demo_script_2` with `variables.room`.
+
+## Configured composition
+
+Schema 2 has narrow negotiated room primitives: `room-card`, `room-chip`, `room-section` and `room-navigation-grid`.
+Cards read explicit entity sources, ordered subtitle sources, authored state labels and active/disabled states; navigation bodies and optional canonical power discs remain separate.
+Sections reuse the production header and grid/lead-row/two-column-fill arrangement. Destination labels, SF Symbols, fills, visibility gates, counters, actions and visit keys are authored, not inferred from a page ID.
+The `room-navigation@1` model samples descending visit rank once per presentation, with configured ties; live visibility never changes that retained order. Visits use the same explicit script intent as the production grid, over an injected script/key, and survive sheet dismissal.
+
+These are composition building blocks, not certification of every production room. Section-side/outer-page geometry, status rails, group overview providers, specialized device controls and app-launch tiles remain their owners' integration interfaces. Unsupported `room-app-launch` is an explicit capability gap; generic state cards must not stand in for those controls.

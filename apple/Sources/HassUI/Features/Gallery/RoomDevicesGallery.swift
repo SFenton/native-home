@@ -30,7 +30,7 @@ struct RoomDeviceFixture: Identifiable {
     }
 
     @MainActor
-    static func all(now: Date = Date()) -> [RoomDeviceFixture] {
+    static func all(now: Date = GalleryFixtureClock.shared.now) -> [RoomDeviceFixture] {
         // The purifiers come from the house document, which may carry fewer than four: a missing one is left out, never indexed.
         let purifiers = AirPurifierConfig.all
         // The fans and humidifiers likewise come from the document by position: the first fan is off, the second locked with a timer.
@@ -195,7 +195,7 @@ enum RoomDeviceGalleryEcho {
             let locked = data["locked"] as? Bool ?? false
             set(fan.lockEntityId, locked ? "on" : "off", [:])
         case "timer_start":
-            let deadline = Date().addingTimeInterval((number("minutes") ?? 30) * 60)
+            let deadline = GalleryFixtureClock.shared.now.addingTimeInterval((number("minutes") ?? 30) * 60)
             set(fan.deadlineEntityId, "2026-10-11 12:00:00", ["timestamp": .number(deadline.timeIntervalSince1970)])
             set(fan.pendingEntityId, "on", [:])
             // The script ends with switch.turn_on, so a timer started on an off fan turns it on.

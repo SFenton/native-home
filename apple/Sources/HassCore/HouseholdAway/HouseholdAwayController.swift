@@ -34,6 +34,10 @@ public final class HouseholdAwayController {
 
     /// Live state.
     public let store: EntityStore
+    /// The explicit target when supplied; legacy callers retain their house configuration.
+    @ObservationIgnored private let targets: HouseholdAway.Targets?
+    /// The sensor this instance observes for its entire lifetime.
+    public var statusEntityId: String { targets?.statusEntityId ?? HouseholdAway.statusEntityId }
     /// A command is in flight.
     public private(set) var pending = false
     /// The last command's error, until cleared or the next command starts.
@@ -77,6 +81,8 @@ public final class HouseholdAwayController {
     public init(
         store: EntityStore,
         responder: any HassServiceResponding,
+        targets: HouseholdAway.Targets? = nil,
+        people: [HouseConfig.Person]? = nil,
         timeout: Duration = HouseholdAwayController.commandTimeout,
         retryDelay: Duration = HouseholdAwayController.defaultRetryDelay,
         setupGrace: Duration = HouseholdAwayController.defaultSetupGrace,
@@ -84,6 +90,8 @@ public final class HouseholdAwayController {
     ) {
         self.store = store
         self.responder = responder
+        self.targets = targets
+        self.people = people
         self.timeout = timeout
         self.retryDelay = retryDelay
         self.setupGrace = setupGrace
@@ -93,9 +101,12 @@ public final class HouseholdAwayController {
         observeAvailability()
     }
 
+    /// Explicit identity descriptors for a configured plan; nil retains the legacy config facade.
+    public let people: [HouseConfig.Person]?
+
     /// The parsed status sensor; observing it observes only that entity.
     public var snapshot: HouseholdAway.Snapshot {
-        HouseholdAway.Snapshot(entity: store.entity(HouseholdAway.statusEntityId).state)
+        HouseholdAway.Snapshot(entity: store.entity(statusEntityId).state, people: people)
     }
 
     /// Commands are unavailable and have been for longer than the grace period.
@@ -183,7 +194,8 @@ public final class HouseholdAwayController {
             Task { @MainActor [self] in
                 let result: Result<JSONValue, any Error>
                 do {
-                    result = .success(try await responder.callServiceWithResponse(HouseholdAway.commandDomain, HouseholdAway.commandService, data: data))
+                    result = .success(try await responder.callServiceWithResponse(
+                        HouseholdAway.commandDomain, targets?.commandService ?? HouseholdAway.commandService, data: data))
                 } catch {
                     result = .failure(error)
                 }
@@ -217,7 +229,7 @@ public final class HouseholdAwayController {
 
     private func observeAvailability() {
         withObservationTracking {
-            _ = store.entity(HouseholdAway.statusEntityId).state
+            _ = store.entity(statusEntityId).state
         } onChange: { [weak self] in
             // onChange fires before the new value lands; read it on the next main-actor turn.
             Task { @MainActor [weak self] in

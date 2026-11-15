@@ -8,9 +8,8 @@ Web source: `ha-sfenton-react-dash@f5a7bf9:src/pages/AtAGlancePage.tsx:247-1077`
 |---|---|
 | Titles, sections, subtitles, colors | `HassCore/Rooms/RoomOverview.swift` (pure, unit tested) |
 | Group data | `HassCore/Rooms/RoomGroups.swift` (`LIGHT_GROUPS`, `CLIMATE_GROUPS`, `OCCUPANCY_GROUPS`, `CONTACT_GROUPS`, one list for Home and room pages) |
-| Sheet + overview grid | `HassUI/Common/RoomOverview/RoomOverviewSheet.swift` |
-| Room detail (page and content) | `HassUI/Common/RoomOverview/RoomGroupDetail.swift` |
-| Light tile | `HassUI/Common/RoomOverview/LightGroupTile.swift` |
+| Overview grid and light tile | `HassUI/UIKitPort/Features/Home/UKRoomOverview.swift` (`UKLightGroupTileView`) |
+| Style | `HassUI/Common/RoomOverview/RoomOverviewStyle.swift` |
 
 ## Behavior
 
@@ -29,5 +28,45 @@ Web source: `ha-sfenton-react-dash@f5a7bf9:src/pages/AtAGlancePage.tsx:247-1077`
 ## Consumers
 
 Home (`HomeScreen` chip sheets), Security (`SecurityPage` Contact Sensors chip), room pages (`RoomSheetBody` lights, climate, occupancy, contacts, and the all-rooms contact sheet for Back Deck and Garage).
+
+## Configured UIKit consumers
+
+Schema-2 `room-overview-tile` binds a `home-status@1` room projection to the
+canonical glass tile, with authored appearance/navigation and optional contact
+subtitle suppression. Loading, redaction and unavailable copy remain visible
+even when the ordinary contact subtitle is suppressed. Projection membership is
+injected, never reconstructed with `RoomOverview.groups` or room ranking.
+`format: item` requires one member and reuses canonical contact, occupancy,
+temperature and vent copy. Contact members may supply explicit door/window
+kind and physical count. Climate status chips use the existing helper/gradient;
+AQI overview cards tint their glyph/rim, not their background. Temperature
+detail tiles keep their dark family face.
+`format: detail` uses the canonical occupied-sensor count rather than the
+overview's room occupancy label.
+`home-light@1` plus `light-group-tile` adapts `UKLightGroupTileView` and
+`LightControl`, retaining explicit on/off, dimming, optimism, rollback and native
+failure feedback. A rejected call after the optimistic timeout still shows the
+failed face. Actual network lifetime, active brightness feedback/drag and focused
+controls block incompatible publication replacement or reparenting.
+An overview's optional `powerSourceId` negotiates `sh.room-light-power@1` and
+must match the room status source's target and exact membership. It uses
+`RoomLightsPowerActions`, never a widened switch-only power model. One shared
+optimistic path updates the overview, group slider and member lights together;
+real call lifetime still pins the source after the overlay expires.
+
+The full domain fixture includes overview and member/detail recipes. Live
+active/inactive keyed collections and live sheet navigation subtitles still
+require Shell integration. Full overview recipes remain uncertified until
+those interfaces and device evidence are integrated. Their modal/local
+push uses the existing sheet contract, preserving HIG Sheets / Anatomy:
+"Previous step or parent view; not for dismissing" for Back.
+`UKServerUIBindings.homeOverviewSubtitle(_:sourceIds:)` is the narrow navigation
+subtitle seam: it validates compatible room sources and uses the injected-group
+`RoomOverview.sheetSubtitle` overload, not the global house configuration.
+
+The bounded schema-2 source inventory allows 512 definitions (the complete
+Home/Security/Climate/Camera recipe needs more than 300); document bytes, node
+count and recursion limits are unchanged. Swift and Studio test both the
+accepted boundary and the first rejected source.
 
 - **Owned files** (also in `contracts/patterns.json`): `AirQualityRoomTile.swift`, `RoomGroupDetailPage.swift`, `RoomOverviewGrid.swift`, `RoomOverviewTile.swift`.

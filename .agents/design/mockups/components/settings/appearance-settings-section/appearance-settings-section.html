@@ -20,7 +20,7 @@
   Mock.mount({
     kind: 'component', id: 'appearance-settings-section', title: 'Appearance section (Background Blur, count badge, App Icon)', area: 'settings', status: 'shipped', frame: false,
     summary: 'The Appearance section of the Settings list: Background Blur (a 0 to 100% slider and Reset to Default), the Show count on app icon switch and, where the system can switch icons, the App Icon row; its footer explains the blur. Drawn on the page (modules over the wallpaper) and in a sheet (debug galleries).',
-    source: ['apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKPercentSliderRow.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPreferencesProvider.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon.swift'],
     spec: ['.agents/pages/settings/ios.md', '.agents/patterns/page-backdrop.md', '.agents/patterns/settings-section.md'],
     patterns: ['page-backdrop', 'settings-section'],
     hig: ['Sliders', 'Toggles', 'Lists and tables', 'Accessibility'],

@@ -15,18 +15,7 @@
   Mock.mount({
     kind: 'modal', id: 'room-overview-climate', title: 'Climate overview sheet', area: 'home', status: 'shipped',
     summary: "Opened by the Climate chip on Home. Every room that has temperature sensors, one dark card per room with its range (a climate card always reports, so it never fills), pushing the room's sensors and vents inside the sheet. A full-height page sheet that follows the system appearance.",
-    source: [
-      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift',
-      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift',
-      'apple/Sources/HassCore/Rooms/RoomOverview.swift',
-      'apple/Sources/HassCore/Rooms/RoomGroups.swift',
-      'apple/Sources/HassCore/Rooms/RoomFormat.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift',
-      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift',
-      'apple/Sources/HassDesign/DynamicGridLayout.swift',
-      'apple/Sources/HassDesign/HassModal.swift'
-],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift', 'apple/Sources/HassCore/Rooms/RoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomGroups.swift', 'apple/Sources/HassCore/Rooms/RoomFormat.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassDesign/HassModal.swift'],
     spec: [".agents/pages/home/spec.md", ".agents/pages/home/ios.md", ".agents/patterns/room-overview-sheet.md"],
     patterns: ['room-overview-sheet', 'modal-sheet', 'dynamic-grid', 'entity-tile', 'status-rail'],
     hig: ['Sheets', 'Toolbars', 'Layout', 'Typography', 'Accessibility'],

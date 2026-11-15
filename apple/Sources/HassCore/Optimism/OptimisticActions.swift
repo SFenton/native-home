@@ -104,10 +104,14 @@ public final class OptimisticActions {
     }
 
     /// Like ``perform(_:showing:resetting:)`` for a raw `domain.service` call.
+    /// `onFailure` lets a command-lifetime owner report a late rejection after its optimistic generation expired.
     @discardableResult
     public func perform(_ domain: String, _ service: String, data: [String: any Sendable], showing intents: [OptimisticIntent],
-                        resetting resets: [OptimisticReset] = [], failing failureKey: String? = nil) -> Task<Void, Never> {
-        perform(intents: intents, resets: resets, failureKey: failureKey) { caller in try await caller.callService(domain, service, data: data) }
+                        resetting resets: [OptimisticReset] = [], failing failureKey: String? = nil,
+                        onFailure: (@MainActor () -> Void)? = nil) -> Task<Void, Never> {
+        perform(intents: intents, resets: resets, failureKey: failureKey, onFailure: onFailure) { caller in
+            try await caller.callService(domain, service, data: data)
+        }
     }
 
     /// Waits for every call started so far (tests).
@@ -118,6 +122,7 @@ public final class OptimisticActions {
     }
 
     private func perform(intents: [OptimisticIntent], resets: [OptimisticReset], failureKey: String?,
+                         onFailure: (@MainActor () -> Void)? = nil,
                          send: @escaping @MainActor (any HassServiceCalling) async throws -> Void) -> Task<Void, Never> {
         for reset in resets where reset.values.contains(overlay.pending[reset.key] ?? "") && overlay.pending[reset.key] != nil {
             overlay.reset(reset.key)
@@ -143,6 +148,7 @@ public final class OptimisticActions {
                 Telemetry.count("optimistic.rollbacks", by: committed.count)
                 for (key, generation) in committed { self?.overlay.fail(key, generation: generation) }
                 if let failureKey, !committed.contains(where: { $0.key == failureKey }) { self?.overlay.markFailed(failureKey) }
+                onFailure?()
             }
         }
         // Only tests await these; keep a bounded tail so a long session doesn't grow the list forever.

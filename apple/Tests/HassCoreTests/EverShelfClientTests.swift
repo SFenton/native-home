@@ -153,6 +153,19 @@ struct EverShelfClientTests {
 
     // MARK: Mutations
 
+    @Test func shoppingUsesAnInjectedTargetAndRejectsAnInvalidOneBeforeCalling() async throws {
+        let stub = InventoryStubCaller()
+        try await EverShelfClient(caller: stub, groceryListEntityId: "todo.demo_item").addToShoppingList(name: "Beans", quantity: 2)
+        #expect(stub.calls.map(\.name) == ["evershelf.add_to_shopping", "todo.add_item"])
+        #expect(stub.calls.last?.data["entity_id"] == .string("todo.demo_item"))
+        let invalid = InventoryStubCaller()
+        await #expect(throws: EverShelfClient.Failure("Invalid grocery list target.")) {
+            try await EverShelfClient(caller: invalid, groceryListEntityId: "switch.demo_not_a_list")
+                .addToShoppingList(name: "Beans", quantity: 1)
+        }
+        #expect(invalid.calls.isEmpty)
+    }
+
     @Test func deletesWholeRowsAndPartialQuantities() async throws {
         let server = makeServer()
         let client = EverShelfClient(caller: server)

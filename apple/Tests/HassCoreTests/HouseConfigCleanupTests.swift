@@ -46,31 +46,6 @@ struct HouseConfigCleanupTests {
         }
     }
 
-    // MARK: - Spotlight
-
-    @Test func theSpotlightRoomsComeFromTheSourceTheyAreAskedAbout() {
-        var changed = DemoHouse.config
-        let allRooms = changed.rooms.pages.count
-        changed.rooms.pages = Array(changed.rooms.pages.prefix(2))
-        let source = HouseConfigSource()
-        #expect(SpotlightCatalog.entries(in: source).count == 5, "No document: the fixed entries only")
-        source.set(DemoHouse.config)
-        #expect(SpotlightCatalog.entries(in: source).count == 5 + allRooms)
-        source.set(changed)
-        let entries = SpotlightCatalog.entries(in: source)
-        #expect(entries.count == 5 + 2)
-        #expect(entries.suffix(2).map(\.id) == changed.rooms.pages.map { "room.\($0.id)" })
-    }
-
-    @Test func aDocumentWithRepeatedRoomIdsStillOpensTheFirstOnATap() {
-        var changed = DemoHouse.config
-        let first = changed.rooms.pages[0]
-        changed.rooms.pages = [first, first]
-        Self.scoped(changed) {
-            #expect(SpotlightCatalog.destination(forIdentifier: "room.\(first.id)") == .homePage(first.id))
-        }
-    }
-
     // MARK: - Repeated server data
 
     @Test func aRepeatedGuestToggleKeepsOneRuleInsteadOfTrapping() {

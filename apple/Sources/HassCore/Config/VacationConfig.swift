@@ -24,6 +24,43 @@ public enum Vacation {
         public var title: String
         public var entityId: String
         public var id: String { entityId }
+
+        public init(title: String, entityId: String) {
+            self.title = title
+            self.entityId = entityId
+        }
+    }
+
+    /// Explicit vacation helper and checklist targets, pinned for the lifetime of a controller.
+    public struct Targets: Equatable, Sendable {
+        public let modeEntityId: String
+        public let invalidDatesPendingEntityId: String
+        public let startEntityId: String
+        public let endEntityId: String
+        public let checklist: [ChecklistItem]
+
+        public init(modeEntityId: String, invalidDatesPendingEntityId: String, startEntityId: String,
+                    endEntityId: String, checklist: [ChecklistItem]) throws {
+            let booleanIds = [modeEntityId, invalidDatesPendingEntityId] + checklist.map(\.entityId)
+            let dateIds = [startEntityId, endEntityId]
+            guard !checklist.isEmpty, checklist.count <= 64,
+                  checklist.allSatisfy({ !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.title.utf16.count <= 240 }),
+                  booleanIds.allSatisfy({ AwayTargetValidation.entity($0, domain: "input_boolean") }),
+                  dateIds.allSatisfy({ AwayTargetValidation.entity($0, domain: "input_datetime") }),
+                  Set(booleanIds).count == booleanIds.count, Set(dateIds).count == dateIds.count else {
+                throw AwayTargetValidation.Error.invalidTarget
+            }
+            self.modeEntityId = modeEntityId
+            self.invalidDatesPendingEntityId = invalidDatesPendingEntityId
+            self.startEntityId = startEntityId
+            self.endEntityId = endEntityId
+            self.checklist = checklist
+        }
+
+        /// Every entity observed by the vacation controller.
+        public var pageEntityIds: [String] {
+            [modeEntityId, invalidDatesPendingEntityId, startEntityId, endEntityId] + checklist.map(\.entityId)
+        }
     }
 
     /// The pre-vacation checklist, in web order: the server's document.
@@ -124,25 +161,27 @@ public enum Vacation {
     }
 
     /// Confirming a vacation: save both dates, clear the invalid flag, then enable (web `confirmVacation`).
-    public static func confirmCalls(_ range: DateRange) -> [ServiceCall] {
+    public static func confirmCalls(_ range: DateRange, targets: Targets? = nil) -> [ServiceCall] {
         [
-            setDateTime(startEntityId, range.start),
-            setDateTime(endEntityId, range.end),
-            setBoolean(invalidDatesPendingEntityId, on: false),
-            setBoolean(modeEntityId, on: true),
+            setDateTime(targets?.startEntityId ?? startEntityId, range.start),
+            setDateTime(targets?.endEntityId ?? endEntityId, range.end),
+            setBoolean(targets?.invalidDatesPendingEntityId ?? invalidDatesPendingEntityId, on: false),
+            setBoolean(targets?.modeEntityId ?? modeEntityId, on: true),
         ]
     }
 
     /// Disabling: turn the mode and the invalid flag off and reset the checklist (web `disableVacation`).
-    public static func disableCalls() -> [ServiceCall] {
-        [setBoolean(modeEntityId, on: false), setBoolean(invalidDatesPendingEntityId, on: false)]
-            + checklist.map { setBoolean($0.entityId, on: false) }
+    public static func disableCalls(targets: Targets? = nil) -> [ServiceCall] {
+        [setBoolean(targets?.modeEntityId ?? modeEntityId, on: false),
+         setBoolean(targets?.invalidDatesPendingEntityId ?? invalidDatesPendingEntityId, on: false)]
+            + (targets?.checklist ?? checklist).map { setBoolean($0.entityId, on: false) }
     }
 
     /// Fixing the dates of a vacation Home Assistant paused for invalid dates re-enables it
     /// (web `VacationDateControls.updateDateTime`).
-    public static func recoveryCalls() -> [ServiceCall] {
-        [setBoolean(modeEntityId, on: true), setBoolean(invalidDatesPendingEntityId, on: false)]
+    public static func recoveryCalls(targets: Targets? = nil) -> [ServiceCall] {
+        [setBoolean(targets?.modeEntityId ?? modeEntityId, on: true),
+         setBoolean(targets?.invalidDatesPendingEntityId ?? invalidDatesPendingEntityId, on: false)]
     }
 
     // MARK: - Routing

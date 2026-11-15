@@ -18,7 +18,7 @@ The UIKit port reached UX parity and was measured against the SwiftUI app for fr
 
 - `HassCore`, `HassDesign`: shared logic and tokens. HassDesign's SwiftUI views stay because widgets, Live Activities and the Watch app draw with them; Apple requires SwiftUI there.
 - `FentonActivityViews`, the widget extension, the notification service and content extensions (the content extension is the UIKit camera view), the Watch app.
-- In `HassUI`, the non-UI types the UIKit app calls (routes, `ShellNavigator`, policies, models, configs, fixtures, copy) and static helpers that used to sit in SwiftUI view files.
+- In `HassUI`, the non-UI types the UIKit app calls (policies, models, configs, fixtures, copy) and static helpers that used to sit in SwiftUI view files.
 - `apple/Apps/iOSUITests`: the journeys, retargeted to the UIKit app in a follow-up lane.
 
 ## Identity carried over

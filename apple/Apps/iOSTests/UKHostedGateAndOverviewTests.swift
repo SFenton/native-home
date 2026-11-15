@@ -45,33 +45,4 @@ final class UKHostedGateAndOverviewTests: DemoHouseTestCase {
         hostedSettle(1.5)
         XCTAssertEqual(content.alpha, 1)
     }
-
-    func testAnImageHoldsTheGateUntilItCanDraw() {
-        let gate = UKContentGateView(page: "Photos", isReady: true, timing: .page, content: UIView())
-        let requirement = UKReadinessRequirement("image:a", tracker: gate.tracker, isReady: false)
-        XCTAssertFalse(gate.tracker.isSettled)
-        requirement.isReady = true
-        XCTAssertTrue(gate.tracker.isSettled)
-        requirement.isReady = false
-        requirement.end()
-        XCTAssertTrue(gate.tracker.isSettled, "leaving the screen counts as ready")
-    }
-
-    func testEveryRoomOverviewOpensWithItsTitleAndRooms() {
-        let store = HomeFixtures.store(environment: [:])
-        let context = UKGalleryChrome.context(store: store)
-        for kind in RoomOverviewKind.allCases {
-            let host = UIViewController()
-            let window = HostedPage.show(host)
-            let modal = UKRoomOverviewSheet.controller(context: context, kind: kind)
-            modal.present(from: host, animated: false)
-            hostedSettle(0.6)
-            let page = modal.viewControllers.first
-            XCTAssertEqual(page?.navigationItem.title.map { !$0.isEmpty }, true, "\(kind) has a title")
-            XCTAssertFalse(HostedPage.labels(in: modal.view).isEmpty, "\(kind) lists something")
-            XCTAssertEqual(modal.sheetPresentationController?.detents.count, 1, "an overview is a full-height sheet")
-            modal.dismiss(animated: false)
-            window.isHidden = true
-        }
-    }
 }

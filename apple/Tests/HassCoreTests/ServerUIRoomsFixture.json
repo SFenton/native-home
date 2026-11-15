@@ -1,0 +1,43 @@
+{
+  "sources": [
+    {"id":"source-room-state","kind":"ha-entity","entityId":{"type":"literal","value":"switch.demo_room"}},
+    {"id":"source-room-visible","kind":"ha-entity","entityId":{"type":"literal","value":"input_boolean.demo_visible"}},
+    {"id":"source-room-navigation","kind":"model","model":"room-navigation@1",
+     "ranking":"visits-descending-configured-ties@1",
+     "visitScriptEntityId":{"type":"literal","value":"script.demo_visit"},
+     "items":[
+       {"id":"room-a","title":"Demo A","icon":{"type":"sf-symbol","name":"house","rendering":"canonical","unavailable":"reject"},
+        "fill":{"type":"solid-rgb","red":20,"green":60,"blue":100},
+        "counterEntityId":{"type":"literal","value":"counter.demo_a"},"visitKey":"demo-a",
+        "visibility":{"sourceId":"source-room-visible","states":["on"]},
+        "action":{"type":"dismiss-then-push","destination":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"}},
+        "bodyHint":"Opens Demo A"},
+       {"id":"room-b","title":"Demo B","icon":{"type":"sf-symbol","name":"bed.double","rendering":"canonical","unavailable":"reject"},
+        "fill":{"type":"solid-rgb","red":70,"green":30,"blue":100},
+        "counterEntityId":{"type":"literal","value":"counter.demo_b"},"visitKey":"demo-b",
+        "action":{"type":"push","pageId":"page-lattice","arguments":{},"origin":"sender","duplicate":"reuse-nearest"},
+        "bodyHint":"Opens Demo B"}
+     ]},
+    {"id":"source-room-power","kind":"model","model":"power-toggle@1","inputs":{"entityId":{"type":"literal","value":"switch.demo_room"}}}
+  ],
+  "components": [
+    {"id":"room-section-demo","title":"Demo devices","type":"room-section","layout":{"span":1},
+     "props":{"arrangement":"lead-row","leadJoinsAtRegularWidth":false},
+     "children":[
+       {"id":"room-card-demo","title":"Demo device","type":"room-card","layout":{"span":1},
+        "icon":{"type":"sf-symbol","name":"powerplug","rendering":"canonical","unavailable":"reject"},
+        "binding":{"sourceId":"source-room-state","projection":"room-state@1"},
+        "props":{"kind":"power","showState":true,"subtitleSourceIds":[],"activeStates":["on"],"disabledStates":["locked"],
+          "stateLabels":[{"state":"on","label":"Running"},{"state":"off","label":"Stopped"}],
+          "visibility":{"sourceId":"source-room-visible","states":["on"]},
+          "action":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"},
+          "power":{"type":"domain","sourceId":"source-room-power","intent":"power.toggle","feedback":"policy","confirmation":{"type":"policy"}}}},
+       {"id":"room-chip-demo","title":"Demo status","type":"room-chip","layout":{"span":1},
+        "icon":{"type":"sf-symbol","name":"person","rendering":"canonical","unavailable":"reject"},
+        "binding":{"sourceId":"source-room-state","projection":"room-state@1"},
+        "props":{"kind":"occupancy","showState":true,"subtitleSourceIds":[],"activeStates":[],"disabledStates":[],"stateLabels":[]}}
+     ]},
+    {"id":"room-grid-demo","title":"Demo rooms","type":"room-navigation-grid","layout":{"span":1},
+     "binding":{"sourceId":"source-room-navigation","projection":"room-navigation@1"},"props":{}}
+  ]
+}

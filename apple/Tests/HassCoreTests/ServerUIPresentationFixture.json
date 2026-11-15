@@ -1,0 +1,44 @@
+{
+  "localState": [
+    {"id":"summary-panel","type":"choice","initial":"personal","options":[{"id":"profile","label":"Profile"},{"id":"personal","label":"Personal"}]}
+  ],
+  "components": [
+    {
+      "id":"section-grid","title":"Sections","type":"tile-grid","layout":{"span":1},
+      "props":{"minimum":"section-wide@1","maxColumns":2,"spacing":{"type":"token","name":"xl"},"equalRowHeights":false,"shortRow":"share","fold":"page"},
+      "children":[
+        {"id":"live-section","title":"Checklist","type":"section","layout":{"span":1},
+         "props":{"header":"Checklist","footer":"","style":"module-list","density":"thin","hasGlyphs":true,"spacing":{"type":"token","name":"m"},"presentationProviderId":"live-section"},
+         "children":[
+           {"id":"section-settings-link","title":"Preferences","type":"settings-link","layout":{"span":1},
+            "icon":{"type":"sf-symbol","name":"gearshape","rendering":"canonical","unavailable":"reject"},
+            "props":{"subtitle":"","showsChevron":false},
+            "action":{"type":"present","modalId":"modal-swatch","arguments":{},"ifPresented":"reject"}}
+         ]},
+        {"id":"static-section","title":"Dates","type":"section","layout":{"span":1},
+         "props":{"header":"Dates","footer":"","style":"plain","density":"thin","hasGlyphs":false,"spacing":{"type":"token","name":"m"}},
+         "children":[]}
+      ]
+    },
+    {
+      "id":"summary-panels","title":"Summary","type":"local-tabs","layout":{"span":1},
+      "props":{"stateId":"summary-panel","transition":"canonical-swap@1","scopeProviderId":"summary"},
+      "tabs":[
+        {"id":"profile","label":"Profile","children":[
+          {"id":"profile-caption","title":"Profile","type":"text","layout":{"span":1},"props":{"value":{"type":"literal","value":"Public Profile"},"style":"body","unavailableText":"No Profile"}}
+        ]},
+        {"id":"personal","label":"Personal","children":[
+          {"id":"personal-items","title":"Personal Tasks","type":"collection","layout":{"span":1},"props":{"providerId":"personal-items","template":"todo","loadingText":"Loading Tasks","emptyText":"No Tasks"}}
+        ]}
+      ]
+    },
+    {
+      "id":"form-actions","title":"Form Actions","type":"pinned-actions","layout":{"span":1},
+      "props":{"style":"form","searchPrompt":"Search","items":[
+        {"id":"form-save","title":"Save","icon":{"type":"sf-symbol","name":"checkmark","rendering":"canonical","unavailable":"reject"},"prominent":true,"showsTitle":true,"stateProviderId":"save-state",
+         "action":{"type":"set-local","stateId":"summary-panel","value":{"type":"string","value":"profile"}}},
+        {"id":"form-cancel","title":"Cancel","icon":{"type":"sf-symbol","name":"xmark","rendering":"canonical","unavailable":"reject"},"prominent":false,"showsTitle":true,"action":{"type":"back"}}
+      ]}
+    }
+  ]
+}

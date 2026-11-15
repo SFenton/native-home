@@ -243,43 +243,6 @@ final class UKHostedDesignControlsTests: DemoHouseTestCase {
             XCTAssertEqual(list.touchesShouldCancel(in: control), list.superTouchesShouldCancelForTests(control), "\(type(of: control)) keeps its drag")
         }
     }
-
-    // MARK: Climate dial
-
-    private func climateDial(caller: HostedCaller, ids: ((ThermostatTargets) -> [String])? = nil) -> (UKClimateThermostatDial, EntityStore, UIWindow) {
-        let store = ClimateFixtures.store()
-        let context = UKGalleryChrome.context(store: store, caller: caller)
-        let dial = UKClimateThermostatDial(context: context, entityId: ClimateConfig.globalThermostatEntityId, title: "Whole Home", size: .modal,
-                                           caller: caller, commitEntityIds: ids)
-        return (dial, store, host(dial))
-    }
-
-    func testClimateDialCommitSendsSetTemperatureToTheEntityOrTheCommitTargets() async {
-        let caller = HostedCaller()
-        let (dial, _, window) = climateDial(caller: caller) { _ in ["climate.demo_test_a", "climate.demo_test_b"] }
-        defer { window.isHidden = true }
-        await dial.commit(.range(low: 68, high: 75))?.value
-        XCTAssertEqual(caller.calls, ["climate.set_temperature"])
-        XCTAssertEqual(caller.data.first?["entity_id"] as? [String], ["climate.demo_test_a", "climate.demo_test_b"])
-        dial.commitEntityIds = nil
-        await dial.commit(.single(70))?.value
-        XCTAssertEqual(caller.calls.count, 2)
-        XCTAssertNotNil(caller.data.last?["entity_id"])
-    }
-
-    func testClimateDialRefusalRollsBackAndSaysWhy() async {
-        let caller = HostedCaller()
-        caller.fails = true
-        let (dial, _, window) = climateDial(caller: caller)
-        defer { window.isHidden = true }
-        await dial.commit(.range(low: 60, high: 80))?.value
-        hostedSettle(0.2)
-        let texts = HostedPage.labels(in: dial)
-        XCTAssertTrue(texts.contains(ThermostatTargets.range(low: 60, high: 80).failureMessage), "a caption says the change failed; saw \(texts)")
-        dial.action = "cooling"
-        hostedSettle(0.1)
-        XCTAssertEqual(dial.action, "cooling")
-    }
 }
 
 private extension UKWidthAwareCollectionView {

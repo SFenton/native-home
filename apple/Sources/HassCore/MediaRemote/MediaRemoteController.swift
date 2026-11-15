@@ -12,6 +12,9 @@ import Observation
 public final class MediaRemoteController {
     // MARK: - Types
 
+    /// An acknowledged text submission cannot send a blank command.
+    public enum TextSubmissionError: Error { case blankText }
+
     /// How a device tile shows (web `DeviceButton`).
     public struct DeviceDisplay: Equatable, Sendable {
         /// The shown state after optimistic values and holds.
@@ -80,6 +83,12 @@ public final class MediaRemoteController {
 
     @ObservationIgnored private let caller: any HassServiceCalling
     @ObservationIgnored private var inFlight: [Task<Void, Never>] = []
+    @ObservationIgnored private var commandGeneration = 0
+    private static let commandFailureKey = "remote-command"
+    /// Actual service-call lifetime, including commands without optimistic entity writes.
+    public private(set) var pendingCallCount = 0
+    /// Explicit feedback for commands which have no entity overlay (including keyboard submission).
+    public var lastCommandFailed: Bool { overlay.isFailed(Self.commandFailureKey) }
 
     /// How long the volume slider keeps its value while waiting for the speaker (web `VOLUME_OPTIMISTIC_REVERT_MS`).
     public static let volumeRevert: Duration = .milliseconds(2500)
@@ -99,6 +108,8 @@ public final class MediaRemoteController {
         let liveChange = Set(config.liveChangeEntityIds)
         var rules: [String: OptimisticOverlay.ClearRule] = [:]
         for id in config.optimisticEntityIds { rules[id] = liveChange.contains(id) ? .liveChange : .confirmation }
+        // The extracted media-card transport projects play/pause on the configured player.
+        if rules[config.mediaEntityId] == nil { rules[config.mediaEntityId] = .liveChange }
         overlay = OptimisticOverlay(rules: rules, scheduler: scheduler)
         volumeOverlay = OptimisticOverlay(rules: [config.volumeEntityId: .confirmation], scheduler: scheduler)
         holds = ActiveHoldTracker(scheduler: scheduler)
@@ -244,6 +255,22 @@ public final class MediaRemoteController {
                             data: ["command": .string(MediaRemoteState.textInputCommand(text))]), intents: [])
     }
 
+    /// Acknowledged keyboard submission. A caller can retain its draft and focus if the service rejects it.
+    public func sendTextAcknowledged(_ text: String, to targetEntityId: String) async throws {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw TextSubmissionError.blankText
+        }
+        let generation = beginCommand()
+        defer { pendingCallCount -= 1 }
+        do {
+            try await caller.call(ServiceCall("androidtv", "adb_command", target: targetEntityId,
+                                             data: ["command": .string(MediaRemoteState.textInputCommand(text))]))
+        } catch {
+            markCommandFailed(generation)
+            throw error
+        }
+    }
+
     /// Whether the last volume write failed and the failed face is still showing (4 s). A tile shows "Didn't Respond" for it.
     public var volumeWriteFailed: Bool { volumeOverlay.isFailed(config.volumeEntityId) }
 
@@ -260,21 +287,35 @@ public final class MediaRemoteController {
 
     /// Calls a service with optimistic intents, undoing them if the call fails (web `runOptimisticServiceCommand`).
     func perform(_ call: ServiceCall, intents: [OptimisticIntent], onFailure: (@MainActor () -> Void)? = nil) {
+        let command = beginCommand()
         let commits: [(String, Int)] = intents.compactMap { intent in
             overlay.commit(intent.entityId, value: intent.value, live: liveState(intent.entityId), revertAfter: intent.revertAfter)
                 .map { (intent.entityId, $0) }
         }
         let caller = caller
         let task = Task { @MainActor [weak self] in
+            defer { self?.pendingCallCount -= 1 }
             do {
                 try await caller.call(call)
             } catch {
+                self?.markCommandFailed(command)
                 for (entityId, generation) in commits { self?.overlay.fail(entityId, generation: generation) }
                 onFailure?()
             }
         }
         inFlight.append(task)
         if !intents.isEmpty { updateHolds() }
+    }
+
+    private func beginCommand() -> Int {
+        pendingCallCount += 1
+        commandGeneration += 1
+        overlay.clearFailure(Self.commandFailureKey)
+        return commandGeneration
+    }
+
+    private func markCommandFailed(_ generation: Int) {
+        if generation == commandGeneration { overlay.markFailed(Self.commandFailureKey) }
     }
 
     /// Waits for every service call started so far. Tests use it to observe calls and failures.

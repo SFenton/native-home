@@ -6,40 +6,6 @@ import UIKit
 
 // MARK: - Clock
 
-/// The one-second clock behind a live countdown (`TimelineView(.periodic(by: 1))`): it ticks only while some observation asks for it, so a
-/// tile with nothing to count down costs no timer. Read `now` inside an observation while ``setRunning(_:)`` is true.
-@MainActor
-@Observable
-final class UKRoomsClock {
-    private(set) var now = Date()
-    @ObservationIgnored private var timer: Timer?
-
-    /// Starts or stops the second tick.
-    func setRunning(_ running: Bool) {
-        if running, timer == nil {
-            now = Date()
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.now = Date() }
-            }
-        } else if !running {
-            timer?.invalidate()
-            timer = nil
-        }
-    }
-
-    deinit { MainActor.assumeIsolated { timer?.invalidate() } }
-}
-
-/// The signed-in household member and whether they administer the house (`householdViewer`, `householdViewerIsAdmin`).
-@MainActor
-@Observable
-final class UKRoomsViewer {
-    var resident: HouseholdResident?
-    var isAdmin = false
-}
-
-// MARK: - Grid remeasuring
-
 extension UKDynamicGridView {
     /// Measures every tile again, up through the grids and columns around this one: a tile whose text now wraps differently changed its
     /// height, and a grid keeps its measured tracks until told. (``UIView/ukRemeasureContainers(includingSelf:)`` is the one walk.)

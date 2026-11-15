@@ -255,50 +255,6 @@ final class StackMotionTests: XCTestCase {
     func testScrolledPageStaysPutAtIPadPortraitWidth() { width = Self.iPadPortrait.width; testPopGestureDoesNotScrollThePage() }
     func testVoiceOverAtIPadPortraitWidth() { width = Self.iPadPortrait.width; testVoiceOverIsToldTheScreenChangedAfterPushAndPop() }
 
-    // MARK: A column host deeper in the stack
-
-    /// A page that hosts columns, as the Food hub does.
-    private final class ColumnHost: UIViewController, UKColumnsHosting {
-        let columns = UKColumnsViewController(rootView: UIView(), shell: nil, placeholder: { Page() })
-        func syncColumnRoutes(_ routes: [ShellRoute], animated: Bool) {}
-        override func loadView() {
-            view = UIView()
-            addChild(columns)
-            columns.view.frame = view.bounds
-            columns.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            view.addSubview(columns.view)
-            columns.didMove(toParent: self)
-        }
-    }
-
-    /// One leading-edge swipe does one thing: with a column open on a column host that is not the stack's root, the columns' pan takes
-    /// it and the stack pan does not begin; with the columns at their root column, the stack pops the host.
-    func testOneSwipeClosesTheColumnThenTheNextPopsTheHost() {
-        let rig = makeRig()
-        let host = ColumnHost()
-        rig.nav.pushViewController(host, animated: false)
-        settle(rig.nav)
-        host.columns.setWide(true)
-        host.columns.view.layoutIfNeeded()
-        host.columns.open(Page(), tag: 1, animated: false)
-        run(0.1)
-        let edge = rig.motion.edgePanRecognizer
-        XCTAssertTrue(host.columns.takesEdgePan)
-        XCTAssertFalse(rig.motion.gestureRecognizerShouldBegin(edge), "A column is open: the columns' pan takes the swipe")
-        // The columns' swipe closes the column (what its handler does at the end of a swipe).
-        host.columns.setDetail(nil, animated: false)
-        run(0.1)
-        XCTAssertTrue(host.columns.entries.isEmpty)
-        XCTAssertFalse(host.columns.takesEdgePan)
-        XCTAssertEqual(rig.nav.viewControllers.count, 2, "The first swipe closed the column only")
-        XCTAssertTrue(rig.motion.gestureRecognizerShouldBegin(edge), "At the root column the stack pan may begin")
-        rig.motion.beginSwipe()
-        run(0.05)
-        rig.motion.endSwipe(progress: 0.8, velocity: 0)
-        settle(rig.nav)
-        XCTAssertEqual(rig.nav.viewControllers.count, 1, "The second swipe popped the host")
-    }
-
     // MARK: The swipe against scrolling
 
     private final class ScrollPage: UIViewController {

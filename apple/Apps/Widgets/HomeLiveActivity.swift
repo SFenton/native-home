@@ -2,6 +2,7 @@ import ActivityKit
 import AppIntents
 import FentonActivityModel
 import FentonActivityViews
+import HassTelemetry
 import SwiftUI
 import WidgetKit
 
@@ -22,14 +23,14 @@ struct HomeLiveActivity: Widget {
 
     private var configuration: some WidgetConfiguration {
         ActivityConfiguration(for: HomeActivityAttributes.self) { context in
-            let card = ActivityCard(attributes: context.attributes, state: context.state, isStale: context.isStale)
+            let card = Self.card(context)
             HomeActivityFamilyView(card: card)
                 .environment(\.activityActions, .intents)
                 .activityBackgroundTint(ActivityStyle.ground(for: card))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(ActivityDeepLink.url(for: context.state))
         } dynamicIsland: { context in
-            let card = ActivityCard(attributes: context.attributes, state: context.state, isStale: context.isStale)
+            let card = Self.card(context)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) { HomeActivityIsland.ExpandedLeading(card: card).dynamicTypeSize(...DynamicTypeSize.xxxLarge) }
                 DynamicIslandExpandedRegion(.trailing) { HomeActivityIsland.ExpandedTrailing(card: card).dynamicTypeSize(...DynamicTypeSize.xxxLarge) }
@@ -38,6 +39,7 @@ struct HomeLiveActivity: Widget {
                     HomeActivityIsland.ExpandedBottom(card: card).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .environment(\.activityActions, .intents)
                 }
+
             } compactLeading: {
                 HomeActivityIsland.CompactLeading(card: card)
             } compactTrailing: {
@@ -48,6 +50,18 @@ struct HomeLiveActivity: Widget {
             .widgetURL(ActivityDeepLink.url(for: context.state))
             .keylineTint(IslandKeyline.color(for: card))
         }
+    }
+
+    /// Presentation updates ride the engine's next ActivityKit render; no new timeline or push budget.
+    private static func card(_ context: ActivityViewContext<HomeActivityAttributes>) -> ActivityCard {
+        let presentation: ActivityPresentation?
+        do { presentation = try ExtensionPresentationStore.shared?.read()?.presentation(for: context.attributes) }
+        catch {
+            Telemetry.event("serverui.widgetPresentationRejected")
+            presentation = nil
+        }
+        return ActivityCard(attributes: context.attributes, state: context.state, isStale: context.isStale,
+                            presentation: presentation)
     }
 }
 

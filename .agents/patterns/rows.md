@@ -16,6 +16,7 @@ Owner request, 2026-11-01: "Rows should inherit from a common component if they 
 
 - **Styles (`UKRowStyle`)** pick the metrics. `.module` is `ModuleRow`: 16 pt sides, 52 pt (60 with a subtitle), 24 pt glyph column (scaled with body), 14 pt gap, so hairlines start at `ModuleRowMetrics.textInset`. `.grouped` is `SettingsLinkRow`: the cell supplies the inset, 44 pt, a 34 pt title3 icon column, 12 pt gap, the icon above the text at accessibility sizes. `.form` is a row in a `Form` cell: 44 pt, 28 pt body glyph column, 12 pt gap. `verticalPadding` and `minHeight` override per row (the check rows use 11 pt; a card row 44 pt).
 - **Wrapping.** Title, subtitle and value wrap at the row's own width less the leading column, value, accessory, chevron and gaps (`UKWrapWidth`, in `layoutSubviews`), never from their own width. The value-beside-or-under decision depends only on the row's width and the labels' unbounded widths, so it settles in one pass.
+- **Safe areas.** The container clears safe areas; the row's text stack uses only its style's padding, not inherited safe-area margins. A row inside a pinned bar must not measure the bar's additional inset as content.
 - **Accessibility sizes.** The accessory (and value) move under the text; in `.grouped` the icon sits above it. Min target 44 pt everywhere.
 - **VoiceOver.** The text is one element "Title, subtitle" with the value as its value, then the accessory's own controls. `isTextAccessible = false` when the accessory is the element and carries the name (a switch, stepper, field, menu). A `tapTarget` (`installTapTarget`) replaces the text element: a control behind everything left of the accessory, so the accessory stays its own element and target.
 - **Tappable.** `UKRowButton(row)` presses the whole row with a 10% wash and is one button named "Title, subtitle" (value as its value); `UKModuleToggleRow`, `UKClimateEntryRow`, `UKSprinklerControllerRow`, `UKVacuumRowButton`, `UKFormActionRow`, `UKGroupedRowButton`, `UKRoomsActionRow`, `UKRecipeLinkRow` and `UKTodoButtonRow` are subclasses.
@@ -27,6 +28,7 @@ Owner request, 2026-11-01: "Rows should inherit from a common component if they 
 | Row | Shows | Style / tap | Status |
 |---|---|---|---|
 | `UKRowView` (was `UKModuleRowView`) | glyph, title, subtitle, accessory, chevron | module | the component |
+| `UKServerUIRow`, `UKServerUILocalControl`, `UKServerUIRowCollection` | authored row slots; typed scene-local controls; injected bounded read-only rows | canonical module rows, no separate row layout | schema-2 adapters; native/Studio validation and device evidence are separate gates |
 | `UKCheckRow` (todo item, vacation checklist, climate room rules) | check, text block, edit / Undo | module, 11 pt, tap target | variant |
 | `UKSettingsLinkRowView`, `UKVersionRowView` | icon or app icon, title, subtitle, chevron; icon, title, build value | grouped | migrated (`UKRowView.settingsLink`, `.version`) |
 | `UKFormSwitchRow`, `UKFormDateRow`, `UKFormStepperRow`, `UKFormFieldRow` (inventory editor, Add Item) | title, switch + arc / picker / value + stepper / field | form, accessory | migrated |
@@ -37,7 +39,7 @@ Owner request, 2026-11-01: "Rows should inherit from a common component if they 
 | `UKRoomsActionRow` (Custom Lights) | action glyph + title | module, `UKRowButton` | migrated |
 | `UKRecipeFactRow`, `UKRecipeTextRow`, `UKRecipeLinkRow`, `UKIngredientRow` | glyph, label, value; text; link; mark + title + chips | module, sheet | migrated |
 | `UKTodoPickerRow`, `UKTodoLabeledRow`, `UKTodoButtonRow` (todo forms) | title + chosen option + chevrons (menu tap target); title + control; ink title + glyph | grouped | migrated |
-| `UKLabeledSwitchRow` (recipe filter), `UKVacuumSettingRow` (vacuum sheet) | glyph, title, switch / menu | form / module | migrated |
+| `UKVacuumSettingRow` (vacuum sheet) | glyph, title, switch / menu | form / module | migrated |
 
 ### Left, and why
 

@@ -56,91 +56,18 @@ final class UKVacuumSheetState {
 
 // MARK: - Map panel
 
-/// Map, status chips, notices and the cleaning report: the sheet's leading pane (`VacuumMapPanel`).
-@MainActor
-final class UKVacuumMapPanel: UIStackView {
-    let frameView: UKVacuumMapFrame
-    private let controller: VacuumController
-    private let mapState: VacuumMapState
-    private let pictureURL: () -> URL?
-    private let bag = UKObservationBag()
-    private var task: Task<Void, Never>?
-    private var taskKey: TaskKey?
-    private let reported = UIView()
-    private var reportedAlert: UKInlineAlertView?
-
-    private struct TaskKey: Hashable {
-        var url: URL?
-        var live: Bool
-    }
-
-    init(controller: VacuumController, mapState: VacuumMapState, state: UKVacuumSheetState, environment: UKTileEnvironment, pictureURL: @escaping () -> URL?,
-         onOpenReport: @escaping (VacuumOutcomeContract) -> Void) {
-        self.controller = controller
-        self.mapState = mapState
-        self.pictureURL = pictureURL
-        frameView = UKVacuumMapFrame(controller: controller, mapState: mapState, state: state)
-        super.init(frame: .zero)
-        axis = .vertical
-        alignment = .fill
-        spacing = HassTokens.Spacing.m
-        addArrangedSubview(frameView)
-        reported.isHidden = true
-        addArrangedSubview(reported)
-        addArrangedSubview(UKVacuumStatusSummary(controller: controller, mapState: mapState, environment: environment))
-        addArrangedSubview(UKVacuumCleaningReport(controller: controller, onOpen: onOpenReport))
-        bag.observe { [weak self] in self?.sync() }
-    }
-
-    @available(*, unavailable)
-    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        if window == nil {
-            task?.cancel()
-            task = nil
-            taskKey = nil
-        } else {
-            sync()
-        }
-    }
-
-    /// Loads the map the way `.task(id:)` did: again when the picture URL or the vacuum's availability changes.
-    private func sync() {
-        let loader = mapState.loader
-        let provenance = loader.provenance
-        _ = loader.map
-        mapState.refresh()
-        let hasPosition = loader.map?.robotPosition == nil
-        showReported(provenance == .reported, hasPosition: hasPosition)
-        guard window != nil else { return }
-        let key = TaskKey(url: pictureURL(), live: controller.status.primaryAvailable)
-        guard key != taskKey else { return }
-        taskKey = key
-        task?.cancel()
-        let loaderRef = loader
-        task = Task { @MainActor in await loaderRef.run(url: key.url, live: key.live) }
-    }
-
-    private func showReported(_ show: Bool, hasPosition: Bool) {
-        reportedAlert?.removeFromSuperview()
-        reportedAlert = nil
-        reported.isHidden = !show
-        guard show else { return }
-        let message = "\(hasPosition ? "Last Reported Map" : "Last Reported Position"): This is the last map the vacuum reported before contact was lost. The exact report time is unknown, and the vacuum may have been moved since then."
-        let alert = UKInlineAlertView(message)
-        reported.addSubview(alert)
-        alert.ukPin(to: reported)
-        reportedAlert = alert
-    }
-}
-
-// MARK: - Map frame
-
 /// The map card with its Locate button, loading and unavailable states.
 @MainActor
 final class UKVacuumMapFrame: UIView {
+    struct Presentation {
+        var height: CGFloat = 300
+        var runtimeHeight: CGFloat = 460
+        var label: String?
+        var loadingText: String?
+        var unavailableText: String?
+        var showsLocate = true
+        var autoCleanOverlay: Bool?
+    }
     /// The map's height limit: it grows while a run is going, when the controls below collapse to one card.
     static func maxHeight(_ mode: VacuumRuntimeMode) -> CGFloat { mode == .minimal ? 460 : 300 }
 
@@ -154,11 +81,18 @@ final class UKVacuumMapFrame: UIView {
     private var capConstraint: NSLayoutConstraint!
     private var aspectConstraint: NSLayoutConstraint?
     private var aspectRatio: Double = 0
+    private let presentation: Presentation
+    private let onLocate: (() -> Void)?
+    private let onRoomTap: ((String, UIViewController) -> Void)?
 
-    init(controller: VacuumController, mapState: VacuumMapState, state: UKVacuumSheetState) {
+    init(controller: VacuumController, mapState: VacuumMapState, state: UKVacuumSheetState, presentation: Presentation = .init(),
+         onLocate: (() -> Void)? = nil, onRoomTap: ((String, UIViewController) -> Void)? = nil) {
         self.controller = controller
         self.mapState = mapState
         self.state = state
+        self.presentation = presentation
+        self.onLocate = onLocate
+        self.onRoomTap = onRoomTap
         super.init(frame: .zero)
         backgroundColor = UKValetudoMapView.color(ValetudoMapScene.Palette.ground)
         layer.cornerRadius = HassTokens.Radius.module
@@ -175,18 +109,19 @@ final class UKVacuumMapFrame: UIView {
 
     /// Applies the height limit of `mode` (inside the sheet's layout animation, so the map grows with the setup collapsing).
     func setMode(_ mode: VacuumRuntimeMode) {
-        capConstraint.constant = Self.maxHeight(mode)
+        capConstraint.constant = mode == .minimal ? presentation.runtimeHeight : presentation.height
     }
 
     // MARK: Build
 
     private func buildMap() {
         map.isAccessibilityElement = true
-        map.accessibilityLabel = "\(controller.vacuum.title) Valetudo map"
+        map.accessibilityLabel = presentation.label ?? "\(controller.vacuum.title) Valetudo map"
         map.accessibilityIdentifier = "vacuum.map"
         map.translatesAutoresizingMaskIntoConstraints = false
         addSubview(map)
-        capConstraint = map.heightAnchor.constraint(lessThanOrEqualToConstant: Self.maxHeight(state.displayed.mode))
+        capConstraint = map.heightAnchor.constraint(lessThanOrEqualToConstant:
+            state.displayed.mode == .minimal ? presentation.runtimeHeight : presentation.height)
         let fill = map.widthAnchor.constraint(equalTo: widthAnchor, constant: -2 * HassTokens.Spacing.m)
         fill.priority = UILayoutPriority(500)
         NSLayoutConstraint.activate([
@@ -239,7 +174,8 @@ final class UKVacuumMapFrame: UIView {
         locate.accessibilityIdentifier = "vacuum.locate"
         locate.addAction(UIAction { [weak self] _ in
             UKTapFeedback.tap()
-            self?.controller.locate()
+            guard let self else { return }
+            if let onLocate = self.onLocate { onLocate() } else { self.controller.locate() }
         }, for: .touchUpInside)
     }
 
@@ -258,9 +194,9 @@ final class UKVacuumMapFrame: UIView {
     private func render() {
         let scene = mapState.scene
         let primary = controller.status.primaryAvailable
-        locate.isHidden = !primary
+        locate.isHidden = !primary || !presentation.showsLocate
         if let scene {
-            let onAutoClean = state.displayed.tab == .autoClean
+            let onAutoClean = presentation.autoCleanOverlay ?? (state.displayed.tab == .autoClean)
             let rooms = onAutoClean ? [:] : roomOrders
             let skipped = onAutoClean ? skippedRooms : []
             let area = controller.areaSelection
@@ -290,17 +226,17 @@ final class UKVacuumMapFrame: UIView {
         let unavailable = mapState.loader.failed || (!controller.status.primaryAvailable && mapState.loader.provenance == .none)
         if unavailable {
             let title = UILabel.uk(.headline, ink: UKDesignInk.onDark, alignment: .center)
-            title.text = "Map Unavailable"
+            title.text = presentation.unavailableText ?? "Map Unavailable"
             let message = UILabel.uk(.subheadline, ink: UKDesignInk.onDark, alignment: .center)
             message.text = "Home Assistant cannot currently confirm the vacuum's map or position."
             fallback.addArrangedSubview(title)
             fallback.addArrangedSubview(message)
-            fallback.accessibilityLabel = "Map Unavailable, Home Assistant cannot currently confirm the vacuum's map or position."
+            fallback.accessibilityLabel = presentation.unavailableText ?? "Map Unavailable, Home Assistant cannot currently confirm the vacuum's map or position."
         } else {
             let spinner = UKArcSpinnerView(.page)
             spinner.color = UKDesignInk.onDark
             spinner.isAccessibilityElement = false
-            let text = controller.status.primaryAvailable ? "Loading Current Map…" : "Loading Last Vacuum Map Position…"
+            let text = presentation.loadingText ?? (controller.status.primaryAvailable ? "Loading Current Map…" : "Loading Last Vacuum Map Position…")
             let label = UILabel.uk(.subheadline, ink: UKDesignInk.onDark, alignment: .center)
             label.text = text
             fallback.addArrangedSubview(spinner)
@@ -319,6 +255,7 @@ final class UKVacuumMapFrame: UIView {
         guard roomsTappable, let scene = mapState.scene,
               let room = scene.room(at: gesture.location(in: map), size: map.bounds.size),
               let zone = controller.vacuum.zones.first(where: { $0.entityId == room.entityId }) else { return }
+        if let onRoomTap, let presenter = ukOwningController { onRoomTap(zone.entityId, presenter); return }
         if controller.roomToggleNeedsConfirmation(zone), let presenter = ukOwningController {
             UKAlerts.alert(AlertCopy.switchToRooms, from: presenter) { [controller] in controller.toggleRoom(zone) }
         } else {
@@ -341,13 +278,15 @@ final class UKVacuumStatusSummary: UIStackView {
     private let controller: VacuumController
     private let mapState: VacuumMapState
     private let environment: UKTileEnvironment
+    private let showsTiles: Bool
     private let bag = UKObservationBag()
     private var shown: [Item]?
 
-    init(controller: VacuumController, mapState: VacuumMapState, environment: UKTileEnvironment) {
+    init(controller: VacuumController, mapState: VacuumMapState, environment: UKTileEnvironment, showsTiles: Bool = true) {
         self.controller = controller
         self.mapState = mapState
         self.environment = environment
+        self.showsTiles = showsTiles
         super.init(frame: .zero)
         axis = .vertical
         alignment = .fill
@@ -362,7 +301,7 @@ final class UKVacuumStatusSummary: UIStackView {
         let status = controller.status
         let stateLabel = VacuumFormat.state(controller.statusState)
         let provenance = mapState.loader.provenance
-        var items: [Item] = [.tiles(controller.statusTiles)]
+        var items: [Item] = showsTiles ? [.tiles(controller.statusTiles)] : []
         if !status.primaryAvailable && provenance != .reported {
             items.append(.info(title: stateLabel, message: "Home Assistant does not have a current status for the vacuum."))
         }
@@ -395,6 +334,7 @@ final class UKVacuumStatusSummary: UIStackView {
             case let .alert(message): addArrangedSubview(UKInlineAlertView(message))
             }
         }
+        ukRemeasureContainers()
     }
 }
 
@@ -408,10 +348,12 @@ final class UKVacuumCleaningReport: UIStackView {
     private let bag = UKObservationBag()
     private var shown: VacuumWhileAway?
     private var legacyOpen = false
+    private let authoredTitle: String?
 
-    init(controller: VacuumController, onOpen: @escaping (VacuumOutcomeContract) -> Void) {
+    init(controller: VacuumController, title: String? = nil, onOpen: @escaping (VacuumOutcomeContract) -> Void) {
         self.controller = controller
         self.onOpen = onOpen
+        authoredTitle = title
         super.init(frame: .zero)
         axis = .vertical
         alignment = .fill
@@ -426,7 +368,7 @@ final class UKVacuumCleaningReport: UIStackView {
         guard force || away != shown else { return }
         shown = away
         arrangedSubviews.forEach { removeArrangedSubview($0); $0.removeFromSuperview() }
-        let title = "\(controller.vacuum.title) Cleaning Report"
+        let title = authoredTitle ?? "\(controller.vacuum.title) Cleaning Report"
         switch away {
         case .empty:
             break
@@ -441,7 +383,7 @@ final class UKVacuumCleaningReport: UIStackView {
             row.spokenLabel = "Open \(controller.vacuum.title) Automatic Cleaning Report for \(day)"
             row.spokenValue = overview
             row.accessibilityIdentifier = "vacuum.report"
-            addArrangedSubview(UKVacuumSection("Cleaning Report", content: [UKModuleListView(surface: .sheet, rows: [row])]))
+            addArrangedSubview(UKVacuumSection(authoredTitle ?? "Cleaning Report", content: [UKModuleListView(surface: .sheet, rows: [row])]))
         case let .legacy(cleaned, issues):
             addArrangedSubview(UKVacuumSection(title, content: lists(cleaned: cleaned, issues: issues)))
         case let .protocolNotice(kind, cleaned, issues):
@@ -491,37 +433,11 @@ final class UKVacuumCleaningReport: UIStackView {
 
 // MARK: - Report detail
 
-/// The report detail page: one row per room (`VacuumOutcomeDetailView`).
+/// Read-only outcome rows over a pinned report value; both native and composed detail surfaces use them.
 @MainActor
-final class UKVacuumOutcomeDetailViewController: UKPageViewController {
-    private let vacuum: VacuumConfig
-    private let contract: VacuumOutcomeContract
-
-    init(vacuum: VacuumConfig, contract: VacuumOutcomeContract) {
-        self.vacuum = vacuum
-        self.contract = contract
-        super.init(sheetTitle: nil)
-        title = VacuumOutcomeText.reportTitle
-        navigationItem.title = VacuumOutcomeText.reportTitle
-        UKSheetSubtitle.apply(VacuumOutcomeText.reportSubtitle(vacuum: vacuum.title, rooms: contract.rooms.count), to: navigationItem)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        let names = VacuumOutcomeText.roomNames(contract, vacuum: vacuum)
-        let subtitle = VacuumOutcomeText.reportSubtitle(vacuum: vacuum.title, rooms: contract.rooms.count)
-        var views: [UIView] = []
-        // Before iOS 26 the navigation subtitle is not drawn, so the vacuum and the count lead the list instead.
-        if !SheetSubtitle.isShown {
-            let label = UILabel.uk(.subheadline, ink: UKInk.onDarkSecondary)
-            label.text = subtitle
-            label.accessibilityIdentifier = "vacuum.outcome.subtitle"
-            views.append(.ukInset(label, horizontal: HassTokens.Spacing.l))
-        }
-        let rows = contract.rooms.map { room -> UIView in
+func ukVacuumOutcomeRows(vacuum: VacuumConfig, contract: VacuumOutcomeContract) -> UIView {
+    let names = VacuumOutcomeText.roomNames(contract, vacuum: vacuum)
+    let rows = contract.rooms.map { room -> UIView in
             let visual = VacuumOutcomeText.statusVisual(room.status)
             let detail = VacuumOutcomeText.detail(room, roomNames: names)
             let status = UILabel.uk(.subheadline, ink: UKDesignInk.secondary, alignment: .right)
@@ -533,21 +449,6 @@ final class UKVacuumOutcomeDetailViewController: UKPageViewController {
             row.accessibilityIdentifier = "vacuum.outcome.\(room.roomId)"
             return row
         }
-        views.append(UKModuleListView(surface: .sheet, rows: rows))
-        let stack = ukVStack(views, spacing: HassTokens.Spacing.m)
-        let scroll = UIScrollView()
-        scroll.alwaysBounceVertical = false
-        install(scrollView: scroll)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(stack)
-        let width = stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -2 * HassTokens.Spacing.l)
-        width.priority = UILayoutPriority(999)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: HassTokens.Spacing.l),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -HassTokens.Spacing.l),
-            stack.centerXAnchor.constraint(equalTo: scroll.frameLayoutGuide.centerXAnchor),
-            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 640), width,
-        ])
-    }
+    return UKModuleListView(surface: .sheet, rows: rows)
 }
 #endif

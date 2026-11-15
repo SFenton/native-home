@@ -56,8 +56,13 @@ public enum RoomNavigation {
 
     /// The call that counts a visit when a room is opened from the grid (web `RoomNavigationGrid.handleNavigate`).
     public static func accessIncrementCall(for item: RoomNavigationItem) -> ServiceCall {
-        ServiceCall("script", "turn_on", target: accessIncrementScript,
-                    data: ["variables": .object(["room": .string(item.accessKey)])])
+        accessIncrementCall(accessKey: item.accessKey, scriptEntityId: accessIncrementScript)
+    }
+
+    /// The same intent over injected configuration, with no global house lookup.
+    public static func accessIncrementCall(accessKey: String, scriptEntityId: String) -> ServiceCall {
+        ServiceCall("script", "turn_on", target: scriptEntityId,
+                    data: ["variables": .object(["room": .string(accessKey)])])
     }
 }
 

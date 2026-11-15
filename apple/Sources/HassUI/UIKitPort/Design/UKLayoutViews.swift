@@ -198,7 +198,13 @@ final class UKChipRailView: UIView, UKGridMeasuring {
 /// optional trailing detail in secondary ink ("Page 1 of 5"). At accessibility sizes the detail moves under the title so neither is
 /// squeezed.
 @MainActor
-final class UKPageSectionHeaderView: UIView, UKGridMeasuring {
+final class UKPageSectionHeaderView: UIView, UKGridMeasuring, UKSurfaceStyled {
+    var surface: TileSurface = .page {
+        didSet {
+            titleLabel.textColor = surface == .sheet ? UKDesignInk.primary : UKInk.primary
+            detailLabel.textColor = surface == .sheet ? UKDesignInk.secondary : UKInk.onDarkSecondary
+        }
+    }
     private let titleLabel = UILabel()
     private let detailLabel = UILabel()
     private let inSheet: Bool

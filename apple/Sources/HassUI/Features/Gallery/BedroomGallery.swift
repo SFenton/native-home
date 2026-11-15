@@ -69,7 +69,7 @@ final class BedroomGalleryRecorder: HassServiceResponding {
     private func alarm(_ bed: BedSideConfig, snooze: Bool) {
         update(bed.alarmStateEntityId) {
             $0.state = snooze ? "snoozed" : "idle"
-            $0.attributes["snoozed_until"] = snooze ? .number(Date.now.timeIntervalSince1970 + 300) : nil
+            $0.attributes["snoozed_until"] = snooze ? .number(GalleryFixtureClock.shared.now.timeIntervalSince1970 + 300) : nil
         }
     }
 
@@ -169,7 +169,7 @@ enum BedroomFixtures {
         case hotFlash = "hot-flash"
     }
 
-    static func states(_ scenario: Scenario, now: Date = .now) -> [EntityState] {
+    static func states(_ scenario: Scenario, now: Date = GalleryFixtureClock.shared.now) -> [EntityState] {
         func entity(_ id: String, _ state: String, _ attributes: [String: JSONValue] = [:]) -> EntityState {
             EntityState(entityId: id, state: state, attributes: attributes)
         }

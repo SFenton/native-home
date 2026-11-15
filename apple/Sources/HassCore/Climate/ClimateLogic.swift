@@ -100,14 +100,24 @@ public enum ClimateLogic {
     public static func awayNotice(climateEntityId: String, useEffectiveMode: Bool, _ lookup: EntityLookup) -> String? {
         let status = homeAwayStatus(lookup)
         let entityAway = roomAwayMode(climateEntityId: climateEntityId, lookup)
+        return awayNotice(status: status, entityAway: entityAway, useEffectiveMode: useEffectiveMode,
+                          vacation: lookup(ClimateConfig.vacationModeEntityId)?.state == "on",
+                          awayText: "Away Mode Active. The room may be cooler or warmer than your heat/cool targets to save energy while away.",
+                          vacationText: "Vacation Mode Active. The room may be cooler or warmer than your heat/cool targets to save energy while away.",
+                          unknownText: "Unknown Mode.", unavailableText: "Unavailable Mode.", separator: " ")
+    }
+
+    /// The canonical visibility/selection rule with caller-owned copy and injected status.
+    public static func awayNotice(status: HomeAwayStatus, entityAway: Bool, useEffectiveMode: Bool, vacation: Bool,
+                                  awayText: String, vacationText: String, unknownText: String,
+                                  unavailableText: String, separator: String) -> String? {
         let away = useEffectiveMode ? isEffectivelyAway(state: status.state, fallbackAway: entityAway) : entityAway
         let showsStatus = ["Away", "Unknown", "Unavailable"].contains(status.state)
         guard away || showsStatus else { return nil }
-        let mode = lookup(ClimateConfig.vacationModeEntityId)?.state == "on" ? "Vacation Mode" : "Away Mode"
         if status.state == "Away" || away {
-            return "\(mode) Active. The room may be cooler or warmer than your heat/cool targets to save energy while away."
+            return vacation ? vacationText : awayText
         }
-        return "\(status.state) Mode. \(status.reason)"
+        return (status.state == "Unknown" ? unknownText : unavailableText) + separator + status.reason
     }
 
     /// Automatic Thermostat is explicitly off (the page shows a warning).
@@ -230,14 +240,29 @@ public enum ClimateLogic {
         let rooms = ClimateConfig.rooms
         let tracked = shown(ClimateConfig.trackSelectedEntityId)
         let policy = shown(ClimateConfig.ecoCriticalEntityId)
-        let selectedEnabled = tracked == "on"
+        return trackingSummary(rooms: rooms.map {
+            TrackingRoomState(selected: shown($0.trackEntityId) == "on", critical: shown($0.forceCriticalEntityId) == "on",
+                              occupiedOnly: shown($0.occupiedOnlyEntityId) == "on")
+        }, selectedEnabled: tracked == "on", criticalPolicy: policy ?? "Unavailable", criticalOption: ClimateConfig.trackSelectCriticalOption)
+    }
+
+    /// State values for one room, independent of canonical house targets.
+    public struct TrackingRoomState: Equatable, Sendable {
+        public let selected: Bool
+        public let critical: Bool
+        public let occupiedOnly: Bool
+    }
+
+    /// Counts configured room values with the canonical critical-exclusion rule.
+    public static func trackingSummary(rooms: [TrackingRoomState], selectedEnabled: Bool,
+                                       criticalPolicy: String, criticalOption: String) -> TrackingSummary {
         return TrackingSummary(
-            selectedCount: rooms.filter { shown($0.trackEntityId) == "on" }.count,
-            occupiedOnlyCount: rooms.filter { shown($0.occupiedOnlyEntityId) == "on" }.count,
-            criticalCount: rooms.filter { shown($0.trackEntityId) != "on" && shown($0.forceCriticalEntityId) == "on" }.count,
+            selectedCount: rooms.filter(\.selected).count,
+            occupiedOnlyCount: rooms.filter(\.occupiedOnly).count,
+            criticalCount: rooms.filter { !$0.selected && $0.critical }.count,
             selectedEnabled: selectedEnabled,
-            criticalEnabled: selectedEnabled && policy == ClimateConfig.trackSelectCriticalOption,
-            criticalPolicy: policy ?? "Unavailable",
+            criticalEnabled: selectedEnabled && criticalPolicy == criticalOption,
+            criticalPolicy: criticalPolicy,
             totalRooms: rooms.count
         )
     }
@@ -260,6 +285,14 @@ public enum ClimateLogic {
         /// Supporting description, if any.
         public var description: String?
         public var id: String { value }
+
+        /// Creates a choice with caller-owned copy and ordering.
+        public init(value: String, label: String, icon: String? = nil, description: String? = nil) {
+            self.value = value
+            self.label = label
+            self.icon = icon
+            self.description = description
+        }
     }
 
     /// A select's options with their presentation (web `useThermostatSelectControl` + `THERMOSTAT_OPTION_PRESENTATION`).
@@ -338,7 +371,8 @@ public enum ClimateLogic {
     }
 
     /// The "Why this prediction?" bullets (web `buildPredictiveReasonBullets`, `DashboardViewPage.tsx:6720`).
-    public static func predictiveReasonBullets(_ sensor: EntityState?) -> [String] {
+    public static func predictiveReasonBullets(_ sensor: EntityState?, unit: String = "°F") -> [String] {
+        func temperature(_ value: Double?) -> String { self.temperature(value, unit: unit) }
         let attributes = sensor?.attributes ?? [:]
         var bullets: [String] = []
         let indoor = number(attributes["indoor_temperature"])

@@ -40,3 +40,31 @@ Four modes: Home (`alarm_arm_home`), Away (`alarm_arm_away`), Night (`alarm_arm_
 | Any live state change | Request ends; tile follows Home Assistant |
 
 VoiceOver announces the feedback text.
+
+## Configured native composition
+
+`alarm-panel` (`sh.alarm-panel@1`, with `alarm-mode@1`) is the same value/closure
+`UKAlarmPanelControl` used by the legacy `UKAlarmPanelView` binding. The document
+authors mode order, labels, hints, symbols, fills, state copy, since prefix/separator,
+status copy and Disarm question. Services are a closed native mapping; Disarm always
+confirms. A Quick Links navigation tile pushes an authored alarm page into its current
+modal stack; a standalone sheet composes that primitive independently. Neither path
+dispatches a compiled controller.
+
+`door-tile` and `security-door@1` (`sh.security-door@1`) bind literal lock/cover targets
+to `LockActions` / `GarageDoorController`, with authored state appearances and feedback
+copy. Body and disc run the same immutable intent. Confirmations revalidate state and
+attachment; pending sources/controls cannot be retargeted or removed. Garage network
+lifetime is tracked separately from lockout, timeout and live acknowledgement.
+
+The full Home-domain recipe includes the inline alarm panel, headed Doors,
+conditional guests, cameras and the configured Car section, plus both alarm
+destinations and the contact overview. Guest power tiles negotiate
+`sh.power-labels@1`: the occupancy family and authored on/off copy follow the
+same optimistic provider; failure/unavailable copy cannot be overridden.
+Shell still owns section-side geometry, exact grid minimum/text-style policies
+and placing a section description before its body. No placeholder stands in
+for an absent provider.
+All-family hosted regressions use synthetic entities; device, motion and AX5 evidence
+remain parent integration work. Existing HIG decisions are preserved: Alerts for
+consequential Disarm, Buttons for mode selection, and Layout for readable sheet width.

@@ -13,6 +13,8 @@ import UIKit
 @MainActor
 final class UKCustomLightSheetViewController: UKPageViewController, UKSheetFitting {
     private let light: CustomLightsConfig.Light
+    private let suppliedSettings: CustomLightsSettings?
+    private var settings: CustomLightsSettings { suppliedSettings ?? .legacyHouseSnapshot(manualTitle: ManualControlRow.title) }
     private let store: EntityStore
     private let caller: any HassServiceCalling
     private var pendingColor: Task<Void, Never>?
@@ -36,8 +38,9 @@ final class UKCustomLightSheetViewController: UKPageViewController, UKSheetFitti
     /// - Parameters:
     ///   - light: The light.
     ///   - context: The sheet's context (`surface` is `.sheet`).
-    init(light: CustomLightsConfig.Light, context: UKContext) {
+    init(light: CustomLightsConfig.Light, context: UKContext, settings: CustomLightsSettings? = nil) {
         self.light = light
+        suppliedSettings = settings
         store = context.store
         caller = context.roomsCaller
         super.init(context: context.with { $0.surface = .sheet }, title: light.title)
@@ -72,7 +75,14 @@ final class UKCustomLightSheetViewController: UKPageViewController, UKSheetFitti
         resetRow = UKRoomsActionRow(title: "Reset to Warm White", symbol: "arrow.counterclockwise", identifier: "customLight.reset",
                                     disabledInk: UKDesignSurface.secondaryInSheet) { [weak self] in
             guard let self else { return }
-            self.caller.fire(CustomLightsConfig.reset(self.light.entityId))
+            if self.suppliedSettings != nil, self.store.entity(self.light.entityId).state?.isUnavailable != false {
+                UKCustomLightsFailure.report()
+                return
+            }
+            do {
+                let call = try self.suppliedSettings?.resetLight(self.light) ?? CustomLightsConfig.reset(self.light.entityId)
+                self.send(call)
+            } catch { UKCustomLightsFailure.report() }
         }
         applyRow = UKRoomsActionRow(title: "Apply to All Lights", symbol: "lightbulb.2", identifier: "customLight.applyAll",
                                     disabledInk: UKDesignSurface.secondaryInSheet) { [weak self] in
@@ -81,11 +91,19 @@ final class UKCustomLightSheetViewController: UKPageViewController, UKSheetFitti
         colorStack = UKRoomsModuleStack(hasGlyphs: false, surface: .sheet,
                                         rows: [UKRoomsFittedView(colorRow), UKRoomsFittedView(resetRow), UKRoomsFittedView(applyRow)])
 
-        let others = CustomLightsConfig.lights.filter { $0 != light }
+        let others = settings.lights.filter { $0 != light }
         for other in others {
             let swatch = UKOtherLightSwatchView(light: other) { [weak self] color in
                 guard let self else { return }
-                self.caller.fire(CustomLightsConfig.setColor(color, on: self.light.entityId))
+                if self.suppliedSettings != nil {
+                    let source = self.store.entity(other.entityId).state
+                    guard self.store.entity(self.light.entityId).state?.isUnavailable == false,
+                          source?.isUnavailable == false, CustomLightsConfig.RGB(entity: source) == color else {
+                        UKCustomLightsFailure.report()
+                        return
+                    }
+                }
+                self.send(CustomLightsConfig.setColor(color, on: self.light.entityId))
             }
             swatches.append(swatch)
             bag.observe { [weak swatch] in
@@ -138,7 +156,7 @@ final class UKCustomLightSheetViewController: UKPageViewController, UKSheetFitti
         tile.update(fillTint: rgb.map(UIColor.init(lightRGB:)), percent: LightControl.percent(of: state), isUnavailable: unavailable)
 
         let supportsColor = CustomLightsConfig.supportsColor(state)
-        let hasOthers = CustomLightsConfig.lights.contains { $0 != light }
+        let hasOthers = settings.lights.contains { $0 != light }
         colorStack.isHidden = !supportsColor
         othersSection.isHidden = !(supportsColor && hasOthers)
         colorRow.show(rgb: rgb, isEnabled: !unavailable, holdsSelection: pendingColor != nil)
@@ -151,8 +169,26 @@ final class UKCustomLightSheetViewController: UKPageViewController, UKSheetFitti
     // MARK: Actions
 
     private func send(_ command: LightControl.Command) {
+        if suppliedSettings != nil {
+            guard command.entityId == light.entityId, settings.lights.contains(light),
+                  store.entity(light.entityId).state?.isUnavailable == false else {
+                UKCustomLightsFailure.report()
+                return
+            }
+        }
         let caller = caller
-        Task { try? await caller.callService(command.domain, command.service, data: command.serviceData) }
+        Task {
+            do { try await caller.callService(command.domain, command.service, data: command.serviceData) }
+            catch { UKCustomLightsFailure.report() }
+        }
+    }
+
+    private func send(_ call: ServiceCall) {
+        let caller = caller
+        Task {
+            do { try await caller.call(call) }
+            catch { UKCustomLightsFailure.report() }
+        }
     }
 
     /// Sends a picked colour once the picker settles, so dragging across the wheel does not flood the light.
@@ -163,15 +199,37 @@ final class UKCustomLightSheetViewController: UKPageViewController, UKSheetFitti
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled, let self else { return }
             self.pendingColor = nil
-            self.caller.fire(CustomLightsConfig.setColor(picked, on: self.light.entityId))
+            if self.suppliedSettings != nil {
+                let state = self.store.entity(self.light.entityId).state
+                guard self.settings.lights.contains(self.light), state?.isUnavailable == false,
+                      CustomLightsConfig.supportsColor(state) else {
+                    UKCustomLightsFailure.report()
+                    return
+                }
+            }
+            self.send(CustomLightsConfig.setColor(picked, on: self.light.entityId))
         }
     }
 
     private func confirmApplyAll() {
-        UKRoomsAlert.present(AlertCopy.applyToAllLights(count: CustomLightsConfig.lights.count), from: self,
+        let expected = currentRGB
+        UKRoomsAlert.present(AlertCopy.applyToAllLights(count: settings.lights.count), from: self,
                              confirmID: "customLight.applyAll.confirm") { [weak self] in
-            guard let self, let rgb = self.currentRGB else { return }
-            self.caller.fire(CustomLightsConfig.setColor(rgb, on: CustomLightsConfig.groupEntityId))
+            guard let self else { return }
+            guard let rgb = self.currentRGB else {
+                if self.suppliedSettings != nil { UKCustomLightsFailure.report() }
+                return
+            }
+            if self.suppliedSettings != nil {
+                let current = self.store.entity(self.light.entityId).state
+                let group = self.store.entity(self.settings.groupEntityId).state
+                guard current?.isUnavailable == false, group?.isUnavailable == false,
+                      CustomLightsConfig.RGB(entity: current) == expected, rgb == expected else {
+                    UKCustomLightsFailure.report()
+                    return
+                }
+            }
+            self.send(CustomLightsConfig.setColor(rgb, on: self.settings.groupEntityId))
         }
     }
 }

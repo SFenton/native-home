@@ -10,6 +10,45 @@ struct ActivityCardTests {
         return ActivityCard(attributes: fixture.attributes, state: fixture.state, isStale: stale || fixture.isStale, now: now)
     }
 
+    @Test func authoredPresentationKeepsEngineIdentityAndControlSemantics() throws {
+        let json = """
+        {"id":"activity-demo","jobId":"fan.demo_unit","type":"activity-presentation@1","title":"Cleaning","glyph":"fan",
+         "tint":"air","source":"activity-engine@1","privacy":"system-sensitive@1",
+         "updates":"engine@1","intents":"engine-safe@1"}
+        """
+        let presentation = try JSONDecoder().decode(ActivityPresentation.self, from: Data(json.utf8))
+        let original = try card("vacuum")
+        let configured = ActivityCard(attributes: original.attributes, state: original.state, now: now,
+                                      presentation: presentation)
+        #expect(configured.deviceTitle == "Cleaning")
+        #expect(configured.glyph == .fan && configured.tint == "air")
+        #expect(configured.tag == original.tag && configured.state == original.state)
+        #expect(configured.buttons.map(\.id) == original.buttons.map(\.id))
+        #expect(configured.buttons.map(\.icon) == original.buttons.map(\.icon))
+        #expect(configured.buttons.first?.accessibilityLabel == "Pause Cleaning")
+        var pending = original.state
+        pending.pending = ActivityPending(control: "pause", label: "Pausing", sinceTs: now.timeIntervalSince1970)
+        let waiting = ActivityCard(attributes: original.attributes, state: pending, now: now, presentation: presentation)
+        #expect(waiting.buttons.isEmpty && waiting.pendingLabel == "Pausing")
+    }
+
+    @Test func authoredPresentationRejectsUnsupportedFieldsAndPolicies() throws {
+        let json = """
+        {"id":"activity-demo","jobId":"fan.demo_unit","type":"activity-presentation@1","title":"Cleaning","glyph":"fan",
+         "tint":"air","source":"activity-engine@1","privacy":"system-sensitive@1",
+         "updates":"engine@1","intents":"engine-safe@1"}
+        """
+        let original = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: String])
+        for (key, value) in [("privacy", "public"), ("updates", "poll"), ("intents", "unlock"),
+                             ("glyph", "unknown"), ("title", " "), ("id", "constructor"),
+                             ("title", String(repeating: "a", count: 33)), ("unexpected", "value")] {
+            var input = original
+            input[key] = value
+            let bytes = try JSONSerialization.data(withJSONObject: input)
+            #expect(throws: (any Error).self) { try JSONDecoder().decode(ActivityPresentation.self, from: bytes) }
+        }
+    }
+
     // MARK: Titles
 
     @Test func aCardWithNoValueShowsItsHeadlineAsTheBigLineUnderTheDeviceTitle() throws {

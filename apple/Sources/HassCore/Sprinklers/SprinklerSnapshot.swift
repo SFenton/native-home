@@ -68,8 +68,9 @@ public struct SprinklerSnapshot: Equatable, Sendable {
     /// Reads a controller.
     /// - Parameters:
     ///   - config: The controller.
+    ///   - lowBatteryPercent: Explicit threshold, or the house configuration for existing callers.
     ///   - entity: Looks up an entity's current state.
-    public init(config: SprinklersConfig.Controller, entity: (String) -> EntityState?) {
+    public init(config: SprinklersConfig.Controller, lowBatteryPercent: Double? = nil, entity: (String) -> EntityState?) {
         let state = entity(config.stateEntityId)
         let modeEntity = entity(config.modeEntityId)
         let battery = entity(config.batteryEntityId)
@@ -85,7 +86,7 @@ public struct SprinklerSnapshot: Equatable, Sendable {
 
         activeValveEntityId = activeZone?.config.valveEntityId
         self.available = available
-        batteryLow = batteryPercent.map { $0 <= SprinklersConfig.lowBatteryPercent } ?? false
+        batteryLow = batteryPercent.map { $0 <= (lowBatteryPercent ?? SprinklersConfig.lowBatteryPercent) } ?? false
         self.batteryPercent = batteryPercent
         self.fault = fault
         hubConnected = entity(config.hubConnectedEntityId)?.state == "on"

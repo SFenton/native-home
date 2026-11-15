@@ -141,24 +141,32 @@ final class UKVacationChecklistRow: UIView {
 final class UKVacationDateFieldsView: UIView {
     private let stack = UIStackView.ukColumn(spacing: HassTokens.Spacing.m)
     private let identifierPrefix: String
+    private let startLabel: String
+    private let endLabel: String
     private let fields: UKScheduleDateFields
-    private let error = UKInlineAlertView(Vacation.Copy.dateRangeError, severity: .error)
+    private let error: UKInlineAlertView
     private let onChange: (Vacation.DateRange, Bool) -> Void
 
     /// - Parameters:
     ///   - commitDelay: Quiet time before a change is reported (inline dates write to Home Assistant).
     ///   - onChange: The new range and whether the end changed.
     init(range: Vacation.DateRange, invalid: Bool, identifierPrefix: String, commitDelay: Duration?,
+         description: String = Vacation.Copy.datesDescription, startLabel: String = Vacation.Copy.starts,
+         endLabel: String = Vacation.Copy.ends, errorText: String = Vacation.Copy.dateRangeError,
          onChange: @escaping (Vacation.DateRange, Bool) -> Void) {
         self.identifierPrefix = identifierPrefix
+        self.startLabel = startLabel
+        self.endLabel = endLabel
         self.onChange = onChange
-        fields = UKScheduleDateFields(fields: Self.makeFields(range, prefix: identifierPrefix, onChange: onChange), commitDelay: commitDelay)
+        error = UKInlineAlertView(errorText, severity: .error)
+        fields = UKScheduleDateFields(fields: Self.makeFields(range, prefix: identifierPrefix, startLabel: startLabel,
+                                                              endLabel: endLabel, onChange: onChange), commitDelay: commitDelay)
         super.init(frame: .zero)
         addSubview(stack)
         stack.ukPin(to: self)
-        let description = UILabel.uk(.subheadline, ink: UKDesignInk.secondary)
-        description.text = Vacation.Copy.datesDescription
-        stack.addArrangedSubview(description)
+        let descriptionLabel = UILabel.uk(.subheadline, ink: UKDesignInk.secondary)
+        descriptionLabel.text = description
+        stack.addArrangedSubview(descriptionLabel)
         error.accessibilityIdentifier = "\(identifierPrefix).error"
         error.isHidden = !invalid
         stack.addArrangedSubview(error)
@@ -169,13 +177,13 @@ final class UKVacationDateFieldsView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     /// Each picker stops at the other's value, so Ends cannot be set before Starts (HIG Pickers).
-    private static func makeFields(_ range: Vacation.DateRange, prefix: String,
+    private static func makeFields(_ range: Vacation.DateRange, prefix: String, startLabel: String, endLabel: String,
                                    onChange: @escaping (Vacation.DateRange, Bool) -> Void) -> [ScheduleDateField] {
         [
-            ScheduleDateField(Vacation.Copy.starts, .dateAndTime, range.start, id: "\(prefix).start") {
+            ScheduleDateField(startLabel, .dateAndTime, range.start, id: "\(prefix).start") {
                 onChange(Vacation.DateRange(start: $0, end: range.end), false)
             }.limited(to: range.end.date()),
-            ScheduleDateField(Vacation.Copy.ends, .dateAndTime, range.end, id: "\(prefix).end") {
+            ScheduleDateField(endLabel, .dateAndTime, range.end, id: "\(prefix).end") {
                 onChange(Vacation.DateRange(start: range.start, end: $0), true)
             }.limited(from: range.start.date()),
         ]
@@ -184,7 +192,8 @@ final class UKVacationDateFieldsView: UIView {
     /// Shows the controller's range; a pick the controller moved is dropped.
     func update(range: Vacation.DateRange, invalid: Bool) {
         error.isHidden = !invalid
-        fields.update(fields: Self.makeFields(range, prefix: identifierPrefix, onChange: onChange))
+        fields.update(fields: Self.makeFields(range, prefix: identifierPrefix, startLabel: startLabel,
+                                             endLabel: endLabel, onChange: onChange))
     }
 }
 #endif

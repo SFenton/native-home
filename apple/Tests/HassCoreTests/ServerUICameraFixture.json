@@ -1,0 +1,57 @@
+{
+  "source": {
+    "id": "demo-camera-source", "kind": "model", "model": "camera-stream@1",
+    "inputs": {
+      "entityId": { "type": "literal", "value": "camera.demo_entry" },
+      "snapshotEntityId": { "type": "literal", "value": "camera.demo_still" },
+      "rtcStreamId": "demo_entry", "aspectRatio": 1.7777777777777777,
+      "recording": {
+        "type": "script",
+        "stateEntityId": { "type": "literal", "value": "input_boolean.demo_recording" },
+        "scriptEntityId": { "type": "literal", "value": "script.demo_recording" }
+      }
+    },
+    "labels": {
+      "loading": "Reading camera", "unavailable": "Camera unavailable", "hidden": "Private camera",
+      "connecting": "Connecting", "live": "Live", "delayed": "Live, a few seconds behind",
+      "snapshot": "Snapshot", "retry": "Retry Live Video", "recordFailed": "Could not change recording.",
+      "photosTitle": "Allow Photos Access",
+      "photosMessage": "Snapshots are saved to your photo library. Allow S+H to add photos in Settings.",
+      "settings": "Open Settings", "cancel": "Cancel"
+    }
+  },
+  "tile": {
+    "id": "demo-camera-tile", "type": "camera-tile", "title": "Entry camera", "layout": { "span": 1 },
+    "props": { "sourceId": "demo-camera-source", "openHint": "Opens the entry camera" },
+    "action": { "type": "present", "modalId": "modal-swatch", "arguments": {}, "ifPresented": "reject" }
+  },
+  "viewer": {
+    "id": "demo-camera-viewer", "type": "camera-viewer", "title": "Entry camera", "layout": { "span": 1 },
+    "props": {
+      "sourceId": "demo-camera-source",
+      "controls": [
+        {
+          "intent": "snapshot", "title": "Snapshot", "activeTitle": "Saved to Photos", "busyTitle": "Saving", "failureTitle": "Not Saved",
+          "icon": { "type": "sf-symbol", "name": "camera.fill", "rendering": "canonical", "unavailable": "reject" },
+          "activeIcon": { "type": "sf-symbol", "name": "checkmark.circle.fill", "rendering": "canonical", "unavailable": "reject" },
+          "failureIcon": { "type": "sf-symbol", "name": "exclamationmark.triangle.fill", "rendering": "canonical", "unavailable": "reject" },
+          "tint": "action"
+        },
+        {
+          "intent": "sound", "title": "Muted", "activeTitle": "Sound On", "busyTitle": "Changing Sound", "failureTitle": "Sound unavailable",
+          "icon": { "type": "sf-symbol", "name": "speaker.slash.fill", "rendering": "canonical", "unavailable": "reject" },
+          "activeIcon": { "type": "sf-symbol", "name": "speaker.wave.2.fill", "rendering": "canonical", "unavailable": "reject" },
+          "failureIcon": { "type": "sf-symbol", "name": "speaker.slash.fill", "rendering": "canonical", "unavailable": "reject" },
+          "tint": "action"
+        },
+        {
+          "intent": "record", "title": "Record", "activeTitle": "Recording", "busyTitle": "Changing Recording", "failureTitle": "Recording Failed",
+          "icon": { "type": "sf-symbol", "name": "record.circle", "rendering": "canonical", "unavailable": "reject" },
+          "activeIcon": { "type": "sf-symbol", "name": "record.circle", "rendering": "canonical", "unavailable": "reject" },
+          "failureIcon": { "type": "sf-symbol", "name": "exclamationmark.triangle.fill", "rendering": "canonical", "unavailable": "reject" },
+          "tint": "danger"
+        }
+      ]
+    }
+  }
+}

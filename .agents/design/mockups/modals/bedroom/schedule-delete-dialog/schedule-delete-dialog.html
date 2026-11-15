@@ -44,7 +44,7 @@
   Mock.mount({
     kind: 'modal', id: 'schedule-delete-dialog', title: 'Delete alarm or activity? (confirmation dialogs)', area: 'bedroom', status: 'shipped',
     summary: 'One pattern, three call sites: a confirmation dialog with a visible title and one red destructive button (Cancel is added by the system when not written): "Delete alarm set for 6:45 AM on Weekdays?" (wake editor), "Delete alarm set for 6:30 AM on Monday?" (bed editor) and "Delete Evening?" (humidifier activity). An action sheet on iPhone, a popover on iPad.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierSchedulesTab.swift'],
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift', 'apple/Sources/HassUI/Features/RoomDevices/HumidifierSchedulesTab.swift'],
     spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/room-device-sheets.md', '.agents/design/direction-g.md'],
     patterns: ['bedroom-devices', 'room-device-sheets', 'modal-sheet'],
     hig: ['Action sheets', 'Alerts', 'Popovers'],

@@ -7,7 +7,7 @@ enum HouseConfigCopy {
     /// The VoiceOver label of every skeleton.
     static let skeletonLabel = "Getting your home from Home Assistant"
     /// The busy title of Try Again.
-    static let tryAgainBusy = "Trying Again"
+    static let tryAgainBusy = AlertCopy.tryingAgain
 
     /// What a message's action does.
     enum Action: Equatable {

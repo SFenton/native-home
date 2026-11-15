@@ -25,9 +25,7 @@
   Mock.mount({
     kind: 'page', id: 'security', title: 'Security', area: 'security', status: 'shipped',
     summary: 'The Security tab: the Security and Contact Sensors chips, the alarm card on a module, Doors as tiles (a lock and two garage doors), guests while a toggle is on, cameras, and the hidden Car section. Sample data is the debug gallery fixture.',
-    source: ['apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift', 'apple/Sources/HassUI/Features/Security/SecurityTiles.swift',
-      'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift',
-      'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift'],
+    source: ['apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift'],
     spec: ['.agents/pages/security/spec.md', '.agents/pages/security/ios.md', '.agents/design/direction-g.md'],
     patterns: ['status-rail', 'dynamic-grid', 'camera-streams', 'entity-tile', 'optimistic-actions', 'motion'],
     hig: ['Tab bars', 'Alerts', 'Color', 'Dynamic Type', 'HomeKit: cameras'],

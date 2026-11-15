@@ -30,8 +30,7 @@ Sheets: [room-overview-sheet](../../patterns/room-overview-sheet.md) (source `ha
 |---|---|
 | Snapshot only (cold launch, offline) | Render saved values at once, no spinner; the reconnecting arc in the header only after 2 s without a connection |
 | First sign-in (no snapshot yet), house layout saved or arrived | Tiles show names and a soft pulsing bar for the value until live data lands |
-| First sign-in, no house layout yet (server or cache) | The Home skeleton: four chip capsules, the weather module, a section bar and four camera-shaped tiles, pulsing like the value bars; never a spinner in the page ([house-config-states](../../design/house-config-states.md) rule 11) |
-| No house layout and the server answered with a problem (integration missing or too old, not set up, invalid with a Repair, newer than the build, no answer in 10 s) | A state message in place of the page's content, with an action to the right Home Assistant page for administrators (rule 12) |
+| First sign-in, no layout on screen yet | The root's recovery boundary shows in place of this page ([server-ui-boundary](../../design/server-ui-boundary.md)) |
 | A saved house layout, whatever the server says now | Drawn as usual; only the Home Assistant modal's House Layout row says it is a saved copy (rule 10) |
 | Live | Values update in place |
 | Entity missing (named by the layout, absent from Home Assistant) or `unavailable` | Chip shows "Unavailable", dimmed, still opens its sheet; never hidden or moved (rule 15) |

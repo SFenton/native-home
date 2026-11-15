@@ -14,7 +14,7 @@ final class LoginJourneyTests: JourneyTestCase {
     /// (nil leaves it empty).
     private func launch(stub: String? = nil, expired: String? = nil, arguments: [String] = [], intro: Bool = false,
                         server: String? = LoginJourneyTests.prefilledServer,
-                        settings: [FentonHomeApp.SystemSetting] = []) -> XCUIApplication {
+                        settings: [FentonHomeApp.SystemSetting] = [], publication: String? = nil) -> XCUIApplication {
         let app = FentonHomeApp.makeApp()
         app.launchEnvironment["FENTON_UITEST_RESET"] = "1"
         if let server { app.launchEnvironment["FENTON_HASS_SERVER"] = server }
@@ -22,6 +22,7 @@ final class LoginJourneyTests: JourneyTestCase {
         app.launchEnvironment.merge(FentonHomeApp.SystemSetting.environment(settings)) { $1 }
         if let stub { app.launchEnvironment["FENTON_SIGNIN_STUB"] = stub }
         if let expired { app.launchEnvironment["FENTON_EXPIRED_ACCOUNT"] = expired }
+        if let publication { app.launchEnvironment["FENTON_UI_PUBLICATION"] = publication }
         app.launchArguments += arguments
         app.launch()
         return app
@@ -52,6 +53,36 @@ final class LoginJourneyTests: JourneyTestCase {
     }
 
     // MARK: - Layout and labels
+
+    /// Every family: successful OAuth with nothing published to Home Assistant stays signed in at the truthful recovery
+    /// boundary, never a compiled product dashboard. The stubbed OAuth server has no websocket, so the journey is answered with
+    /// the integration's `unpublished` state (`FENTON_UI_PUBLICATION`).
+    func testUnpublishedProductShowsRecoveryAfterSignIn() {
+        let app = launch(stub: "success", publication: "unpublished")
+        fill(app)
+        submit(app)
+        XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+        XCTAssertFalse(app.secureTextFields["login.password"].exists)
+        XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 10), "An unpublished layout can be asked for again.")
+    }
+
+    func testIncompatibleProductAsksForAnAppUpdateWithoutARetry() {
+        let app = launch(stub: "success", publication: "incompatible")
+        fill(app)
+        submit(app)
+        XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Update Required"].appears(timeout: 10))
+        XCTAssertFalse(app.buttons["server-ui.production.retry"].exists, "Asking again cannot make this build newer.")
+    }
+
+    func testUnpublishedRecoveryPassesAccessibilityAudit() throws {
+        let app = launch(stub: "success", arguments: FentonHomeApp.ax5, publication: "unpublished")
+        fill(app)
+        submit(app)
+        XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        try FentonHomeApp.audit(app)
+    }
 
     func testLoginScreenPassesAccessibilityAudit() throws {
         let app = launch()

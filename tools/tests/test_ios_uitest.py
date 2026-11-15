@@ -1,8 +1,10 @@
 """``tools/ios_uitest.sh`` default hold scaling and per-run build stamp."""
 
+import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -29,17 +31,29 @@ def filters(files, test_map=None, *args, **env):
 
 
 class PerFamilyFilterTests(unittest.TestCase):
+    """A rule with `layout_journeys` sends only that class to Duo and iPad; a synthetic map keeps the test off the live one."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.map = Path(self.tmp.name) / "map.json"
+        self.map.write_text(json.dumps({
+            "families": ["iphone", "duo", "ipad"], "defaultFamilies": ["iphone"], "journeyTarget": "FentonHomeUITests",
+            "layoutJourneys": ["PoseJourneyTests"], "ignore": [],
+            "rules": [{"prefix": "apple/Sources/X/Split", "swift": ["X"], "journeys": ["AJourneyTests", "PoseJourneyTests", "BJourneyTests"],
+                       "layout_journeys": ["PoseJourneyTests"]}]}))
+
     def test_each_family_gets_its_own_only_testing_list(self):
-        got, out = filters(["apple/Sources/HassUI/Features/RoomDevices/HumidifierSheet.swift"])
+        got, out = filters(["apple/Sources/X/SplitView.swift"], self.map)
         self.assertEqual(out.returncode, 0, out.stderr)
-        pose = "-only-testing:FentonHomeUITests/RoomDevicesHumidifierPoseJourneyTests"
+        pose = "-only-testing:FentonHomeUITests/PoseJourneyTests"
         self.assertEqual(got["duo"], [pose])
         self.assertEqual(got["ipad"], [pose])
         self.assertIn(pose, got["iphone"])
         self.assertEqual(len(got["iphone"]), 3)
 
     def test_caller_arguments_reach_every_family(self):
-        got, _ = filters(["apple/Sources/HassUI/Features/RoomDevices/HumidifierSheet.swift"], None, "FOO=bar")
+        got, _ = filters(["apple/Sources/X/SplitView.swift"], self.map, "FOO=bar")
         for family in ("iphone", "duo", "ipad"):
             self.assertIn("FOO=bar", got[family])
 

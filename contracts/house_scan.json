@@ -208,6 +208,7 @@
       "zone.home",
       "zone.work",
       "number\u002eset_value",
+      "automation\u002epause",
       "button\u002epress",
       "input_button\u002epress",
       "input_select\u002eselect_option",
@@ -240,7 +241,7 @@
       "tools/triage/tests/",
       "evals/agents/",
       "apple/Package.resolved",
-      ".agents/testing/apple/test-speed-roadmap.md"
+      ".agents/archive/testing-test-speed-roadmap.md"
     ],
     "skip_prefixes": [],
     "generic_members": [

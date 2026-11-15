@@ -24,7 +24,7 @@
   Mock.mount({
     kind: 'component', id: 'media-card-tile', title: 'Media tile', area: 'media', status: 'shipped', frame: false,
     summary: 'The Media page\'s tile: a GlassTile in the media family (dark with a pink glyph while off, filled media pink while on). A lead tile opens its remote (chevron) and carries its actions: Power beside the chevron when off, the transport and volume below while playing (built on claude/action-nav-tiles); a source or script tile runs its command in place.',
-    source: ['apple/Sources/HassUI/Features/Media/MediaScreen.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassCore/Config/MediaPageConfig.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassCore/Config/MediaPageConfig.swift'],
     spec: ['.agents/patterns/entity-tile.md', '.agents/pages/media/ios.md', '.agents/design/direction-g.md'],
     patterns: ['entity-tile'], hig: ['Buttons', 'Color'], entities: ['media_player.demo_living_room_2', 'sensor.demo_media_room_2'],
     kitComponents: ['GlassTile'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],

@@ -98,27 +98,6 @@ final class UKHostedCameraTests: DemoHouseTestCase {
         card.layoutIfNeeded()
     }
 
-    func testCameraSectionListsEveryConfiguredCameraAndOpensTheTappedOne() {
-        let (context, _) = context()
-        let bag = UKObservationBag()
-        var opened: HomeConfig.Camera?
-        let section = UKCameraGridSectionView(context: context, identifierPrefix: "security.camera", bag: bag, pool: pool()) { camera, _ in opened = camera }
-        let host = UIViewController()
-        host.view.addSubview(section)
-        section.frame = CGRect(x: 0, y: 0, width: 393, height: 600)
-        let window = HostedPage.show(host)
-        defer { window.isHidden = true }
-        XCTAssertEqual(section.tiles.count, HomeConfig.cameras.count)
-        XCTAssertEqual(section.tiles.map(\.accessibilityIdentifier), HomeConfig.cameras.map { "security.camera.\($0.rtcStreamId)" })
-        XCTAssertTrue(HostedPage.labels(in: section).contains("Cameras"))
-        XCTAssertGreaterThan(section.gridHeight(forWidth: 393), 100)
-        XCTAssertEqual(section.sizeThatFits(CGSize(width: 393, height: 0)).height, section.gridHeight(forWidth: 393))
-        section.hinge = CGRect(x: 0, y: 300, width: 393, height: 20)
-        XCTAssertEqual(section.hinge, CGRect(x: 0, y: 300, width: 393, height: 20))
-        section.tiles[1].sendActions(for: .touchUpInside)
-        XCTAssertEqual(opened?.rtcStreamId, HomeConfig.cameras[1].rtcStreamId)
-    }
-
     private func viewer(pool: CameraStreamPool, caller: HostedCaller, store: EntityStore = EntityStore(), size: CGSize = CGSize(width: 393, height: 852))
         -> (UKCameraViewerViewController, UIWindow, HassConnection) {
         let (context, connection) = context(store: store, caller: caller)

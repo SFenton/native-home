@@ -173,9 +173,7 @@
     "swift": [
      "ChipRail"
     ],
-    "journeys": [
-     "ChipAlignmentJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -187,9 +185,7 @@
     "swift": [
      "ChipRail"
     ],
-    "journeys": [
-     "ChipAlignmentJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -201,9 +197,7 @@
     "swift": [
      "ChipTint"
     ],
-    "journeys": [
-     "ChipAlignmentJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -400,7 +394,6 @@
      "TileLayout"
     ],
     "journeys": [
-     "TilesRound2JourneyTests",
      "TileLayoutJourneyTests"
     ]
    }
@@ -415,7 +408,6 @@
      "TileLayout"
     ],
     "journeys": [
-     "TilesRound2JourneyTests",
      "TileLayoutJourneyTests"
     ]
    }
@@ -430,7 +422,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    }
@@ -445,7 +436,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    }
@@ -460,7 +450,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    }
@@ -536,9 +525,7 @@
     "swift": [
      "HeaderEdgeFade"
     ],
-    "journeys": [
-     "HeaderFadeJourneyTests"
-    ]
+    "journeys": []
    },
    "systemApi": "Replace on 26. System alternative: 17: `toolbarBackground(.hidden)` + a mask. 18: `onScrollGeometryChange`. 26: `scrollEdgeEffectStyle(.soft, for: .top)`. See .agents/design/apple/system-api-audit.md."
   },
@@ -551,9 +538,7 @@
     "swift": [
      "HingeAvoidance"
     ],
-    "journeys": [
-     "AdaptiveLayoutJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -765,7 +750,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    }
@@ -779,9 +763,7 @@
     "swift": [
      "PageIndicator"
     ],
-    "journeys": [
-     "HomePagesJourneyTests"
-    ]
+    "journeys": []
    },
    "systemApi": "Keep, review. System alternative: 17: `TabView(.page)` page control (`indexViewStyle`), UIKit `UIPageControl`. 18/26: same. See .agents/design/apple/system-api-audit.md."
   },
@@ -794,9 +776,7 @@
     "swift": [
      "PagedRow"
     ],
-    "journeys": [
-     "HomePagesJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -843,18 +823,6 @@
    "tests": {
     "swift": [
      "PrimaryButton"
-    ],
-    "journeys": []
-   }
-  },
-  {
-   "name": "QuickLinkPalette",
-   "kind": "enum",
-   "file": "apple/Sources/HassDesign/QuickLinkPalette.swift",
-   "pattern": "entity-tile",
-   "tests": {
-    "swift": [
-     "QuickLinkPalette"
     ],
     "journeys": []
    }
@@ -925,7 +893,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -941,7 +908,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -957,7 +923,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -973,7 +938,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -989,7 +953,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -1005,7 +968,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -1021,7 +983,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    }
@@ -1036,7 +997,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -1052,7 +1012,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -1068,7 +1027,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -1084,7 +1042,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -1100,7 +1057,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    },
@@ -1116,7 +1072,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    }
@@ -1131,7 +1086,6 @@
      "SheetFit"
     ],
     "journeys": [
-     "SheetBottomGapJourneyTests",
      "ModalSizingJourneyTests"
     ]
    }
@@ -1423,6 +1377,30 @@
    }
   },
   {
+   "name": "StateTileLook",
+   "kind": "struct",
+   "file": "apple/Sources/HassDesign/TileActions/StateTileLook.swift",
+   "pattern": "action-tiles",
+   "tests": {
+    "swift": [
+     "TileAction"
+    ],
+    "journeys": []
+   }
+  },
+  {
+   "name": "StateTileLookChange",
+   "kind": "extension",
+   "file": "apple/Sources/HassDesign/TileActions/StateTileLookChange.swift",
+   "pattern": "action-tiles",
+   "tests": {
+    "swift": [
+     "TileAction"
+    ],
+    "journeys": []
+   }
+  },
+  {
    "name": "TileActionButtonStyle",
    "kind": "enum",
    "file": "apple/Sources/HassDesign/TileActions/TileActionButtonStyle.swift",
@@ -1431,9 +1409,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1445,9 +1421,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1459,9 +1433,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1473,9 +1445,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1487,9 +1457,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1501,9 +1469,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1515,9 +1481,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1529,9 +1493,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1543,9 +1505,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1557,9 +1517,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1571,9 +1529,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1585,9 +1541,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1599,9 +1553,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1613,9 +1565,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1627,9 +1577,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1641,9 +1589,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1655,9 +1601,7 @@
     "swift": [
      "TileAction"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1670,9 +1614,7 @@
      "TileLayout",
      "ChipTint"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1685,9 +1627,7 @@
      "TileLayout",
      "ChipTint"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1700,9 +1640,7 @@
      "TileLayout",
      "ChipTint"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1715,9 +1653,7 @@
      "TileLayout",
      "ChipTint"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1730,9 +1666,7 @@
      "TileLayout",
      "ChipTint"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    },
    "systemApi": "Keep. System alternative: 17: `Material` (`.ultraThinMaterial`) per tile. 18: same. 26: `glassEffect(_:in:)`, `GlassEffectContainer`. See .agents/design/apple/system-api-audit.md."
   },
@@ -1746,9 +1680,7 @@
      "TileLayout",
      "ChipTint"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    },
    "systemApi": "Keep. System alternative: 17: `Material` (`.ultraThinMaterial`) per tile. 18: same. 26: `glassEffect(_:in:)`, `GlassEffectContainer`. See .agents/design/apple/system-api-audit.md."
   },
@@ -1836,9 +1768,7 @@
      "TileLayout",
      "ChipTint"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1890,9 +1820,7 @@
      "ChipTint",
      "ColorFamily"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    },
    "systemApi": "Keep. System alternative: 17: `Material` (`.ultraThinMaterial`) per tile. 18: same. 26: `glassEffect(_:in:)`, `GlassEffectContainer`. See .agents/design/apple/system-api-audit.md."
   },
@@ -1906,9 +1834,7 @@
      "ChipTint",
      "ColorFamily"
     ],
-    "journeys": [
-     "TilesRound2JourneyTests"
-    ]
+    "journeys": []
    },
    "systemApi": "Keep. System alternative: 17: `Material` (`.ultraThinMaterial`) per tile. 18: same. 26: `glassEffect(_:in:)`, `GlassEffectContainer`. See .agents/design/apple/system-api-audit.md."
   },
@@ -1945,9 +1871,7 @@
     "swift": [
      "HingeAvoidance"
     ],
-    "journeys": [
-     "AdaptiveLayoutJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1981,9 +1905,7 @@
     "swift": [
      "BackdropBlur"
     ],
-    "journeys": [
-     "BackdropBlurJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -1995,9 +1917,7 @@
     "swift": [
      "BackdropBlur"
     ],
-    "journeys": [
-     "BackdropBlurJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -2009,9 +1929,7 @@
     "swift": [
      "BackdropBlur"
     ],
-    "journeys": [
-     "BackdropBlurJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -2063,22 +1981,6 @@
    }
   },
   {
-   "name": "RoomOverviewSheet",
-   "kind": "struct",
-   "file": "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
-   "pattern": "room-overview-sheet",
-   "tests": {
-    "swift": [
-     "RoomOverview"
-    ],
-    "journeys": [
-     "RoomsPageJourneyTests",
-     "RoomsFanJourneyTests",
-     "RoomsWideLayoutJourneyTests"
-    ]
-   }
-  },
-  {
    "name": "RoomOverviewStyle",
    "kind": "enum",
    "file": "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift",
@@ -2087,11 +1989,7 @@
     "swift": [
      "RoomOverview"
     ],
-    "journeys": [
-     "RoomsPageJourneyTests",
-     "RoomsFanJourneyTests",
-     "RoomsWideLayoutJourneyTests"
-    ]
+    "journeys": []
    }
   },
   {
@@ -2130,9 +2028,7 @@
      "ThermostatDial"
     ],
     "journeys": [
-     "ThermostatDialJourneyTests",
-     "ClimatePageJourneyTests",
-     "ClimateRoomsJourneyTests"
+     "ThermostatDialJourneyTests"
     ]
    }
   }

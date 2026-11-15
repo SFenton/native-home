@@ -1,0 +1,27 @@
+{
+  "components": [
+    {
+      "id": "record-list", "title": "Items", "type": "collection", "layout": { "span": 1 },
+      "props": { "providerId": "demo-items", "template": "rows", "loadingText": "Loading Items", "emptyText": "No Items" }
+    },
+    {
+      "id": "record-form", "title": "Edit Item", "type": "form", "layout": { "span": 1 },
+      "props": {
+        "providerId": "demo-edit", "saveLabel": "Save", "selectionOnly": false,
+        "fields": [
+          { "key": "name", "label": "Name", "control": "text" },
+          { "key": "enabled", "label": "Enabled", "control": "toggle" }
+        ]
+      },
+      "success": { "type": "back" }
+    },
+    {
+      "id": "record-recipe", "title": "Ingredients", "type": "recipe-part", "layout": { "span": 1 },
+      "props": { "providerId": "demo-recipes", "part": "ingredients" }
+    },
+    {
+      "id": "record-actions", "title": "Actions", "type": "pinned-actions", "layout": { "span": 1 },
+      "props": { "searchProviderId": "demo-items", "searchPrompt": "Search Items", "items": [] }
+    }
+  ]
+}

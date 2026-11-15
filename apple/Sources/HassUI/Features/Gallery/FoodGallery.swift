@@ -163,7 +163,7 @@ enum FoodFixtures {
     /// EverShelf sensors for the hub's tiles.
     static func store() -> EntityStore {
         let store = EntityStore()
-        let today = Date.now.formatted(.iso8601.year().month().day())
+        let today = GalleryFixtureClock.shared.now.formatted(.iso8601.year().month().day())
         store.replaceAll([
             EntityState(entityId: FoodConfig.totalItemsEntityId, state: "143"),
             EntityState(entityId: FoodConfig.expiringSoonEntityId, state: "4", attributes: [

@@ -3,45 +3,6 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// The factory the Rooms page opens a room's device sheet with, mirroring how `RoomDeviceModal` / `RoomDeviceModalSheet` pick a SwiftUI
-/// sheet: resolve the device with `RoomDeviceModal.resolve(...)`, then
-///
-/// ```swift
-/// if let sheet = UKRoomDeviceSheets.make(for: modal, context: context, onOpenBed: { side in /* present the bed sheet */ }) {
-///     sheet.present(from: self)
-/// }
-/// ```
-/// `onOpenBed` runs once the wake-light sheet has closed; present `.bed(devices, side:, tab: .alarms)` from there. The vacuum sheet
-/// belongs to the Vacuums lane: this returns nil for `.vacuum`.
-@MainActor
-enum UKRoomDeviceSheets {
-    static func make(for modal: RoomDeviceModal, context: UKContext, accessory: UIView? = nil,
-                     onOpenBed: @escaping (BedSide) -> Void = { _ in }) -> UKHassModalController? {
-        let sheetContext = context.with { $0.surface = .sheet }
-        switch modal {
-        case .vacuum:
-            return nil
-        case let .bathroomFan(fan, _):
-            return UKBathroomFanSheet.make(controller: fan, accessory: accessory)
-        case let .airPurifier(purifier):
-            guard let caller = context.connection ?? context.caller else { return nil }
-            return UKAirPurifierSheet.make(controller: AirPurifierController(config: purifier, store: context.store, caller: caller), accessory: accessory)
-        case let .humidifier(humidifier):
-            guard let connection = context.connection else { return nil }
-            return UKHumidifierSheet.make(config: humidifier, connection: connection, context: sheetContext, accessory: accessory)
-        case .grill:
-            guard let caller = context.connection ?? context.caller else { return nil }
-            return UKGrillSheet.make(controller: GrillController(config: .bearGrills, store: context.store, caller: caller), accessory: accessory)
-        case let .wakeLight(devices, tab):
-            return UKWakeLightSheet.make(devices: devices, initialTab: tab, context: sheetContext, accessory: accessory, onOpenBed: onOpenBed)
-        case let .bed(devices, side, tab):
-            return UKBedSideSheet.make(devices: devices, side: side, initialTab: tab, context: sheetContext, accessory: accessory)
-        }
-    }
-}
-
-// MARK: - Chrome
-
 /// A column page with the device sheet chrome (`RoomDeviceSheetChrome`): the title, an optional subtitle that follows state, Close as
 /// `device.sheet.done`, and the sheet's identifier.
 @MainActor
@@ -83,92 +44,6 @@ enum UKDeviceSheetAccessory {
     static func wrap(_ page: UIViewController, accessory: UIView?) -> UIViewController {
         guard let accessory else { return page }
         return UKSheetPinnedBarPage(content: page, bar: accessory)
-    }
-}
-
-// MARK: - Air purifier
-
-/// The air purifier sheet (`AirPurifierSheet`; web `AirQualityModalContent.tsx`): fan mode, then Auto's sub-mode or Manual's speed.
-@MainActor
-enum UKAirPurifierSheet {
-    static func make(controller: AirPurifierController, accessory: UIView?) -> UKHassModalController {
-        let page = UKAirPurifierPage(controller: controller)
-        let root = UKDeviceSheetAccessory.wrap(page, accessory: accessory)
-        let modal = UKDeviceSheetPage.modal(root, title: "\(controller.config.roomTitle) Air Quality", width: .form, height: .fitted, key: "AirPurifierSheet")
-        return modal
-    }
-}
-
-@MainActor
-final class UKAirPurifierPage: UKDeviceSheetPage {
-    private let controller: AirPurifierController
-    private var sections: [UKChoiceSection] = []
-
-    init(controller: AirPurifierController) {
-        self.controller = controller
-        super.init(maxWidth: 640, subtitle: { controller.summary }, identifier: "device.sheet.purifier")
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        title = "\(controller.config.roomTitle) Air Quality"
-        navigationItem.title = title
-        let controls = UIStackView()
-        controls.axis = .vertical
-        controls.spacing = HassTokens.Spacing.xl
-        controls.isAccessibilityElement = false
-        controls.accessibilityContainerType = .semanticGroup
-        controls.accessibilityLabel = "\(controller.config.roomTitle) air purifier controls"
-        func section(_ title: String, options: [AirPurifierController.Option], id: String, selected: @escaping () -> String?, disabled: @escaping () -> Bool,
-                     visible: @escaping () -> Bool, select: @escaping (AirPurifierController.Option) -> Void) -> UKChoiceSection {
-            UKChoiceSection(title: title, options: options, id: id, selected: selected, disabled: disabled, visible: visible, select: select)
-        }
-        sections = [
-            section("Fan Mode", options: AirPurifierController.fanModes, id: "mode", selected: { [controller] in controller.mode },
-                    disabled: { [controller] in controller.modeUnavailable }, visible: { true }, select: controller.selectMode),
-            section("Auto Mode", options: AirPurifierController.autoModes, id: "auto", selected: { [controller] in controller.autoMode },
-                    disabled: { [controller] in controller.autoModeUnavailable }, visible: { [controller] in controller.showsAutoModes }, select: controller.selectAutoMode),
-            section("Fan Speed", options: AirPurifierController.speeds, id: "speed", selected: { [controller] in controller.percentage },
-                    disabled: { [controller] in controller.fanUnavailable }, visible: { [controller] in controller.showsSpeeds }, select: controller.selectSpeed),
-        ]
-        sections.forEach(controls.addArrangedSubview)
-        stack.addArrangedSubview(controls)
-        bag.observe { [weak self] in self?.sections.forEach { $0.refresh() } }
-    }
-}
-
-/// A titled segmented choice that shows and hides with state (`AirPurifierControls.section`).
-@MainActor
-final class UKChoiceSection: UIStackView {
-    private let choice: UKSegmentedChoice<AirPurifierController.Option>
-    private let options: [AirPurifierController.Option]
-    private let selected: () -> String?
-    private let disabled: () -> Bool
-    private let visible: () -> Bool
-
-    init(title: String, options: [AirPurifierController.Option], id: String, selected: @escaping () -> String?, disabled: @escaping () -> Bool,
-         visible: @escaping () -> Bool, select: @escaping (AirPurifierController.Option) -> Void) {
-        self.options = options
-        self.selected = selected
-        self.disabled = disabled
-        self.visible = visible
-        choice = UKSegmentedChoice(label: title, options: options, title: { $0.title }, selection: nil, identifier: "purifier.\(id)", select: select)
-        super.init(frame: .zero)
-        axis = .vertical
-        spacing = HassTokens.Spacing.m
-        let section = UKDeviceSection(title: title, content: [choice])
-        addArrangedSubview(section)
-    }
-
-    @available(*, unavailable) required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func refresh() {
-        isHidden = !visible()
-        choice.selection = options.first { $0.value == selected() }
-        choice.isUserInteractionEnabled = !disabled()
-        choice.alpha = disabled() ? 0.4 : 1
     }
 }
 
@@ -281,112 +156,45 @@ final class UKGrillPage: UKDeviceSheetPage {
     }
 }
 
-// MARK: - Bathroom fan
-
-/// The bathroom fan sheet (`BathroomFanSheet`; web `BathroomFanModalContent.tsx`): Power and Lock tiles, and an off timer. Power is the
-/// air (teal) family and Lock the security blue; the timer is a row of six lengths and one button, or a big orange countdown with a
-/// thin progress bar and a Clear Timer button.
-@MainActor
-enum UKBathroomFanSheet {
-    static func make(controller: BathroomFanController, accessory: UIView?) -> UKHassModalController {
-        let page = UKBathroomFanPage(controller: controller)
-        return UKDeviceSheetPage.modal(UKDeviceSheetAccessory.wrap(page, accessory: accessory), title: "\(controller.config.roomTitle) Fan",
-                                       width: .form, height: .fitted, key: "BathroomFanSheet")
-    }
-}
-
-@MainActor
-final class UKBathroomFanPage: UKDeviceSheetPage {
-    private let controller: BathroomFanController
-    private let grid = UKDynamicGridView(configuration: UKGridConfiguration(minCellWidth: DynamicGridMetrics.tileMinWidth, maxColumns: 4, equalRowHeights: true))
-    private var power: UKGlassTileView!
-    private var lock: UKGlassTileView!
-    private let timer = UIView()
-    private var picker: UKFanTimerPicker!
-    private var running: UKFanTimerRunning!
-
-    init(controller: BathroomFanController) {
-        self.controller = controller
-        super.init(maxWidth: 560, subtitle: nil, identifier: "device.sheet.fan")
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        title = "\(controller.config.roomTitle) Fan"
-        navigationItem.title = title
-        var environment = UKTileEnvironment()
-        environment.surface = .sheet
-        power = UKGlassTileView(model: powerModel(), environment: environment)
-        lock = UKGlassTileView(model: lockModel(), environment: environment)
-        for tile in [power, lock] { tile?.onPerform = { [controller] id in controller.runRail(id) } }
-        grid.setItems([UKGridItem(power), UKGridItem(lock)])
-        grid.configuration.minCellWidth = UKFont.scaled(132, relativeTo: .subheadline, traits: traitCollection)
-        let host = UKGridHost(grid)
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (page: UKBathroomFanPage, _) in
-            page.grid.configuration.minCellWidth = UKFont.scaled(132, relativeTo: .subheadline, traits: page.traitCollection)
-            host.remeasure()
-        }
-        stack.addArrangedSubview(host)
-        picker = UKFanTimerPicker(controller: controller)
-        running = UKFanTimerRunning(controller: controller)
-        stack.addArrangedSubview(UKDeviceSection(title: "Timer", content: [picker, running]))
-        bag.observe { [weak self] in
-            guard let self else { return }
-            power.configure(powerModel(), environment: environment)
-            lock.configure(lockModel(), environment: environment)
-            let pending = controller.timerPending
-            picker.isHidden = pending
-            running.isHidden = !pending
-            running.setRunning(pending)
-        }
-    }
-
-    private func powerModel() -> UKGlassTileModel {
-        railModel(title: "Power", subtitle: controller.powerStateText, symbol: "power", family: .air, id: "power",
-                  isActive: controller.powerOn && controller.powerAvailable, identifier: "fan.power")
-    }
-
-    private func lockModel() -> UKGlassTileModel {
-        railModel(title: "Lock", subtitle: controller.lockStateText, symbol: controller.locked ? "lock.fill" : "lock.open", family: .securityHome,
-                  id: "lock", isActive: controller.locked && controller.lockAvailable, identifier: "fan.lock")
-    }
-
-    /// One of the rail's discs as an action tile (`FanRailActions`): the disc carries the state glyph and the body does what it shows.
-    private func railModel(title: String, subtitle: String, symbol: String, family: ColorFamily, id: String, isActive: Bool,
-                           identifier: String) -> UKGlassTileModel {
-        let spec = controller.railSpecs.first { $0.id == id }
-        var model = UKGlassTileModel(
-            title: title, subtitle: subtitle, symbol: symbol, family: family, isActive: isActive, isUnavailable: spec?.phase == .unavailable,
-            behavior: TileBehavior(.action(1), primary: id), actions: spec.map { [TileActionItem($0)] } ?? [], identifier: identifier)
-        model.stateCandidates = ["On", "Off", "Off in 00:00:00", "Locked", "Unlocked", "Unavailable"]
-        return model
-    }
-}
+// MARK: - Fan timer
 
 /// The idle timer: six lengths, one primary button, one footnote (`FanTimerPicker`).
 @MainActor
 final class UKFanTimerPicker: UIStackView {
-    private let controller: BathroomFanController
+    private let selected: () -> Int
+    private let canStart: () -> Bool
+    private let buttonTitle: (Int) -> String
     private let bag = UKObservationBag()
-    private let lengths = UKFanTimerLengthRow()
+    private let lengths: UKFanTimerLengthRow
     private let start = UKPrimaryButton("") {}
 
-    init(controller: BathroomFanController) {
-        self.controller = controller
+    convenience init(controller: BathroomFanController) {
+        self.init(minutes: BathroomFanController.timerMinutes, labels: [:], identifier: "fan",
+                  selected: { controller.selectedMinutes }, canStart: { controller.canStartTimer },
+                  title: BathroomFanController.startButtonTitle, footnote: BathroomFanControls.timerFootnote,
+                  select: { controller.selectedMinutes = $0 }, start: { controller.startTimer() })
+    }
+
+    /// Canonical timer presentation over authored values and closures.
+    init(minutes: [Int], labels: [Int: String], identifier: String, selected: @escaping () -> Int,
+         canStart: @escaping () -> Bool, title: @escaping (Int) -> String, footnote: String,
+         select: @escaping (Int) -> Void, start: @escaping () -> Void) {
+        self.selected = selected
+        self.canStart = canStart
+        buttonTitle = title
+        lengths = UKFanTimerLengthRow(minutes: minutes, labels: labels, identifier: identifier)
         super.init(frame: .zero)
         axis = .vertical
         spacing = HassTokens.Spacing.m
-        lengths.onSelect = { controller.selectedMinutes = $0 }
-        start.action = { controller.startTimer() }
-        start.accessibilityIdentifier = "fan.setTimer"
-        [lengths, start, UKDeviceText.footnote(BathroomFanControls.timerFootnote)].forEach(addArrangedSubview)
+        lengths.onSelect = select
+        self.start.action = start
+        self.start.accessibilityIdentifier = "\(identifier).setTimer"
+        [lengths, self.start, UKDeviceText.footnote(footnote)].forEach(addArrangedSubview)
         bag.observe { [weak self] in
             guard let self else { return }
-            lengths.show(selection: controller.selectedMinutes)
-            start.title = BathroomFanController.startButtonTitle(controller.selectedMinutes)
-            start.isEnabled = controller.canStartTimer
+            lengths.show(selection: selected())
+            self.start.title = buttonTitle(selected())
+            self.start.isEnabled = canStart()
         }
     }
 
@@ -398,23 +206,26 @@ final class UKFanTimerPicker: UIStackView {
 @MainActor
 final class UKFanTimerLengthRow: UIView {
     var onSelect: (Int) -> Void = { _ in }
-    private let minutes = BathroomFanController.timerMinutes
+    private let minutes: [Int]
     private var segments: [UKFanTimerSegment] = []
     private let rows = UIStackView()
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
+    init(minutes: [Int] = BathroomFanController.timerMinutes, labels: [Int: String] = [:], identifier: String = "fan") {
+        self.minutes = minutes
+        super.init(frame: .zero)
         backgroundColor = UKDesignSurface.sheetCell
         layer.cornerRadius = 12
         layer.cornerCurve = .continuous
-        segments = minutes.map { value in UKFanTimerSegment(minutes: value) { [weak self] in self?.onSelect(value) } }
+        segments = minutes.map { value in
+            UKFanTimerSegment(minutes: value, title: labels[value], identifier: "\(identifier).timerOption.\(value)") { [weak self] in self?.onSelect(value) }
+        }
         rows.axis = .vertical
         rows.spacing = 2
         addSubview(rows)
         rows.ukPin(to: self, insets: UIEdgeInsets(top: 2, left: 2, bottom: 2, right: 2))
         isAccessibilityElement = false
         accessibilityContainerType = .semanticGroup
-        accessibilityIdentifier = "fan.timerLength"
+        accessibilityIdentifier = "\(identifier).timerLength"
         layoutRows()
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKFanTimerLengthRow, _) in view.layoutRows() }
     }
@@ -422,7 +233,7 @@ final class UKFanTimerLengthRow: UIView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     private func layoutRows() {
-        let perRow = traitCollection.isAccessibilitySize ? 3 : segments.count
+        let perRow = max(1, traitCollection.isAccessibilitySize ? 3 : segments.count)
         let groups = stride(from: 0, to: segments.count, by: perRow).map { Array(segments[$0..<min($0 + perRow, segments.count)]) }
         rows.ukSetArranged(groups.map { group in
             let row = UIStackView(arrangedSubviews: group)
@@ -444,10 +255,10 @@ final class UKFanTimerSegment: UIControl {
     private let label = UILabel()
     private let minutes: Int
 
-    init(minutes: Int, onTap: @escaping () -> Void) {
+    init(minutes: Int, title: String? = nil, identifier: String? = nil, onTap: @escaping () -> Void) {
         self.minutes = minutes
         super.init(frame: .zero)
-        label.text = BathroomFanController.segmentTitle(minutes)
+        label.text = title ?? BathroomFanController.segmentTitle(minutes)
         label.textAlignment = .center
         label.adjustsFontForContentSizeCategory = true
         label.isUserInteractionEnabled = false
@@ -460,8 +271,8 @@ final class UKFanTimerSegment: UIControl {
         ])
         layer.cornerRadius = 10
         layer.cornerCurve = .continuous
-        accessibilityLabel = BathroomFanController.durationTitle(minutes)
-        accessibilityIdentifier = "fan.timerOption.\(minutes)"
+        accessibilityLabel = title ?? BathroomFanController.durationTitle(minutes)
+        accessibilityIdentifier = identifier ?? "fan.timerOption.\(minutes)"
         isAccessibilityElement = true
         addAction(UIAction { _ in onTap() }, for: .touchUpInside)
         show(chosen: false)
@@ -481,7 +292,11 @@ final class UKFanTimerSegment: UIControl {
 /// empties as the time runs out, and Clear Timer as a red tinted capsule.
 @MainActor
 final class UKFanTimerRunning: UIStackView {
-    private let controller: BathroomFanController
+    private let remaining: (Date) -> Int?
+    private let fraction: (Date) -> Double?
+    private let available: () -> Bool
+    private let unavailableText: String
+    private var running = false
     private let glyph = UIImageView()
     private let countdown = UILabel()
     private let bar = UKFanTimerProgressBar()
@@ -490,9 +305,21 @@ final class UKFanTimerRunning: UIStackView {
     private let readout = UIView()
     private lazy var clock = UKEverySecond { [weak self] now in self?.tick(now) }
 
-    init(controller: BathroomFanController) {
-        self.controller = controller
-        clear = UKTintedCapsuleButton(title: "Clear Timer", tint: UKInk.danger) { controller.cancelTimer() }
+    convenience init(controller: BathroomFanController) {
+        self.init(identifier: "fan", title: "Timer", clearTitle: "Clear Timer", unavailableText: "Unavailable",
+                  remaining: controller.remainingSeconds, fraction: controller.remainingFraction,
+                  available: { controller.timerAvailable }, cancel: { controller.cancelTimer() })
+    }
+
+    /// Countdown values are supplied by the controller; this view never starts or emulates an automation.
+    init(identifier: String, title: String, clearTitle: String, unavailableText: String,
+         remaining: @escaping (Date) -> Int?, fraction: @escaping (Date) -> Double?,
+         available: @escaping () -> Bool, cancel: @escaping () -> Void) {
+        self.remaining = remaining
+        self.fraction = fraction
+        self.available = available
+        self.unavailableText = unavailableText
+        clear = UKTintedCapsuleButton(title: clearTitle, tint: UKInk.danger, action: cancel)
         super.init(frame: .zero)
         axis = .vertical
         spacing = HassTokens.Spacing.m
@@ -507,9 +334,9 @@ final class UKFanTimerRunning: UIStackView {
         readout.addSubview(row)
         row.ukPin(to: readout)
         readout.isAccessibilityElement = true
-        readout.accessibilityLabel = "Timer"
-        readout.accessibilityIdentifier = "fan.remaining"
-        clear.accessibilityIdentifier = "fan.clearTimer"
+        readout.accessibilityLabel = title
+        readout.accessibilityIdentifier = "\(identifier).remaining"
+        clear.accessibilityIdentifier = "\(identifier).clearTimer"
         [readout, bar, clear].forEach(addArrangedSubview)
         isHidden = true
         applyFonts()
@@ -529,16 +356,22 @@ final class UKFanTimerRunning: UIStackView {
     }
 
     func setRunning(_ running: Bool) {
-        clock.setRunning(running)
-        clear.isEnabled = controller.timerAvailable
+        self.running = running
+        clock.setRunning(running && window != nil)
+        clear.isEnabled = available()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        clock.setRunning(running && window != nil)
     }
 
     private func tick(_ now: Date) {
-        let remaining = controller.remainingSeconds(at: now)
-        countdown.text = remaining.map(BathroomFanController.formatRemaining) ?? "Unavailable"
+        let remaining = remaining(now)
+        countdown.text = remaining.map(BathroomFanController.formatRemaining) ?? unavailableText
         // Whole minutes: the digits tick every second, the spoken value must not.
-        readout.accessibilityValue = remaining.map(BathroomFanController.spokenCountdown) ?? "Unavailable"
-        bar.fraction = controller.remainingFraction(at: now) ?? 0
+        readout.accessibilityValue = remaining.map(BathroomFanController.spokenCountdown) ?? unavailableText
+        bar.fraction = fraction(now) ?? 0
     }
 }
 
@@ -568,4 +401,5 @@ final class UKFanTimerProgressBar: UIView {
         fill.frame = CGRect(x: 0, y: 0, width: bounds.width * min(1, max(0, fraction)), height: bounds.height)
     }
 }
+
 #endif

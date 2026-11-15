@@ -27,21 +27,3 @@ struct AppTile {
 }
 
 // MARK: - Hue Sync
-
-/// Sync Box power and light sync, sync mode, intensity and brightness, and HDMI input (web `HueSyncTab`), as an
-/// inset grouped list (direction G, n4 remote Hue Sync): switches in rows, segmented controls for the short mode
-/// and intensity choices, and a checkmark list for the inputs.
-///
-/// Departure from the web: tapping the selected sync mode again while not syncing no longer restarts syncing (a
-/// segmented control does not report a tap on its selected segment). Light Sync starts it.
-struct HueSyncTab {
-    var controller: MediaRemoteController
-    var hue: HueSyncConfig
-
-    static let help = "Light Sync turns on the Sync Box and starts syncing. Choosing a mode does the same. Presence lighting pauses until syncing stops."
-
-
-
-
-
-}

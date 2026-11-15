@@ -12,7 +12,7 @@ import UIKit
 final class UKPendingValueBar: UIView {
     private var observers: UKObserverTokens?
 
-    /// A corner radius for a bar used as a larger placeholder shape (a skeleton's tile or weather module, ``UKConfigSkeletonView``);
+    /// A corner radius for a bar used as a larger placeholder shape (a skeleton's tile or weather module);
     /// nil keeps the capsule of a value bar. The fill and the pulse are the same.
     var fixedCornerRadius: CGFloat? { didSet { if fixedCornerRadius != oldValue { setNeedsLayout() } } }
 

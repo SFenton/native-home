@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Layout recovery boundary · page mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+<script src="../_server-ui-boundary.js"></script>
+</head><body>
+<script>
+(function () {
+  var SB = Mock.SB;
+  /* UKServerUIProductionHost.showStatus with no renderer: Boundary(remote:status:storeMissing:expired:adoptionFailed:) picks the state.
+     The page shows the strings the code holds today. */
+  var S = function (key, o) { return function (ctx) { return SB.screen(ctx, key, o); }; };
+
+  Mock.mount({
+    kind: 'page', id: 'server-ui-boundary', title: 'Layout recovery boundary (no published layout on screen)', area: 'shell', status: 'shipped',
+    summary: 'What the server-driven root shows in place of a page while no layout is on screen: waiting for the layout, nothing published, a layout this version cannot read, or a layout that could not load. A glyph, a title, a message and at most one primary action, with Clear on the failed state and Sign Out on every state. With a last good layout it never shows.',
+    source: ['apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecoveryBoundary.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProductionHost.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift'],
+    spec: ['.agents/design/server-ui-boundary.md', '.agents/decisions/2026-11-14-server-ui-boundary.md', '.agents/platforms/apple/architecture.md'],
+    patterns: ['state-message', 'copy', 'alerts', 'hinge-avoidance'],
+    hig: ['Loading', 'Feedback', 'Writing', 'Buttons', 'Alerts', 'Progress indicators', 'Designing for iPhone Duo'],
+    kitComponents: ['ContentUnavailableView', 'PrimaryButton', 'Alert'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'default': { title: 'Getting Your Layout (waiting)', note: 'remote is waiting or published and nothing failed. No action; Sign Out stays. It holds until the layout commits or the first-load deadline passes, then becomes Layout Unavailable.', render: S('waiting') },
+      'empty': { title: 'No Layout Published', note: 'remote is unpublished: Home Assistant answered and holds no layout. Try Again resubscribes.', render: S('unpublished') },
+      'update': { title: 'Update Required', note: 'remote is incompatible: the published layout names a capability this build lacks. No action, because retrying cannot help.', render: S('update') },
+      'error': { title: 'Layout Unavailable (rejected, or the first-load deadline passed)', note: 'Try Again, Clear Rejected Layout and Sign Out.', render: S('unavailable') },
+      'error-no-actions': { title: 'Layout Unavailable (the saved layout could not attach, or there is no store)', note: 'Neither Try Again nor Clear is offered; the message still names both.', render: S('unavailableBare') },
+      'clear-alert': { title: 'Clear Rejected Layout? (alert)', render: S('unavailable', { alert: 'clear' }) },
+      'sign-out-alert': { title: 'Sign Out? (alert)', render: S('waiting', { alert: 'signOut' }) },
+      'sign-out-failed': { title: 'Couldn’t Sign Out (alert)', render: S('waiting', { alert: 'signOutFailed' }) },
+      'ax5': { title: 'Layout Unavailable at Accessibility 5', note: 'the column scrolls; the two text buttons follow the message', override: { ts: 'ax5' }, render: S('unavailable') },
+    },
+
+    motion: [],
+    transitions: [],
+
+    a11y: [
+      { rule: 'Reading order', note: 'The title (a heading), the message, Try Again when offered, Clear Rejected Layout when offered, Sign Out. The glyph is hidden from VoiceOver.' },
+      { rule: 'Name, role, state', note: 'Three buttons at most, each named by its title. Identifiers: server-ui.production.recovery (the state), .retry, .clear, .signOut.' },
+      { rule: 'Targets', note: 'Try Again is the primary button; Clear Rejected Layout and Sign Out are plain text buttons at least 44 pt tall.' },
+      { rule: 'Dynamic Type', note: 'Title and message wrap at every size; the whole column scrolls once it is taller than the safe area.' },
+      { rule: 'Reduce Motion', note: 'Nothing on this screen moves. A change of state swaps the view with no animation.' },
+      { rule: 'Colour and shape', note: 'Each state has its own glyph and title; nothing is told by colour alone.' },
+    ],
+
+    reviews: {
+      date: '2026-11-14', by: 'apple-hig skill, swiftui-pro skill (design lens), from the code and this drawing; no device capture',
+      hig: [
+        { rule: 'Loading: "Show something quickly: otherwise people may think the app is broken"', verdict: 'pass', note: 'The waiting state names what is awaited from the first frame, and the sign-in layer holds until a layout or the deadline (awaitFirstLayout).', by: 'apple-hig skill' },
+        { rule: 'Progress indicators: "Keep indicators moving. If a process stalls, explain the problem and what people can do."', verdict: 'pass', note: 'No indicator is drawn. When the first-load deadline passes, waiting becomes Layout Unavailable with Try Again.', by: 'apple-hig skill' },
+        { rule: 'Feedback: "If a command can’t be carried out, say so and explain why"', verdict: 'fix', note: 'Layout Unavailable says no layout is usable and gives no reason. In the state with no actions the message names Try Again and Clear, and neither is on screen.', by: 'apple-hig skill' },
+        { rule: 'Writing: "Keep and reference a list of common terms for consistency."', verdict: 'fix', note: 'The Configurator names no product: the Studio is titled Native Home Studio. Unavailable is the term for an entity with no state. One saved layout is called rejected, saved and downloaded.', by: 'apple-hig skill' },
+        { rule: 'Writing: "Provide clear next steps on any blank screens, with a button or link if possible."', verdict: 'pass', note: 'Every state says what to do; the two that a retry can help carry Try Again. Update Required has no button: the way forward is an app update (the state-message exception).', by: 'apple-hig skill' },
+        { rule: 'Buttons: "Keep to one or two prominent buttons per view."; "Never make a destructive button primary"', verdict: 'pass', note: 'One prominent button, Try Again. Clear and Sign Out are plain and each asks first.', by: 'apple-hig skill' },
+        { rule: 'Alerts: "Include Cancel if there’s a destructive action."', verdict: 'pass', note: 'Both confirmations have Cancel and a destructive confirming button.', by: 'apple-hig skill' },
+        { rule: 'Writing: "Build language patterns and reuse them."', verdict: 'fix', note: 'The sign-out alert and its failure carry their own strings; AlertCopy.signOut and AlertCopy.signOutFailed are the one string per decision (alerts pattern; owner-approved rewording group 7).', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: "use reserved-region APIs to keep important elements clear of the center"', verdict: 'fix', note: 'Read from the code, not captured: the column is pinned to the full safe area with no hinge handling, so partly folded its centre lies on the band. The state-message pattern places a state in the leading region there.', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: respect the system appearance', verdict: 'departure', note: 'Pages are always dark, owner 2026-10-15 (direction-g.md Layers); the host sets overrideUserInterfaceStyle to dark.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Dynamic Type: text scales and wraps, nothing truncates', verdict: 'pass', note: 'UKStateMessageView uses wrapping labels in system text styles; the host wraps the column in a scroll view.', by: 'swiftui-pro skill' },
+        { rule: 'Touch targets of at least 44 pt', verdict: 'pass', note: 'Clear and Sign Out carry a 44 pt minimum height constraint.', by: 'swiftui-pro skill' },
+        { rule: 'State in shape as well as colour', verdict: 'pass', note: 'A glyph and a title per state.', by: 'swiftui-pro skill' },
+        { rule: 'User-facing text is never a literal in a view', verdict: 'fix', note: 'Try Again, Clear Rejected Layout, Sign Out and both alerts are literals in UKServerUIProductionHost; the boundary copy belongs with the other compiled boundary strings (copy pattern, Inline or slot).', by: 'swiftui-pro skill' },
+      ],
+    },
+
+    notes: [
+      'This page draws the strings the code holds today. The reworded set awaiting the owner is proposals/server-ui-boundary-copy.',
+      'loading: the default state is the loading state. refreshing: not applicable, a root with a last good layout keeps it on screen and never shows this boundary. offline and reconnecting: the boundary has no header, arc or offline chip; without a connection it stays in the default state until the first-load deadline, then shows the error state. long-text: the copy is compiled and fixed; the ax5 state covers wrapping.',
+      'The DEBUG build adds a caption line under Sign Out with the rejection case and pointer; it is not in a release build and is not drawn.',
+      'The kit draws the message with ContentUnavailableView, whose description is one step smaller than the body style UKStateMessageView uses.',
+      'Promote to kit: pages/shell/_server-ui-boundary.js (a bare ground with a centred state and trailing plain buttons).',
+      'No device capture exists for this surface; the hinge and AX5 behaviour are read from the code.',
+    ],
+    changelog: [{ date: '2026-11-14', note: 'First pass built with the kit: four states, the state with no actions, three alerts and AX5 on all six windows.' }],
+  });
+})();
+</script></body></html>

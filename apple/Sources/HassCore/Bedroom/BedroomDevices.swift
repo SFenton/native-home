@@ -6,7 +6,9 @@ import Observation
 @MainActor
 @Observable
 public final class BedroomDevices {
+    /// The room's wake-light controller.
     public let wakeLight: WakeLightController
+    /// One controller per bed side, in descriptor order.
     public let beds: [BedSideController]
 
     /// Creates the room's controllers on one store and caller.
@@ -17,6 +19,20 @@ public final class BedroomDevices {
                                         scheduler: scheduler, requestId: requestId)
         beds = MasterBedroom.beds.map {
             BedSideController(config: $0, store: store, caller: caller, scheduler: scheduler, requestId: requestId)
+        }
+    }
+
+    /// Constructs the same provisioning bundle from validated authored entities. Scripts and the schedule topic come from
+    /// the house document by role, never from the publication.
+    public init(descriptor: ServerUIBedroomDescriptor, store: EntityStore, caller: any HassServiceResponding,
+                canEdit: Bool, scheduler: any RevertScheduler = TaskRevertScheduler(),
+                requestId: @escaping @MainActor () -> String = { UUID().uuidString.lowercased() }) {
+        wakeLight = WakeLightController(config: descriptor.environment.wakeLight, store: store, caller: caller,
+                                       canEdit: canEdit, scheduler: scheduler, requestId: requestId)
+        let environment = descriptor.controllerEnvironment
+        beds = descriptor.beds.map {
+            BedSideController(config: descriptor.controllerConfiguration(of: $0), store: store, caller: caller,
+                              environment: environment, scheduler: scheduler, requestId: requestId)
         }
     }
 
@@ -32,11 +48,13 @@ public final class BedroomDevices {
 
     /// A bed the wake-light editor can add alarms to.
     public struct BedTarget: Identifiable, Equatable, Sendable {
+        /// The bed side the toggle adds alarms to.
         public var side: BedSide
         /// `Alex's Bed`, or `Alex's Bed · Whole Bed` during a Solo Trip.
         public var title: String
         /// The side has an alarm schedule and isn't the traveler's.
         public var available: Bool
+        /// The side, which identifies the target.
         public var id: BedSide { side }
     }
 
@@ -64,9 +82,13 @@ public final class BedroomDevices {
             guard let plan = BedAlarmProvisioning.plan(snapshot: wakeLight.snapshot, days: saved.weekdays, linked: addToBeds.contains(target.side),
                                                        alarms: bed.sourceAlarms, source: source.id, time: saved.localTime),
                   !plan.isEmpty else { continue }
-            if !plan.createDays.isEmpty { bed.createAlarms(days: plan.createDays, time: saved.localTime) }
-            if !plan.linkKeysOn.isEmpty { await wakeLight.setLinks(plan.linkKeysOn, enabled: true) }
-            if !plan.linkKeysOff.isEmpty { await wakeLight.setLinks(plan.linkKeysOff, enabled: false) }
+            if !plan.createDays.isEmpty {
+                bed.createAlarms(days: plan.createDays, time: saved.localTime)
+                await bed.waitForCalls()
+                guard bed.commandError == nil else { return false }
+            }
+            if !plan.linkKeysOn.isEmpty, !(await wakeLight.setLinks(plan.linkKeysOn, enabled: true)) { return false }
+            if !plan.linkKeysOff.isEmpty, !(await wakeLight.setLinks(plan.linkKeysOff, enabled: false)) { return false }
         }
         return true
     }

@@ -8,15 +8,27 @@ import Foundation
 public struct Resident: Hashable, Codable, Sendable, Identifiable, CustomStringConvertible {
     /// The neutral key, `resident_1` and so on.
     public let key: String
+    private let pinnedPerson: HouseConfig.Person?
 
     /// Creates a resident from a key. An unknown key reads with its key as its name and no ids.
     public init(key: String) {
         self.key = key
+        pinnedPerson = nil
     }
+
+    /// Pins command-facing identity and copy while a configured controller owns a draft or retry.
+    public init(person: HouseConfig.Person) {
+        key = person.key
+        pinnedPerson = person
+    }
+
+    /// A resident's identity remains its neutral key, including when its descriptor is pinned.
+    public static func == (lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
+    public func hash(into hasher: inout Hasher) { hasher.combine(key) }
 
     /// Reads the key as a single JSON string.
     public init(from decoder: Decoder) throws {
-        key = try decoder.singleValueContainer().decode(String.self)
+        self.init(key: try decoder.singleValueContainer().decode(String.self))
     }
 
     /// Writes the key as a single JSON string.
@@ -40,7 +52,7 @@ public struct Resident: Hashable, Codable, Sendable, Identifiable, CustomStringC
 
     /// This resident's record in the document, or a bare one named by its key when the document lacks it.
     public var person: HouseConfig.Person {
-        ChoresConfig.people.first { $0.key == key } ?? HouseConfig.Person(
+        pinnedPerson ?? ChoresConfig.people.first { $0.key == key } ?? HouseConfig.Person(
             key: key, name: key, haUserId: "", personEntityId: "", taskAssignee: "", soloTripId: key,
             seesAdminTodo: true, summaryLists: .init(overdue: "", dueToday: "", noDueDate: "")
         )

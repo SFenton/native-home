@@ -147,7 +147,7 @@ final class UKContentGateView: UIView {
 
 /// The content-gate reveal, shared by every gate (pattern `content-gate.md`, sequence step 3): content is held back (laid out, invisible,
 /// not hit, hidden from VoiceOver) and revealed by fading in while rising 4 pt (no rise under Reduce Motion). ``UKContentGateView``
-/// and ``UKHouseLayoutGate`` both use it, so the timings (``ContentGateModel/Profile``), the rise and the availability rules live here.
+/// uses it, so the timings (``ContentGateModel/Profile``), the rise and the availability rules live here.
 @MainActor
 enum UKContentReveal {
     /// How far held-back content sits below its place before it rises (zero under Reduce Motion, which keeps the fade).
@@ -196,31 +196,4 @@ extension Duration {
     var ukSeconds: TimeInterval { Double(components.seconds) + Double(components.attoseconds) / 1e18 }
 }
 
-/// Holds the enclosing ``UKContentGateView`` (if any) until `isReady` (`contentReadiness(_:isReady:)`), so its spinner gives way
-/// only once this content can draw. Leaving the screen counts as ready: call ``end()`` (or let it deinit with its owner).
-///
-/// ```swift
-/// final class UKCachedImageView: UIImageView {
-///     private var readiness: UKReadinessRequirement?
-///     func attach(to tracker: ReadinessTracker?) { readiness = UKReadinessRequirement("image:\(url)", tracker: tracker, isReady: false) }
-///     func loaded() { readiness?.isReady = true }
-///     override func removeFromSuperview() { readiness?.end(); super.removeFromSuperview() }
-/// }
-/// ```
-@MainActor
-final class UKReadinessRequirement {
-    let id: String
-    private weak var tracker: ReadinessTracker?
-    var isReady: Bool { didSet { tracker?.set(id, ready: isReady) } }
-
-    init(_ id: String, tracker: ReadinessTracker?, isReady: Bool) {
-        self.id = id
-        self.tracker = tracker
-        self.isReady = isReady
-        tracker?.set(id, ready: isReady)
-    }
-
-    /// The content left the screen: it no longer holds the gate.
-    func end() { tracker?.set(id, ready: true) }
-}
 #endif

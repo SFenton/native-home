@@ -22,6 +22,8 @@ final class UKTileActionDisc: UIControl {
     private let pressOverlay = UIView()
     private var spinner: UKArcSpinnerView?
     private var hasConfigured = false
+    /// The ink the standing-in arc takes: the face's primary ink, the title's colour, never the warning or error ink. Nil takes the glyph's.
+    var arcTint: UIColor? { didSet { if arcTint != oldValue { restyle(animated: false, symbolTransition: false) } } }
     /// The selection face's disc (``TileSelection``): an empty ring, or a solid white disc with the order or a check, 28 pt inside the 44 pt
     /// target (`TileActionDisc.selectionDisc`).
     private var choiceLayer: UKChoiceDiscView?
@@ -68,13 +70,15 @@ final class UKTileActionDisc: UIControl {
     func configure(item: TileActionItem, face: TileActionFace, family: ColorFamily?, surface: TileSurface, title: String, identifier: String?,
                    animated: Bool) {
         let old = self.item
+        // A hidden disc takes its next glyph and colours with no effect: the symbol replaces itself only while the disc is visible before and after.
+        let visible = !old.showsProgress && !item.showsProgress
         self.item = item
         self.face = face
         self.family = family
         self.surface = surface
         self.tileTitle = title
         accessibilityIdentifier = identifier
-        restyle(animated: animated && hasConfigured, symbolTransition: animated && hasConfigured && old.symbol != item.symbol)
+        restyle(animated: animated && hasConfigured, symbolTransition: animated && hasConfigured && visible && old.symbol != item.symbol)
     }
 
     private func restyle(animated: Bool, symbolTransition: Bool) {
@@ -93,43 +97,53 @@ final class UKTileActionDisc: UIControl {
         }
         choiceLayer?.isHidden = true
         glyph.isHidden = false
-        if item.showsProgress {
-            if spinner == nil {
-                // A status arc tinted to the ink; the disc keeps its own label, so the arc says nothing.
-                let arc = UKArcSpinnerView(.inline, label: "", maxScale: 1.5)
-                arc.isAccessibilityElement = false
-                insertSubview(arc, belowSubview: pressOverlay)
-                spinner = arc
-            }
-            spinner?.color = glyphColor
-            spinner?.isHidden = false
-            glyph.isHidden = true
+        // While a tap does nothing the disc's fill and glyph go to zero opacity and the tile-size arc stands in its slot; the two cross-fade on
+        // `quick`, also under Reduce Motion. A state that still takes a tap keeps its disc and has no arc.
+        let showsArc = item.showsProgress
+        if spinner == nil {
+            // A status arc: the disc keeps its own label, so the arc says nothing.
+            let arc = UKArcSpinnerView(.tile, label: "")
+            arc.isAccessibilityElement = false
+            arc.alpha = 0
+            arc.isHidden = true
+            insertSubview(arc, belowSubview: pressOverlay)
+            spinner = arc
+        }
+        spinner?.scaleOverride = diameter / HassTokens.minTarget
+        spinner?.color = arcTint ?? glyphColor
+        if showsArc { spinner?.isHidden = false }
+        if symbolTransition, !UKDesign.reduceMotion, let image {
+            glyph.setSymbolImage(image, contentTransition: .replace)
         } else {
-            spinner?.isHidden = true
-            glyph.isHidden = false
-            if symbolTransition, !UKDesign.reduceMotion, let image {
-                glyph.setSymbolImage(image, contentTransition: .replace)
-            } else {
-                glyph.image = image
-            }
+            glyph.image = image
         }
 
         let work = { [self] in
-            backgroundColor = discColor
+            backgroundColor = showsArc ? discColor.withAlphaComponent(0) : discColor
             glyph.tintColor = glyphColor
-            glyph.alpha = unavailable ? 0.5 : 1
-            spinner?.alpha = unavailable ? 0.5 : 1
+            glyph.alpha = showsArc ? 0 : (unavailable ? 0.5 : 1)
+            spinner?.alpha = showsArc ? 1 : 0
             pressOverlay.backgroundColor = glyphColor.withAlphaComponent(0.22)
         }
-        if animated, window != nil, !UKDesign.reduceMotion {
-            UIView.animate(withDuration: UKMotion.quickDuration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: work)
+        if animated, window != nil {
+            UIView.animate(withDuration: UKMotion.quickDuration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: work) { [weak self] _ in
+                guard let self else { return }
+                if !self.item.showsProgress { self.spinner?.isHidden = true }
+            }
         } else {
             work()
+            spinner?.isHidden = !showsArc
         }
+        if showsArc { pressOverlay.isHidden = true }
 
         isEnabled = item.phase == .ready
         accessibilityLabel = spokenLabel ?? defaultLabel
-        accessibilityValue = item.isOn.map { $0 ? "On" : "Off" } ?? ""
+        // The button trait stays and not-enabled is added, with no hint and no response to interaction, while the arc stands in (or the state is
+        // unavailable); the value ends "in progress".
+        let state = item.isOn.map { $0 ? "On" : "Off" }
+        accessibilityValue = showsArc ? [state, "in progress"].compactMap { $0 }.joined(separator: ", ") : (state ?? "")
+        accessibilityHint = nil
+        accessibilityRespondsToUserInteraction = !(showsArc || unavailable)
         var traits: UIAccessibilityTraits = [.button]
         if item.isOn != nil { traits.insert(.toggleButton) }
         if !isEnabled { traits.insert(.notEnabled) }
@@ -162,6 +176,7 @@ final class UKTileActionDisc: UIControl {
             }
             spinner?.color = UIColor(ink.glyph)
             spinner?.isHidden = false
+            spinner?.alpha = 1
             choiceLayer?.isHidden = true
         } else {
             spinner?.isHidden = true
@@ -182,7 +197,7 @@ final class UKTileActionDisc: UIControl {
     }
 
     override var isHighlighted: Bool {
-        didSet { if isHighlighted != oldValue { pressOverlay.isHidden = !isHighlighted } }
+        didSet { if isHighlighted != oldValue { pressOverlay.isHidden = !isHighlighted || item.showsProgress } }
     }
 
     override var intrinsicContentSize: CGSize { CGSize(width: diameter, height: diameter) }
@@ -334,16 +349,18 @@ final class UKTileActionStrip: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     func configure(items: [TileActionItem], title: String, tileIdentifier: String?, face: TileActionFace, family: ColorFamily?,
-                   surface: TileSurface, animated: Bool) {
+                   surface: TileSurface, animated: Bool, arcTint: UIColor? = nil) {
         let existing = Dictionary(discs.map { ($0.item.id, $0) }, uniquingKeysWith: { first, _ in first })
         var next: [UKTileActionDisc] = []
         for item in items {
             let identifier = [tileIdentifier, "action", item.id].compactMap { $0 }.joined(separator: ".")
             if let disc = existing[item.id] {
+                disc.arcTint = arcTint
                 disc.configure(item: item, face: face, family: family, surface: surface, title: title, identifier: identifier, animated: animated)
                 next.append(disc)
             } else {
                 let disc = UKTileActionDisc(item: item, face: face, family: family, surface: surface, title: title, identifier: identifier)
+                disc.arcTint = arcTint
                 let id = item.id
                 disc.addAction(UIAction { [weak self] _ in
                     UKTapFeedback.tap()
@@ -402,6 +419,8 @@ final class UKTileVolumeSlider: UIView, UIGestureRecognizerDelegate {
     var isDisabled: Bool { didSet { refresh() } }
     /// Asked to set the level, once per release or per VoiceOver step.
     var onCommit: ((Int) -> Void)?
+    /// Pins an owning publication during a native drag; never emits level writes per frame.
+    var onEditingChanged: ((Bool) -> Void)?
 
     private let track = CALayer()
     private let fill = CALayer()
@@ -503,17 +522,23 @@ final class UKTileVolumeSlider: UIView, UIGestureRecognizerDelegate {
             let moved = pan.translation(in: self)
             if dragAxisHorizontal == nil { dragAxisHorizontal = abs(moved.x) >= abs(moved.y) }
             guard dragAxisHorizontal == true else { return }
+            if dragPercent == nil { onEditingChanged?(true) }
             dragPercent = TileVolumeSlider.percent(atX: x, width: bounds.width)
             let step = BrightnessTile.hapticStep(dragPercent)
             if lastHapticStep != nil, step != nil, step != lastHapticStep { UKTapFeedback.step() }
             lastHapticStep = step
             refresh()
         case .ended:
-            defer { dragAxisHorizontal = nil; lastHapticStep = nil }
+            defer {
+                if dragAxisHorizontal == true { onEditingChanged?(false) }
+                dragAxisHorizontal = nil
+                lastHapticStep = nil
+            }
             guard dragAxisHorizontal == true, dragPercent != nil else { return }
             dragPercent = nil
             commit(Int(TileVolumeSlider.percent(atX: x, width: bounds.width).rounded()))
         default:
+            if dragPercent != nil { onEditingChanged?(false) }
             dragAxisHorizontal = nil
             dragPercent = nil
             lastHapticStep = nil

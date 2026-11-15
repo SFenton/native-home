@@ -33,9 +33,7 @@
       "title": "Home",
       "path": "pages/home/home",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift",
-        "apple/Sources/HassUI/Features/Home/HomeColumns.swift",
-        "apple/Sources/HassUI/Features/Home/HomeRoute.swift"
+        "apple/Sources/HassUI/Features/Home/HomeColumns.swift"
       ],
       "docs": [
         ".agents/pages/home/spec.md",
@@ -96,9 +94,7 @@
       "title": "Security",
       "path": "pages/security/security",
       "sources": [
-        "apple/Sources/HassUI/Features/Security/SecurityScreen.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift",
-        "apple/Sources/HassUI/Features/Security/SecurityTiles.swift"
+        "apple/Sources/HassUI/Features/Security/SecurityScreen.swift"
       ],
       "docs": [
         ".agents/pages/security/spec.md",
@@ -150,7 +146,6 @@
       "title": "Climate",
       "path": "pages/climate/climate",
       "sources": [
-        "apple/Sources/HassUI/Features/Climate/ClimateScreen.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateParts.swift",
         "apple/Sources/HassUI/Controls/Thermostat/ClimateThermostatDial.swift"
       ],
@@ -200,8 +195,9 @@
       "title": "Admin To-Do",
       "path": "pages/chores/admin-todo",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift",
-        "apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordList.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift"
       ],
       "docs": [
         ".agents/pages/chores/spec.md",
@@ -234,7 +230,8 @@
       "mockup": "pages/chores/admin-todo/admin-todo.html",
       "status": "shipped",
       "note": "Pushed from Settings; hidden from Sam.",
-      "weight": 1.5
+      "weight": 1.5,
+      "composition": "published"
     },
     {
       "id": "chores",
@@ -243,8 +240,6 @@
       "title": "Chores (tab root)",
       "path": "pages/chores/chores",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift",
         "apple/Sources/HassUI/Features/Chores/ChoresModel.swift"
       ],
       "docs": [
@@ -293,8 +288,8 @@
       "title": "Groceries (Grocery List)",
       "path": "pages/chores/groceries",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordList.swift"
       ],
       "docs": [
         ".agents/pages/chores/spec.md"
@@ -323,7 +318,8 @@
       "mockup": "pages/chores/groceries/groceries.html",
       "status": "shipped",
       "note": "Pushed from Chores quick links and the Kitchen room page.",
-      "weight": 1.5
+      "weight": 1.5,
+      "composition": "published"
     },
     {
       "id": "home-improvement-chores",
@@ -332,7 +328,8 @@
       "title": "Home Improvement Tasks",
       "path": "pages/chores/home-improvement-chores",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordList.swift"
       ],
       "docs": [
         ".agents/pages/chores/spec.md"
@@ -357,7 +354,8 @@
       "owner": "chores",
       "mockup": "pages/chores/home-improvement-chores/home-improvement-chores.html",
       "status": "shipped",
-      "weight": 1.5
+      "weight": 1.5,
+      "composition": "published"
     },
     {
       "id": "resident-chores",
@@ -366,9 +364,9 @@
       "title": "Resident chores (Alex's, Sam's)",
       "path": "pages/chores/resident-chores",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift",
-        "apple/Sources/HassUI/Features/Chores/DonetickTaskSheet.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordList.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift"
       ],
       "docs": [
         ".agents/pages/chores/spec.md"
@@ -397,7 +395,8 @@
       "mockup": "pages/chores/resident-chores/resident-chores.html",
       "status": "shipped",
       "note": "Two identical pages per resident colour family.",
-      "weight": 1.5
+      "weight": 1.5,
+      "composition": "published"
     },
     {
       "id": "unassigned-chores",
@@ -406,7 +405,8 @@
       "title": "Unassigned Chores",
       "path": "pages/chores/unassigned-chores",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordList.swift"
       ],
       "docs": [
         ".agents/pages/chores/spec.md"
@@ -431,7 +431,8 @@
       "owner": "chores",
       "mockup": "pages/chores/unassigned-chores/unassigned-chores.html",
       "status": "shipped",
-      "weight": 1.5
+      "weight": 1.5,
+      "composition": "published"
     },
     {
       "id": "ha-web-page",
@@ -668,9 +669,6 @@
       "title": "Settings (tab root)",
       "path": "pages/settings/settings",
       "sources": [
-        "apple/Sources/HassUI/Features/Settings/SettingsScreen.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsEntry.swift",
-        "apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift",
         "apple/Sources/HassUI/Features/Settings/AboutSettingsSection.swift"
       ],
@@ -719,7 +717,8 @@
       "title": "Kitchen room page (Groceries section)",
       "path": "pages/rooms/room-kitchen",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomScreen.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRooms.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage.swift"
       ],
       "docs": [
         ".agents/pages/rooms/ios.md",
@@ -751,7 +750,8 @@
       "mockup": "pages/rooms/room-kitchen/room-kitchen.html",
       "status": "shipped",
       "note": "KitchenGroceriesSection links to Grocery List and Food & Recipes.",
-      "weight": 3
+      "weight": 3,
+      "composition": "published"
     },
     {
       "id": "room-page",
@@ -760,8 +760,6 @@
       "title": "Room page (config-driven, 16 rooms)",
       "path": "pages/rooms/room-page",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomScreen.swift",
-        "apple/Sources/HassUI/Features/Rooms/RoomTiles.swift",
         "apple/Sources/HassUI/Features/Rooms/RoomSupport.swift"
       ],
       "docs": [
@@ -824,10 +822,8 @@
       "title": "Bedroom 1 room page (beds, wake light, humidifier)",
       "path": "pages/bedroom/room-master-bedroom",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomScreen.swift",
         "apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift",
         "apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift",
-        "apple/Sources/HassUI/Features/Rooms/RoomTiles.swift",
         "apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift"
       ],
       "docs": [
@@ -873,7 +869,8 @@
       "title": "Media",
       "path": "pages/media/media",
       "sources": [
-        "apple/Sources/HassUI/Features/Media/MediaScreen.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRemoteAtoms.swift"
       ],
       "docs": [
         ".agents/pages/media/spec.md",
@@ -910,7 +907,8 @@
       "owner": "media-lights-cameras",
       "mockup": "pages/media/media/media.html",
       "status": "shipped",
-      "weight": 3
+      "weight": 3,
+      "composition": "published"
     },
     {
       "id": "custom-lights",
@@ -1051,8 +1049,8 @@
       "title": "Food & Recipes hub",
       "path": "pages/food/food-hub",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKFoodHubViewController.swift",
-        "apple/Sources/HassUI/Features/Food/FoodRoute.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordViews.swift"
       ],
       "docs": [
         ".agents/pages/food/spec.md",
@@ -1090,7 +1088,8 @@
       "owner": "food",
       "mockup": "pages/food/food-hub/food-hub.html",
       "status": "shipped",
-      "weight": 3
+      "weight": 3,
+      "composition": "published"
     },
     {
       "id": "recipes",
@@ -1099,7 +1098,8 @@
       "title": "Recipes (grid, search, sort, filter)",
       "path": "pages/food/recipes",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordViews.swift",
+        "apple/Sources/HassUI/Features/Food/RecipeGrid.swift"
       ],
       "docs": [
         ".agents/pages/food/ios.md",
@@ -1142,7 +1142,8 @@
       "mockup": "pages/food/recipes/recipes.html",
       "status": "shipped",
       "deviceNote": "Detail opens in a trailing pane where SplitPolicy allows, else as a sheet.",
-      "weight": 3
+      "weight": 3,
+      "composition": "published"
     },
     {
       "id": "inventory-space",
@@ -1152,9 +1153,7 @@
       "path": "pages/inventory/inventory-space",
       "sources": [
         "apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift",
-        "apple/Sources/HassUI/Features/Inventory/InventoryRoute.swift",
-        "apple/Sources/HassUI/Features/Inventory/InventorySections.swift",
-        "apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift"
+        "apple/Sources/HassUI/Features/Inventory/InventorySections.swift"
       ],
       "docs": [
         ".agents/pages/inventory/spec.md",
@@ -1387,9 +1386,7 @@
       "area": "shell",
       "title": "Placeholder screen (coming in a later update)",
       "path": "pages/shell/placeholder-screen",
-      "sources": [
-        "apple/Sources/HassUI/UIKitPort/App/UKScreens.swift"
-      ],
+      "sources": [],
       "docs": [],
       "patterns": [],
       "presentedFrom": [],
@@ -1410,6 +1407,56 @@
       "status": "placeholder",
       "note": "Shown by HomeRouteDestination only when there is no connection (debug galleries); no shipped path reaches it signed in.",
       "weight": 3
+    },
+    {
+      "id": "server-ui-boundary",
+      "kind": "page",
+      "area": "shell",
+      "title": "Layout recovery boundary (no published layout on screen)",
+      "path": "pages/shell/server-ui-boundary",
+      "sources": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecoveryBoundary.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProductionHost.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift"
+      ],
+      "docs": [
+        ".agents/design/server-ui-boundary.md",
+        ".agents/decisions/2026-11-14-server-ui-boundary.md",
+        ".agents/platforms/apple/architecture.md"
+      ],
+      "patterns": [
+        "state-message",
+        "copy",
+        "alerts",
+        "hinge-avoidance"
+      ],
+      "presentedFrom": [],
+      "presents": [
+        "sign-out-alert"
+      ],
+      "devices": [
+        "iphone",
+        "duo",
+        "ipad"
+      ],
+      "appearance": "dark-page",
+      "statesHint": [
+        "waiting",
+        "nothing published",
+        "update required",
+        "unavailable",
+        "unavailable with no actions",
+        "clear alert",
+        "sign-out alert",
+        "ax5"
+      ],
+      "motionHint": [],
+      "inFlight": null,
+      "owner": "shell-navigation",
+      "mockup": "pages/shell/server-ui-boundary/server-ui-boundary.html",
+      "status": "shipped",
+      "note": "Shown only while no published layout is on screen; a last good layout always stays. The owner kept the built strings (server-ui-boundary-copy, option A).",
+      "weight": 2
     },
     {
       "id": "watch-app",
@@ -1494,7 +1541,7 @@
       "title": "Air Quality overview",
       "path": "modals/home/room-overview-air-quality",
       "sources": [
-        "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift"
       ],
@@ -1541,7 +1588,7 @@
       "title": "Climate overview",
       "path": "modals/home/room-overview-climate",
       "sources": [
-        "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift"
       ],
@@ -1590,7 +1637,7 @@
       "title": "Contact Sensors overview",
       "path": "modals/home/room-overview-contacts",
       "sources": [
-        "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift"
       ],
@@ -1640,7 +1687,7 @@
       "title": "Lights overview",
       "path": "modals/home/room-overview-lights",
       "sources": [
-        "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift"
       ],
@@ -1689,7 +1736,7 @@
       "title": "Occupancy overview",
       "path": "modals/home/room-overview-occupancy",
       "sources": [
-        "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift",
         "apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift"
       ],
@@ -1739,9 +1786,7 @@
       "path": "modals/home/weather-sheet",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift",
-        "apple/Sources/HassUI/Features/Home/Weather/WeatherBackdrop.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherBackdrop.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift"
       ],
       "docs": [
         ".agents/patterns/weather.md",
@@ -1877,7 +1922,7 @@
       "sources": [
         "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift",
-        "apple/Sources/HassUI/Features/Climate/ClimateSheet.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift"
       ],
       "docs": [
         ".agents/pages/climate/ios.md"
@@ -1954,7 +1999,7 @@
       "title": "Thermostat advanced controls (Rooms, Automation, Tracking)",
       "path": "modals/climate/climate-sheet",
       "sources": [
-        "apple/Sources/HassUI/Features/Climate/ClimateSheet.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift",
         "apple/Sources/HassUI/Common/ModalTabBar.swift"
@@ -2006,7 +2051,8 @@
       "title": "Add admin to-do sheet (with images)",
       "path": "modals/chores/add-admin-todo-sheet",
       "sources": [
-        "apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIFormView.swift"
       ],
       "docs": [],
       "patterns": [
@@ -2034,7 +2080,8 @@
       "mockup": "modals/chores/add-admin-todo-sheet/add-admin-todo-sheet.html",
       "status": "shipped",
       "presentation": "sheet (form, fitted) + PhotosPicker",
-      "weight": 2
+      "weight": 2,
+      "composition": "published"
     },
     {
       "id": "add-grocery-item-sheet",
@@ -2043,7 +2090,8 @@
       "title": "Add grocery item sheet",
       "path": "modals/chores/add-grocery-item-sheet",
       "sources": [
-        "apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIFormView.swift"
       ],
       "docs": [],
       "patterns": [
@@ -2071,7 +2119,8 @@
       "mockup": "modals/chores/add-grocery-item-sheet/add-grocery-item-sheet.html",
       "status": "shipped",
       "presentation": "sheet (form, fitted)",
-      "weight": 2
+      "weight": 2,
+      "composition": "published"
     },
     {
       "id": "donetick-task-sheet",
@@ -2080,7 +2129,9 @@
       "title": "Task sheet (create and edit)",
       "path": "modals/chores/donetick-task-sheet",
       "sources": [
-        "apple/Sources/HassUI/Features/Chores/DonetickTaskSheet.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIFormView.swift",
+        "apple/Sources/HassUI/Features/Chores/DonetickTaskFields.swift"
       ],
       "docs": [
         ".agents/pages/chores/ios.md",
@@ -2123,7 +2174,8 @@
       "status": "shipped",
       "presentation": "sheet (form, fitted)",
       "deviceNote": "Form sheet on iPad; Cancel leading, check trailing disabled until changed.",
-      "weight": 2
+      "weight": 2,
+      "composition": "published"
     },
     {
       "id": "rename-todo-item-sheet",
@@ -2132,7 +2184,8 @@
       "title": "Rename to-do item sheet",
       "path": "modals/chores/rename-todo-item-sheet",
       "sources": [
-        "apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIFormView.swift"
       ],
       "docs": [],
       "patterns": [
@@ -2159,7 +2212,8 @@
       "mockup": "modals/chores/rename-todo-item-sheet/rename-todo-item-sheet.html",
       "status": "shipped",
       "presentation": "sheet (form, fitted)",
-      "weight": 2
+      "weight": 2,
+      "composition": "published"
     },
     {
       "id": "todo-delete-dialog",
@@ -2168,8 +2222,9 @@
       "title": "Delete task? (confirmation dialog)",
       "path": "modals/chores/todo-delete-dialog",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift"
+        "apple/Sources/HassUI/Features/Chores/TodoListSection+Delete.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordViews.swift",
+        "apple/Sources/HassUI/Common/AlertCopy.swift"
       ],
       "docs": [],
       "patterns": [],
@@ -2198,7 +2253,8 @@
       "status": "shipped",
       "presentation": "confirmationDialog",
       "note": "Message: 'This can't be undone.'",
-      "weight": 0.5
+      "weight": 0.5,
+      "composition": "published"
     },
     {
       "id": "app-icon-picker-sheet",
@@ -2400,8 +2456,7 @@
       "title": "Home Assistant settings (full-screen cover)",
       "path": "modals/settings/ha-settings",
       "sources": [
-        "apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift",
-        "apple/Sources/HassUI/Features/Settings/SettingsScreen.swift"
+        "apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift"
       ],
       "docs": [
         ".agents/pages/settings/ios.md",
@@ -2560,8 +2615,8 @@
       "title": "Room card sheet (groups, items, fallbacks)",
       "path": "modals/rooms/room-card-sheet",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomSheets.swift",
-        "apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRooms.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift"
       ],
       "docs": [
         ".agents/pages/rooms/ios.md",
@@ -2601,7 +2656,8 @@
       "status": "shipped",
       "presentation": "sheet (page, large)",
       "deviceNote": "Page sheet on iPad. Wired device cards open their own sheets instead (see room-devices batch).",
-      "weight": 3
+      "weight": 3,
+      "composition": "published"
     },
     {
       "id": "air-purifier-sheet",
@@ -2931,7 +2987,6 @@
       "sources": [
         "apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift",
         "apple/Sources/HassUI/Features/Bedroom/BedDial.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedSideSheet.swift",
         "apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift"
       ],
       "docs": [
@@ -3020,7 +3075,6 @@
       "title": "Delete alarm or activity? (confirmation dialogs)",
       "path": "modals/bedroom/schedule-delete-dialog",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift",
         "apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab.swift",
         "apple/Sources/HassUI/Features/RoomDevices/HumidifierSchedulesTab.swift"
       ],
@@ -3058,9 +3112,7 @@
       "area": "bedroom",
       "title": "Wake alarm editor (pushed)",
       "path": "modals/bedroom/wake-light-editor",
-      "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift"
-      ],
+      "sources": [],
       "docs": [
         ".agents/patterns/bedroom-devices.md"
       ],
@@ -3103,7 +3155,6 @@
       "path": "modals/bedroom/wake-light-sheet",
       "sources": [
         "apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift",
         "apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift"
       ],
       "docs": [
@@ -3476,10 +3527,8 @@
       "path": "modals/vacuums/vacuum-sheet",
       "sources": [
         "apple/Sources/HassUI/Features/Vacuums/VacuumSheet.swift",
-        "apple/Sources/HassUI/Features/Vacuums/VacuumTabs.swift",
-        "apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift",
-        "apple/Sources/HassUI/Features/Vacuums/VacuumCleanTarget.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift",
         "apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift",
         "apple/Sources/HassUI/Features/Vacuums/VacuumComponents.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumComponents.swift"
@@ -3544,7 +3593,6 @@
       "title": "Use Area / Use Rooms (confirmation)",
       "path": "modals/vacuums/vacuum-switch-dialog",
       "sources": [
-        "apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift",
         "apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift"
       ],
@@ -3631,7 +3679,6 @@
       "title": "Filter Recipes (filter sheet)",
       "path": "modals/food/recipe-filter-sheet",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift",
         "apple/Sources/HassUI/UIKitPort/Design/UKForm.swift"
       ],
       "docs": [
@@ -3672,7 +3719,6 @@
       "title": "Sort Recipes (filter sheet)",
       "path": "modals/food/recipe-sort-sheet",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift",
         "apple/Sources/HassUI/UIKitPort/Design/UKForm.swift"
       ],
       "docs": [
@@ -3712,8 +3758,7 @@
       "title": "Delete item from the space? (confirmation dialog)",
       "path": "modals/inventory/inventory-delete-dialog",
       "sources": [
-        "apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift"
+        "apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift"
       ],
       "docs": [],
       "patterns": [],
@@ -3745,7 +3790,6 @@
       "title": "Filter Inventory (filter sheet)",
       "path": "modals/inventory/inventory-filter-sheet",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventorySheets.swift",
         "apple/Sources/HassUI/UIKitPort/Design/UKForm.swift"
       ],
       "docs": [],
@@ -3830,7 +3874,6 @@
       "path": "modals/inventory/inventory-quantity-prompt",
       "sources": [
         "apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift",
         "apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift"
       ],
       "docs": [],
@@ -3866,7 +3909,6 @@
       "title": "Sort Inventory (filter sheet)",
       "path": "modals/inventory/inventory-sort-sheet",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventorySheets.swift",
         "apple/Sources/HassUI/UIKitPort/Design/UKForm.swift"
       ],
       "docs": [],
@@ -4156,8 +4198,7 @@
       "path": "modals/location/location-permission-sheet",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/Features/Household/UKLocation.swift",
-        "apple/Sources/HassUI/Features/Location/LocationPermissionCopy.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift"
+        "apple/Sources/HassUI/Features/Location/LocationPermissionCopy.swift"
       ],
       "docs": [
         ".agents/pages/settings/location.md",
@@ -4199,7 +4240,8 @@
       "title": "Quick Links sheet",
       "path": "modals/shell/quick-links",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChrome.swift",
+        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift"
       ],
       "docs": [
         ".agents/pages/rooms/ios.md",
@@ -4239,7 +4281,8 @@
       "status": "shipped",
       "presentation": "sheet (page, large; pushes inside)",
       "deviceNote": "Folded Duo: Security System takes a full row (disc and chevron), so the sheet is five rows and scrolls (owner, 2026-11-01). Page sheet on iPad; opened from the header Quick Links button on every page (the flyout lists only the five sections, no Quick Links row).",
-      "weight": 3
+      "weight": 3,
+      "composition": "published"
     },
     {
       "id": "quick-links-rooms",
@@ -4248,7 +4291,6 @@
       "title": "Quick Links: Rooms grid",
       "path": "modals/shell/quick-links-rooms",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift",
         "apple/Sources/HassDesign/RoomPalette.swift"
       ],
       "docs": [
@@ -4286,7 +4328,6 @@
       "title": "Quick Links: Security System detail",
       "path": "modals/shell/quick-links-security-system",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift",
         "apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift"
       ],
       "docs": [],
@@ -4321,7 +4362,9 @@
       "title": "Sign Out of Home Assistant? (alert)",
       "path": "modals/shell/sign-out-alert",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProfileProvider.swift",
+        "apple/Sources/HassUI/Features/Settings/SignOutRow.swift",
+        "apple/Sources/HassUI/Common/AlertCopy.swift"
       ],
       "docs": [],
       "patterns": [],
@@ -4345,7 +4388,8 @@
       "status": "shipped",
       "presentation": "alert",
       "note": "Destructive red Sign Out plus Cancel; message 'You'll need your username and password to sign in again.'",
-      "weight": 0.5
+      "weight": 0.5,
+      "composition": "published"
     },
     {
       "id": "sign-out-failed-alert",
@@ -4354,7 +4398,6 @@
       "title": "Sign Out couldn't complete (alert)",
       "path": "modals/shell/sign-out-failed-alert",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift",
         "apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift"
       ],
       "docs": [],
@@ -4388,9 +4431,7 @@
       "title": "Your Summary (Account sheet, four tabs)",
       "path": "modals/shell/your-summary",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift"
       ],
       "docs": [
         ".agents/pages/settings/profile.md",
@@ -4448,7 +4489,7 @@
       "title": "Guests Staying Over section",
       "path": "components/rooms/guest-presence-section",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIHouseholdProviders.swift"
       ],
       "docs": [
         ".agents/pages/security/ios.md",
@@ -4475,7 +4516,8 @@
       "mockup": "components/rooms/guest-presence-section/guest-presence-section.html",
       "status": "shipped",
       "note": "Appears only while a guest toggle is on; shared by Home and Security.",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "light-group-tile",
@@ -4825,8 +4867,8 @@
       "title": "Door tiles (lock, garage door)",
       "path": "components/security/security-door-tiles",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift",
-        "apple/Sources/HassUI/Features/Security/SecurityTiles.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIDoorSource.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUISecurityViews.swift"
       ],
       "docs": [
         ".agents/pages/security/ios.md"
@@ -4857,7 +4899,8 @@
       "owner": "security-climate",
       "mockup": "components/security/security-door-tiles/security-door-tiles.html",
       "status": "shipped",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "climate-notice",
@@ -4930,7 +4973,8 @@
       "title": "Chore quick links (counts)",
       "path": "components/chores/chore-quick-links",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift"
       ],
       "docs": [
         ".agents/pages/chores/spec.md"
@@ -4958,7 +5002,8 @@
       "owner": "chores",
       "mockup": "components/chores/chore-quick-links/chore-quick-links.html",
       "status": "shipped",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "overdue-chores-badge",
@@ -4967,8 +5012,8 @@
       "title": "Overdue chores badge (tab, flyout, profile)",
       "path": "components/chores/overdue-chores-badge",
       "sources": [
-        "apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift",
-        "apple/Sources/HassUI/App/Shell/AppSection.swift"
+        "apple/Sources/HassUI/App/Shell/ShellAttention.swift",
+        "apple/Sources/HassUI/UIKitPort/App/Shell/UKProfileButton.swift"
       ],
       "docs": [],
       "patterns": [],
@@ -4990,7 +5035,8 @@
       "owner": "chores",
       "mockup": "components/chores/overdue-chores-badge/overdue-chores-badge.html",
       "status": "shipped",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "todo-list-section",
@@ -5042,8 +5088,9 @@
       "title": "Appearance section (Background Blur, count badge, App Icon)",
       "path": "components/settings/appearance-settings-section",
       "sources": [
-        "apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift"
+        "apple/Sources/HassUI/UIKitPort/Design/UKPercentSliderRow.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPreferencesProvider.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon.swift"
       ],
       "docs": [
         ".agents/pages/settings/ios.md",
@@ -5072,7 +5119,8 @@
       "mockup": "components/settings/appearance-settings-section/appearance-settings-section.html",
       "status": "shipped",
       "note": "PercentSliderRow lives in Food/RecipesScreen.swift (shared with the recipe horizon filter).",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "feedback-attachment-strip",
@@ -5148,9 +5196,7 @@
       "title": "Settings link row (glyph, title, wrapping subtitle)",
       "path": "components/settings/settings-link-row",
       "sources": [
-        "apple/Sources/HassUI/Features/Settings/SettingsScreen.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift",
-        "apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift"
       ],
       "docs": [
         ".agents/patterns/settings-section.md"
@@ -5222,8 +5268,6 @@
       "title": "Quick link and room navigation tile",
       "path": "components/tiles/quick-link-tile",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift",
-        "apple/Sources/HassDesign/QuickLinkPalette.swift",
         "apple/Sources/HassDesign/RoomPalette.swift"
       ],
       "docs": [
@@ -5260,7 +5304,6 @@
       "title": "Room card tile and card view",
       "path": "components/rooms/room-card-tile",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomTiles.swift",
         "apple/Sources/HassUI/Features/Rooms/RoomSupport.swift"
       ],
       "docs": [
@@ -5305,7 +5348,8 @@
       "title": "Room status rail and chip",
       "path": "components/rooms/room-chip",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomTiles.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomsParts.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRooms.swift"
       ],
       "docs": [
         ".agents/patterns/status-rail.md"
@@ -5334,7 +5378,8 @@
       "owner": "rooms",
       "mockup": "components/rooms/room-chip/room-chip.html",
       "status": "shipped",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "room-section-header",
@@ -5376,7 +5421,6 @@
       "title": "Bathroom fan room tile and rail button",
       "path": "components/devices/bathroom-fan-room-tile",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomCards.swift",
         "apple/Sources/HassDesign/TileActions/TileActionStrip.swift",
         "apple/Sources/HassCore/TileActions/FanRailActions.swift"
       ],
@@ -5447,7 +5491,8 @@
       "title": "Bed side and wake light tiles",
       "path": "components/bedroom/bed-side-tile",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomTiles.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedroomTile.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBedroomControl.swift"
       ],
       "docs": [],
       "patterns": [
@@ -5476,7 +5521,8 @@
       "owner": "bedroom-motion",
       "mockup": "components/bedroom/bed-side-tile/bed-side-tile.html",
       "status": "shipped",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "bedroom-controls",
@@ -5521,7 +5567,8 @@
       "title": "Media tile (remote opener, source, quick launch)",
       "path": "components/media/media-card-tile",
       "sources": [
-        "apple/Sources/HassUI/Features/Media/MediaScreen.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRemoteAtoms.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift"
       ],
       "docs": [],
       "patterns": [
@@ -5546,7 +5593,8 @@
       "owner": "media-lights-cameras",
       "mockup": "components/media/media-card-tile/media-card-tile.html",
       "status": "shipped",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "media-remote-app-tile",
@@ -5743,13 +5791,12 @@
       "id": "vacuum-status-chip",
       "kind": "component",
       "area": "vacuums",
-      "title": "Vacuum status tiles, order chip, pop-up setting rows, action and selection tiles",
+      "title": "Vacuum tiles, chips and setting rows",
       "path": "components/vacuums/vacuum-status-chip",
       "sources": [
         "apple/Sources/HassUI/Features/Vacuums/VacuumComponents.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumComponents.swift",
         "apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift",
-        "apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab.swift",
         "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift"
       ],
       "docs": [],
@@ -5934,8 +5981,7 @@
       "title": "Inventory row (item card, tones, actions)",
       "path": "components/inventory/inventory-row",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift"
       ],
       "docs": [],
       "patterns": [
@@ -6357,8 +6403,6 @@
       "sources": [
         "apple/Sources/HassUI/App/Shell/ReconnectingArc.swift",
         "apple/Sources/HassUI/App/Shell/ReconnectingIndicatorHost.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKOfflineChip.swift",
-        "apple/Sources/HassUI/App/Shell/OfflineOverlay.swift",
         "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift",
         "apple/Sources/HassCore/Connection/ReconnectingIndicator.swift",
         "apple/Sources/HassCore/Connection/ReconnectingPolicy.swift"
@@ -6402,8 +6446,7 @@
       "path": "components/navigation/shell-header-items",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift",
-        "apple/Sources/HassUI/App/Shell/ShellHeaderGrouping.swift",
-        "apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift"
+        "apple/Sources/HassUI/App/Shell/ShellHeaderGrouping.swift"
       ],
       "docs": [
         ".agents/design/direction-g.md",
@@ -6444,10 +6487,8 @@
       "title": "Floating tab bar (five tabs, Chores badge)",
       "path": "components/navigation/tab-bar",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift",
-        "apple/Sources/HassUI/App/Shell/AppSection.swift",
-        "apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRenderer.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChrome.swift"
       ],
       "docs": [
         ".agents/design/direction-g.md",
@@ -6478,7 +6519,8 @@
       "mockup": "components/navigation/tab-bar/tab-bar.html",
       "status": "shipped",
       "deviceNote": "iPhone glass floating bar; folded and unfolded Duo move tabs to a trailing vertical bar; only iPad hides it for the flyout.",
-      "weight": 1
+      "weight": 1,
+      "composition": "published"
     },
     {
       "id": "app-icon-artwork",
@@ -6609,7 +6651,6 @@
         "apple/Sources/HassDesign/ColorFamily+Glass.swift",
         "apple/Sources/HassDesign/HassTokens.swift",
         "apple/Sources/HassDesign/RoomPalette.swift",
-        "apple/Sources/HassDesign/QuickLinkPalette.swift",
         "apple/Sources/HassDesign/FinishColor.swift"
       ],
       "docs": [
@@ -6689,9 +6730,6 @@
       "title": "Empty and error states (ContentUnavailable usage)",
       "path": "components/forms/content-unavailable",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/RoomScreen.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift",
         "apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift",
         "apple/Sources/HassUI/Features/Food/RecipeDetailView.swift"
       ],
@@ -7394,8 +7432,7 @@
       "title": "SegmentedChoice and percent slider row",
       "path": "components/controls/segmented-choice",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift"
+        "apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift"
       ],
       "docs": [],
       "patterns": [],
@@ -7538,7 +7575,6 @@
       "path": "components/icons/symbol-map",
       "sources": [
         "apple/Sources/HassDesign/SymbolMap.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Food/UKFoodHubViewController.swift",
         "apple/Sources/HassUI/Features/Vacuums/VacuumComponents.swift"
       ],
       "docs": [
@@ -7766,7 +7802,6 @@
       "path": "components/widgets/spotlight-and-shortcuts",
       "sources": [
         "apple/Apps/iOS/SHShortcuts.swift",
-        "apple/Apps/iOS/OpenPageIntent.swift",
         "apple/Sources/HassUI/App/Spotlight/CoreSpotlightIndexer.swift"
       ],
       "docs": [
@@ -7922,7 +7957,7 @@
       "id": "live-activity-parts",
       "kind": "component",
       "area": "live-activity",
-      "title": "Live Activity parts (corner mark, glyph, ring, buttons, severity circle)",
+      "title": "Live Activity parts",
       "path": "components/live-activity/live-activity-parts",
       "sources": [
         "apple/Sources/FentonActivityViews/CornerMark.swift",
@@ -8054,9 +8089,7 @@
       "title": "Flyout navigation (iPad, unfolded Duo, iPhone menu button)",
       "path": "flows/flyout-navigation",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift",
-        "apple/Sources/HassUI/App/Shell/ShellNavigator.swift",
-        "apple/Sources/HassUI/App/Shell/AppSection.swift"
+        "apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift"
       ],
       "docs": [
         ".agents/design/apple/ipados.md",
@@ -8098,8 +8131,6 @@
       "path": "flows/launch-cold-signed-in",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift",
         "apple/Sources/HassUI/App/AppSession.swift"
       ],
       "docs": [
@@ -8190,7 +8221,6 @@
         "apple/Sources/HassUI/App/Push/PushCoordinator.swift",
         "apple/Sources/HassUI/App/Push/PushNavigationRequest.swift",
         "apple/Sources/HassUI/App/Spotlight/AppShortcutRouter.swift",
-        "apple/Apps/iOS/OpenPageIntent.swift",
         "apple/Apps/iOS/SHShortcuts.swift"
       ],
       "docs": [
@@ -8232,8 +8262,6 @@
         "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift",
         "apple/Sources/HassUI/App/Shell/ReconnectingArc.swift",
         "apple/Sources/HassUI/App/Shell/ReconnectingIndicatorHost.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKOfflineChip.swift",
-        "apple/Sources/HassUI/App/Shell/OfflineOverlay.swift",
         "apple/Sources/HassCore/Connection/ReconnectingIndicator.swift",
         "apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift"
       ],
@@ -8278,8 +8306,7 @@
       "title": "Push and pop within a section stack",
       "path": "flows/push-pop-navigation",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKStackMotion.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift"
+        "apple/Sources/HassUI/UIKitPort/App/Shell/UKStackMotion.swift"
       ],
       "docs": [
         ".agents/design/motion.md",
@@ -8318,9 +8345,7 @@
       "title": "Quick Links to a page (sheet closes, then push)",
       "path": "flows/quick-links-to-page",
       "sources": [
-        "apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift",
-        "apple/Sources/HassUI/Features/Home/HomeRoute.swift"
+        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift"
       ],
       "docs": [
         ".agents/pages/rooms/ios.md",
@@ -8443,8 +8468,7 @@
       "sources": [
         "apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift",
         "apple/Sources/HassUI/App/Motion/HomeArrival.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Motion/UKArrivalMotion.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKArrivalChrome.swift"
+        "apple/Sources/HassUI/UIKitPort/App/Motion/UKArrivalMotion.swift"
       ],
       "docs": [
         ".agents/design/motion.md",
@@ -8489,7 +8513,6 @@
       "title": "Sign out (Account sheet or Home Assistant settings)",
       "path": "flows/sign-out",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift",
         "apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift",
         "apple/Sources/HassUI/App/AppSession.swift"
       ],
@@ -8531,9 +8554,6 @@
       "title": "Tab navigation (tab bar, re-tap, badge)",
       "path": "flows/tab-navigation",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift",
-        "apple/Sources/HassUI/App/Shell/ShellNavigator.swift",
         "apple/Sources/HassUI/UIKitPort/App/Page/UKScrollToTop.swift"
       ],
       "docs": [
@@ -8612,8 +8632,6 @@
       "title": "Scroll fit (scroll only when there is something to scroll)",
       "path": "components/shell/scroll-fit",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift",
-        "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift",
         "apple/Sources/HassDesign/HassModal.swift",
         "apple/Sources/HassDesign/SheetFit.swift",
         "apple/Sources/HassUI/UIKitPort/App/Page/UKScrollFit.swift"
@@ -9262,6 +9280,81 @@
       "mockup": "proposals/live-activity-problem-notice/live-activity-problem-notice.html",
       "note": "R-43 (agent-initiated, gate app_wide=no). Decided 2026-11-10: judged B (in place of the instruction) and C (own line) from captures; picked B. A (beside the buttons) was not built. Current design: live-activity-problem-card, state notice.",
       "decision": ".agents/decisions/2026-11-10-problem-card-notice.md"
+    },
+    {
+      "id": "state-styled-tile",
+      "kind": "component",
+      "area": "design",
+      "title": "State-styled tile",
+      "path": "components/tiles/state-styled-tile",
+      "sources": [
+        "apple/Sources/HassCore/TileActions/StateStyle.swift",
+        "apple/Sources/HassCore/TileActions/StateStyleActions.swift",
+        "apple/Sources/HassDesign/TileActions/StateTileLook.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKStateTileTransition.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKTileActions.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKArcSpinnerView.swift"
+      ],
+      "status": "shipped",
+      "mockup": "components/tiles/state-styled-tile/state-styled-tile.html",
+      "note": "Shipped in lane L7a (2026-11-14). The tile's classes, looks, indicators, transitions, flap guard and accessibility on iPhone, Duo and iPad, with the owner's option D (the arc replaces the disc). Rules: .agents/design/state-styled-tile.md. The kit's StateTile builds it."
+    },
+    {
+      "id": "state-style-library",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "Studio style library",
+      "path": "proposals/state-style-library",
+      "sources": [
+        "apple/Sources/HassCore/TileActions/StateStyle.swift"
+      ],
+      "status": "proposed",
+      "mockup": "proposals/state-style-library/state-style-library.html",
+      "note": "Owner request 2026-11-14 (answer 3: shared styles). A Studio (web) surface: library, saved styles, per-tile overrides. Rules: .agents/design/state-styles.md. Not built (lane L9a)."
+    },
+    {
+      "id": "state-tile-indicator",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "State-styled tile: where the in-progress arc sits",
+      "path": "proposals/state-tile-indicator",
+      "sources": [],
+      "status": "decided",
+      "mockup": "proposals/state-tile-indicator/state-tile-indicator.html",
+      "note": "Owner picked D (2026-11-14): the arc replaces the disc while a tap does nothing. A, B and C are the rejected record. Alarm pending, lock open and vacuum paused default to warning. Built in lane L7a.",
+      "decision": ".agents/decisions/2026-11-14-state-styled-tile.md"
+    },
+    {
+      "id": "core-grammar-surfaces",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "Core grammar surfaces",
+      "path": "proposals/core-grammar-surfaces",
+      "sources": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIShellPrimitives.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIControlBinding.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIBoundControl.swift"
+      ],
+      "status": "decided",
+      "mockup": "proposals/core-grammar-surfaces/core-grammar-surfaces.html",
+      "note": "Owner answers 2026-11-14: a disabled reason on the control's own status line; chips as the wrapping grid; pending as the optimistic value, then the arc after an optimism timeout until a change, with per-control settings. Rules: .agents/design/core-grammar-surfaces.md and pending-controls.md. Not built (lane L0).",
+      "decision": ".agents/decisions/2026-11-14-core-grammar-surfaces-owner-picks.md"
+    },
+    {
+      "id": "server-ui-boundary-copy",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "Layout recovery boundary: the words",
+      "path": "proposals/server-ui-boundary-copy",
+      "sources": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecoveryBoundary.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProductionHost.swift"
+      ],
+      "status": "decided",
+      "decision": ".agents/decisions/2026-11-14-server-ui-boundary.md",
+      "mockup": "proposals/server-ui-boundary-copy/server-ui-boundary-copy.html",
+      "note": "Owner picked A on 2026-11-15: the built strings stay, with the two approved rewordings. Record: .agents/decisions/2026-11-14-server-ui-boundary.md."
     }
   ]
 }

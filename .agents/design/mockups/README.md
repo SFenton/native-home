@@ -27,9 +27,9 @@
 
 | Kind | Folder | Count |
 |---|---|---|
-| Pages | [pages/](pages/README.md) | 32 |
+| Pages | [pages/](pages/README.md) | 33 |
 | Modals | [modals/](modals/README.md) | 71 |
-| Components | [components/](components/README.md) | 94 |
+| Components | [components/](components/README.md) | 95 |
 | Flows | [flows/](flows/README.md) | 13 |
 
 In flight (decided, not on `main` yet): none
@@ -48,6 +48,7 @@ Proposals: all 43 are in `catalog.json` (kind `proposal`) with a status; the hub
 - **Reuse the kit.** Check `_kit/components` and [patterns](../../patterns/README.md) before you draw a new view; one component, one implementation. Helpers named `_<batch>.js` beside a mockup are local, marked "promote to kit".
 - **Always republish.** Any change under this folder ends with `python3 tools/mockups_hub.py`, a publish to the hub link above with the Artifact tool, and `python3 tools/mockups_hub.py --mark-published`, without being asked ([skills/mockup-hub](../../skills/mockup-hub/SKILL.md)). Give the owner the hub link, never HTML or a file path. The Stop hook `tools/hooks/mockup_hub_guard.py` blocks ending a session that changed mockups until the hub is rebuilt and marked published; a session with no Artifact tool says the republish is pending in its PR.
 - **Lifecycle.** An agent sees only current designs; history exists to explain why. `shipped` is on `main`. `proposed` is awaiting the owner. `decided` is picked (needs `decision`: the rule doc that records the outcome, or `PR #n`; a proposal page that records its own decision may link to itself; and `shippedIn` once built); it leaves the current list and sits in the hub's "Why" section. `superseded` was replaced (needs `supersededBy`, a catalogued id). `designed-not-wired` exists in code with no call site. `placeholder` is a stub. `inFlight` (a branch name and a note) is only for work decided but not yet on `main`; when the branch merges or is deleted, clear it and set the status to `shipped` in the merging PR. Never keep a "was" state for something that has shipped: git history has it. `tools/mockups_check.py` fails on an `inFlight.branch` that is the PR's own head branch (it must be cleared in the merging PR), or that is merged into the PR's base (`GITHUB_BASE_REF`, else `main`) or deleted, a `source:` path that does not exist, an `.html` the catalog does not list, and a decided proposal with no decision link.
+- **Published surfaces.** A catalog entry with `"composition": "published"` is a surface whose layout the publication authors. Its `sources` name the renderer and the components that draw it, never a compiled page.
 - **The mockup is a map, not a spec.** Where it and the code disagree, the code wins and the mockup is fixed. Decisions and rules live in the docs beside this folder.
 - **Reviews.** Each mockup carries a dated `apple-hig` and `swiftui-pro` review: `fix` findings describe where the app falls short today (they are findings, not changes made), `departure` cites the owner decision.
 - **Share as one file.** `python3 tools/mockups_inline.py <mockup.html> > out.html`.

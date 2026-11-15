@@ -16,6 +16,10 @@ struct UKTileFaceContent: Equatable {
     var isUnavailable: Bool
     /// The red error face.
     var isError = false
+    /// Needs attention and nothing has failed: the error face's recipe in the warning ink.
+    var isWarning = false
+    /// A tile with no disc swaps its glyph for the compact arc while a tap would do nothing.
+    var showsArc = false
     var showsChevron = false
     /// 0...1 fill from the leading edge, or nil.
     var level: Double?
@@ -37,8 +41,8 @@ struct UKTileFaceContent: Equatable {
     var probeIdentifier: String?
 
     init(title: String, subtitle: String? = nil, symbol: String, tint: UIColor? = nil, family: ColorFamily? = nil, fillRGB: UInt32? = nil,
-         isActive: Bool, isUnavailable: Bool = false, isError: Bool = false, showsChevron: Bool = false, level: Double? = nil,
-         levelTint: UIColor? = nil, wash: UIColor? = nil, trailingInset: CGFloat = 0, bottomInset: CGFloat = 0, hidesGlyph: Bool = false,
+         isActive: Bool, isUnavailable: Bool = false, isError: Bool = false, isWarning: Bool = false, showsArc: Bool = false,
+         showsChevron: Bool = false, level: Double? = nil, levelTint: UIColor? = nil, wash: UIColor? = nil, trailingInset: CGFloat = 0, bottomInset: CGFloat = 0, hidesGlyph: Bool = false,
          isFlat: Bool = false, textFit: TileTextFit = .natural, probeIdentifier: String? = nil) {
         self.title = title
         self.subtitle = subtitle
@@ -49,6 +53,8 @@ struct UKTileFaceContent: Equatable {
         self.isActive = isActive
         self.isUnavailable = isUnavailable
         self.isError = isError
+        self.isWarning = isWarning
+        self.showsArc = showsArc
         self.showsChevron = showsChevron
         self.level = level
         self.levelTint = levelTint
@@ -66,6 +72,7 @@ struct UKTileFaceContent: Equatable {
     struct ColorKey: Equatable {
         var isActive: Bool
         var isError: Bool
+        var isWarning: Bool
         var isUnavailable: Bool
         var family: ColorFamily?
         var fillRGB: UInt32?
@@ -76,7 +83,7 @@ struct UKTileFaceContent: Equatable {
     }
 
     var colorKey: ColorKey {
-        ColorKey(isActive: isActive, isError: isError, isUnavailable: isUnavailable, family: family, fillRGB: fillRGB, wash: wash,
+        ColorKey(isActive: isActive, isError: isError, isWarning: isWarning, isUnavailable: isUnavailable, family: family, fillRGB: fillRGB, wash: wash,
                  tint: tint, levelTint: levelTint, hasLevel: (level ?? 0) > 0)
     }
 }
@@ -105,6 +112,8 @@ final class UKGlassTileFaceView: UIView {
     private let shadeLayer = CALayer()
     private let finishLayer = CALayer()
     private let glyphView = UIImageView()
+    /// The compact arc that stands in for the glyph of a tile with no disc, scaled with the glyph.
+    private let glyphArc = UKArcSpinnerView(.compact, label: "")
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private let pendingBar = UKPendingValueBar()
@@ -148,7 +157,10 @@ final class UKGlassTileFaceView: UIView {
         chevronView.contentMode = .center
         for label in [titleLabel, subtitleLabel] { label.isAccessibilityElement = false; label.lineBreakMode = .byWordWrapping }
         for view in [glyphView, chevronView, pendingBar] { view.isAccessibilityElement = false }
-        for view in [glyphView, titleLabel, subtitleLabel, pendingBar, chevronView] as [UIView] { addSubview(view) }
+        glyphArc.isAccessibilityElement = false
+        glyphArc.alpha = 0
+        glyphArc.isHidden = true
+        for view in [glyphView, glyphArc, titleLabel, subtitleLabel, pendingBar, chevronView] as [UIView] { addSubview(view) }
         pendingBar.isHidden = true
 
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) {
@@ -156,6 +168,7 @@ final class UKGlassTileFaceView: UIView {
         }
         observers = NotificationCenter.default.ukObserveAccessibility { [weak self] in self?.refresh(animated: false) }
         refresh(animated: false)
+        if content.showsArc { crossFadeGlyphArc(animated: false) }
     }
 
     @available(*, unavailable)
@@ -171,10 +184,53 @@ final class UKGlassTileFaceView: UIView {
         let old = self.content
         self.content = content
         self.environment = environment
+        if old.showsArc != content.showsArc { crossFadeGlyphArc(animated: animated && hasConfigured) }
         refresh(animated: animated && hasConfigured && colorChanged, levelOnly: levelChanged && !colorChanged && hasConfigured && animated,
                 symbolTransition: symbolChanged && hasConfigured && animated && old.symbol != content.symbol)
         hasConfigured = true
     }
+
+    // MARK: Arc and effects
+
+    /// The glyph and the compact arc cross-fade on `quick`, also under Reduce Motion.
+    private func crossFadeGlyphArc(animated: Bool) {
+        let shows = content.showsArc
+        if shows { glyphArc.isHidden = false }
+        let work = { [self] in
+            glyphView.alpha = shows ? 0 : (content.isUnavailable ? 0.5 : 1)
+            glyphArc.alpha = shows ? 1 : 0
+        }
+        if animated, window != nil {
+            UIView.animate(withDuration: UKMotion.quickDuration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: work) { [weak self] _ in
+                guard let self else { return }
+                if !self.content.showsArc { self.glyphArc.isHidden = true }
+            }
+        } else {
+            work()
+            glyphArc.isHidden = !shows
+        }
+        glyphArc.color = UIColor(TileFaceInk.primaryToken(style: style, appearance: appearance))
+    }
+
+    /// Plays a symbol effect on the face glyph: a held one until ``stopEffects()``, a once-only one (bounce, wiggle) or a warning's pulse a
+    /// single time. Still while animations are paused, and never under Reduce Motion. Breathe and wiggle need iOS 18; before it they pulse and
+    /// bounce.
+    func playEffect(_ indicator: StateTileLook.Indicator, once: Bool) {
+        guard indicator.isSymbolEffect, !UKDesign.animationsPaused, !UKDesign.reduceMotion, !content.showsArc, window != nil else { return }
+        let options: SymbolEffectOptions = once ? .repeat(1) : .default
+        switch indicator {
+        case .pulse: glyphView.addSymbolEffect(.pulse, options: options)
+        case .bounce: glyphView.addSymbolEffect(.bounce, options: .repeat(1))
+        case .breathe:
+            if #available(iOS 18.0, *) { glyphView.addSymbolEffect(.breathe, options: options) } else { glyphView.addSymbolEffect(.pulse, options: options) }
+        case .wiggle:
+            if #available(iOS 18.0, *) { glyphView.addSymbolEffect(.wiggle, options: .repeat(1)) } else { glyphView.addSymbolEffect(.bounce, options: .repeat(1)) }
+        case .none, .arc: break
+        }
+    }
+
+    /// Stops every held effect on the face glyph.
+    func stopEffects() { glyphView.removeAllSymbolEffects() }
 
     // MARK: Resolved style
 
@@ -185,7 +241,8 @@ final class UKGlassTileFaceView: UIView {
     private var appearance: TileAppearance { UKDesign.tileAppearance(surface: environment.surface, traits: traits) }
     private var finish: TileFinish { UKDesign.effectiveFinish(environment.finish, traits: traits) }
     private var style: TileFaceStyle {
-        .resolve(family: content.family, isActive: content.isActive, isError: content.isError, isUnavailable: content.isUnavailable,
+        .resolve(family: content.family, isActive: content.isActive, isError: content.isError, isWarning: content.isWarning,
+                 isUnavailable: content.isUnavailable,
                  solidFill: content.fillRGB)
     }
     private var layoutKind: TileLayout { environment.layout.resolved(accessibilitySize: traits.ukIsAccessibilitySize) }
@@ -221,7 +278,7 @@ final class UKGlassTileFaceView: UIView {
         let secondary = UIColor(TileFaceInk.secondaryToken(style: style, appearance: appearance, finish: finish, surface: environment.surface,
                                                              hasWash: content.wash != nil))
         let chevronColor = secondary.ukOpacity(0.8)
-        let glyphAlpha: CGFloat = content.isUnavailable ? 0.5 : 1
+        let glyphAlpha: CGFloat = content.showsArc ? 0 : (content.isUnavailable ? 0.5 : 1)
 
         let paint = UKTilePaint.make(UKTilePaintInput(
             style: style, surface: environment.surface, appearance: appearance, finish: finish, tint: content.tint, tintGlyph: tintGlyph,
@@ -523,6 +580,9 @@ final class UKGlassTileFaceView: UIView {
             view.frame = mirror ? CGRect(x: bounds.width - rect.maxX, y: rect.minY, width: rect.width, height: rect.height) : rect
         }
         place(glyphView, frames.glyph)
+        glyphArc.scaleOverride = UKFont.scaled(1, relativeTo: layoutKind == .row ? .title2 : .title3, traits: traits)
+        let arc = glyphArc.sizeThatFits(.zero)
+        glyphArc.frame = CGRect(x: glyphView.frame.midX - arc.width / 2, y: glyphView.frame.midY - arc.height / 2, width: arc.width, height: arc.height)
         place(titleLabel, frames.title)
         place(subtitleLabel, frames.subtitle)
         if let titleTicker { place(titleTicker, frames.title) }

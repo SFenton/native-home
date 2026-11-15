@@ -24,7 +24,7 @@
   Mock.mount({
     kind: 'modal', id: 'todo-delete-dialog', title: 'Delete task? (confirmation dialog)', area: 'chores', status: 'shipped',
     summary: 'The question a Delete swipe, menu item or VoiceOver action asks before a task or grocery item is removed: "Delete {title}?" with a red Delete Task or Delete Item and "This can\'t be undone." An iPhone action sheet, a popover on iPad. The same dialog serves the Chores pages, the Summary sheet\'s chore tabs and (as "Delete {name}?") the task sheet.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift', 'apple/Sources/HassUI/Features/Chores/DonetickTaskSheet.swift', 'apple/Sources/HassUI/Features/Chores/TodoListSection.swift', 'apple/Sources/HassCore/Todo/TodoRowActions.swift'],
+    source: ['apple/Sources/HassUI/Features/Chores/TodoListSection.swift', 'apple/Sources/HassCore/Todo/TodoRowActions.swift'],
     spec: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md'],
     patterns: ['modal-sheet', 'motion'], hig: ['Action sheets', 'Alerts', 'Context menus', 'Lists and tables'],
     entities: ['todo.demo_todo_10', 'todo.demo_todo_1'], kitComponents: ['Alert', 'ModalTabBar', 'ModuleList'],

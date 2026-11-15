@@ -1,0 +1,602 @@
+{
+  "format": 1,
+  "styles": [
+    {
+      "id": "garage-door",
+      "name": "Garage door",
+      "domain": "cover",
+      "actionId": "door",
+      "togglesDisc": true,
+      "rules": [
+        {
+          "states": [
+            "closed"
+          ],
+          "class": "resting",
+          "active": false,
+          "action": {
+            "verb": "Open",
+            "icon": "door.garage.closed",
+            "service": "open_cover"
+          }
+        },
+        {
+          "states": [
+            "open"
+          ],
+          "class": "resting",
+          "active": true,
+          "action": {
+            "verb": "Close",
+            "icon": "door.garage.open",
+            "service": "close_cover"
+          }
+        },
+        {
+          "states": [
+            "opening"
+          ],
+          "class": "in-progress",
+          "active": true,
+          "action": {
+            "verb": "Stop",
+            "icon": "stop.fill",
+            "service": "stop_cover",
+            "requiresFeature": 8,
+            "otherwise": {
+              "verb": "Reverse",
+              "icon": "arrow.uturn.down",
+              "service": "close_cover"
+            }
+          }
+        },
+        {
+          "states": [
+            "closing"
+          ],
+          "class": "in-progress",
+          "active": true,
+          "action": {
+            "verb": "Stop",
+            "icon": "stop.fill",
+            "service": "stop_cover",
+            "requiresFeature": 8,
+            "otherwise": {
+              "verb": "Reverse",
+              "icon": "arrow.uturn.up",
+              "service": "open_cover"
+            }
+          }
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false,
+          "icon": "door.garage.closed",
+          "action": {
+            "verb": "Open",
+            "icon": "door.garage.closed",
+            "tappable": false
+          }
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false,
+        "icon": "door.garage.closed",
+        "action": {
+          "verb": "Open",
+          "icon": "door.garage.closed",
+          "tappable": false
+        }
+      },
+      "request": {
+        "lockoutSeconds": 2,
+        "ackTimeoutSeconds": 10,
+        "settleTimeoutSeconds": 45,
+        "errorHoldSeconds": 8,
+        "onTimeout": "error",
+        "pendingWords": [
+          {
+            "service": "close_cover",
+            "text": "Sending Close…"
+          },
+          {
+            "service": "open_cover",
+            "text": "Sending Open…"
+          },
+          {
+            "service": "stop_cover",
+            "text": "Stopping…"
+          }
+        ],
+        "errorWords": "Error"
+      }
+    },
+    {
+      "id": "lock",
+      "name": "Lock",
+      "domain": "lock",
+      "actionId": "lock",
+      "togglesDisc": true,
+      "drawsErrorDisc": true,
+      "rules": [
+        {
+          "states": [
+            "locked"
+          ],
+          "class": "resting",
+          "active": false,
+          "action": {
+            "verb": "Unlock",
+            "icon": "lock.fill",
+            "service": "unlock"
+          }
+        },
+        {
+          "states": [
+            "unlocked"
+          ],
+          "class": "resting",
+          "active": true,
+          "action": {
+            "verb": "Lock",
+            "icon": "lock.open",
+            "service": "lock"
+          }
+        },
+        {
+          "states": [
+            "open"
+          ],
+          "class": "warning",
+          "active": true,
+          "action": {
+            "verb": "Lock",
+            "icon": "lock.open",
+            "service": "lock"
+          }
+        },
+        {
+          "states": [
+            "locking"
+          ],
+          "class": "in-progress",
+          "active": false,
+          "action": {
+            "verb": "Unlock",
+            "icon": "lock.fill",
+            "service": "unlock",
+            "tappable": false
+          }
+        },
+        {
+          "states": [
+            "unlocking",
+            "opening"
+          ],
+          "class": "in-progress",
+          "active": true,
+          "action": {
+            "verb": "Lock",
+            "icon": "lock.open",
+            "service": "lock",
+            "tappable": false
+          }
+        },
+        {
+          "states": [
+            "jammed"
+          ],
+          "class": "error",
+          "active": true,
+          "action": {
+            "verb": "Lock",
+            "icon": "lock.trianglebadge.exclamationmark",
+            "service": "lock"
+          }
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false,
+          "icon": "lock.fill",
+          "action": {
+            "verb": "Unlock",
+            "icon": "lock.fill",
+            "service": "unlock",
+            "tappable": false
+          }
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false,
+        "icon": "lock.fill",
+        "action": {
+          "verb": "Unlock",
+          "icon": "lock.fill",
+          "service": "unlock",
+          "tappable": false
+        }
+      },
+      "request": {
+        "lockoutSeconds": 0,
+        "ackTimeoutSeconds": 10,
+        "settleTimeoutSeconds": 2,
+        "errorHoldSeconds": 4,
+        "onTimeout": "revert",
+        "errorWords": "Didn't Respond"
+      }
+    },
+    {
+      "id": "blind",
+      "name": "Blind",
+      "domain": "cover",
+      "actionId": "blind",
+      "togglesDisc": true,
+      "rules": [
+        {
+          "states": [
+            "closed"
+          ],
+          "class": "resting",
+          "active": false,
+          "icon": "blinds.horizontal.closed",
+          "action": {
+            "verb": "Open",
+            "icon": "blinds.horizontal.closed",
+            "service": "open_cover"
+          }
+        },
+        {
+          "states": [
+            "open"
+          ],
+          "class": "resting",
+          "active": true,
+          "icon": "blinds.horizontal.open",
+          "action": {
+            "verb": "Close",
+            "icon": "blinds.horizontal.open",
+            "service": "close_cover"
+          }
+        },
+        {
+          "states": [
+            "opening",
+            "closing"
+          ],
+          "class": "in-progress",
+          "active": true,
+          "icon": "blinds.horizontal.open",
+          "action": {
+            "verb": "Stop",
+            "icon": "stop.fill",
+            "service": "stop_cover",
+            "requiresFeature": 8
+          }
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false,
+          "icon": "blinds.horizontal.closed"
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false,
+        "icon": "blinds.horizontal.closed"
+      },
+      "request": {
+        "lockoutSeconds": 2,
+        "ackTimeoutSeconds": 10,
+        "settleTimeoutSeconds": 45,
+        "errorHoldSeconds": 4,
+        "onTimeout": "error",
+        "errorWords": "Didn't Respond"
+      }
+    },
+    {
+      "id": "alarm",
+      "name": "Alarm",
+      "domain": "alarm_control_panel",
+      "actionId": "alarm",
+      "rules": [
+        {
+          "states": [
+            "disarmed"
+          ],
+          "class": "resting",
+          "active": false,
+          "action": {
+            "verb": "Arm Home",
+            "icon": "shield.lefthalf.filled",
+            "service": "alarm_arm_home"
+          }
+        },
+        {
+          "states": [
+            "armed_home",
+            "armed_away",
+            "armed_night",
+            "armed_vacation",
+            "armed_custom_bypass"
+          ],
+          "class": "resting",
+          "active": true,
+          "action": {
+            "verb": "Disarm",
+            "icon": "shield.slash",
+            "service": "alarm_disarm",
+            "confirmation": {
+              "title": "Disarm the Security System?",
+              "message": "Doors and motion stop triggering the alarm.",
+              "confirmVerb": "Disarm"
+            }
+          }
+        },
+        {
+          "states": [
+            "arming"
+          ],
+          "class": "in-progress",
+          "active": true,
+          "action": {
+            "verb": "Disarm",
+            "icon": "shield.slash",
+            "service": "alarm_disarm",
+            "confirmation": {
+              "title": "Disarm the Security System?",
+              "message": "Doors and motion stop triggering the alarm.",
+              "confirmVerb": "Disarm"
+            }
+          }
+        },
+        {
+          "states": [
+            "pending"
+          ],
+          "class": "warning",
+          "active": true,
+          "action": {
+            "verb": "Disarm",
+            "icon": "shield.slash",
+            "service": "alarm_disarm",
+            "confirmation": {
+              "title": "Disarm the Security System?",
+              "message": "Doors and motion stop triggering the alarm.",
+              "confirmVerb": "Disarm"
+            }
+          }
+        },
+        {
+          "states": [
+            "disarming"
+          ],
+          "class": "in-progress",
+          "active": false,
+          "action": {
+            "verb": "Arm Home",
+            "icon": "shield.lefthalf.filled",
+            "service": "alarm_arm_home",
+            "tappable": false
+          }
+        },
+        {
+          "states": [
+            "triggered"
+          ],
+          "class": "error",
+          "active": true,
+          "action": {
+            "verb": "Disarm",
+            "icon": "shield.slash",
+            "service": "alarm_disarm",
+            "confirmation": {
+              "title": "Disarm the Security System?",
+              "message": "Doors and motion stop triggering the alarm.",
+              "confirmVerb": "Disarm"
+            }
+          }
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false,
+          "icon": "shield.lefthalf.filled",
+          "action": {
+            "verb": "Arm Home",
+            "icon": "shield.lefthalf.filled",
+            "service": "alarm_arm_home",
+            "tappable": false
+          }
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false,
+        "icon": "shield.lefthalf.filled",
+        "action": {
+          "verb": "Arm Home",
+          "icon": "shield.lefthalf.filled",
+          "service": "alarm_arm_home",
+          "tappable": false
+        }
+      }
+    },
+    {
+      "id": "robot",
+      "name": "Robot",
+      "domain": "vacuum",
+      "actionId": "robot",
+      "rules": [
+        {
+          "states": [
+            "docked",
+            "idle"
+          ],
+          "class": "resting",
+          "active": false
+        },
+        {
+          "states": [
+            "cleaning",
+            "mowing"
+          ],
+          "class": "resting",
+          "active": true,
+          "indicator": "breathe"
+        },
+        {
+          "states": [
+            "paused"
+          ],
+          "class": "warning",
+          "active": false
+        },
+        {
+          "states": [
+            "returning"
+          ],
+          "class": "in-progress",
+          "active": false
+        },
+        {
+          "states": [
+            "error"
+          ],
+          "class": "error",
+          "active": false
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false
+      }
+    },
+    {
+      "id": "detector",
+      "name": "Detector",
+      "domain": "binary_sensor",
+      "actionId": "detector",
+      "rules": [
+        {
+          "states": [
+            "off"
+          ],
+          "class": "resting",
+          "active": false
+        },
+        {
+          "states": [
+            "on"
+          ],
+          "class": "error",
+          "active": false
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false
+      }
+    },
+    {
+      "id": "notice",
+      "name": "Notice",
+      "domain": "binary_sensor",
+      "actionId": "notice",
+      "rules": [
+        {
+          "states": [
+            "off"
+          ],
+          "class": "resting",
+          "active": false
+        },
+        {
+          "states": [
+            "on"
+          ],
+          "class": "warning",
+          "active": false
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false
+      }
+    },
+    {
+      "id": "switch",
+      "name": "Switch",
+      "domain": "switch",
+      "actionId": "switch",
+      "rules": [
+        {
+          "states": [
+            "off"
+          ],
+          "class": "resting",
+          "active": false
+        },
+        {
+          "states": [
+            "on"
+          ],
+          "class": "resting",
+          "active": true
+        },
+        {
+          "states": [
+            "unavailable",
+            "unknown"
+          ],
+          "class": "unknown",
+          "active": false
+        }
+      ],
+      "fallback": {
+        "class": "unknown",
+        "active": false
+      }
+    }
+  ]
+}

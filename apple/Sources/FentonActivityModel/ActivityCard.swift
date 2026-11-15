@@ -105,13 +105,17 @@ public struct ActivityCard: Equatable, Sendable {
     public let isStale: Bool
     /// Where "left" and "for" count from; the views pass `Date()`.
     public let now: Date
+    /// Optional accepted presentation, injected by a target-specific host.
+    public let presentation: ActivityPresentation?
 
     /// Creates a card.
-    public init(attributes: HomeActivityAttributes, state: HomeActivityState, isStale: Bool = false, now: Date = Date()) {
+    public init(attributes: HomeActivityAttributes, state: HomeActivityState, isStale: Bool = false, now: Date = Date(),
+                presentation: ActivityPresentation? = nil) {
         self.attributes = attributes
         self.state = state
         self.isStale = isStale
         self.now = now
+        self.presentation = presentation
     }
 
     // MARK: - Identity
@@ -119,11 +123,11 @@ public struct ActivityCard: Equatable, Sendable {
     /// The activity's tag, which the buttons carry.
     public var tag: String { attributes.tag }
     /// The device ("Main Floor Vacuum").
-    public var deviceTitle: String { attributes.title }
+    public var deviceTitle: String { presentation?.title ?? attributes.title }
     /// The title line. It is the device ("Main Floor Vacuum"), except for an older engine's card that has both a time and a
     /// headline, which the headline still names.
     public var title: String {
-        guard let headline = state.headline, !headline.isEmpty, figure != .none else { return attributes.title }
+        guard let headline = state.headline, !headline.isEmpty, figure != .none else { return deviceTitle }
         return headline
     }
     /// A card with no `value` shows its `headline` as the big line under the title ("Vacuuming Kitchen", "Paused in
@@ -142,9 +146,12 @@ public struct ActivityCard: Equatable, Sendable {
     /// The one word the compact island shows when the card has no time, or nil.
     public var short: String? { state.short.flatMap { $0.isEmpty ? nil : $0 } }
     /// The device glyph.
-    public var glyph: ActivityGlyph { attributes.glyph }
+    public var glyph: ActivityGlyph { presentation.map { ActivityGlyph(wire: $0.glyph.rawValue) } ?? attributes.glyph }
     /// The `ColorFamily` raw value that tints the card.
-    public var tint: String { attributes.tint }
+    public var tint: String {
+        guard let presentation, presentation.tint != .engine else { return attributes.tint }
+        return presentation.tint.rawValue
+    }
     /// The layout.
     public var style: Style {
         if state.phase == .problem, let problem = state.problem { return .problem(problem.severity) }
@@ -187,13 +194,13 @@ public struct ActivityCard: Equatable, Sendable {
         let limit = problem == nil ? HomeActivityState.maxControls : HomeActivityState.maxProblemControls
         return state.controls.prefix(limit).enumerated().map { index, control in
             Button(control: control, isPrimary: index == 0 || control.role == .primary,
-                   accessibilityLabel: "\(control.title) \(attributes.title)", icon: icon(for: control))
+                   accessibilityLabel: "\(control.title) \(deviceTitle)", icon: icon(for: control))
         }
     }
 
     /// A vacuum's job card draws Pause, Resume and Dock as round icon buttons; everything else is a text pill.
     private func icon(for control: ActivityControl) -> Button.Icon? {
-        guard style == .job, glyph == .vacuum else { return nil }
+        guard style == .job, attributes.glyph == .vacuum else { return nil }
         switch control.id {
         case "pause": return .pause
         case "resume": return .play
@@ -292,7 +299,7 @@ public struct ActivityCard: Equatable, Sendable {
     /// card reads "Main Floor Vacuum, needs help: Stuck in Kitchen. Move it somewhere flat, then tap Resume."
     public var spokenSummary: String {
         if let problem {
-            var parts = ["\(attributes.title), \(problem.severity.spokenPhrase): \(problem.problem). \(problem.message)"]
+            var parts = ["\(deviceTitle), \(problem.severity.spokenPhrase): \(problem.problem). \(problem.message)"]
             parts.append(contentsOf: problem.chips)
             return parts.joined(separator: ", ")
         }

@@ -14,7 +14,7 @@ import UIKit
 ///   cross-fades without the scale.
 /// - Reduce Transparency and the `backdrop` perf switch draw the plain base.
 final class UKBackdropView: UIView {
-    private let store: HouseBackdropStore?
+    private var store: HouseBackdropStore?
     private let shell: UKShellEnvironment?
     /// Everything that is drawn, so the arrival's scale never touches this view's own frame (laying out a transformed view
     /// by `frame`, which autoresizing does, would shrink its bounds by the scale).
@@ -58,6 +58,16 @@ final class UKBackdropView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     // MARK: Binding
+
+    /// Points the view at another store (or none) without replacing it: the photo cross-fades like a re-rendered one,
+    /// and the arrival state, scrim and layout stay as they are.
+    func rebind(store: HouseBackdropStore?) {
+        guard self.store !== store else { return }
+        self.store = store
+        bag.removeAll()
+        lastArrived = nil
+        bind()
+    }
 
     private func bind() {
         bag.observe { [weak self] in

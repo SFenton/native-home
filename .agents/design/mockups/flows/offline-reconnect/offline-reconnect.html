@@ -17,7 +17,7 @@
   Mock.mount({
     kind: 'flow', id: 'offline-reconnect', title: 'Offline and reconnect', area: 'shell', status: 'shipped',
     summary: 'What the person sees when the house connection drops. A blip under 2 s shows nothing. A retrying connection shows a small arc in the header, left of Quick Links. No network at all shows the offline chip at once and a cloud on Profile. Values stay on screen and never blank; nothing animates on reconnect itself.',
-    source: ['apple/Sources/HassUI/App/Shell/ReconnectingArc.swift', 'apple/Sources/HassUI/App/Shell/ReconnectingIndicatorHost.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKOfflineChip.swift', 'apple/Sources/HassUI/App/Shell/OfflineOverlay.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift', 'apple/Sources/HassCore/Connection/ReconnectingPolicy.swift', 'apple/Sources/HassUI/App/AppSession.swift'],
+    source: ['apple/Sources/HassUI/App/Shell/ReconnectingArc.swift', 'apple/Sources/HassUI/App/Shell/ReconnectingIndicatorHost.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift', 'apple/Sources/HassCore/Connection/ReconnectingPolicy.swift', 'apple/Sources/HassUI/App/AppSession.swift'],
     spec: ['.agents/platforms/apple/connection-lifecycle.md', '.agents/design/direction-g.md', '.agents/design/reconnecting-spinner.md'],
     patterns: ['resume-lifecycle', 'motion'],
     hig: ['Loading', 'Feedback', 'Motion', 'Accessibility'],

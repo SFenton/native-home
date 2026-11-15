@@ -25,8 +25,7 @@
   Mock.mount({
     kind: 'page', id: 'room-kitchen', title: 'Kitchen room page (Groceries section)', area: 'rooms', status: 'shipped',
     summary: 'The Kitchen is the one room page with a section the config does not hold: KitchenGroceriesSection (Grocery List and Food) is added before its Appliances and Climate sections and always shows. Four chips on the rail; the dishwasher is a full-width appliance card.',
-    source: ['apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Rooms/RoomSheets.swift',
-      'apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
+    source: ['apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
     spec: ['.agents/pages/rooms/spec.md', '.agents/pages/rooms/ios.md', '.agents/pages/chores/ios.md'],
     patterns: ['status-rail', 'entity-tile', 'dynamic-grid', 'room-overview-sheet', 'modal-sheet'],
     hig: ['Toolbars', 'Layout', 'Color', 'Typography', 'Dynamic Type', 'Motion', 'Accessibility'],

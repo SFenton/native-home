@@ -33,7 +33,7 @@
     states: base.states,
     id: 'dynamic-grid-layout', title: 'DynamicGridLayout (equal heights, spans, grid headers)', area: 'design', status: 'shipped',
     summary: 'The one responsive grid: columns = floor((width + spacing) / (min cell + spacing)) clamped to 1 to max; leftover width is shared; a short row fills its section (one row: equal shares; more rows: whole tracks on the track lines; never across the band; duo-widths, in flight); the minimum scales with Dynamic Type (one column at AX5); equalRowHeights lifts every row to the tallest tile; gridSpan and gridHeader place wide items and section titles; the unfolded Duo rounds the count down to an even number.',
-    source: ['apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassUI/Features/Rooms/RoomScreen.swift'],
+    source: ['apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift'],
     spec: ['.agents/patterns/dynamic-grid.md', '.agents/design/direction-g.md'],
     patterns: ['dynamic-grid', 'entity-tile', 'status-pill'],
     hig: ['Layout', 'Collections', 'Dynamic Type', 'Split views'],

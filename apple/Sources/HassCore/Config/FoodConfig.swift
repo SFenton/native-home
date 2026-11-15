@@ -79,7 +79,12 @@ public enum FoodConfig {
 
     /// Items in `location` that expire within a week (web `expiringSoonCountForLocation`).
     static func expiringCount(location: String, state: (String) -> EntityState?, now: Date, calendar: Calendar) -> Int {
-        guard let list = state(expiringSoonEntityId)?.attributes["expiring_list"]?.array else { return 0 }
+        expiringCount(location: location, entity: state(expiringSoonEntityId), now: now, calendar: calendar)
+    }
+
+    /// The same location projection over an explicitly supplied entity, without a HouseConfig lookup.
+    public static func expiringCount(location: String, entity: EntityState?, now: Date = .now, calendar: Calendar = .current) -> Int {
+        guard let list = entity?.attributes["expiring_list"]?.array else { return 0 }
         return list.filter { item in
             normalizedLocation(item["location"]?.string ?? "") == location && expiresWithinWeek(item, now: now, calendar: calendar)
         }.count

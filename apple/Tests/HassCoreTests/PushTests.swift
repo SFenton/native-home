@@ -767,15 +767,37 @@ struct PushPayloadTests {
 
 @Suite("Push links", .demoHouse)
 struct PushLinkTests {
+    private func dashboard(_ path: String?, _ anchor: String? = nil) -> PushLink {
+        .dashboard(RouteRequest(path: path, anchor: anchor))
+    }
+
     @Test func dashboardLinks() {
-        #expect(PushLink("/sfenton-react-dash/home?path=security#security-system") == .dashboard(path: "security", anchor: "security-system"))
-        #expect(PushLink("/sfenton-react-dash/home?path=overview&user=sam&tab=auto#daily-report") == .dashboard(path: "overview", anchor: "daily-report"))
-        #expect(PushLink("/sfenton-react-dash/home?route=%2Fsfenton-react-dash%2Fgarage%3Fx%3D1") == .dashboard(path: "garage", anchor: nil))
-        #expect(PushLink("/sfenton-react-dash/kitchen") == .dashboard(path: "kitchen", anchor: nil))
-        #expect(PushLink("/sfenton-react-dash/home") == .dashboard(path: "overview", anchor: nil))
-        #expect(PushLink("/sfenton-react-dash/home?path=") == .dashboard(path: "overview", anchor: nil))
-        #expect(PushLink("/") == .dashboard(path: "overview", anchor: nil))
-        #expect(PushLink("https://HA.example.com/sfenton-react-dash/home?path=office", server: server) == .dashboard(path: "office", anchor: nil))
+        #expect(PushLink("/sfenton-react-dash/home?path=security#security-system") == dashboard("security", "security-system"))
+        #expect(PushLink("/sfenton-react-dash/home?path=overview&user=sam&tab=auto#daily-report") == dashboard("overview", "daily-report"))
+        #expect(PushLink("/sfenton-react-dash/home?route=%2Fsfenton-react-dash%2Fgarage%3Fx%3D1") == dashboard("garage"))
+        #expect(PushLink("/sfenton-react-dash/kitchen") == dashboard("kitchen"))
+        #expect(PushLink("https://HA.example.com/sfenton-react-dash/home?path=office", server: server) == dashboard("office"))
+    }
+
+    @Test func aLinkWithNoPathNamesNoRoute() {
+        // The publication's initial page opens; the link itself carries no default route.
+        #expect(PushLink("/sfenton-react-dash/home") == dashboard(nil))
+        #expect(PushLink("/sfenton-react-dash/home?path=") == dashboard(nil))
+        #expect(PushLink("/") == dashboard(nil))
+        #expect(PushLink("/sfenton-react-dash/home#robot-vacuum") == dashboard(nil, "robot-vacuum"))
+    }
+
+    @Test func thePublicationNamesTheHostSlugs() {
+        let prefixes = ["my-dash"]
+        #expect(PushLink("/my-dash/home?path=kitchen", prefixes: prefixes) == dashboard("kitchen"))
+        // Authored prefixes replace the migration default: the old slug is now an ordinary Home Assistant page.
+        #expect(PushLink("/sfenton-react-dash/home?path=kitchen", prefixes: prefixes)
+                == .homeAssistant(path: "/sfenton-react-dash/home"))
+        // Without any, the three slugs the integration has always sent still work.
+        for slug in PushLink.migrationPrefixes {
+            #expect(PushLink("/\(slug)/home?path=kitchen") == dashboard("kitchen"), "\(slug)")
+        }
+        #expect(PushLink.migrationPrefixes == ["sfenton-react-dash", "ha-sfenton-react-dash", "at-a-glance"])
     }
 
     @Test func otherLinks() {
@@ -788,17 +810,37 @@ struct PushLinkTests {
         #expect(PushLink("http://[bad") == nil)
     }
 
-    @Test func destinations() {
-        let cases: [(String, PushDestination)] = [
-            ("overview", .section(.home)), ("", .section(.home)), ("security", .section(.security)),
-            ("thermostat", .section(.climate)), ("chores", .section(.chores)), ("sams-chores", .section(.chores)),
-            ("groceries", .section(.chores)), ("admin", .section(.settings)), ("to-do", .section(.settings)),
-            ("master-bedroom", .homePage("master-bedroom")), ("grocery-list", .homePage("grocery-list")),
-            ("all-food", .homePage("all-food")), ("car", .section(.settings)),
-        ]
-        for (path, destination) in cases {
-            #expect(PushDestination(dashboardPath: path) == destination, "\(path)")
+    /// Every path and anchor a sender uses today (research note 07, section 5.4): the integration's job styles, its documented
+    /// examples and the legacy aliases the owner's own automations may still send. Each reaches a `RouteRequest` unchanged: the
+    /// app carries no table of them; the publication's routes and aliases give them meaning.
+    @Test(arguments: [
+        ("guest-bathroom", nil), ("master-bathroom", nil), ("kitchen", nil), ("garage", nil), ("master-bedroom", nil),
+        ("living-room", "robot-vacuum"), ("music-room", "robot-vacuum"), ("theater-room", "robot-vacuum"),
+        ("master-bedroom", "left-bed"), ("master-bedroom", "right-bed"),
+        ("security", nil), ("vacuums", nil), ("kitchen", nil),
+        ("overview", nil), ("home", nil), ("thermostat", nil), ("climate", nil), ("chores", nil), ("groceries", nil),
+        ("kids-chores", nil), ("settings", nil), ("admin", nil), ("vacation", nil), ("vacation-mode", nil), ("car", nil),
+        ("solo-trip", nil), ("to-do", nil), ("guests-staying-over", nil), ("special-device-modes", nil),
+    ] as [(String, String?)])
+    func everyPathInUseReachesTheRouteRequestUnchanged(path: String, anchor: String?) {
+        let fragment = anchor.map { "#\($0)" } ?? ""
+        let expected = dashboard(path, anchor)
+        for slug in PushLink.migrationPrefixes {
+            #expect(PushLink("/\(slug)/home?path=\(path)\(fragment)") == expected, "\(slug) ?path")
+            // `/<slug>/home` is the dashboard's own page name, so a route called `home` is reached by `?path=` only.
+            if path != "home" { #expect(PushLink("/\(slug)/\(path)\(fragment)") == expected, "\(slug) segment") }
         }
+        #expect(PushLink("/sfenton-react-dash/home?route=\(path)\(fragment)") == expected, "?route")
+        #expect(PushLink("/sfenton-react-dash/home?view=\(path)\(fragment)") == expected, "?view")
+        #expect(RoutePath.isValid(path))
+    }
+
+    @Test func routePathsAreLowerCaseTokens() {
+        #expect(RoutePath.isValid("master-bedroom"))
+        #expect(!RoutePath.isValid("Master"))
+        #expect(!RoutePath.isValid("1room"))
+        #expect(!RoutePath.isValid(""))
+        #expect(!RoutePath.isValid(String(repeating: "a", count: 81)))
     }
 }
 

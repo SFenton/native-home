@@ -17,9 +17,7 @@
   Mock.mount({
     kind: 'page', id: 'chores', title: 'Chores (tab root)', area: 'chores', status: 'shipped',
     summary: 'The Chores tab: Quick Links (navigation tiles whose state line is the open count) to Groceries and each list of chores, then the signed-in resident\'s own chores grouped by Past Due and time of day, as inset lists on the dimmed house photo. Add Task floats at the bottom. Fixture data.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Chores/UKChoresEntry.swift', 'apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift', 'apple/Sources/HassUI/Features/Chores/TodoListSection.swift',
-      'apple/Sources/HassUI/Features/Chores/ChoresModel.swift', 'apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift',
-      'apple/Sources/HassCore/Config/ChoresConfig.swift', 'apple/Sources/HassCore/Todo/TodoItem.swift', 'apple/Sources/HassCore/Todo/TodoRowActions.swift', 'apple/Sources/HassCore/Todo/TodoListController.swift'],
+    source: ['apple/Sources/HassUI/Features/Chores/TodoListSection.swift', 'apple/Sources/HassUI/Features/Chores/ChoresModel.swift', 'apple/Sources/HassCore/Config/ChoresConfig.swift', 'apple/Sources/HassCore/Todo/TodoItem.swift', 'apple/Sources/HassCore/Todo/TodoRowActions.swift', 'apple/Sources/HassCore/Todo/TodoListController.swift'],
     spec: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md'],
     patterns: ['module-list', 'floating-actions', 'dynamic-grid', 'entity-tile', 'page-backdrop', 'header-edge-fade', 'motion'],
     hig: ['Lists and tables', 'Context menus', 'Tab bars', 'Buttons', 'Dynamic Type', 'Color', 'Motion', 'Loading'],

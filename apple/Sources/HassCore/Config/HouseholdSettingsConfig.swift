@@ -154,13 +154,7 @@ public enum HouseholdSettingsConfig {
         public static var tiles: [Tile] { HouseConfigSource.active.read { $0.household.vehicleTiles } ?? [] }
     }
 
-    // MARK: - Every entity
-
-    /// Every toggle entity across the pages, which take optimistic on/off values.
-    public static var toggleEntityIds: [String] {
-        (Admin.securityTiles + Admin.relayTiles + Admin.showSpecificTiles + Admin.autoResetTiles
-            + [SpecialDeviceModes.highAqiTile] + Guests.tiles).map(\.entityId)
-    }
+    // MARK: - Every icon
 
     /// Every MDI icon the pages use, so a test can prove each maps to a real SF Symbol.
     public static var icons: Set<String> {

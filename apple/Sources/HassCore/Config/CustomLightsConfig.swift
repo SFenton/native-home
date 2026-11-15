@@ -16,10 +16,16 @@ public enum CustomLightsConfig {
         public var entityId: String
         public var title: String
         public var id: String { entityId }
+
+        /// A named light or light group.
+        public init(entityId: String, title: String) {
+            self.entityId = entityId
+            self.title = title
+        }
     }
 
     /// An RGB color, 0...255 per channel (Home Assistant `rgb_color`).
-    public struct RGB: Hashable, Sendable {
+    public struct RGB: Hashable, Sendable, Codable {
         public var red: Int
         public var green: Int
         public var blue: Int

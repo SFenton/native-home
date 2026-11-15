@@ -1,0 +1,83 @@
+{
+  "envelopeVersion": "2.0",
+  "publisherId": "synthetic-home-publisher",
+  "revision": 1,
+  "updatedAt": "2026-11-13T10:00:00Z",
+  "publishedAt": "2026-11-13T10:00:00Z",
+  "assetManifestSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "capabilities": [
+    "sh.actions.navigation@1", "sh.backdrop@1", "sh.bindings@1", "sh.chrome@1", "sh.composition@1",
+    "sh.grid@1", "sh.home-light@1", "sh.home-status@1", "sh.home-weather@1", "sh.light-group-tile@1",
+    "sh.page@1", "sh.room-overview-tile@1", "sh.sheet@1", "sh.shell@1", "sh.status-chip@1", "sh.status-rail@1",
+    "sh.symbols@1", "sh.weather-panel@1"
+  ],
+  "document": {
+    "schemaVersion": "2.0", "id": "synthetic-home-primitives", "name": "Home primitive contract fixture",
+    "theme": {"appearance": "dark", "tokens": "canonical@1", "typography": "dynamic-type@1", "background": {"type": "solid", "token": "shell-base@1"}},
+    "navigation": {
+      "initialPageId": "fixture-root", "initialTabId": null, "initialArguments": {}, "tabs": [],
+      "policy": {"type": "canonical-shell@1", "tabSwitch": "preserve-cut@1", "reselect": "pop-root-then-scroll@1", "stackMotion": "canonical-stack@1", "restoration": "scene@1", "selectionWhileModal": "reject"},
+      "chrome": {"groups": [{"id": "fixture-leading", "placement": "leading", "horizontal": "separate-circles@1", "vertical": "separate@1", "items": [
+        {"id": "fixture-menu", "type": "shell-menu", "label": "Sections", "icon": {"type": "sf-symbol", "name": "line.3.horizontal", "rendering": "canonical", "unavailable": "reject"}, "visibility": "root-when-menu-available"}
+      ]}]}
+    },
+    "pages": [
+      {
+        "id": "fixture-root", "title": "Synthetic status and weather", "icon": {"type": "sf-symbol", "name": "house", "rendering": "canonical", "unavailable": "reject"},
+        "parameters": {}, "navigation": {"type": "stack"}, "toolbar": {"type": "inherit"},
+        "layout": {"type": "column", "padding": {"top": {"type": "token", "name": "l"}, "leading": {"type": "token", "name": "zero"}, "bottom": {"type": "token", "name": "l"}, "trailing": {"type": "token", "name": "zero"}}, "spacing": {"type": "token", "name": "xl"}, "maxWidth": {"type": "unbounded"}, "scroll": "content-fit@1", "chrome": "canonical-page@1", "ground": "host"},
+        "components": [
+          {"id": "fixture-rail", "title": "Status", "type": "status-rail", "layout": {"span": 1}, "props": {}, "children": [
+            {"id": "fixture-chip", "title": "Study lights", "type": "status-chip", "layout": {"span": 1},
+              "props": {"sourceId": "fixture-status", "states": [
+                {"state": "active", "appearance": {"icon": {"type": "sf-symbol", "name": "lightbulb.fill", "rendering": "canonical", "unavailable": "reject"}, "fill": {"type": "solid-rgb", "red": 95, "green": 53, "blue": 16}, "glyph": {"type": "solid-rgb", "red": 255, "green": 255, "blue": 255}}}
+              ], "fallback": {"icon": {"type": "sf-symbol", "name": "lightbulb", "rendering": "canonical", "unavailable": "reject"}, "fill": {"type": "standard"}}, "announcement": "none"},
+              "action": {"type": "present", "modalId": "fixture-overview", "arguments": {}, "ifPresented": "reject"}}
+          ]},
+          {"id": "fixture-summary", "title": "Weather", "type": "weather-panel", "layout": {"span": 1},
+            "props": {"sourceId": "fixture-weather", "panel": "summary", "modes": ["condition", "precipitation", "wind"], "initialMode": "condition",
+              "highlights": [], "compactHours": 6, "regularHours": 9,
+              "labels": {"loading": "Loading forecast", "empty": "No forecast", "stale": "Saved forecast - offline", "error": "Forecast unavailable", "open": "Open forecast."}},
+            "action": {"type": "present", "modalId": "fixture-forecast", "arguments": {}, "ifPresented": "reject"}}
+        ]
+      },
+      {
+        "id": "fixture-detail", "title": "Study lights", "icon": {"type": "sf-symbol", "name": "lightbulb", "rendering": "canonical", "unavailable": "reject"},
+        "parameters": {}, "navigation": {"type": "stack"}, "toolbar": {"type": "inherit"},
+        "layout": {"type": "column", "padding": {"top": {"type": "token", "name": "l"}, "leading": {"type": "token", "name": "l"}, "bottom": {"type": "token", "name": "l"}, "trailing": {"type": "token", "name": "l"}}, "spacing": {"type": "token", "name": "l"}, "maxWidth": {"type": "unbounded"}, "scroll": "content-fit@1", "chrome": "canonical-page@1", "ground": "host"},
+        "components": [{"id": "fixture-light", "title": "Desk", "type": "light-group-tile", "layout": {"span": 1}, "props": {"sourceId": "fixture-light-source"}}]
+      }
+    ],
+    "modals": [
+      {
+        "id": "fixture-overview", "title": "Lights", "icon": {"type": "sf-symbol", "name": "lightbulb", "rendering": "canonical", "unavailable": "reject"},
+        "parameters": {}, "toolbar": {"type": "replace", "groups": []},
+        "layout": {"type": "column", "padding": {"top": {"type": "token", "name": "l"}, "leading": {"type": "token", "name": "l"}, "bottom": {"type": "token", "name": "l"}, "trailing": {"type": "token", "name": "l"}}, "spacing": {"type": "token", "name": "l"}, "maxWidth": {"type": "unbounded"}, "scroll": "content-fit@1", "chrome": "canonical-page@1", "ground": "host"},
+        "presentation": {"type": "sheet", "width": "page", "height": {"type": "full"}, "appearance": "dark", "placement": "canonical-sheet@1", "grabber": "canonical", "navigation": "local-stack@1", "close": {"type": "close", "visibility": "all-depths", "placement": "trailing", "rail": "automatic", "guard": {"type": "none"}}},
+        "components": [{"id": "fixture-grid", "title": "Rooms", "type": "tile-grid", "layout": {"span": 1},
+          "props": {"minimum": "tile@1", "maxColumns": 4, "spacing": {"type": "token", "name": "m"}, "equalRowHeights": true, "shortRow": "share", "fold": "container"},
+          "children": [{"id": "fixture-room", "title": "Study", "type": "room-overview-tile", "layout": {"span": 1},
+            "props": {"sourceId": "fixture-status", "states": [], "fallback": {"icon": {"type": "sf-symbol", "name": "lightbulb", "rendering": "canonical", "unavailable": "reject"}, "fill": {"type": "standard"}}, "announcement": "none", "hidesContactSubtitle": false},
+            "action": {"type": "push", "pageId": "fixture-detail", "arguments": {}, "origin": "sender", "duplicate": "reuse-nearest"}}]
+        }]
+      },
+      {
+        "id": "fixture-forecast", "title": "Forecast", "icon": {"type": "sf-symbol", "name": "cloud.sun", "rendering": "canonical", "unavailable": "reject"},
+        "parameters": {}, "toolbar": {"type": "replace", "groups": []},
+        "layout": {"type": "column", "padding": {"top": {"type": "token", "name": "l"}, "leading": {"type": "token", "name": "l"}, "bottom": {"type": "token", "name": "l"}, "trailing": {"type": "token", "name": "l"}}, "spacing": {"type": "token", "name": "l"}, "maxWidth": {"type": "unbounded"}, "scroll": "content-fit@1", "chrome": "canonical-page@1", "ground": "host"},
+        "presentation": {"type": "sheet", "width": "page", "height": {"type": "full"}, "appearance": "dark", "placement": "canonical-sheet@1", "grabber": "canonical", "navigation": "local-stack@1", "close": {"type": "close", "visibility": "all-depths", "placement": "trailing", "rail": "automatic", "guard": {"type": "none"}}},
+        "components": [
+          {"id": "fixture-hourly", "title": "Conditions", "type": "weather-panel", "layout": {"span": 1}, "props": {"sourceId": "fixture-weather", "panel": "hourly", "modes": ["wind", "condition", "precipitation"], "initialMode": "condition", "highlights": [], "compactHours": 5, "regularHours": 7, "labels": {"loading": "Loading conditions", "empty": "No hours", "stale": "Saved forecast - offline", "error": "Forecast unavailable", "open": "Open forecast."}}},
+          {"id": "fixture-daily", "title": "Next Seven Days", "type": "weather-panel", "layout": {"span": 1}, "props": {"sourceId": "fixture-weather", "panel": "daily", "modes": ["condition", "precipitation", "wind"], "initialMode": "condition", "highlights": [], "compactHours": 5, "regularHours": 7, "labels": {"loading": "Loading days", "empty": "No days", "stale": "Saved forecast - offline", "error": "Forecast unavailable", "open": "Open forecast."}}},
+          {"id": "fixture-highlights", "title": "Highlights", "type": "weather-panel", "layout": {"span": 1}, "props": {"sourceId": "fixture-weather", "panel": "highlights", "modes": ["condition"], "initialMode": "condition", "highlights": ["aqi", "precipitation", "wind", "humidity", "sun"], "compactHours": 5, "regularHours": 7, "labels": {"loading": "Loading highlights", "empty": "No highlights", "stale": "Saved forecast - offline", "error": "Forecast unavailable", "open": "Open forecast."}}}
+        ]
+      }
+    ],
+    "dataSources": [
+      {"id": "fixture-status", "kind": "model", "model": "home-status@1", "inputs": {"projection": "lights", "format": "summary", "entityIds": [{"type": "literal", "value": "light.demo_study"}], "awayEntityIds": []}, "labels": {"idle": "All Off", "active": "On", "countSuffix": " On", "loading": "Loading", "unavailable": "Unavailable", "empty": "No lights", "hidden": "Hidden"}},
+      {"id": "fixture-weather", "kind": "model", "model": "home-weather@1", "inputs": {"weatherEntityId": {"type": "literal", "value": "weather.demo_forecast"}, "sunEntityId": {"type": "literal", "value": "sun.demo_sun"}, "airQualityEntityId": {"type": "literal", "value": "sensor.demo_aqi"}, "units": "source@1"}},
+      {"id": "fixture-light-source", "kind": "model", "model": "home-light@1", "inputs": {"entityId": {"type": "literal", "value": "light.demo_study"}}}
+    ],
+    "variables": {}, "assets": [], "liveActivities": []
+  }
+}

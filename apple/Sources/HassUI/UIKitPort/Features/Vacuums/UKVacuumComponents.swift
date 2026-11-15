@@ -61,15 +61,6 @@ func ukVStack(_ views: [UIView], spacing: CGFloat = 0) -> UIStackView {
     return stack
 }
 
-/// A view that sizes itself by Auto Layout when a parent asks `sizeThatFits` (a flow or grid child).
-class UKSelfFittingView: UIView {
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        let unbounded = size.width >= CGFloat.greatestFiniteMagnitude / 2
-        let target = CGSize(width: unbounded ? UIView.layoutFittingCompressedSize.width : size.width, height: UIView.layoutFittingCompressedSize.height)
-        return systemLayoutSizeFitting(target, withHorizontalFittingPriority: unbounded ? .fittingSizeLevel : .required, verticalFittingPriority: .fittingSizeLevel)
-    }
-}
-
 /// Hosts a hand-laid view that measures itself by width (`UKGridMeasuring`) and gives it an Auto Layout height, so grids, flows and
 /// section headers can sit in a stack view.
 @MainActor
@@ -144,211 +135,13 @@ final class UKVacuumDescription: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 }
 
-/// A card on the sheet's cell colour at the module radius (`vacuumGroup()`).
-@MainActor
-final class UKVacuumGroupCard: UIView {
-    init(_ content: UIView, insets: UIEdgeInsets = UIEdgeInsets(top: HassTokens.Spacing.l, left: HassTokens.Spacing.l, bottom: HassTokens.Spacing.l, right: HassTokens.Spacing.l)) {
-        super.init(frame: .zero)
-        backgroundColor = UKDesignSurface.sheetCell
-        layer.cornerRadius = HassTokens.Radius.module
-        layer.cornerCurve = .continuous
-        addSubview(content)
-        content.ukPin(to: self, insets: insets)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-}
-
-// MARK: - Order chip
-
-/// A room's cleaning order: a numeral on a disc (`VacuumOrderBadge`).
-@MainActor
-final class UKVacuumOrderBadge: UIView {
-    private let label = UILabel()
-    private var size: NSLayoutConstraint!
-
-    init(order: Int) {
-        super.init(frame: .zero)
-        size = widthAnchor.constraint(greaterThanOrEqualToConstant: 24)
-        backgroundColor = UKVacuumStyle.selectedInk
-        label.text = "\(order)"
-        label.textColor = UKVacuumStyle.selectedFill
-        label.adjustsFontForContentSizeCategory = true
-        label.font = .ukFont(.footnote, weight: .bold, monospacedDigit: true)
-        label.textAlignment = .center
-        addSubview(label)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: topAnchor), label.bottomAnchor.constraint(equalTo: bottomAnchor),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor), label.trailingAnchor.constraint(equalTo: trailingAnchor),
-            size, heightAnchor.constraint(greaterThanOrEqualToConstant: 24), heightAnchor.constraint(equalTo: widthAnchor),
-        ])
-        isAccessibilityElement = false
-        accessibilityElementsHidden = true
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKVacuumOrderBadge, _) in view.rescale() }
-        rescale()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    private func rescale() {
-        size.constant = UIFontMetrics(forTextStyle: .subheadline).scaledValue(for: 24, compatibleWith: traitCollection)
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        layer.cornerRadius = bounds.height / 2
-    }
-}
-
-/// A selected room in cleaning order: a capsule with a numbered badge (`VacuumOrderChip`).
-@MainActor
-final class UKVacuumOrderChip: UKSelfFittingView {
-    init(order: Int, title: String) {
-        super.init(frame: .zero)
-        backgroundColor = UKVacuumStyle.selectedFill
-        let label = UILabel.uk(.body, weight: .semibold, ink: UKVacuumStyle.selectedInk)
-        label.font = UIFont.ukFont(.subheadline, weight: .semibold)
-        label.text = title
-        let stack = UIStackView(arrangedSubviews: [UKVacuumOrderBadge(order: order), label])
-        stack.axis = .horizontal
-        stack.alignment = .center
-        stack.spacing = 6
-        stack.isUserInteractionEnabled = false
-        addSubview(stack)
-        stack.ukPin(to: self, insets: UIEdgeInsets(top: 3, left: 3, bottom: 3, right: 10))
-        isAccessibilityElement = true
-        accessibilityLabel = "\(order). \(title)"
-        layer.cornerCurve = .continuous
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        layer.cornerRadius = bounds.height / 2
-    }
-}
-
-// MARK: - Action button
-
-/// The grey 50 pt capsule for commands that are not the screen's primary action (`VacuumSecondaryButtonStyle`). The label stays in the
-/// primary ink; the glyph carries the tone.
-@MainActor
-final class UKVacuumSecondaryButton: UIControl {
-    private let glyph = UIImageView()
-    private let label = UILabel.uk(.body, weight: .semibold, ink: UKDesignInk.primary, alignment: .center)
-    var onTap: (() -> Void)?
-
-    init(title: String, symbol: String, tint: UIColor, onTap: @escaping () -> Void) {
-        self.onTap = onTap
-        super.init(frame: .zero)
-        backgroundColor = UKVacuumStyle.secondaryFill
-        layer.cornerCurve = .continuous
-        label.font = UIFont.ukFont(.body, weight: .semibold)
-        label.text = title
-        glyph.tintColor = tint
-        glyph.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(font: UIFont.ukFont(.body, weight: .semibold)))
-        glyph.setContentHuggingPriority(.required, for: .horizontal)
-        glyph.setContentCompressionResistancePriority(.required, for: .horizontal)
-        let stack = UIStackView(arrangedSubviews: [glyph, label])
-        stack.axis = .horizontal
-        stack.alignment = .center
-        stack.spacing = HassTokens.Spacing.s
-        stack.isUserInteractionEnabled = false
-        addSubview(stack)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: HassTokens.Spacing.s),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -HassTokens.Spacing.s),
-            stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: HassTokens.Spacing.l),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -HassTokens.Spacing.l),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: UKPrimaryButtonStyle.height),
-        ])
-        addTarget(self, action: #selector(tapped), for: .touchUpInside)
-        isAccessibilityElement = true
-        accessibilityTraits = .button
-        accessibilityLabel = title
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    @objc private func tapped() { onTap?() }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        UKWrapWidth.set(label, in: self, reserving: 2 * HassTokens.Spacing.l + glyph.intrinsicContentSize.width + HassTokens.Spacing.s)
-        layer.cornerRadius = bounds.height / 2
-    }
-
-    override var isHighlighted: Bool { didSet { updateAlpha() } }
-    override var isEnabled: Bool { didSet { updateAlpha() } }
-
-    private func updateAlpha() { alpha = isEnabled ? (isHighlighted ? 0.75 : 1) : 0.45 }
-
-    override var accessibilityTraits: UIAccessibilityTraits {
-        get { isEnabled ? .button : [.button, .notEnabled] }
-        set {}
-    }
-}
-
-/// A command button (`VacuumActionButton`): the screen's one primary capsule for a primary action such as Clean, else a grey 50 pt
-/// capsule with a toned glyph. The action's detail shows under it and is always the button's spoken value.
-@MainActor
-final class UKVacuumActionButton: UIStackView {
-    init(action: VacuumController.Action, identifier: String? = nil, showsDetail: Bool = true, perform: @escaping () -> Void) {
-        super.init(frame: .zero)
-        axis = .vertical
-        alignment = .fill
-        spacing = HassTokens.Spacing.xs
-        let id = identifier ?? "vacuum.action.\(action.kind.rawValue)"
-        let button: UIView
-        if action.tone == .primary {
-            let primary = UKPrimaryButton(action.title, systemImage: UKVacuumStyle.symbol(action.icon)) {
-                UKTapFeedback.tap()
-                perform()
-            }
-            primary.isEnabled = !action.isDisabled
-            primary.accessibilityIdentifier = id
-            primary.accessibilityValue = action.detail ?? ""
-            button = primary
-        } else {
-            let secondary = UKVacuumSecondaryButton(title: action.title, symbol: UKVacuumStyle.symbol(action.icon), tint: UKVacuumStyle.color(action.tone)) {
-                UKTapFeedback.tap()
-                perform()
-            }
-            secondary.isEnabled = !action.isDisabled
-            secondary.accessibilityIdentifier = id
-            secondary.accessibilityValue = action.detail ?? ""
-            button = secondary
-        }
-        addArrangedSubview(button)
-        if showsDetail, let detail = action.detail {
-            let label = UILabel.uk(.footnote, ink: UKDesignInk.secondary)
-            label.text = detail
-            label.isAccessibilityElement = false
-            addArrangedSubview(.ukInset(label, horizontal: HassTokens.Spacing.l))
-        }
-    }
-
-    @available(*, unavailable)
-    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
-}
-
-// MARK: - Setting row
-
 /// One select as a pop-up row (`VacuumSettingRow`; direction G, Controls: Choosing one option): the title at the leading edge, the value and
 /// a pop-up chevron in the action blue at the trailing edge, for Mode, Fan, Water and Passes alike (owner, 2026-10-28: no segmented
 /// controls). The long description is the row's VoiceOver hint. Only the trailing value is the menu's button: a menu hides its source
 /// while it is open, so the whole row must not be the label (owner report, 2026-10-13). At accessibility sizes the menu drops under the title.
 @MainActor
 final class UKVacuumSettingRow: UIView {
-    private let setting: VacuumController.Setting
+    private var setting: VacuumController.Setting
     private let onSelect: (String) -> Void
     private var content: UIView?
 
@@ -363,6 +156,13 @@ final class UKVacuumSettingRow: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     private var symbol: String { UKVacuumStyle.symbol(setting.icon) }
+
+    /// Retains the row while a setting value or availability changes.
+    func update(_ setting: VacuumController.Setting) {
+        guard self.setting != setting else { return }
+        self.setting = setting
+        rebuild()
+    }
 
     /// The canonical row with the menu as its accessory (under the text at accessibility sizes); the menu carries the title as its name.
     private func rebuild() {
@@ -453,9 +253,8 @@ final class UKVacuumSettingsGroup: UIView {
         }
         let changed = zip(entries, rows).contains { $0.row.isShown != $1.isShown }
         for (index, row) in rows.enumerated() where entries[index].row != row {
-            let shownChanged = entries[index].row.isShown != row.isShown
+            entries[index].view.update(row.setting)
             entries[index].row = row
-            if !shownChanged && entries[index].row.setting != row.setting { build(rows); return }
         }
         guard changed else { return }
         let reduce = UKDesign.reduceMotion
@@ -642,14 +441,6 @@ final class UKVacuumActionTile: UIStackView, UKGridMeasuring {
     @available(*, unavailable)
     required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
 }
-
-/// A set of action tiles side by side (Pause and Stop, Edit Area and Clear Area), stacked at accessibility sizes (`VacuumTileRow`).
-@MainActor
-func ukVacuumTileRow(_ tiles: [UIView]) -> UIView {
-    UKVacuumTileGrid(views: tiles, minWidth: 150, maxColumns: 2)
-}
-
-// MARK: - Choice tile
 
 /// A Rooms or Auto-Clean tile (`VacuumChoiceTileView`; the selection tile, `.agents/design/action-navigation-tiles.md`, rollout A): chosen is
 /// the filled face with the numbered order disc (Rooms) or a check (Auto-Clean), unchosen is dark with an empty ring. It is one element to

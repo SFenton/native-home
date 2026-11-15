@@ -24,7 +24,7 @@
   Mock.mount({
     kind: 'modal', id: 'wake-light-editor', title: 'Wake alarm editor (pushed)', area: 'bedroom', status: 'shipped',
     summary: 'Adds or edits one native wake alarm, pushed inside the Wake-Light sheet: Scheduled or One-Time, a name, days (scheduled) or a date (one-time), the wake time, the light ramp, Enabled, and for a new alarm "Add to" each bed. Save is disabled until something changed; Delete (existing) asks first.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassCore/Bedroom/WakeLightContract.swift', 'apple/Sources/HassCore/Bedroom/BedroomDevices.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift'],
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassCore/Bedroom/WakeLightContract.swift', 'apple/Sources/HassCore/Bedroom/BedroomDevices.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls.swift'],
     spec: ['.agents/patterns/bedroom-devices.md', '.agents/patterns/schedule-date-fields.md'],
     patterns: ['bedroom-devices', 'schedule-date-fields', 'modal-sheet', 'option-picker'],
     hig: ['Sheets', 'Segmented controls', 'Pickers', 'Text fields', 'Toggles', 'Action sheets'],

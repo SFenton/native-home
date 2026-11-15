@@ -20,14 +20,8 @@
       },
       "parallelizable": false,
       "selectedTests": [
-        "FastScrollPerformanceTests",
-        "HouseLayoutRevealPerformanceTests",
         "LaunchPerformanceTests",
-        "LayoutChangePerformanceTests",
-        "NavigationPerformanceTests",
-        "PerformanceJourneyTests",
-        "ScrollSurfacesPerformanceTests",
-        "WeatherTickerPerformanceTests"
+        "PerformanceJourneyTests"
       ]
     }
   ],

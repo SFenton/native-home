@@ -1,4 +1,6 @@
+import CryptoKit
 import Foundation
+import FentonActivityModel
 import HassCore
 import HassDesign
 import HassTelemetry
@@ -30,13 +32,16 @@ public final class AppSession {
         return false
     }
 
+    /// An async consumer belongs to this exact account connection, not a later sign-in.
+    func isCurrentConnection(_ connection: HassConnection) -> Bool {
+        guard case .signedIn(let current, _) = phase else { return false }
+        return current === connection
+    }
+
     /// Who was signed in when the session ended because Home Assistant rejected the refresh token, so sign-in can say
     /// "Welcome back, Alex" and ask for the password alone. Nil after a deliberate sign-out, a fresh install, or Use a
     /// Different Account.
     public private(set) var expiredAccount: RememberedAccount?
-
-    /// The blurred house photo behind every page, for the signed-in server (``HouseBackdrop``).
-    @ObservationIgnored private(set) var backdrop: HouseBackdropStore?
 
     /// Token source for the signed-in server, used by the Home Assistant settings web view.
     @ObservationIgnored public private(set) var tokens: TokenManager?
@@ -58,10 +63,19 @@ public final class AppSession {
     /// (`.agents/design/motion.md`). `RootView` puts it in the environment.
     public let motion: MotionPolicy
 
-    /// The app's pages in system search; filled when a session starts and emptied at sign-out.
+    /// The app's pages in system search: one item per authored route the person is offered, indexed when a publication is
+    /// accepted and emptied at sign-out.
     @ObservationIgnored private let spotlight: any SpotlightIndexing
-    /// Re-indexes the rooms when the house document changes; running while signed in.
-    @ObservationIgnored private var spotlightReindexer: SpotlightReindexer?
+    /// The routes the person is offered now: what Spotlight indexes and what Siri and Shortcuts list. Nil before a
+    /// publication is accepted and after sign-out.
+    @ObservationIgnored public private(set) var routeCatalog: RouteCatalog?
+    /// What the route catalog knows about the signed-in person, for routes with a `visibleWhen`.
+    @ObservationIgnored private var routeViewer = RouteVisibility.Viewer()
+    /// The accepted publication's revision.
+    @ObservationIgnored private var publishedRevision = 0
+    /// Runs after the offered routes changed, so the app can refresh its App Shortcut parameters
+    /// (`updateAppShortcutParameters()`). The app sets it once at launch.
+    @ObservationIgnored public var routeCatalogDidChange: (@MainActor () -> Void)?
 
     /// The people's photos from Home Assistant, cached on the device while signed in and deleted at sign-out
     /// (`.agents/patterns/avatar.md`). `RootView` puts it in the environment.
@@ -78,9 +92,30 @@ public final class AppSession {
     @ObservationIgnored private let remembered: RememberedAccountStore
     /// The server the build names, a starting point for the sign-in form and the debug token launch; never the server of a saved sign-in.
     @ObservationIgnored private let buildDefault: HassServer?
+    /// The Home Assistant user the cached UI publication belongs to: the saved record's user after a cold-launch restore, the
+    /// verified user once the socket says who is signed in. Nothing is persisted here; the record lives in the publication cache.
+    @ObservationIgnored private var publicationUserID: String?
+    @ObservationIgnored private let extensionStore: ExtensionPresentationStore?
+    /// The saved route catalog Siri, Shortcuts and a cold-launch Spotlight tap read; beside ``extensionStore``.
+    @ObservationIgnored private var routeCatalogStore: RouteCatalogStore? { extensionStore.map(RouteCatalogStore.init(base:)) }
+    @ObservationIgnored private var extensionSessionID: String?
+    @ObservationIgnored private var systemCleanup: Task<Void, Never>?
+    @ObservationIgnored private var systemStart: Task<Void, Never>?
+    public private(set) var publishedExtensionRoutes: [NativeExtensionPresentation.Route] = []
+    #if os(iOS)
+    @ObservationIgnored private var productionRuntime: UKServerUIProductionRuntime?
 
-    /// Creates the session, resuming a saved sign-in if one exists. Restoring is synchronous and
-    /// network-free, so the first frame already shows the cached Home screen.
+    /// All windows share one server publication store, but retain their own native routes.
+    func productionUI(connection: HassConnection) -> UKServerUIProductionRuntime {
+        if let productionRuntime { return productionRuntime }
+        let runtime = UKServerUIProductionRuntime(session: self, connection: connection)
+        productionRuntime = runtime
+        return runtime
+    }
+    #endif
+
+    /// Restores OAuth synchronously without a network request. The product root restores its last-good publication from the
+    /// disk cache before its first frame, then follows the server's publication over the one connection.
     /// - Parameters:
     ///   - tokenStore: Where the refresh token lives; shared with the notification service extension.
     ///   - snapshotCache: The disk snapshot of entity states.
@@ -93,6 +128,7 @@ public final class AppSession {
     ///   - remembered: Where the last username and the person's name are kept (``expiredAccount``).
     ///   - avatars: The people's photos; nil is the app's (Application Support), or a throwaway directory in a host test.
     ///   - buildDefault: The server the build names; tests inject one to prove a saved sign-in keeps its own.
+    ///   - launchArguments: Debug preview launches leave the saved account untouched and never start its connection.
     public init(tokenStore: TokenStore = KeychainTokenStore(accessGroup: KeychainTokenStore.sharedAccessGroup),
                 snapshotCache: EntitySnapshotCache = .init(), houseConfigCache: HouseConfigCache = .init(),
                 push: PushCoordinator = .inert(),
@@ -101,8 +137,11 @@ public final class AppSession {
                 motion: MotionPolicy = MotionPolicy(),
                 remembered: RememberedAccountStore = RememberedAccountStore(),
                 avatars: PersonAvatars? = nil,
-                buildDefault: HassServer? = HassServer.buildDefault()) {
+                buildDefault: HassServer? = HassServer.buildDefault(),
+                launchArguments: [String] = ProcessInfo.processInfo.arguments,
+                extensionStore: ExtensionPresentationStore? = nil) {
         self.buildDefault = buildDefault
+        self.extensionStore = extensionStore
         let avatars = avatars ?? Self.defaultAvatars()
         self.avatars = avatars
         self.spotlight = spotlight
@@ -115,7 +154,11 @@ public final class AppSession {
         self.location = location
         self.setup = SetupCoordinator(push: push, location: location)
         self.liveActivities = liveActivities
+        // A Spotlight tap names a route id; before a publication is restored the saved catalog answers.
+        push.routeCatalog = { [weak self] in self?.routeCatalog ?? self?.routeCatalogStore?.read() }
         #if DEBUG
+        if ServerUIPreviewLaunch.isEnabled(arguments: launchArguments)
+            || GalleryFixtureLaunch.isEnabled(arguments: launchArguments) { return }
         // UI tests start signed out: FENTON_UITEST_RESET=1 clears the saved sign-in and snapshot, and the location
         // screen is offered again.
         if ProcessInfo.processInfo.environment["FENTON_UITEST_RESET"] == "1" {
@@ -179,8 +222,16 @@ public final class AppSession {
     }
     #endif
 
+    /// Why a sign-in could not complete.
+    public enum SignInError: Error, Equatable {
+        /// A session is already running; sign-in is for a signed-out app.
+        case alreadySignedIn
+    }
+
     /// Completes sign-in with fresh tokens.
+    /// - Throws: ``SignInError/alreadySignedIn`` when a session is already running, or the token store's failure.
     public func didSignIn(server: HassServer, tokens: AuthTokens) throws {
+        guard !isSignedIn else { throw SignInError.alreadySignedIn }
         try tokenStore.save(StoredCredentials(server: server, refreshToken: tokens.refreshToken))
         expiredAccount = nil
         start(server: server, tokens: TokenManager(store: tokenStore, initial: tokens))
@@ -221,6 +272,88 @@ public final class AppSession {
     /// Why a confirmed sign-out stayed signed in.
     public struct SignOutFailure: Error, Equatable {}
 
+    // MARK: - Publication delivery
+
+    /// Why a publication could not be delivered to the extensions.
+    enum DeliveryError: Error, Equatable, ServerUIDiagnosable {
+        /// No session is running.
+        case signedOut
+
+        var diagnostic: String { "delivery: \(self)" }
+    }
+
+    /// Validated target copy is delivered only by the publication commit, never by fetch or parse.
+    func deliverExtensions(_ publication: ServerUICompositionPublication, applying: () throws -> Void = {}) throws {
+        guard isSignedIn else { throw DeliveryError.signedOut }
+        // A launch with no extension store or session (a debug journey, a container that failed to open) has no widget or Live
+        // Activity to feed: the presentation is not written and the layout still commits. Never a reason to reject it.
+        var previous: ExtensionPresentationSnapshot?
+        if let extensionStore {
+            do { previous = try extensionStore.read() }
+            catch { Telemetry.event("serverui.extensionPresentationRejected", detail: "saved presentation invalid") }
+        }
+        do {
+            if let extensionStore, let extensionSessionID {
+                try extensionStore.write(.init(sessionID: extensionSessionID, revision: publication.revision,
+                    activities: publication.document.liveActivities, targets: publication.document.extensions))
+            }
+            try applying()
+        } catch {
+            if let extensionStore, let extensionSessionID {
+                do {
+                    if let previous { try extensionStore.write(previous) }
+                    else { try extensionStore.clearPresentation(sessionID: extensionSessionID) }
+                } catch { Telemetry.event("serverui.extensionPresentationRollbackFailed"); throw error }
+            }
+            throw error
+        }
+        publishedExtensionRoutes = publication.document.extensions?.routes ?? []
+        publishedRevision = publication.revision
+        push.updateLinkPrefixes(publication.document.extensions?.linkPrefixes)
+        publishRouteCatalog()
+    }
+
+    /// Records who is signed in for routes that carry a `visibleWhen`, and offers the routes that now hold.
+    /// - Parameters:
+    ///   - userID: Home Assistant's user id.
+    ///   - isAdmin: Whether the user is an administrator, when known.
+    func setRouteViewer(userID: String, isAdmin: Bool?) {
+        let viewer = RouteVisibility.Viewer(userId: userID, isAdmin: isAdmin)
+        guard viewer != routeViewer else { return }
+        routeViewer = viewer
+        publishRouteCatalog()
+    }
+
+    /// Builds the catalog of the routes the person is offered; when it differs from the last one, saves it for Siri and
+    /// Shortcuts, indexes it in Spotlight and tells the app to refresh its shortcut parameters. Writes no more than once for a
+    /// publication or viewer that changes nothing visible.
+    private func publishRouteCatalog() {
+        guard isSignedIn else { return }
+        let sessionID = extensionSessionID ?? String(repeating: "0", count: 64)
+        let catalog = RouteCatalog(sessionID: sessionID, revision: max(publishedRevision, 1), routes: publishedExtensionRoutes,
+                                   viewer: routeViewer)
+        guard catalog.routes != routeCatalog?.routes else { return }
+        routeCatalog = catalog
+        if let routeCatalogStore {
+            do { try routeCatalogStore.write(catalog) }
+            catch { Telemetry.event("serverui.routeCatalogWriteFailed") }
+        }
+        spotlight.indexPages(SpotlightCatalog.entries(for: catalog))
+        routeCatalogDidChange?()
+    }
+
+    /// Records which Home Assistant user the cached publication belongs to (the saved record's after a restore, the verified
+    /// user's after the socket authenticates).
+    func setPublicationUser(_ userID: String, connection: HassConnection) {
+        guard isCurrentConnection(connection) else { return }
+        publicationUserID = userID
+    }
+
+    /// The user the cached publication was delivered to, before the socket has said who is signed in.
+    func cachedPublicationUserID(for connection: HassConnection) -> String? {
+        isCurrentConnection(connection) ? publicationUserID : nil
+    }
+
     /// Signs out only once Home Assistant confirms this phone is off the user's person (already off counts). Any
     /// failure throws and leaves the session signed in, so the caller shows its alert and the person can retry.
     /// Debug builds take `FENTON_SIGNOUT_FAIL=1` to fail without a server (journeys).
@@ -228,20 +361,41 @@ public final class AppSession {
         #if DEBUG
         if ProcessInfo.processInfo.environment["FENTON_SIGNOUT_FAIL"] == "1" { throw SignOutFailure() }
         #endif
-        if case let .signedIn(connection, _) = phase, let location, location.linksPresence {
+        guard case let .signedIn(owner, _) = phase else { return }
+        if let location, location.linksPresence {
             do {
-                let user = try await connection.currentUser()
-                try await location.unlinkPresence(user: user, api: connection)
+                let user = try await owner.currentUser()
+                guard isCurrentConnection(owner) else { throw SignOutFailure() }
+                try await location.unlinkPresence(user: user, api: owner)
             } catch {
                 throw SignOutFailure()
             }
         }
+        guard isCurrentConnection(owner) else { throw SignOutFailure() }
         signOut()
     }
 
     /// Signs out: stops pushes to this phone, then revokes the refresh token; clears the Keychain, cache and
     /// store. Home Assistant gets the empty push registration before the token is revoked (contract v1, rule 2).
     public func signOut() {
+        systemStart?.cancel()
+        systemStart = nil
+        push.invalidateSession()
+        if let extensionSessionID {
+            do { try extensionStore?.endSession(extensionSessionID) }
+            catch { Telemetry.event("serverui.extensionPresentationCleanupFailed") }
+        }
+        extensionSessionID = nil
+        publishedExtensionRoutes = []
+        publishedRevision = 0
+        routeViewer = RouteVisibility.Viewer()
+        routeCatalog = nil
+        #if os(iOS)
+        productionRuntime?.endSession()
+        productionRuntime = nil
+        #endif
+        publicationUserID = nil
+        setup.sessionEnded()
         if case let .signedIn(connection, _) = phase {
             connection.disconnect()
             connection.store.reset()
@@ -249,9 +403,6 @@ public final class AppSession {
         let stored = tokenStore.load()
         tokenStore.clear()
         snapshotCache.clear()
-        // Before the document is cleared, or the signed-out person's index would be built from it.
-        spotlightReindexer?.stop()
-        spotlightReindexer = nil
         houseConfig?.clear()
         houseConfig = nil
         if let observer = houseConfigReconnectObserver { NotificationCenter.default.removeObserver(observer) }
@@ -265,16 +416,18 @@ public final class AppSession {
         // Remembered sheet heights and chrome go too (owner, 2026-10-26: "we clear everything on sign-out").
         SheetMemory.clearAll()
         tokens = nil
-        backdrop = nil
         spotlight.removeAll()
+        routeCatalogDidChange?()
         // A second sign-in plays its arrival again, and the signed-out screen its intro.
         motion.reset()
         phase = .signedOut
         let push = push, liveActivities = liveActivities
-        Task {
+        let priorCleanup = systemCleanup
+        systemCleanup = Task {
+            await priorCleanup?.value
             // Nothing of the signed-in person stays on a Lock Screen.
             await liveActivities?.sessionEnded()
-            await push.sessionEnded()
+            await push.finishSessionEnd()
             await AppIconBadgeSync.shared.clear()
             if let stored { await HassLoginFlow.revoke(server: stored.server, refreshToken: stored.refreshToken) }
         }
@@ -295,6 +448,16 @@ public final class AppSession {
     }
 
     private func start(server: HassServer, tokens: TokenManager) {
+        publicationUserID = nil
+        if let credentials = tokenStore.load(), credentials.server == server, let extensionStore {
+            let id = Self.extensionSessionID(credentials)
+            do {
+                try extensionStore.beginSession(id)
+                extensionSessionID = id
+            } catch {
+                Telemetry.event("serverui.extensionPresentationSessionFailed")
+            }
+        }
         // At home the socket uses Home Assistant's home network address instead of the public URL (LocalServerRoute).
         let route = LocalServerRoute.isEnabled() ? LocalServerRoute(server: server) : nil
         let connection = HassConnection(server: server, tokens: tokens, store: EntityStore(), snapshotCache: snapshotCache, route: route,
@@ -318,19 +481,32 @@ public final class AppSession {
             }
         }
         self.tokens = tokens
-        push.sessionStarted(server: server) { try await tokens.validAccessToken() }
-        liveActivities?.sessionStarted()
-        // Created before the phase changes so the first signed-in frame already has the cached photo.
-        backdrop = HouseBackdropStore.session(for: server)
+        if let systemCleanup {
+            systemStart = Task { [weak self] in
+                await systemCleanup.value
+                guard !Task.isCancelled, let self, self.isCurrentConnection(connection) else { return }
+                self.push.sessionStarted(server: server) { try await tokens.validAccessToken() }
+                self.liveActivities?.sessionStarted()
+            }
+        } else {
+            push.sessionStarted(server: server) { try await tokens.validAccessToken() }
+            liveActivities?.sessionStarted()
+        }
         // The Bearer token goes only to this server's host (`PersonAvatarSyncer.sendsToken`).
         avatars.start(entityStore: connection.store,
                       server: .init(baseURL: server.baseURL, accessToken: { try? await tokens.validAccessToken() }))
         phase = .signedIn(connection, lifecycle)
-        // Indexes now and again whenever the house document changes the rooms (the cache copy lands first, the server's later).
-        spotlightReindexer?.stop()
-        let reindexer = SpotlightReindexer(source: .shared, indexer: spotlight)
-        spotlightReindexer = reindexer
-        reindexer.start()
         lifecycle.didBecomeActive()
     }
+
+    /// Names this OAuth session for the extensions' presentation store: a digest of the origin and the refresh token, derived on
+    /// demand and never stored. A new sign-in is a new session, so the previous one's presentation can never be read again.
+    static func extensionSessionID(_ credentials: StoredCredentials) -> String {
+        let origin = credentials.server.baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return SHA256.hash(data: Data((origin + "\u{0}" + credentials.refreshToken).utf8))
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Old-account cleanup finishes before the new account can register push or ActivityKit tokens.
+    func waitForSystemServices() async { await systemStart?.value }
 }
