@@ -73,8 +73,7 @@
         "guests-staying section",
         "ax5",
         "duo-unfolded-landscape (two columns on the hinge)",
-        "duo-part-fold, duo-flat",
-        "no-layout (live since 7b-2: shown when the device has neither a cached nor a server layout): skeleton, administrator, member and timeout messages"
+        "duo-part-fold, duo-flat"
       ],
       "motionHint": [
         "arrival motion after sign-in (chips slide, weather/camera tiles rise)",
@@ -127,8 +126,7 @@
         "Car section (when shown)",
         "offline cannot-send",
         "ax5",
-        "duo-part-fold (fold columns)",
-        "no-layout (live since 7b-2: shown when the device has neither a cached nor a server layout): skeleton, administrator, member messages"
+        "duo-part-fold (fold columns)"
       ],
       "motionHint": [
         "alarm badge and mode buttons cross-fade 0.6 s; garage button states sequence"
