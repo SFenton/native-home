@@ -2188,6 +2188,49 @@ class ArchiveEveryEndingTests(Base):
             for secret, _ in SHAPES:
                 self.assertNotIn(secret, body, f.name)
 
+    def test_digest_outcome_is_the_endings_own_not_a_stale_retry(self):
+        gh = FakeGitHub([issue(40)])
+        runner = self.runner_seeded(gh, {"state": "done"}, 40)
+        runner.state.record(40, "retry", "no status file")  # attempt 1
+        runner.state.set_attempts(40, 1)
+        runner.apply_status = lambda n, status: "merging"  # attempt 2 returns without recording
+        self.assertEqual(runner.work(40), "merging")
+        call = self.digest_calls()[0]
+        self.assertEqual(call[call.index("--outcome") + 1], "merging")
+        self.assertEqual(call[call.index("--attempt") + 1], "2")
+
+    def test_digest_outcome_is_error_when_the_run_raises(self):
+        gh = FakeGitHub([issue(41)])
+        runner = self.runner_seeded(gh, {"state": "done"}, 41)
+        runner.state.record(41, "retry", "no status file")
+
+        def boom(n, status):
+            raise ht.TriageError("apply failed")
+
+        runner.apply_status = boom
+        with self.assertRaises(ht.TriageError):
+            runner.work(41)
+        call = self.digest_calls()[0]
+        self.assertEqual(call[call.index("--outcome") + 1], "error")
+
+    def test_every_attempts_log_tail_is_kept(self):
+        gh = FakeGitHub([issue(42)])
+        runner = self.runner_seeded(gh, None, 42)
+        orig = runner.launch
+
+        def launch(num, tree, prompt, log):
+            result = orig(num, tree, prompt, log)
+            log.write_text(f"attempt {runner.state.attempts(num)} output\n")
+            return result
+
+        runner.launch = launch
+        self.assertEqual(runner.work(42), "retry")
+        self.assertEqual(runner.work(42), "blocked")
+        dest = self.archive(42)
+        self.assertEqual((dest / "worker.log.1.tail").read_text(), "attempt 1 output\n")
+        self.assertEqual((dest / "worker.log.2.tail").read_text(), "attempt 2 output\n")
+        self.assertEqual((dest / "worker.log.tail").read_text(), "attempt 2 output\n")
+
     def test_archive_without_evidence_returns_none(self):
         runner = self.runner(FakeGitHub([issue(29)]))
         self.assertIsNone(runner.archive_evidence(29))

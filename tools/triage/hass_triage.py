@@ -1319,11 +1319,31 @@ class Runner:
                 self._digest_started = (parse_time(resumed) - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
             except (ValueError, TypeError):
                 self._digest_started = ""
+        history = self.state.data.get("history", [])
+        marker = history[-1] if history else None  # entries after this one were recorded by this run
         try:
-            return self._work(n)
+            result = self._work(n)
+            self._ending["outcome"] = self._run_outcome(n, marker, result)
+            return result
+        except BaseException:
+            self._ending["outcome"] = "error"
+            raise
         finally:
             self._collect_owner_comments(n)
             self.archive_evidence(n, **self._ending)
+
+    def _run_outcome(self, n: int, marker: Optional[Dict[str, Any]], result: str) -> str:
+        """The outcome the retro digest reads for this run: what ``_work`` returned, never an earlier attempt's entry.
+
+        ``_work`` returns the coarse state (``blocked``) while the history entry this run recorded is the specific code
+        (``blocked:timeout``, which the digest's triggers need), so that entry wins when it extends the return value."""
+        history = self.state.data.get("history", [])
+        ids = [id(h) for h in history]
+        fresh = history[ids.index(id(marker)) + 1:] if marker is not None and id(marker) in ids else history
+        mine = [h.get("outcome") or "" for h in fresh if h.get("issue") == n]
+        if mine and (mine[-1] == result or mine[-1].startswith(f"{result}:")):
+            return mine[-1]
+        return result
 
     def _collect_owner_comments(self, n: int) -> None:
         """Add the owner's comments made since this run started to the replies the archive keeps.
@@ -2892,7 +2912,10 @@ class Runner:
             if log is not None and log.is_file():
                 dest.mkdir(parents=True, exist_ok=True)
                 lines = log.read_text(errors="replace").splitlines()[-ARCHIVE_LOG_LINES:]
-                (dest / "worker.log.tail").write_text(redact_lines("\n".join(lines)) + "\n")
+                tail = redact_lines("\n".join(lines)) + "\n"
+                (dest / "worker.log.tail").write_text(tail)
+                if attempt:  # a retried flow keeps every attempt's tail; worker.log.tail is the latest
+                    (dest / f"worker.log.{attempt}.tail").write_text(tail)
                 copied = True
             if replies:
                 dest.mkdir(parents=True, exist_ok=True)
