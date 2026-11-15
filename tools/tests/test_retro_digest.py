@@ -145,6 +145,36 @@ class TriggerTests(Base):
         self.assertIsNone(doc["cost"]["tokens"])
         self.assertEqual(doc["counts"]["turns"], 0)
 
+    def t3_timed_log(self, cut=False):
+        """A T3 log whose thread carries a 26.9 minute run and one turn of 33 tool calls; ``cut`` truncates the line mid-JSON."""
+        thread = {"messages": [{"role": "assistant", "text": "done"}], "messageCount": 24,
+                  "latestRun": {"startedAt": "2026-11-15T01:47:23.707Z", "completedAt": "2026-11-15T02:14:16.502Z"},
+                  "turns": [{"toolCallCount": 33}]}
+        line = json.dumps({"type": "t3_thread", "thread": "t", "data": {"thread": thread}})
+        return self.write("t3t.log", json.dumps({"type": "t3_launch", "thread": "t"}) + "\n" + (line[:len(line) // 2] if cut else line) + "\n")
+
+    def test_a_t3_thread_gives_minutes_and_turns(self):
+        """Fails if: a T3 launch reads 0 minutes and 0 turns, or never trips over_budget on time."""
+        doc = self.run_digest("--log", str(self.t3_timed_log()), "--max-minutes", "20")
+        self.assertEqual(doc["durations"]["minutes"], 26.9)
+        self.assertEqual(doc["counts"]["turns"], 33)
+        self.assertNotIn("unknown_fields", doc["durations"])
+        self.assertIsNone(doc["cost"]["tokens"])
+        self.assertIsNone(doc["cost"]["total_cost_usd"])
+        self.assertIn("26.9 minutes", self.fired(doc)["over_budget"][0])
+
+    def test_a_cut_t3_thread_marks_minutes_and_turns_unknown(self):
+        """Fails if: a T3 log with no surviving thread line reads as an instant run with nothing marked unknown."""
+        doc = self.run_digest("--log", str(self.t3_timed_log(cut=True)))
+        self.assertEqual((doc["durations"]["minutes"], doc["counts"]["turns"]), (0.0, 0))
+        self.assertEqual(doc["durations"]["unknown_fields"], ["minutes", "turns"])
+
+    def test_a_result_log_keeps_its_own_duration_and_turns(self):
+        """Fails if: the T3 reading replaces a stream-json result's duration_ms or num_turns."""
+        doc = self.run_digest("--log", str(self.write("c.log", assistant("hi") + "\n" + result())))
+        self.assertEqual((doc["durations"]["minutes"], doc["counts"]["turns"]), (10.0, 42))
+        self.assertNotIn("unknown_fields", doc["durations"])
+
     def test_a_launch_that_never_started_is_a_t3_log_too(self):
         log = self.write("f.log", json.dumps({"type": "t3_launch_failed", "reason": "guard files differ"}) + "\n")
         self.assertEqual(rd.parse_log(log)["launcher"], "t3code")

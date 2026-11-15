@@ -157,8 +157,13 @@ def parse_log(path: Optional[Path]) -> Dict[str, Any]:
 
     A T3 launch (``agent.launcher: "t3code"``) logs ``t3_launch`` then ``t3_thread`` lines instead: the last assistant message becomes
     ``last_text``, tool outputs are appended to ``raw`` one per line (the ``devcap: still waiting`` scan reads them), there is no
-    ``result`` (T3 reports no cost) and ``launcher`` is ``"t3code"`` so the digest says cost ``unknown`` rather than zero."""
-    info: Dict[str, Any] = {"result": None, "last_text": "", "background": 0, "raw": "", "launcher": "claude"}
+    ``result`` (T3 reports no cost) and ``launcher`` is ``"t3code"`` so the digest says cost ``unknown`` rather than zero.
+    The ``t3_thread`` line also gives ``t3_started`` and ``t3_ended`` (``thread.latestRun.startedAt`` and ``completedAt``, else the
+    first and last turn times, as datetimes or None) and ``t3_tool_calls`` (the sum of ``thread.turns[*].toolCallCount``, or None
+    when no turn reports one): ``digest()`` reads them for minutes and turns, which a T3 launch has no ``result`` to give. When the
+    line is cut or missing, all three stay None."""
+    info: Dict[str, Any] = {"result": None, "last_text": "", "background": 0, "raw": "", "launcher": "claude",
+                            "t3_started": None, "t3_ended": None, "t3_tool_calls": None}
     if not path:
         return info
     try:
@@ -185,6 +190,15 @@ def parse_log(path: Optional[Path]) -> Dict[str, Any]:
             texts = [str(m.get("text") or "") for m in thread.get("messages") or [] if isinstance(m, dict) and m.get("role") == "assistant"]
             info["last_text"] = next((t for t in reversed(texts) if t.strip()), info["last_text"])
             info["raw"] += "\n" + "\n".join(str(c.get("output")) for c in thread.get("toolCalls") or [] if isinstance(c, dict) and c.get("output"))
+            turns = [t for t in thread.get("turns") or [] if isinstance(t, dict)]
+            run = thread.get("latestRun") if isinstance(thread.get("latestRun"), dict) else {}
+            starts = [parse_time(t["startedAt"]) for t in turns if t.get("startedAt")]
+            ends = [parse_time(t["completedAt"]) for t in turns if t.get("completedAt")]
+            starts, ends = [t for t in starts if t], [t for t in ends if t]
+            info["t3_started"] = (parse_time(run.get("startedAt")) if run.get("startedAt") else None) or (min(starts) if starts else None)
+            info["t3_ended"] = (parse_time(run.get("completedAt")) if run.get("completedAt") else None) or (max(ends) if ends else None)
+            counts = [t["toolCallCount"] for t in turns if isinstance(t.get("toolCallCount"), int) and not isinstance(t.get("toolCallCount"), bool)]
+            info["t3_tool_calls"] = sum(counts) if counts else None
         elif t3_launch_seen(event):
             info["launcher"] = "t3code"
         elif event.get("type") == "assistant":
@@ -480,8 +494,19 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     tokens = sum(int(usage.get(k) or 0) for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens"))
     minutes = round(float(result.get("duration_ms") or 0) / 60000, 1)
     began, ended = parse_time(status.get("started") or args.started), parse_time(status.get("finished"))
+    t3_run = log["launcher"] == "t3code" and not result  # T3 writes no result event: its duration and turns come from the thread
+    unknown: List[str] = []
+    if t3_run and log["t3_started"] and log["t3_ended"]:
+        minutes = round((log["t3_ended"] - log["t3_started"]).total_seconds() / 60, 1)
     if not minutes and began and ended:
         minutes = round((ended - began).total_seconds() / 60, 1)
+    if t3_run and not minutes and not (log["t3_started"] and log["t3_ended"]):
+        unknown.append("minutes")
+    turns = int(result.get("num_turns") or 0)
+    if t3_run and log["t3_tool_calls"] is not None:
+        turns = log["t3_tool_calls"]
+    elif t3_run:
+        unknown.append("turns")
     max_tokens, max_minutes = args.max_tokens, args.max_minutes
     over = []
     if tokens > max_tokens:
@@ -559,11 +584,11 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
             "triggers": len(triggers), "review_rounds": rounds, "review_verdicts": len(reviews),
             "checks": len(checks), "checks_passing": sum(1 for c in checks if isinstance(c, dict) and c.get("passes")),
             "level_changes": len(history), "gate_answers": len(gate), "shadow_records": len(shadow),
-            "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0,
+            "turns": turns, "attempt": args.attempt or 0,
             "owner_replies": len(comments), "tool_errors": errors, **lane_counts,
         },
         "durations": {"minutes": minutes, "api_minutes": round(float(result.get("duration_api_ms") or 0) / 60000, 1),
-                      "slot_wait_minutes": waited},
+                      "slot_wait_minutes": waited, **({"unknown_fields": unknown} if unknown else {})},
         "cost": {"total_cost_usd": result.get("total_cost_usd"), "tokens": None if log["launcher"] == "t3code" else tokens, "usage": usage,
                  "modelUsage": result.get("modelUsage") if isinstance(result.get("modelUsage"), dict) else {}},
         "outcome": outcome or state or None,
