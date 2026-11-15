@@ -1517,7 +1517,9 @@
   {
    "prefix": "apple/Apps/iOS/",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "LoginJourneyTests"
+   ]
   },
   {
    "prefix": "apple/Apps/Widgets",
@@ -1588,32 +1590,44 @@
   {
    "prefix": "apple/project.yml",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "LoginJourneyTests"
+   ]
   },
   {
    "prefix": "apple/Package.swift",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "LoginJourneyTests"
+   ]
   },
   {
    "prefix": "apple/Package.resolved",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "LoginJourneyTests"
+   ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/FentonHomeApp.swift",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "LoginJourneyTests"
+   ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/AppReuse.swift",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "LoginJourneyTests"
+   ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/JourneyTestCase.swift",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "LoginJourneyTests"
+   ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/RoomDevicesJourneyTestCase.swift",
@@ -1635,16 +1649,11 @@
   },
   {
    "prefix": "apple/Sources/HassUI/App/Shell",
-   "swift": [
-    "ColumnRoutingTests"
-   ],
-   "journeys": [],
-   "layout_sensitive": true
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/BedroomJourneyTestCase.swift",
    "swift": [],
-   "journeys": []
+   "journeys": [
+    "PageTitleJourneyTests"
+   ],
+   "layout_sensitive": true
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/",
@@ -1892,11 +1901,30 @@
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/",
-   "hosted": []
+   "hosted": [
+    "ServerUIBedroomControlTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Climate/",
+   "hosted": [
+    "UKHostedServerUIClimateTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Chores/",
+   "hosted": [
+    "ServerUITodoCollectionHostedTests",
+    "ServerUIRecordCollectionTests",
+    "ServerUIRecordScrollerTests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Food/",
-   "hosted": []
+   "hosted": [
+    "ServerUIRecordCollectionTests",
+    "ServerUIRecordScrollerTests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Home/",
@@ -1904,17 +1932,6 @@
     "UKHostedSharedWeatherViewsTests",
     "UKHostedGateAndOverviewTests"
    ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/HouseConfig/",
-   "swift": [
-    "HassUITests"
-   ],
-   "journeys": []
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/HouseConfig/",
-   "hosted": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/",
@@ -1929,13 +1946,8 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile",
-   "hosted": []
-  },
-  {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Inventory/",
    "hosted": [
-    "UKHostedScanTests",
     "UKHostedSharedScanTests"
    ]
   },
@@ -1962,15 +1974,21 @@
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/MediaRemote/",
-   "hosted": []
+   "hosted": [
+    "ServerUIRemoteRendererTests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/Sprinklers/",
-   "hosted": []
+   "hosted": [
+    "UKHostedSprinkler*Tests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Security/",
-   "hosted": []
+   "hosted": [
+    "ServerUISecurityHostedTests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/",
@@ -1980,21 +1998,15 @@
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback",
-   "hosted": []
+   "hosted": [
+    "ServerUISettingsRendererTests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKHomeAssistantWebPage",
    "hosted": [
     "UKHostedHomeAssistantTests"
    ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon",
-   "hosted": []
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKNotificationsSettings",
-   "hosted": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/",
@@ -2005,7 +2017,9 @@
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/Login/",
-   "hosted": []
+   "hosted": [
+    "UKHostedLogin*Tests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/",
@@ -2264,19 +2278,27 @@
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/UKContext",
-   "hosted": []
+   "hosted": [
+    "*"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/UKObservation",
-   "hosted": []
+   "hosted": [
+    "*"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Gallery/",
-   "hosted": []
+   "hosted": [
+    "UKHostedGallery*Tests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Gallery/UKGalleryChrome",
-   "hosted": []
+   "hosted": [
+    "*"
+   ]
   },
   {
    "prefix": "apple/Sources/HassDesign/",
@@ -2360,10 +2382,6 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassDesign/Avatar",
-   "hosted": []
-  },
-  {
    "prefix": "apple/Sources/HassUI/App/",
    "hosted": [
     "UKHostedRootTests",
@@ -2400,7 +2418,9 @@
   },
   {
    "prefix": "apple/Apps/iOSTests/VacuumsByPosition",
-   "hosted": []
+   "hosted": [
+    "UKHostedVacuum*Tests"
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/",

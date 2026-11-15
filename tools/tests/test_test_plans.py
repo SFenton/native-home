@@ -72,11 +72,11 @@ class RealPlansTests(unittest.TestCase):
         for method, src in spotlight.items():
             with self.subTest(test=f"SpotlightJourneyTests/{method}"):
                 self.assertEqual(t.classify("SpotlightJourneyTests", method, src), "Live")
-        food = "testSignedInFixtureSheetSwitchesTabs"
-        self.assertEqual(t.classify("FoodLiveJourneyTests", food, classes["FoodLiveJourneyTests"][food]), "Live")
+        lights = "testLightsOverviewSheetPassesAuditInLight"  # launches signed in from a nested helper of the method
+        self.assertEqual(t.classify("LightAppearanceLightsJourneyTests", lights, classes["LightAppearanceLightsJourneyTests"][lights]), "Live")
         gate = t.partition(classes)["Gate"]
         self.assertNotIn("SpotlightJourneyTests", gate)
-        self.assertNotIn(food, gate.get("FoodLiveJourneyTests", {}))
+        self.assertNotIn(lights, gate.get("LightAppearanceLightsJourneyTests", {}))
 
     def test_the_real_journeys_partition_and_smoke_exists(self):
         classes = t.scan()

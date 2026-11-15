@@ -1,6 +1,6 @@
 {
   "id": "research.release_impact",
-  "version": 5,
+  "version": 6,
   "type": "noul-set",
   "mode": "shadow",
   "description": "Which parts of our surface (HA domains and services, HAKit APIs, imported frameworks) does a release note or changelog entry affect? One noul per generated entry.",
@@ -9,7 +9,6 @@
     "domain:automation": "the Home Assistant `automation` integration or entity domain (its entities, state attributes or features)",
     "domain:button": "the Home Assistant `button` integration or entity domain (its entities, state attributes or features)",
     "domain:climate": "the Home Assistant `climate` integration or entity domain (its entities, state attributes or features)",
-    "domain:cover": "the Home Assistant `cover` integration or entity domain (its entities, state attributes or features)",
     "domain:donetick": "the Home Assistant `donetick` integration or entity domain (its entities, state attributes or features)",
     "domain:evershelf": "the Home Assistant `evershelf` integration or entity domain (its entities, state attributes or features)",
     "domain:fan": "the Home Assistant `fan` integration or entity domain (its entities, state attributes or features)",
@@ -37,7 +36,6 @@
     "service:climate.set_fan_mode": "the Home Assistant service `climate.set_fan_mode` (its fields, behavior, name or availability)",
     "service:climate.set_hvac_mode": "the Home Assistant service `climate.set_hvac_mode` (its fields, behavior, name or availability)",
     "service:climate.set_temperature": "the Home Assistant service `climate.set_temperature` (its fields, behavior, name or availability)",
-    "service:cover.stop_cover": "the Home Assistant service `cover.stop_cover` (its fields, behavior, name or availability)",
     "service:donetick.create_task_form": "the Home Assistant service `donetick.create_task_form` (its fields, behavior, name or availability)",
     "service:donetick.get_task": "the Home Assistant service `donetick.get_task` (its fields, behavior, name or availability)",
     "service:donetick.update_task_form": "the Home Assistant service `donetick.update_task_form` (its fields, behavior, name or availability)",

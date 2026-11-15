@@ -256,9 +256,9 @@ if [[ -n "$SUITE_SPEC$TESTS_SPEC" ]]; then
   SELECTING=1
   sel() { python3 "$ROOT/tools/test_suites.py" args ${SUITE_SPEC:+--suite "$SUITE_SPEC"} ${TESTS_SPEC:+--tests "$TESTS_SPEC"} "$@"; }
   if [[ $CHANGED == 1 ]]; then
-    SEL_IPHONE="$(sel --within "$CHANGED_IPHONE")" || exit 2
-    SEL_DUO="$(sel --within "$CHANGED_DUO")" || exit 2
-    SEL_IPAD="$(sel --within "$CHANGED_IPAD")" || exit 2
+    SEL_IPHONE="$(sel "--within=$CHANGED_IPHONE")" || exit 2
+    SEL_DUO="$(sel "--within=$CHANGED_DUO")" || exit 2
+    SEL_IPAD="$(sel "--within=$CHANGED_IPAD")" || exit 2
     echo "== suite: per family: iphone ${SEL_IPHONE:-(none)} | duo ${SEL_DUO:-(none)} | ipad ${SEL_IPAD:-(none)}"
   else
     SEL_IPHONE="$(sel)" || exit 2; SEL_DUO="$SEL_IPHONE"; SEL_IPAD="$SEL_IPHONE"

@@ -5,12 +5,12 @@ import Foundation
 /// Minimized accepted copy. `jobId` is the exact engine job ID (the attributes tag without `job.`).
 public struct ExtensionPresentationSnapshot: Codable, Equatable, Sendable {
     public let sessionID: String
-    public let revision: Int
+    public let revision: Int64
     public let activities: [ActivityPresentation]
     public let targets: NativeExtensionPresentation?
 
     /// Creates a extension presentation snapshot.
-    public init(sessionID: String, revision: Int, activities: [ActivityPresentation], targets: NativeExtensionPresentation?) throws {
+    public init(sessionID: String, revision: Int64, activities: [ActivityPresentation], targets: NativeExtensionPresentation?) throws {
         self.sessionID = sessionID
         self.revision = revision
         self.activities = activities

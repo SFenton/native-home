@@ -294,7 +294,7 @@ public final class AppSession {
         }
         do {
             if let extensionStore, let extensionSessionID {
-                try extensionStore.write(.init(sessionID: extensionSessionID, revision: publication.revision,
+                try extensionStore.write(.init(sessionID: extensionSessionID, revision: Int64(publication.revision),
                     activities: publication.document.liveActivities, targets: publication.document.extensions))
             }
             try applying()

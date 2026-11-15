@@ -3,7 +3,7 @@ import XCTest
 /// Direction G's foundation in the debug gallery (`FENTON_GALLERY=direction-g`): status chips, tile faces, the
 /// light dragger, modules, spinners, the primary button and a sheet with the bottom glass section bar. Names,
 /// targets, actions, audits (including the rendered contrast check) and screenshots on iPhone, iPhone Duo and iPad
-/// (`.agents/design/direction-g-plan.md`, Phase 1).
+/// (`.agents/archive/design-direction-g-plan.md`, Phase 1).
 @MainActor
 final class DirectionGJourneyTests: JourneyTestCase {
     /// Launches (or, with reuse on, resets) the gallery. The page order is `FENTON_GALLERY_DIRECTION_G_ORDER` (the same as the

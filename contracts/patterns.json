@@ -1715,6 +1715,9 @@
             "BathroomFanConfig": [
               "all"
             ],
+            "BedSideEnvironment": [
+              "configured"
+            ],
             "ChoreQuickLinks": [
               "links"
             ],
@@ -1814,6 +1817,9 @@
             ],
             "HumidifierConfig": [
               "all"
+            ],
+            "Inputs": [
+              "legacy"
             ],
             "Vehicle": [
               "tiles"

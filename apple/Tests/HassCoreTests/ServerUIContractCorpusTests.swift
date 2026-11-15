@@ -88,6 +88,16 @@ struct ServerUIContractCorpusTests {
         }
     }
 
+    /// Two decodes of the same bytes are the same document, member by member, and an edited copy is not.
+    @Test(arguments: cases.filter { $0.outcome == "accept" })
+    func twoDecodesOfAnAcceptedFileAreEqual(_ item: Case) throws {
+        let bytes = try Data(contentsOf: Self.directory.appendingPathComponent(item.file))
+        let decoded: [ServerUICompositionDocument] = try HouseConfigSource.$scoped.withValue(Self.house(for: item)) {
+            try (0..<2).map { _ in try ServerUICompositionPublication.decode(bytes).document }
+        }
+        #expect(decoded[0] == decoded[1], "\(item.file)")
+    }
+
     @Test func supportedCapabilitiesEqualTheCorpusList() throws {
         let data = try Data(contentsOf: Self.directory.appendingPathComponent("capabilities.json"))
         let corpus = try JSONDecoder().decode([String].self, from: data)

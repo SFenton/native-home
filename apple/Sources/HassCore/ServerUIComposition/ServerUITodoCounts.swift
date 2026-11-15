@@ -5,8 +5,8 @@ public enum ServerUITodoCounts {
     /// Returns nil for missing, unavailable or unsafe counts instead of inventing an empty list.
     public static func text(configuration: ServerUICompositionDocument.TodoCounts,
                             state: (String) -> String?) -> String? {
-        var total = 0
-        var overdue = 0
+        var total: Int64 = 0
+        var overdue: Int64 = 0
         for list in configuration.lists {
             guard let count = ServerUIInventorySummary.count(state(list.entityId)),
                   count <= ServerUIInventorySummary.maximumCount - total else { return nil }

@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 9,
+  "version": 10,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
@@ -30,7 +30,7 @@
     "page-backdrop": "Page backdrop: the blurred photo of the house behind every page. (components: HouseBackdrop)",
     "page-indicator": "Page indicator: the one page indicator for every paging row and carousel (Food suggestions, the Weather sheet, the hourly rows). (components: PageIndicator)",
     "resume-lifecycle": "Resume lifecycle: the rule that a background and foreground leaves the app exactly as the first launch did, and the census that proves it. (components: ResourceCensus, ResourceCensusProbe, ukPagesByViewport)",
-    "room-device-sheets": "Room device sheets: the device sheets opened from room tiles: bathroom fan, air quality (purifier), humidifier, grill. (components: UKBathroomFanSheet, UKAirPurifierSheet)",
+    "room-device-sheets": "Room device sheets: the device sheets opened from room tiles: bathroom fan, air quality (purifier), humidifier, grill. (components: UKGrillSheet)",
     "room-overview-sheet": "Room overview sheet: the room-by-room sheets behind Home's Lights, Climate, Occupancy, Contact Sensors and Air Quality chips, and the room detail they push. (components: RoomOverviewStyle)",
     "schedule-date-fields": "Schedule date fields: date-and-time pickers for schedules. (components: UKScheduleDateFields)",
     "scroll-fit": "Scroll fit: a vertical scroll view scrolls and bounces only when its content is taller than its viewport. (components: UKScrollFit)",
@@ -51,7 +51,8 @@
     "modal-inventory": "Modal inventory: every modal in the app, how it is presented, what it holds, how it behaves in each pose, and the bugs found. (components: UKShellSheet)",
     "page-base": "Page base: the one way a page, a pane or a tab hosts its scrolling body, spaces it, pins a bar under it and gets its ground. (components: UKPageScrollView, UKPageViewController)",
     "rows": "Rows: the one list row: slots for a leading glyph, check or avatar, the text and a trailing accessory or chevron. (components: UKRowView)",
-    "routes": "Routes: the one way the app opens an authored place: a plain path resolved by the accepted publication, for push links, Live Activity links, Spotlight and Siri or Shortcuts. (components: RouteRequest, RouteTarget, RouteCatalog)"
+    "routes": "Routes: the one way the app opens an authored place: a plain path resolved by the accepted publication, for push links, Live Activity links, Spotlight and Siri or Shortcuts. (components: RouteRequest, RouteTarget, RouteCatalog)",
+    "copy": "Copy: how the app words itself: voice, terms, case, length, string ids, and which text the house can override. (components: WeatherCopy, PluralCopy)"
   },
   "state": {
     "fields": [

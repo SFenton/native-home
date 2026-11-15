@@ -36,11 +36,11 @@ def git(root, *args):
 
 class SelectTests(unittest.TestCase):
     def test_pattern_source_maps_to_its_tests_and_journey(self):
-        result = pick("apple/Sources/HassDesign/HeaderEdgeFadeModifier.swift")
-        self.assertEqual(result["swift"], ["HeaderEdgeFade"])
-        self.assertEqual(result["journeys"], ["HeaderFadeJourneyTests"])
-        self.assertEqual(affected_tests.swift_args(result), "--filter HeaderEdgeFade")
-        self.assertEqual(affected_tests.journey_args(result), "-only-testing:FentonHomeUITests/HeaderFadeJourneyTests")
+        result = pick("apple/Sources/HassDesign/FloatingActionBar.swift")
+        self.assertEqual(result["swift"], ["FloatingActionBar"])
+        self.assertEqual(result["journeys"], ["FloatingActionsJourneyTests"])
+        self.assertEqual(affected_tests.swift_args(result), "--filter FloatingActionBar")
+        self.assertEqual(affected_tests.journey_args(result), "-only-testing:FentonHomeUITests/FloatingActionsJourneyTests")
 
     def test_longest_prefix_wins(self):
         result = pick("apple/Sources/HassDesign/ThermostatDial/Geometry.swift")
@@ -62,10 +62,9 @@ class SelectTests(unittest.TestCase):
     def test_changed_test_file_selects_its_own_classes(self):
         result = pick("apple/Tests/HassDesignTests/SheetFitTests.swift")
         self.assertIn("SheetFitTests", result["swift"])
-        journey = pick("apple/Apps/iOSUITests/LocationJourneyTests.swift")
+        journey = pick("apple/Apps/iOSUITests/RoomDevicesCaptureJourneyTests.swift")
         self.assertEqual(journey["swift"], [])
-        self.assertIn("LocationShadowJourneyTests", journey["journeys"])
-        self.assertIn("LocationJourneyTests", journey["journeys"])
+        self.assertEqual(journey["journeys"], ["RoomDevicesCaptureJourneyTests"])
 
     def test_every_seeded_rule_names_real_tests(self):
         names = {p.name for p in (REPO / "apple" / "Tests").iterdir() if p.is_dir()}  # a whole test target is a valid filter
@@ -91,14 +90,14 @@ class SelectTests(unittest.TestCase):
         self.assertIn("SplitPolicyTests", pick("apple/Tests/HassUITests/LayoutPolicyTests.swift")["swift"])
 
     def test_families_narrow_to_iphone_unless_the_surface_is_layout_sensitive(self):
-        self.assertEqual(pick("apple/Sources/HassUI/Features/Chores/ChoresView.swift")["families"], ["iphone"])
+        self.assertEqual(pick("apple/Sources/HassDesign/ThermostatDial.swift")["families"], ["iphone"])
         self.assertEqual(pick("apple/Sources/HassDesign/SheetFit.swift")["families"], ["iphone", "duo", "ipad"])
         self.assertEqual(pick("apple/Sources/HassUI/App/Layout/SplitPolicy.swift")["families"], ["iphone", "duo", "ipad"])
-        self.assertEqual(pick("apple/Sources/HassDesign/PagedRow.swift")["families"], ["iphone", "duo", "ipad"])
+        self.assertEqual(pick("apple/Sources/HassDesign/TileLayout.swift")["families"], ["iphone", "duo", "ipad"])
         self.assertEqual(pick("apple/Apps/iOSUITests/TileLayoutJourneyTests.swift")["families"], ["iphone", "duo", "ipad"])
-        self.assertEqual(pick("apple/Apps/iOSUITests/ChoresSwipeJourneyTests.swift")["families"], ["iphone"])
-        self.assertEqual(pick("apple/Apps/iOSUITests/ChoresWideLayoutJourneyTests.swift")["families"], ["iphone", "duo", "ipad"])
-        self.assertEqual(pick("apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift")["families"], ["iphone", "duo", "ipad"])
+        self.assertEqual(pick("apple/Apps/iOSUITests/PageTitleJourneyTests.swift")["families"], ["iphone"])
+        self.assertEqual(pick("apple/Apps/iOSUITests/LayoutJourneyTests.swift")["families"], ["iphone", "duo", "ipad"])
+        self.assertEqual(pick("apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift")["families"], ["iphone", "duo", "ipad"])
 
     def test_core_telemetry_and_activity_model_get_no_device_run(self):
         for file in ("apple/Sources/HassCore/Climate/ClimateLogic.swift", "apple/Sources/HassTelemetry/X.swift",
@@ -107,14 +106,16 @@ class SelectTests(unittest.TestCase):
             self.assertEqual((result["journeys"], result["families"], result["unknown"]), ([], [], []), file)
             self.assertTrue(result["swift"])
 
-    def test_project_and_helper_files_run_the_shell_smoke_journey(self):
+    def test_project_and_helper_files_run_the_signed_out_launch_journey(self):
+        """The shell journeys went with the compiled shell; the signed-out launch journey is what proves the app still starts."""
         for file in ("apple/project.yml", "apple/Package.swift", "apple/Apps/iOSUITests/FentonHomeApp.swift",
                      "apple/Apps/iOSUITests/JourneyTestCase.swift"):
             result = pick(file)
-            self.assertEqual((result["journeys"], result["families"], result["unknown"]), (["ShellJourneyTests"], ["iphone"], []), file)
+            self.assertEqual((result["journeys"], result["families"], result["unknown"]), (["LoginJourneyTests"], ["iphone"], []), file)
 
     def test_shell_runs_on_every_family_and_a_deleted_test_needs_no_pick(self):
         self.assertEqual(pick("apple/Sources/HassUI/App/Shell/Rail.swift")["families"], ["iphone", "duo", "ipad"])
+        self.assertEqual(pick("apple/Sources/HassUI/App/Shell/Rail.swift")["journeys"], ["PageTitleJourneyTests"])
         result = pick("apple/Tests/HassUITests/NoSuchRemovedTests.swift")
         self.assertEqual((result["unknown"], result["swift"]), ([], []))
 
@@ -140,8 +141,8 @@ class SelectTests(unittest.TestCase):
         self.assertEqual(affected_tests.module_tests("apple/Sources/Brand/NewThing.swift", REPO), None)
 
     def test_other_families_get_the_smoke_plan_unless_layout_sensitive(self):
-        chores = pick("apple/Sources/HassUI/Features/Chores/ChoresView.swift")
-        self.assertEqual((chores["families"], chores["smoke_families"], chores["layout_sensitive"]), (["iphone"], ["duo", "ipad"], False))
+        dial = pick("apple/Sources/HassDesign/ThermostatDial.swift")
+        self.assertEqual((dial["families"], dial["smoke_families"], dial["layout_sensitive"]), (["iphone"], ["duo", "ipad"], False))
         sheet = pick("apple/Sources/HassDesign/SheetFit.swift")
         self.assertEqual((sheet["families"], sheet["smoke_families"], sheet["layout_sensitive"]),
                          (["iphone", "duo", "ipad"], [], True))
@@ -154,7 +155,7 @@ class SelectTests(unittest.TestCase):
             text = path.read_text()
             for name in affected_tests.classes_in(path):
                 classes[name] = text
-        self.assertGreaterEqual(len(MAP["smoke"]), 8)
+        self.assertGreaterEqual(len(MAP["smoke"]), 5)  # the signed-out screen, a sheet, the tab bar and AX5 tiles survive the compiled shell
         for entry in MAP["smoke"]:
             cls, method = entry.split("/")
             self.assertIn(cls, classes, entry)
@@ -186,39 +187,35 @@ class SelectTests(unittest.TestCase):
 
 
 class VacationRulesTests(unittest.TestCase):
-    """The UIKit port keeps the vacation screens in one file (`UKVacation.swift`): it selects every vacation class."""
+    """The UIKit port keeps the vacation screens in one file (`UKVacation.swift`): it selects the mode and solo-trip Swift suites.
+
+    The vacation journeys went with the compiled pages, so the file selects no journey and no device run.
+    """
     SRC = "apple/Sources/HassUI/UIKitPort/Features/Household/"
 
     def test_the_solo_trip_screen_selects_the_mode_and_solo_trip_classes(self):
-        self.assertEqual(pick(self.SRC + "UKVacation.swift")["journeys"],
-                         ["VacationChooserJourneyTests", "VacationModeJourneyTests", "VacationConfirmJourneyTests", "VacationSoloTripJourneyTests"])
+        result = pick(self.SRC + "UKVacation.swift")
+        self.assertEqual(result["swift"], ["VacationModeController", "SoloTripController", "HouseholdAwayController"])
+        self.assertEqual((result["journeys"], result["families"]), ([], []))
 
 
 class InventoryRulesTests(unittest.TestCase):
-    """The Inventory split (contracts/test-map.json): per-file rules select only the area classes that exercise the file."""
+    """Inventory (contracts/test-map.json): the compiled pages and their journeys are gone, so its files select Swift suites only."""
     SRC = "apple/Sources/HassUI/UIKitPort/Features/Inventory/"
-    AREAS = ["InventoryListJourneyTests", "InventoryRowActionsJourneyTests", "InventorySheetsJourneyTests",
-             "InventoryEditorJourneyTests", "InventoryScanJourneyTests"]
 
-    def test_shared_files_and_the_fallback_select_every_area(self):
-        for name in ("UKInventoryViewController.swift", "UKSomethingNew.swift"):
-            self.assertEqual(sorted(pick(self.SRC + name)["journeys"]), sorted(self.AREAS), name)
-
-    def test_ui_kit_files_select_every_area(self):
-        # The port's screens are folder-ruled (the per-file split went with the SwiftUI files).
-        for name in ("UKInventoryRow.swift", "UKInventoryRowActions.swift", "UKScanItemSheet.swift", "UKInventorySheets.swift"):
-            self.assertEqual(sorted(pick(self.SRC + name)["journeys"]), sorted(self.AREAS), name)
-
-    def test_the_base_selects_every_class_but_the_live_one(self):
-        base = pick("apple/Apps/iOSUITests/InventoryJourneyTestCase.swift")["journeys"]
-        self.assertEqual(base, self.AREAS)
-        self.assertNotIn("InventoryLiveJourneyTests", base)
+    def test_inventory_files_select_the_swift_suites_and_no_journey(self):
+        for name in ("UKInventoryRow.swift", "UKFormRows.swift", "UKScanItemSheet.swift", "UKSomethingNew.swift"):
+            result = pick(self.SRC + name)
+            self.assertEqual(result["swift"], ["Inventory", "ScanItem"], name)
+            self.assertEqual((result["journeys"], result["unknown"]), ([], []), name)
 
     def test_scan_files_also_select_the_scan_host_suites(self):
         self.assertIn("ScanItem", pick(self.SRC + "UKScanItemSheet.swift")["swift"])
+        self.assertEqual(pick(self.SRC + "UKScanItemSheet.swift")["hosted"], ["UKHostedSharedScanTests"])
 
-    def test_inventory_is_not_layout_sensitive(self):
-        self.assertEqual(pick(self.SRC + "UKInventoryViewController.swift")["families"], ["iphone"])
+    def test_inventory_is_not_layout_sensitive_and_runs_no_device(self):
+        result = pick(self.SRC + "UKInventoryRow.swift")
+        self.assertEqual((result["families"], result["layout_sensitive"]), ([], False))
 
 
 class DiffTests(unittest.TestCase):
@@ -330,12 +327,12 @@ class PlanFilterTests(unittest.TestCase):
             result["journeys"] = ["ShellJourneyTests"]
             self.assertEqual(affected_tests.journey_args(result, plan="Gate", plans_dir=Path(folder)), "")
 
-    def test_the_committed_gate_plan_skips_the_shell_journeys(self):
-        # The hosted iPhone failure (run 42451291334): the shell class is a Live-plan class, so Gate runs none of it.
-        self.assertFalse(affected_tests.plan_runs("Gate", "FentonHomeUITests", "ShellJourneyTests"))
+    def test_the_committed_gate_plan_skips_the_live_journeys(self):
+        # The hosted iPhone failure (run 42451291334): a class the Live plan owns is skipped whole by Gate, so Gate runs none of it.
+        self.assertFalse(affected_tests.plan_runs("Gate", "FentonHomeUITests", "SpotlightJourneyTests"))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = affected_tests.main(["--journeys", "--plan", "Gate", "--files", "apple/Apps/iOSUITests/ShellJourneyTests.swift"])
+            code = affected_tests.main(["--journeys", "--plan", "Gate", "--files", "apple/Apps/iOSUITests/SpotlightJourneyTests.swift"])
         self.assertEqual(code, 0)
         self.assertEqual(out.getvalue().strip(), "")
 
@@ -369,7 +366,7 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("swift test:", self.run_main(*files)[1])
 
     def test_environment_narrows_the_pull_request_audit_only_when_journeys_run(self):
-        journeys = "apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift"
+        journeys = "apple/Sources/HassDesign/ThermostatDial.swift"
         self.assertEqual(MAP["changedEnvironment"], {"FENTON_UITEST_SPACES": "all-food"})
         self.assertEqual(self.run_main("--environment", "--files", journeys)[1].strip(), "FENTON_UITEST_SPACES=all-food")
         self.assertEqual(self.run_main("--environment", "--files", "apple/Sources/HassCore/Climate/X.swift")[1].strip(), "")
@@ -444,10 +441,10 @@ class PerFamilyTests(unittest.TestCase):
         self.assertEqual(result["smoke_families"], ["duo"])
 
     def test_a_changed_layout_journey_file_runs_only_itself_on_the_wide_families(self):
-        result = affected_tests.select(["apple/Apps/iOSUITests/ChoresWideLayoutJourneyTests.swift",
-                                        "apple/Apps/iOSUITests/ChoresSwipeJourneyTests.swift"], MAP, REPO)
-        self.assertEqual(result["journeys_by_family"]["duo"], ["ChoresWideLayoutJourneyTests"])
-        self.assertEqual(result["journeys_by_family"]["iphone"], ["ChoresWideLayoutJourneyTests", "ChoresSwipeJourneyTests"])
+        result = affected_tests.select(["apple/Apps/iOSUITests/LayoutJourneyTests.swift",
+                                        "apple/Apps/iOSUITests/FeedbackJourneyTests.swift"], MAP, REPO)
+        self.assertEqual(result["journeys_by_family"]["duo"], ["LayoutJourneyTests"])
+        self.assertEqual(result["journeys_by_family"]["iphone"], ["LayoutJourneyTests", "FeedbackJourneyTests"])
 
     def test_no_journeys_means_empty_lists_everywhere(self):
         result = self.pick("apple/Sources/HassCore/Foo.swift")
@@ -470,24 +467,10 @@ class PerFamilyTests(unittest.TestCase):
                                         + (["--device", device] if device else []))
                 self.assertEqual(out.getvalue().count("-only-testing"), expected, device)
 
-    def test_real_split_suites_send_only_their_pose_class_to_duo_and_ipad(self):
-        for file, pose in (("apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumSheet.swift", "VacuumSplitPoseJourneyTests"),
-                           ("apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumsViewController.swift", "VacuumSplitPoseJourneyTests"),
-                           ("apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift", "FoodWideLayoutJourneyTests"),
-                           ("apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipeDetail.swift", "FoodWideLayoutJourneyTests"),
-                           ("apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift", "ChoresWideLayoutJourneyTests"),
-                           ("apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift", "ChoresWideLayoutJourneyTests")):
-            result = affected_tests.select([file], MAP, REPO)
-            # Food and Chores pages open beside each other in columns, so their UIKit rules also name ColumnRoutesJourneyTests
-            expected = [pose, "ColumnRoutesJourneyTests"] if "/Features/Food/" in file or "/Features/Chores/" in file else [pose]
-            self.assertEqual(result["journeys_by_family"]["duo"], expected, file)
-            self.assertEqual(result["journeys_by_family"]["ipad"], expected, file)
-            self.assertIn(pose, result["journeys_by_family"]["iphone"], file)
-            self.assertGreater(len(result["journeys_by_family"]["iphone"]), 1, file)
-
     def test_shared_design_and_shell_rules_stay_blanket(self):
         for file in ("apple/Sources/HassDesign/SheetFit.swift", "apple/Sources/HassUI/App/Shell/Rail.swift"):
             result = affected_tests.select([file], MAP, REPO)
+            self.assertTrue(result["journeys"], file)
             self.assertEqual({tuple(v) for v in result["journeys_by_family"].values()}, {tuple(result["journeys"])}, file)
 
     def test_layout_journeys_are_a_subset_of_their_rules_journeys_and_real_classes(self):
@@ -506,39 +489,45 @@ class HostedSelectionTests(unittest.TestCase):
         return pick(*files)["hosted"]
 
     def test_the_classes_are_read_from_the_test_sources(self):
-        self.assertGreater(len(self.CLASSES), 100)
-        self.assertEqual(self.CLASSES["UKHostedChoresFormsTests"], "UKHostedChoresFormsTests")
-        self.assertEqual(self.CLASSES["UKHostedInventoryEditorTests"], "UKHostedInventoryTests")  # several classes share one file
+        self.assertGreater(len(self.CLASSES), 80)
+        self.assertEqual(self.CLASSES["UKHostedSprinklerErrorTests"], "UKHostedSprinklerErrorTests")
+        self.assertEqual(self.CLASSES["ServerUICameraIntentTests"], "ServerUICameraTests")  # several classes share one file
         self.assertNotIn("DemoHouseTestCase", self.CLASSES)  # a base class, not a test class
 
     def test_the_area_convention_places_a_feature_without_a_rule(self):
-        got = self.hosted(self.UK + "Features/Chores/UKTodoForms.swift")
-        self.assertEqual(got, ["UKHostedChoresFormsTests", "UKHostedChoresGapTests", "UKHostedChoresLinksTests", "UKHostedChoresTests"])
+        got = self.hosted(self.UK + "Features/Cameras/UKCameraViewer.swift")  # no hosted rule names Cameras
+        self.assertEqual(got, affected_tests.area_hosted("Cameras", self.CLASSES))
+        self.assertIn("UKHostedCameraTests", got)
+        self.assertIn("UKHostedSharedCameraTests", got)
         self.assertEqual(affected_tests.area_hosted("Vacuums", self.CLASSES),
-                         [n for n in sorted(self.CLASSES) if n.startswith("UKHostedVacuum")])  # the singular matches the editor and sheet classes
-        self.assertEqual(self.hosted(self.UK + "Features/Climate/UKClimateSheet.swift"), ["UKHostedClimateSheetTests"])
+                         [n for n in sorted(self.CLASSES) if n.startswith("UKHostedVacuum")])  # the singular matches the editor and map classes
 
     def test_the_convention_reads_the_file_name_too(self):
-        self.assertIn("UKHostedInventoryEditorTests", affected_tests.area_hosted("Inventory", self.CLASSES))  # declared in UKHostedInventoryTests.swift
+        self.assertIn("UIKitBackgroundTimeHostedTests", affected_tests.area_hosted("Cameras", self.CLASSES))  # declared in UKHostedCameraSurfaceTests.swift
         self.assertIn("LiveVideoSurfaceHostedTests", affected_tests.area_hosted("Cameras", self.CLASSES))  # declared in UKHostedCameraSurfaceTests.swift
 
     def test_an_explicit_rule_beats_the_convention(self):
         home = self.hosted(self.UK + "Features/Home/UKWeatherCard.swift")
         self.assertNotIn("UKHostedHomeAssistantTests", home)  # the convention would take it for Home; it tests Settings
-        self.assertIn("UKHostedSharedHomeTests", home)
-        self.assertEqual(self.hosted(self.UK + "Features/HouseConfig/UKHouseLayoutGate.swift"), ["UKHostedHouseLayoutGateTests"])
+        self.assertEqual(home, ["UKHostedGateAndOverviewTests", "UKHostedSharedWeatherViewsTests"])
+        self.assertEqual(self.hosted(self.UK + "Features/Climate/UKClimateSheet.swift"), ["UKHostedServerUIClimateTests"])  # the convention finds none
 
     def test_the_longest_hosted_prefix_narrows_a_file(self):
-        self.assertEqual(self.hosted(self.UK + "Features/Settings/UKFeedback.swift"), ["UKHostedFeedbackTests"])
-        wide = self.hosted(self.UK + "Features/Settings/UKSettingsRows.swift")
-        self.assertIn("UKHostedFeedbackTests", wide)
-        self.assertGreater(len(wide), 5)
+        self.assertEqual(self.hosted(self.UK + "Features/Rooms/CustomLights/UKCustomLightRow.swift"),
+                         ["UKHostedCustomLightSheetTests", "UKHostedCustomRowTests"])
+        wide = self.hosted(self.UK + "Features/Rooms/UKRoomsParts.swift")
+        self.assertIn("UKHostedRoomsBindingTests", wide)
+        self.assertGreater(len(wide), 2)
 
     def test_a_hosted_only_rule_does_not_shadow_the_journey_rules(self):
         result = pick(self.UK + "Features/Household/UKVacation.swift")
         self.assertEqual(result["hosted"], ["UKHostedVacationTests"])
         self.assertEqual(result["swift"], ["VacationModeController", "SoloTripController", "HouseholdAwayController"])
-        self.assertEqual(len(result["journeys"]), 4)
+        self.assertEqual(result["journeys"], [])  # the vacation journeys went with the compiled pages
+        # a hosted-only rule still lets a journey rule place the same folder: App/Page has both
+        page = pick(self.UK + "App/Page/UKFixedBarTitle.swift")
+        self.assertEqual(page["journeys"], ["PageTitleJourneyTests"])
+        self.assertEqual(page["hosted"], ["UKHostedColumnBarOffscreenTests", "UKHostedColumnsTests", "UKHostedPageBaseTests"])
 
     def test_shared_code_selects_the_classes_that_exercise_it_not_the_suite(self):
         for file in (self.UK + "Design/UKRow.swift", self.UK + "Design/UKGlassTileView.swift", self.UK + "App/Shell/UKShellViewController.swift",
@@ -546,16 +535,16 @@ class HostedSelectionTests(unittest.TestCase):
             got = self.hosted(file)
             self.assertTrue(got, file)
             self.assertLess(len(got), len(self.CLASSES) // 2, file)
-        self.assertIn("UKHostedTileTests", self.hosted(self.UK + "Design/UKGlassTileView.swift"))
-        self.assertIn("UKHostedShellTests", self.hosted(self.UK + "App/Shell/UKShellViewController.swift"))
+        self.assertIn("UKHostedDesignBrightnessModalTests", self.hosted(self.UK + "Design/UKGlassTileView.swift"))
+        self.assertIn("UKHostedEarlierBarTests", self.hosted(self.UK + "App/Shell/UKShellViewController.swift"))
 
     def test_app_wide_code_selects_every_class(self):
         for file in (self.UK + "Foundation/UKContext.swift", self.UK + "Gallery/UKGalleryChrome.swift"):
             self.assertEqual(self.hosted(file), sorted(self.CLASSES), file)
 
     def test_a_changed_hosted_test_file_selects_its_own_classes(self):
-        result = pick("apple/Apps/iOSTests/UKHostedInventoryTests.swift")
-        self.assertEqual(result["hosted"], ["UKHostedInventoryEditorTests", "UKHostedInventoryTests", "UKHostedScanTests"])
+        result = pick("apple/Apps/iOSTests/UKHostedCameraSurfaceTests.swift")
+        self.assertEqual(result["hosted"], ["LiveVideoSurfaceHostedTests", "OnScreenMonitorHostedTests", "UIKitBackgroundTimeHostedTests"])
         self.assertEqual((result["swift"], result["journeys"], result["unknown"], result["hosted_unknown"]), ([], [], [], []))
 
     def test_a_changed_helper_selects_the_whole_suite(self):
@@ -600,9 +589,9 @@ class HostedSelectionTests(unittest.TestCase):
     def test_the_command_line_prints_the_classes_json_and_the_pick(self):
         cli = CommandLineTests()
         files = ["--files", self.UK + "Features/Climate/UKClimateSheet.swift"]
-        self.assertEqual(cli.run_main("--hosted", *files)[1].strip(), "UKHostedClimateSheetTests")
-        self.assertEqual(json.loads(cli.run_main("--json", *files)[1])["hosted"], ["UKHostedClimateSheetTests"])
-        self.assertIn("hosted:     UKHostedClimateSheetTests", cli.run_main(*files)[1])
+        self.assertEqual(cli.run_main("--hosted", *files)[1].strip(), "UKHostedServerUIClimateTests")
+        self.assertEqual(json.loads(cli.run_main("--json", *files)[1])["hosted"], ["UKHostedServerUIClimateTests"])
+        self.assertIn("hosted:     UKHostedServerUIClimateTests", cli.run_main(*files)[1])
         code, out, err = cli.run_main("--hosted", "--files", self.UK + "Features/Mystery/UKThing.swift")
         self.assertEqual((code, out.strip()), (3, ""))
         self.assertIn("NEEDS A PICK", err)
