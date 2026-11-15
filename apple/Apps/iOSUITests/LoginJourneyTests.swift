@@ -81,6 +81,12 @@ final class LoginJourneyTests: JourneyTestCase {
         fill(app)
         submit(app)
         XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        // The recovery view exists behind the sign-in layer while the arrival plays (up to 1.5 s waiting for a layout, then the
+        // 0.4 s lift): its elements are held back from assistive technologies until then. Audited early, the page reads as an
+        // empty tree and the audit reports element-less "no description" issues (CI iPad, 2026-11-15: five). Audit the settled page.
+        XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 15), "The recovery page's actions are reachable.")
+        XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+        settleScreen()
         try FentonHomeApp.audit(app)
     }
 
