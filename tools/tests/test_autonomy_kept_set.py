@@ -451,7 +451,11 @@ class GoPublicGuardTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertNotIn("going public", self.why(command) or "")
 
+    @mock.patch.dict(os.environ)  # restores the session marker the body clears
     def test_a_push_to_another_remote_is_refused(self):
+        # ``merge_guard.reason`` answers a headless session (FENTON_HEADLESS=1, the only marker it reads) with the headless push
+        # rule instead of "going public": run as an ordinary session whatever session runs the suite.
+        os.environ.pop("FENTON_HEADLESS", None)
         with TemporaryDirectory() as name:
             repo = Path(name) / "repo"
             repo.mkdir()
