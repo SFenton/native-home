@@ -52,6 +52,17 @@ class NewFailuresTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("new:\n  n (m.C)", out)
 
+    def test_failures_differing_only_in_a_random_temp_dir_are_existing(self):
+        tmp = "FAIL: t (m.C) (command='git -C /var/folders/ab/cd/T/{}/other push')\nFAILED\n"
+        code, out = run(Stub((1, tmp.format("tmpBBBBBBBB")), (1, tmp.format("tmpAAAAAAAA"))))
+        self.assertEqual(code, 0)
+        self.assertIn("existing", out)
+        self.assertIn("<tmp>/other", out)
+
+    def test_another_test_name_with_a_temp_dir_is_new(self):
+        tmp = "FAIL: {} (m.C) (command='git -C /tmp/{}/other push')\nFAILED\n"
+        self.assertEqual(run(Stub((1, tmp.format("t2", "tmpB")), (1, tmp.format("t1", "tmpA"))))[0], 1)
+
     def test_base_run_without_results(self):
         self.assertEqual(run(Stub(fail("a"), (2, "boom\n")))[0], 1)
 

@@ -1032,6 +1032,35 @@ class BaseComparisonTests(unittest.TestCase):
         self.assertIn("test_new (m.D)", str(cm.exception))
         self.assertNotIn("test_a (m.C)", str(cm.exception))
 
+    TMP = "test_p (m.C) (command='git -C /var/folders/ab/cd/T/{}/other push')"
+
+    def test_a_failure_differing_only_in_its_random_temp_dir_is_accepted(self):
+        base = self.tree("b", fails=[self.TMP.format("tmpAAAAAAAA")])
+        self.run_it(self.tree("l", fails=[self.TMP.format("tmpBBBBBBBB")]), base)
+        self.assertEqual(self.counts[f"sha|{self.CMD}"][2], ["test_p (m.C) (command='git -C <tmp>/other push')"])
+
+    def test_a_base_cached_with_raw_temp_ids_does_not_refuse_the_same_failure(self):
+        self.counts[f"sha|{self.CMD}"] = [1, 5, [self.TMP.format("tmpAAAAAAAA")]]  # written before ids were normalised
+        self.run_it(self.tree("l", fails=[self.TMP.format("tmpBBBBBBBB")]), self.tree("b"))
+
+    def test_another_test_name_is_still_refused_with_a_temp_dir(self):
+        base = self.tree("b", fails=[self.TMP.format("tmpAAAAAAAA")])
+        with self.assertRaises(lane_land.Refused) as cm:
+            self.run_it(self.tree("l", fails=[self.TMP.format("tmpBBBBBBBB").replace("test_p", "test_q")]), base)
+        self.assertIn("test_q (m.C)", str(cm.exception))
+
+    def test_a_parameter_that_differs_outside_a_temp_path_is_still_refused(self):
+        base = self.tree("b", fails=[self.TMP.format("tmpAAAAAAAA")])
+        with self.assertRaises(lane_land.Refused):
+            self.run_it(self.tree("l", fails=[self.TMP.format("tmpBBBBBBBB").replace("push", "pull")]), base)
+        with self.assertRaises(lane_land.Refused):  # the path below the temp dir is part of the id
+            self.run_it(self.tree("l2", fails=[self.TMP.format("tmpBBBBBBBB").replace("/other", "/third")]), base)
+
+    def test_stable_id_handles_private_prefix_and_tmp(self):
+        self.assertEqual(lane_land._stable_id("t (m.C) (p='/private/var/folders/a/b/T/tmpX1/o' q=\"/tmp/tmpY2\")"),
+                         "t (m.C) (p='<tmp>/o' q=\"<tmp>\")")
+        self.assertEqual(lane_land._stable_id("t (m.C) (p='/home/me/x')"), "t (m.C) (p='/home/me/x')")
+
     def test_a_lane_that_fixes_a_base_failure_is_accepted(self):
         self.run_it(self.tree("l", ran=6), self.tree("b", fails=["test_a (m.C)"]))
 

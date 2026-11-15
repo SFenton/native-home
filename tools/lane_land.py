@@ -663,9 +663,21 @@ def _run_fixed(tree: Path, command: str, timeout: float, extra_env: Optional[Dic
 FAILURE_RE = re.compile(r"^(?:FAIL|ERROR): (.+?)\s*$", re.M)
 
 
+#: The random directory a test made under the system temp dir (``/var/folders/<x>/<y>/T/tmpAbC123`` on macOS, ``/tmp/tmpAbC123``
+#: elsewhere): one component, so the path below it (``/other``) stays part of the id.
+TEMP_PATH_RE = re.compile(r"(?:/private)?/(?:var/folders/[^/\s]+/[^/\s]+/T|tmp)/[^/\s'\")]+")
+
+
+def _stable_id(failure_id: str) -> str:
+    """``failure_id`` with each random temp directory replaced by ``<tmp>``. A ``subTest`` prints its parameters in the id, so
+    a test that builds a ``TemporaryDirectory`` gets a different id every run; the same failure must compare equal. Idempotent."""
+    return TEMP_PATH_RE.sub("<tmp>", failure_id)
+
+
 def failing_ids(output: str) -> List[str]:
-    """Sorted unique ``FAIL: name (module.Class)`` / ``ERROR: ...`` ids from unittest output (import failures included)."""
-    return sorted(set(FAILURE_RE.findall(output)))
+    """Sorted unique ``FAIL: name (module.Class)`` / ``ERROR: ...`` ids from unittest output (import failures included), with
+    random temp directories normalised by :func:`_stable_id` so a failure compares equal across runs."""
+    return sorted({_stable_id(i) for i in FAILURE_RE.findall(output)})
 
 
 def base_file_stats(base_cwd: Path, base_key: str, test_file: str, cache: Dict[str, Any], timeout: float) -> List[Any]:
@@ -737,7 +749,8 @@ def run_tests(clone: Path, tests: str, timeout: float = 3600.0, *, base_clone: O
             if not ok:
                 raise Refused(f"tests did not report OK for every suite ({base_command}): {suites} suites, {total} tests", "tests")
             continue
-        new = [i for i in failed if i not in set(cached[2])]
+        known = {_stable_id(i) for i in cached[2]}  # a base cached before ids were normalised may hold raw temp paths
+        new = [i for i in failed if i not in known]
         if new:
             raise Refused(f"tests: new failures not present in the base ({base_command}): " + "; ".join(new[:10]), "tests")
         if code != 0 and not failed:
