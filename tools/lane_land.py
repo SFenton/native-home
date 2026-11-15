@@ -752,7 +752,9 @@ def run_tests(clone: Path, tests: str, timeout: float = 3600.0, *, base_clone: O
         known = {_stable_id(i) for i in cached[2]}  # a base cached before ids were normalised may hold raw temp paths
         new = [i for i in failed if i not in known]
         if new:
-            raise Refused(f"tests: new failures not present in the base ({base_command}): " + "; ".join(new[:10]), "tests")
+            shown = "; ".join(i if len(i) <= 200 else i[:199] + "…" for i in new[:10])
+            raise Refused(f"tests: {len(new)} new failure(s) not present in the base: {shown} (command: {base_command[:120]}...)",
+                          "tests")
         if code != 0 and not failed:
             tail = "\n".join(output.strip().splitlines()[-15:])
             raise Refused(f"tests failed ({base_command}, exit {code}) with no failing test ids:\n{tail}", "tests")

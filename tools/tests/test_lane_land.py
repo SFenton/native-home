@@ -1061,6 +1061,24 @@ class BaseComparisonTests(unittest.TestCase):
                          "t (m.C) (p='<tmp>/o' q=\"<tmp>\")")
         self.assertEqual(lane_land._stable_id("t (m.C) (p='/home/me/x')"), "t (m.C) (p='/home/me/x')")
 
+    def test_the_refusal_names_the_failing_test_before_a_long_command(self):
+        base = self.tree("b")
+        with self.assertRaises(lane_land.Refused) as cm:
+            lane_land.run_tests(self.tree("l", fails=["test_first (m.C)"]), self.CMD + " # " + "x" * 5000,
+                                base_clone=base, base_key="sha", base_counts=self.counts)
+        msg = str(cm.exception)
+        self.assertEqual(cm.exception.kind, "tests")
+        self.assertTrue(msg.startswith("tests: 1 new failure(s) not present in the base: test_first (m.C)"))
+        self.assertLess(msg.index("test_first"), 400)
+        self.assertLess(len(msg), 600)
+
+    def test_each_listed_id_is_capped(self):
+        base = self.tree("b")
+        long_id = "test_long (m.C) (command='" + "y" * 500 + "')"
+        with self.assertRaises(lane_land.Refused) as cm:
+            self.run_it(self.tree("l", fails=[long_id]), base)
+        self.assertLess(len(str(cm.exception)), 600)
+
     def test_a_lane_that_fixes_a_base_failure_is_accepted(self):
         self.run_it(self.tree("l", ran=6), self.tree("b", fails=["test_a (m.C)"]))
 

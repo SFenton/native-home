@@ -185,7 +185,7 @@ class SelectedLandTests(Repo):
     def test_a_new_failing_test_in_the_selected_set_blocks(self):
         sha = self.push_lane("agents/bad", {"tools/tests/test_new.py": FAIL})
         msg = self.refused("tests", lane="agents/bad", tests=lane_land.DEFAULT_TESTS, launch=lambda *a: self.said(sha))
-        self.assertIn("new failures", msg)
+        self.assertIn("new failure(s) not present in the base", msg)
         self.assertEqual(g(self.origin, "rev-list", "--count", "--merges", BASE), "0")
 
     def test_a_passing_selected_test_lands(self):
