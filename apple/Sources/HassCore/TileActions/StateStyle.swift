@@ -1,5 +1,6 @@
 import Foundation
 import HassTelemetry
+import os
 
 // MARK: - Style
 
@@ -114,7 +115,7 @@ public struct StateStyle: Equatable, Sendable, Identifiable {
 
     // MARK: Defaults
 
-    private static let reported = LockedState(Set<String>())
+    private static let reported = OSAllocatedUnfairLock(initialState: Set<String>())
 
     /// One telemetry event per style and state for the process: the fallback is hit on every render of the tile.
     private static func reportUnlisted(_ state: String, style: String) {

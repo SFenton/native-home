@@ -99,17 +99,6 @@ public struct ServerUIDeviceFacts: Sendable {
     }
 }
 
-/// A tiny lock-guarded box for state read from any thread (the once-per-style telemetry set).
-final class LockedState<Value>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: Value
-    init(_ value: Value) { self.value = value }
-    func withLock<T>(_ body: (inout Value) -> T) -> T {
-        lock.lock(); defer { lock.unlock() }
-        return body(&value)
-    }
-}
-
 extension ServerUIDegradation {
     /// Records the degrade for the diagnostic stream: the kind and pointer only.
     public func record() {
