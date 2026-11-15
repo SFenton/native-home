@@ -1,6 +1,7 @@
 #if os(iOS)
 import HassCore
 import HassDesign
+import HassTelemetry
 import UIKit
 
 // MARK: - Plan
@@ -54,6 +55,19 @@ final class UKStateTileTransition {
     var reduceMotion: () -> Bool = { UKDesign.reduceMotion }
     /// Seconds on a monotonic clock. Tests override it.
     var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// Opens the `LayoutChange` signpost for one animated change (`reduced` names the Reduce Motion variant) and returns what ends it.
+    /// Tests override it to count begin and end.
+    var beginSignpost: (_ reduced: Bool) -> () -> Void = { reduced in
+        let interval = Telemetry.begin(Telemetry.Name.layoutChange, page: "StateTile", reduced ? "reduced" : "animated")
+        return { Telemetry.end(interval) }
+    }
+    /// Runs `work` on the main actor once `seconds` have passed: when the fade is due to settle. Tests override it to fire by hand.
+    var afterSettle: (_ seconds: TimeInterval, _ work: @escaping @MainActor () -> Void) -> Void = { seconds, work in
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(seconds))
+            work()
+        }
+    }
 
     /// Test-only: the scheduler a transition built without one uses, so a hosted test fires the flap guard's release by hand.
     /// Nil in production, which uses ``TaskRevertScheduler``.
@@ -73,6 +87,14 @@ final class UKStateTileTransition {
     private var releaseTimer: (any ScheduledWork)?
     private var effectTimer: (any ScheduledWork)?
     private var ownRequest = false
+    private var openSpan: SignpostSpan?
+
+    /// One open signpost interval; the settle timer holds it, so the interval ends even when the tile is gone first.
+    private final class SignpostSpan {
+        private var end: (() -> Void)?
+        init(end: @escaping () -> Void) { self.end = end }
+        func finish() { end?(); end = nil }
+    }
 
     /// - Parameters:
     ///   - scheduler: Runs the flap guard's release and the effect's delay; nil takes ``schedulerOverride``, then the production scheduler.
@@ -95,6 +117,7 @@ final class UKStateTileTransition {
         if reapply || shown == nil {
             releaseTimer?.cancel()
             effectTimer?.cancel()
+            finishSignpost()
             held = nil
             inProgressSince = nil
             shown = look
@@ -150,6 +173,7 @@ final class UKStateTileTransition {
         shown = look
         if look.stateClass == .inProgress, previous.stateClass != .inProgress { inProgressSince = now() }
         else if look.stateClass != .inProgress { inProgressSince = nil }
+        openSignpost(for: plan, reduced: reduced)
         render(plan)
         if let effect {
             effectTimer?.cancel()
@@ -160,6 +184,23 @@ final class UKStateTileTransition {
             }
         }
         speak(from: previous.stateClass, to: look)
+    }
+
+    /// One `LayoutChange` interval per animated plan, from the change to the fade settling (the longer of the colour fade and the disc and arc
+    /// cross-fade, or one frame when only the glyph or text changes), `XCTOSSignpostMetric` in `UKHostedStateTilePerformanceTests`. A change
+    /// that lands mid-fade ends the open interval first, so intervals never nest. An instant plan opens none.
+    private func openSignpost(for plan: UKStateTilePlan, reduced: Bool) {
+        guard !plan.isInstant else { return }
+        finishSignpost()
+        let span = SignpostSpan(end: beginSignpost(reduced))
+        openSpan = span
+        let settle = max(plan.colourFade?.duration ?? 0, plan.slot == .none ? 0 : MotionTokens.quickDuration, 1.0 / 60)
+        afterSettle(settle) { span.finish() }
+    }
+
+    private func finishSignpost() {
+        openSpan?.finish()
+        openSpan = nil
     }
 
     private func speak(from old: StateTileLook.Class, to look: StateTileLook) {

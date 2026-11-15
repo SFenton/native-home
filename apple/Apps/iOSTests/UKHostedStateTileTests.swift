@@ -21,12 +21,16 @@ final class UKHostedStateTileTransitionTests: XCTestCase {
     private var haptics = 0
     private var clock: TimeInterval = 100
     private var visible = true
+    private var begun: [Bool] = []
+    private var ended = 0
+    private var settles: [(seconds: TimeInterval, work: @MainActor () -> Void)] = []
 
     override func setUp() async throws {
         try await super.setUp()
         UKMotion.reduceMotionOverride = false
         scheduler = HandScheduler()
         plans = []; spoken = []; effects = []; haptics = 0; clock = 100; visible = true
+        begun = []; ended = 0; settles = []
         transition = UKStateTileTransition(scheduler: scheduler, title: { "Door" })
         transition.render = { [unowned self] in plans.append($0) }
         transition.announce = { [unowned self] in spoken.append($0) }
@@ -34,11 +38,68 @@ final class UKHostedStateTileTransitionTests: XCTestCase {
         transition.errorHaptic = { [unowned self] in haptics += 1 }
         transition.isPageVisible = { [unowned self] in visible }
         transition.now = { [unowned self] in clock }
+        transition.beginSignpost = { [unowned self] reduced in
+            begun.append(reduced)
+            return { [unowned self] in ended += 1 }
+        }
+        transition.afterSettle = { [unowned self] seconds, work in settles.append((seconds, work)) }
     }
 
     override func tearDown() async throws {
         UKMotion.reduceMotionOverride = nil
         try await super.tearDown()
+    }
+
+    // MARK: Signpost
+
+    func testAnAnimatedChangeOpensOneLayoutChangeIntervalAndEndsItWhenTheFadeSettles() {
+        transition.apply(look(.resting, "Closed", action: true))
+        XCTAssertTrue(begun.isEmpty, "a first render is instant: no interval")
+        transition.apply(look(.resting, "Open", active: true, action: true))
+        XCTAssertEqual(begun, [false])
+        XCTAssertEqual(ended, 0, "open while the fade runs")
+        XCTAssertEqual(settles.first?.seconds, MotionTokens.stateDuration)
+        settles[0].work()
+        XCTAssertEqual(ended, 1)
+        settles[0].work()
+        XCTAssertEqual(ended, 1, "a settle fires once; a second call ends nothing")
+    }
+
+    func testTheIntervalSpansTheLongerOfTheColourFadeAndTheDiscFade() {
+        transition.apply(look(.resting, "Closed", action: true))
+        transition.apply(look(.resting, "Closed", icon: "b", action: true))
+        XCTAssertEqual(settles.last?.seconds ?? 0, 1.0 / 60, accuracy: 0.0001, "a glyph-only change settles in one frame")
+        transition.apply(look(.inProgress, "Opening", indicator: .arc))
+        XCTAssertGreaterThanOrEqual(settles.last?.seconds ?? 0, MotionTokens.quickDuration)
+    }
+
+    func testReduceMotionOpensTheReducedIntervalOnTheShorterFade() {
+        UKMotion.reduceMotionOverride = true
+        transition.apply(look(.resting, "Closed", action: true))
+        transition.apply(look(.resting, "Open", active: true, action: true))
+        XCTAssertEqual(begun, [true])
+        XCTAssertEqual(settles.first?.seconds, MotionTokens.stateReducedDuration)
+        settles[0].work()
+        XCTAssertEqual(ended, 1)
+    }
+
+    func testAChangeMidFadeEndsTheOpenIntervalFirstAndAReapplyEndsIt() {
+        transition.apply(look(.resting, "Closed", action: true))
+        transition.apply(look(.resting, "Open", active: true, action: true))
+        transition.apply(look(.warning, "Ajar", indicator: .pulse, active: true, action: true))
+        XCTAssertEqual(begun.count, 2)
+        XCTAssertEqual(ended, 1, "intervals never nest")
+        settles[0].work()
+        XCTAssertEqual(ended, 1, "the first interval's late settle does not end the second")
+        transition.apply(look(.resting, "Closed", action: true), reapply: true)
+        XCTAssertEqual(ended, 2, "a reapply is instant and closes what was open")
+        XCTAssertEqual(begun.count, 2)
+    }
+
+    func testAnUnchangedLookOpensNoInterval() {
+        transition.apply(look(.resting, "Closed", action: true))
+        transition.apply(look(.resting, "Closed", action: true))
+        XCTAssertTrue(begun.isEmpty)
     }
 
     func testAFirstRenderAndAReapplySetEveryLayerAtOnceWithNothingSaid() {
