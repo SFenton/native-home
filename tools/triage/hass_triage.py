@@ -2875,7 +2875,8 @@ class Runner:
 
         Called on every ending (``work``) and again before ``cleanup`` deletes the worktree. Copies the review verdicts,
         task ledger, Jev shadow and gate logs, ``build/retro`` and ``build/handoff`` and the ``bg_run`` digests from
-        the worktree, plus the status file, the last ``ARCHIVE_LOG_LINES`` redacted lines of the worker log and the
+        the worktree, plus the status file, the last ``ARCHIVE_LOG_LINES`` redacted lines of the worker log
+        (``worker.log.tail``, and ``worker.log.<attempt>.tail`` beside it for each attempt) and the
         owner's reply and the owner's comments made during the run (``owner_replies.json``). A scheduled job or a retro
         passes ``name`` (``job-steward-2026-11-02``), ``tree``, ``status_file`` and ``task`` instead. After the digest,
         a flow with a digest trigger, a ``phase_cost`` from ``retro_phase.py`` (run for the flow's PR) or a touched workflow path is queued for a post-mortem (``enqueue_retro``).
