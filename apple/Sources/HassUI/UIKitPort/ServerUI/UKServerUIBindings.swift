@@ -45,6 +45,8 @@ final class UKServerUIBindings {
     let cameraPool: CameraStreamPool
     private let weatherReader: ServerUIWeatherReader?
     private let cameraReader: UKCameraReadProvider?
+    /// The `app-state@1` values: window, clock, system, notifications and preferences (``UKServerUIAppStateSource``).
+    let appState: UKServerUIAppStateSource
 
     init(sources: [D.Source], context: UKContext,
          scheduleStorage: (any HassScheduleStoring)? = nil,
@@ -56,6 +58,7 @@ final class UKServerUIBindings {
          cameraPool: CameraStreamPool = .shared,
          weatherReader: ServerUIWeatherReader? = nil, cameraReader: UKCameraReadProvider? = nil) {
         self.context = context
+        appState = UKServerUIAppStateSource(push: context.push)
         self.weatherReader = weatherReader
         self.cameraReader = cameraReader
         roomVisits = context.caller.map { ServerUIRoomVisits(caller: $0) }
@@ -314,7 +317,19 @@ final class UKServerUIBindings {
             case ["state"]: return .ready(.string(status.state))
             case ["phase"]: return .ready(.string(status.unavailable ? "unavailable" : status.state == "loading" ? "loading" : "ready"))
             case ["isActive"]: return .ready(.bool(status.active))
+            case ["count"], ["total"], ["unavailableCount"]:
+                // The counts of `sh.home-status-counts@1`: a number once the members have answered, loading until then.
+                if status.state == "loading" { return .loading }
+                let number: Int? = read.path == ["count"] ? status.count : read.path == ["total"] ? status.total : status.unavailableCount
+                return status.state == "hidden" ? .unavailable : number.map { .ready(.number(Double($0))) } ?? .unavailable
             default: return .unavailable
+            }
+        }
+        if case .appState(_, let topic) = source, read.path.count == 1 {
+            switch appState.read(topic, field: read.path[0]) {
+            case .value(let value): return .ready(value)
+            case .loading: return .loading
+            case .unavailable: return .unavailable
             }
         }
         if case .todoCounts(_, let configuration) = source {
@@ -475,7 +490,7 @@ final class UKServerUIBindings {
             default: return .unavailable
             }
         case .inventorySummary, .todoCounts, .roomNavigation, .roomDevice, .bedroom,
-             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider:
+             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider, .appState:
             return .unavailable
         case .homeStatus, .homeWeather, .homeLight: return .unavailable
         }

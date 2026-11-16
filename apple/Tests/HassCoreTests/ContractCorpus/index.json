@@ -3167,158 +3167,74 @@
       }
     },
     {
-      "file": "reject/pending-component-single-use.json",
-      "outcome": "reject",
-      "note": "One entry and one reference on a page: the reference expands to its body, whose id becomes the reference id.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-single-use.json",
+      "outcome": "accept",
+      "note": "One entry and one reference on a page: the reference expands to its body, whose id becomes the reference id."
     },
     {
-      "file": "reject/pending-component-two-uses-one-page.json",
-      "outcome": "reject",
-      "note": "The same entry used twice on one page: ids stay unique after expansion because an inner id is prefixed with the reference id.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-two-uses-one-page.json",
+      "outcome": "accept",
+      "note": "The same entry used twice on one page: ids stay unique after expansion because an inner id is prefixed with the reference id."
     },
     {
-      "file": "reject/pending-component-across-surfaces.json",
-      "outcome": "reject",
-      "note": "Uses on a page, in a sheet and in a local tab.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-across-surfaces.json",
+      "outcome": "accept",
+      "note": "Uses on a page, in a sheet and in a local tab."
     },
     {
-      "file": "reject/pending-component-in-grid-span.json",
-      "outcome": "reject",
-      "note": "A tile body used in a tile grid at width 2: the width is the use's own, the body's root stays at 1.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-in-grid-span.json",
+      "outcome": "accept",
+      "note": "A tile body used in a tile grid at width 2: the width is the use's own, the body's root stays at 1."
     },
     {
-      "file": "reject/pending-component-container-body.json",
-      "outcome": "reject",
-      "note": "A section body with children, a rule on a child and a call-service action: every check runs once at the library pointer.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-container-body.json",
+      "outcome": "accept",
+      "note": "A section body with children, a rule on a child and a call-service action: every check runs once at the library pointer."
     },
     {
-      "file": "reject/pending-component-root-rule.json",
-      "outcome": "reject",
-      "note": "A rule on the body's root applies in every place the component is used.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-root-rule.json",
+      "outcome": "accept",
+      "note": "A rule on the body's root applies in every place the component is used."
     },
     {
-      "file": "reject/pending-component-unused-entry.json",
-      "outcome": "reject",
-      "note": "An entry no node uses compiles, and the manifest still lists the capability.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-unused-entry.json",
+      "outcome": "accept",
+      "note": "An entry no node uses compiles, and the manifest still lists the capability."
     },
     {
-      "file": "reject/pending-component-empty-library.json",
-      "outcome": "reject",
-      "note": "An empty library is still the key, so it still needs the capability.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-empty-library.json",
+      "outcome": "accept",
+      "note": "An empty library is still the key, so it still needs the capability."
     },
     {
-      "file": "reject/pending-component-state-tile-body.json",
-      "outcome": "reject",
-      "note": "A body whose state tile applies a style from the document's style library.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-state-tile-body.json",
+      "outcome": "accept",
+      "note": "A body whose state tile applies a style from the document's style library."
     },
     {
-      "file": "reject/pending-component-long-ids.json",
-      "outcome": "reject",
-      "note": "An 80-character reference id over an 80-character inner id: a derived id may be longer than 80 characters.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-long-ids.json",
+      "outcome": "accept",
+      "note": "An 80-character reference id over an 80-character inner id: a derived id may be longer than 80 characters."
     },
     {
-      "file": "reject/pending-component-args-page-and-text.json",
-      "outcome": "reject",
-      "note": "One parameter that fills a tile's destination page: two uses send two different pages.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-args-page-and-text.json",
+      "outcome": "accept",
+      "note": "One parameter that fills a tile's destination page: two uses send two different pages."
     },
     {
-      "file": "reject/pending-component-args-source-bound-twice.json",
-      "outcome": "reject",
-      "note": "One source parameter bound to two fields of one tile (its binding and its action), set per use.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-args-source-bound-twice.json",
+      "outcome": "accept",
+      "note": "One source parameter bound to two fields of one tile (its binding and its action), set per use."
     },
     {
-      "file": "reject/pending-component-args-text-symbol-modal.json",
-      "outcome": "reject",
-      "note": "Text, symbol and sheet parameters on one tile, each bound by node id and a field path.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-args-text-symbol-modal.json",
+      "outcome": "accept",
+      "note": "Text, symbol and sheet parameters on one tile, each bound by node id and a field path."
     },
     {
-      "file": "reject/pending-component-args-in-section.json",
-      "outcome": "reject",
-      "note": "A parameter bound to a node inside a body: the bound node is found by its id, not its position.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true
+      "file": "accept/component-args-in-section.json",
+      "outcome": "accept",
+      "note": "A parameter bound to a node inside a body: the bound node is found by its id, not its position."
     },
     {
       "file": "reject/component-capability-missing.json",
@@ -3355,12 +3271,6 @@
       "outcome": "reject",
       "note": "A reference names an entry the library does not hold.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/componentId"
       }
@@ -3370,12 +3280,6 @@
       "outcome": "reject",
       "note": "A reference with no library at all names nothing.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/componentId"
       }
@@ -3385,12 +3289,6 @@
       "outcome": "reject",
       "note": "A reference names its component.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/componentId"
       }
@@ -3400,12 +3298,6 @@
       "outcome": "reject",
       "note": "A library names each entry id once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/componentLibrary/0/id"
       }
@@ -3415,12 +3307,6 @@
       "outcome": "reject",
       "note": "A body node shares its id with a node on a page: one catalog of node ids.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/componentLibrary/0/node/id"
       }
@@ -3430,12 +3316,6 @@
       "outcome": "reject",
       "note": "Two bodies share an inner id.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/componentLibrary/0/node/id"
       }
@@ -3445,12 +3325,6 @@
       "outcome": "reject",
       "note": "A reference shares its id with another node.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/pages/2/components/0/id"
       }
@@ -3460,12 +3334,6 @@
       "outcome": "reject",
       "note": "A body holds no reference: nesting is a later version.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/componentLibrary/1/node/children/0/type"
       }
@@ -3475,12 +3343,6 @@
       "outcome": "reject",
       "note": "A body's root is not a reference.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/componentLibrary/1/node/type"
       }
@@ -3490,12 +3352,6 @@
       "outcome": "reject",
       "note": "A body's root has width 1; the width belongs to each use.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/componentLibrary/0/node/layout/span"
       }
@@ -3505,12 +3361,6 @@
       "outcome": "reject",
       "note": "A reference's width is 1 outside a grid, as for any node.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/layout/span"
       }
@@ -3520,12 +3370,6 @@
       "outcome": "reject",
       "note": "A form body may only sit at the top of a page, not inside a section.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/children/0/componentId"
       }
@@ -3535,12 +3379,6 @@
       "outcome": "reject",
       "note": "A settings link may not sit in a grid, and a reference to one is no different.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/children/0/componentId"
       }
@@ -3550,12 +3388,6 @@
       "outcome": "reject",
       "note": "A page holds one form: two references to a form body are two forms.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components"
       }
@@ -3565,12 +3397,6 @@
       "outcome": "reject",
       "note": "A body 12 levels tall fits at the top of a page and not one level down: the limit counts the expanded tree.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/children/0"
       }
@@ -3580,12 +3406,6 @@
       "outcome": "reject",
       "note": "Each use adds the whole body to the document's total of 4096 nodes.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/modals/0/components/43"
       }
@@ -3595,12 +3415,6 @@
       "outcome": "reject",
       "note": "A library holds at most 100 entries.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/componentLibrary"
       }
@@ -3610,12 +3424,6 @@
       "outcome": "reject",
       "note": "A reference carries no title of its own.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/title"
       }
@@ -3625,12 +3433,6 @@
       "outcome": "reject",
       "note": "An entry takes the fields of its schema and no others.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/componentLibrary/0/description"
       }
@@ -3640,12 +3442,6 @@
       "outcome": "reject",
       "note": "An entry's name is 1 to 80 characters.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/componentLibrary/0/name"
       }
@@ -3655,12 +3451,6 @@
       "outcome": "reject",
       "note": "An entry's name has no control or format characters.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/componentLibrary/0/name"
       }
@@ -3670,12 +3460,6 @@
       "outcome": "reject",
       "note": "A body that names a source the document lacks is reported once, at the library, though the entry is used twice.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/componentLibrary/0/node/action/sourceId"
       }
@@ -3685,12 +3469,6 @@
       "outcome": "reject",
       "note": "A parameter with no argument in a use.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/args/target"
       }
@@ -3700,12 +3478,6 @@
       "outcome": "reject",
       "note": "An argument for a parameter the entry does not declare.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/args/other"
       }
@@ -3715,12 +3487,6 @@
       "outcome": "reject",
       "note": "A use gives arguments to an entry with no parameters.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/args/target"
       }
@@ -3730,12 +3496,6 @@
       "outcome": "reject",
       "note": "A page argument names a page the document lacks.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/args/target"
       }
@@ -3745,12 +3505,6 @@
       "outcome": "reject",
       "note": "A source argument names a source of the wrong model: it is checked as the field it fills, at the argument.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/args/lamp"
       }
@@ -3760,12 +3514,6 @@
       "outcome": "reject",
       "note": "A page argument is an identifier.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/pages/2/components/0/args/target"
       }
@@ -3775,12 +3523,6 @@
       "outcome": "reject",
       "note": "A binding names a node of the body.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/componentLibrary/0/bindings/0/nodeId"
       }
@@ -3790,12 +3532,6 @@
       "outcome": "reject",
       "note": "A binding names a field the node has.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/componentLibrary/0/bindings/0/field"
       }
@@ -3805,12 +3541,6 @@
       "outcome": "reject",
       "note": "A parameter's kind must match the bound field: a page parameter cannot fill a text field.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/componentLibrary/0/bindings/0/field"
       }
@@ -3820,12 +3550,6 @@
       "outcome": "reject",
       "note": "A binding names a declared parameter.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/componentLibrary/0/bindings/0/param"
       }
@@ -3835,12 +3559,6 @@
       "outcome": "reject",
       "note": "A field is bound once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/componentLibrary/0/bindings/1/field"
       }
@@ -3850,12 +3568,6 @@
       "outcome": "reject",
       "note": "A parameter is declared once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/componentLibrary/0/params/1/name"
       }
@@ -3865,37 +3577,19 @@
       "outcome": "reject",
       "note": "An entry declares at most 8 parameters.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/5",
-        "capability": "sh.component-ref@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/componentLibrary/0/params"
       }
     },
     {
-      "file": "reject/pending-conditions-compare.json",
-      "outcome": "reject",
-      "note": "A node shown when one value is above another: compare reads, with no state or numeric leaf.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-compare.json",
+      "outcome": "accept",
+      "note": "A node shown when one value is above another: compare reads, with no state or numeric leaf."
     },
     {
-      "file": "reject/pending-conditions-in-exists.json",
-      "outcome": "reject",
-      "note": "in and exists leaves, combined with the old leaves and not.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-in-exists.json",
+      "outcome": "accept",
+      "note": "in and exists leaves, combined with the old leaves and not."
     },
     {
       "file": "reject/pending-conditions-compare-dates.json",
@@ -3904,31 +3598,19 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.pipeline-operands@1"
       }
     },
     {
-      "file": "reject/pending-conditions-model-read-operand.json",
-      "outcome": "reject",
-      "note": "An operand can read a model source: a call built from a home status field.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-model-read-operand.json",
+      "outcome": "accept",
+      "note": "An operand can read a model source: a call built from a home status field."
     },
     {
-      "file": "reject/pending-conditions-model-read-predicate.json",
-      "outcome": "reject",
-      "note": "A condition can read a model source: shown while a home status is active.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-model-read-predicate.json",
+      "outcome": "accept",
+      "note": "A condition can read a model source: shown while a home status is active."
     },
     {
       "file": "reject/pending-rules-choose-text.json",
@@ -3937,8 +3619,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -3948,8 +3630,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -3959,20 +3641,14 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
-      "file": "reject/pending-app-state-window.json",
-      "outcome": "reject",
-      "note": "A text slot reads the window topic of the app state: widthClass.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-window.json",
+      "outcome": "accept",
+      "note": "A text slot reads the window topic of the app state: widthClass."
     },
     {
       "file": "reject/pending-app-state-clock.json",
@@ -3981,8 +3657,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -3992,20 +3668,14 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
-      "file": "reject/pending-app-state-notifications.json",
-      "outcome": "reject",
-      "note": "A text slot reads the notifications topic of the app state: permission.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-notifications.json",
+      "outcome": "accept",
+      "note": "A text slot reads the notifications topic of the app state: permission."
     },
     {
       "file": "reject/pending-app-state-preferences.json",
@@ -4014,31 +3684,19 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
-      "file": "reject/pending-app-state-condition.json",
-      "outcome": "reject",
-      "note": "A node shown only in a regular-width window, by comparing the window width class.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-condition.json",
+      "outcome": "accept",
+      "note": "A node shown only in a regular-width window, by comparing the window width class."
     },
     {
-      "file": "reject/pending-app-state-phase.json",
-      "outcome": "reject",
-      "note": "A condition reads the phase of a topic, so it can wait for the first answer.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-phase.json",
+      "outcome": "accept",
+      "note": "A condition reads the phase of a topic, so it can wait for the first answer."
     },
     {
       "file": "reject/pending-home-status-counts.json",
@@ -4047,21 +3705,15 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/14",
+        "capability": "sh.rules@1"
       }
     },
     {
       "file": "reject/conditions-compare-above-text.json",
       "outcome": "reject",
       "note": "above needs numbers: a text literal is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left"
       }
@@ -4070,13 +3722,7 @@
       "file": "reject/conditions-compare-before-number.json",
       "outcome": "reject",
       "note": "before and after need date text.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left"
       }
@@ -4085,13 +3731,7 @@
       "file": "reject/conditions-compare-eq-mixed-kinds.json",
       "outcome": "reject",
       "note": "eq compares values of one kind: a number and text are refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/right"
       }
@@ -4100,13 +3740,7 @@
       "file": "reject/conditions-in-empty.json",
       "outcome": "reject",
       "note": "in lists at least one option.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/visibleWhen/in"
       }
@@ -4115,13 +3749,7 @@
       "file": "reject/conditions-in-over-16.json",
       "outcome": "reject",
       "note": "in lists at most 16 options.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/visibleWhen/in"
       }
@@ -4130,13 +3758,7 @@
       "file": "reject/conditions-unknown-leaf.json",
       "outcome": "reject",
       "note": "A condition leaf is a known kind.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/visibleWhen/type"
       }
@@ -4148,8 +3770,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/9",
+        "capability": "sh.pipeline-operands@1"
       },
       "studioIssue": {
         "code": "invalid_combination",
@@ -4163,8 +3785,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/9",
+        "capability": "sh.pipeline-operands@1"
       },
       "studioIssue": {
         "code": "invalid_combination",
@@ -4175,13 +3797,7 @@
       "file": "reject/conditions-read-unknown-field.json",
       "outcome": "reject",
       "note": "A read of a model names a field the model has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/from/path"
       }
@@ -4190,13 +3806,7 @@
       "file": "reject/conditions-read-wrong-kind.json",
       "outcome": "reject",
       "note": "A read of a text field as a number is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/as"
       }
@@ -4208,8 +3818,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "missing_required",
@@ -4223,8 +3833,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "limit_exceeded",
@@ -4253,8 +3863,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "binding_type",
@@ -4283,8 +3893,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -4294,8 +3904,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "missing_required",
@@ -4309,8 +3919,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "missing_required",
@@ -4324,8 +3934,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "unknown_variant",
@@ -4339,8 +3949,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "limit_exceeded",
@@ -4351,13 +3961,7 @@
       "file": "reject/app-state-unknown-topic.json",
       "outcome": "reject",
       "note": "The topic is one of window, clock, os, notifications or preferences.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/10/inputs/topic"
       }
@@ -4366,13 +3970,7 @@
       "file": "reject/app-state-device-topic.json",
       "outcome": "reject",
       "note": "There is no device topic: layout follows window geometry, and device chrome stays in the renderers.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/10/inputs/topic"
       }
@@ -4381,13 +3979,7 @@
       "file": "reject/app-state-extra-input.json",
       "outcome": "reject",
       "note": "The source takes no input besides its topic.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/dataSources/10/inputs/zone"
       }
@@ -4396,13 +3988,7 @@
       "file": "reject/app-state-field-not-in-topic.json",
       "outcome": "reject",
       "note": "A read names a field its topic has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/from/path"
       }
@@ -4411,13 +3997,7 @@
       "file": "reject/app-state-wrong-kind.json",
       "outcome": "reject",
       "note": "A read of a number field as text is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/as"
       }
@@ -4426,13 +4006,7 @@
       "file": "reject/home-status-counts-wrong-kind.json",
       "outcome": "reject",
       "note": "The count of a home status is a number.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/as"
       }
@@ -4444,8 +4018,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4455,8 +4029,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4466,8 +4040,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4477,8 +4051,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4563,8 +4137,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/17",
+        "capability": "sh.tile-look@1"
       }
     },
     {
@@ -4626,8 +4200,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -4637,8 +4211,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -4693,8 +4267,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "unknown_variant",
@@ -5129,8 +4703,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/8",
+        "capability": "sh.confirm-when@1"
       }
     },
     {
@@ -5140,8 +4714,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.confirm-when@1"
       }
     },
     {
@@ -5887,8 +5461,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/8",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -5931,8 +5505,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/11",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -6002,8 +5576,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/11",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -6013,8 +5587,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "unknown_variant",

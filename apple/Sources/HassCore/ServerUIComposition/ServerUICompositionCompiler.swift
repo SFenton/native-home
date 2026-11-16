@@ -43,6 +43,8 @@ struct ServerUICompositionCompiler {
     private var optimisticRefs: [(sourceId: String, pointer: String)] = []
     /// Whether `control` operands are valid where the action being compiled sits (a bound control's own calls).
     private var controlContext = false
+    /// The document's saved components, expanded before decoding (`sh.component-ref@1`).
+    private var components = ServerUIComponentExpansion(.null)
 
     static func decode(_ bytes: Data) throws -> ServerUICompositionPublication {
         var parser = try ServerUICompositionJSON(bytes)
@@ -70,7 +72,8 @@ struct ServerUICompositionCompiler {
         if let tabs = json["document"]?["navigation"]?["tabs"]?.array, tabs.count > 5 {
             unsupported.append(Issue(.unsupportedCapability, "/document/navigation/tabs", capability: "sh.extended-tabs@1"))
         }
-        let root = Cursor(json, "")
+        let expansion = ServerUIComponentExpansion(json)
+        let root = Cursor(expansion.expanded, "")
         let capabilities = try root.field("capabilities").array().map { try $0.string() }
         // A declared unknown requirement wins over equality or unsupported-profile diagnostics.
         // Unsupported variants cannot produce a typed first-slice plan.
@@ -79,18 +82,20 @@ struct ServerUICompositionCompiler {
             throw first
         }
         var compiler = Self()
+        compiler.components = expansion
         return try compiler.compile(root, capabilities: capabilities, documentCanonical: documentCanonical)
     }
 
     private mutating func compile(_ root: Cursor, capabilities: [String], documentCanonical: String?) throws -> ServerUICompositionPublication {
         let document = try document(root.field("document"))
+        compileComponents()
         let updatedAt = try root.s("updatedAt"), publishedAt = try root.s("publishedAt")
         let updated = timestamp(updatedAt, at: "/updatedAt")
         let published = timestamp(publishedAt, at: "/publishedAt")
         if let updated, let published, updated > published { add(.invalidValue, "/updatedAt") }
         validateReferences(document)
         validateChromeContexts(document)
-        if let first = ServerUICompositionShape.first(issues) { throw first }
+        if let first = ServerUICompositionShape.first(components.remapped(issues)) { throw first }
         try Self.checkKnownCapabilities(capabilities)
         guard capabilities == requirements.sorted() else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
         let manifest = try root.field("document").field("assets")
@@ -105,6 +110,20 @@ struct ServerUICompositionCompiler {
             capabilities: capabilities, assetManifestSha256: digest, document: document,
             documentSha256: documentDigest
         )
+    }
+
+    /// Saved components (`sh.component-ref@1`): each library body is compiled once at its own pointer (its nodes stay out of the total), and an
+    /// argument that names a page, a sheet or a source must find it.
+    private mutating func compileComponents() {
+        if components.usesComponents { require("component-ref") }
+        issues += components.issues
+        for body in components.bodies {
+            let outside = nodeCount
+            nodeCount = 0
+            do { _ = try component(Cursor(body.value, body.pointer), depth: 1, gridChild: false) } catch let issue as Issue { issues.append(issue) } catch {}
+            nodeCount = outside
+        }
+        for argument in components.argumentReferences where catalogs[argument.catalog]?[argument.id] == nil { add(.invalidReference, argument.pointer) }
     }
 
     /// Throws the first `unsupported_capability` issue, in declaration order, among the declared capabilities, ignoring malformed ones.
@@ -581,6 +600,10 @@ struct ServerUICompositionCompiler {
             return try .settingsProvider(id: id, configuration: .init(providerId: inputs.s("providerId"),
                                                                       domain: inputs.e("domain")))
         }
+        if model == "app-state@1" {
+            require("app-state")
+            return try .appState(id: id, topic: c.field("inputs").e("topic"))
+        }
         if model == "camera-stream@1" {
             require("camera-stream")
             let inputs = try c.field("inputs"), labels = try c.field("labels"), recording = try inputs.field("recording")
@@ -981,6 +1004,7 @@ struct ServerUICompositionCompiler {
         expressionRefs += parser.references
         optimisticRefs += parser.optimisticReferences
         if parser.usedOperands { require("operands") }
+        for need in parser.needs { require(need) }
         if !parser.references.isEmpty || !parser.optimisticReferences.isEmpty { require("bindings") }
         if let first = parser.issues.first {
             issues += parser.issues
@@ -2201,7 +2225,16 @@ struct ServerUICompositionCompiler {
         for ref in expressionRefs {
             let sourcePointer = ref.pointer + (ref.kind == nil ? "/sourceId" : "/from/sourceId")
             guard let source = sources[ref.sourceId] else { add(.invalidReference, sourcePointer); continue }
-            guard case .haEntity = source else { add(.bindingType, sourcePointer); continue }
+            guard case .haEntity = source else {
+                // Any model that has read fields can be read by an operand or a condition, through the slot-read vocabulary.
+                switch ServerUIModelReads.check(source, path: ref.path, kind: ref.kind) {
+                case .notReadable?: add(.bindingType, sourcePointer)
+                case .issue(let code, let suffix)?: add(code, ref.pointer + suffix)
+                case .needs(let capability)?: require(capability)
+                case nil: break
+                }
+                continue
+            }
             if ref.path == ["state"] {
                 if ref.kind == .boolean { add(.bindingType, ref.pointer + "/as") }
             } else if ref.path.count < 2 || ref.path.first != "attributes" {
@@ -2275,10 +2308,12 @@ struct ServerUICompositionCompiler {
                 } else if read.kind != .string {
                     add(.bindingType, pointer + "/as")
                 }
-            case .homeStatus:
-                let fields: [String: D.ScalarKind] = ["stateText": .string, "phase": .string, "state": .string, "isActive": .boolean]
-                if read.path.count != 1 || fields[read.path[0]] == nil { add(.invalidReference, pointer + "/from/path") }
-                else if fields[read.path[0]] != read.kind { add(.bindingType, pointer + "/as") }
+            case .homeStatus, .appState:
+                switch ServerUIModelReads.check(source, path: read.path, kind: read.kind) {
+                case .issue(let code, let suffix)?: add(code, pointer + suffix)
+                case .needs(let capability)?: require(capability)
+                default: break
+                }
             case .homeWeather, .homeLight:
                 add(.invalidReference, pointer + "/from/path")
             case .mediaRemote:

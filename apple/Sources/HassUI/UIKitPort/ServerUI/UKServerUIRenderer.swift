@@ -744,7 +744,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             _ = self.environment.inVerticalBar
             self.updateStyle()
         }
-        registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (host: UKServerUIRenderer, _) in host.updateStyle() }
+        registerForTraitChanges([UITraitHorizontalSizeClass.self, UITraitVerticalSizeClass.self]) { (host: UKServerUIRenderer, _) in
+            host.updateStyle()
+            host.bindings.appState.updateWindow(size: host.view.bounds.size, traits: host.traitCollection)
+        }
         if let connection = pageContext.connection {
             Task { [weak self] in
                 guard let self else { return }
@@ -760,6 +763,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         super.viewDidLayoutSubviews()
         standaloneSignals?.refresh()
         let canvas = view.bounds.size
+        bindings.appState.updateWindow(size: canvas, traits: traitCollection)
         if environment.canvas != canvas {
             environment.canvas = canvas
             backdropStore.setWindow(canvas, scale: Double(traitCollection.displayScale))

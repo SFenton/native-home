@@ -58,10 +58,31 @@ public protocol ServerUIReading {
     func viewerPersonState() -> ServerUIReadResult
     /// The new value of the control that sent the action being resolved; `nil` outside an action.
     var controlValue: JSONValue? { get }
+    /// The clock the `clock` and `date` operands and the relative date styles use; `nil` makes them unavailable.
+    var clock: ServerUIClock? { get }
+    /// The item a flow step is looking at (`item` operands); `nil` outside a flow step.
+    var item: JSONValue? { get }
+    /// The evaluated value of the flow parameter `name` (`param` operands); `nil` when the flow has no such parameter.
+    func parameter(_ name: String) -> JSONValue?
+    /// Flow mode: there is no `loading` or `unavailable`, a gap is `null` and a condition is yes or no.
+    var isFlow: Bool { get }
+    /// The language and region date styles are drawn in; `nil` draws United States English (``ServerUIDateFormat``).
+    var locale: Locale? { get }
+    /// Whether the app draws an SF Symbol of this name (`UIImage(systemName:)`); the default draws every name.
+    func drawsSymbol(_ name: String) -> Bool
+    /// Called once for every operand and condition node evaluated, so a flow can meter its work. The default does nothing.
+    func spend()
 }
 
 public extension ServerUIReading {
     var controlValue: JSONValue? { nil }
+    var clock: ServerUIClock? { nil }
+    var item: JSONValue? { nil }
+    func parameter(_ name: String) -> JSONValue? { nil }
+    var isFlow: Bool { false }
+    var locale: Locale? { nil }
+    func drawsSymbol(_ name: String) -> Bool { true }
+    func spend() {}
 }
 
 // MARK: - Three-valued truth
