@@ -15,6 +15,14 @@ struct UKGlassTileModel {
     var fillRGB: UInt32?
     /// What ``fillRGB`` is while the interface is dark, when the authored fill differs by appearance (`sh.solid-appearance@1`); nil keeps it.
     var fillDarkRGB: UInt32?
+    /// The icon's colour on a face that is neither filled nor an error (`sh.tile-ink@1`); nil keeps the grey. A pair follows the traits.
+    var glyphTint: AppearanceFill?
+    /// The button icons' colour on a dark face (`sh.tile-ink@1`); nil keeps white. A filled face keeps its black 18% disc and white glyph.
+    var discGlyphTint: AppearanceFill?
+    /// The state line is white at 92% on a style fill instead of 100% (`sh.tile-ink@1`, `fillInk: soft`).
+    var softFillInk = false
+    /// In a grid with equal row heights the tile keeps its own height at the top of its cell (`sh.tile-ink@1`, `cellFit: natural`).
+    var keepsNaturalHeight = false
     var isActive: Bool
     var isUnavailable = false
     /// The error face: a red glyph and red state on a dense ground.
@@ -120,7 +128,8 @@ struct UKGlassTileModel {
     /// The face's content with the accessory's room reserved.
     func faceContent(trailingInset: CGFloat, bottomInset: CGFloat, hidesGlyph: Bool = false, textFit: TileTextFit = .natural) -> UKTileFaceContent {
         UKTileFaceContent(
-            title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB, isActive: isActive,
+            title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB,
+            glyphTint: glyphTint, softFillInk: softFillInk, isActive: isActive,
             isUnavailable: isUnavailable && !isInert, isError: isError, isWarning: isWarning,
             showsArc: look?.showsArc == true && !usesItems, showsChevron: behavior == .navigate, level: progress,
             levelTint: progressTint, wash: wash, trailingInset: trailingInset, bottomInset: bottomInset, hidesGlyph: hidesGlyph, isFlat: isInert,
@@ -193,6 +202,8 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     private(set) var accessory: UIView?
     /// The grid resolved this tile to a whole row (`tileSpansFullRow`, computed from the grid by ``UKDynamicGridView``). Gates animation only.
     var gridFullRow = false
+    /// Whether a grid with equal row heights leaves the tile at its own height, top-aligned in the cell (`sh.tile-ink@1`, `cellFit: natural`).
+    var keepsNaturalHeight: Bool { model.keepsNaturalHeight }
     /// Tells the tile it spans its row (a section's lead tile); the grid's own computation is the other way.
     var spansFullRow = false
     private var hasConfigured = false
@@ -491,8 +502,10 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
             stripConfiguredFor = nil
             return
         }
+        // An authored button icon colour applies on a dark face only (`sh.tile-ink@1`): a filled face keeps its black 18% disc and white glyph.
+        let discTint = AuthoredTileInk.discGlyphTintApplies(to: actionFace) ? model.discGlyphTint?.token : nil
         strip.configure(items: items, title: model.title, tileIdentifier: model.identifier, face: actionFace, family: model.family,
-                        surface: environment.surface, animated: animated, arcTint: arcTint)
+                        surface: environment.surface, animated: animated, arcTint: arcTint, discGlyphTint: discTint)
         stripConfiguredFor = items
     }
 

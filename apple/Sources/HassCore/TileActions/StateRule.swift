@@ -25,6 +25,8 @@ public struct StateRule: Equatable, Sendable {
     /// The face colour while the screen is dark, when the rule's fill is a light and dark pair (`sh.solid-appearance@1`); nil is ``fill``
     /// in both appearances.
     public var fillDark: UInt32?
+    /// The ink of the state line on ``fill`` (`sh.tile-ink@1`); nil is the document not naming one, which draws ``StateFillInk/white``.
+    public var fillInk: StateFillInk?
     /// Whether the disc reads as on in this state, when that differs from the tile's own ``isActive``. Never authored: a lowered
     /// `door-tile` sets it where its tile was lit and its disc was not.
     public var discOn: Bool?

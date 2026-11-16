@@ -14,6 +14,10 @@ struct UKTileFaceContent: Equatable {
     var fillRGB: UInt32?
     /// What ``fillRGB`` is while the interface is dark, when it differs (`sh.solid-appearance@1`); nil keeps ``fillRGB``.
     var fillDarkRGB: UInt32?
+    /// The icon's colour on a face that is neither filled nor an error (`sh.tile-ink@1`); nil keeps the grey.
+    var glyphTint: AppearanceFill?
+    /// The state line is white at 92% on a style fill (`sh.tile-ink@1`, `fillInk: soft`).
+    var softFillInk = false
     var isActive: Bool
     var isUnavailable: Bool
     /// The red error face.
@@ -43,7 +47,7 @@ struct UKTileFaceContent: Equatable {
     var probeIdentifier: String?
 
     init(title: String, subtitle: String? = nil, symbol: String, tint: UIColor? = nil, family: ColorFamily? = nil, fillRGB: UInt32? = nil,
-         fillDarkRGB: UInt32? = nil, isActive: Bool, isUnavailable: Bool = false, isError: Bool = false, isWarning: Bool = false, showsArc: Bool = false,
+         fillDarkRGB: UInt32? = nil, glyphTint: AppearanceFill? = nil, softFillInk: Bool = false, isActive: Bool, isUnavailable: Bool = false, isError: Bool = false, isWarning: Bool = false, showsArc: Bool = false,
          showsChevron: Bool = false, level: Double? = nil, levelTint: UIColor? = nil, wash: UIColor? = nil, trailingInset: CGFloat = 0, bottomInset: CGFloat = 0, hidesGlyph: Bool = false,
          isFlat: Bool = false, textFit: TileTextFit = .natural, probeIdentifier: String? = nil) {
         self.title = title
@@ -53,6 +57,8 @@ struct UKTileFaceContent: Equatable {
         self.family = family
         self.fillRGB = fillRGB
         self.fillDarkRGB = fillDarkRGB
+        self.glyphTint = glyphTint
+        self.softFillInk = softFillInk
         self.isActive = isActive
         self.isUnavailable = isUnavailable
         self.isError = isError
@@ -80,6 +86,8 @@ struct UKTileFaceContent: Equatable {
         var family: ColorFamily?
         var fillRGB: UInt32?
         var fillDarkRGB: UInt32?
+        var glyphTint: AppearanceFill?
+        var softFillInk: Bool
         var wash: UIColor?
         var tint: UIColor
         var levelTint: UIColor?
@@ -87,8 +95,8 @@ struct UKTileFaceContent: Equatable {
     }
 
     var colorKey: ColorKey {
-        ColorKey(isActive: isActive, isError: isError, isWarning: isWarning, isUnavailable: isUnavailable, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB, wash: wash,
-                 tint: tint, levelTint: levelTint, hasLevel: (level ?? 0) > 0)
+        ColorKey(isActive: isActive, isError: isError, isWarning: isWarning, isUnavailable: isUnavailable, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB, glyphTint: glyphTint,
+                 softFillInk: softFillInk, wash: wash, tint: tint, levelTint: levelTint, hasLevel: (level ?? 0) > 0)
     }
 }
 
@@ -255,6 +263,10 @@ final class UKGlassTileFaceView: UIView {
                  isUnavailable: content.isUnavailable,
                  solidFill: drawnFillRGB)
     }
+    /// The colour and opacity the glyph is drawn in, and the state line's colour, for tests of the inks.
+    var drawnGlyphColor: UIColor { glyphView.tintColor }
+    var drawnGlyphAlpha: CGFloat { glyphView.alpha }
+    var drawnStateLineColor: UIColor { subtitleLabel.textColor }
     private var layoutKind: TileLayout { environment.layout.resolved(accessibilitySize: traits.ukIsAccessibilitySize) }
 
     /// The caller's tint as a glyph on the face: unchanged on dark, darkened to 3:1 on a light cell.
@@ -279,14 +291,19 @@ final class UKGlassTileFaceView: UIView {
         // Inks.
         // A tinted face draws the caller's tint (a UIColor made legible above); every other face is a raw token.
         let glyphColor: UIColor
-        if case .tinted = style, isEnabled { glyphColor = tintGlyph }
+        // An authored icon colour (`sh.tile-ink@1`) replaces the grey on a face that is neither filled nor an error, enabled or not: it is a
+        // colour the document chose, and an unavailable tile draws it at 50% as it draws the grey one (`glyphAlpha` below).
+        if let authored = content.glyphTint, AuthoredTileInk.glyphTintApplies(to: style) { glyphColor = UIColor(authored.token) }
+        else if case .tinted = style, isEnabled { glyphColor = tintGlyph }
         else {
             glyphColor = UIColor(TileFaceInk.glyphToken(style: style, appearance: appearance, finish: finish, isEnabled: isEnabled,
                                                         family: content.family, tintGlyph: .white))
         }
         let primary = UIColor(TileFaceInk.primaryToken(style: style, appearance: appearance))
-        let secondary = UIColor(TileFaceInk.secondaryToken(style: style, appearance: appearance, finish: finish, surface: environment.surface,
-                                                             hasWash: content.wash != nil))
+        let secondary = UIColor(AuthoredTileInk.stateLineToken(
+            style: style, softFillInk: content.softFillInk,
+            plain: TileFaceInk.secondaryToken(style: style, appearance: appearance, finish: finish, surface: environment.surface,
+                                              hasWash: content.wash != nil)))
         let chevronColor = secondary.ukOpacity(0.8)
         let glyphAlpha: CGFloat = content.showsArc ? 0 : (content.isUnavailable ? 0.5 : 1)
 

@@ -40,6 +40,9 @@ public enum ServerUIIngestedCapabilities {
     /// Per-state fills and hidden words on state styles (lane L5a).
     public static let styleFills: [String] = ["sh.state-style-fills@1"]
 
+    /// A state tile's icon and button icon colours, its fit in a taller cell, and the ink of a state line on a fill (lane `ni-tc5`).
+    public static let tileInk: [String] = ["sh.tile-ink@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk }
 }

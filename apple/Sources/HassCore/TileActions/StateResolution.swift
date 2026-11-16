@@ -37,4 +37,6 @@ public struct StateResolution: Equatable, Sendable {
     public var fill: UInt32? = nil
     /// The face fill while the screen is dark, when the rule's fill is a light and dark pair; nil is ``fill`` in both.
     public var fillDark: UInt32? = nil
+    /// The ink of the state line on ``fill`` (`sh.tile-ink@1`).
+    public var fillInk: StateFillInk = .white
 }

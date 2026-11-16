@@ -308,7 +308,11 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         let mirror = effectiveUserInterfaceLayoutDirection == .rightToLeft
         for (position, index) in visible.enumerated() {
             let view = items[index].view
-            let frame = solution.frames[position]
+            var frame = solution.frames[position]
+            if let tile = view as? UKGlassTileView, tile.keepsNaturalHeight {
+                // `cellFit: natural` (`sh.tile-ink@1`): the tile keeps its own height at the top of a taller cell; the row stays as tall as its tallest cell.
+                frame.size.height = min(frame.height, ukMeasure(tile, width: frame.width))
+            }
             view.frame = mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame
             if let tile = view as? UKGlassTileView { tile.gridFullRow = solution.fullRow[position] }
         }
