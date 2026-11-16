@@ -12,7 +12,8 @@ final class UKServerUIChoresCollection: UKServerUICollectionSource {
     let store: EntityStore
     let template = ServerUICompositionDocument.Collection.Template.todo
     var searchText = ""
-    private let sources: [String: UKServerUITodoCollection]
+    /// One todo source per configured list, keyed by list entity id. Internal so tests reach the provider the page owns.
+    let sources: [String: UKServerUITodoCollection]
     private var selected: UKServerUITodoCollection?
     private let people: ServerUITodoPeople
     @ObservationIgnored private let bag = UKObservationBag()

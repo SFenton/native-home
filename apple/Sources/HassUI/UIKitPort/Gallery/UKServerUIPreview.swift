@@ -49,14 +49,17 @@ final class UKServerUIPreview: UIViewController {
         init(publication: ServerUICompositionPublication, context: UKContext,
              assets: ServerUIStagedAssets, backdrop: HouseBackdropStore, renderDirectory: URL,
              weatherReader: ServerUIWeatherReader? = nil, cameraReader: UKCameraReadProvider? = nil,
-             fixtures: UKServerUIPreviewFixtures? = nil) throws {
+             fixtures: UKServerUIPreviewFixtures? = nil, live: UKServerUIPreviewLiveProviders.Supply? = nil) throws {
             try fixtures?.prepare(publication, backdrop: backdrop)
             renderer = try UKServerUIRenderer(publication: publication, context: context, backdrop: backdrop,
-                collections: fixtures?.collections() ?? [:], records: fixtures?.records ?? .init(),
-                deviceResponder: fixtures?.caller, canEditBedroom: fixtures?.configuration.administrator == true,
-                roomResidentId: { fixtures?.viewerKey },
-                weatherReader: weatherReader, cameraReader: cameraReader, accountProvider: fixtures,
-                settingsProviders: fixtures?.settings ?? [:], shellHeader: fixtures?.header)
+                collections: live?.collections ?? fixtures?.collections() ?? [:],
+                records: live?.records ?? fixtures?.records ?? .init(),
+                bedroomProviders: live?.bedrooms ?? [:], remoteProviders: live?.remotes ?? [:],
+                deviceResponder: live?.responder ?? fixtures?.caller, scheduleStorage: live?.schedules,
+                canEditBedroom: live?.canEditBedroom ?? (fixtures?.configuration.administrator == true),
+                roomResidentId: { live?.roomResidentId() ?? fixtures?.viewerKey },
+                weatherReader: weatherReader, cameraReader: cameraReader, accountProvider: live?.account ?? fixtures,
+                settingsProviders: live?.settings ?? fixtures?.settings ?? [:], shellHeader: live?.shellHeader ?? fixtures?.header)
             self.assets = assets
             self.backdrop = backdrop
             self.renderDirectory = renderDirectory
@@ -71,6 +74,7 @@ final class UKServerUIPreview: UIViewController {
     private let entities = EntityStore()
     private lazy var caller = PageGalleryRecorder(store: entities)
     private var live: UKServerUIPreviewLiveData?
+    private var liveProviders: UKServerUIPreviewLiveProviders?
     private var fixtures: UKServerUIPreviewFixtures?
     private let observations = UKObservationBag()
     private var loadTask: Task<Void, Never>?
@@ -135,6 +139,7 @@ final class UKServerUIPreview: UIViewController {
             loadTask?.cancel()
             observations.removeAll()
             live?.lifecycle.stop()
+            liveProviders?.stop()
         }
     }
 
@@ -189,6 +194,11 @@ final class UKServerUIPreview: UIViewController {
                 let token = try taken.get()
                 live = try UKServerUIPreviewLiveData(configuration: liveConfiguration, credential: token,
                                                     directory: root.appendingPathComponent("live"), store: entities)
+                if let live {
+                    liveProviders = try UKServerUIPreviewLiveProviders(live: live,
+                        houseConfigCache: HouseConfigCache(fileURL: root.appendingPathComponent("live/HouseConfig.json")),
+                        defaultsName: "ServerUIPreviewLive-" + liveConfiguration.accountID)
+                }
             } else if let fixtures = configuration.entities {
                 entities.replaceAll(fixtures.map { id, value in
                     EntityState(entityId: id, state: value.state, attributes: value.attributes)
@@ -208,6 +218,12 @@ final class UKServerUIPreview: UIViewController {
                     try await Self.discard(candidate, retaining: protected, stager: stager)
                 })
             publicationStore = store
+            if let live, let liveProviders {
+                // Production waits for the same two inputs (the house document and the signed-in user) before it builds providers.
+                if view.window?.windowScene?.activationState == .foregroundActive { live.lifecycle.didBecomeActive() }
+                await liveProviders.awaitInputs(timeout: .seconds(20))
+                try Task.checkCancellation()
+            }
             await store.bind(userID: "preview")
             await store.apply(try Self.publishedEvent(from: directory.appendingPathComponent("publication.json")))
             try Task.checkCancellation()
@@ -242,6 +258,7 @@ final class UKServerUIPreview: UIViewController {
             }
         } catch {
             live?.lifecycle.stop()
+            liveProviders?.stop()
             let diagnostic: String
             switch error {
             case let value as ServerUIStoreError: diagnostic = "\(value)"
@@ -335,7 +352,8 @@ final class UKServerUIPreview: UIViewController {
                 weatherReader: live?.weatherReader(for: publication.document) ?? fixtures?.weatherReader(for: publication.document)
                     ?? UKServerUIPreviewPlaceholders.weatherReader(for: publication.document),
                 cameraReader: live?.cameraReader(for: publication.document)
-                    ?? UKServerUIPreviewPlaceholders.cameraReader(for: publication.document), fixtures: fixtures)
+                    ?? UKServerUIPreviewPlaceholders.cameraReader(for: publication.document), fixtures: fixtures,
+                live: liveProviders?.supply(for: publication, blur: backdrop.blur))
         } catch {
             try await stager.discard(assets, retaining: context.protected.map(\.assets))
             try Self.removeRender(directory, retaining: context.protected)
