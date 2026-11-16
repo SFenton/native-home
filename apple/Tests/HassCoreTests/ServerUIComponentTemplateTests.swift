@@ -40,9 +40,9 @@ struct ServerUIComponentTemplateTests {
 
     @Test func entityFieldsHaveTheEntityKind() throws {
         let node = try Self.json("""
-        {"id":"n","title":"t","binding":{"entityId":"light.a","roomEntityId":"cover.b","copySourceId":"light.c"},
-         "action":{"target":{"entity_id":{"type":"literal","value":"light.d"}},"sourceId":"state"},
-         "props":{"stateId":"tabs"},"source":{"entityId":{"type":"literal","value":"light.e"}}}
+        {"id":"n","title":"t","binding":{"entityId":"light.demo_a","roomEntityId":"cover.demo_b","copySourceId":"light.demo_c"},
+         "action":{"target":{"entity_id":{"type":"literal","value":"light.demo_d"}},"sourceId":"state"},
+         "props":{"stateId":"tabs"},"source":{"entityId":{"type":"literal","value":"light.demo_e"}}}
         """)
         #expect(Fields.kind(of: "binding/entityId", in: node) == "entity-id")
         #expect(Fields.kind(of: "binding/roomEntityId", in: node) == "entity-id")
@@ -52,13 +52,13 @@ struct ServerUIComponentTemplateTests {
     }
 
     @Test func aLiteralUnderAnEntityKeyIsNoLongerText() throws {
-        let node = try Self.json(#"{"id":"n","action":{"target":{"entity_id":{"type":"literal","value":"light.d"}}},"props":{"subtitle":{"type":"literal","value":"hi"}}}"#)
+        let node = try Self.json(#"{"id":"n","action":{"target":{"entity_id":{"type":"literal","value":"light.demo_d"}}},"props":{"subtitle":{"type":"literal","value":"hi"}}}"#)
         #expect(Fields.kind(of: "action/target/entity_id/value", in: node) != "text")
         #expect(Fields.kind(of: "props/subtitle/value", in: node) == "text")
     }
 
     @Test func aSourceIdStaysASourceIdAndACopySourceIdIsNot() throws {
-        let node = try Self.json(#"{"id":"n","action":{"sourceId":"s","providerId":"p","copySourceId":"light.a"},"titleSourceId":"t"}"#)
+        let node = try Self.json(#"{"id":"n","action":{"sourceId":"s","providerId":"p","copySourceId":"light.demo_a"},"titleSourceId":"t"}"#)
         #expect(Fields.kind(of: "action/sourceId", in: node) == "source-id")
         #expect(Fields.kind(of: "action/providerId", in: node) == "source-id")
         #expect(Fields.kind(of: "titleSourceId", in: node) == "source-id")

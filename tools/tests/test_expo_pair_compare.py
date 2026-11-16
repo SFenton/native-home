@@ -10,16 +10,25 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PIL import Image
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import expo_pair_compare as epc  # noqa: E402
+import png_raster  # noqa: E402
 
 #: Where the recorded r8/r9 pairs live (override with ``EXPO_EVIDENCE_ROOT``); the tests needing them skip when absent.
 EVIDENCE = Path(os.environ.get(
     "EXPO_EVIDENCE_ROOT", str(Path(__file__).resolve().parents[3] / "t3-b48b8cc0" / "build" / "evidence" / "t3-b48b8cc0")))
 
 W, H = 300, 600  # density 1 frames keep the arithmetic readable; 1% = 1800 px, 0.25% = 450 px
+
+
+def solid(path: Path, width: int, height: int, colour: tuple, paint: tuple = ()) -> Path:
+    """Write a ``width`` x ``height`` PNG of one colour, with ``(box, colour)`` rectangles painted over it."""
+    rows = [bytearray(bytes(colour) * width) for _ in range(height)]
+    for (x0, y0, x1, y1), shade in paint:
+        for y in range(y0, y1):
+            rows[y][x0 * 3:x1 * 3] = bytes(shade) * (x1 - x0)
+    png_raster.write(png_raster.Raster(width, height, b"".join(bytes(r) for r in rows)), path)
+    return path
 
 
 def args(**over: object) -> argparse.Namespace:
@@ -35,12 +44,7 @@ class GateTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def frame(self, name: str, *paint: tuple) -> Path:
-        image = Image.new("RGB", (W, H), (20, 20, 20))
-        for box, colour in paint:
-            image.paste(colour, box)
-        path = self.dir / name
-        image.save(path)
-        return path
+        return solid(self.dir / name, W, H, (20, 20, 20), paint)
 
     def run_pair(self, cand_paint: tuple = (), **over: object) -> dict:
         ref = self.frame("ref.png")
@@ -97,7 +101,7 @@ class GateTests(unittest.TestCase):
     def test_size_mismatch_fails(self) -> None:
         ref = self.frame("ref.png")
         other = self.dir / "other.png"
-        Image.new("RGB", (W, H + 1)).save(other)
+        solid(other, W, H + 1, (0, 0, 0))
         result = epc.compare_images(ref, other, self.dir / "d.png", density=1.0, status_bar_pt=0, live_regions=[])
         self.assertTrue(result["failures"])
 

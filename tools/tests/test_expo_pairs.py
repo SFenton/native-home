@@ -37,7 +37,7 @@ public struct ComponentGallery {
 def synthetic_publication() -> dict:
     """A tiny publication that carries every removed field, nested like the recorded one."""
     config = {"name": "Bed A", **{field: "x" for field in ("tonightScript", "outsideScheduleScript")}}
-    environment = {"scheduleEntityId": "sensor.s", "scheduleSetTopic": "t", "hotFlashBrokerScript": "s",
+    environment = {"scheduleEntityId": "sensor.demo_s", "scheduleSetTopic": "t", "hotFlashBrokerScript": "s",
                    "householdAwayScript": "s", "householdAwayEntityId": "e"}
     document = {"id": "doc", "dataSources": [{"id": "src", "inputs": {"beds": [{"configuration": config}],
                                                                        "environment": environment}}]}
