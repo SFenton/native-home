@@ -272,6 +272,8 @@ final class ServerUIFlowListHostedTests: XCTestCase {
 
             // The socket drops and comes back: HAKit sends the one subscription again, and nothing reaches the session until the server's
             // full list does. The page shows what it had, unchanged, the whole time.
+            // (The manual feed models no connection change: what this proves is the page's behaviour when nothing arrives. The real
+            // reconnect, with HAKit's resend, is `ServerUIFlowSessionTests.aReconnectKeepsTheLastGoodRowsAndResubscribesOnce`.)
             HostedPage.wait(0.2)
             XCTAssertEqual(session.collection.phase, .ready, "width \(width): a reconnect is not a failure")
             XCTAssertTrue(list.rows["a"] === first, "width \(width): the row view is kept")
