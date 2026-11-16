@@ -55,7 +55,13 @@ final class ServerUIFlowListHostedTests: XCTestCase {
     private func rowActionPublication() throws -> ServerUICompositionPublication {
         var json = try corpus("list-parts-row-action")
         let pages = try XCTUnwrap(json["document"]?["pages"]?.array)
-        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: XCTUnwrap(pages[2]["components"]))
+        // The list asks to be pulled (`refreshable`), as a page that wants the pull says.
+        var components = try XCTUnwrap(pages[2]["components"]?.array)
+        guard case .object(var list) = components[0], case .object(var props)? = list["props"] else { throw XCTSkip("the list moved") }
+        props["refreshable"] = .bool(true)
+        list["props"] = .object(props)
+        components[0] = .object(list)
+        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(components))
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: XCTUnwrap(pages[0]["components"]))
         return try publication(json)
     }
