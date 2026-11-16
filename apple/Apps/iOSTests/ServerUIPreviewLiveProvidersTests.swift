@@ -374,7 +374,10 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     /// so a command passes its controller's guard and reaches the caller the preview supplied.
     private func commandableSnapshots() -> [EntityState] {
         let wake = BedroomFixtures.wakeLight(.waking, now: Date())
-        return [EntityState(entityId: house.bedroom.wakeLight.statusEntityId, state: wake.state, attributes: wake.attributes),
+        let adminLists = house.chores.pages.filter(\.editsAdminTodo).flatMap(\.lists).map {
+            EntityState(entityId: $0.entityId, state: "1")
+        }
+        return adminLists + [EntityState(entityId: house.bedroom.wakeLight.statusEntityId, state: wake.state, attributes: wake.attributes),
                 EntityState(entityId: house.bedroom.householdAwayEntityId, state: "idle", attributes: VacationFixtures.idleAttributes)]
     }
 
@@ -586,7 +589,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let outcome = await away.solo.household.endNow()
             if case .rejected = outcome {} else { XCTFail("\(rig.family): the household away command was accepted") }
             await rig.assertRefused(2, "household away command")
-            XCTAssertFalse(away.protectsPublication, "\(rig.family): the away provider's pending flag clears")
+            XCTAssertFalse(away.solo.household.pending, "\(rig.family): the household command's pending flag clears")
         }
     }
 
