@@ -71,6 +71,12 @@ final class UKServerUIPreviewLiveData {
         lifecycle = ConnectionLifecycle(connection: connection)
     }
 
+    /// Wraps a connection built elsewhere; a test passes one over a mock HAKit connection that records every request it is sent.
+    init(connection: HassConnection) {
+        self.connection = connection
+        lifecycle = ConnectionLifecycle(connection: connection)
+    }
+
     deinit {
         let lifecycle = lifecycle
         Task { @MainActor in lifecycle.stop() }

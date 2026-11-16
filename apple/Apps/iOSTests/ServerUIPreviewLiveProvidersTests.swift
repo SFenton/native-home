@@ -1,6 +1,8 @@
 import CryptoKit
 import FentonActivityModel
-import HassCore
+@preconcurrency import HAKit
+@preconcurrency import HAKit_Mocks
+@testable import HassCore
 import HassDemoHouse
 import UIKit
 import XCTest
@@ -43,11 +45,18 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     private var viewer: HouseConfig.Person { house.chores.people[0] }
 
     private var defaultsName = ""
+    /// The mock HAKit connection under the last connection `make` built: it records every request and subscription sent.
+    private var lastMock: HAMockConnection!
 
     private func make(document: Bool = true, signedIn: Bool = true, retain: Bool = true, source: HouseConfigSource? = nil,
                       start: Bool = true) throws -> (UKServerUIPreviewLiveData, UKServerUIPreviewLiveProviders, HouseConfigStore) {
-        let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
-                                                 credential: "test-only-token", directory: directory, store: EntityStore())
+        let mock = HAMockConnection()
+        lastMock = mock
+        let server = HassServer(baseURL: URL(string: "https://home.example.com")!)
+        let connection = HassConnection(server: server, store: EntityStore(),
+            snapshotCache: EntitySnapshotCache(fileURL: directory.appendingPathComponent("entities-\(UUID().uuidString).json")),
+            connection: mock)
+        let live = UKServerUIPreviewLiveData(connection: connection)
         let cache = HouseConfigCache(fileURL: directory.appendingPathComponent("house-\(UUID().uuidString).json"))
         if document { try cache.save(house, hash: "synthetic", server: live.connection.server) }
         let source = source ?? HouseConfigSource()
@@ -61,6 +70,28 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         lives.append(live)
         if retain { self.providers.append(providers) }
         return (live, providers, store)
+    }
+
+    // MARK: Catching writes on the mock
+
+    /// The commands of every request and subscription the mock holds that would change something: a service call, a script, a
+    /// schedule change, a to-do change or any REST call. Reads (the current user, a to-do list, the schedule list, the state feed) are not.
+    @MainActor private static func writes(on mock: HAMockConnection) -> [String] {
+        let writeCommands = ["call_service", "execute_script", "schedule/update", "schedule/create", "schedule/delete", "todo/item/add",
+                             "todo/item/update", "todo/item/remove", "fire_event", "input_boolean/toggle"]
+        return (mock.pendingRequests.map(\.request.type) + mock.pendingSubscriptions.map(\.request.type)).compactMap { type in
+            if case .rest = type { return "REST " + type.command }
+            return writeCommands.contains(type.command) ? type.command : nil
+        }
+    }
+
+    /// Brings the mock's connection up, which is what would release anything a disconnected connection had queued, then asserts no
+    /// write message is among what it holds.
+    @MainActor private static func assertNoWrite(on mock: HAMockConnection, _ what: String, _ family: String) async {
+        mock.setState(.ready(version: "1.0-mock"), waitForQueue: false)
+        await FeatureHost.settleAsync(0.2)
+        let commands = (mock.pendingRequests.map(\.request.type) + mock.pendingSubscriptions.map(\.request.type)).map(\.command)
+        XCTAssertEqual(writes(on: mock), [], "\(family): \(what) reached the connection; it holds \(commands)")
     }
 
     /// The placeholder fixture (weather, camera, an away provider and one vacation check) with the demo house's own checklist
@@ -260,6 +291,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     @MainActor private struct Rig {
         let family: String
         let live: UKServerUIPreviewLiveData
+        let mock: HAMockConnection
         let providers: UKServerUIPreviewLiveProviders
         let supply: UKServerUIPreviewLiveProviders.Supply
         let renderer: UKServerUIRenderer
@@ -267,7 +299,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         let defaultsName: String
 
         /// Taps the row or tile the document placed under `id`, the way a touch does.
-        @MainActor func tap(_ id: String) throws {
+        func tap(_ id: String) throws {
             let node = try XCTUnwrap(page.nodes[id]?.view, "\(family): \(id)")
             func control(in view: UIView) -> UIControl? {
                 if view is UKRowButton || view is UKGlassTileView, let found = view as? UIControl { return found }
@@ -280,7 +312,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         }
 
         /// Answers whatever alert is up, by the action the alert itself offers (its cancel action, else its last), until none is.
-        @MainActor func dismissAlerts() async {
+        func dismissAlerts() async {
             for _ in 0..<4 {
                 _ = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer) != nil }, timeout: 1.5)
                 guard let alert = FeatureHost.alert(on: renderer) else { return }
@@ -291,35 +323,39 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         }
 
         /// Answers a confirmation by its own affirmative (non-cancel) action.
-        @MainActor func confirmAlert() async throws {
+        func confirmAlert() async throws {
             let shown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer) != nil })
             let alert = try XCTUnwrap(shown ? FeatureHost.alert(on: renderer) : nil, "\(family): confirmation")
             let action = try XCTUnwrap(alert.actions.first { $0.style != .cancel }, family)
             _ = FeatureHost.answer(alert, action.title)
         }
 
-        /// Whether `count` writes have been refused and counted, and the refusal is all there was: the connection never left
-        /// `disconnected`, so no request reached it.
-        @MainActor func assertRefused(_ count: Int, _ what: String) async {
+        /// That `count` writes were refused and counted, and that none of them reached the mock connection once it came up.
+        func assertRefused(_ count: Int, _ what: String) async {
             let reached = await FeatureHost.settleAsync(until: { live.caller.blockedCommands >= count })
             XCTAssertTrue(reached, "\(family): \(what) was not counted (\(live.caller.blockedCommands))")
             XCTAssertEqual(live.caller.blockedCommands, count, "\(family): \(what)")
-            assertNoRequest(what)
+            await assertNoWrite(what)
         }
 
-        @MainActor func assertNoRequest(_ what: String) {
-            XCTAssertEqual(live.connection.status, .disconnected, "\(family): \(what) reached the connection")
+        func assertNoWrite(_ what: String) async {
+            await ServerUIPreviewLiveProvidersTests.assertNoWrite(on: mock, what, family)
         }
     }
 
-    /// Draws the writes fixture at each family's size and runs `body` on it.
+    /// Draws the writes fixture at each family's size and runs `body` on it, as a person who sees the admin to-do.
     private func drive(_ body: @MainActor (Rig) async throws -> Void) async throws {
         let publication = try writingPublication()
         let assets = try await stagedAssets(publication)
+        let person = try XCTUnwrap(house.chores.people.first { $0.seesAdminTodo })
+        let item = try XCTUnwrap(house.vacation.checklist.first)
         for (family, size) in [("iPhone", CGSize(width: 390, height: 844)), ("Duo", CGSize(width: 466, height: 678)),
                                ("iPad", CGSize(width: 820, height: 1180))] {
             let (live, providers, _) = try make()
-            live.context.store.apply([EntityState(entityId: "switch.synthetic_toggle", state: "off")])
+            let mock = lastMock!
+            providers.user = HassUser(id: person.haUserId, name: person.name, isOwner: false, isAdmin: true)
+            live.context.store.apply([EntityState(entityId: "switch.synthetic_toggle", state: "off"),
+                                      EntityState(entityId: item.entityId, state: "off")])
             let backdrop = try ServerUIRendererFixture.backdrop()
             let supply = try providers.supply(for: publication, blur: backdrop.blur)
             let prepared = try UKServerUIPreview.Prepared(publication: publication, context: live.context, assets: assets,
@@ -331,9 +367,18 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             defer { window.isHidden = true }
             HostedPage.layoutTracked()
             let page = try XCTUnwrap(renderer.stacks[.initial]?.viewControllers.first as? UKServerUIPage, family)
-            try await body(Rig(family: family, live: live, providers: providers, supply: supply, renderer: renderer, page: page,
-                               defaultsName: defaultsName))
+            try await body(Rig(family: family, live: live, mock: mock, providers: providers, supply: supply, renderer: renderer,
+                               page: page, defaultsName: defaultsName))
         }
+    }
+
+    func testTheMockCatchesAWriteSentStraightToTheConnection() async throws {
+        let (live, _, _) = try make()
+        let mock = lastMock!
+        Task { try? await live.connection.callService("light", "turn_on", data: ["entity_id": "light.synthetic"]) }
+        let sent = await FeatureHost.settleAsync(until: { !ServerUIPreviewLiveProvidersTests.writes(on: mock).isEmpty })
+        XCTAssertTrue(sent, "The detector must see a write that goes to the connection, or the other tests prove nothing")
+        XCTAssertEqual(ServerUIPreviewLiveProvidersTests.writes(on: mock), ["call_service"])
     }
 
     func testAHouseholdToggleIsRefusedCountedAndSendsNothing() async throws {
@@ -365,7 +410,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             XCTAssertTrue(shown, "\(rig.family): the action answers with a notice instead of opening a page")
             await rig.dismissAlerts()
             XCTAssertEqual(rig.live.caller.blockedCommands, 0, "\(rig.family): it is refused at the action, not as a command")
-            rig.assertNoRequest("web page")
+            await rig.assertNoWrite("web page")
         }
     }
 
@@ -381,29 +426,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let settled = await FeatureHost.settleAsync(until: { !feedback.model.isSending })
             XCTAssertTrue(settled, "\(rig.family): the sending flag clears")
             if case .finished = feedback.model.phase { XCTFail("\(rig.family): a report was filed") }
-            rig.assertNoRequest("feedback")
-        }
-    }
-
-    func testTheAdminTodoUploadIsRefusedCountedAndSendsNothing() async throws {
-        try await drive { rig in
-            let todo = ServerUITodoProvider(configuration: try .init(entityId: "todo.synthetic", canAdd: true, allowsAttachments: true),
-                store: TodoStore(service: rig.providers.services), service: rig.providers.services)
-            let image = AdminTodoUpload.Image(data: Data([1, 2, 3]), filename: "a.png", mimeType: "image/png")
-            do { try await todo.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(rig.family): an upload went out") }
-            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
-            await rig.assertRefused(1, "admin to-do upload")
-            XCTAssertFalse(todo.hasPendingIntent, "\(rig.family): the pending flag clears")
-        }
-    }
-
-    func testADataFlowCallIsRefusedCountedAndSendsNothing() async throws {
-        try await drive { rig in
-            do {
-                _ = try await rig.providers.flowHost(entitySources: [:]).call("light", "turn_on", [:], [:], .seconds(1))
-                XCTFail("\(rig.family): a flow call went out")
-            } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
-            await rig.assertRefused(1, "flow call")
+            await rig.assertNoWrite("feedback")
         }
     }
 
@@ -416,7 +439,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             XCTAssertEqual(isolated.object(forKey: BackdropBlur.defaultsKey) as? Int, 55, rig.family)
             XCTAssertEqual(UserDefaults.standard.object(forKey: BackdropBlur.defaultsKey) as? Int, standardBlur,
                            "\(rig.family): standard defaults are untouched")
-            rig.assertNoRequest("preferences")
+            await rig.assertNoWrite("preferences")
         }
     }
 
@@ -431,7 +454,99 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             await rig.dismissAlerts()
             XCTAssertNil(UIApplication.shared.alternateIconName, "\(rig.family): the system icon is untouched")
             XCTAssertEqual(group?.string(forKey: ActivityAppIconStore.key), groupIcon, "\(rig.family): the app group is untouched")
-            rig.assertNoRequest("app icon")
+            await rig.assertNoWrite("app icon")
+        }
+    }
+
+    func testTheAdminTodoUploadFromTheSuppliedProviderIsRefusedCountedAndSendsNothing() async throws {
+        try await drive { rig in
+            let page = try XCTUnwrap(rig.supply.records.collections["records-to-do"] as? UKServerUIChoresCollection, rig.family)
+            let loading = Task { try? await page.load() }
+            // The list reads the load sent are answered on the mock, so the supplied provider holds rows and can be driven.
+            let asked = await FeatureHost.settleAsync(until: {
+                rig.mock.pendingRequests.contains { $0.request.type.command == "todo/item/list" }
+            })
+            XCTAssertTrue(asked, "\(rig.family): the load read the lists")
+            let items = HAData(value: ["items": [["uid": "synthetic-1", "summary": "Synthetic", "status": "needs_action"]]])
+            for pending in rig.mock.pendingRequests where pending.request.type.command == "todo/item/list" {
+                pending.completion(.success(items))
+            }
+            await loading.value
+            let provider = try XCTUnwrap(page.records.compactMap { record -> ServerUITodoProvider? in
+                if case .todo(_, let provider) = record { provider } else { nil }
+            }.first, "\(rig.family): the supplied admin to-do provider")
+            XCTAssertTrue(provider.configuration.allowsAttachments, "\(rig.family): it is the admin list, which takes attachments")
+            let image = AdminTodoUpload.Image(data: Data([1, 2, 3]), filename: "a.png", mimeType: "image/png")
+            do { try await provider.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(rig.family): an upload went out") }
+            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
+            await rig.assertRefused(1, "admin to-do upload")
+            XCTAssertFalse(provider.hasPendingIntent, "\(rig.family): the pending flag clears")
+        }
+    }
+
+    func testADataFlowCallFromTheSuppliedFlowIsRefusedCountedAndSendsNothing() async throws {
+        let (live, providers, _) = try make()
+        let mock = lastMock!
+        let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: apple.appendingPathComponent(
+            "Tests/HassCoreTests/ContractCorpus/accept/pipeline-todo-get-items-service.json")))
+        let publication = try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
+        // The flow waits for the first entity states; the supply starts its session, and the session's call is the write.
+        live.context.store.replaceAll([EntityState(entityId: "todo.demo_chores", state: "0")])
+        _ = try providers.supply(for: publication, blur: ServerUIRendererFixture.backdrop().blur)
+        let counted = await FeatureHost.settleAsync(until: { live.caller.blockedCommands >= 1 })
+        XCTAssertTrue(counted, "The flow's own service call was refused and counted (\(live.caller.blockedCommands))")
+        await Self.assertNoWrite(on: mock, "flow call", "all")
+    }
+
+    func testBedroomProvidersRefuseTheirWritesAndSendNothing() async throws {
+        try await drive { rig in
+            let room = self.house.bedroom
+            guard case .wake(let wake)? = rig.supply.bedrooms[room.wakeLight.id] else { return XCTFail("\(rig.family): wake light") }
+            _ = await wake.endEpisode()
+            await rig.assertRefused(1, "wake light command")
+            let bedID = try XCTUnwrap(room.beds.first).id
+            guard case .bed(let bed)? = rig.supply.bedrooms[bedID] else { return XCTFail("\(rig.family): bed side") }
+            bed.setPower(on: true)
+            await FeatureHost.settleAsync(0.3)
+            XCTAssertFalse(wake.hasPendingCommands, "\(rig.family): the wake light's pending flag clears")
+            await rig.assertNoWrite("bed side")
+        }
+    }
+
+    func testMediaRemoteProvidersRefuseTheirWritesAndSendNothing() async throws {
+        try await drive { rig in
+            let remote = try XCTUnwrap(rig.supply.remotes.values.first, rig.family)
+            remote.controller.press(remote.controller.config.power)
+            await remote.controller.waitForCalls()
+            await rig.assertRefused(1, "remote button")
+        }
+    }
+
+    func testAwayAndVacationProvidersRefuseTheirWritesAndSendNothing() async throws {
+        try await drive { rig in
+            let away = try XCTUnwrap(rig.supply.settings["away"] as? UKServerUIAwayProvider)
+            let item = try XCTUnwrap(self.house.vacation.checklist.first)
+            away.vacation.toggle(item)
+            await away.vacation.drain()
+            await rig.assertRefused(1, "vacation check")
+            _ = await away.solo.household.endNow()
+            await rig.assertRefused(2, "household away command")
+            XCTAssertFalse(away.protectsPublication, "\(rig.family): the away provider's pending flag clears")
+        }
+    }
+
+    func testAScheduleUpdateIsRefusedWhileScheduleReadsStillGoOut() async throws {
+        try await drive { rig in
+            let read = Task { try? await rig.supply.schedules.listSchedules() }
+            let listed = await FeatureHost.settleAsync(until: {
+                rig.mock.pendingRequests.contains { $0.request.type.command == "schedule/list" }
+            })
+            XCTAssertTrue(listed, "\(rig.family): a schedule read reaches the connection")
+            read.cancel()
+            do { _ = try await rig.supply.schedules.updateSchedule(["name": "synthetic"]); XCTFail("\(rig.family): a schedule update went out") }
+            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
+            await rig.assertRefused(1, "schedule update")
         }
     }
 

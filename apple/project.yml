@@ -8,6 +8,10 @@ options:
 packages:
   FentonHomeApple:
     path: .
+  # Only for the hosted tests' `HAMockConnection` (a connection that records every request). The app and HassUI do not link it.
+  HAKit:
+    url: https://github.com/home-assistant/HAKit
+    from: 0.4.19
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -287,6 +291,8 @@ targets:
       # observes it, because each copy has its own key paths (`.agents/testing/apple/README.md`, "Hosted tests share one copy").
       - package: FentonHomeApple
         product: HassUI
+      - package: HAKit
+        product: HAKit+Mocks
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.home.tests
