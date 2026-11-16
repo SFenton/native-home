@@ -15,7 +15,8 @@ import Foundation
 ///   and sheet ids are document-level names and stay as written.
 /// - Each library body is also compiled once, at its own pointer, whether or not anything uses it (``bodies``).
 /// - Issues the compiler finds in an expansion move back to where the author can fix them: a bound field to `args/<name>`, the root's
-///   placement to the reference's `componentId`, a limit to the reference, anything else to the body (``remapped(_:)``).
+///   placement to the reference's `componentId`, a limit to the reference (``remapped(_:)``). Anything else is the body's own fault,
+///   found once when the body is compiled at its library pointer, and is not reported again for each use (the Studio does the same).
 struct ServerUIComponentExpansion {
     typealias Issue = ServerUICompositionError
 
@@ -86,10 +87,11 @@ struct ServerUIComponentExpansion {
     /// `issues`, found in the expanded document, at the pointers an author can act on.
     func remapped(_ issues: [Issue]) -> [Issue] {
         guard !regions.isEmpty else { return issues }
-        return issues.map(remap).filter { !($0.code != .invalidValue && refusedArguments.contains($0.pointer)) }
+        return issues.compactMap(remap).filter { !($0.code != .invalidValue && refusedArguments.contains($0.pointer)) }
     }
 
-    private func remap(_ issue: Issue) -> Issue {
+    /// Where an author can act on `issue`, or nil when it is the body's own and its library check reports it.
+    private func remap(_ issue: Issue) -> Issue? {
         guard let region = regions.first(where: { issue.pointer == $0.pointer || issue.pointer.hasPrefix($0.pointer + "/") }) else { return issue }
         let relative = String(issue.pointer.dropFirst(region.pointer.count))
         func moved(to pointer: String) -> Issue { Issue(issue.code, pointer, capability: issue.capability) }
@@ -101,8 +103,11 @@ struct ServerUIComponentExpansion {
             || (issue.code == .invalidCombination && (relative == "/props/scopeProviderId" || relative == "/props/pinned"))
         if placement { return moved(to: region.pointer + "/componentId") }
         if relative == "/id" || relative == "/layout" || relative == "/layout/span" { return moved(to: region.pointer + relative) }
-        if let parameter = region.bound[relative] { return moved(to: ServerUICompositionJSON.pointer(region.pointer + "/args", parameter)) }
-        return moved(to: "/document/componentLibrary/\(region.entry)/node" + relative)
+        // A bound field, or anything inside one, is the argument's fault.
+        if let parameter = region.bound.first(where: { relative == $0.key || relative.hasPrefix($0.key + "/") })?.value {
+            return moved(to: ServerUICompositionJSON.pointer(region.pointer + "/args", parameter))
+        }
+        return nil
     }
 
     // MARK: - Shared walks

@@ -55,9 +55,11 @@ extension ServerUIComponentExpansion {
                 let at = "/document/componentLibrary/\(index)"
                 let id = item["id"]?.string ?? ""
                 if let previous = firstId[id] { issues.append(Issue(.duplicateID, min(previous, at + "/id"))) } else { firstId[id] = at + "/id" }
-                if let name = item["name"]?.string,
-                   name.unicodeScalars.contains(where: { $0.properties.generalCategory == .control || $0.properties.generalCategory == .format }) {
-                    issues.append(Issue(.invalidValue, at + "/name"))
+                if let name = item["name"]?.string, Self.hasInvisible(name) { issues.append(Issue(.invalidValue, at + "/name")) }
+                for (position, parameter) in (item["params"]?.array ?? []).enumerated() {
+                    if let label = parameter["label"]?.string, Self.hasInvisible(label) {
+                        issues.append(Issue(.invalidValue, "\(at)/params/\(position)/label"))
+                    }
                 }
                 let body = sanitize(item["node"] ?? .null, at: at + "/node")
                 let entry = Entry(
@@ -70,6 +72,11 @@ extension ServerUIComponentExpansion {
                 bodies.append(Body(pointer: at + "/node", value: body))
                 if entries[id] == nil { entries[id] = entry }
             }
+        }
+
+        /// Whether `text` holds a control or format character, which a name or a label may not.
+        private static func hasInvisible(_ text: String) -> Bool {
+            text.unicodeScalars.contains { $0.properties.generalCategory == .control || $0.properties.generalCategory == .format }
         }
 
         /// `node` with each reference replaced by a placeholder; a reference in a body is refused at its `type`.
@@ -136,9 +143,12 @@ extension ServerUIComponentExpansion {
                 switch parameter.kind {
                 case "text": continue
                 case "symbol": if value.utf16.count > 80 { refuse(at) }
+                case "entity-id":
+                    // No catalog lookup: the field's own rule (a style's domain, a source's model) runs on the expansion.
+                    if !ServerUICompositionShape.matches(value, "^[a-z][a-z0-9_]*\\.[a-z0-9_]+$") { refuse(at) }
                 default:
                     guard ServerUICompositionShape.validID(value) else { refuse(at); continue }
-                    let catalog = parameter.kind == "source-id" ? "source" : parameter.kind == "page-id" ? "page" : "modal"
+                    let catalog = ["source-id": "source", "page-id": "page", "state-id": "local-state"][parameter.kind] ?? "modal"
                     argumentReferences.append(ArgumentReference(catalog: catalog, id: value, pointer: at))
                 }
             }
