@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "progress-fraction",
+  "note": "A fraction between 0 and 1 is kept.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "number",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "0.62"
+      }
+    }
+  },
+  "expected": {
+    "progress": 0.62
+  }
+}

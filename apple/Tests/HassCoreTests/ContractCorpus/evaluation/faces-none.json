@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "faces-none",
+  "note": "A tile with no look conditions leaves every face to the style.",
+  "subject": {
+    "faces": {}
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "80"
+      }
+    }
+  },
+  "expected": {
+    "faces": {
+      "active": null,
+      "filled": null,
+      "error": null
+    }
+  }
+}

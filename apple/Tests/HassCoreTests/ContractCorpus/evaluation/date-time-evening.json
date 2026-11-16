@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-time-evening",
+  "note": "Time: 9:05 PM, with the minute padded.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12T21:05:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "time"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "9:05 PM"
+  }
+}

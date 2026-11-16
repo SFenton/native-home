@@ -115,7 +115,7 @@ public struct ServerUICompositionPublication: Equatable, Sendable {
         "sh.todo-collection@1",
         // Authored state styles: a document-level library and the `state-tile` node; required only when a document uses them.
         serverUIStateStyleCapability,
-    ] + ServerUIBedroomControl.capabilities
+    ] + ServerUIBedroomControl.capabilities + ServerUIIngestedCapabilities.all
 
     /// Parses bounded, duplicate-key-aware JSON and compiles every definition, including hidden
     /// and unreachable ones. All failures are sanitized ``ServerUICompositionError`` values.

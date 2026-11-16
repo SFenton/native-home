@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "format-loading-beats-unavailable",
+  "note": "loading is reported before unavailable.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{a}{b}",
+      "args": {
+        "a": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "x",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        },
+        "b": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "y",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "y/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

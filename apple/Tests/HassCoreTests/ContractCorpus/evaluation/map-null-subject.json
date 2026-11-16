@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "map-null-subject",
+  "note": "A null subject matches nothing and is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "map",
+      "of": {
+        "type": "literal",
+        "value": null
+      },
+      "cases": [
+        {
+          "equals": "a",
+          "then": {
+            "type": "literal",
+            "value": 1
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "literal",
+        "value": 2
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

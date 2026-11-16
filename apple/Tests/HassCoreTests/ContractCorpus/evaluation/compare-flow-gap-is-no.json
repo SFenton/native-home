@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "compare-flow-gap-is-no",
+  "note": "In flow mode a gap is null, so a comparison is no.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "number",
+        "missing": "unavailable"
+      },
+      "right": {
+        "type": "literal",
+        "value": 60
+      }
+    }
+  },
+  "env": {
+    "flow": true
+  },
+  "expected": {
+    "tri": "no"
+  }
+}

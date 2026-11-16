@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "name": "sum-skips-non-numbers",
+  "note": "sum adds the numbers and skips the rest, in order.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "n": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "null"
+                  },
+                  {
+                    "kind": "number"
+                  },
+                  {
+                    "kind": "string",
+                    "format": "numeric"
+                  }
+                ]
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "s",
+        "op": "sum",
+        "value": {
+          "type": "item",
+          "path": [
+            "n"
+          ]
+        }
+      }
+    ],
+    "output": {
+      "kind": "scalar"
+    },
+    "schema": {
+      "kind": "number"
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "n": 1.5
+    },
+    {
+      "n": "2"
+    },
+    {
+      "n": null
+    },
+    {
+      "n": 2.5
+    },
+    {}
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": 4
+  },
+  "compiles": true
+}

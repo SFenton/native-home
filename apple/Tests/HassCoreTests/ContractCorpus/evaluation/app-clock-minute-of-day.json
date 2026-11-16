@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "app-clock-minute-of-day",
+  "note": "The minute of the day compares as a number: after 09:00 and before 17:00.",
+  "subject": {
+    "condition": {
+      "type": "all",
+      "of": [
+        {
+          "type": "compare",
+          "op": "above",
+          "left": {
+            "type": "read",
+            "from": {
+              "type": "source",
+              "sourceId": "app-clock",
+              "path": [
+                "minuteOfDay"
+              ]
+            },
+            "as": "number",
+            "missing": "unavailable"
+          },
+          "right": {
+            "type": "literal",
+            "value": 540
+          }
+        },
+        {
+          "type": "compare",
+          "op": "below",
+          "left": {
+            "type": "read",
+            "from": {
+              "type": "source",
+              "sourceId": "app-clock",
+              "path": [
+                "minuteOfDay"
+              ]
+            },
+            "as": "number",
+            "missing": "unavailable"
+          },
+          "right": {
+            "type": "literal",
+            "value": 1020
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "app-clock/minuteOfDay": {
+        "status": "value",
+        "value": 570
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

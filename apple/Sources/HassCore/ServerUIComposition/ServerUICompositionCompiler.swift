@@ -62,6 +62,10 @@ struct ServerUICompositionCompiler {
             guard overhead <= ServerUICompositionJSON.maximumOverheadBytes else { throw Issue(.limitExceeded, "") }
             documentCanonical = canonical
         }
+        // A declared capability the app does not ship refuses the whole document before its shape is read.
+        if let declared = json["capabilities"]?.array {
+            try Self.refuseUnshippedCapabilities(declared.compactMap(\.string))
+        }
         var unsupported = try ServerUICompositionShape.validate(json)
         if let tabs = json["document"]?["navigation"]?["tabs"]?.array, tabs.count > 5 {
             unsupported.append(Issue(.unsupportedCapability, "/document/navigation/tabs", capability: "sh.extended-tabs@1"))
@@ -101,6 +105,16 @@ struct ServerUICompositionCompiler {
             capabilities: capabilities, assetManifestSha256: digest, document: document,
             documentSha256: documentDigest
         )
+    }
+
+    /// Throws the first `unsupported_capability` issue, in declaration order, among the declared capabilities, ignoring malformed ones.
+    private static func refuseUnshippedCapabilities(_ capabilities: [String]) throws {
+        let known = Set(ServerUICompositionPublication.supportedCapabilities)
+        for (index, capability) in capabilities.enumerated() where !known.contains(capability) {
+            guard ServerUICompositionShape.matches(capability, "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*)+@[1-9][0-9]*$") else { continue }
+            // Declaration order, so the lowest index is first (the Studio's order; a string sort would put 10 before 6).
+            throw Issue(.unsupportedCapability, "/capabilities/\(index)", capability: capability)
+        }
     }
 
     private static func checkKnownCapabilities(_ capabilities: [String]) throws {

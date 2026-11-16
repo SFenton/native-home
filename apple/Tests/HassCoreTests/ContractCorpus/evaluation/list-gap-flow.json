@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "list-gap-flow",
+  "note": "The same for a list in flow mode.",
+  "subject": {
+    "operand": {
+      "type": "list",
+      "items": [
+        {
+          "type": "literal",
+          "value": 1
+        },
+        {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "x",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      ]
+    }
+  },
+  "env": {
+    "flow": true
+  },
+  "expected": {
+    "status": "value",
+    "value": [
+      1,
+      null
+    ]
+  }
+}

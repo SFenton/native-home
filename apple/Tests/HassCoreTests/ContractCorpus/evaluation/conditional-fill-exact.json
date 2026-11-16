@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "name": "conditional-fill-exact",
+  "note": "A conditional case holds an exact fill: it is never clamped.",
+  "subject": {
+    "fill": {
+      "type": "conditional",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 75
+            }
+          },
+          "then": {
+            "type": "solid-rgb",
+            "red": 255,
+            "green": 255,
+            "blue": 0
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "standard"
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "80"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 255,
+      "green": 255,
+      "blue": 0
+    },
+    "status": "value"
+  }
+}

@@ -24,6 +24,8 @@ struct ServerUIContractCorpusTests {
         let outcome: String
         let houseScripts: [String]?
         let issue: Issue?
+        /// True for a case the Studio compiles that the app refuses until it ships the capability.
+        let pending: Bool?
 
         var testDescription: String { file }
     }
@@ -41,7 +43,7 @@ struct ServerUIContractCorpusTests {
     }()
 
     /// The house document a case needs: one remote that declares exactly the named scripts, else the demo house.
-    private static func house(for item: Case) -> HouseConfigSource {
+    static func house(for item: Case) -> HouseConfigSource {
         guard let scripts = item.houseScripts else {
             let source = HouseConfigSource()
             source.set(DemoHouse.config)
@@ -98,11 +100,19 @@ struct ServerUIContractCorpusTests {
         #expect(decoded[0] == decoded[1], "\(item.file)")
     }
 
+    /// Compares the Swift list with `capabilities.json`. With `FENTON_REGEN_CAPABILITIES=1` it rewrites the file from the list first.
     @Test func supportedCapabilitiesEqualTheCorpusList() throws {
-        let data = try Data(contentsOf: Self.directory.appendingPathComponent("capabilities.json"))
-        let corpus = try JSONDecoder().decode([String].self, from: data)
-        #expect(corpus == corpus.sorted(), "capabilities.json must be sorted")
+        let url = Self.directory.appendingPathComponent("capabilities.json")
         let supported = ServerUICompositionPublication.supportedCapabilities
+        if ProcessInfo.processInfo.environment["FENTON_REGEN_CAPABILITIES"] == "1" {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+            var text = String(decoding: try encoder.encode(supported.sorted()), as: UTF8.self)
+            text += "\n"
+            try Data(text.utf8).write(to: url, options: .atomic)
+        }
+        let corpus = try JSONDecoder().decode([String].self, from: Data(contentsOf: url))
+        #expect(corpus == corpus.sorted(), "capabilities.json must be sorted")
         #expect(Set(supported).count == supported.count, "a capability is listed twice")
         #expect(supported.sorted() == corpus)
     }

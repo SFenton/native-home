@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "name": "choose-first-case",
+  "note": "The first case that holds gives the value.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "n",
+                "path": [
+                  "count"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 1
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "many"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "n",
+                "path": [
+                  "count"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 1
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "one"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "literal",
+        "value": "none"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "n/count": {
+        "status": "value",
+        "value": 3
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "many"
+  }
+}

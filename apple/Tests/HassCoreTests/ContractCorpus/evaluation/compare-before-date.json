@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-before-date",
+  "note": "before compares dates.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "before",
+      "left": {
+        "type": "literal",
+        "value": "2026-11-14"
+      },
+      "right": {
+        "type": "literal",
+        "value": "2026-11-15"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

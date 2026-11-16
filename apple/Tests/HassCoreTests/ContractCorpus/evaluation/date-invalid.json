@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "date-invalid",
+  "note": "An invalid date is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "days-between",
+      "from": {
+        "type": "literal",
+        "value": "2026-13-10"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-15"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

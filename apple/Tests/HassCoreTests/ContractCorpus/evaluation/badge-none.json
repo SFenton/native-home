@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "badge-none",
+  "note": "Fixed None draws no badge.",
+  "subject": {
+    "badge": {
+      "type": "none"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": null
+  }
+}

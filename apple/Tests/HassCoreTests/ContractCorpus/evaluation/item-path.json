@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "item-path",
+  "note": "item reads a field of the item a step looks at.",
+  "subject": {
+    "operand": {
+      "type": "item",
+      "path": [
+        "a",
+        "b"
+      ]
+    }
+  },
+  "env": {
+    "item": {
+      "a": {
+        "b": 7
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 7
+  }
+}

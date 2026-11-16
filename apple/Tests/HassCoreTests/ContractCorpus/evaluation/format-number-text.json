@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "format-number-text",
+  "note": "A number prints as Swift prints a Double: 0.000001 is 1e-06.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 0.000001
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1e-06"
+  }
+}

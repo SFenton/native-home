@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "any-yes-beats-unknown",
+  "note": "One yes settles any.",
+  "subject": {
+    "condition": {
+      "type": "any",
+      "of": [
+        {
+          "type": "compare",
+          "op": "eq",
+          "left": {
+            "type": "read",
+            "from": {
+              "type": "source",
+              "sourceId": "temp",
+              "path": [
+                "state"
+              ]
+            },
+            "as": "string",
+            "missing": "unavailable"
+          },
+          "right": {
+            "type": "literal",
+            "value": "a"
+          }
+        },
+        {
+          "type": "compare",
+          "op": "eq",
+          "left": {
+            "type": "literal",
+            "value": 1
+          },
+          "right": {
+            "type": "literal",
+            "value": 1
+          }
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

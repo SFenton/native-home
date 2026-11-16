@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "tone-unknown-shows-otherwise",
+  "note": "A case that cannot be answered shows otherwise until it can, as a look does.",
+  "subject": {
+    "tone": {
+      "type": "conditional",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "below",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 20
+            }
+          },
+          "then": "danger"
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "below",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 50
+            }
+          },
+          "then": "warning"
+        }
+      ],
+      "otherwise": "ok"
+    }
+  },
+  "env": {},
+  "expected": {
+    "tone": "ok"
+  }
+}

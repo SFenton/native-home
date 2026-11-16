@@ -1,0 +1,236 @@
+{
+  "format": 1,
+  "name": "date-days-between",
+  "note": "days-between counts calendar days on the viewer's clock: 2026-11-15T07:30:00Z is 23:30 on the 14th at -08:00, so it is one day before today; a time with no offset is already on the clock.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "object",
+        "fields": {
+          "a": {
+            "shape": {
+              "kind": "string",
+              "format": "date"
+            }
+          },
+          "b": {
+            "shape": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          "c": {
+            "shape": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          "d": {
+            "shape": {
+              "kind": "string",
+              "enum": [
+                "tomorrow"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "m",
+        "op": "map",
+        "fields": {
+          "late": {
+            "type": "date",
+            "op": "days-between",
+            "from": {
+              "type": "item",
+              "path": [
+                "a"
+              ]
+            },
+            "to": {
+              "type": "clock",
+              "part": "today"
+            }
+          },
+          "utc": {
+            "type": "date",
+            "op": "days-between",
+            "from": {
+              "type": "item",
+              "path": [
+                "b"
+              ]
+            },
+            "to": {
+              "type": "clock",
+              "part": "today"
+            }
+          },
+          "wall": {
+            "type": "date",
+            "op": "days-between",
+            "from": {
+              "type": "item",
+              "path": [
+                "c"
+              ]
+            },
+            "to": {
+              "type": "clock",
+              "part": "today"
+            }
+          },
+          "bad": {
+            "type": "date",
+            "op": "days-between",
+            "from": {
+              "type": "item",
+              "path": [
+                "d"
+              ]
+            },
+            "to": {
+              "type": "clock",
+              "part": "today"
+            }
+          },
+          "leap": {
+            "type": "date",
+            "op": "days-between",
+            "from": {
+              "type": "literal",
+              "value": "2024-02-28"
+            },
+            "to": {
+              "type": "literal",
+              "value": "2024-03-01"
+            }
+          },
+          "year": {
+            "type": "date",
+            "op": "days-between",
+            "from": {
+              "type": "literal",
+              "value": "2026-01-01"
+            },
+            "to": {
+              "type": "literal",
+              "value": "2027-01-01"
+            }
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "record"
+    },
+    "schema": {
+      "kind": "object",
+      "fields": {
+        "bad": {
+          "shape": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "null"
+              },
+              {
+                "kind": "number",
+                "integer": true
+              }
+            ]
+          }
+        },
+        "late": {
+          "shape": {
+            "kind": "number",
+            "integer": true
+          }
+        },
+        "leap": {
+          "shape": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "null"
+              },
+              {
+                "kind": "number",
+                "integer": true
+              }
+            ]
+          }
+        },
+        "utc": {
+          "shape": {
+            "kind": "number",
+            "integer": true
+          }
+        },
+        "wall": {
+          "shape": {
+            "kind": "number",
+            "integer": true
+          }
+        },
+        "year": {
+          "shape": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "null"
+              },
+              {
+                "kind": "number",
+                "integer": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": {
+    "a": "2026-11-10",
+    "b": "2026-11-15T07:30:00Z",
+    "c": "2026-11-15T07:30:00",
+    "d": "tomorrow"
+  },
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": {
+      "late": 5,
+      "utc": 1,
+      "wall": 0,
+      "bad": null,
+      "leap": 2,
+      "year": 365
+    }
+  },
+  "compiles": true
+}

@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "bound-color-standard-fallback",
+  "note": "The fallback may be the standard look.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "standard"
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "warm"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "standard"
+    },
+    "status": "value"
+  }
+}

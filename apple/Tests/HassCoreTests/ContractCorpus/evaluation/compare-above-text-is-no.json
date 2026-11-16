@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-above-text-is-no",
+  "note": "above takes numbers only: a numeric text gives no.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "literal",
+        "value": "3"
+      },
+      "right": {
+        "type": "literal",
+        "value": 2
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "no"
+  }
+}

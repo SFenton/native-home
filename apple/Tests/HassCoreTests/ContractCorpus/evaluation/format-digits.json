@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-digits",
+  "note": "maximumFractionDigits trims trailing zeros: 2.50 with two digits is \"2.5\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 2.5
+        }
+      },
+      "formats": {
+        "n": {
+          "number": {
+            "maximumFractionDigits": 2
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "2.5"
+  }
+}

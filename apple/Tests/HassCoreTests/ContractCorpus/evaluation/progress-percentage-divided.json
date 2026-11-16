@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "progress-percentage-divided",
+  "note": "A percentage divided by 100 gives the fraction: 62 gives 0.62.",
+  "subject": {
+    "progress": {
+      "type": "math",
+      "op": "divide",
+      "args": [
+        {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        },
+        {
+          "type": "literal",
+          "value": 100
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "62"
+      }
+    }
+  },
+  "expected": {
+    "progress": 0.62
+  }
+}

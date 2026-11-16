@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "date-relative-without-clock",
+  "note": "Relative needs the clock.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "relative"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US"
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

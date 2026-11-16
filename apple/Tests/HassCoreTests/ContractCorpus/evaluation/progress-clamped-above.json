@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "progress-clamped-above",
+  "note": "A value above 1 is clamped to 1: 1.4 gives 1.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "number",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "1.4"
+      }
+    }
+  },
+  "expected": {
+    "progress": 1
+  }
+}

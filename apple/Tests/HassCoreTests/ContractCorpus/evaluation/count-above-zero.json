@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "count-above-zero",
+  "note": "A home status count above zero.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "lights",
+          "path": [
+            "count"
+          ]
+        },
+        "as": "number",
+        "missing": "unavailable"
+      },
+      "right": {
+        "type": "literal",
+        "value": 0
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "lights/count": {
+        "status": "value",
+        "value": 18
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-weekday-date",
+  "note": "Weekday and date: 2026-11-12 is a Thursday.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "weekday-date"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Thu, Nov 12"
+  }
+}

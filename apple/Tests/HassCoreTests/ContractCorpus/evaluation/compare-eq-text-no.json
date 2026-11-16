@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-eq-text-no",
+  "note": "eq on different text is no.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "literal",
+        "value": "on"
+      },
+      "right": {
+        "type": "literal",
+        "value": "off"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "no"
+  }
+}

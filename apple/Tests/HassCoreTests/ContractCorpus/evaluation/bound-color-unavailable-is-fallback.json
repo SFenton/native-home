@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "bound-color-unavailable-is-fallback",
+  "note": "An unavailable value uses the fallback.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "fill"
+  },
+  "env": {},
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 60,
+      "green": 60,
+      "blue": 67
+    },
+    "status": "value"
+  }
+}

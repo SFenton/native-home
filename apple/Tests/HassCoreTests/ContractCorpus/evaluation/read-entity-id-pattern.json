@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "read-entity-id-pattern",
+  "note": "A read as entity-id keeps only text shaped like an entity id.",
+  "subject": {
+    "operand": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "x",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "entity-id",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "x/state": {
+        "status": "value",
+        "value": "not an id"
+      }
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

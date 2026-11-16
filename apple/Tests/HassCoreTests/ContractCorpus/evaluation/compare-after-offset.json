@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-after-offset",
+  "note": "A date and time is compared as an instant on the clock's offset: 23:00 at +02:00 is 21:00 UTC.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "after",
+      "left": {
+        "type": "literal",
+        "value": "2026-11-15T23:00:00+02:00"
+      },
+      "right": {
+        "type": "literal",
+        "value": "2026-11-15T22:00:00Z"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "no"
+  }
+}

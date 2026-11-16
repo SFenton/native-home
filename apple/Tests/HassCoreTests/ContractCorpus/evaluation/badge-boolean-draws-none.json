@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "badge-boolean-draws-none",
+  "note": "A boolean is not a count (the compiler refuses it): nothing is drawn.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": true
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": null
+  }
+}

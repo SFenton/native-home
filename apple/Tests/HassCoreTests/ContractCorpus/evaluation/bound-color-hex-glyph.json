@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "bound-color-hex-glyph",
+  "note": "The glyph slot takes the color lightened until it keeps 3:1: #009688 gives #A6DAD5.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "glyph"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "#009688"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 166,
+      "green": 218,
+      "blue": 213
+    },
+    "status": "value"
+  }
+}

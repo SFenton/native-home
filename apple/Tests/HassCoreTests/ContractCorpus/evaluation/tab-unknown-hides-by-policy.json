@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "tab-unknown-hides-by-policy",
+  "note": "A rule that cannot be answered hides the tab when its policy is hide.",
+  "subject": {
+    "tab": {
+      "tabs": [
+        {
+          "id": "controls"
+        },
+        {
+          "id": "rooms",
+          "visibleWhen": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 75
+            }
+          },
+          "whenUnknown": "hide"
+        },
+        {
+          "id": "dock"
+        }
+      ],
+      "requested": "rooms",
+      "fallback": "dock"
+    }
+  },
+  "env": {},
+  "expected": {
+    "tab": "dock"
+  }
+}

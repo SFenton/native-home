@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "bound-color-yellow-fill-keeps-darkening",
+  "note": "A bright color is darkened in steps until white passes 4.5:1: #FFFF00 gives #656500.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "#FFFF00"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 101,
+      "green": 101,
+      "blue": 0
+    },
+    "status": "value"
+  }
+}

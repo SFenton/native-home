@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "progress-one",
+  "note": "A progress of 1 is full.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "number",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "1"
+      }
+    }
+  },
+  "expected": {
+    "progress": 1
+  }
+}

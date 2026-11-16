@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "name": "choose-unknown-before-yes",
+  "note": "A later case that holds cannot stand in for an earlier one that is unknown.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "n",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "string",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": "a"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "first"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "literal",
+              "value": 1
+            },
+            "right": {
+              "type": "literal",
+              "value": 1
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "second"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "literal",
+        "value": "none"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "loading"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-relative-days-ago",
+  "note": "Relative: 3 days ago.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "relative"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "3 days ago"
+  }
+}

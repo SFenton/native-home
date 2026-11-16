@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "clock-today",
+  "note": "today is the date on the clock's own wall time.",
+  "subject": {
+    "operand": {
+      "type": "clock",
+      "part": "today"
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T23:30:00",
+      "utcOffsetMinutes": -300
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "2026-11-15"
+  }
+}

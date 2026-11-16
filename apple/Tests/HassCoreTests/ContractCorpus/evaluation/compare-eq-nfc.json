@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-eq-nfc",
+  "note": "Text is equal when the NFC forms are: e and U+0301 equals U+00E9 (JavaScript compares code units, Swift compares canonical equivalence).",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "literal",
+        "value": "é"
+      },
+      "right": {
+        "type": "literal",
+        "value": "é"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

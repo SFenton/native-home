@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "in-unavailable-option-unknown",
+  "note": "An option that is unavailable keeps in unknown when nothing else matched.",
+  "subject": {
+    "condition": {
+      "type": "in",
+      "value": {
+        "type": "literal",
+        "value": "x"
+      },
+      "in": [
+        {
+          "type": "literal",
+          "value": "off"
+        },
+        {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "unknown"
+  }
+}

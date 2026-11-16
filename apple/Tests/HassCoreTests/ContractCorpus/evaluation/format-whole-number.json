@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "format-whole-number",
+  "note": "A whole number has no fraction: 3 is \"3\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 3
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "3"
+  }
+}

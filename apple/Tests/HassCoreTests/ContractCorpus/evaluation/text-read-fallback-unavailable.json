@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "text-read-fallback-unavailable",
+  "note": "A read slot falls back the same way.",
+  "subject": {
+    "text": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "string",
+      "missing": "unavailable",
+      "fallback": "No reading"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "No reading"
+  }
+}

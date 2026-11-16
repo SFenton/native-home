@@ -1,0 +1,113 @@
+{
+  "format": 1,
+  "name": "select-key-hit",
+  "note": "select-key picks the entry named by a string key.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "object",
+        "fields": {
+          "todo.demo_a": {
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "items": {
+                  "shape": {
+                    "kind": "array",
+                    "of": {
+                      "kind": "number",
+                      "integer": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "todo.demo_b": {
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "items": {
+                  "shape": {
+                    "kind": "array",
+                    "of": {
+                      "kind": "number",
+                      "integer": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "s",
+        "op": "select-key",
+        "key": {
+          "type": "literal",
+          "value": "todo.demo_b"
+        }
+      },
+      {
+        "id": "g",
+        "op": "get",
+        "path": [
+          "items"
+        ]
+      },
+      {
+        "id": "f",
+        "op": "first"
+      }
+    ],
+    "output": {
+      "kind": "scalar"
+    },
+    "schema": {
+      "kind": "number",
+      "integer": true
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": {
+    "todo.demo_a": {
+      "items": [
+        1
+      ]
+    },
+    "todo.demo_b": {
+      "items": [
+        2
+      ]
+    }
+  },
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": 2
+  },
+  "compiles": true
+}

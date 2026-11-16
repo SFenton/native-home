@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-above-yes",
+  "note": "above on numbers.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "literal",
+        "value": 3
+      },
+      "right": {
+        "type": "literal",
+        "value": 2
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

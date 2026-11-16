@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "asks-always",
+  "note": "No condition always asks.",
+  "subject": {
+    "asks": {}
+  },
+  "env": {},
+  "expected": {
+    "asks": true
+  }
+}

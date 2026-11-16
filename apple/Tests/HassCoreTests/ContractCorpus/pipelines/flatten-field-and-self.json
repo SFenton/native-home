@@ -1,0 +1,157 @@
+{
+  "format": 1,
+  "name": "flatten-field-and-self",
+  "note": "flatten joins the lists found at a path; an empty path joins lists of lists; non-lists are skipped.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "age": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "null"
+                  },
+                  {
+                    "kind": "number",
+                    "integer": true
+                  }
+                ]
+              }
+            },
+            "id": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c"
+                ]
+              }
+            },
+            "tags": {
+              "shape": {
+                "kind": "array",
+                "of": {
+                  "kind": "string",
+                  "enum": [
+                    "x",
+                    "y"
+                  ]
+                }
+              }
+            },
+            "title": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "Bo",
+                  "Zed",
+                  "amy"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "f",
+        "op": "flatten",
+        "path": [
+          "tags"
+        ]
+      }
+    ],
+    "output": {
+      "kind": "rows",
+      "max": 100,
+      "row": {
+        "id": {
+          "type": "item",
+          "path": []
+        },
+        "title": {
+          "type": "item",
+          "path": []
+        }
+      }
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "string",
+        "enum": [
+          "x",
+          "y"
+        ]
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "id": "a",
+      "title": "Zed",
+      "age": 30,
+      "tags": [
+        "x",
+        "y"
+      ]
+    },
+    {
+      "id": "b",
+      "title": "amy",
+      "age": 25,
+      "tags": []
+    },
+    {
+      "id": "c",
+      "title": "Bo",
+      "age": null,
+      "tags": [
+        "y"
+      ]
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "id": "x",
+        "title": "x"
+      },
+      {
+        "id": "y",
+        "title": "y"
+      }
+    ]
+  },
+  "compiles": true
+}

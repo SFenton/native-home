@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "compare-eq-structure-is-no",
+  "note": "Only scalars compare: a list is never equal.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "literal",
+        "value": [
+          1
+        ]
+      },
+      "right": {
+        "type": "literal",
+        "value": [
+          1
+        ]
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "no"
+  }
+}

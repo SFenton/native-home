@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "item-missing",
+  "note": "A missing item path is null: a value, not unavailable.",
+  "subject": {
+    "operand": {
+      "type": "item",
+      "path": [
+        "z"
+      ]
+    }
+  },
+  "env": {
+    "item": {
+      "a": 1
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": null
+  }
+}

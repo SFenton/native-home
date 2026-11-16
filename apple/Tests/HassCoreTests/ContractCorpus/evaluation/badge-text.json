@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "badge-text",
+  "note": "Text is shown as it is.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": "New"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": "New"
+  }
+}

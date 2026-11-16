@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "text-expr-fallback-unused-when-value",
+  "note": "A value that is there is shown, not the fallback.",
+  "subject": {
+    "text": {
+      "type": "expr",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": "No reading"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "72"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "72"
+  }
+}

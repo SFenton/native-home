@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-long-date",
+  "note": "Long date: November 12, 2026.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "long-date"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "November 12, 2026"
+  }
+}

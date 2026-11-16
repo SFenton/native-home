@@ -1,0 +1,253 @@
+{
+  "format": 1,
+  "name": "rows-skip-and-dedupe",
+  "note": "Rows with no id or no title are skipped, a repeated id keeps its first row, blank subtitles are left out, numbers become text, the list stops at max.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "id": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "null"
+                  },
+                  {
+                    "kind": "number",
+                    "integer": true
+                  },
+                  {
+                    "kind": "string",
+                    "enum": [
+                      "c",
+                      "d"
+                    ]
+                  }
+                ]
+              }
+            },
+            "s": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "",
+                  "sub",
+                  "x"
+                ]
+              }
+            },
+            "t": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  " ",
+                  "Again",
+                  "Four",
+                  "No id",
+                  "One",
+                  "Three"
+                ]
+              }
+            },
+            "v": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "boolean"
+                  },
+                  {
+                    "kind": "number"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [],
+    "output": {
+      "kind": "rows",
+      "max": 3,
+      "row": {
+        "id": {
+          "type": "item",
+          "path": [
+            "id"
+          ]
+        },
+        "title": {
+          "type": "item",
+          "path": [
+            "t"
+          ]
+        },
+        "subtitle": {
+          "type": "item",
+          "path": [
+            "s"
+          ]
+        },
+        "value": {
+          "type": "item",
+          "path": [
+            "v"
+          ]
+        }
+      }
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "id": {
+            "shape": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "null"
+                },
+                {
+                  "kind": "number",
+                  "integer": true
+                },
+                {
+                  "kind": "string",
+                  "enum": [
+                    "c",
+                    "d"
+                  ]
+                }
+              ]
+            }
+          },
+          "s": {
+            "shape": {
+              "kind": "string",
+              "enum": [
+                "",
+                "sub",
+                "x"
+              ]
+            }
+          },
+          "t": {
+            "shape": {
+              "kind": "string",
+              "enum": [
+                " ",
+                "Again",
+                "Four",
+                "No id",
+                "One",
+                "Three"
+              ]
+            }
+          },
+          "v": {
+            "shape": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "boolean"
+                },
+                {
+                  "kind": "number"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "id": 1,
+      "t": "One",
+      "s": "",
+      "v": 2.5
+    },
+    {
+      "id": 1,
+      "t": "Again",
+      "s": "x",
+      "v": 1
+    },
+    {
+      "id": null,
+      "t": "No id",
+      "s": "x",
+      "v": 1
+    },
+    {
+      "id": 2,
+      "t": " ",
+      "s": "x",
+      "v": 1
+    },
+    {
+      "id": "c",
+      "t": "Three",
+      "s": "sub",
+      "v": true
+    },
+    {
+      "id": "d",
+      "t": "Four",
+      "s": "x",
+      "v": 1
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "id": "1",
+        "title": "One",
+        "value": "2.5"
+      },
+      {
+        "id": "c",
+        "title": "Three",
+        "subtitle": "sub",
+        "value": "true"
+      },
+      {
+        "id": "d",
+        "title": "Four",
+        "subtitle": "x",
+        "value": "1"
+      }
+    ]
+  },
+  "compiles": true
+}

@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "name": "tone-second-case",
+  "note": "A later case holds when the first does not.",
+  "subject": {
+    "tone": {
+      "type": "conditional",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "below",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 20
+            }
+          },
+          "then": "danger"
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "below",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 50
+            }
+          },
+          "then": "warning"
+        }
+      ],
+      "otherwise": "ok"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "30"
+      }
+    }
+  },
+  "expected": {
+    "tone": "warning"
+  }
+}

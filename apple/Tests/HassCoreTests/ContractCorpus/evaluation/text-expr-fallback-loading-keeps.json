@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "text-expr-fallback-loading-keeps",
+  "note": "While loading there is no fallback: the slot keeps what it showed.",
+  "subject": {
+    "text": {
+      "type": "expr",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": "No reading"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

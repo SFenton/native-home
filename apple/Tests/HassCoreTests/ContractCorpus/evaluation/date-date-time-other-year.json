@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-date-time-other-year",
+  "note": "Date and time in another year carries the year.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2025-12-31T23:59:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Dec 31, 2025 at 11:59 PM"
+  }
+}
