@@ -14,6 +14,7 @@
 - **Say why a control is disabled.** Disable instead of hiding, and put the reason in text beside it: the Sprinkler schedule's Days footer ("Choose at least one day.", `SprinklerSchedulePage.applyBlocker`); the Vacation confirmation sheet keeps Confirm present but disabled with the date error above it (`AwayActionButton(isEnabled:disabledReason:)`).
 
 - **Canonical (UIKit).** `UKSectionBlock.settings(title:paragraphs:content:)` in `UIKitPort/Features/Household/UKHouseholdParts.swift`. `UIKitPort/Design/UKSettingsSection.swift` holds its pieces (`UKInlineAlertView`, `UKSelectableOptionRow`, `UKFormText`, `UKInfoBoxView`).
+- **Composed settings controls.** `UKServerUISettingsAtom` pins its child to its own edges, so a settings control in a module list (a `UIStackView` sized by system fitting) has the child's height under Auto Layout, not 1 pt.
 - **Owned files** (also in `contracts/patterns.json`): `UIKitPort/Design/UKSettingsSection.swift`, `FormSectionText.swift`, `PageSectionHeader.swift`, and the inset-grouped stack: `InsetGroupedStack.swift`, `InsetGroupedSectionView.swift`, `InsetGroupedRow.swift`, `InsetGroupedRowKind.swift`, `InsetGroupedMetrics.swift`, `GroupedRowButtonStyle.swift`.
 
 ## Inset grouped pages are a `ScrollView` over a plain `VStack`, not a `List` (owner, 2026-10-27)

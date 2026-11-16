@@ -56,7 +56,10 @@ must not produce an all-clear summary. There is no house-config lookup in this p
 retain the rail and its scroller; only a changed child identity/order calls
 `setChips`. Typography / Supporting Dynamic Type: "Make sure your layout adapts to
 all font sizes" remains the rule; the existing AX-size wrap and native chip
-remeasure/colour-animation paths are unchanged.
+remeasure/colour-animation paths are unchanged. A rail keeps the page gutter before
+its first chip (`UKChipRailView.edgeInset`, 16 pt by default); inside a composed page
+that already pads its sides the page sets it to `max(0, Spacing.l - padding)`, so the
+chips start where the page's other rows do and never one gutter further in.
 
 These are atomic authoring contracts, not a complete configured Home or Security
 rail. Dynamic helper-derived tints, Home's entity-driven guest visibility,

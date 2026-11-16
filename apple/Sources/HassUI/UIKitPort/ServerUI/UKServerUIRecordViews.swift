@@ -168,9 +168,12 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
                 carousel.configure(phase: provider.error != nil ? .failed : provider.loading ? .loading : .ready, items: records.compactMap {
                     if case .recipe(let item) = $0 { item } else { nil }
                 })
+                carousel.emptyMessage = definition.emptyText.isEmpty ? nil : definition.emptyText
                 carousel.onOpen = { [weak self] item in self?.select(.recipe(item)) }
                 retry.action = { [weak self] in self?.reload() }
-                install((notice == nil ? [] : [message]) + (provider.error == nil && commandError == nil ? [] : [retry]) + [carousel])
+                // The carousel draws its own failed and empty states ("Suggestions Unavailable"), so the provider's error line is not repeated
+                // above it, and the authored empty text is the empty state's own message; only a failed command is.
+                install((commandError == nil ? [] : [message]) + (provider.error == nil && commandError == nil ? [] : [retry]) + [carousel])
             }
         } else {
             var next: [String: UIView] = [:]

@@ -104,6 +104,20 @@ final class UKChipRailView: UIView, UKGridMeasuring {
     private var chips: [UIView] = []
     /// The window's hinge in window coordinates, if any.
     var hinge: CGRect? { didSet { if hinge != oldValue { setNeedsLayout() } } }
+    /// The space before the first chip and after the last one. The default is the page gutter, for a rail laid edge to edge; a rail
+    /// inside a page that already pads its sides (a composed page's `layout.padding`) takes the part of the gutter the page lacks
+    /// (``edgeInset(pagePadding:)``), so the chips start where the page's other rows do and not one gutter further in.
+    var edgeInset: CGFloat = HassTokens.Spacing.l {
+        didSet {
+            guard edgeInset != oldValue else { return }
+            setNeedsLayout()
+            invalidateIntrinsicContentSize()
+        }
+    }
+
+    /// The rail's ``edgeInset`` inside a page whose sides are padded by `pagePadding`: the gutter minus what the page already gives.
+    /// - Parameter pagePadding: The page's side padding (the smaller of leading and trailing).
+    static func edgeInset(pagePadding: CGFloat) -> CGFloat { max(0, HassTokens.Spacing.l - pagePadding) }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -150,7 +164,7 @@ final class UKChipRailView: UIView, UKGridMeasuring {
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
         switch mode {
         case .scroll: rowSizes.map(\.height).max() ?? 0
-        case .wrap: flow.gridHeight(forWidth: max(0, width - 2 * HassTokens.Spacing.l))
+        case .wrap: flow.gridHeight(forWidth: max(0, width - 2 * edgeInset))
         }
     }
 
@@ -159,7 +173,7 @@ final class UKChipRailView: UIView, UKGridMeasuring {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let margin = HassTokens.Spacing.l
+        let margin = edgeInset
         switch mode {
         case .scroll:
             // Measured on the full-width frame, so the inset never feeds back into the frame it is computed from.

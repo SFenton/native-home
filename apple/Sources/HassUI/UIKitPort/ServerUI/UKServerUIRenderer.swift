@@ -72,6 +72,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     private let bag = UKObservationBag()
     private let tabBag = UKObservationBag()
     private var tabShown: [String: Bool] = [:]
+    /// The text each tab's authored badge (`sh.badges@1`) last resolved to; a tab with none, or a count of 0, has no entry.
+    private var tabBadges: [String: String] = [:]
     private var accessibilityObservers: UKObserverTokens?
     private var edgePan: UIScreenEdgePanGestureRecognizer?
     private var standaloneSignals: UKDeviceSignals?
@@ -824,10 +826,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             stacks[root] = nav
             sync(nav, path: path, root: root, presentation: nil, animated: animated, updateBodies: updateBodies)
             if case .tab(let id) = root, let tab = publication.document.navigation.tabs.first(where: { $0.id == id }) {
-                nav.tabBarItem.title = tab.label
-                nav.tabBarItem.image = UIImage(systemName: tab.icon.drawn)
-                nav.tabBarItem.accessibilityLabel = tab.label
-                nav.tabBarItem.accessibilityIdentifier = tab.id
+                applyTabItem(tab, to: nav.tabBarItem)
             }
         }
         let controllers = roots.filter(isRootShown).compactMap { stacks[$0] }
@@ -1328,7 +1327,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
 
     private func updateFlyout() {
         let destinations = publication.document.navigation.tabs.filter { isTabShown($0.id) }.map {
-            UKFlyoutDestination(id: $0.id, title: $0.label, symbol: $0.icon.drawn, identifier: $0.id)
+            UKFlyoutDestination(id: $0.id, title: $0.label, symbol: $0.icon.drawn, identifier: $0.id,
+                                badge: tabBadges[$0.id], spokenLabel: Self.spokenTabLabel($0.label, badge: tabBadges[$0.id]))
         }
         let selected: String?
         if case .tab(let id) = navigation.snapshot.selection { selected = id } else { selected = nil }
@@ -1839,9 +1839,47 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// Whether a tab's rule currently lets it be reached.
     func isTabShown(_ id: String) -> Bool { tabShown[id] ?? true }
 
+    /// What VoiceOver reads for a flyout row, which is one element and has no separate value: its label, then its badge ("Chores, 11").
+    static func spokenTabLabel(_ label: String, badge: String?) -> String {
+        badge.map { "\(label), \($0)" } ?? label
+    }
+
+    /// Puts a tab's label, symbol, identifier and badge on its bar item. The rail and the tab bar draw the same item.
+    private func applyTabItem(_ tab: D.Tab, to item: UITabBarItem) {
+        item.title = tab.label
+        item.image = UIImage(systemName: tab.icon.drawn)
+        item.badgeValue = tabBadges[tab.id]
+        // The count is the item's value, not part of its label: a tab bar button speaks its badge as a value of its own, and a value
+        // set here replaces that one, so VoiceOver says the count once ("Chores", "11") and never "Chores, 11, 11".
+        item.accessibilityLabel = tab.label
+        item.accessibilityValue = tabBadges[tab.id]
+        item.accessibilityIdentifier = tab.id
+    }
+
+    /// One observation per tab with an authored badge, each reading only the entities its operand names. A loading value keeps the
+    /// badge it had, so a reconnect never blanks it.
+    private func observeTabBadges() {
+        let tabs = publication.document.navigation.tabs
+        let kept = tabBadges.filter { id, _ in tabs.contains { $0.id == id && $0.badgeValue != nil } }
+        let pruned = kept.count != tabBadges.count
+        tabBadges = kept
+        if pruned, isViewLoaded { updateFlyout() }
+        for tab in tabs {
+            guard let value = tab.badgeValue else { continue }
+            tabBag.observe { [weak self] in
+                guard let self else { return }
+                guard case .text(let text) = ServerUILayoutRules.badge(value, in: self.reader()), self.tabBadges[tab.id] != text else { return }
+                self.tabBadges[tab.id] = text
+                if let nav = self.stacks[.tab(tab.id)] { self.applyTabItem(tab, to: nav.tabBarItem) }
+                if self.isViewLoaded { self.updateFlyout() }
+            }
+        }
+    }
+
     /// One observation per tab with a rule, each reading only the entities its rule names.
     private func observeTabVisibility() {
         tabBag.removeAll()
+        defer { observeTabBadges() }
         let rules = publication.document.navigation.tabs.compactMap { tab in tab.visibleWhen.map { (tab.id, $0) } }
         tabShown = tabShown.filter { id, _ in rules.contains { $0.0 == id } }
         for (id, rule) in rules {
