@@ -39,7 +39,6 @@ class LoaderTests(unittest.TestCase):
         self.file.write_text(text)
         self.file.chmod(mode)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_loads_the_four_keys_with_and_without_export_and_quotes(self):
         self.write('export FENTON_HASS_TOKEN="tok-fake-111"\nFENTON_HASS_USERNAME=user-fake-222\n'
                    "  export FENTON_HASS_PASSWORD='pw-fake-333'\nFENTON_HASS_SERVER=http://fake.invalid:8123\n")
@@ -47,7 +46,6 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(values(out), FAKE)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_environment_wins_over_the_file(self):
         self.write("FENTON_HASS_USERNAME=from-file\nFENTON_HASS_PASSWORD=pw-file\n")
         rc, out, _ = load(self.file, {"FENTON_HASS_USERNAME": "from-env"})
@@ -56,7 +54,6 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual(got["FENTON_HASS_USERNAME"], "from-env")
         self.assertEqual(got["FENTON_HASS_PASSWORD"], "pw-file")
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_mode_644_is_refused(self):
         self.write("FENTON_HASS_PASSWORD=pw-fake-333\n", 0o644)
         rc, out, err = load(self.file)
@@ -68,7 +65,6 @@ class LoaderTests(unittest.TestCase):
         self.write("FENTON_HASS_PASSWORD=pw-fake-333\n", 0o640)
         self.assertNotEqual(load(self.file)[0], 0)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_a_path_inside_the_repo_is_refused(self):
         inside = Path(tempfile.mkdtemp(dir=REPO))
         self.addCleanup(shutil.rmtree, inside, ignore_errors=True)
@@ -80,7 +76,6 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual(values(out)["FENTON_HASS_PASSWORD"], "")
         self.assertIn("git repository", err)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_only_allowlisted_keys_are_loaded(self):
         self.write("PATH=/nowhere\nFENTON_EXTRA=1\nUSERNAME=legacy\nPASSWORD=legacy\nFENTON_HASS_TOKEN=tok-fake-111\n")
         rc, out, _ = load(self.file, body='echo "path=$PATH"; echo "extra=${FENTON_EXTRA:-}"; echo "legacy=${PASSWORD:-}"; '
@@ -90,7 +85,6 @@ class LoaderTests(unittest.TestCase):
         self.assertNotEqual(got["path"], "/nowhere")
         self.assertEqual((got["extra"], got["legacy"], got["token"]), ("", "", "tok-fake-111"))
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_command_substitution_is_not_executed(self):
         marker = self.tmp / "ran"
         self.write(f"FENTON_HASS_PASSWORD=$(touch {marker})\nFENTON_HASS_TOKEN=`touch {marker}`\n")
@@ -99,7 +93,6 @@ class LoaderTests(unittest.TestCase):
         self.assertFalse(marker.exists())
         self.assertEqual(values(out)["FENTON_HASS_PASSWORD"], f"$(touch {marker})")
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_no_value_appears_in_stdout_or_stderr(self):
         self.write("".join(f"{k}={v}\n" for k, v in FAKE.items()))
         rc, out, err = load(self.file, body="hass_creds_status")
@@ -124,7 +117,6 @@ class LoaderTests(unittest.TestCase):
         for v in FAKE.values():
             self.assertNotIn(v, p.stdout + p.stderr)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_writable_parent_folder_is_refused(self):
         self.write("FENTON_HASS_PASSWORD=pw-fake-333\n")
         self.tmp.chmod(0o770)
@@ -133,7 +125,6 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual(values(out)["FENTON_HASS_PASSWORD"], "")
         self.assertIn("writable", err)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_require_creds_needs_a_token_or_password(self):
         self.write("FENTON_HASS_USERNAME=user-fake-222\n")
         rc, _, err = load(self.file, body="hass_require_creds || exit 1")
@@ -144,7 +135,6 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("pw-fake-333", err)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Linux baseline: the loader's owner and mode checks fail on /tmp files (macOS-tested); follow-up hosted-ci-linux-portability")
     def test_require_creds_needs_the_server(self):
         """Fails if: hass_require_creds passes with a token or password but no FENTON_HASS_SERVER, or prints a value."""
         for key, val in (("FENTON_HASS_TOKEN", "tok-fake-111"), ("FENTON_HASS_PASSWORD", "pw-fake-333")):
