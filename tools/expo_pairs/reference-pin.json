@@ -1,0 +1,9 @@
+{
+  "comment": "The reference (Expo-era) build every reference capture must run against. Rebuilt 2026-11-15 from the clean-host source at sourceSHA; a rebuild is not byte-identical to the build recorded earlier (c99fd1e5...), so this is a new pin.",
+  "sourceSHA": "4fe28061f65575c50d5980cd480945452722c2c1",
+  "version": "2611.13.03",
+  "bundleSHA256": "c3bdf0abf119a931afaa98de499aa1b579f3f0dfa577b376436849871fef3b79",
+  "binarySHA256": "d46baeb4c7a8bc315090c4f8e78ef5b6be0655cc6ec05c00a3c526f943b778e7",
+  "simulatorName": "SH-ref-expo-pinned",
+  "simulatorSource": "xcrun simctl clone of the iPhone Duo (HASS) simulator"
+}
