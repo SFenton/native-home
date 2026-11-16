@@ -76,23 +76,30 @@ final class LoginJourneyTests: JourneyTestCase {
         XCTAssertFalse(app.buttons["server-ui.production.retry"].exists, "Asking again cannot make this build newer.")
     }
 
-    func testUnpublishedRecoveryPassesAccessibilityAudit() throws {
-        let app = launch(stub: "success", arguments: FentonHomeApp.ax5, publication: "unpublished")
+    /// Signs in against the stub with nothing published and waits for the recovery page and its two actions.
+    private func unpublishedRecoveryPage(arguments: [String] = []) -> XCUIApplication {
+        let app = launch(stub: "success", arguments: arguments, publication: "unpublished")
         fill(app)
         submit(app)
         XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 15), "The recovery page's actions are reachable.")
+        XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+        return app
+    }
+
+    func testUnpublishedRecoveryPassesAccessibilityAudit() throws {
+        let app = unpublishedRecoveryPage()
         // The page is built once per state and stays in the accessibility tree. It was rebuilt on every frame (an observation
         // that tracked UIKit's own layout-time reads), so queries and the audit met elements that had just been torn down: three
         // element-less "no description" issues on CI's iPhone. Sampled before the audit, so the cause shows as itself.
-        XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 15), "The recovery page's actions are reachable.")
-        XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
         let retry = app.buttons["server-ui.production.retry"], signOut = app.buttons["server-ui.production.signOut"]
         for sample in 0..<15 {
             XCTAssertTrue(retry.exists && signOut.exists, "The page's actions stay in the tree (sample \(sample)): it is not rebuilt")
             usleep(100_000)
         }
         settleScreen()
-        try FentonHomeApp.audit(app)
+        // Audited as the page is, then judged at the largest text size like every other page (the audit's own Dynamic Type rule).
+        try FentonHomeApp.audit(app, ax5Page: { self.unpublishedRecoveryPage(arguments: FentonHomeApp.ax5) })
     }
 
     func testLoginScreenPassesAccessibilityAudit() throws {

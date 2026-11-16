@@ -377,12 +377,18 @@ final class UKServerUIProductionHost: UIViewController {
         signOut.setTitle(BoundaryCopy.signOut, for: .normal)
         signOut.accessibilityIdentifier = "server-ui.production.signOut"
         signOut.addAction(UIAction { [weak self] _ in self?.confirmSignOut() }, for: .touchUpInside)
-        for button in [clear, signOut] { button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true }
+        for button in [clear, signOut] {
+            // The system button's own title is a fixed 15 pt: it follows Dynamic Type like the page's text (the iPad audit at the
+            // largest size reported Sign Out as unsupported once the page stopped being rebuilt under it).
+            button.titleLabel?.font = .ukFont(.body)
+            button.titleLabel?.adjustsFontForContentSizeCategory = true
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        }
         var arranged: [UIView] = [main, clear, signOut]
         #if DEBUG
         // The journey attaches this: the rejection's case and pointer, never a value, so a device run says why it is showing.
         let diagnostic = UILabel()
-        diagnostic.font = .preferredFont(forTextStyle: .caption2)
+        diagnostic.font = .ukFont(.caption2)
         diagnostic.adjustsFontForContentSizeCategory = true
         diagnostic.numberOfLines = 0
         diagnostic.textAlignment = .center
