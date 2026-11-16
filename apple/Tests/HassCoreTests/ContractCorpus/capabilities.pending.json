@@ -1,12 +1,8 @@
 [
-  "sh.badges@1",
   "sh.list-parts@1",
-  "sh.overlay@1",
+  "sh.list-read@1",
   "sh.pipeline-operands@1",
   "sh.pipeline@1",
-  "sh.tab-bar@1",
-  "sh.tab-blocks@1",
-  "sh.tab-fallback@1",
-  "sh.tile-look@1",
-  "sh.tile-parts@1"
+  "sh.raw-state@1",
+  "sh.state-style-fills@1"
 ]

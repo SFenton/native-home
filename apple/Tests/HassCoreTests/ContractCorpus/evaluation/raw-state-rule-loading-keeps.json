@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "name": "raw-state-rule-loading-keeps",
+  "note": "A rule that cannot be answered yet is loading, so the slot keeps what it showed.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unavailable"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unavailable"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unknown"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unknown"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "{t} degrees",
+        "args": {
+          "t": {
+            "type": "raw-state",
+            "sourceId": "sensor"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

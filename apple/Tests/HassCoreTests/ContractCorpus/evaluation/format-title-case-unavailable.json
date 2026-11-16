@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "format-title-case-unavailable",
+  "note": "An unavailable argument makes the format unavailable.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "mode",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "title"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

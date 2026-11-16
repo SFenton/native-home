@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "raw-state-value",
+  "note": "A state that is a value is its text.",
+  "subject": {
+    "operand": {
+      "type": "raw-state",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "72.5"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "72.5"
+  }
+}

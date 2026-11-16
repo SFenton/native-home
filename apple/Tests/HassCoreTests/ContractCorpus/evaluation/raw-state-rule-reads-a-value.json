@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "name": "raw-state-rule-reads-a-value",
+  "note": "A rule falls through to the value: \"72.5 degrees\".",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unavailable"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unavailable"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unknown"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unknown"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "{t} degrees",
+        "args": {
+          "t": {
+            "type": "raw-state",
+            "sourceId": "sensor"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "72.5"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "72.5 degrees"
+  }
+}

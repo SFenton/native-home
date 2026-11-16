@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-negative-zero",
+  "note": "A result that rounds to zero has no sign: -0.04 with one digit is \"0.0\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": -0.04
+        }
+      },
+      "formats": {
+        "n": {
+          "number": {
+            "maximumFractionDigits": 1,
+            "minimumFractionDigits": 1
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "0.0"
+  }
+}

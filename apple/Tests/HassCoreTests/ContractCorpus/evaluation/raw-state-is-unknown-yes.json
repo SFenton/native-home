@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "raw-state-is-unknown-yes",
+  "note": "A condition: the state is \"unknown\".",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "raw-state",
+        "sourceId": "sensor"
+      },
+      "right": {
+        "type": "literal",
+        "value": "unknown"
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unknown"
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "raw-state-unavailable-is-text",
+  "note": "An entity whose state is unavailable gives the text \"unavailable\", a value, not the status.",
+  "subject": {
+    "operand": {
+      "type": "raw-state",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "unavailable"
+  }
+}

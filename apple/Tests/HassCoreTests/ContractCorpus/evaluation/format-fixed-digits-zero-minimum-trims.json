@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-zero-minimum-trims",
+  "note": "A minimum of 0 is the old format: 2.5 with at most 2 is \"2.5\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 2.5
+        }
+      },
+      "formats": {
+        "n": {
+          "number": {
+            "maximumFractionDigits": 2,
+            "minimumFractionDigits": 0
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "2.5"
+  }
+}

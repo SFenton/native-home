@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "name": "raw-state-rule-tells-unknown",
+  "note": "A rule tells unknown from unavailable: \"Unknown\".",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unavailable"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unavailable"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unknown"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unknown"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "{t} degrees",
+        "args": {
+          "t": {
+            "type": "raw-state",
+            "sourceId": "sensor"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unknown"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Unknown"
+  }
+}

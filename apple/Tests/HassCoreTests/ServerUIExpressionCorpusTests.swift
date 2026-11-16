@@ -36,7 +36,7 @@ struct ServerUIExpressionCorpusTests {
     @Test func theCorpusIsWholeAndNamedByItsFiles() throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: Self.directory.path).filter { $0.hasSuffix(".json") }
         #expect(Self.cases.count == names.count, "a file did not decode")
-        #expect(Self.cases.count >= 185)
+        #expect(Self.cases.count >= 250)
         let answers = Set(Self.cases.compactMap { $0.expected["tri"]?.string })
         #expect(answers == ["yes", "no", "unknown"])
         let statuses = Set(Self.cases.compactMap { $0.expected["status"]?.string })
@@ -54,6 +54,8 @@ struct ServerUIExpressionCorpusTests {
     /// The environment a case names, as the reader the evaluator sees.
     struct Environment: ServerUIReading {
         var reads: [String: ServerUIReadResult] = [:]
+        /// What `readRaw` gives per source id; a source not listed has no entity.
+        var raw: [String: ServerUIReadResult] = [:]
         var viewer: ServerUIViewer?
         var clock: ServerUIClock?
         var item: JSONValue?
@@ -65,6 +67,7 @@ struct ServerUIExpressionCorpusTests {
         func read(sourceId: String, path: [String]) -> ServerUIReadResult {
             reads[([sourceId] + path).joined(separator: "/")] ?? .unavailable
         }
+        func readRaw(sourceId: String) -> ServerUIReadResult { raw[sourceId] ?? .unavailable }
         func viewerPersonState() -> ServerUIReadResult { .unavailable }
         func parameter(_ name: String) -> JSONValue? { parameters[name] }
         func drawsSymbol(_ name: String) -> Bool { !undrawn.contains(name) }
@@ -72,15 +75,15 @@ struct ServerUIExpressionCorpusTests {
 
     static func environment(_ env: [String: JSONValue]) -> Environment {
         var result = Environment()
-        if case .object(let reads)? = env["reads"] {
-            for (key, entry) in reads {
-                switch entry["status"]?.string {
-                case "value": result.reads[key] = .value(entry["value"] ?? .null)
-                case "loading": result.reads[key] = .loading
-                default: result.reads[key] = .unavailable
-                }
+        func status(_ entry: JSONValue) -> ServerUIReadResult {
+            switch entry["status"]?.string {
+            case "value": .value(entry["value"] ?? .null)
+            case "loading": .loading
+            default: .unavailable
             }
         }
+        if case .object(let reads)? = env["reads"] { for (key, entry) in reads { result.reads[key] = status(entry) } }
+        if case .object(let raw)? = env["raw"] { for (key, entry) in raw { result.raw[key] = status(entry) } }
         if case .object(let viewer)? = env["viewer"] {
             result.viewer = ServerUIViewer(userId: viewer["userId"]?.string, isAdmin: viewer["isAdmin"]?.bool,
                                            personEntityId: viewer["personEntityId"]?.string)

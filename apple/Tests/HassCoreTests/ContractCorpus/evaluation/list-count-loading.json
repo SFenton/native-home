@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "list-count-loading",
+  "note": "A list that is loading is loading.",
+  "subject": {
+    "operand": {
+      "type": "list-count",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "raw-state-in-flow-is-null",
+  "note": "A flow has no raw reads: a gap is null.",
+  "subject": {
+    "operand": {
+      "type": "raw-state",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {
+    "flow": true,
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "on"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": null
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "list-count-condition-above",
+  "note": "A condition: more than one mode.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "list-count",
+        "from": {
+          "type": "source",
+          "sourceId": "hvac",
+          "path": [
+            "attributes",
+            "hvac_modes"
+          ]
+        }
+      },
+      "right": {
+        "type": "literal",
+        "value": 1
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          "heat",
+          "cool",
+          "heat_cool",
+          "off"
+        ]
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-title-case-state",
+  "note": "An entity state as words: heat_cool is \"Heat Cool\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "heat_cool"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "title"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Heat Cool"
+  }
+}
