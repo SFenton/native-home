@@ -17,8 +17,7 @@ import UIKit
 /// The live bearer comes from the launch environment: ``environmentCredentialName`` (`simctl launch` sets it as
 /// `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`). It is read once at preview start, removed from the process environment with
 /// `unsetenv` so child processes and later reads cannot see it, and kept in memory only: never logged, written, or put in a
-/// diagnostic string. The older `ha-credential` file under ``directory`` stays as a fallback used only when the variable is
-/// absent, because ``consumeCredential(at:)`` and its test predate the environment source; it is consumed once and deleted.
+/// diagnostic string. There is no file source: a stray `ha-credential` file in ``directory`` is never read.
 /// Compiled out of release builds.
 @MainActor
 final class UKServerUIPreview: UIViewController {
@@ -136,25 +135,13 @@ final class UKServerUIPreview: UIViewController {
         return value
     }
 
-    /// The live bearer: the environment first, else the legacy `ha-credential` file in `directory`.
-    /// - Throws: ``UKServerUIPreviewLiveData/Failure/credential`` when neither source supplies a valid token.
-    static func liveCredential(environmentName: String = environmentCredentialName,
-                               fallbackFile: URL) throws -> String {
-        if let token = try consumeEnvironmentCredential(named: environmentName) { return token }
-        if let token = try consumeCredential(at: fallbackFile) { return token }
-        throw UKServerUIPreviewLiveData.Failure.credential
-    }
-
-    /// Credentials are consumed before use, including invalid UTF-8/empty files, and never written into a receipt.
-    static func consumeCredential(at file: URL) throws -> String? {
-        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
-        let bytes = try Data(contentsOf: file)
-        try FileManager.default.removeItem(at: file)
-        guard let value = String(data: bytes, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty, !value.contains(where: \.isWhitespace) else {
+    /// The live bearer, from the launch environment only.
+    /// - Throws: ``UKServerUIPreviewLiveData/Failure/credential`` when the variable is unset, empty or malformed.
+    static func liveCredential(environmentName: String = environmentCredentialName) throws -> String {
+        guard let token = try consumeEnvironmentCredential(named: environmentName) else {
             throw UKServerUIPreviewLiveData.Failure.credential
         }
-        return value
+        return token
     }
 
     private func loadPublication() async {
@@ -170,7 +157,7 @@ final class UKServerUIPreview: UIViewController {
             let stager = try ServerUIAssetStager(partition: partition, partitionDirectory: root,
                 transport: UKServerUIPreviewAssetFiles(directory: Self.directory.appendingPathComponent("assets", isDirectory: true)))
             if let liveConfiguration = configuration.live {
-                let token = try Self.liveCredential(fallbackFile: Self.directory.appendingPathComponent("ha-credential"))
+                let token = try Self.liveCredential()
                 live = try UKServerUIPreviewLiveData(configuration: liveConfiguration, credential: token,
                                                     directory: root.appendingPathComponent("live"), store: entities)
             } else if let fixtures = configuration.entities {

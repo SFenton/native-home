@@ -215,18 +215,6 @@ final class ServerUIPreviewTests: XCTestCase {
         return try ServerUIRendererFixture.publication(json)
     }
 
-    func testCredentialIsConsumedOnceEvenWhenMalformed() throws {
-        let path = directory.appendingPathComponent("credential")
-        try Data("test-only-token\n".utf8).write(to: path)
-        XCTAssertEqual(try UKServerUIPreview.consumeCredential(at: path), "test-only-token")
-        XCTAssertNil(try UKServerUIPreview.consumeCredential(at: path))
-        for invalid in [Data([0xFF]), Data(), Data("two tokens".utf8)] {
-            try invalid.write(to: path)
-            XCTAssertThrowsError(try UKServerUIPreview.consumeCredential(at: path))
-            XCTAssertFalse(FileManager.default.fileExists(atPath: path.path))
-        }
-    }
-
     // MARK: Environment credential
 
     private static let secret = "env-only-secret-token-9f3a"
@@ -235,22 +223,24 @@ final class ServerUIPreviewTests: XCTestCase {
         let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
         setenv(name, Self.secret, 1)
         defer { unsetenv(name) }
-        let token = try UKServerUIPreview.liveCredential(environmentName: name,
-                                                         fallbackFile: directory.appendingPathComponent("ha-credential"))
+        let token = try UKServerUIPreview.liveCredential(environmentName: name)
         XCTAssertEqual(token, Self.secret)
         XCTAssertNil(getenv(name), "The bearer must not stay visible to child processes or later reads")
         XCTAssertNil(try UKServerUIPreview.consumeEnvironmentCredential(named: name), "A second read finds nothing")
         XCTAssertEqual(UKServerUIPreview.environmentCredentialName, "FENTON_PREVIEW_HA_TOKEN")
     }
 
-    func testEnvironmentTokenTakesPrecedenceOverTheLegacyFile() throws {
+    func testAStrayCredentialFileInThePreviewFolderIsIgnoredAndNeverRead() throws {
         let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
         let file = directory.appendingPathComponent("ha-credential")
         try Data("file-token".utf8).write(to: file)
+        XCTAssertThrowsError(try UKServerUIPreview.liveCredential(environmentName: name)) { error in
+            XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .credential)
+        }
+        XCTAssertEqual(try Data(contentsOf: file), Data("file-token".utf8), "The file is neither read nor deleted")
         setenv(name, Self.secret, 1)
         defer { unsetenv(name) }
-        XCTAssertEqual(try UKServerUIPreview.liveCredential(environmentName: name, fallbackFile: file), Self.secret)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), "The file is untouched when the environment supplies the bearer")
+        XCTAssertEqual(try UKServerUIPreview.liveCredential(environmentName: name), Self.secret)
     }
 
     func testMalformedEnvironmentTokenIsRemovedAndFailsWithTheCredentialErrorWithoutEchoingIt() {
@@ -270,7 +260,7 @@ final class ServerUIPreviewTests: XCTestCase {
         let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
         XCTAssertNil(getenv(name))
         XCTAssertThrowsError(try UKServerUIPreview.liveCredential(
-            environmentName: name, fallbackFile: directory.appendingPathComponent("ha-credential"))) { error in
+            environmentName: name)) { error in
             XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .credential)
             XCTAssertEqual((error as? UKServerUIPreviewLiveData.Failure)?.errorDescription?.contains("FENTON_PREVIEW_HA_TOKEN"), true)
         }
@@ -296,8 +286,7 @@ final class ServerUIPreviewTests: XCTestCase {
         let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
         setenv(name, Self.secret, 1)
         defer { unsetenv(name) }
-        let token = try UKServerUIPreview.liveCredential(environmentName: name,
-                                                         fallbackFile: directory.appendingPathComponent("ha-credential"))
+        let token = try UKServerUIPreview.liveCredential(environmentName: name)
         let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
                                                credential: token, directory: directory, store: EntityStore())
         for index in 1...3 {

@@ -417,8 +417,7 @@ synthetic `entities` or `live: {server, accountID}`) and `publication.json` besi
 from `assets/<sha256>`. The envelope reaches the app's store as if the integration had sent a `published` event: there is
 no publisher HTTP endpoint. A live preview takes its bearer from the launch environment variable
 `FENTON_PREVIEW_HA_TOKEN` (`simctl launch` sets it as `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`): read once at start,
-removed with `unsetenv`, kept in memory only and never logged or written. The older `ha-credential` file is only a
-fallback when the variable is absent (an existing test covers it) and is consumed once. A live preview also needs
+removed with `unsetenv`, kept in memory only and never logged or written. There is no file source: a stray `ha-credential` file is never read. A live preview also needs
 `bootstrap.json` with `live: {server, accountID}` and a `publication.json` (plus `assets/<sha256>`) staged in the
 simulator container; the app does not fetch the publication from Home Assistant.
 Live design uses the existing `HassConnection`, `EntityStore` and `ConnectionLifecycle`. Normal account restoration, push
