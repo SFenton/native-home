@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 19,
+  "version": 20,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -117,6 +117,7 @@
     ".agents/patterns/telemetry.md": "Telemetry: how the app measures its own performance. (read when: adding a page, a scroll view, a loader or anything that could cost frames.)",
     ".agents/patterns/thermostat-dial.md": "Thermostat dial: the circular setpoint dial for `climate` entities. (read when: showing or editing a thermostat anywhere (Climate page, room pages, sheets).)",
     ".agents/patterns/ticker.md": "Ticker label: one line of text that scrolls through its column when it is too wide, instead of truncating. (read when: a label must stay on one line beside something that cannot give way (the weather card's condition next to the numeral).)",
+    ".agents/patterns/vacuum-lowering.md": "Vacuum kinds built from generic parts: the `vacuum-control` kinds the compiler rewrites into generic parts, and the ones that stay native. (read when: you change `ServerUIVacuumLowering` or a vacuum card, row or command.)",
     ".agents/patterns/vacuum-sheet.md": "Vacuum sheet: the robot vacuum sheet (map, status tiles, Controls/Rooms/Auto-Clean/Dock/Info tabs, area editor, cleaning report). (read when: opening a vacuum from any screen or changing vacuum controls.)",
     ".agents/patterns/valetudo-map.md": "Mapped map: decoding and drawing a Mapped map (rooms, walls, robot, dock, paths, areas). (read when: showing a vacuum map anywhere.)",
     ".agents/patterns/weather.md": "Weather card and sheet: the Home weather card, its 24-hour carousel and the Weather sheet, plus the logic under them. (read when: changing anything in `HassUI/Features/Home/Weather` or `HassCore/Weather`.)",

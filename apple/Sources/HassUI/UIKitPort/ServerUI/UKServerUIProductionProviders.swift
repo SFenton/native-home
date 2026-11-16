@@ -113,20 +113,12 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         if let config = session.houseConfig?.current, config != configured {
             let nextRemotes = Dictionary(uniqueKeysWithValues: config.media.remotes.map { descriptor in
                 let retained = remotes[descriptor.id].flatMap { $0.controller.config == descriptor ? $0 : nil }
-                return (descriptor.id, retained ?? ServerUIRemoteSession(
-                    controller: MediaRemoteController(config: descriptor, store: connection.store, caller: caller)))
+                return (descriptor.id, retained ?? Self.remoteSession(descriptor, store: connection.store, caller: caller))
             })
             var nextBedrooms = bedrooms
             if configured?.bedroom != config.bedroom {
-                let room = config.bedroom
-                let wake = WakeLightController(config: room.wakeLight, store: connection.store, caller: caller, canEdit: user?.isAdmin == true)
-                nextBedrooms = [room.wakeLight.id: .wake(wake)]
-                let environment = BedSideEnvironment(scheduleEntityId: room.scheduleEntityId, scheduleSetTopic: room.scheduleSetTopic,
-                    hotFlashBrokerScript: room.hotFlashBrokerScript, householdAwayEntityId: room.householdAwayEntityId,
-                    householdAwayScript: room.householdAwayScript, wakeLight: room.wakeLight)
-                for bed in room.beds {
-                    nextBedrooms[bed.id] = .bed(BedSideController(config: bed, store: connection.store, caller: caller, environment: environment))
-                }
+                nextBedrooms = Self.bedroomProviders(config.bedroom, store: connection.store, caller: caller,
+                                                     canEdit: user?.isAdmin == true)
             }
             remotes = nextRemotes
             bedrooms = nextBedrooms
@@ -143,6 +135,69 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
             records: prepared.bedroomRegistry.addingCollections(to: records(for: publication)),
             remoteProviders: prepared.remotes, store: connection.store, accountProvider: self, settingsProviders: settings,
             shellHeader: shellHeader)
+    }
+
+    // MARK: - Shared builders
+
+    /// The bug or feature form `id` names, filing through `filer`; the preview's read-only live mode passes a filer that never files.
+    static func feedbackProvider(id: String, filer: any FeedbackFiling, connection: HassConnection,
+                                 current: @escaping () -> Bool) throws -> UKServerUIFeedbackProvider {
+        let kind: FeedbackKind
+        switch id {
+        case "feedback-bug": kind = .bug
+        case "feedback-feature": kind = .feature
+        default: throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources")
+        }
+        let platform = FeedbackPlatform.resolve(isPad: UIDevice.current.userInterfaceIdiom == .pad,
+                                               hasHinge: HingePresence.shared.hasHinge)
+        return UKServerUIFeedbackProvider(id: id,
+            model: FeedbackFormModel(kind: kind, services: FeedbackServices(filer: filer)), platform: platform,
+            isCurrentSession: current) { [connection] traits in
+                FeedbackDiagnosticsCollector(platform: platform, traits: .init(
+                    dynamicTypeSize: WeatherCarouselPaging.dynamicTypeSize(traits.preferredContentSizeCategory),
+                    colorScheme: traits.userInterfaceStyle == .dark ? .dark : .light,
+                    regularWidth: traits.horizontalSizeClass == .regular,
+                    voiceOver: UIAccessibility.isVoiceOverRunning,
+                    reduceMotion: UIAccessibility.isReduceMotionEnabled)).collect(connection: connection)
+            }
+    }
+
+    /// The base records plus what the settings providers add: the away presentations and each feedback form's Cancel state.
+    static func presentations(of base: UKServerUIRecords,
+                              settings: [String: any UKServerUISettingsProvider]) throws -> UKServerUIRecords {
+        var result = base
+        for case let away as UKServerUIAwayProvider in settings.values { try away.addPresentations(to: &result) }
+        for case let feedback as UKServerUIFeedbackProvider in settings.values {
+            let id = "modal-" + feedback.definition.providerId + "-cancel"
+            guard result.actionStates[id] == nil else {
+                throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources")
+            }
+            result.actionStates[id] = { [weak feedback] in
+                .init(enabled: feedback?.isCurrentSession == true && feedback?.canDiscard == true)
+            }
+        }
+        return result
+    }
+
+    /// The media remote's session over `caller`; the preview's read-only live mode builds the same one over its rejecting caller.
+    static func remoteSession(_ descriptor: MediaRemoteConfig, store: EntityStore,
+                              caller: any HassServiceCalling) -> ServerUIRemoteSession {
+        ServerUIRemoteSession(controller: MediaRemoteController(config: descriptor, store: store, caller: caller))
+    }
+
+    /// The house configuration's wake light and bed sides, keyed by id.
+    static func bedroomProviders(_ room: HouseConfig.BedroomSection, store: EntityStore, caller: any HassServiceResponding,
+                                 canEdit: Bool) -> [String: UKServerUIBedroomProvider] {
+        var result: [String: UKServerUIBedroomProvider] = [
+            room.wakeLight.id: .wake(WakeLightController(config: room.wakeLight, store: store, caller: caller, canEdit: canEdit)),
+        ]
+        let environment = BedSideEnvironment(scheduleEntityId: room.scheduleEntityId, scheduleSetTopic: room.scheduleSetTopic,
+            hotFlashBrokerScript: room.hotFlashBrokerScript, householdAwayEntityId: room.householdAwayEntityId,
+            householdAwayScript: room.householdAwayScript, wakeLight: room.wakeLight)
+        for bed in room.beds {
+            result[bed.id] = .bed(BedSideController(config: bed, store: store, caller: caller, environment: environment))
+        }
+        return result
     }
 
     /// An input the document binds (house configuration, the signed-in user) has not arrived: the layout waits, it is not rejected.
@@ -211,27 +266,11 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
             case .profile:
                 result[definition.providerId] = profile(id: definition.providerId, session: session, current: current)
             case .feedback:
-                let kind: FeedbackKind
-                switch definition.providerId {
-                case "feedback-bug": kind = .bug
-                case "feedback-feature": kind = .feature
-                default: throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources")
-                }
                 let filer = UKServerUISessionFeedbackFiler(filer: HomeAssistantFeedbackClient(server: connection.server) { [caller] in
                     try await caller.accessToken()
                 }, isCurrentSession: current)
-                let platform = FeedbackPlatform.resolve(isPad: UIDevice.current.userInterfaceIdiom == .pad,
-                                                       hasHinge: HingePresence.shared.hasHinge)
-                result[definition.providerId] = UKServerUIFeedbackProvider(id: definition.providerId,
-                    model: FeedbackFormModel(kind: kind, services: FeedbackServices(filer: filer)), platform: platform,
-                    isCurrentSession: current) { [connection] traits in
-                        FeedbackDiagnosticsCollector(platform: platform, traits: .init(
-                            dynamicTypeSize: WeatherCarouselPaging.dynamicTypeSize(traits.preferredContentSizeCategory),
-                            colorScheme: traits.userInterfaceStyle == .dark ? .dark : .light,
-                            regularWidth: traits.horizontalSizeClass == .regular,
-                            voiceOver: UIAccessibility.isVoiceOverRunning,
-                            reduceMotion: UIAccessibility.isReduceMotionEnabled)).collect(connection: connection)
-                    }
+                result[definition.providerId] = try Self.feedbackProvider(id: definition.providerId, filer: filer,
+                                                                          connection: connection, current: current)
             }
         }
         settingsWindows[key] = result
@@ -302,6 +341,13 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         let entities = Self.entitySources(of: publication.document)
         var result = flows.collections(for: publication.document, window: window, start: sceneID != nil, hostKey: entities,
                                        host: { flowHost(entitySources: entities, appState: appState) })
+        try Self.addPerformanceCollections(from: settings, to: &result)
+        return result
+    }
+
+    /// The keyed collections the performance providers project, added under `performance-<key>`.
+    static func addPerformanceCollections(from settings: [String: any UKServerUISettingsProvider],
+                                          to result: inout [String: ServerUIRowCollection]) throws {
         for case let provider as UKServerUIPerformanceProvider in settings.values {
             for (key, collection) in provider.collections {
                 let id = "performance-" + key
@@ -311,19 +357,27 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
                 result[id] = collection
             }
         }
-        return result
     }
 
     /// What a Data Flow reads and calls: the one connection's feed and calls, the entity store and the signed-in person.
     private func flowHost(entitySources: [String: String], appState: UKServerUIAppStateSource?) -> ServerUIFlowHost {
-        let store = connection.store
         let connection = connection
+        return Self.flowHost(connection: connection, entitySources: entitySources, user: { [weak self] in self?.user },
+                             appState: appState, call: { domain, service, target, data, timeout in
+            try await connection.callServiceForFlow(domain, service, target: target, data: data, timeout: timeout)
+        })
+    }
+
+    /// The Data Flow host over one connection. `call` is the only way a flow acts, so a caller that must not write passes one that throws.
+    static func flowHost(connection: HassConnection, entitySources: [String: String], user: @escaping @MainActor () -> HassUser?,
+                         appState: UKServerUIAppStateSource?,
+                         call: @escaping (String, String, [String: JSONValue], [String: JSONValue], Duration) async throws -> JSONValue
+    ) -> ServerUIFlowHost {
+        let store = connection.store
         let viewer = FlowViewer()
         return ServerUIFlowHost(
             feed: HassFlowFeed(connection: connection),
-            call: { domain, service, target, data, timeout in
-                try await connection.callServiceForFlow(domain, service, target: target, data: data, timeout: timeout)
-            },
+            call: call,
             held: { id in store.entity(id).state.map { .init(state: $0.state, attributes: $0.attributes) } },
             read: { sourceId, path in
                 guard let entityId = entitySources[sourceId], let state = store.entity(entityId).state, !state.isUnavailable else { return nil }
@@ -334,13 +388,13 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
                 return value
             },
             statesReady: { store.hasReceivedFirstState },
-            environment: { [weak self] in (viewer.viewer(of: self?.user, in: store), .autoupdatingCurrent) },
+            environment: { (viewer.viewer(of: user(), in: store), .autoupdatingCurrent) },
             // The window's one ticking clock (a minute tick that runs only while something reads it), not a second timer.
             clock: { appState?.clockForReading() })
     }
 
     /// The literal entity each `ha-entity` source of the document names.
-    private static func entitySources(of document: ServerUICompositionDocument) -> [String: String] {
+    static func entitySources(of document: ServerUICompositionDocument) -> [String: String] {
         var result: [String: String] = [:]
         for case .haEntity(let id, let entityId) in document.dataSources {
             if case .literal(let literal) = entityId { result[id] = literal }
@@ -374,17 +428,7 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         if let existing = presentationRecords[key], existing.base == base.identity, existing.settings == identities {
             return existing.records
         }
-        var result = base
-        for case let away as UKServerUIAwayProvider in settings.values { try away.addPresentations(to: &result) }
-        for case let feedback as UKServerUIFeedbackProvider in settings.values {
-            let id = "modal-" + feedback.definition.providerId + "-cancel"
-            guard result.actionStates[id] == nil else {
-                throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources")
-            }
-            result.actionStates[id] = { [weak feedback] in
-                .init(enabled: feedback?.isCurrentSession == true && feedback?.canDiscard == true)
-            }
-        }
+        let result = try Self.presentations(of: base, settings: settings)
         presentationRecords[key] = (base.identity, identities, result)
         return result
     }
@@ -449,6 +493,14 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
 
     /// Authored descriptors own their keys. House-config providers only fill legacy references.
     func supplementalProviders(for publication: ServerUICompositionPublication) -> (
+        bedrooms: [String: UKServerUIBedroomProvider], remotes: [String: ServerUIRemoteSession]
+    ) {
+        Self.supplementalProviders(for: publication, bedrooms: bedrooms, remotes: remotes)
+    }
+
+    /// The house-config `bedrooms` and `remotes` that the publication's authored device descriptors do not own.
+    static func supplementalProviders(for publication: ServerUICompositionPublication,
+                                      bedrooms: [String: UKServerUIBedroomProvider], remotes: [String: ServerUIRemoteSession]) -> (
         bedrooms: [String: UKServerUIBedroomProvider], remotes: [String: ServerUIRemoteSession]
     ) {
         var authoredBedrooms = Set<String>(), authoredRemotes = Set<String>()

@@ -67,8 +67,9 @@ enum UKServerUIRooms {
                !definition.stateLabels.contains(where: { $0.state == entity?.state }) {
                 subtitle = ClimateLogic.ventSubtitle(entity)
             }
-            if definition.kind == .contact, definition.action == nil, definition.power == nil {
-                subtitle = RoomFormat.contactTileSubtitle(entity)
+            if definition.kind == .contact {
+                subtitle = RoomFormat.contactCardSubtitle(authored: subtitle, entity: entity, hasAction: definition.action != nil,
+                    hasPower: definition.power != nil, hasSubtitleSources: !selected.subtitles.isEmpty, showState: selected.showState)
             }
             let display = RoomCardDisplay.resolve(card, entity: entity, subtitle: subtitle)
             let face = RoomTileFace.resolve(card, entity: entity, display: display)
@@ -160,7 +161,7 @@ enum UKServerUIRooms {
                 }
                 if definition.kind == .contact, body == nil, definition.power == nil {
                     model.symbol = RoomOverviewStyle.contactSymbol(window: definition.icon.drawn.contains("window"), open: RoomFormat.isOpen(entity))
-                    model.spokenValue = RoomFormat.contact(entity)
+                    model.spokenValue = RoomFormat.contactCardSpokenValue(entity: entity, drawn: subtitle)
                 }
                 if body != nil { model.bodyHint = "Opens \(definition.node.title)" }
                 model.reapplyGeneration = page.context.store.reapplyGeneration

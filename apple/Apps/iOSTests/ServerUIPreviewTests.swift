@@ -366,7 +366,7 @@ final class ServerUIPreviewTests: XCTestCase {
         }
         do { try await live.caller.callService("light", "turn_on", data: [:]) }
         catch { strings += ["\(error)", error.localizedDescription] }
-        do { _ = try await live.caller.callServiceWithResponse("script", "run", data: [:]) }
+        do { _ = try await live.caller.callServiceWithResponse("script", "demo_run", data: [:]) }
         catch { strings += ["\(error)", error.localizedDescription] }
         strings += ["\(live.receipt)"]
         for value in strings { XCTAssertFalse(value.contains(Self.secret), "Token leaked into: \(value.prefix(80))") }
@@ -381,7 +381,7 @@ final class ServerUIPreviewTests: XCTestCase {
                                                credential: token, directory: directory, store: EntityStore())
         for index in 1...3 {
             do {
-                if index == 2 { _ = try await live.caller.callServiceWithResponse("script", "run", data: [:]) }
+                if index == 2 { _ = try await live.caller.callServiceWithResponse("script", "demo_run", data: [:]) }
                 else { try await live.caller.callService("light", "turn_on", data: ["entity_id": "light.demo_x"]) }
                 XCTFail("A live service call was accepted")
             } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled) }

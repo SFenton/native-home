@@ -1620,6 +1620,40 @@
       "supersededBy": null
     },
     {
+      "id": "vacuum-lowering",
+      "title": "Vacuum kinds built from generic parts",
+      "status": "current",
+      "doc": ".agents/patterns/vacuum-lowering.md",
+      "summary": "the vacuum-control kinds the compiler rewrites into generic parts, and the ones that stay native.",
+      "keywords": [
+        "vacuum",
+        "lowering",
+        "vacuum-control",
+        "state-tile",
+        "bound-control"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/ServerUIComposition/ServerUIVacuumLowering.swift",
+            "symbol": "ServerUIVacuumLowering"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIVacuumLowering*.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "vacuum-sheet"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
       "id": "valetudo-map",
       "title": "Mapped map",
       "status": "current",
