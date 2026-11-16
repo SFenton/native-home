@@ -278,8 +278,12 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let page = try XCTUnwrap(renderer.stacks[.initial]?.viewControllers.first as? UKServerUIPage, family)
             func tap(_ id: String) throws {
                 let node = try XCTUnwrap(page.nodes[id]?.view, "\(family): \(id)")
-                let button = try XCTUnwrap(HostedPage.descendants(of: node).compactMap { $0 as? UKRowButton }.first
-                                           ?? node as? UKRowButton, "\(family): \(id) button")
+                func button(in view: UIView) -> UKRowButton? {
+                    if let found = view as? UKRowButton { return found }
+                    for sub in view.subviews { if let found = button(in: sub) { return found } }
+                    return nil
+                }
+                let button = try XCTUnwrap(button(in: node), "\(family): \(id) button \(node.subviews)")
                 try XCTUnwrap(button.onTap, "\(family): \(id) tap")()
             }
             func blocked(_ count: Int, _ what: String) async {
