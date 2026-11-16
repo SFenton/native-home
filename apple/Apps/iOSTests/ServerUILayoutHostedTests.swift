@@ -166,7 +166,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
             let (_, root) = try page("pending-tile-parts-destination", width: width, tileProps: .object(["discs": .array([disc])]))
             let tile = try XCTUnwrap(root.nodes["door"]?.view as? UKGlassTileView, "width \(width)")
             XCTAssertFalse(tile.model.actions.isEmpty, "width \(width)")
-            XCTAssertEqual(tile.model.actions.first?.label, "Lock")
+            XCTAssertTrue(tile.model.actions.contains { $0.id == "disc:lock" && $0.verb == "Lock" }, "the authored disc is named for VoiceOver")
             HostedPage.hideTracked()
         }
     }
