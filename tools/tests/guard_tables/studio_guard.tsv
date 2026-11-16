@@ -1,0 +1,59 @@
+# command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).  An agent-mode row is judged as a coder; the owner's plain terminal (main) is never blocked.
+# studio_guard is a TRIPWIRE, not a wall: port 4801 runs local-only with no token by owner choice (2026-11-16), so this guard is the protection. Non-goals, no row asserts them: URLs or paths built at run time, scripts that open the URL, a Write whose content runs later.
+curl -X PUT http://127.0.0.1:4801/native/api/draft -d @x.json	block	curl PUT to the draft	agent
+curl -sX PUT -H 'Content-Type: application/json' http://localhost:4801/native/api/draft --data '{}'	block	clustered flags, localhost	agent
+curl http://127.0.0.1:4801/native/api/draft	block	even a read of the draft is house data	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/publish -d '{"expectedRevision":1}'	block	publish route	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/rollback -d '{"revision":1}'	block	rollback route	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/restore-draft	block	restore-draft route	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/start-from-published	block	start-from-published route	agent
+curl 'http://127.0.0.1:4801/native/api/draft?x=1'	block	query string	agent
+curl "http://127.0.0.1:4801/native/api/ha/publish"	block	double quotes	agent
+wget --method=PUT --body-file=x.json http://127.0.0.1:4801/native/api/draft	block	wget	agent
+http PUT 127.0.0.1:4801/native/api/draft	block	httpie	agent
+python3 -c "import urllib.request as u;u.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft',method='PUT'))"	block	python urlopen	agent
+python3 -c "import requests;requests.post('http://localhost:4801/x')"	block	python on port 4801 without a route word	agent
+node -e "fetch('http://127.0.0.1:4801/native/api/draft',{method:'PUT'})"	block	node fetch	agent
+node -e "fetch('http://127.0.0.1:4801/anything')"	block	node on port 4801 without a route word	agent
+curl http://127.0.0.1:4800/health	block	port 4800	agent
+curl http://127.0.0.1:4819/health	block	port 4819	agent
+bash -c "curl -X PUT http://127.0.0.1:4801/native/api/draft"	block	bash -c string	agent
+sh -c 'curl http://127.0.0.1:4801/x'	block	sh -c string	agent
+eval "curl -X PUT http://127.0.0.1:4801/native/api/draft"	block	eval string	agent
+echo x | xargs curl -X PUT http://127.0.0.1:4801/native/api/draft	block	xargs-fed curl	agent
+env FOO=1 curl -X PUT http://127.0.0.1:4801/native/api/draft	block	wrapper program	agent
+cd /tmp && curl -X PUT http://127.0.0.1:4801/native/api/draft	block	second command of a list	agent
+nc 127.0.0.1 4801	block	nc with the port as a word	agent
+echo '{}' > /Users/x/studio/native-v2/state.json	block	redirect into native-v2	agent
+cp x.json /Users/x/studio/native-v2/state.json	block	cp into native-v2	agent
+rm -rf native-v2	block	bare native-v2 word	agent
+cat ./native-v2/state.json	block	cat of native-v2	agent
+sed -i '' s/a/b/ native-v2/state.json	block	sed -i on native-v2	agent
+touch /Users/x/studio/.studio.lock	block	the studio lock file	agent
+cat $DATA_DIR/native-v2/state.json	block	DATA_DIR expansion	agent
+cat ${DATA_DIR}/x	block	braced DATA_DIR	agent
+cp x.json /Users/x/.t3/worktrees/ha-native-home-app/studio-ux2/data/draft.json	block	data folder of a Studio checkout	agent
+python3 tools/studio_publish.py apply build/studio-publish/c1 --reason x	block	a coder may not apply	agent
+python3 -I tools/studio_publish.py publish build/studio-publish/c1 --reason x	block	a coder may not publish	agent
+python3 tools/studio_publish.py rollback build/studio-publish/c1 --reason x	block	a coder may not roll back	agent
+python3 tools/studio_publish.py frobnicate	block	unknown subcommand	agent
+python3 /tmp/other/tools/studio_publish.py status	block	a copy of the tool outside this checkout is no exemption	agent
+python3 tools/studio_publish.py status	allow	status is open to every agent
+python3 -I tools/studio_publish.py status --json	allow	status with -I and --json
+python3 tools/studio_publish.py check build/studio-publish/c1	allow	check is read only
+python3 tools/studio_publish.py status --base http://127.0.0.1:4801	allow	the tool with its own base URL
+python3 tools/studio_publish.py status --base http://127.0.0.1:4894	allow	scratch Studio base
+curl -X PUT http://127.0.0.1:4801/native/api/draft -d @x.json	allow	the owner's plain terminal is never blocked	main
+python3 tools/studio_publish.py apply build/studio-publish/c1 --reason x	allow	the owner's plain terminal may run the tool	main
+cat native-v2/state.json	allow	the owner's plain terminal may read the data	main
+git commit -m "Guard curl to :4801/native/api/draft and native-v2"	allow	prose in a commit message	agent
+gh pr create --title "Block native-v2 edits" --body "port :4801 /native/api/draft"	allow	prose in a PR title and body	agent
+grep -rn native-v2 docs	allow	a bare name as a search pattern	agent
+rg "4801" build/research	allow	a pattern, rg is not a network client	agent
+echo 'port 4801 is the owner Studio'	allow	echo prose	agent
+curl https://example.com/api	allow	unrelated curl	agent
+curl http://127.0.0.1:4894/native/api-docs	allow	stray text that is not the route	agent
+python3 tools/tests/test_studio_publish.py	allow	running the tool's tests	agent
+python3 -m unittest tools.tests.test_studio_publish	allow	running the tool's tests by module	agent
+ls build/studio-publish	allow	listing the bundles	agent
+lsof -i :4801	allow	lsof is not a network client	agent
