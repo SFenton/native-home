@@ -19,10 +19,10 @@ Blocked, in an agent session:
   pattern (a ``git config alias.*`` or ``git -c alias.*`` stays blocked); a word naming a Studio port (``:4800``, ``:4801``, ``:4819``) when the program is a network client or an
   interpreter (curl, wget, httpie, nc, python, node, ...); a word that names ``native-v2`` or ``.studio.lock`` (a bare ``native-v2`` is allowed as
   a search pattern); ``$DATA_DIR`` expanded.
-- **Exempt:** two exact forms, each the whole simple command, and only for a real Studio checkout (a directory with ``package.json`` named
+- **Exempt:** one exact form, the whole simple command, and only for a real Studio checkout (a directory with ``package.json`` named
   ``native-home-studio``, a ``.git`` entry and ``scripts/studio-publish.ts``): ``<checkout>/node_modules/.bin/tsx <checkout>/scripts/studio-publish.ts <sub> ...``
   (absolute, or relative to a cwd inside a checkout; no ``..`` segment, no other tsx option; the script must resolve to ``scripts/studio-publish.ts``
-  of the checkout) and ``npm run studio:publish -- <sub> ...`` with the cwd inside a Studio checkout. Of its subcommands ``apply``, ``publish``,
+  of the checkout); there is no npm form. Of its subcommands ``apply``, ``publish``,
   ``rollback`` and ``resolve`` run only for ``agent_type`` ``orchestrator`` or ``menial`` (lanes build changes; the dispatched publish step publishes) and never
   in a headless session; ``status`` and ``check`` run for every agent. Any other word naming the CLI (``studio-publish``, ``studio:publish``,
   ``studio_publish``) in a command that runs code is refused; a test file such as ``tests/studio-publish.test.ts`` is not the CLI.
@@ -131,10 +131,10 @@ def absolute(word: str, cwd: str) -> Optional[str]:
 
 
 def is_tool_call(words: List[str], payload: dict, project: str) -> Optional[List[str]]:
-    """The CLI's arguments (subcommand first) when ``words`` is exactly one of the two exempt forms, else ``None``.
+    """The CLI's arguments (subcommand first) when ``words`` is exactly the exempt form, else ``None``.
 
-    ``<checkout>/node_modules/.bin/tsx <checkout>/scripts/studio-publish.ts ...`` (both paths in a real Studio checkout; the script's real path is
-    ``<checkout>/scripts/studio-publish.ts``) or ``npm run studio:publish -- ...`` with the cwd inside a Studio checkout."""
+    ``<checkout>/node_modules/.bin/tsx <checkout>/scripts/studio-publish.ts ...``: both paths in a real Studio checkout, and the script's real path
+    is ``<checkout>/scripts/studio-publish.ts``."""
     cwd = str(payload.get("cwd") or project or os.getcwd())
     if len(words) >= 3 and os.path.basename(words[0]) == "tsx" and (words[0] == "node_modules/.bin/tsx" or words[0].endswith("/node_modules/.bin/tsx")):
         tsx, script = absolute(words[0], cwd), absolute(words[1], cwd)
@@ -148,8 +148,6 @@ def is_tool_call(words: List[str], payload: dict, project: str) -> Optional[List
         if root and real == os.path.join(root, "scripts", TOOL):
             return words[2:]
         return None
-    if words[:4] == ["npm", "run", "studio:publish", "--"] or words[:3] == ["npm", "run", "studio:publish"]:
-        return words[3:] if studio_root(cwd) else None
     return None
 
 
@@ -204,10 +202,10 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, 
     args = is_tool_call(words, payload, project)
     if args is not None:
         return tool_reason(args, payload)
-    if base == TOOL:  # run directly: the CLI runs only through tsx or npm from a Studio checkout
+    if base == TOOL:  # run directly: the CLI runs only through tsx from a Studio checkout
         return "studio-publish.ts run directly or outside a Studio checkout"
     if (program in NETWORK or program in RUNNERS or program in SHELLS) and any(TOOL_WORD.search(w) for w in words[1:]):
-        return "the publish CLI named other than as the exact tsx or npm form in a Studio checkout"
+        return "the publish CLI named other than as the exact tsx form in a Studio checkout"
     if program == "xargs":
         return words_reason(unwrap_xargs(words[1:]), payload, project, depth + 1)
     if program in SHELLS or program == "eval":

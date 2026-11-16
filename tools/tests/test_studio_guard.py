@@ -46,13 +46,12 @@ class GuardRoleTests(unittest.TestCase):
             self.assertEqual(self.verdict(command, role), 2, role)
         self.assertEqual(self.verdict(command, "orchestrator", headless=True), 2)
 
-    def test_npm_form_roles(self):
-        """Fails if: the npm form skips the role gate, or works outside a Studio checkout."""
-        command = "npm run studio:publish -- resolve c --reason x"
-        self.assertEqual(self.verdict(command, "menial", cwd=STUDIO), 0)
-        self.assertEqual(self.verdict(command, "coder", cwd=STUDIO), 2)
-        self.assertEqual(self.verdict(command, "menial", cwd=NOTSTUDIO), 2)
-        self.assertEqual(self.verdict(command, "menial"), 2)
+    def test_no_npm_form(self):
+        """Fails if: an npm script runs the CLI for any role, in or outside a Studio checkout."""
+        command = "npm run studio:publish -- status"
+        for role in ("orchestrator", "menial", "coder"):
+            for cwd in (STUDIO, NOTSTUDIO, None):
+                self.assertEqual(self.verdict(command, role, cwd=cwd), 2, (role, cwd))
 
     def test_role_gate_cannot_be_bypassed_by_other_forms(self):
         """Fails if: any form other than the exact exempt one runs for the orchestrator, or a global option hides a mutating subcommand."""

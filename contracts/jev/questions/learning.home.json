@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 20,
+  "version": 21,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",

@@ -87,9 +87,9 @@ git grep -nO'curl -X PUT http://127.0.0.1:4801/native/api/draft' foo	block	-O bu
 {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log x.jsonl	allow	status with a global option	agent
 @cwd {STUDIO} node_modules/.bin/tsx scripts/studio-publish.ts status	allow	relative form from the checkout	agent
 @cwd {STUDIO} ./node_modules/.bin/tsx scripts/studio-publish.ts check c1	allow	relative form with ./	agent
-@cwd {STUDIO} npm run studio:publish -- status	allow	npm script from the checkout	agent
-@cwd {STUDIO}/scripts npm run studio:publish -- check c1	allow	npm script from a folder inside the checkout	agent
-@cwd {STUDIO} npm run studio:publish -- apply c1 --reason x	block	a coder may not apply through npm	agent
+@cwd {STUDIO} npm run studio:publish -- status	block	there is no npm form	agent
+@cwd {STUDIO}/scripts npm run studio:publish -- check c1	block	there is no npm form	agent
+@cwd {STUDIO} npm run studio:publish -- apply c1 --reason x	block	there is no npm form	agent
 @cwd {STUDIO} npx vitest run tests/studio-publish.test.ts	allow	the CLI's test file is not the CLI	agent
 {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts apply c1 --reason x	allow	the owner's plain terminal may apply	main
 {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/other.ts --base http://127.0.0.1:4801/native/api/draft	block	tsx running another script gets no exemption	agent
@@ -104,10 +104,10 @@ tsx {STUDIO}/scripts/studio-publish.ts status	block	a bare tsx from PATH	agent
 npx tsx {STUDIO}/scripts/studio-publish.ts status	block	npx tsx	agent
 node --import tsx {STUDIO}/scripts/studio-publish.ts status	block	node with the tsx loader	agent
 {STUDIO}/node_modules/.bin/tsx --tsconfig x.json {STUDIO}/scripts/studio-publish.ts status	block	a tsx option before the script	agent
-npm run studio:publish -- status	block	npm script outside a Studio checkout (the cwd is this repository)	agent
-@cwd {NOTSTUDIO} npm run studio:publish -- status	block	npm script in a look-alike checkout	agent
-npm --prefix {STUDIO} run studio:publish -- status	block	npm with a prefix is not the exact form	agent
-@cwd {STUDIO} npm run studio:publish -- status && curl -X PUT http://127.0.0.1:4801/native/api/draft	block	a second command in the same line is judged on its own	agent
+npm run studio:publish -- status	block	there is no npm form	agent
+@cwd {NOTSTUDIO} npm run studio:publish -- status	block	there is no npm form	agent
+npm --prefix {STUDIO} run studio:publish -- status	block	there is no npm form	agent
+@cwd {STUDIO} npm run studio:publish -- status && curl -X PUT http://127.0.0.1:4801/native/api/draft	block	there is no npm form	agent
 {STUDIO}/node_modules/.bin/tsx - <<'EOF'\nimport '{STUDIO}/scripts/studio-publish.ts'\nEOF	block	heredoc to tsx importing the CLI	agent
 {STUDIO}/node_modules/.bin/tsx - <<'EOF'\nfetch('http://127.0.0.1:4801/native/api/draft',{method:'PUT'})\nEOF	block	heredoc to tsx calling the draft route	agent
 python3 tools/studio_publish.py status	block	the retired Python tool is no exemption	agent
