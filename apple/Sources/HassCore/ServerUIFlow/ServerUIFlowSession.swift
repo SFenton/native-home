@@ -111,6 +111,11 @@ public final class ServerUIFlowSession {
     private var started = false
     /// The last answer of a service call, so a minute that passes runs the flow again without calling the service again.
     private var lastServiceResponse: JSONValue?
+    /// Counts the observations taken: only the latest one's change runs the flow. A clock run publishes (``generation``) without taking a new
+    /// observation, so it must not end the entity watch.
+    private var observation = 0
+    /// Set when the last fresh fetch or push failed; a run on data that is not newer (a clock tick) keeps the list `stale` until a fresh answer.
+    private var degraded = false
     private var lastContext: ServerUIFlowContext?
     private var inFlight = false
     private var clockWatch = 0
@@ -216,19 +221,23 @@ public final class ServerUIFlowSession {
     }
 
     /// Takes the snapshot under an observation that runs the flow again on the next change, then runs it.
-    private func evaluate() {
+    ///
+    /// - Parameter clockOnly: The run was started by the clock, on data it already had.
+    private func evaluate(clockOnly: Bool = false) {
         guard started else { return }
         // A feed's first push has not come: there is nothing to run on yet.
         if flow.subscription != nil, lastPush == nil { return }
         generation += 1
-        let mine = generation
+        observation += 1
+        let mine = generation, watch = observation
         runTask?.cancel()
         // The clock is watched on its own (``watchClock()``): a tick must not call the service again.
         let clock = flow.readsClock ? host.clock() : nil
         let taken = withObservationTracking({ snapshot(clock: clock) }, onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self, self.started, self.generation == mine else { return }
-                self.evaluate()
+                guard let self, self.started, self.observation == watch else { return }
+                // A feed's data is only as new as its last push: a change to what the flow reads reuses it.
+                self.evaluate(clockOnly: self.flow.subscription != nil)
             }
         })
         inFlight = !taken.waiting
@@ -248,14 +257,14 @@ public final class ServerUIFlowSession {
                 self.lastServiceResponse = response
             }
             guard let self, let response, self.generation == mine, !Task.isCancelled else { return }
-            await self.run(response, context: taken.context, mine: mine)
+            await self.run(response, context: taken.context, mine: mine, fresh: !clockOnly)
         }
     }
 
-    private func run(_ response: JSONValue, context: ServerUIFlowContext, mine: Int) async {
+    private func run(_ response: JSONValue, context: ServerUIFlowContext, mine: Int, fresh: Bool) async {
         let run = await runner.run(flow, response: response, context: context)
         guard generation == mine, !Task.isCancelled else { return }
-        publish(run)
+        publish(run, fresh: fresh)
     }
 
     // MARK: Service calls
@@ -283,7 +292,8 @@ public final class ServerUIFlowSession {
                     if once.claim() { waiter.cancel(); continuation.resume(throwing: error) }
                 }
             }
-            // A pull that ends this run (or a stop) ends the wait too.
+            // The wait ends at the timeout, or when the call answers. A stop or a newer run does not end it early: its result is discarded by
+            // the generation check, and the timeout is at most 30 s.
             Task { @MainActor in
                 _ = await waiter.result
                 calling.cancel()
@@ -310,7 +320,7 @@ public final class ServerUIFlowSession {
     /// The clock moved: runs the flow again without asking for its data again.
     private func clockMoved() {
         guard flow.givesRows else { return }
-        guard case .serviceResponse = flow.request else { evaluate(); return }
+        guard case .serviceResponse = flow.request else { evaluate(clockOnly: true); return }
         // A call in flight reads the clock when it runs; with no answer yet there is nothing to run on.
         guard !inFlight, let cached = lastServiceResponse, var context = lastContext else { return }
         context.clock = host.clock()
@@ -318,13 +328,17 @@ public final class ServerUIFlowSession {
         generation += 1
         let mine = generation
         runTask?.cancel()
-        runTask = Task { @MainActor [weak self] in await self?.run(cached, context: context, mine: mine) }
+        runTask = Task { @MainActor [weak self] in await self?.run(cached, context: context, mine: mine, fresh: false) }
     }
 
-    private func publish(_ run: ServerUIFlowRun) {
+    /// Publishes a run. A run on data that is not newer than what failed (`fresh` false, after a refused push or a call that timed out) keeps
+    /// the list `stale`: only a real answer clears it.
+    private func publish(_ run: ServerUIFlowRun, fresh: Bool) {
         publications += 1
-        if run.status == .ok, (try? collection.apply(run.rows, phase: .ready)) != nil {
+        let phase: ServerUIRowCollection.Phase = !fresh && degraded ? .stale : .ready
+        if run.status == .ok, (try? collection.apply(run.rows, phase: phase)) != nil {
             hasGoodRows = true
+            if fresh { degraded = false }
         } else {
             fail()
         }
@@ -332,6 +346,7 @@ public final class ServerUIFlowSession {
 
     private func fail(_ run: Int? = nil) {
         if let run, run != generation { return }
+        degraded = true
         try? collection.apply(nil, phase: hasGoodRows ? .stale : .failed)
     }
 }

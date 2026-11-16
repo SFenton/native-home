@@ -213,6 +213,34 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         }
     }
 
+    // MARK: Sessions of a window
+
+    /// A republish that leaves the flow and what it reads alone keeps its session; one that changes what the host reads (or the flow) ends it
+    /// and starts another, so the old one calls nothing more.
+    func testARepublishKeepsOrReplacesAndStopsTheSessionOfAFlow() async throws {
+        let publication = try rowActionPublication()
+        let windows = UKServerUIFlowWindows()
+        let window = UUID()
+        var calls = 0
+        let host = { ServerUIFlowHost(call: { _, _, _, _, _ in calls += 1; return .object([:]) }) }
+        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.a"], host: host)
+        let first = try XCTUnwrap(windows.session("upcoming", window: window))
+        await HostedPage.settle { calls == 1 }
+        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.a"], host: host)
+        XCTAssertTrue(windows.session("upcoming", window: window) === first, "nothing changed: the session is kept")
+
+        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.b"], host: host)
+        let second = try XCTUnwrap(windows.session("upcoming", window: window))
+        XCTAssertFalse(second === first, "the host reads another entity now: a new session")
+        await HostedPage.settle { calls == 2 }
+        let before = calls
+        await first.refresh()
+        XCTAssertEqual(calls, before, "the replaced session was stopped")
+        windows.detach(window)
+        await second.refresh()
+        XCTAssertEqual(calls, before, "a detached window's session is stopped")
+    }
+
     // MARK: Resubscribe
 
     /// A reconnect keeps the rows the way HAKit does it. Nothing reaches the session when the socket drops (HAKit only clears the

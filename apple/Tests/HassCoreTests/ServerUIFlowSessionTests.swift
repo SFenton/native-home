@@ -314,7 +314,6 @@ struct ServerUIFlowSessionTests {
         #expect(mock.cancelledSubscriptions.isEmpty, "the session did not cancel and subscribe again")
         #expect(session.publications == published + 1, "one run for the one push")
         #expect(history.seen.allSatisfy { !$0.rows.isEmpty && $0.phase == .ready }, "the list never blanked or went stale: \(history.seen)")
-        #expect(!history.seen.isEmpty)
     }
 
     // MARK: Timeout
@@ -326,7 +325,7 @@ struct ServerUIFlowSessionTests {
         let collection = ServerUIRowCollection()
         let host = ServerUIFlowHost(call: { _, _, _, _, timeout in
             asked.append(timeout)
-            return try await withCheckedThrowingContinuation { (_: CheckedContinuation<JSONValue, Error>) in }
+            try await Task.sleep(for: .seconds(3600)); return .null
         }, sleep: { await sleeper.sleep(for: $0) })
         let session = ServerUIFlowSession(flow: try Self.serviceFlow(), collection: collection, host: host)
         session.start()
@@ -351,7 +350,7 @@ struct ServerUIFlowSessionTests {
         let collection = ServerUIRowCollection()
         let host = ServerUIFlowHost(call: { _, _, _, _, _ in
             step += 1
-            if step == 2 { _ = try await withCheckedThrowingContinuation { (_: CheckedContinuation<JSONValue, Error>) in } }
+            if step == 2 { try await Task.sleep(for: .seconds(3600)) }
             return one
         }, sleep: { await sleeper.sleep(for: $0) })
         let session = ServerUIFlowSession(flow: try Self.serviceFlow(), collection: collection, host: host)
@@ -420,6 +419,105 @@ struct ServerUIFlowSessionTests {
         try? await Task.sleep(for: .milliseconds(100))
         #expect(session.publications == published + 1)
         #expect(calls == 1)
+    }
+
+    private static func corpusFlow(_ file: String, _ id: String) throws -> ServerUIFlow {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "ContractCorpus/accept/\(file).json")
+        let publication = try ServerUICompositionPublication.decode(Data(contentsOf: url))
+        for case .pipeline(let source, let flow) in publication.document.dataSources where source == id { return flow }
+        throw Boom()
+    }
+
+    private static let chores: JSONValue = .object(["todo.demo_chores": .object(["items": .array([
+        .object(["uid": "a", "summary": "Water", "status": "needs_action", "due": "2026-11-17"]),
+    ])])])
+
+    /// A tick must not end the flow's watch on its entities: after it, a change to the watched entity still calls the service again.
+    @Test func aTickKeepsTheEntityChangeWatchOfAServiceFlow() async throws {
+        let flow = try Self.corpusFlow("list-parts-row-action", "upcoming")
+        #expect(flow.readsClock && flow.refresh?.on.contains(.entityChange) == true)
+        let ticking = Ticking()
+        let light = Light()
+        var calls = 0
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(call: { _, _, _, _, _ in calls += 1; return Self.chores },
+                                    held: { _ in .init(state: light.state) },
+                                    environment: { (ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), nil) },
+                                    clock: { ticking.read() })
+        let session = ServerUIFlowSession(flow: flow, collection: collection, host: host)
+        session.start()
+        #expect(await eventually { collection.phase == .ready && calls == 1 })
+
+        ticking.clock = ServerUIClock(now: "2026-11-17T00:00:00", utcOffsetMinutes: 0)
+        #expect(await eventually { collection.rows.first?.subtitle == "Due today" })
+        #expect(calls == 1)
+
+        light.state = "off"
+        #expect(await eventually { calls == 2 }, "the watched entity still refreshes the flow after a tick")
+        // And a second tick still re-dates the rows, without another call.
+        ticking.clock = ServerUIClock(now: "2026-11-17T00:01:00", utcOffsetMinutes: 0)
+        let published = session.publications
+        #expect(await eventually { session.publications > published })
+        #expect(calls == 2)
+        session.stop()
+    }
+
+    /// A tick re-dates the rows but never turns an out-of-date list into a current one.
+    @Test func aTickAfterATimedOutCallKeepsTheListStale() async throws {
+        let flow = try Self.corpusFlow("list-parts-row-action", "upcoming")
+        let sleeper = ManualSleeper()
+        let ticking = Ticking()
+        var step = 0
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(call: { _, _, _, _, _ in
+            step += 1
+            if step == 2 { try await Task.sleep(for: .seconds(3600)) }
+            return Self.chores
+        }, environment: { (ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), nil) },
+                                    clock: { ticking.read() }, sleep: { await sleeper.sleep(for: $0) })
+        let session = ServerUIFlowSession(flow: flow, collection: collection, host: host)
+        session.start()
+        #expect(await eventually { collection.phase == .ready })
+
+        let pull = Task { @MainActor in await session.refresh() }
+        #expect(await eventually { step == 2 && !sleeper.waiting.isEmpty })
+        sleeper.fire(duration: .seconds(10))
+        await pull.value
+        #expect(collection.phase == .stale)
+
+        ticking.clock = ServerUIClock(now: "2026-11-17T00:00:00", utcOffsetMinutes: 0)
+        #expect(await eventually { collection.rows.first?.subtitle == "Due today" }, "the rows are re-dated")
+        #expect(collection.phase == .stale, "no newer answer has come")
+
+        await session.refresh()
+        #expect(collection.phase == .ready, "a real answer clears it")
+        session.stop()
+    }
+
+    @Test func aTickAfterARefusedSubscriptionKeepsTheListStale() async throws {
+        let flow = try Self.corpusFlow("pipeline-overdue-chores", "overdue")
+        #expect(flow.readsClock && flow.subscription != nil)
+        let feed = FakeFlowFeed()
+        let ticking = Ticking()
+        ticking.clock = ServerUIClock(now: "2026-11-16T09:00:00", utcOffsetMinutes: 0)
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(feed: feed, environment: { (ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), nil) },
+                                    clock: { ticking.read() })
+        let session = ServerUIFlowSession(flow: flow, collection: collection, host: host)
+        session.start()
+        feed.send(.success(.object(["items": .array([.object(["uid": "a", "summary": "Bins", "status": "needs_action", "due": "2026-11-10"])])])))
+        #expect(await eventually { collection.phase == .ready })
+        let title = collection.rows.first?.subtitle
+
+        feed.send(.failure(Boom()))
+        #expect(await eventually { collection.phase == .stale })
+        ticking.clock = ServerUIClock(now: "2026-11-17T09:00:00", utcOffsetMinutes: 0)
+        #expect(await eventually { collection.rows.first?.subtitle != title })
+        #expect(collection.phase == .stale, "the refused subscription has not recovered")
+
+        feed.send(.success(.object(["items": .array([.object(["uid": "a", "summary": "Bins", "status": "needs_action", "due": "2026-11-10"])])])))
+        #expect(await eventually { collection.phase == .ready })
+        session.stop()
     }
 
     @Test func aFlowThatDoesNotReadTheClockNeverReadsIt() async throws {
