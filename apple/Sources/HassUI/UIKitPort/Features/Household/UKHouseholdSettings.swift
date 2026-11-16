@@ -163,9 +163,25 @@ final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
 
     private var environment: UKTileEnvironment { UKTileEnvironment(context: context) }
 
+    /// Holds the observations of the tiles, which come from the house document, so a rebuild ends the old ones.
+    private let structureBag = UKObservationBag()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         container.scrollView.accessibilityIdentifier = "household.\(page.rawValue)"
+        buildSections()
+    }
+
+    override func houseLayoutDidChange() {
+        structureBag.removeAll()
+        for view in column.arrangedSubviews {
+            column.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+        buildSections()
+    }
+
+    private func buildSections() {
         switch page {
         case .admin: buildAdmin()
         case .specialDeviceModes: buildSpecialDeviceModes()
@@ -176,7 +192,7 @@ final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
 
     private func toggles(_ tiles: [HouseholdSettingsConfig.Tile], face: UKHouseholdTiles.Face = .settings,
                          confirmation: ((Bool) -> AlertCopy.Spec)? = nil) -> [UIView] {
-        tiles.map { UKHouseholdTiles.toggle($0, controller: controller, environment: environment, bag: bag, face: face, confirmation: confirmation) }
+        tiles.map { UKHouseholdTiles.toggle($0, controller: controller, environment: environment, bag: structureBag, face: face, confirmation: confirmation) }
     }
 
     private func section(_ copy: HouseholdSettingsConfig.SectionCopy, _ content: UIView) {
@@ -193,13 +209,13 @@ final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
         section(Admin.security, UKHouseholdTiles.grid(toggles(Admin.securityTiles)))
 
         let power = UKGlassTileView(model: powerModel(), environment: environment)
-        UKRoomsBind.tile(power, bag: bag, environment: environment, action: {}, perform: { [controller] _ in controller.triggerPowerRecovery() },
+        UKRoomsBind.tile(power, bag: structureBag, environment: environment, action: {}, perform: { [controller] _ in controller.triggerPowerRecovery() },
                          model: { [weak self] in self?.powerModel() ?? UKGlassTileModel(title: "", symbol: "bolt.fill", isActive: true) })
         section(Admin.powerRecovery, UKHouseholdTiles.grid([power]))
 
         let warning = UKInlineAlertView(Admin.relayGuestModeWarning)
         warning.accessibilityIdentifier = "admin.relayWarning"
-        bag.observe { [weak warning, controller] in warning?.isHidden = !controller.showsRelayGuestModeWarning }
+        structureBag.observe { [weak warning, controller] in warning?.isHidden = !controller.showsRelayGuestModeWarning }
         let relayStack = UIStackView.ukColumn([UKHouseholdTiles.grid(toggles(Admin.relayTiles)), warning],
                                               spacing: HassTokens.Spacing.m)
         section(Admin.relayControl, relayStack)
@@ -235,7 +251,7 @@ final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
 
     private func buildSpecialDeviceModes() {
         let config = HouseholdSettingsConfig.SpecialDeviceModes.self
-        let tile = UKHouseholdTiles.toggle(config.highAqiTile, controller: controller, environment: environment, bag: bag,
+        let tile = UKHouseholdTiles.toggle(config.highAqiTile, controller: controller, environment: environment, bag: structureBag,
                                            confirmation: { AlertCopy.highAqiMode(turningOn: $0) })
         section(config.highAqi, UKHouseholdTiles.grid([tile]))
     }
@@ -251,8 +267,8 @@ final class UKHouseholdSettingsViewController: UKHouseholdColumnPage {
         // Doors is the one action tile (owner, 2026-10-27, item 25: the Security page's lock tile, same entity, same lock service).
         let tiles = config.tiles.map { tile in
             HouseholdTileActions.kind(of: tile) == .lock
-                ? UKHouseholdTiles.doors(tile, controller: controller, environment: environment, bag: bag)
-                : UKHouseholdTiles.readOnly(tile, controller: controller, environment: environment, bag: bag)
+                ? UKHouseholdTiles.doors(tile, controller: controller, environment: environment, bag: structureBag)
+                : UKHouseholdTiles.readOnly(tile, controller: controller, environment: environment, bag: structureBag)
         }
         section(title: config.sectionTitle, paragraphs: [], UKHouseholdTiles.grid(tiles))
     }

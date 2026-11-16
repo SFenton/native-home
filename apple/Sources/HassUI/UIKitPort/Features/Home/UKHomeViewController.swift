@@ -42,6 +42,9 @@ final class UKHomeViewController: UKPageViewController {
     private var homeContent: UKHomeContentView!
     private var scroll: UKColumnScrollView!
     private var weatherCard: UKWeatherCardView?
+    private var banner: UIView?
+    /// Holds the observations of the parts built from the house document, so a rebuild ends the old ones.
+    private let structureBag = UKObservationBag()
     override var houseLayoutSkeleton: HouseSkeletonPlan.Kind? { .home }
 
     init(context: UKContext, configuration: UKHomeConfiguration = UKHomeConfiguration()) {
@@ -55,43 +58,68 @@ final class UKHomeViewController: UKPageViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         let parts = configuration.parts
-        var banner: UIView?
-        var rail: UKChipRailView?
-        var guests: UKGuestPresenceSectionView?
-        var cameras: UKCameraGridSectionView?
-        var card: UKWeatherCardView?
         if parts.contains(.banner) {
             let view = UKNotificationPermissionBannerView(push: context.push)
             banner = UKFittingBox(view, insets: UIEdgeInsets(top: 0, left: HassTokens.Spacing.l, bottom: 0, right: HassTokens.Spacing.l))
-        }
-        if parts.contains(.statusRail) {
-            let view = UKStatusRail.make(context: context, bag: bag) { [weak self] in self?.open(chip: $0) }
-            UKArrivalMotion.apply(to: view, shell: context.shell, kind: .slideIn, bag: bag)
-            rail = view
         }
         if parts.contains(.weather) {
             let view = UKWeatherCardView(context: context, store: configuration.weatherStore, caller: configuration.weatherCaller, isNarrow: false,
                                          startsOpen: configuration.weatherStartsOpen) { [weak self] modal in modal.present(from: self ?? modal) }
             UKArrivalMotion.apply(to: view, shell: context.shell, kind: .rise, index: 0, bag: bag)
             weatherCard = view
-            card = view
         }
-        if parts.contains(.guests) { guests = UKGuestPresenceSectionView(context: context, caller: configuration.caller) }
-        if parts.contains(.cameras) {
-            cameras = UKCameraGridSectionView(context: context, bag: bag) { [weak self] camera, source in self?.open(camera: camera, source: source) }
-        }
-        homeContent = UKHomeContentView(banner: banner, rail: rail, weather: card, guests: guests, cameras: cameras, fill: configuration.fill,
-                                        isRegular: { [weak self] in self?.traitCollection.horizontalSizeClass == .regular }) { [weak self] in
-            self?.scroll.bounds.height ?? 0
-        }
-        scroll = UKColumnScrollView(content: homeContent.columns)
-        scroll.accessibilityIdentifier = configuration.scrollIdentifier
-        scroll.ukPausesTickersWhileScrolling()
-        install(scrollView: scroll)
+        buildStructure()
         bag.observe { [weak self] in
             guard let self else { return }
             homeContent.hinge = context.shell?.windowHinge
         }
+    }
+
+    /// Builds the part of the page that comes from the house document (the status chips, the guest toggles, the cameras) and lays the
+    /// sections out. The banner and the Weather card are kept across a rebuild. Called from `viewDidLoad` and again by
+    /// ``houseLayoutDidChange()``.
+    private func buildStructure() {
+        let parts = configuration.parts
+        structureBag.removeAll()
+        let structureBag = structureBag
+        var rail: UKChipRailView?
+        var guests: UKGuestPresenceSectionView?
+        var cameras: UKCameraGridSectionView?
+        if parts.contains(.statusRail) {
+            let view = UKStatusRail.make(context: context, bag: structureBag) { [weak self] in self?.open(chip: $0) }
+            UKArrivalMotion.apply(to: view, shell: context.shell, kind: .slideIn, bag: structureBag)
+            rail = view
+        }
+        if parts.contains(.guests) { guests = UKGuestPresenceSectionView(context: context, caller: configuration.caller) }
+        if parts.contains(.cameras) {
+            cameras = UKCameraGridSectionView(context: context, bag: structureBag) { [weak self] camera, source in self?.open(camera: camera, source: source) }
+        }
+        let content = UKHomeContentView(banner: banner, rail: rail, weather: weatherCard, guests: guests, cameras: cameras, fill: configuration.fill,
+                                        isRegular: { [weak self] in self?.traitCollection.horizontalSizeClass == .regular }) { [weak self] in
+            self?.scroll?.bounds.height ?? 0
+        }
+        let newScroll = UKColumnScrollView(content: content.columns)
+        newScroll.accessibilityIdentifier = configuration.scrollIdentifier
+        newScroll.ukPausesTickersWhileScrolling()
+        // A rebuild on a visible page (the document's hash changed) keeps where the person was and tells VoiceOver the page changed.
+        let previous = view.window != nil ? scroll : nil
+        let offset = previous?.contentOffset.y
+        scroll?.removeFromSuperview()
+        homeContent = content
+        scroll = newScroll
+        install(scrollView: newScroll)
+        content.hinge = context.shell?.windowHinge
+        if let offset {
+            view.layoutIfNeeded()
+            let inset = newScroll.adjustedContentInset
+            let highest = max(-inset.top, newScroll.contentSize.height - newScroll.bounds.height + inset.bottom)
+            newScroll.contentOffset.y = min(max(offset, -inset.top), highest)
+            UIAccessibility.post(notification: .layoutChanged, argument: nil)
+        }
+    }
+
+    override func houseLayoutDidChange() {
+        buildStructure()
     }
 
     override func viewDidAppear(_ animated: Bool) {

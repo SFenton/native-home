@@ -52,9 +52,9 @@ final class UKVacuumsViewController: UKPageViewController {
         host.accessibilityIdentifier = "vacuums.layout.single"
         contentView.addSubview(host)
         host.ukPin(to: contentView)
-        buildSummary()
-        buildRobots()
-        buildAutoClean()
+        buildStructure()
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (page: UKVacuumsViewController, _) in page.rescaleGrid() }
+        registerForTraitChanges([UITraitAccessibilityContrast.self]) { (page: UKVacuumsViewController, _) in page.updateDivider() }
         // The single column stands in from the start so the large title tracks its scroll view; the first layout may swap it.
         applyLayout(initial: true)
     }
@@ -77,12 +77,35 @@ final class UKVacuumsViewController: UKPageViewController {
         }
     }
 
+    /// Holds the observations of the robots and Auto-Clean rows, which come from the house document, so a rebuild ends the old ones.
+    private let structureBag = UKObservationBag()
+
+    /// Builds the summary, the robot tiles and the Auto-Clean rows from the house document. Called from `viewDidLoad` and again by
+    /// ``houseLayoutDidChange()``, which empties the two columns first.
+    private func buildStructure() {
+        structureBag.removeAll()
+        for column in [robotsColumn, autoCleanSection] {
+            for view in column.arrangedSubviews {
+                column.removeArrangedSubview(view)
+                view.removeFromSuperview()
+            }
+        }
+        toggles = []
+        buildSummary()
+        buildRobots()
+        buildAutoClean()
+    }
+
+    override func houseLayoutDidChange() {
+        buildStructure()
+    }
+
     // MARK: Pieces
 
     /// "1 Cleaning · 1 Needs Attention" under the large title, or nothing when no robot reports.
     private func buildSummary() {
         summary.accessibilityIdentifier = "vacuums.summary"
-        bag.observe { [weak self] in
+        structureBag.observe { [weak self] in
             guard let self else { return }
             let line = VacuumPageFormat.summary(states: Vacuums.all.map { self.context.store.entity($0.entityId).state?.state })
             self.summary.text = line
@@ -120,7 +143,7 @@ final class UKVacuumsViewController: UKPageViewController {
                 model.bodyHint = "Opens the vacuum controls and map."
                 return model
             }
-            bag.observe { [weak self, weak tile] in
+            structureBag.observe { [weak self, weak tile] in
                 guard let self, let tile else { return }
                 tile.configure(model(), environment: environment, action: { [weak self] in self?.open(vacuum) }, perform: { [weak self] id in
                     guard let self, let spec = VacuumActions(entityId: vacuum.entityId).actions(for: shown()).first(where: { $0.id == id }),
@@ -135,7 +158,6 @@ final class UKVacuumsViewController: UKPageViewController {
             return tile
         }
         grid.setItems(tiles.map { UKGridItem($0) })
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (page: UKVacuumsViewController, _) in page.rescaleGrid() }
         rescaleGrid()
         robotsColumn.axis = .vertical
         robotsColumn.alignment = .fill
@@ -165,10 +187,9 @@ final class UKVacuumsViewController: UKPageViewController {
         }
         autoCleanSection.addArrangedSubview(UKMeasuredView(UKPageSectionHeaderView("Auto-Clean")))
         autoCleanSection.addArrangedSubview(UKModuleListView(rows: rows))
-        bag.observe { [weak self] in self?.renderAutoClean() }
+        structureBag.observe { [weak self] in self?.renderAutoClean() }
         // The divider shows where the panes meet at the midpoint (lying flat, iPad), not on the hinge band (partly folded).
-        bag.observe { [weak self] in self?.updateDivider() }
-        registerForTraitChanges([UITraitAccessibilityContrast.self]) { (page: UKVacuumsViewController, _) in page.updateDivider() }
+        structureBag.observe { [weak self] in self?.updateDivider() }
     }
 
     private func updateDivider() {

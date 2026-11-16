@@ -124,6 +124,13 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
     var houseLayoutSkeleton: HouseSkeletonPlan.Kind? { nil }
     private var houseGate: UKHouseLayoutGate?
 
+    /// Rebuilds what the page derives from the house document's facades (chips, cameras, guest toggles, tile lists). The
+    /// ``UKHouseLayoutGate`` calls it, under the skeleton or message and before the reveal, when the document first appears after the
+    /// page was built without one (a first sign-in) and when the document's hash changes; never on a cached launch, where the page was
+    /// built from the document. Override on a page that builds facade-derived structure: build it in a method `viewDidLoad` also
+    /// calls, and call that method again here, replacing the old structure. Default: nothing (the page reads facades inside observations).
+    func houseLayoutDidChange() {}
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         accessoryBar?.layoutChanged()

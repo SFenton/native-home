@@ -23,6 +23,8 @@ class UKSecurityViewController: UKPageViewController {
     private var hinge: CGRect?
     private var guests: UKGuestPresenceSectionView?
     private var cameras: UKCameraGridSectionView?
+    /// Holds the observations of the parts built from the house document, so a rebuild ends the old ones.
+    private let structureBag = UKObservationBag()
     override var houseLayoutSkeleton: HouseSkeletonPlan.Kind? { .page }
 
     /// - Parameters:
@@ -55,6 +57,39 @@ class UKSecurityViewController: UKPageViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        buildStructure()
+        scroll.accessibilityIdentifier = "security.scroll"
+        install(scrollView: scroll)
+
+        // The hinge: grids keep tiles off it, and the card moves off it.
+        bag.observe { [weak self] in
+            guard let self else { return }
+            applyHinge(context.shell?.windowHinge)
+        }
+    }
+
+    override func houseLayoutDidChange() {
+        buildStructure()
+        applyHinge(hinge)
+    }
+
+    private func applyHinge(_ hinge: CGRect?) {
+        self.hinge = hinge
+        rail?.hinge = columns.isSplit ? nil : hinge
+        alarmHost?.setHinge(hinge)
+        for section in tileSections { section.hinge = hinge }
+        columns.hinge = hinge
+        guests?.hinge = hinge
+        cameras?.hinge = hinge
+    }
+
+    /// Builds the sections that come from the house document (the chips, the doors, guests, cameras, the car) and hands them to the
+    /// columns. Called from `viewDidLoad` and again by ``houseLayoutDidChange()``, which replaces the old sections.
+    private func buildStructure() {
+        structureBag.removeAll()
+        let bag = structureBag
+        tileSections = []
+        cameras = nil
         let margin = HassTokens.Spacing.l
         let sideInsets = UIEdgeInsets(top: 0, left: margin, bottom: 0, right: margin)
         var sections: [UKFoldColumns.Section] = []
@@ -103,21 +138,6 @@ class UKSecurityViewController: UKPageViewController {
             self?.rail?.hinge = split ? nil : self?.hinge
         }
         columns.setSections(sections)
-        scroll.accessibilityIdentifier = "security.scroll"
-        install(scrollView: scroll)
-
-        // The hinge: grids keep tiles off it, and the card moves off it.
-        bag.observe { [weak self] in
-            guard let self else { return }
-            let hinge = context.shell?.windowHinge
-            self.hinge = hinge
-            self.rail?.hinge = self.columns.isSplit ? nil : hinge
-            self.alarmHost?.setHinge(hinge)
-            for section in self.tileSections { section.hinge = hinge }
-            self.columns.hinge = hinge
-            self.guests?.hinge = hinge
-            self.cameras?.hinge = hinge
-        }
     }
 
     private var startedAtTop = false

@@ -211,6 +211,8 @@ struct JourneyExpectations {
         // Vacation
         /// The vacation-mode boolean.
         case vacationMode
+        /// The last checklist item's boolean, the final one turned off when Vacation Mode is turned off.
+        case vacationChecklistLast
 
         // Vacuums
         /// Vacuum-map id of the first vacuum (the gallery's FENTON_GALLERY_VACUUM value).
@@ -423,6 +425,7 @@ struct JourneyExpectations {
         .securityVehicleLock: "lock.demo_lock_1",
         // Vacation
         .vacationMode: "input_boolean.demo_mode_3",
+        .vacationChecklistLast: "input_boolean.demo_input_boolean_12",
         // Vacuums
         .vacuumMainFloorMapId: "mapped_devicea",
         .vacuumMusicRoomMapId: "mapped_devicec",

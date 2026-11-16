@@ -12,7 +12,7 @@ final class UKMediaViewController: UKPageViewController {
     private let caller: any HassServiceCalling
     private let imageServer: HassServer?
     /// The Music Room's controller, shared by its source tiles and its remote so optimistic source changes show in both.
-    private let musicRoom: MediaRemoteController
+    private var musicRoom: MediaRemoteController
     private let initialTab: MediaRemoteTab
     private var pendingRemote: MediaRemoteConfig?
     private var scroll: UKPageScrollView!
@@ -34,17 +34,7 @@ final class UKMediaViewController: UKPageViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let environment = UKTileEnvironment(context: context)
-        let grid = UKRoomsGrid(minCellWidth: 340, maxColumns: 3, spacing: HassTokens.Spacing.xl, relativeTo: .body)
-        sectionItems = MediaPageConfig.sections.map { UKGridItem(section($0, environment: environment)) }
-        grid.setItems(sectionItems)
-        sectionGrid = grid
-        // Partly folded: Living Room and Cinema Room lead, Music Room trails (parity of the index; `.agents/design/section-sides.md`).
-        var parts: [UKFoldColumns.Section] = [.init(grid, side: .leading, visibility: .flatOnly)]
-        for (index, item) in sectionItems.enumerated() {
-            parts.append(.init(item.view, side: FoldColumns.side(forConfiguredIndex: index), visibility: .splitOnly))
-        }
-        columns.setSections(parts)
+        buildSections()
         columns.sideInset = HassTokens.Spacing.l
         columns.splitIdentifier = "media.columns.split"
         columns.isRegular = { [weak self] in self?.traitCollection.horizontalSizeClass == .regular }
@@ -57,6 +47,31 @@ final class UKMediaViewController: UKPageViewController {
             guard let self else { return }
             columns.hinge = context.shell?.windowHinge
         }
+    }
+
+    /// Holds the observations of the tiles, which come from the house document, so a rebuild ends the old ones.
+    private let structureBag = UKObservationBag()
+
+    /// Builds one section per room from the house document and hands them to the columns. Called from `viewDidLoad` and again by
+    /// ``houseLayoutDidChange()``.
+    private func buildSections() {
+        structureBag.removeAll()
+        let environment = UKTileEnvironment(context: context)
+        let grid = UKRoomsGrid(minCellWidth: 340, maxColumns: 3, spacing: HassTokens.Spacing.xl, relativeTo: .body)
+        sectionItems = MediaPageConfig.sections.map { UKGridItem(section($0, environment: environment)) }
+        if columns.isSplit { grid.isHidden = true } else { grid.setItems(sectionItems) }
+        sectionGrid = grid
+        // Partly folded: Living Room and Cinema Room lead, Music Room trails (parity of the index; `.agents/design/section-sides.md`).
+        var parts: [UKFoldColumns.Section] = [.init(grid, side: .leading, visibility: .flatOnly)]
+        for (index, item) in sectionItems.enumerated() {
+            parts.append(.init(item.view, side: FoldColumns.side(forConfiguredIndex: index), visibility: .splitOnly))
+        }
+        columns.setSections(parts)
+    }
+
+    override func houseLayoutDidChange() {
+        musicRoom = MediaRemoteController(config: MediaRemotes.sourceSelectRemote, store: store, caller: caller)
+        buildSections()
     }
 
     /// Moves the sections between the flat grid and the columns, starting from the frames they had so the reflow slides them.
@@ -201,7 +216,7 @@ final class UKMediaViewController: UKPageViewController {
         let view = UKGlassTileView(model: model(), environment: environment)
         view.spansFullRow = spansFullRow
         if card.remote != nil { view.setAccessory(slider) }
-        UKRoomsBind.tile(view, bag: bag, environment: environment, action: { [weak self] in
+        UKRoomsBind.tile(view, bag: structureBag, environment: environment, action: { [weak self] in
             if let remote = card.remote { self?.open(remote) } else { controller.tap(card.device) }
         }, perform: { id in
             if let device = scriptProvider(card) {

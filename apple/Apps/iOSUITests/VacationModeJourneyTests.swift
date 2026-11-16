@@ -71,7 +71,7 @@ final class VacationModeJourneyTests: VacationJourneyTestCase {
         XCTAssertTrue(yes.appears(timeout: 5))
         XCTAssertEqual(yes.label, "Turn Off")
         tapCenter(of: yes, in: app)
-        waitForCall("vacation_checklist_trash_and_recycles_taken_out", in: app)
+        waitForCall(JourneyExpectations.gallery[.vacationChecklistLast], in: app)
         XCTAssertTrue(element("vacation.checklist.0", in: app).appears(timeout: 5))
     }
 }
