@@ -35,7 +35,8 @@ enum UKServerUIBadgeViews {
         }()
         badge.update(text)
         view.bringSubviewToFront(badge)
-        view.accessibilityCustomContent = text.map { [AXCustomContent(label: "Badge", value: $0)] } ?? []
+        badge.isAccessibilityElement = text != nil
+        badge.accessibilityLabel = text.map { "Badge, \($0)" }
     }
 
     /// Watches a node's badge for as long as its observation bag lives, drawing it on the node's view.
