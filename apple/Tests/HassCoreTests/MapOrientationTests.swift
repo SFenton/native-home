@@ -116,7 +116,16 @@ struct MapOrientationTests {
         #expect(abs(both.x - 4) < 1e-9 && abs(both.y + 2) < 1e-9)
         // After a quarter turn the screen's horizontal mirror reverses the grid's vertical step.
         let turned = MapGeometry.gridStep(.init(x: 0, y: 3), rotation: 90, flip: horizontal)
-        #expect(abs(turned.x) < 1e-9 && abs(abs(turned.y) - 3) < 1e-9, "a mirror in screen space, carried back through the rotation")
+        #expect(abs(turned.x) < 1e-9 && abs(turned.y + 3) < 1e-9, "a mirror in screen space, carried back through the rotation: (0, -3)")
+        // At a non-right angle the result still satisfies F·R·out = R·step: the flip, applied after the rotation, leaves the step's on-screen direction.
+        for flip in [horizontal, vertical, self.both] {
+            let angle = 33.0 * .pi / 180
+            let out = MapGeometry.gridStep(step, rotation: 33, flip: flip)
+            func rotate(_ p: MapPoint) -> MapPoint { .init(x: cos(angle) * p.x - sin(angle) * p.y, y: sin(angle) * p.x + cos(angle) * p.y) }
+            let mirrored = rotate(out), wanted = rotate(step)
+            let sx = flip.flipHorizontal ? -1.0 : 1.0, sy = flip.flipVertical ? -1.0 : 1.0
+            #expect(abs(sx * mirrored.x - wanted.x) < 1e-9 && abs(sy * mirrored.y - wanted.y) < 1e-9, "F·R·out = R·step at 33° (\(flip))")
+        }
         for flip in [horizontal, vertical, self.both] {
             for rotation in [0.0, 90, 180, 270] {
                 let out = MapGeometry.gridStep(step, rotation: rotation, flip: flip)

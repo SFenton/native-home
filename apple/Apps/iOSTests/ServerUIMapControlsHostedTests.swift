@@ -133,17 +133,15 @@ final class ServerUIMapControlsHostedTests: XCTestCase {
         }
     }
 
-    /// An unreachable robot hides Locate and dims what it cannot do, each with the reason spoken.
-    func testAnUnavailableRobotHidesLocateAndDimsItsCommands() async throws {
+    /// An unreachable robot hides Locate and every command the vacuum does not offer; a service button follows its own rule.
+    func testAnUnavailableRobotHidesLocateAndTheCommandsItDoesNotOffer() async throws {
         for width in Self.widths {
             let shown = try await show(width: width, state: "unavailable")
             defer { shown.window.isHidden = true }
             XCTAssertNil(shown.controls.button(identifier: "vacuum.locate"), "Locate is hidden while the robot is unavailable (width \(width))")
-            for button in ["map.control.clean"] {
-                guard let control = shown.controls.button(identifier: button) else { continue }
-                XCTAssertTrue(control.accessibilityTraits.contains(.notEnabled), "\(button) is dimmed (width \(width))")
-                XCTAssertFalse((control.accessibilityValue ?? "").isEmpty, "\(button) speaks its reason (width \(width))")
-            }
+            // The vacuum offers no Clean while the robot is unreachable, so the command tiles' rule hides it (it is dimmed, with the reason, only when
+            // offered but blocked: see testABlockedCommandIsDimmedWithItsReason).
+            XCTAssertNil(shown.controls.button(identifier: "map.control.clean"), "Clean is hidden, not dimmed (width \(width))")
             XCTAssertNotNil(shown.controls.button(identifier: "map.control.fan"), "a service button follows its own rules (width \(width))")
         }
     }
