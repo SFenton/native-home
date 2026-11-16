@@ -22,7 +22,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
     /// The corpus case `file`, with the components of its third page moved onto the page the renderer opens first.
     private func publication(_ file: String, tileProps: JSONValue? = nil) throws -> ServerUICompositionPublication {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let url = apple.appendingPathComponent("Tests/HassCoreTests/ContractCorpus/reject/\(file).json")
+        let url = apple.appendingPathComponent("Tests/HassCoreTests/ContractCorpus/accept/\(file).json")
         var json = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
         let pages = try XCTUnwrap(json["document"]?["pages"]?.array)
         let moved = try XCTUnwrap(pages[2]["components"])
@@ -73,7 +73,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
 
     func testSharedAreaIsOneInstanceAcrossTabsAtEveryFamilyWidth() throws {
         for width in Self.widths {
-            let (host, root) = try page("pending-tab-blocks-two-tabs", width: width)
+            let (host, root) = try page("tab-blocks-two-tabs", width: width)
             let shared = try XCTUnwrap(root.nodes["first-two-text"]?.view, "width \(width)")
             XCTAssertNotNil(shared.window)
             let last = try XCTUnwrap(root.nodes["last-text"]?.view)
@@ -93,7 +93,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
     // MARK: Tab bar
 
     func testTopTabBarKeepsAnAccessibleTargetForEveryLabelMode() throws {
-        for file in ["pending-tab-bar-top-titles", "pending-tab-bar-top-icons", "pending-tab-bar-top-icons-and-titles", "pending-tab-bar-top-by-size"] {
+        for file in ["tab-bar-top-titles", "tab-bar-top-icons", "tab-bar-top-icons-and-titles", "tab-bar-top-by-size"] {
             for width in Self.widths {
                 let (_, root) = try page(file, width: width)
                 root.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
@@ -110,7 +110,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
     }
 
     func testIconsLabelModeNamesEveryTabForVoiceOver() throws {
-        for file in ["pending-tab-bar-top-icons-and-titles"] {
+        for file in ["tab-bar-top-icons-and-titles"] {
             for width in Self.widths {
                 let (_, root) = try page(file, width: width)
                 let tabs = try XCTUnwrap(root.nodes["tabs"]?.view)
@@ -125,7 +125,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
 
     func testOverlayControlsAreAtLeast44PointsAndReadInAnchorOrder() throws {
         for width in Self.widths {
-            let (_, root) = try page("pending-overlay-five-anchors", width: width)
+            let (_, root) = try page("overlay-five-anchors", width: width)
             let overlay = try XCTUnwrap(root.nodes["lay"]?.view as? UKServerUIOverlayView, "width \(width)")
             let controls = ["a", "b", "c", "d"].compactMap { root.nodes[$0]?.view }
             XCTAssertEqual(controls.count, 4)
@@ -146,7 +146,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
     }
 
     func testOverlayMirrorsItsLeadingAnchorsInRightToLeft() throws {
-        let (_, root) = try page("pending-overlay-five-anchors", width: 390)
+        let (_, root) = try page("overlay-five-anchors", width: 390)
         let overlay = try XCTUnwrap(root.nodes["lay"]?.view)
         overlay.semanticContentAttribute = .forceRightToLeft
         overlay.setNeedsLayout()
@@ -163,7 +163,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
                                            "target": .object(["entity_id": .object(["type": .string("literal"), "value": .string("vacuum.example_robot")])])])
             let disc: JSONValue = .object(["id": .string("lock"), "icon": .object(["type": .string("sf-symbol"), "name": .string("lock"),
                 "rendering": .string("canonical"), "unavailable": .string("fallback")]), "label": .string("Lock"), "action": call])
-            let (_, root) = try page("pending-tile-parts-destination", width: width, tileProps: .object(["discs": .array([disc])]))
+            let (_, root) = try page("tile-parts-destination", width: width, tileProps: .object(["discs": .array([disc])]))
             let tile = try XCTUnwrap(root.nodes["door"]?.view as? UKGlassTileView, "width \(width)")
             XCTAssertFalse(tile.model.actions.isEmpty, "width \(width)")
             XCTAssertTrue(tile.model.actions.contains { $0.id == "disc:lock" && $0.verb == "Lock" }, "the authored disc is named for VoiceOver")
@@ -172,7 +172,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
     }
 
     func testTileProgressIsClampedAndTheDestinationShowsAChevron() throws {
-        for file in ["pending-tile-parts-progress-read", "pending-tile-parts-destination"] {
+        for file in ["tile-parts-progress-read", "tile-parts-destination"] {
             let (_, root) = try page(file, width: 390)
             let tile = try XCTUnwrap(root.nodes.values.compactMap { $0.view as? UKGlassTileView }.first, file)
             if let progress = tile.model.progress { XCTAssertTrue((0...1).contains(progress), file) }
@@ -185,7 +185,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
 
     func testBadgeDrawsItsValueAndNoneDrawsNothing() throws {
         for width in Self.widths {
-            let (_, root) = try page("pending-badge-tiles", width: width)
+            let (_, root) = try page("badge-tiles", width: width)
             let withValue = try XCTUnwrap(root.nodes["n"]?.view, "width \(width)")
             let without = try XCTUnwrap(root.nodes["t"]?.view)
             XCTAssertNotNil(find(UKSegmentBadge.self, in: withValue))
@@ -204,11 +204,11 @@ final class ServerUILayoutHostedTests: XCTestCase {
         guard let directory = ProcessInfo.processInfo.environment["FENTON_LAYOUT_SHOTS"], !directory.isEmpty else { throw XCTSkip("no screenshot directory") }
         try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
         let shots: [(String, String, CGFloat, JSONValue?)] = [
-            ("01-tab-bar-top-icons-and-titles", "pending-tab-bar-top-icons-and-titles", 744, nil),
-            ("02-tab-areas-shared", "pending-tab-blocks-two-tabs", 744, nil),
-            ("03-overlay-five-anchors", "pending-overlay-five-anchors", 744, nil),
-            ("04-tile-destination-chevron", "pending-tile-parts-destination", 744, nil),
-            ("05-badges-on-tiles", "pending-badge-tiles", 744, nil),
+            ("01-tab-bar-top-icons-and-titles", "tab-bar-top-icons-and-titles", 744, nil),
+            ("02-tab-areas-shared", "tab-blocks-two-tabs", 744, nil),
+            ("03-overlay-five-anchors", "overlay-five-anchors", 744, nil),
+            ("04-tile-destination-chevron", "tile-parts-destination", 744, nil),
+            ("05-badges-on-tiles", "badge-tiles", 744, nil),
         ]
         for (name, file, width, props) in shots {
             let (_, root) = try page(file, width: width, tileProps: props)
