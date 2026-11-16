@@ -447,10 +447,6 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 if let view = entry.view as? UKAlarmPanelControl {
                     UKServerUISecurityViews.bind(panel, view: view, bag: entry.bag, page: self, renderer: renderer)
                 }
-            case .doorTile(let tile):
-                if let view = entry.view as? UKGlassTileView {
-                    UKServerUISecurityViews.bind(tile, view: view, bag: entry.bag, page: self, renderer: renderer)
-                }
             case .stateTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
                     UKServerUIStateTileViews.bind(tile, view: view, bag: entry.bag, page: self, renderer: renderer, node: entry)
@@ -1048,7 +1044,7 @@ final class UKServerUINode {
         case infoBox, statusPill, pagedRow
         case collection, form, recipePart, pinnedActions
         case statusChip, statusRail, roomOverviewTile, homeLightTile, weatherPanel
-        case alarmPanel, doorTile, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
+        case alarmPanel, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
         case roomDeviceControl, deviceControl, bedroom, vacuum, cameraTile, cameraVideo, cameraControls, cameraViewer
         case bootstrapMessage, notificationBanner, overlay
     }
@@ -1083,9 +1079,6 @@ final class UKServerUINode {
             view = UKAlarmPanelControl(surface: surface, modes: UKServerUISecurityViews.modes(panel),
                                       headerIdentifier: panel.node.id + ".state", modeIdentifierPrefix: panel.node.id + ".mode",
                                       failureIdentifier: panel.node.id + ".failure")
-        case .doorTile(let tile):
-            view = UKGlassTileView(model: UKGlassTileModel(title: tile.node.title, symbol: tile.fallback.icon.drawn,
-                                                          isActive: false, isUnavailable: true, identifier: tile.node.id))
         case .stateTile(let tile):
             view = UKGlassTileView(model: UKGlassTileModel(title: tile.node.title, symbol: tile.icon.drawn,
                                                           isActive: false, isUnavailable: true, kind: .state, identifier: tile.node.id))
@@ -1187,7 +1180,6 @@ final class UKServerUINode {
         case .homeLightTile: .homeLightTile
         case .weatherPanel: .weatherPanel
         case .alarmPanel: .alarmPanel
-        case .doorTile: .doorTile
         case .stateTile: .stateTile
         case .settingsLink: .settingsLink
         case .roomCard: .roomCard

@@ -28,7 +28,6 @@ final class UKServerUIBindings {
     private(set) var weather: [String: UKServerUIWeatherSource] = [:]
     private(set) var lights: [String: ServerUIHomeLightSource] = [:]
     private var homeLightActions: OptimisticActions?
-    private(set) var doors: [String: UKServerUIDoorSource]
     private(set) var climates: [String: ServerUIClimateAdapter]
     private var climateController: ClimateController?
     let roomVisits: ServerUIRoomVisits?
@@ -87,12 +86,6 @@ final class UKServerUIBindings {
             }
             return nil
         })
-        doors = Dictionary(uniqueKeysWithValues: sources.compactMap {
-            if case .securityDoor(_, let entityID, let kind) = $0 {
-                return ($0.id, UKServerUIDoorSource(entityID: entityID, kind: kind, context: context))
-            }
-            return nil
-        })
         let climateController = context.caller.map {
             ClimateController(store: context.store, caller: $0, configuredEntityIds: Self.climateTargets(sources))
         }
@@ -133,7 +126,6 @@ final class UKServerUIBindings {
         if !changed.isEmpty, powers.values.contains(where: \.hasPendingIntent)
             || alarms.values.contains(where: \.hasPendingIntent)
             || lights.values.contains(where: \.hasPendingIntent)
-            || doors.values.contains(where: \.hasPendingIntent)
             || climates.values.contains(where: \.hasPendingIntent)
             || devices.values.contains(where: \.hasPendingIntent)
             || vacuums.values.contains(where: \.isPinned)
@@ -166,11 +158,6 @@ final class UKServerUIBindings {
             guard case .alarmMode(_, let entityID) = source else { return nil }
             let retained = definitions[source.id] == source ? alarms[source.id] : nil
             return (source.id, retained ?? UKServerUIAlarmSource(entityID: entityID, context: context))
-        })
-        doors = Dictionary(uniqueKeysWithValues: sources.compactMap { source in
-            guard case .securityDoor(_, let entityID, let kind) = source else { return nil }
-            let retained = definitions[source.id] == source ? doors[source.id] : nil
-            return (source.id, retained ?? UKServerUIDoorSource(entityID: entityID, kind: kind, context: context))
         })
         devices = Dictionary(uniqueKeysWithValues: sources.compactMap { source in
             guard case .roomDevice(_, let descriptor) = source, let caller = context.caller ?? context.connection else { return nil }
@@ -481,8 +468,12 @@ final class UKServerUIBindings {
             let phase = alarm.projection.spec.phase
             return .ready(.string(context.valuesPending ? "loading" : phase == .ready ? "ready" : phase == .inFlight ? "inFlight" : "unavailable"))
         case .securityDoor:
-            guard read.path == ["phase"], let door = doors[read.sourceId] else { return .unavailable }
-            return .ready(.string(context.valuesPending ? "loading" : door.spec.phase == .ready ? "ready" : door.spec.phase == .inFlight ? "inFlight" : "unavailable"))
+            // The door's phase comes from the entity alone: the tile that shows it is a `state-tile` (`ServerUIDoorLowering`).
+            guard read.path == ["phase"], case .securityDoor(_, let entityID, _)? = definitions[read.sourceId] else { return .unavailable }
+            if context.valuesPending { return .ready(.string("loading")) }
+            let live = context.store.entity(entityID).state
+            let sendable = context.caller != nil && context.connection.map({ SecurityScreen.canSend($0.status) }) != false
+            return .ready(.string(sendable && !ScreenshotPrivacy.isRedacting && live?.isUnavailable == false ? "ready" : "unavailable"))
         case .climate:
             guard read.path.count == 1, let climate = climates[read.sourceId] else { return .unavailable }
             if read.path != ["phase"] {

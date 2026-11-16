@@ -31,7 +31,6 @@ extension UKServerUIBindings {
         case .roomOverviewTile(let tile): return tile.powerSourceId.flatMap { lights[$0]?.hasPendingIntent } == true
         case .homeLightTile(let tile): return lights[tile.sourceId]?.hasPendingIntent == true
         case .alarmPanel(let panel): return alarms[panel.sourceId]?.hasPendingIntent == true
-        case .doorTile(let tile): return doors[tile.sourceId]?.hasPendingIntent == true
         case .climate(let control): return climates[control.props.sourceId]?.hasPendingIntent == true
         case .roomCard(let card), .roomChip(let card): return card.power.map { powers[$0.sourceId]?.hasPendingIntent == true } ?? false
         case .navigationTile(let tile): return tile.alarm.map { alarms[$0.sourceId]?.hasPendingIntent == true } ?? false

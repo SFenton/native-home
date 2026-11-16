@@ -23,6 +23,9 @@ public struct StateRequest: Equatable, Sendable {
     public var onTimeout: OnTimeout
     /// The state text while a call is being sent, by service: `open_cover` reads "Sending Open…".
     public var pendingWords: [String: String]
+    /// The state the entity is shown in once a call is on its way, by service, until Home Assistant's own state arrives:
+    /// `open_cover` shows `opening`. Feedback only, never authored (the library shape carries none), so a built-in style names it.
+    public var pendingStates: [String: String]
     /// The state text of a failed request: "Error", "Didn't Respond".
     public var errorWords: String
     /// The Home Assistant script an authored lifecycle reads (`script.*`); nil when the style has none. The app does not run it.
@@ -32,13 +35,15 @@ public struct StateRequest: Equatable, Sendable {
 
     /// Creates the settings.
     public init(lockout: Duration, ackTimeout: Duration, settleTimeout: Duration, errorHold: Duration, onTimeout: OnTimeout = .error,
-                pendingWords: [String: String] = [:], errorWords: String = "Error", script: String? = nil, errorTimer: String? = nil) {
+                pendingWords: [String: String] = [:], pendingStates: [String: String] = [:], errorWords: String = "Error",
+                script: String? = nil, errorTimer: String? = nil) {
         self.lockout = lockout
         self.ackTimeout = ackTimeout
         self.settleTimeout = settleTimeout
         self.errorHold = errorHold
         self.onTimeout = onTimeout
         self.pendingWords = pendingWords
+        self.pendingStates = pendingStates
         self.errorWords = errorWords
         self.script = script
         self.errorTimer = errorTimer

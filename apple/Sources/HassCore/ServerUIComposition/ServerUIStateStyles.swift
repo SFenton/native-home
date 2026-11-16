@@ -28,6 +28,11 @@ public struct ServerUIStateStyleLibrary: Equatable, Sendable {
 
     init(entries: [Entry]) { self.entries = entries }
 
+    /// Whether any style carries a per-state fill or hidden words, which need `sh.state-style-fills@1`.
+    public var usesFills: Bool {
+        entries.contains { $0.style.hiddenWords != nil || $0.style.rules.contains { $0.fill != nil } }
+    }
+
     /// The saved style with `id`.
     public func style(id: String) -> StateStyle? { entries.first { $0.style.id == id }?.style }
 }
@@ -156,7 +161,8 @@ enum ServerUIStateStyles {
             let style = StateStyle(
                 id: id, name: item["name"]?.string ?? id, domain: item["domain"]?.string ?? "", actionId: item["actionId"]?.string ?? id,
                 rules: rules + [fallbackRule], request: item["request"].map(decodeRequest),
-                togglesDisc: item["togglesDisc"]?.bool ?? false, drawsErrorDisc: item["drawsErrorDisc"]?.bool ?? false)
+                togglesDisc: item["togglesDisc"]?.bool ?? false, drawsErrorDisc: item["drawsErrorDisc"]?.bool ?? false,
+                hiddenWords: item["hiddenWords"]?.string)
             entries.append(.init(style: style, base: item["base"]?.string))
         }
         return (ServerUIStateStyleLibrary(entries: entries), issues)
@@ -198,7 +204,13 @@ enum ServerUIStateStyles {
                   active: rule["active"]?.bool ?? false, glyph: rule["icon"]?.string, words: rule["text"]?.string,
                   indicator: rule["indicator"]?.string.flatMap(StateIndicator.init(rawValue:)),
                   action: rule["action"].map(decodeAction),
-                  colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)))
+                  colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)), fill: rule["fill"].flatMap(decodeFill))
+    }
+
+    /// A `solid-rgb` fill as `red << 16 | green << 8 | blue`; the shape check has already made it exact.
+    private static func decodeFill(_ fill: JSONValue) -> UInt32? {
+        guard let red = fill["red"]?.number, let green = fill["green"]?.number, let blue = fill["blue"]?.number else { return nil }
+        return UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
     }
 
     private static func decodeAction(_ action: JSONValue) -> StateAction {

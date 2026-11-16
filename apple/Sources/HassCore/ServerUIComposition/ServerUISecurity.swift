@@ -52,23 +52,6 @@ extension ServerUICompositionDocument {
         public let active: Bool
         public let error: Bool
     }
-    /// A canonical glass tile over a lock provider or GarageDoorController, never a power toggle.
-    public struct DoorTile: Equatable, Sendable {
-        public let node: Node
-        public let sourceId: String
-        public let kind: DoorKind
-        public let states: [DoorStateAppearance]
-        public let fallback: AlarmAppearance
-        public let loadingText: String
-        public let unavailableText: String
-        public let hiddenText: String
-        public let errorText: String
-        public let sendingOpenText: String
-        public let sendingCloseText: String
-        public let openLabel: String
-        public let closeLabel: String
-        public let reverseLabel: String
-    }
 }
 
 // MARK: - Non-authorable command policy

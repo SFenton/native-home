@@ -26,12 +26,20 @@ public struct StateStyle: Equatable, Sendable, Identifiable {
     public var togglesDisc: Bool
     /// An error state draws its disc glyph in the error ink (a jammed lock).
     public var drawsErrorDisc: Bool
+    /// The words the text layer shows while the screen is redacted (`sh.state-style-fills@1`); nil shows the unknown state's own.
+    public var hiddenWords: String?
+    /// Whether the disc stays, dimmed, while the entity cannot be read. A lowered `door-tile` keeps the dimmed disc it always drew;
+    /// never authored.
+    public var keepsDiscWhenUnknown: Bool
 
     /// Creates a style. A map that names no `unavailable` or `unknown` state gets a rule for them: the unknown class with an untappable
     /// copy of the map's first action, so an unavailable entity never reads as resting or offers a tap. A map that does not end with a
     /// fallback gets one: a copy of its unknown rule.
     public init(id: String, name: String, domain: String, actionId: String, rules: [StateRule], request: StateRequest? = nil,
-                togglesDisc: Bool = false, drawsErrorDisc: Bool = false) {
+                togglesDisc: Bool = false, drawsErrorDisc: Bool = false, hiddenWords: String? = nil,
+                keepsDiscWhenUnknown: Bool = false) {
+        self.hiddenWords = hiddenWords
+        self.keepsDiscWhenUnknown = keepsDiscWhenUnknown
         self.id = id
         self.name = name
         self.domain = domain
@@ -61,7 +69,8 @@ public struct StateStyle: Equatable, Sendable, Identifiable {
     /// A copy with `rules` in place of this style's, for the authored overrides that split a state off its rule.
     func replacingRules(_ rules: [StateRule]) -> StateStyle {
         StateStyle(id: id, name: name, domain: domain, actionId: actionId, rules: rules, request: request,
-                   togglesDisc: togglesDisc, drawsErrorDisc: drawsErrorDisc)
+                   togglesDisc: togglesDisc, drawsErrorDisc: drawsErrorDisc, hiddenWords: hiddenWords,
+                   keepsDiscWhenUnknown: keepsDiscWhenUnknown)
     }
 
     // MARK: Resolving
@@ -97,7 +106,7 @@ public struct StateStyle: Equatable, Sendable, Identifiable {
         let authored = action?.symbol ?? rule.glyph
         return StateResolution(stateClass: rule.stateClass, isActive: rule.isActive, glyph: authored ?? "circle",
                                words: rule.words ?? Self.title(value), indicator: indicator, action: action, hasGlyph: authored != nil,
-                               colour: rule.colour)
+                               colour: rule.colour, fill: rule.fill)
     }
 
     /// The disc's spec for `state`, or nil when the state has no action.
@@ -108,9 +117,14 @@ public struct StateStyle: Equatable, Sendable, Identifiable {
         var phase: TileActionSpec.Phase = .ready
         if resolution.stateClass == .unknown { phase = .unavailable }
         else if !action.isTappable || requestInFlight { phase = .inFlight }
-        return TileActionSpec(id: actionId, verb: action.verb, symbol: action.symbol, isOn: togglesDisc ? resolution.isActive : nil,
+        return TileActionSpec(id: actionId, verb: action.verb, symbol: action.symbol, isOn: togglesDisc ? (discOn(for: state) ?? resolution.isActive) : nil,
                               phase: phase, feedback: .tracked, call: action.call,
                               isError: drawsErrorDisc && resolution.stateClass == .error, confirmation: action.confirmation)
+    }
+
+    /// The disc's own reading of the state, where the rule overrides the tile's.
+    private func discOn(for state: EntityState?) -> Bool? {
+        (EntityState.isUnavailable(state?.state) ? unknownRule : rule(for: state?.state)).discOn
     }
 
     // MARK: Defaults

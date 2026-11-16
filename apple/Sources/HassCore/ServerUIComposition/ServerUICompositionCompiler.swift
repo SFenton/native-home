@@ -37,6 +37,10 @@ struct ServerUICompositionCompiler {
     private var localFields: [D.LocalField] = []
     /// The document's decoded style library, which `state-tile` nodes check their bindings against.
     private var stateLibrary: ServerUIStateStyleLibrary?
+    /// The `security-door@1` sources by id, read from the raw document before any component compiles (`door-tile` lowers to a state tile).
+    private var doorSources: [String: ServerUIDoorLowering.Source] = [:]
+    /// The saved styles `door-tile` nodes lowered to; they join the document's library.
+    private var loweredStyles: [ServerUIStateStyleLibrary.Entry] = []
     private var localActions: [(String, D.LocalValue, String)] = []
     /// Expressions' source references, checked once every source is known.
     private var expressionRefs: [ServerUIExpressionParser.Reference] = []
@@ -87,6 +91,7 @@ struct ServerUICompositionCompiler {
     }
 
     private mutating func compile(_ root: Cursor, capabilities: [String], documentCanonical: String?) throws -> ServerUICompositionPublication {
+        doorSources = ServerUIDoorLowering.sources(in: root.value["document"]?["dataSources"])
         var document = try document(root.field("document"))
         compileComponents()
         let updatedAt = try root.s("updatedAt"), publishedAt = try root.s("publishedAt")
@@ -160,6 +165,7 @@ struct ServerUICompositionCompiler {
             }
             issues.append(contentsOf: decoded.issues)
             stateLibrary = decoded.library
+            if decoded.library.usesFills { require("state-style-fills") }
         }
         if c.value["localState"] != nil {
             require("local-state")
@@ -232,7 +238,8 @@ struct ServerUICompositionCompiler {
             pages: pages, modals: modals, dataSources: sources, variables: .init(),
             assets: assets, liveActivities: activities, localState: localFields,
             bootstrap: c.value["bootstrap"].map { try bootstrap(Cursor($0, c.path("bootstrap"))) },
-            extensions: extensions, stateStyles: stateLibrary
+            extensions: extensions,
+            stateStyles: loweredStyles.isEmpty ? stateLibrary : ServerUIStateStyleLibrary(entries: (stateLibrary?.entries ?? []) + loweredStyles)
         )
     }
 
@@ -1617,15 +1624,17 @@ struct ServerUICompositionCompiler {
                 ? Set(["locked", "unlocked", "locking", "unlocking", "open", "jammed"])
                 : Set(["closed", "open", "opening", "closing"])
             for state in states where try !allowed.contains(state.s("state")) { add(.invalidCombination, state.path("state")) }
-            return try .doorTile(.init(
+            let lowered = try ServerUIDoorLowering.lower(.init(
                 node: node, sourceId: source, kind: kind,
                 states: states.map { try .init(state: $0.s("state"), appearance: alarmAppearance($0.field("appearance")),
                                               active: $0.b("active"), error: $0.b("error")) },
                 fallback: alarmAppearance(props.field("fallback")), loadingText: props.s("loadingText"),
-                unavailableText: props.s("unavailableText"), hiddenText: props.s("hiddenText"), errorText: props.s("errorText"),
+                hiddenText: props.s("hiddenText"), unavailableText: props.s("unavailableText"), errorText: props.s("errorText"),
                 sendingOpenText: props.s("sendingOpenText"), sendingCloseText: props.s("sendingCloseText"),
                 openLabel: props.s("openLabel"), closeLabel: props.s("closeLabel"), reverseLabel: props.s("reverseLabel")
-            ))
+            ), entityId: doorSources[source]?.entityId ?? "")
+            if !loweredStyles.contains(where: { $0.style.id == lowered.style.style.id }) { loweredStyles.append(lowered.style) }
+            return .stateTile(lowered.tile)
         case "climate-control":
             require("bindings"); require("climate-source")
             let configuration = try JSONDecoder().decode(ServerUIClimateControl.Properties.self, from: JSONEncoder().encode(props.value))

@@ -958,82 +958,40 @@
       }
     },
     {
-      "file": "reject/pending-state-style-fills-every-state.json",
-      "outcome": "reject",
-      "note": "A garage style with a fill on every state, the pending states (opening, closing) included, the unknown rule and the fallback, and hidden words.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true
+      "file": "accept/state-style-fills-every-state.json",
+      "outcome": "accept",
+      "note": "A garage style with a fill on every state, the pending states (opening, closing) included, the unknown rule and the fallback, and hidden words."
     },
     {
-      "file": "reject/pending-state-style-fills-fill-on-fallback-only.json",
-      "outcome": "reject",
-      "note": "A fill on the fallback alone is enough to need the capability; no rule carries one.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true
+      "file": "accept/state-style-fills-fill-on-fallback-only.json",
+      "outcome": "accept",
+      "note": "A fill on the fallback alone is enough to need the capability; no rule carries one."
     },
     {
-      "file": "reject/pending-state-style-fills-hidden-words-only.json",
-      "outcome": "reject",
-      "note": "Hidden words alone, with no fill, need the capability.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true
+      "file": "accept/state-style-fills-hidden-words-only.json",
+      "outcome": "accept",
+      "note": "Hidden words alone, with no fill, need the capability."
     },
     {
-      "file": "reject/pending-state-style-fills-fill-extremes.json",
-      "outcome": "reject",
-      "note": "The channel limits are 0 and 255 on each side.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true
+      "file": "accept/state-style-fills-fill-extremes.json",
+      "outcome": "accept",
+      "note": "The channel limits are 0 and 255 on each side."
     },
     {
-      "file": "reject/pending-state-style-fills-fill-on-error-and-warning.json",
-      "outcome": "reject",
-      "note": "A fill is a value, not a token: a warning or an error state may carry one (a colour token may not).",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true
+      "file": "accept/state-style-fills-fill-on-error-and-warning.json",
+      "outcome": "accept",
+      "note": "A fill is a value, not a token: a warning or an error state may carry one (a colour token may not)."
     },
     {
-      "file": "reject/pending-state-style-fills-subtitle-from-phase.json",
-      "outcome": "reject",
-      "note": "A state-tile with the loading words as an expr subtitle on its source's phase read, over a styled garage door.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/15",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true
+      "file": "accept/state-style-fills-subtitle-from-phase.json",
+      "outcome": "accept",
+      "note": "A state-tile with the loading words as an expr subtitle on its source's phase read, over a styled garage door."
     },
     {
       "file": "reject/state-style-fills-fill-channel-over-255.json",
       "outcome": "reject",
       "note": "A channel is 0 to 255.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/stateStyles/styles/0/rules/1/fill/red"
       }
@@ -1043,12 +1001,6 @@
       "outcome": "reject",
       "note": "A channel is never negative.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/stateStyles/styles/0/rules/1/fill/green"
       }
@@ -1058,12 +1010,6 @@
       "outcome": "reject",
       "note": "A channel is a whole number.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/stateStyles/styles/0/rules/1/fill/blue"
       }
@@ -1073,12 +1019,6 @@
       "outcome": "reject",
       "note": "A fill is the solid-rgb object, never a string.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/stateStyles/styles/0/rules/1/fill"
       }
@@ -1088,12 +1028,6 @@
       "outcome": "reject",
       "note": "A state style has no standard fill: absent means the class face.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/stateStyles/styles/0/rules/1/fill/blue"
       }
@@ -1103,12 +1037,6 @@
       "outcome": "reject",
       "note": "A fill names all three channels.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/stateStyles/styles/0/rules/1/fill/blue"
       }
@@ -1118,12 +1046,6 @@
       "outcome": "reject",
       "note": "A fill has no alpha channel.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/stateStyles/styles/0/rules/1/fill/alpha"
       }
@@ -1133,12 +1055,6 @@
       "outcome": "reject",
       "note": "A fill does not change that unavailable and unknown are the unknown class: a resting rule that names them is refused.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/stateStyles/styles/0/rules/4/class"
       }
@@ -1148,12 +1064,6 @@
       "outcome": "reject",
       "note": "A tile override has no fill: the fill belongs to the style.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/binding/overrides/0/fill"
       }
@@ -1163,12 +1073,6 @@
       "outcome": "reject",
       "note": "Hidden words are not blank.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/stateStyles/styles/0/hiddenWords"
       }
@@ -1178,12 +1082,6 @@
       "outcome": "reject",
       "note": "Hidden words are at most 80 characters.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/stateStyles/styles/0/hiddenWords"
       }
@@ -1193,12 +1091,6 @@
       "outcome": "reject",
       "note": "Hidden words are text.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.state-style-fills@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/stateStyles/styles/0/hiddenWords"
       }

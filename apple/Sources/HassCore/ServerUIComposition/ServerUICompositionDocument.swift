@@ -675,7 +675,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case collection(Collection), form(Form), recipePart(RecipePart), pinnedActions(PinnedActions)
         case statusChip(StatusChip), statusRail(StatusRail), roomOverviewTile(RoomOverviewTile)
         case homeLightTile(HomeLightTile), weatherPanel(WeatherPanel)
-        case alarmPanel(AlarmPanel), doorTile(DoorTile)
+        case alarmPanel(AlarmPanel)
         case climate(ServerUIClimateControl)
         case roomCard(RoomCard), roomChip(RoomCard), roomSection(RoomSection), roomNavigationGrid(RoomNavigationGrid)
         case roomDeviceControl(ServerUIRoomDeviceControl)
@@ -713,7 +713,6 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .homeLightTile(let value): value.node
             case .weatherPanel(let value): value.node
             case .alarmPanel(let value): value.node
-            case .doorTile(let value): value.node
             case .climate(let value): value.node
             case .settingsLink(let value): value.node
             case .settingsControl(let value): value.node

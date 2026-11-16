@@ -4865,8 +4865,8 @@
       "title": "Door tiles (lock, garage door)",
       "path": "components/security/security-door-tiles",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIDoorSource.swift",
-        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUISecurityViews.swift"
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIDoorLowering.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIStateTileViews.swift"
       ],
       "docs": [
         ".agents/pages/security/ios.md"

@@ -894,7 +894,7 @@ extension ServerUICompositionShape {
         "icon": .optional(word), "text": .optional(word),
         "indicator": .optional(.choice(StateIndicator.allCases.map(\.rawValue))),
         "colour": .optional(.choice(StateColour.allCases.map(\.rawValue))),
-        "action": .optional(stateAction)
+        "action": .optional(stateAction), "fill": .optional(solidFill)
     ]
     private static let stateRequest: Shape = {
         object([
@@ -911,7 +911,7 @@ extension ServerUICompositionShape {
             "styles": array(object([
                 "id": id, "name": label, "base": .optional(.choice(StateStyle.builtIn.map(\.id))),
                 "domain": .pattern("^[a-z][a-z0-9_]*$", 64), "actionId": .optional(id),
-                "togglesDisc": .optional(.bool), "drawsErrorDisc": .optional(.bool),
+                "togglesDisc": .optional(.bool), "drawsErrorDisc": .optional(.bool), "hiddenWords": .optional(word),
                 "rules": array(object(stateLook.merging(["states": array(word, 16, minimum: 1)]) { $1 }), 32, minimum: 1),
                 "fallback": object(stateLook), "request": .optional(stateRequest)
             ]), 32)
