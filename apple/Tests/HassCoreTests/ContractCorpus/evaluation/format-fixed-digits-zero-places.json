@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-zero-places",
+  "note": "No fraction digits at all: 72.4 with 0 and 0 is \"72\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 72.4
+        }
+      },
+      "formats": {
+        "n": {
+          "number": {
+            "maximumFractionDigits": 0,
+            "minimumFractionDigits": 0
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "72"
+  }
+}

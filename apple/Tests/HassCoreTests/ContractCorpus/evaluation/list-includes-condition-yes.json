@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "list-includes-condition-yes",
+  "note": "A condition: the list includes the mode.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "list-includes",
+        "from": {
+          "type": "source",
+          "sourceId": "hvac",
+          "path": [
+            "attributes",
+            "hvac_modes"
+          ]
+        },
+        "value": {
+          "type": "literal",
+          "value": "cool"
+        }
+      },
+      "right": {
+        "type": "literal",
+        "value": true
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          "heat",
+          "cool",
+          "heat_cool",
+          "off"
+        ]
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

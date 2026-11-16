@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "list-includes-value-from-entity",
+  "note": "The value to look for can be read.",
+  "subject": {
+    "operand": {
+      "type": "list-includes",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      },
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "want",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          "heat",
+          "cool",
+          "heat_cool",
+          "off"
+        ]
+      },
+      "want/state": {
+        "status": "value",
+        "value": "heat_cool"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": true
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "raw-state-rule-no-entity",
+  "note": "With no entity the rule cannot be answered: loading.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unavailable"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unavailable"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unknown"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unknown"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "{t} degrees",
+        "args": {
+          "t": {
+            "type": "raw-state",
+            "sourceId": "sensor"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "loading"
+  }
+}

@@ -26,8 +26,11 @@ struct ServerUILayoutCorpusTests {
     nonisolated static let cases: [Case] = {
         let url = ServerUIContractCorpusTests.directory.appendingPathComponent("index.json")
         guard let data = try? Data(contentsOf: url), let index = try? JSONDecoder().decode(Index.self, from: data) else { return [] }
-        let mine = Set(ServerUIIngestedCapabilities.layout)
-        return index.cases.filter { $0.pending == true && mine.contains($0.issue?.capability ?? "") }
+        let families = ["tab-blocks-", "tab-bar-", "tab-fallback-", "overlay-", "tile-parts-", "tile-look-", "badge-"]
+        return index.cases.filter { item in
+            let stem = item.file.split(separator: "/").last.map(String.init)?.replacingOccurrences(of: "pending-", with: "") ?? ""
+            return families.contains { stem.hasPrefix($0) }
+        }
     }()
 
     @Test func theFamilyHasCases() { #expect(Self.cases.count >= 59) }
@@ -53,7 +56,8 @@ struct ServerUILayoutCorpusTests {
             #expect(thrown.code == .unsupportedCapability && thrown.capability == waiting, "\(item.file) threw \(thrown)")
             return
         }
-        guard let expected = item.studioIssue else {
+        // Once the Studio promotes a case, its `issue` is the answer; while it is pending, `studioIssue` is.
+        guard let expected = item.studioIssue ?? (item.pending == true ? nil : item.issue) else {
             if case .failure(let error) = result { Issue.record("\(item.file) must decode, got \(error)") }
             return
         }

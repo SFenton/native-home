@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "raw-state-plain-read-cannot-tell",
+  "note": "The plain read of the same unknown entity is unavailable (native): this is why raw-state exists.",
+  "subject": {
+    "operand": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "sensor",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "string",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {},
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unknown"
+      }
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

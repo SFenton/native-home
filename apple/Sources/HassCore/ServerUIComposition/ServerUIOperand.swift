@@ -37,6 +37,12 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     /// The first case whose condition holds gives the value, else `otherwise` (`sh.rules@1`). An undecided case stops the rule:
     /// the operand is `loading` and the slot keeps what it showed (``ServerUIRule``).
     case choose(cases: [ChooseCase], otherwise: ServerUIOperand)
+    /// The state text of an `ha-entity` source exactly as Home Assistant reports it, `unknown` and `unavailable` included (`sh.raw-state@1`).
+    case rawState(sourceId: String)
+    /// How many items the list attribute `path` of an `ha-entity` source holds (`sh.list-read@1`).
+    case listCount(sourceId: String, path: [String])
+    /// Whether some scalar item of the list attribute `path` of an `ha-entity` source equals `value` (`sh.list-read@1`).
+    case listIncludes(sourceId: String, path: [String], value: ServerUIOperand)
 
     /// A viewer fact.
     public enum ViewerField: String, Sendable, CaseIterable { case userId, isAdmin, personEntityId }
@@ -84,7 +90,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var sourceIds: Set<String> {
         switch self {
         case .literal, .control, .viewer, .item, .param, .clock: []
-        case .read(let id, _, _): [id]
+        case .read(let id, _, _), .rawState(let id), .listCount(let id, _): [id]
+        case .listIncludes(let id, _, let value): value.sourceIds.union([id])
         case .date(let from, let to): from.sourceIds.union(to.sourceIds)
         case .choose(let cases, let otherwise):
             cases.reduce(otherwise.sourceIds) { $0.union($1.when.sourceIds).union($1.then.sourceIds) }
@@ -100,7 +107,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var readsViewer: Bool {
         switch self {
         case .viewer: true
-        case .literal, .read, .control, .item, .param, .clock: false
+        case .literal, .read, .control, .item, .param, .clock, .rawState, .listCount: false
+        case .listIncludes(_, _, let value): value.readsViewer
         case .date(let from, let to): from.readsViewer || to.readsViewer
         case .choose(let cases, let otherwise):
             otherwise.readsViewer || cases.contains { $0.when.readsViewer || $0.then.readsViewer }
@@ -115,7 +123,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var usesControl: Bool {
         switch self {
         case .control: true
-        case .literal, .read, .viewer, .item, .param, .clock: false
+        case .literal, .read, .viewer, .item, .param, .clock, .rawState, .listCount: false
+        case .listIncludes(_, _, let value): value.usesControl
         case .date(let from, let to): from.usesControl || to.usesControl
         case .choose(let cases, let otherwise): otherwise.usesControl || cases.contains { $0.then.usesControl }
         case .format(_, let args, _): args.values.contains { $0.usesControl }
@@ -129,7 +138,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var readsClock: Bool {
         switch self {
         case .clock: true
-        case .literal, .read, .control, .viewer, .item, .param: false
+        case .literal, .read, .control, .viewer, .item, .param, .rawState, .listCount: false
+        case .listIncludes(_, _, let value): value.readsClock
         case .format(_, let args, let formats):
             formats.values.contains { if case .date(let style) = $0 { style.needsClock } else { false } }
                 || args.values.contains { $0.readsClock }
@@ -155,6 +165,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     private func outcome(_ environment: some ServerUIReading) -> ServerUIReadResult {
         switch self {
         case .literal(let value): return .value(value)
+        case .rawState, .listCount, .listIncludes: return evaluateEntityRead(environment)
         case .control: return environment.controlValue.map { .value($0) } ?? .unavailable
         case .viewer(let field):
             guard let viewer = environment.viewer else { return .loading }
@@ -202,6 +213,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
                     output += drawn
                 case .number(let format)?:
                     output += value.finiteNumber.map(format.text) ?? plain
+                case .text(let letterCase)?:
+                    output += letterCase.apply(to: plain)
                 case nil: output += plain
                 }
                 rest = rest[rest.index(after: close)...]
@@ -314,19 +327,30 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
 /// How a number fills a `format` hole. Locale independent on purpose: authored copy is English and a published document must
 /// read the same on every phone.
 public struct ServerUINumberFormat: Equatable, Sendable {
-    /// The most digits after the decimal point, 0 to 6. Trailing zeros are dropped, so 2.50 shows as 2.5.
+    /// The most digits after the decimal point, 0 to 6. Trailing zeros are dropped down to ``minimumFractionDigits``, so 2.50 shows as 2.5.
     public let maximumFractionDigits: Int
+    /// The fewest digits after the decimal point, 0 to ``maximumFractionDigits`` (`sh.pipeline-operands@1`): 1 keeps `72` as `72.0`.
+    public let minimumFractionDigits: Int
 
-    /// Creates a format; the digit count is clamped to 0...6.
-    public init(maximumFractionDigits: Int) { self.maximumFractionDigits = max(0, min(6, maximumFractionDigits)) }
+    /// Creates a format; the maximum is clamped to 0...6 and the minimum to 0...maximum.
+    public init(maximumFractionDigits: Int, minimumFractionDigits: Int = 0) {
+        let most = max(0, min(6, maximumFractionDigits))
+        self.maximumFractionDigits = most
+        self.minimumFractionDigits = max(0, min(most, minimumFractionDigits))
+    }
 
-    /// `number` rounded to at most ``maximumFractionDigits`` digits.
+    /// `number` rounded to at most ``maximumFractionDigits`` digits (the exact binary value, an exact tie to the even digit, as C `printf`
+    /// does), its trailing zeros trimmed down to ``minimumFractionDigits`` and a signed zero drawn without its sign.
     public func text(_ number: Double) -> String {
         var text = String(format: "%.\(maximumFractionDigits)f", number)
-        if text.contains(".") {
-            while text.hasSuffix("0") { text.removeLast() }
-            if text.hasSuffix(".") { text.removeLast() }
+        if let dot = text.firstIndex(of: ".") {
+            let whole = text[..<dot]
+            var fraction = String(text[text.index(after: dot)...])
+            while fraction.hasSuffix("0") { fraction.removeLast() }
+            if fraction.count < minimumFractionDigits { fraction += String(repeating: "0", count: minimumFractionDigits - fraction.count) }
+            text = fraction.isEmpty ? String(whole) : "\(whole).\(fraction)"
         }
-        return text == "-0" ? "0" : text
+        if text.hasPrefix("-"), text.dropFirst().allSatisfy({ $0 == "0" || $0 == "." }) { text.removeFirst() }
+        return text
     }
 }

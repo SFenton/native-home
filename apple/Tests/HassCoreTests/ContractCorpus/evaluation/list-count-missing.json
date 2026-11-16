@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "list-count-missing",
+  "note": "An attribute the entity does not have is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "list-count",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

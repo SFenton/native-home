@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "name": "raw-state-rule-tells-unavailable",
+  "note": "A rule tells unavailable: \"Unavailable\".",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unavailable"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unavailable"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "sensor"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unknown"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "Unknown"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "{t} degrees",
+        "args": {
+          "t": {
+            "type": "raw-state",
+            "sourceId": "sensor"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Unavailable"
+  }
+}

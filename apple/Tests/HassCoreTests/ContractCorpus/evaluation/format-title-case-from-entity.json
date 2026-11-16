@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "format-title-case-from-entity",
+  "note": "Text from an entity.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "Mode: {m}",
+      "args": {
+        "m": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "mode",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "title"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "mode/state": {
+        "status": "value",
+        "value": "fan_only"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Mode: Fan Only"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "list-includes-skips-structures",
+  "note": "An item that is a list or an object never matches.",
+  "subject": {
+    "operand": {
+      "type": "list-includes",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      },
+      "value": {
+        "type": "literal",
+        "value": "a"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          [
+            "a"
+          ],
+          {
+            "a": 1
+          },
+          null
+        ]
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": false
+  }
+}

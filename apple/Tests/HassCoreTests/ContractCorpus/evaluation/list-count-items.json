@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "list-count-items",
+  "note": "The count of an attribute list: four modes.",
+  "subject": {
+    "operand": {
+      "type": "list-count",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          "heat",
+          "cool",
+          "heat_cool",
+          "off"
+        ]
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 4
+  }
+}
