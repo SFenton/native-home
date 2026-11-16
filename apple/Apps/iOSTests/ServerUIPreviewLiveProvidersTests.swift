@@ -279,7 +279,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             func tap(_ id: String) throws {
                 let node = try XCTUnwrap(page.nodes[id]?.view, "\(family): \(id)")
                 func control(in view: UIView) -> UIControl? {
-                    if let found = view as? UKRowButton ?? view as? UKGlassTileView { return found }
+                    if view is UKRowButton || view is UKGlassTileView, let found = view as? UIControl { return found }
                     for sub in view.subviews { if let found = control(in: sub) { return found } }
                     return nil
                 }
