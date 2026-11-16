@@ -70,8 +70,9 @@ extension ServerUICompositionShape {
                     "format": .optional(.text(240, blank: false)),
                     "options": .optional(array(object(["id": id, "label": label, "selectedWhen": predicate,
                                                         "action": callService]), 12)),
+                    "optionsFrom": .optional(optionsFrom),
                     "unavailableText": title
-                ]),
+                ].merging(boundRowParts) { lhs, _ in lhs }),
                 "onAction": .optional(callService), "offAction": .optional(callService), "action": .optional(callService),
                 "enabledWhen": .optional(enabledWhen)
             ]),

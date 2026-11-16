@@ -646,7 +646,7 @@ enum ServerUICompositionShape {
                 "props": object([
                     "minimum": .choice(["tile@1", "tile-dynamic-type@1", "section-wide@1"]), "maxColumns": .number(1, 4, integer: true),
                     "spacing": space, "equalRowHeights": .bool, "shortRow": .choice(["share", "leading"]),
-                    "fold": .choice(["page", "container"])
+                    "fold": .choice(["page", "container"]), "minimumColumns": .optional(.number(2, 4, integer: true))
                 ]),
                 "children": array(.component, 100)
             ]),

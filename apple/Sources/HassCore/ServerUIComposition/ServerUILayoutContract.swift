@@ -96,12 +96,20 @@ public struct ServerUITileParts: Equatable, Sendable {
     /// One round button on the tile. Its label is what VoiceOver reads and is never drawn.
     public struct Disc: Equatable, Sendable {
         public let id: String
+        /// The symbol, or the `otherwise` / fallback of ``iconRule``.
         public let icon: ServerUICompositionDocument.Symbol
+        /// The plain label, or what a text slot says while it has nothing better (``labelValue``).
         public let label: String
         public let action: ServerUICompositionDocument.Action
         public let visibility: ServerUIVisibility?
         /// Dims the button and stops its tap while a rule says no (`sh.enabled-when@1`); `nil` for a button that is always enabled.
         public let enabledWhen: ServerUIEnabledRule?
+        /// How the symbol follows a rule or an entity's text (`sh.tile-disc-rules@1`); `nil` draws ``icon``.
+        public var iconRule: ServerUIDynamicLook<ServerUICompositionDocument.Symbol>? = nil
+        /// The label as a text slot that follows a rule or an expression (`sh.tile-disc-rules@1`); `nil` says ``label``.
+        public var labelValue: ServerUICompositionDocument.StringValue? = nil
+        /// Whether VoiceOver reads the label and then the tile's own title ("Start Main Floor") (`sh.tile-disc-rules@1`).
+        public var namesTile = false
     }
 
     /// The text under the title, drawn instead of the style's state words.

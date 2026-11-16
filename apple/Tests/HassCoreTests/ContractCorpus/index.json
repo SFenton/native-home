@@ -1957,345 +1957,467 @@
       "note": "Bed sheet (research 5.1): three tabs of bedroom controls over a bed source and a wake-light source, seven alarm-day pages and a tab state; 11 parameters and 22 bindings."
     },
     {
-      "file": "accept/tab-blocks-shared-tab-shared-tab.json",
+      "file": "accept/parts-options-from-attribute.json",
       "outcome": "accept",
-      "note": "A shared area, an area for one tab, another shared area and an area for another tab, in draw order."
+      "note": "A choice whose options are the items of a select entity's `options` attribute, drawn in title case, with two authored options as the fallback."
     },
     {
-      "file": "accept/tab-blocks-all-tabs.json",
+      "file": "accept/parts-options-as-is-labels.json",
       "outcome": "accept",
-      "note": "One area for every tab."
+      "note": "The items are drawn as the entity holds them."
     },
     {
-      "file": "accept/tab-blocks-two-tabs.json",
+      "file": "accept/parts-options-current-by-expression.json",
       "outcome": "accept",
-      "note": "An area for two of the three tabs, and one for the third."
+      "note": "The option that is chosen is the one equal to what an expression gives: here a format of the select's state."
     },
     {
-      "file": "accept/tab-blocks-block-visible-when.json",
-      "outcome": "accept",
-      "note": "A shared area that shows only while a condition holds."
-    },
-    {
-      "file": "accept/tab-blocks-tab-visible-when.json",
-      "outcome": "accept",
-      "note": "A tab that shows only while a condition holds; its children stay on the tab."
-    },
-    {
-      "file": "accept/tab-blocks-with-pinned.json",
-      "outcome": "accept",
-      "note": "Areas in a bottom bar: the container is pinned and every tab has an icon."
-    },
-    {
-      "file": "accept/tab-blocks-overlay-in-shared-block.json",
-      "outcome": "accept",
-      "note": "A shared area that holds an overlay (a base with a command on top)."
-    },
-    {
-      "file": "reject/tab-blocks-with-tab-children.json",
+      "file": "reject/parts-options-on-a-toggle.json",
       "outcome": "reject",
-      "note": "When areas exist every tab's own children are empty.",
+      "note": "Only a choice reads its options from an entity.",
       "issue": {
         "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/tabs/0/children"
+        "pointer": "/document/pages/2/components/0/props/optionsFrom"
       }
     },
     {
-      "file": "reject/tab-blocks-unknown-tab.json",
+      "file": "reject/parts-options-without-fallback-options.json",
       "outcome": "reject",
-      "note": "An area names tabs the container has.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/blocks/0/tabs/0"
-      }
-    },
-    {
-      "file": "reject/tab-blocks-repeated-tab.json",
-      "outcome": "reject",
-      "note": "An area names a tab once.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/blocks/0/tabs/1"
-      }
-    },
-    {
-      "file": "reject/tab-blocks-empty-tabs.json",
-      "outcome": "reject",
-      "note": "An area names at least one tab.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/blocks/0/tabs"
-      }
-    },
-    {
-      "file": "reject/tab-blocks-duplicate-id.json",
-      "outcome": "reject",
-      "note": "Area ids are unique in the container.",
-      "issue": {
-        "code": "duplicate_id",
-        "pointer": "/document/pages/2/components/0/blocks/1/id"
-      }
-    },
-    {
-      "file": "reject/tab-blocks-tab-without-area.json",
-      "outcome": "reject",
-      "note": "Every tab is in an area.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/tabs/2"
-      }
-    },
-    {
-      "file": "reject/tab-blocks-form-in-shared-area.json",
-      "outcome": "reject",
-      "note": "A form can only sit in an area for one tab.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/blocks/0/children/0/type"
-      }
-    },
-    {
-      "file": "reject/tab-blocks-41-areas.json",
-      "outcome": "reject",
-      "note": "A container has at most 40 areas.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/blocks"
-      }
-    },
-    {
-      "file": "accept/tab-bar-top-titles.json",
-      "outcome": "accept",
-      "note": "The bar at the top with titles labels, an icon on every tab."
-    },
-    {
-      "file": "accept/tab-bar-top-icons.json",
-      "outcome": "accept",
-      "note": "The bar at the top with icons labels, an icon on every tab."
-    },
-    {
-      "file": "accept/tab-bar-top-icons-and-titles.json",
-      "outcome": "accept",
-      "note": "The bar at the top with icons-and-titles labels, an icon on every tab."
-    },
-    {
-      "file": "accept/tab-bar-top-by-size.json",
-      "outcome": "accept",
-      "note": "The bar at the top with by-size labels, an icon on every tab."
-    },
-    {
-      "file": "accept/tab-bar-bottom-titles.json",
-      "outcome": "accept",
-      "note": "The bar at the bottom with titles labels, an icon on every tab."
-    },
-    {
-      "file": "accept/tab-bar-bottom-icons.json",
-      "outcome": "accept",
-      "note": "The bar at the bottom with icons labels, an icon on every tab."
-    },
-    {
-      "file": "accept/tab-bar-bottom-icons-and-titles.json",
-      "outcome": "accept",
-      "note": "The bar at the bottom with icons-and-titles labels, an icon on every tab."
-    },
-    {
-      "file": "accept/tab-bar-bottom-by-size.json",
-      "outcome": "accept",
-      "note": "The bar at the bottom with by-size labels, an icon on every tab."
-    },
-    {
-      "file": "reject/tab-bar-bottom-without-icons.json",
-      "outcome": "reject",
-      "note": "A bottom bar needs an icon on every tab.",
+      "note": "The authored options stay required: they are what the choice offers while the list is missing.",
       "issue": {
         "code": "missing_required",
-        "pointer": "/document/pages/2/components/0/tabs/0/icon"
+        "pointer": "/document/pages/2/components/0/props/options"
       }
     },
     {
-      "file": "reject/tab-bar-icons-at-top-without-icons.json",
+      "file": "reject/parts-options-from-the-state.json",
       "outcome": "reject",
-      "note": "Icon labels need an icon on every tab, wherever the bar sits.",
-      "issue": {
-        "code": "missing_required",
-        "pointer": "/document/pages/2/components/0/tabs/0/icon"
-      }
-    },
-    {
-      "file": "reject/tab-bar-bottom-not-pinned.json",
-      "outcome": "reject",
-      "note": "A bottom bar is a pinned container.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/props/tabBar/placement"
-      }
-    },
-    {
-      "file": "reject/tab-bar-top-but-pinned.json",
-      "outcome": "reject",
-      "note": "A top bar is not pinned.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/props/tabBar/placement"
-      }
-    },
-    {
-      "file": "reject/tab-bar-unknown-labels.json",
-      "outcome": "reject",
-      "note": "The label mode is one of four.",
-      "issue": {
-        "code": "unknown_variant",
-        "pointer": "/document/pages/2/components/0/props/tabBar/labels"
-      }
-    },
-    {
-      "file": "accept/overlay-five-anchors.json",
-      "outcome": "accept",
-      "note": "One base and four controls on top, at four of the five anchors; the fifth is the center."
-    },
-    {
-      "file": "accept/overlay-center.json",
-      "outcome": "accept",
-      "note": "A control at the center, with no inset."
-    },
-    {
-      "file": "accept/overlay-two-on-top.json",
-      "outcome": "accept",
-      "note": "Two controls on top."
-    },
-    {
-      "file": "accept/overlay-command-child.json",
-      "outcome": "accept",
-      "note": "A command (a bound control button) on top of the base."
-    },
-    {
-      "file": "accept/overlay-button-child.json",
-      "outcome": "accept",
-      "note": "A primary button on top of the base."
-    },
-    {
-      "file": "accept/overlay-state-tile-base.json",
-      "outcome": "accept",
-      "note": "A state tile as the base."
-    },
-    {
-      "file": "reject/overlay-anchor-for-base.json",
-      "outcome": "reject",
-      "note": "An anchor names a child on top, never the base.",
+      "note": "A list read names an attribute: the state is not a list.",
       "issue": {
         "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/props/anchors/0/childId"
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/from/path"
       }
     },
     {
-      "file": "reject/overlay-anchor-unknown-child.json",
+      "file": "reject/parts-options-from-a-model-source.json",
       "outcome": "reject",
-      "note": "An anchor names a child the overlay has.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/props/anchors/0/childId"
-      }
-    },
-    {
-      "file": "reject/overlay-child-without-anchor.json",
-      "outcome": "reject",
-      "note": "Every control on top has a position.",
-      "issue": {
-        "code": "missing_required",
-        "pointer": "/document/pages/2/components/0/props/anchors"
-      }
-    },
-    {
-      "file": "reject/overlay-child-not-allowed.json",
-      "outcome": "reject",
-      "note": "On top there are commands, buttons, readouts and text: a row is refused.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/children/1/type"
-      }
-    },
-    {
-      "file": "reject/overlay-five-on-top.json",
-      "outcome": "reject",
-      "note": "At most four controls sit on top.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/children"
-      }
-    },
-    {
-      "file": "accept/tile-parts-two-discs-enabled-when.json",
-      "outcome": "accept",
-      "note": "Two buttons on a state tile, each with an enabled rule and a visible rule."
-    },
-    {
-      "file": "accept/tile-parts-progress-read.json",
-      "outcome": "accept",
-      "note": "A progress fill that reads a number from an entity."
-    },
-    {
-      "file": "accept/tile-parts-progress-math.json",
-      "outcome": "accept",
-      "note": "A progress fill from a percentage divided by 100."
-    },
-    {
-      "file": "accept/tile-parts-destination.json",
-      "outcome": "accept",
-      "note": "A tap on the tile opens a page."
-    },
-    {
-      "file": "accept/tile-parts-subtitle-rule.json",
-      "outcome": "accept",
-      "note": "A subtitle made by a rule."
-    },
-    {
-      "file": "reject/tile-parts-three-discs.json",
-      "outcome": "reject",
-      "note": "A tile has at most two buttons.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/props/discs"
-      }
-    },
-    {
-      "file": "reject/tile-parts-disc-domain-action.json",
-      "outcome": "reject",
-      "note": "A button never takes a domain action.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/props/discs/0/action/type"
-      }
-    },
-    {
-      "file": "reject/tile-parts-progress-text.json",
-      "outcome": "reject",
-      "note": "A progress value is a number, never text.",
+      "note": "A list read stands on an entity: a model source is refused.",
       "issue": {
         "code": "binding_type",
-        "pointer": "/document/pages/2/components/0/props/progress"
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/from/sourceId"
       }
     },
     {
-      "file": "reject/tile-parts-duplicate-disc-id.json",
+      "file": "reject/parts-options-from-an-unknown-source.json",
       "outcome": "reject",
-      "note": "Button ids are unique on a tile.",
+      "note": "The source must be declared.",
       "issue": {
-        "code": "duplicate_id",
-        "pointer": "/document/pages/2/components/0/props/discs/1/id"
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/from/sourceId"
       }
     },
     {
-      "file": "accept/readout-tone-conditional.json",
-      "outcome": "accept",
-      "note": "A readout whose tone follows a condition: each case a literal tone."
+      "file": "reject/parts-options-current-is-a-number.json",
+      "outcome": "reject",
+      "note": "The chosen value is text: a number read is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/current"
+      }
     },
     {
-      "file": "reject/readout-tone-outside-enum.json",
+      "file": "reject/parts-options-labels-not-in-list.json",
       "outcome": "reject",
-      "note": "A conditional tone holds one of the six tones.",
+      "note": "The label style is as-is or title-case.",
       "issue": {
         "code": "unknown_variant",
-        "pointer": "/document/pages/2/components/0/props/tone"
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/labels"
+      }
+    },
+    {
+      "file": "reject/parts-options-action-is-not-a-call.json",
+      "outcome": "reject",
+      "note": "Choosing an option calls a service.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/action/domain"
+      }
+    },
+    {
+      "file": "reject/parts-options-without-action.json",
+      "outcome": "reject",
+      "note": "What choosing an option does is required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/action"
+      }
+    },
+    {
+      "file": "reject/parts-options-extra-field.json",
+      "outcome": "reject",
+      "note": "The options read takes the fields of its schema and no others.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/optionsFrom/sort"
+      }
+    },
+    {
+      "file": "accept/parts-disc-conditional-symbol.json",
+      "outcome": "accept",
+      "note": "A start and pause button that shows pause while the robot cleans and play otherwise."
+    },
+    {
+      "file": "accept/parts-disc-label-by-expression.json",
+      "outcome": "accept",
+      "note": "A label that follows the robot's state: Pause, Resume or Start."
+    },
+    {
+      "file": "accept/parts-disc-label-names-tile.json",
+      "outcome": "accept",
+      "note": "A label that VoiceOver reads with the tile's title after it: \"Start Main Floor\"."
+    },
+    {
+      "file": "accept/parts-disc-all-three.json",
+      "outcome": "accept",
+      "note": "Symbol by rule, label by expression and the tile's title together, on two buttons."
+    },
+    {
+      "file": "accept/parts-disc-symbol-from-entity.json",
+      "outcome": "accept",
+      "note": "The symbol is named by an entity's text, with a fallback."
+    },
+    {
+      "file": "accept/parts-disc-label-object-literal.json",
+      "outcome": "accept",
+      "note": "A label may be a text slot holding plain words."
+    },
+    {
+      "file": "reject/parts-disc-label-blank.json",
+      "outcome": "reject",
+      "note": "A label is never blank, even as a text slot.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/discs/0/label/value"
+      }
+    },
+    {
+      "file": "reject/parts-disc-label-too-long.json",
+      "outcome": "reject",
+      "note": "A label is at most 80 characters, even as a text slot.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/discs/0/label/value"
+      }
+    },
+    {
+      "file": "reject/parts-disc-label-is-a-structure.json",
+      "outcome": "reject",
+      "note": "A label expression gives text: a structure is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/discs/0/label/value"
+      }
+    },
+    {
+      "file": "reject/parts-disc-names-tile-not-a-boolean.json",
+      "outcome": "reject",
+      "note": "Naming the tile is a yes or no.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/discs/0/namesTile"
+      }
+    },
+    {
+      "file": "reject/parts-disc-symbol-rule-without-otherwise.json",
+      "outcome": "reject",
+      "note": "A rule ends with its fallback symbol.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/discs/0/icon/otherwise"
+      }
+    },
+    {
+      "file": "reject/parts-disc-symbol-rule-unknown-source.json",
+      "outcome": "reject",
+      "note": "A rule's condition reads a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/discs/0/icon/cases/0/when/sourceId"
+      }
+    },
+    {
+      "file": "reject/parts-disc-bound-symbol-gives-a-number.json",
+      "outcome": "reject",
+      "note": "An entity names a symbol with text: a number read is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/discs/0/icon/value"
+      }
+    },
+    {
+      "file": "reject/parts-disc-label-read-unknown-source.json",
+      "outcome": "reject",
+      "note": "A label read names a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/discs/0/label/from/sourceId"
+      }
+    },
+    {
+      "file": "accept/parts-columns-two-robots-across.json",
+      "outcome": "accept",
+      "note": "Two robot tiles with buttons in a four-column grid that keeps at least two columns, so a narrow phone draws them side by side."
+    },
+    {
+      "file": "accept/parts-columns-equal-to-the-most.json",
+      "outcome": "accept",
+      "note": "The floor may equal the most columns."
+    },
+    {
+      "file": "accept/parts-columns-on-a-wide-section-grid.json",
+      "outcome": "accept",
+      "note": "The floor works with the wide section grid, which has at most two columns."
+    },
+    {
+      "file": "reject/parts-columns-above-the-most.json",
+      "outcome": "reject",
+      "note": "The floor cannot exceed the most columns.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/minimumColumns"
+      }
+    },
+    {
+      "file": "reject/parts-columns-one.json",
+      "outcome": "reject",
+      "note": "A floor of one is no floor: the least is two.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/minimumColumns"
+      }
+    },
+    {
+      "file": "reject/parts-columns-five.json",
+      "outcome": "reject",
+      "note": "At most four columns, floor included.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/minimumColumns"
+      }
+    },
+    {
+      "file": "reject/parts-columns-fraction.json",
+      "outcome": "reject",
+      "note": "A column count is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/minimumColumns"
+      }
+    },
+    {
+      "file": "reject/parts-columns-text.json",
+      "outcome": "reject",
+      "note": "A column count is a number, not words.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/minimumColumns"
+      }
+    },
+    {
+      "file": "accept/parts-row-auto-clean-row.json",
+      "outcome": "accept",
+      "note": "The Auto-Clean row: a tinted leading glyph, a subtitle by rule, a hint and a failure caption, in module metrics."
+    },
+    {
+      "file": "accept/parts-row-form-metrics.json",
+      "outcome": "accept",
+      "note": "A toggle row in form metrics: 44 points high, a 28 point glyph column."
+    },
+    {
+      "file": "accept/parts-row-subtitle-plain.json",
+      "outcome": "accept",
+      "note": "A subtitle that is plain words."
+    },
+    {
+      "file": "accept/parts-row-glyph-by-rule.json",
+      "outcome": "accept",
+      "note": "The glyph's tint follows a rule."
+    },
+    {
+      "file": "reject/parts-row-on-a-stepper.json",
+      "outcome": "reject",
+      "note": "Row parts are for a toggle drawn as a row: a stepper is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/subtitle"
+      }
+    },
+    {
+      "file": "reject/parts-row-on-a-tile-surface.json",
+      "outcome": "reject",
+      "note": "A toggle drawn as a tile has no row parts.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/hint"
+      }
+    },
+    {
+      "file": "reject/parts-row-glyph-without-icon.json",
+      "outcome": "reject",
+      "note": "A glyph tint tints the row's icon: a row with no icon has nothing to tint.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/glyph"
+      }
+    },
+    {
+      "file": "reject/parts-row-metrics-not-in-list.json",
+      "outcome": "reject",
+      "note": "The metrics are form or module.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/metrics"
+      }
+    },
+    {
+      "file": "reject/parts-row-hint-blank.json",
+      "outcome": "reject",
+      "note": "A hint is never blank.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/hint"
+      }
+    },
+    {
+      "file": "reject/parts-row-failure-text-too-long.json",
+      "outcome": "reject",
+      "note": "The failure caption is at most 240 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/failureText"
+      }
+    },
+    {
+      "file": "reject/parts-row-subtitle-is-a-structure.json",
+      "outcome": "reject",
+      "note": "A subtitle expression gives text: a structure is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/subtitle/value"
+      }
+    },
+    {
+      "file": "reject/parts-row-subtitle-too-long.json",
+      "outcome": "reject",
+      "note": "A subtitle is at most 2000 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/subtitle/value"
+      }
+    },
+    {
+      "file": "reject/parts-row-glyph-standard.json",
+      "outcome": "reject",
+      "note": "A glyph tint is an exact colour: `standard` is refused.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/glyph/type"
+      }
+    },
+    {
+      "file": "accept/parts-check-room-row.json",
+      "outcome": "accept",
+      "note": "A bound toggle drawn as a check row, with the action tint, a hint and a failure caption."
+    },
+    {
+      "file": "accept/parts-check-success-tint.json",
+      "outcome": "accept",
+      "note": "The check row in the success tint, the default of the canonical row."
+    },
+    {
+      "file": "accept/parts-check-explicit-switch-face.json",
+      "outcome": "accept",
+      "note": "The face may name the switch explicitly."
+    },
+    {
+      "file": "reject/parts-check-on-a-tile-surface.json",
+      "outcome": "reject",
+      "note": "A check face is a row: a tile surface is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/face"
+      }
+    },
+    {
+      "file": "reject/parts-check-with-an-icon.json",
+      "outcome": "reject",
+      "note": "The leading slot of a check row is its circle: an icon is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/icon"
+      }
+    },
+    {
+      "file": "reject/parts-check-with-a-subtitle.json",
+      "outcome": "reject",
+      "note": "A check row keeps its title, hint and caption only: a subtitle is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/subtitle"
+      }
+    },
+    {
+      "file": "reject/parts-check-with-a-glyph-tint.json",
+      "outcome": "reject",
+      "note": "A check row has no glyph to tint.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/glyph"
+      }
+    },
+    {
+      "file": "reject/parts-check-with-metrics.json",
+      "outcome": "reject",
+      "note": "A check row has its own metrics.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/metrics"
+      }
+    },
+    {
+      "file": "reject/parts-check-tint-without-check.json",
+      "outcome": "reject",
+      "note": "A check tint needs the check face.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/checkTint"
+      }
+    },
+    {
+      "file": "reject/parts-check-face-not-in-list.json",
+      "outcome": "reject",
+      "note": "The face is switch or check.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/face"
+      }
+    },
+    {
+      "file": "reject/parts-check-tint-not-in-list.json",
+      "outcome": "reject",
+      "note": "The tint is action or success.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/checkTint"
+      }
+    },
+    {
+      "file": "reject/parts-check-on-a-choice.json",
+      "outcome": "reject",
+      "note": "Only a toggle has a face.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/face"
       }
     },
     {
@@ -3978,6 +4100,348 @@
       "issue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/children/0/type"
+      }
+    },
+    {
+      "file": "accept/tab-blocks-shared-tab-shared-tab.json",
+      "outcome": "accept",
+      "note": "A shared area, an area for one tab, another shared area and an area for another tab, in draw order."
+    },
+    {
+      "file": "accept/tab-blocks-all-tabs.json",
+      "outcome": "accept",
+      "note": "One area for every tab."
+    },
+    {
+      "file": "accept/tab-blocks-two-tabs.json",
+      "outcome": "accept",
+      "note": "An area for two of the three tabs, and one for the third."
+    },
+    {
+      "file": "accept/tab-blocks-block-visible-when.json",
+      "outcome": "accept",
+      "note": "A shared area that shows only while a condition holds."
+    },
+    {
+      "file": "accept/tab-blocks-tab-visible-when.json",
+      "outcome": "accept",
+      "note": "A tab that shows only while a condition holds; its children stay on the tab."
+    },
+    {
+      "file": "accept/tab-blocks-with-pinned.json",
+      "outcome": "accept",
+      "note": "Areas in a bottom bar: the container is pinned and every tab has an icon."
+    },
+    {
+      "file": "accept/tab-blocks-overlay-in-shared-block.json",
+      "outcome": "accept",
+      "note": "A shared area that holds an overlay (a base with a command on top)."
+    },
+    {
+      "file": "reject/tab-blocks-with-tab-children.json",
+      "outcome": "reject",
+      "note": "When areas exist every tab's own children are empty.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/tabs/0/children"
+      }
+    },
+    {
+      "file": "reject/tab-blocks-unknown-tab.json",
+      "outcome": "reject",
+      "note": "An area names tabs the container has.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/blocks/0/tabs/0"
+      }
+    },
+    {
+      "file": "reject/tab-blocks-repeated-tab.json",
+      "outcome": "reject",
+      "note": "An area names a tab once.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/blocks/0/tabs/1"
+      }
+    },
+    {
+      "file": "reject/tab-blocks-empty-tabs.json",
+      "outcome": "reject",
+      "note": "An area names at least one tab.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/blocks/0/tabs"
+      }
+    },
+    {
+      "file": "reject/tab-blocks-duplicate-id.json",
+      "outcome": "reject",
+      "note": "Area ids are unique in the container.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/2/components/0/blocks/1/id"
+      }
+    },
+    {
+      "file": "reject/tab-blocks-tab-without-area.json",
+      "outcome": "reject",
+      "note": "Every tab is in an area.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/tabs/2"
+      }
+    },
+    {
+      "file": "reject/tab-blocks-form-in-shared-area.json",
+      "outcome": "reject",
+      "note": "A form can only sit in an area for one tab.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/blocks/0/children/0/type"
+      }
+    },
+    {
+      "file": "reject/tab-blocks-41-areas.json",
+      "outcome": "reject",
+      "note": "A container has at most 40 areas.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/blocks"
+      }
+    },
+    {
+      "file": "accept/tab-bar-top-titles.json",
+      "outcome": "accept",
+      "note": "The bar at the top with titles labels, an icon on every tab."
+    },
+    {
+      "file": "accept/tab-bar-top-icons.json",
+      "outcome": "accept",
+      "note": "The bar at the top with icons labels, an icon on every tab."
+    },
+    {
+      "file": "accept/tab-bar-top-icons-and-titles.json",
+      "outcome": "accept",
+      "note": "The bar at the top with icons-and-titles labels, an icon on every tab."
+    },
+    {
+      "file": "accept/tab-bar-top-by-size.json",
+      "outcome": "accept",
+      "note": "The bar at the top with by-size labels, an icon on every tab."
+    },
+    {
+      "file": "accept/tab-bar-bottom-titles.json",
+      "outcome": "accept",
+      "note": "The bar at the bottom with titles labels, an icon on every tab."
+    },
+    {
+      "file": "accept/tab-bar-bottom-icons.json",
+      "outcome": "accept",
+      "note": "The bar at the bottom with icons labels, an icon on every tab."
+    },
+    {
+      "file": "accept/tab-bar-bottom-icons-and-titles.json",
+      "outcome": "accept",
+      "note": "The bar at the bottom with icons-and-titles labels, an icon on every tab."
+    },
+    {
+      "file": "accept/tab-bar-bottom-by-size.json",
+      "outcome": "accept",
+      "note": "The bar at the bottom with by-size labels, an icon on every tab."
+    },
+    {
+      "file": "reject/tab-bar-bottom-without-icons.json",
+      "outcome": "reject",
+      "note": "A bottom bar needs an icon on every tab.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/tabs/0/icon"
+      }
+    },
+    {
+      "file": "reject/tab-bar-icons-at-top-without-icons.json",
+      "outcome": "reject",
+      "note": "Icon labels need an icon on every tab, wherever the bar sits.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/tabs/0/icon"
+      }
+    },
+    {
+      "file": "reject/tab-bar-bottom-not-pinned.json",
+      "outcome": "reject",
+      "note": "A bottom bar is a pinned container.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/tabBar/placement"
+      }
+    },
+    {
+      "file": "reject/tab-bar-top-but-pinned.json",
+      "outcome": "reject",
+      "note": "A top bar is not pinned.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/tabBar/placement"
+      }
+    },
+    {
+      "file": "reject/tab-bar-unknown-labels.json",
+      "outcome": "reject",
+      "note": "The label mode is one of four.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/tabBar/labels"
+      }
+    },
+    {
+      "file": "accept/overlay-five-anchors.json",
+      "outcome": "accept",
+      "note": "One base and four controls on top, at four of the five anchors; the fifth is the center."
+    },
+    {
+      "file": "accept/overlay-center.json",
+      "outcome": "accept",
+      "note": "A control at the center, with no inset."
+    },
+    {
+      "file": "accept/overlay-two-on-top.json",
+      "outcome": "accept",
+      "note": "Two controls on top."
+    },
+    {
+      "file": "accept/overlay-command-child.json",
+      "outcome": "accept",
+      "note": "A command (a bound control button) on top of the base."
+    },
+    {
+      "file": "accept/overlay-button-child.json",
+      "outcome": "accept",
+      "note": "A primary button on top of the base."
+    },
+    {
+      "file": "accept/overlay-state-tile-base.json",
+      "outcome": "accept",
+      "note": "A state tile as the base."
+    },
+    {
+      "file": "reject/overlay-anchor-for-base.json",
+      "outcome": "reject",
+      "note": "An anchor names a child on top, never the base.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/anchors/0/childId"
+      }
+    },
+    {
+      "file": "reject/overlay-anchor-unknown-child.json",
+      "outcome": "reject",
+      "note": "An anchor names a child the overlay has.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/anchors/0/childId"
+      }
+    },
+    {
+      "file": "reject/overlay-child-without-anchor.json",
+      "outcome": "reject",
+      "note": "Every control on top has a position.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/anchors"
+      }
+    },
+    {
+      "file": "reject/overlay-child-not-allowed.json",
+      "outcome": "reject",
+      "note": "On top there are commands, buttons, readouts and text: a row is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/1/type"
+      }
+    },
+    {
+      "file": "reject/overlay-five-on-top.json",
+      "outcome": "reject",
+      "note": "At most four controls sit on top.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "accept/tile-parts-two-discs-enabled-when.json",
+      "outcome": "accept",
+      "note": "Two buttons on a state tile, each with an enabled rule and a visible rule."
+    },
+    {
+      "file": "accept/tile-parts-progress-read.json",
+      "outcome": "accept",
+      "note": "A progress fill that reads a number from an entity."
+    },
+    {
+      "file": "accept/tile-parts-progress-math.json",
+      "outcome": "accept",
+      "note": "A progress fill from a percentage divided by 100."
+    },
+    {
+      "file": "accept/tile-parts-destination.json",
+      "outcome": "accept",
+      "note": "A tap on the tile opens a page."
+    },
+    {
+      "file": "accept/tile-parts-subtitle-rule.json",
+      "outcome": "accept",
+      "note": "A subtitle made by a rule."
+    },
+    {
+      "file": "reject/tile-parts-three-discs.json",
+      "outcome": "reject",
+      "note": "A tile has at most two buttons.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/discs"
+      }
+    },
+    {
+      "file": "reject/tile-parts-disc-domain-action.json",
+      "outcome": "reject",
+      "note": "A button never takes a domain action.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/discs/0/action/type"
+      }
+    },
+    {
+      "file": "reject/tile-parts-progress-text.json",
+      "outcome": "reject",
+      "note": "A progress value is a number, never text.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/progress"
+      }
+    },
+    {
+      "file": "reject/tile-parts-duplicate-disc-id.json",
+      "outcome": "reject",
+      "note": "Button ids are unique on a tile.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/2/components/0/props/discs/1/id"
+      }
+    },
+    {
+      "file": "accept/readout-tone-conditional.json",
+      "outcome": "accept",
+      "note": "A readout whose tone follows a condition: each case a literal tone."
+    },
+    {
+      "file": "reject/readout-tone-outside-enum.json",
+      "outcome": "reject",
+      "note": "A conditional tone holds one of the six tones.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/tone"
       }
     },
     {

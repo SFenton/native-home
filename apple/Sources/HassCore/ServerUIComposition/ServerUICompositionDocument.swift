@@ -558,6 +558,9 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let shortRow: ShortRow
         public let fold: Fold
         public let children: [Component]
+        /// The grid keeps at least this many columns, and no tile's own minimum width takes more than its share of them
+        /// (`sh.grid-min-columns@1`); `nil` leaves the columns to the width.
+        public var minimumColumns: Int? = nil
     }
     /// How a short last row fills: shared across the width or leading.
     public enum ShortRow: String, Sendable { case share, leading }
