@@ -1,0 +1,5311 @@
+{
+  "schema": "parity-loop-surfaces/1",
+  "surfaces": [
+    {
+      "area": "home",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dhome",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dhome"
+      },
+      "gallery_page": "home",
+      "id": "home",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        },
+        {
+          "ax_match": "(?i)weather|forecast|\u00b0",
+          "label": "weather"
+        },
+        {
+          "ax_match": "(?i)camera|stream|live view",
+          "label": "camera-feed"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-home / tab-home",
+        "reference": "tab Home (page overview)"
+      },
+      "state_tags": [
+        "weather:forecast",
+        "camera:any",
+        "guests:staying"
+      ],
+      "title": "Home",
+      "writes_on_reach": false
+    },
+    {
+      "area": "security",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dsecurity",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dsecurity"
+      },
+      "gallery_page": "security",
+      "id": "security",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Security"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Security"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-security / tab-security",
+        "reference": "tab Security (page security)"
+      },
+      "state_tags": [
+        "alarm:disarmed",
+        "alarm:armed_away",
+        "contact:open",
+        "lock:any"
+      ],
+      "title": "Security",
+      "writes_on_reach": false
+    },
+    {
+      "area": "climate",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dclimate",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dclimate"
+      },
+      "gallery_page": "climate",
+      "id": "climate",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Climate"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Climate"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-climate / tab-climate",
+        "reference": "tab Climate (page climate)"
+      },
+      "state_tags": [
+        "climate:heat",
+        "climate:cool",
+        "climate:off",
+        "contact:open"
+      ],
+      "title": "Climate",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "admin-todo",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "To-Do"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "To-Do"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-to-do",
+        "reference": "Settings > To-Do"
+      },
+      "state_tags": [
+        "todo:items"
+      ],
+      "title": "Admin To-Do",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dchores",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dchores"
+      },
+      "gallery_page": "chores",
+      "id": "chores",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-chores / tab-chores",
+        "reference": "tab Chores (page chores)"
+      },
+      "state_tags": [
+        "todo:overdue",
+        "todo:empty"
+      ],
+      "title": "Chores (tab root)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "groceries",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Groceries"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Groceries"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-groceries",
+        "reference": "Chores tab > Groceries tile"
+      },
+      "state_tags": [
+        "todo:items"
+      ],
+      "title": "Groceries (Grocery List)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "home-improvement-chores",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Home Improvement Tasks"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Home Improvement Tasks"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-home-improvement-chores",
+        "reference": "Chores tab > Home Improvement Tasks tile"
+      },
+      "state_tags": [
+        "todo:items"
+      ],
+      "title": "Home Improvement Tasks",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "resident-chores",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          },
+          {
+            "manual": "Tile: <resident> chores"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          },
+          {
+            "manual": "Tile: <resident> chores"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-<resident>-chores (2 pages)",
+        "reference": "Chores tab > a resident's chores tile"
+      },
+      "state_tags": [
+        "todo:overdue"
+      ],
+      "title": "Resident chores",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "unassigned-chores",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Unassigned"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Unassigned"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-unassigned-chores",
+        "reference": "Chores tab > Unassigned tile"
+      },
+      "state_tags": [
+        "todo:items"
+      ],
+      "title": "Unassigned Chores",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "ha-web-page",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Home Assistant"
+          },
+          {
+            "press": "a page"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Home Assistant"
+          },
+          {
+            "press": "a page"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "WebView inside modal-ha-settings",
+        "reference": "Home Assistant settings > a page (pushed)"
+      },
+      "state_tags": [],
+      "title": "Home Assistant web page (pushed in the settings cover)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "household-admin",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-household-admin",
+        "reference": "Settings > Household > Admin Controls"
+      },
+      "state_tags": [
+        "viewer:admin"
+      ],
+      "title": "Admin Controls",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "household-settings",
+      "id": "household-guests",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Guest Controls"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Guest Controls"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-household-guests",
+        "reference": "Settings > Household > Guest Controls"
+      },
+      "state_tags": [
+        "guests:rooms"
+      ],
+      "title": "Guest Controls",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "household-car",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Car"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Car"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-household-car",
+        "reference": "Settings > Household > Car"
+      },
+      "state_tags": [
+        "car:any"
+      ],
+      "title": "Car",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "household-special-device-modes",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Special Device Modes"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Special Device Modes"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-household-special",
+        "reference": "Settings > Household > Special Device Modes"
+      },
+      "state_tags": [
+        "special:any"
+      ],
+      "title": "Special Device Modes",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "performance",
+      "id": "performance-screen",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "manual": "hidden entry (unverified)"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "manual": "hidden entry (unverified)"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-performance",
+        "reference": "Hidden diagnostics page (Settings)"
+      },
+      "state_tags": [],
+      "title": "Performance (diagnostics)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dsettings",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dsettings"
+      },
+      "gallery_page": "settings",
+      "id": "settings",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-settings",
+        "reference": "Settings tab root"
+      },
+      "state_tags": [],
+      "title": "Settings (tab root)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "rooms",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dkitchen",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dkitchen"
+      },
+      "gallery_page": null,
+      "id": "room-kitchen",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Kitchen"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Kitchen"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-room-kitchen",
+        "reference": "Kitchen room page (Groceries section)"
+      },
+      "state_tags": [
+        "todo:items"
+      ],
+      "title": "Kitchen room page (Groceries section)",
+      "writes_on_reach": true
+    },
+    {
+      "area": "rooms",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3D<room-slug>",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3D<room-slug>"
+      },
+      "gallery_page": "room-devices",
+      "id": "room-page",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "a room tile"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "a room tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-room-* (16 pages, routes with the room slug)",
+        "reference": "Quick Links > Rooms > a room (or deep link path=<room>)"
+      },
+      "state_tags": [
+        "light:any",
+        "vent:any"
+      ],
+      "title": "Room page (config-driven, 16 rooms)",
+      "writes_on_reach": true
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmaster-bedroom",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmaster-bedroom"
+      },
+      "gallery_page": "bedroom",
+      "id": "room-master-bedroom",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Master Bedroom"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Master Bedroom"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-room-master-bedroom",
+        "reference": "Master bedroom page (beds, wake light, humidifier)"
+      },
+      "state_tags": [
+        "bed:alarm",
+        "humidifier:any"
+      ],
+      "title": "Bedroom 1 room page (beds, wake light, humidifier)",
+      "writes_on_reach": true
+    },
+    {
+      "area": "media",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmedia",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmedia"
+      },
+      "gallery_page": "media-page",
+      "id": "media",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Media"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Media"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-media (route media)",
+        "reference": "Quick Links > Media"
+      },
+      "state_tags": [
+        "media:playing",
+        "media:off"
+      ],
+      "title": "Media",
+      "writes_on_reach": false
+    },
+    {
+      "area": "custom-lights",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dcustom-lights",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dcustom-lights"
+      },
+      "gallery_page": "custom-lights",
+      "id": "custom-lights",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Custom Lights"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Custom Lights"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-custom-lights (route custom-lights)",
+        "reference": "Quick Links > Custom Lights"
+      },
+      "state_tags": [
+        "light:any"
+      ],
+      "title": "Custom Lights",
+      "writes_on_reach": false
+    },
+    {
+      "area": "sprinklers",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dsprinklers"
+      },
+      "gallery_page": "sprinklers",
+      "id": "sprinklers",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": false,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "No tile or link reaches it (fullpair): scratch-authoring or a layout fix is needed"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Sprinklers"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-sprinklers (no route, no tile)",
+        "reference": "Quick Links > Sprinklers"
+      },
+      "state_tags": [
+        "sprinkler:zones",
+        "sprinkler:watering"
+      ],
+      "title": "Sprinklers",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacuums",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dvacuums",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dvacuums"
+      },
+      "gallery_page": "vacuums",
+      "id": "vacuums",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-vacuums (route vacuums)",
+        "reference": "Quick Links > Vacuums"
+      },
+      "state_tags": [
+        "vacuum:cleaning",
+        "vacuum:docked",
+        "vacuum:error"
+      ],
+      "title": "Vacuums",
+      "writes_on_reach": false
+    },
+    {
+      "area": "food",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dfood",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dfood"
+      },
+      "gallery_page": "food",
+      "id": "food-hub",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-food (route food)",
+        "reference": "Quick Links > Food & Recipes"
+      },
+      "state_tags": [
+        "recipes:suggested",
+        "inventory:counts"
+      ],
+      "title": "Food & Recipes hub",
+      "writes_on_reach": false
+    },
+    {
+      "area": "food",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "recipes",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "All Recipes"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "All Recipes"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-recipes",
+        "reference": "Food hub > All Recipes"
+      },
+      "state_tags": [
+        "recipes:list"
+      ],
+      "title": "Recipes (grid, search, sort, filter)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "inventory",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "inventory",
+      "id": "inventory-space",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-inventory-* (6 pages)",
+        "reference": "Food hub > a space (All Food, Pantry, Fridge, Freezer, Cabinet, Spice Rack)"
+      },
+      "state_tags": [
+        "inventory:items",
+        "inventory:expired"
+      ],
+      "title": "Inventory space (All Food, Pantry, Fridge, Freezer, Spice Rack, Cabinet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacation",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "solo-trip",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Solo Trip"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Solo Trip"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-solo-trip",
+        "reference": "Vacation chooser > Solo Trip"
+      },
+      "state_tags": [
+        "vacation:solo"
+      ],
+      "title": "Solo Trip",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacation",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "vacation",
+      "id": "vacation-chooser",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-vacation-chooser",
+        "reference": "Settings > Vacation"
+      },
+      "state_tags": [
+        "vacation:off",
+        "vacation:scheduled",
+        "vacation:active"
+      ],
+      "title": "Vacation (chooser)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacation",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "vacation-mode",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Vacation Mode"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Vacation Mode"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-vacation-mode",
+        "reference": "Vacation chooser > Vacation Mode"
+      },
+      "state_tags": [
+        "vacation:scheduled",
+        "vacation:active"
+      ],
+      "title": "Vacation Mode",
+      "writes_on_reach": false
+    },
+    {
+      "area": "login",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "login",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Launch with FENTON_UITEST_RESET=1, no token"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Launch with FENTON_UITEST_RESET=1, no token"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "native LoginViewController (not authored)",
+        "reference": "Cold launch signed out (sign-in screen)"
+      },
+      "state_tags": [
+        "auth:signed_out"
+      ],
+      "title": "Sign in (fresh and welcome back)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "placeholder-screen",
+      "in_scope": false,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "expo-only",
+      "reach": {
+        "candidate": [
+          {
+            "press": "none reachable"
+          }
+        ],
+        "reference": [
+          {
+            "press": "none reachable"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": null,
+        "reference": "Coming-soon placeholder (stub)"
+      },
+      "state_tags": [],
+      "title": "Placeholder screen (coming in a later update)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "server-ui-boundary",
+      "in_scope": true,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "native-only",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Launch with no publication (hass-test 1.3.0 or an empty mock)"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Launch with no publication (hass-test 1.3.0 or an empty mock)"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "recovery boundary drawn when no valid publication exists",
+        "reference": "Not applicable (the old app compiled its pages)"
+      },
+      "state_tags": [
+        "publication:none"
+      ],
+      "title": "Layout recovery boundary (no published layout on screen)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "watch",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "watch-app",
+      "in_scope": false,
+      "kind": "page",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "expo-only",
+      "reach": {
+        "candidate": [
+          {
+            "press": "not on the Duo"
+          }
+        ],
+        "reference": [
+          {
+            "press": "not on the Duo"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": null,
+        "reference": "Apple Watch stub"
+      },
+      "state_tags": [],
+      "title": "Apple Watch app (stub)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "home",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "room-group-detail",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Status rail chip"
+          },
+          {
+            "press": "Tap a group row"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Status rail chip"
+          },
+          {
+            "press": "Tap a group row"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-group-{light,climate,contact,occupancy}-N (57 modals) and hc-*-detail pages",
+        "reference": "Overview sheet row (push inside sheet)"
+      },
+      "state_tags": [
+        "light:group"
+      ],
+      "title": "Room group detail (pushed in an overview sheet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "home",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "room-overview-air-quality",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Air Quality chip"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Air Quality chip"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-overview-air-quality",
+        "reference": "Home status chip: Air Quality (large sheet)"
+      },
+      "state_tags": [
+        "air_quality:any"
+      ],
+      "title": "Air Quality overview",
+      "writes_on_reach": false
+    },
+    {
+      "area": "home",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "room-overview-climate",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Climate chip"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Climate chip"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-overview-climate",
+        "reference": "Home status chip: Climate (large sheet)"
+      },
+      "state_tags": [
+        "climate:any"
+      ],
+      "title": "Climate overview",
+      "writes_on_reach": false
+    },
+    {
+      "area": "home",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "room-overview-contacts",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Contacts chip"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Contacts chip"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-overview-contacts",
+        "reference": "Home status chip: Contacts (large sheet)"
+      },
+      "state_tags": [
+        "contact:open"
+      ],
+      "title": "Contact Sensors overview",
+      "writes_on_reach": false
+    },
+    {
+      "area": "home",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "room-overview-lights",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Lights chip"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Lights chip"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-overview-lights",
+        "reference": "Home status chip: Lights (large sheet)"
+      },
+      "state_tags": [
+        "light:on"
+      ],
+      "title": "Lights overview",
+      "writes_on_reach": false
+    },
+    {
+      "area": "home",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "room-overview-occupancy",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Occupancy chip"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "manual": "Status rail: Occupancy chip"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-overview-occupancy",
+        "reference": "Home status chip: Occupancy (large sheet)"
+      },
+      "state_tags": [
+        "occupancy:any"
+      ],
+      "title": "Occupancy overview",
+      "writes_on_reach": false
+    },
+    {
+      "area": "home",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "weather",
+      "id": "weather-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        },
+        {
+          "ax_match": "(?i)weather|forecast|\u00b0",
+          "label": "weather"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Weather summary card"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Weather summary card"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-weather-sheet",
+        "reference": "Home weather card (large dark sheet)"
+      },
+      "state_tags": [
+        "weather:forecast"
+      ],
+      "title": "Weather sheet (forecast, always dark)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "security",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "disarm-confirm-alert",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Security"
+          },
+          {
+            "manual": "Alarm panel > Disarm"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Security"
+          },
+          {
+            "manual": "Alarm panel > Disarm"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "confirm action inside modal-security-system (inline, no modal id)",
+        "reference": "Alert from the alarm panel (Disarm)"
+      },
+      "state_tags": [
+        "alarm:armed_away"
+      ],
+      "title": "Disarm the Security System? (alert)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "security",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "security-system-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Security"
+          },
+          {
+            "press": "Alarm panel card"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Security"
+          },
+          {
+            "press": "Alarm panel card"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-security-system",
+        "reference": "Security tab alarm card sheet"
+      },
+      "state_tags": [
+        "alarm:armed_away",
+        "alarm:disarmed"
+      ],
+      "title": "Security System sheet (alarm card)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "climate",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "climate-automation-details",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Climate"
+          },
+          {
+            "press": "Advanced Controls"
+          },
+          {
+            "press": "Automation or Tracking tab"
+          },
+          {
+            "press": "a row"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Climate"
+          },
+          {
+            "press": "Advanced Controls"
+          },
+          {
+            "press": "Automation or Tracking tab"
+          },
+          {
+            "press": "a row"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-eco-away-detail, hc-eco-critical-detail, hc-predictive-detail, hc-tracking-{critical,occupied,selected}",
+        "reference": "Climate sheet > Automation or Tracking (push)"
+      },
+      "state_tags": [
+        "climate:eco"
+      ],
+      "title": "Automation and Tracking detail pages (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "climate",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "climate-room-detail",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Climate"
+          },
+          {
+            "press": "Advanced Controls"
+          },
+          {
+            "press": "Rooms tab"
+          },
+          {
+            "press": "a room"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Climate"
+          },
+          {
+            "press": "Advanced Controls"
+          },
+          {
+            "press": "Rooms tab"
+          },
+          {
+            "press": "a room"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-climate-*-detail and hc-climate-room-*-detail pages (26)",
+        "reference": "Climate sheet > Rooms > a room (push inside sheet)"
+      },
+      "state_tags": [
+        "climate:any",
+        "vent:any"
+      ],
+      "title": "Climate room detail (target dial, vents)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "climate",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "climate-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Climate"
+          },
+          {
+            "press": "Advanced Controls"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Climate"
+          },
+          {
+            "press": "Advanced Controls"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-climate-sheet",
+        "reference": "Climate tab Advanced Controls (large sheet, tabs Rooms, Automation, Tracking)"
+      },
+      "state_tags": [
+        "climate:any"
+      ],
+      "title": "Thermostat advanced controls (Rooms, Automation, Tracking)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "add-admin-todo-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "To-Do"
+          },
+          {
+            "press": "Add"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "To-Do"
+          },
+          {
+            "press": "Add"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "add-to-do",
+        "reference": "Admin to-do > Add"
+      },
+      "state_tags": [],
+      "title": "Add admin to-do sheet (with images)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "add-grocery-item-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Groceries"
+          },
+          {
+            "press": "Add"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "Groceries"
+          },
+          {
+            "press": "Add"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "add-groceries",
+        "reference": "Groceries > Add"
+      },
+      "state_tags": [],
+      "title": "Add grocery item sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "donetick-task-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "a chores page"
+          },
+          {
+            "press": "Add Task or a row"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          },
+          {
+            "press": "a chores page"
+          },
+          {
+            "press": "Add Task or a row"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "add-*-chores and edit-*-chores (10 modals)",
+        "reference": "Any chores page > Add Task or a task (create and edit)"
+      },
+      "state_tags": [],
+      "title": "Task sheet (create and edit)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "rename-todo-item-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "To-Do"
+          },
+          {
+            "manual": "row swipe or menu > Rename"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "To-Do"
+          },
+          {
+            "manual": "row swipe or menu > Rename"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "edit-to-do",
+        "reference": "Admin to-do row action > Rename"
+      },
+      "state_tags": [],
+      "title": "Rename to-do item sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "chores",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "todo-delete-dialog",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Chores"
+          },
+          {
+            "manual": "a row > Delete"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Chores"
+          },
+          {
+            "manual": "a row > Delete"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "confirm action (inline)",
+        "reference": "Row swipe/menu > Delete (confirmation)"
+      },
+      "state_tags": [],
+      "title": "Delete task? (confirmation dialog)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "app-icon-picker-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Appearance"
+          },
+          {
+            "press": "App Icon"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Appearance"
+          },
+          {
+            "press": "App Icon"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-app-icons",
+        "reference": "Settings > Appearance > App Icon"
+      },
+      "state_tags": [],
+      "title": "App Icon picker",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "auto-reset-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          },
+          {
+            "press": "Auto-Reset"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          },
+          {
+            "press": "Auto-Reset"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-auto-reset",
+        "reference": "Admin Controls > Auto-Reset"
+      },
+      "state_tags": [
+        "viewer:admin"
+      ],
+      "title": "Auto-Reset sheet (morning re-enable per room)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "feedback-discard-dialog",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Report an Issue"
+          },
+          {
+            "press": "type text"
+          },
+          {
+            "press": "Cancel"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Report an Issue"
+          },
+          {
+            "press": "type text"
+          },
+          {
+            "press": "Cancel"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "native alert (not authored in the layout)",
+        "reference": "Feedback form > Cancel with text (confirmation)"
+      },
+      "state_tags": [],
+      "title": "Discard feedback? (confirmation dialog)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "feedback-form-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "manual": "Report an Issue or Request a Feature"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "manual": "Report an Issue or Request a Feature"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-feedback-bug, modal-feedback-feature",
+        "reference": "Settings > Report an Issue / Request a Feature"
+      },
+      "state_tags": [],
+      "title": "Feedback form (Report an Issue, Request a Feature)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "feedback-result-alerts",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Report an Issue"
+          },
+          {
+            "press": "Submit"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Report an Issue"
+          },
+          {
+            "press": "Submit"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "native alert",
+        "reference": "Feedback form > Submit (result alerts)"
+      },
+      "state_tags": [],
+      "title": "Feedback result alerts (filed, couldn't send)",
+      "writes_on_reach": true
+    },
+    {
+      "area": "settings",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "ha-settings",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Home Assistant"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Home Assistant"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-ha-settings",
+        "reference": "Settings > Home Assistant (full-screen cover)"
+      },
+      "state_tags": [],
+      "title": "Home Assistant settings (full-screen cover)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "ha-sign-out-dialog",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Home Assistant"
+          },
+          {
+            "press": "Sign Out"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Home Assistant"
+          },
+          {
+            "press": "Sign Out"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "native alert",
+        "reference": "Home Assistant settings > Sign Out (confirmation)"
+      },
+      "state_tags": [],
+      "title": "Sign out of Home Assistant? (confirmation dialog)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "presence-override-detail",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          },
+          {
+            "press": "Presence-Based Overrides"
+          },
+          {
+            "press": "a room"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          },
+          {
+            "press": "Presence-Based Overrides"
+          },
+          {
+            "press": "a room"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-presence-N (14 pages)",
+        "reference": "Presence overrides > a room (push inside sheet)"
+      },
+      "state_tags": [
+        "presence:rooms"
+      ],
+      "title": "Room presence override detail (four modes)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "settings",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "presence-overrides-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          },
+          {
+            "press": "Presence-Based Overrides"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Admin Controls"
+          },
+          {
+            "press": "Presence-Based Overrides"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-presence",
+        "reference": "Admin Controls > Presence-Based Overrides"
+      },
+      "state_tags": [
+        "presence:rooms"
+      ],
+      "title": "Presence-Based Overrides sheet (room grid)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "rooms",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "room-card-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "a room"
+          },
+          {
+            "press": "a card"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "a room"
+          },
+          {
+            "press": "a card"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-room-items-N (11 modals)",
+        "reference": "Room page card > open (large sheet)"
+      },
+      "state_tags": [
+        "light:any"
+      ],
+      "title": "Room card sheet (groups, items, fallbacks)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "room-devices",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "air-purifier-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "a room page"
+          },
+          {
+            "press": "Air purifier tile"
+          }
+        ],
+        "reference": [
+          {
+            "press": "a room page"
+          },
+          {
+            "press": "Air purifier tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-air-purifier-N (6)",
+        "reference": "Room page > air purifier tile"
+      },
+      "state_tags": [
+        "fan:air_purifier"
+      ],
+      "title": "Air purifier sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "room-devices",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "bathroom-fan-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "a bathroom page"
+          },
+          {
+            "press": "Fan tile"
+          }
+        ],
+        "reference": [
+          {
+            "press": "a bathroom page"
+          },
+          {
+            "press": "Fan tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-bathroom-fan-N (2)",
+        "reference": "Room page > bathroom fan tile"
+      },
+      "state_tags": [
+        "fan:bathroom"
+      ],
+      "title": "Bathroom fan sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "room-devices",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "grill-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "the room with the grill"
+          },
+          {
+            "press": "Grill tile"
+          }
+        ],
+        "reference": [
+          {
+            "press": "the room with the grill"
+          },
+          {
+            "press": "Grill tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-grill-N",
+        "reference": "Room page > grill tile"
+      },
+      "state_tags": [
+        "grill:probe"
+      ],
+      "title": "Grill (Grill Probe) sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "room-devices",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "humidifier-activity-editor",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": false,
+      "presence": "expo-only",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Humidifier tile"
+          },
+          {
+            "press": "Schedules tab"
+          },
+          {
+            "press": "an activity"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Humidifier tile"
+          },
+          {
+            "press": "Schedules tab"
+          },
+          {
+            "press": "an activity"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": null,
+        "reference": "Humidifier sheet > Schedules > an activity (push)"
+      },
+      "state_tags": [
+        "humidifier:schedule"
+      ],
+      "title": "Humidifier activity editor (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "room-devices",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "humidifier-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Humidifier tile"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Humidifier tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-humidifier-N",
+        "reference": "Room page > humidifier tile (tabs Controls, Schedules, Info)"
+      },
+      "state_tags": [
+        "humidifier:any"
+      ],
+      "title": "Humidifier sheet (Controls, Schedules, Info)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "bed-alarm-day-page",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "Alarms"
+          },
+          {
+            "press": "a weekday"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "Alarms"
+          },
+          {
+            "press": "a weekday"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-bed-<side>-day-<weekday> (14)",
+        "reference": "Bed side sheet > Alarms > a day (push)"
+      },
+      "state_tags": [
+        "bed:alarm"
+      ],
+      "title": "Bed alarm day page (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "bed-alarm-editor",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "Alarms"
+          },
+          {
+            "press": "an alarm"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "Alarms"
+          },
+          {
+            "press": "an alarm"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-bed-<side>-alarm-editor (2)",
+        "reference": "Bed side sheet > an alarm (push)"
+      },
+      "state_tags": [
+        "bed:alarm"
+      ],
+      "title": "Bed alarm editor (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "bed-power-off-dialog",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "Power"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "Power"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "confirm action (inline)",
+        "reference": "Bed side sheet > Power off (confirmation)"
+      },
+      "state_tags": [
+        "bed:on"
+      ],
+      "title": "Turn off bed side? (confirmation dialog)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "bed-side-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-bed-<side> (2)",
+        "reference": "Master bedroom > a bed side tile (tabs Temperature, Special Modes, Alarms)"
+      },
+      "state_tags": [
+        "bed:alarm"
+      ],
+      "title": "Bed side sheet (Temperature, Special Modes, Alarms, Status)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "bed-temperature-scope-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "change target"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Bed side tile"
+          },
+          {
+            "press": "change target"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "inline option sheet (unchecked)",
+        "reference": "Bed side sheet > change temperature (Tonight or All Nights)"
+      },
+      "state_tags": [
+        "bed:on"
+      ],
+      "title": "Tonight or All Nights? (scope sheet)",
+      "writes_on_reach": true
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "schedule-delete-dialog",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "an alarm editor"
+          },
+          {
+            "press": "Delete"
+          }
+        ],
+        "reference": [
+          {
+            "press": "an alarm editor"
+          },
+          {
+            "press": "Delete"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "confirm action (inline)",
+        "reference": "Alarm or activity editor > Delete (confirmation)"
+      },
+      "state_tags": [],
+      "title": "Delete alarm or activity? (confirmation dialogs)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "wake-light-editor",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Wake light tile"
+          },
+          {
+            "press": "an alarm"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Wake light tile"
+          },
+          {
+            "press": "an alarm"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-wake-alarm-editor",
+        "reference": "Wake light sheet > an alarm (push)"
+      },
+      "state_tags": [
+        "bed:alarm"
+      ],
+      "title": "Wake alarm editor (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "bedroom",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "wake-light-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Wake light tile"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Master Bedroom"
+          },
+          {
+            "press": "Wake light tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-wake-light",
+        "reference": "Master bedroom > wake light tile"
+      },
+      "state_tags": [
+        "bed:alarm"
+      ],
+      "title": "Wake light sheet (Wake Alarms, Defaults)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "media",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "media-remote",
+      "id": "media-remote-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Media"
+          },
+          {
+            "press": "a device card"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Media"
+          },
+          {
+            "press": "a device card"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-remote-* (4)",
+        "reference": "Media card > open remote (large sheet, tabs Controls, Apps, Devices)"
+      },
+      "state_tags": [
+        "remote:any"
+      ],
+      "title": "Media remote sheet (Controls, Apps, Devices, Hue Sync)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "custom-lights",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "custom-light-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Custom Lights"
+          },
+          {
+            "press": "a light row"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Custom Lights"
+          },
+          {
+            "press": "a light row"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-light-N (8)",
+        "reference": "Custom Lights > a light (sheet)"
+      },
+      "state_tags": [
+        "light:color"
+      ],
+      "title": "Custom light sheet (brightness, colour)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "custom-lights",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "lighting-mode-picker",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Custom Lights"
+          },
+          {
+            "press": "Lighting Mode"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Custom Lights"
+          },
+          {
+            "press": "Lighting Mode"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "inline option sheet",
+        "reference": "Custom Lights > Lighting Mode (option sheet)"
+      },
+      "state_tags": [],
+      "title": "Lighting Mode picker (option sheet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "sprinklers",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sprinkler-controller-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": false,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Sprinklers"
+          },
+          {
+            "press": "a controller"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Sprinklers"
+          },
+          {
+            "press": "a controller"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-modal-sprinkler-{frontyard,backyard}",
+        "reference": "Sprinklers > a controller (large sheet)"
+      },
+      "state_tags": [
+        "sprinkler:zones"
+      ],
+      "title": "Sprinkler controller sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "sprinklers",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sprinkler-schedule-page",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": false,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Sprinklers"
+          },
+          {
+            "press": "a controller"
+          },
+          {
+            "press": "Schedule"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Sprinklers"
+          },
+          {
+            "press": "a controller"
+          },
+          {
+            "press": "Schedule"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-sprinkler-*-schedule-N (5)",
+        "reference": "Controller sheet > a zone schedule (push)"
+      },
+      "state_tags": [
+        "sprinkler:zones"
+      ],
+      "title": "Zone program schedule editor (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "sprinklers",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sprinkler-water-page",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": false,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Sprinklers"
+          },
+          {
+            "press": "a controller"
+          },
+          {
+            "press": "Water Now"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Sprinklers"
+          },
+          {
+            "press": "a controller"
+          },
+          {
+            "press": "Water Now"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-sprinkler-*-water-N (5)",
+        "reference": "Controller sheet > Water Now (push)"
+      },
+      "state_tags": [
+        "sprinkler:watering"
+      ],
+      "title": "Water a zone now (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacuums",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "vacuum-area-editor",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Use Area"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Use Area"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-vacuum-N-area (3)",
+        "reference": "Vacuum sheet > Rooms > Use Area (push)"
+      },
+      "state_tags": [
+        "vacuum:docked"
+      ],
+      "title": "Vacuum area editor (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacuums",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "vacuum-outcome-report",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum"
+          },
+          {
+            "press": "Info or report"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum"
+          },
+          {
+            "press": "Info or report"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-vacuum-N-report (3)",
+        "reference": "Vacuum sheet > report (push)"
+      },
+      "state_tags": [
+        "vacuum:report"
+      ],
+      "title": "Cleaning outcome report (pushed)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacuums",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "vacuum-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum card"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum card"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "device-vacuum-N-sheet (3)",
+        "reference": "Vacuums > a vacuum (large sheet, tabs Controls, Rooms, Auto-Clean, Dock, Info)"
+      },
+      "state_tags": [
+        "vacuum:cleaning",
+        "vacuum:paused",
+        "vacuum:error",
+        "vacuum:dock_wash"
+      ],
+      "title": "Vacuum sheet (Controls, Rooms, Auto-Clean, Dock, Info)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacuums",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "vacuum-switch-dialog",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Use Area or Use Rooms"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Vacuums"
+          },
+          {
+            "press": "a vacuum"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Use Area or Use Rooms"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "inline confirm",
+        "reference": "Vacuum sheet > Use Area / Use Rooms (confirmation)"
+      },
+      "state_tags": [],
+      "title": "Use Area / Use Rooms (confirmation)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "food",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "recipe-detail-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a recipe"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a recipe"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "detail-recipe, suggested-recipe",
+        "reference": "Recipes or suggested recipe > a recipe (large sheet, tabs General, Ingredients, Instructions)"
+      },
+      "state_tags": [
+        "recipes:list"
+      ],
+      "title": "Recipe detail (General, Ingredients, Instructions)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "food",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "recipe-filter-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "All Recipes"
+          },
+          {
+            "press": "Filter"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "All Recipes"
+          },
+          {
+            "press": "Filter"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "filter-recipes",
+        "reference": "Recipes > Filter"
+      },
+      "state_tags": [],
+      "title": "Filter Recipes (filter sheet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "food",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "recipe-sort-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "All Recipes"
+          },
+          {
+            "press": "Sort"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "All Recipes"
+          },
+          {
+            "press": "Sort"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "sort-recipes",
+        "reference": "Recipes > Sort"
+      },
+      "state_tags": [],
+      "title": "Sort Recipes (filter sheet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "inventory",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "inventory-delete-dialog",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "item swipe"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "item swipe"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "confirm action (inline)",
+        "reference": "Inventory space > item swipe > Delete"
+      },
+      "state_tags": [],
+      "title": "Delete item from the space? (confirmation dialog)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "inventory",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "inventory-filter-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "Filter"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "Filter"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "filter-inventory-* (6)",
+        "reference": "Inventory space > Filter"
+      },
+      "state_tags": [],
+      "title": "Filter Inventory (filter sheet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "inventory",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "inventory-item-editor",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "an item"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "an item"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "edit-inventory-* (6)",
+        "reference": "Inventory space > an item (edit)"
+      },
+      "state_tags": [
+        "inventory:items"
+      ],
+      "title": "Item editor (batches, expiry, quantity)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "inventory",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "inventory-quantity-prompt",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "item quantity"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "item quantity"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "inline prompt",
+        "reference": "Inventory space > quantity (alert with text field)"
+      },
+      "state_tags": [],
+      "title": "Quantity prompt (alert with text field)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "inventory",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "inventory-sort-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "Sort"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "Sort"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "sort-inventory-* (6)",
+        "reference": "Inventory space > Sort"
+      },
+      "state_tags": [],
+      "title": "Sort Inventory (filter sheet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "inventory",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "scan-item-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "Add Item"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Food & Recipes"
+          },
+          {
+            "press": "a space"
+          },
+          {
+            "press": "Add Item"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "scan-inventory-* (6)",
+        "reference": "Inventory space > Add Item (scanner)"
+      },
+      "state_tags": [],
+      "title": "Add Item scanner (barcode, expiry, review)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacation",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "solo-trip-editor-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Solo Trip"
+          },
+          {
+            "press": "Edit"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Solo Trip"
+          },
+          {
+            "press": "Edit"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-solo-editor",
+        "reference": "Solo Trip > Edit schedule"
+      },
+      "state_tags": [
+        "vacation:solo"
+      ],
+      "title": "Solo Trip schedule editor sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacation",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "vacation-confirmation-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Vacation Mode"
+          },
+          {
+            "press": "Enable"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Vacation Mode"
+          },
+          {
+            "press": "Enable"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-vacation-confirm",
+        "reference": "Vacation Mode > Enable (dates confirmation)"
+      },
+      "state_tags": [
+        "vacation:off"
+      ],
+      "title": "Vacation dates (confirmation sheet)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "vacation",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "vacation-disable-alert",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Vacation Mode"
+          },
+          {
+            "press": "Turn Off"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Settings"
+          },
+          {
+            "press": "Vacation"
+          },
+          {
+            "press": "Vacation Mode"
+          },
+          {
+            "press": "Turn Off"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "confirm action (inline)",
+        "reference": "Vacation Mode > Turn Off (alert)"
+      },
+      "state_tags": [
+        "vacation:active"
+      ],
+      "title": "Turn Off Vacation Mode? (alert)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "cameras",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "camera-photos-denied-alert",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Camera tile"
+          },
+          {
+            "press": "Save"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Camera tile"
+          },
+          {
+            "press": "Save"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "native alert (not authored)",
+        "reference": "Camera viewer > Save Photo with Photos access denied (alert)"
+      },
+      "state_tags": [
+        "perm:photos:denied"
+      ],
+      "title": "Allow Photos Access (alert)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "cameras",
+      "capture_class": "dynamic",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "camera-viewer",
+      "id": "camera-viewer",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [
+        {
+          "ax_match": "^\\d{1,2}:\\d{2}(\\s?[AP]M)?$",
+          "label": "clock"
+        },
+        {
+          "ax_match": "\\b\\d+\\s?(s|sec|min|minutes?|h|hours?|d|days?)\\s+ago\\b|\\bnow\\b",
+          "label": "relative-time"
+        },
+        {
+          "ax_match": "(?i)camera|stream|live view",
+          "label": "camera-feed"
+        }
+      ],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Camera tile"
+          }
+        ],
+        "reference": [
+          {
+            "press": "Home"
+          },
+          {
+            "press": "Camera tile"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "hc-camera-N-modal (4)",
+        "reference": "Home or Security camera tile (dark sheet)"
+      },
+      "state_tags": [
+        "camera:any"
+      ],
+      "title": "Camera viewer (live video, always dark)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "location",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": "location",
+      "id": "location-permission-sheet",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "press": "Location row"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "press": "Location row"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-location",
+        "reference": "Setup or Your Summary > location (large sheet)"
+      },
+      "state_tags": [
+        "perm:location:denied"
+      ],
+      "title": "Location permission (stages)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "quick-links",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-quick-links",
+        "reference": "sheet from header Quick Links"
+      },
+      "state_tags": [
+        "alarm:any",
+        "inventory:counts"
+      ],
+      "title": "Quick Links sheet",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Drooms",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Drooms"
+      },
+      "gallery_page": "rooms",
+      "id": "quick-links-rooms",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-rooms (route rooms)",
+        "reference": "Quick Links > Rooms (push inside sheet)"
+      },
+      "state_tags": [
+        "rooms:ranked"
+      ],
+      "title": "Quick Links: Rooms grid",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dsecurity-system",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dsecurity-system"
+      },
+      "gallery_page": null,
+      "id": "quick-links-security-system",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Security System"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Security System"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-security-system (route security-system)",
+        "reference": "Quick Links > Security System (push inside sheet)"
+      },
+      "state_tags": [
+        "alarm:armed_away"
+      ],
+      "title": "Quick Links: Security System detail",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sign-out-alert",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "press": "Sign Out"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "press": "Sign Out"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "native alert",
+        "reference": "Your Summary > Sign Out (alert)"
+      },
+      "state_tags": [],
+      "title": "Sign Out of Home Assistant? (alert)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sign-out-failed-alert",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "press": "Sign Out"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "press": "Sign Out"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "native alert",
+        "reference": "Sign Out failure (alert)"
+      },
+      "state_tags": [],
+      "title": "Sign Out couldn't complete (alert)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "your-summary",
+      "in_scope": true,
+      "kind": "modal",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "manual": "Sheet tabs: Profile, Chores, Expired Food, Upcoming"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: profile button (opens Your Summary)"
+          },
+          {
+            "manual": "Sheet tabs: Profile, Chores, Expired Food, Upcoming"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "modal-profile (+ summary-*-editor modals)",
+        "reference": "Profile button sheet (four tabs)"
+      },
+      "state_tags": [
+        "todo:overdue",
+        "inventory:expired"
+      ],
+      "title": "Your Summary (Account sheet, four tabs)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "flyout-navigation",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "iPad, unfolded Duo or iPhone menu"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "iPad, unfolded Duo or iPhone menu"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Flyout navigation"
+      },
+      "state_tags": [],
+      "title": "Flyout navigation (iPad, unfolded Duo, iPhone menu button)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "launch-cold-signed-in",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "cold launch with a saved session"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "cold launch with a saved session"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Cold launch, signed in"
+      },
+      "state_tags": [],
+      "title": "Cold launch, signed in (snapshot, no intro)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "launch-cold-signed-out",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "fresh install"
+          }
+        ],
+        "reference": [
+          {
+            "press": "fresh install"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Cold launch, signed out (intro)"
+      },
+      "state_tags": [],
+      "title": "Cold launch, signed out (intro)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "notification-deep-link",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "fentonhome://liveactivity?url=..."
+          }
+        ],
+        "reference": [
+          {
+            "manual": "fentonhome://liveactivity?url=..."
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Deep link into a page"
+      },
+      "state_tags": [],
+      "title": "Notification, Spotlight and Live Activity deep links",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "offline-reconnect",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "connection loss"
+          }
+        ],
+        "reference": [
+          {
+            "press": "connection loss"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Offline and reconnect"
+      },
+      "state_tags": [],
+      "title": "Offline and reconnect",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "push-pop-navigation",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "navigation stack"
+          }
+        ],
+        "reference": [
+          {
+            "press": "navigation stack"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Push and pop within a section stack"
+      },
+      "state_tags": [],
+      "title": "Push and pop within a section stack",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "quick-links-to-page",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "navigation"
+          }
+        ],
+        "reference": [
+          {
+            "press": "navigation"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Quick Links to a page (sheet closes, then push)"
+      },
+      "state_tags": [],
+      "title": "Quick Links to a page (sheet closes, then push)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "session-expired-welcome-back",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "rejected token"
+          }
+        ],
+        "reference": [
+          {
+            "press": "rejected token"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Session expired, welcome back"
+      },
+      "state_tags": [],
+      "title": "Session expired, welcome back sign-in",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sheet-presentation",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "sheets"
+          }
+        ],
+        "reference": [
+          {
+            "press": "sheets"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Sheet presentation, detents and dismissal"
+      },
+      "state_tags": [],
+      "title": "Sheet presentation, detents and dismissal",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sign-in-to-home-arrival",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "sign-in motion"
+          }
+        ],
+        "reference": [
+          {
+            "press": "sign-in motion"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Sign-in to Home arrival"
+      },
+      "state_tags": [],
+      "title": "Sign-in to Home arrival",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "sign-out",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "account sheet"
+          }
+        ],
+        "reference": [
+          {
+            "press": "account sheet"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Sign out"
+      },
+      "state_tags": [],
+      "title": "Sign out (Account sheet or Home Assistant settings)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "tab-navigation",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "press": "tabs"
+          }
+        ],
+        "reference": [
+          {
+            "press": "tabs"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "same flow in the published shell (canonical-shell@1 policy)",
+        "reference": "flow: Tab navigation (tab bar, re-tap, badge)"
+      },
+      "state_tags": [],
+      "title": "Tab navigation (tab bar, re-tap, badge)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "zoom-transition",
+      "in_scope": false,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "expo-only",
+      "reach": {
+        "candidate": [
+          {
+            "press": "not reachable"
+          }
+        ],
+        "reference": [
+          {
+            "press": "not reachable"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": null,
+        "reference": "Designed, not wired"
+      },
+      "state_tags": [],
+      "title": "Zoom transition (designed, not wired)",
+      "writes_on_reach": false
+    },
+    {
+      "area": "shell",
+      "capture_class": "flow",
+      "deep_link": {
+        "candidate": null,
+        "reference": null
+      },
+      "gallery_page": null,
+      "id": "native-bootstrap-setup",
+      "in_scope": true,
+      "kind": "flow",
+      "masks": [],
+      "native_reachable": true,
+      "presence": "native-only",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Launch with FENTON_UITEST_RESET=1 and a token"
+          }
+        ],
+        "reference": []
+      },
+      "routes": {
+        "candidate": "bootstrap.setup (3 steps) drawn by UKSetupSheet",
+        "reference": null
+      },
+      "state_tags": [
+        "auth:fresh"
+      ],
+      "title": "Authored first-run setup with native consent (3 steps)",
+      "writes_on_reach": false
+    }
+  ]
+}
