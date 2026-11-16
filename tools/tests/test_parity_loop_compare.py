@@ -95,7 +95,7 @@ class CompareTests(unittest.TestCase):
         self.assertEqual(unmasked["verdict"], "fail")
         mask = self.dir / "mask.json"
         mask.write_text(json.dumps([{"label": "live", "x": 0, "y": 90, "width": 120, "height": 100, "unit": "px"}]))
-        masked = epc.judge(self.spec(cand=(BIG,), mask_files=[mask]), self.dir, args(drift=False))
+        masked = epc.judge(self.spec(cand=(BIG,), mask_files=[mask]), self.dir, args(drift=False, max_mask_percent=100))
         self.assertEqual(masked["verdict"], "pass")
         mask.write_text(json.dumps({"regions": []}))
         self.assertEqual(epc.load_regions([mask]), [])
@@ -126,6 +126,41 @@ class CompareTests(unittest.TestCase):
         self.assertEqual(epc.status_bar_rects("duo", size, 2.0)[1][1][0], 218)  # (466 px / 2 - 124 pt) * 2
         override = {"only": [0, 0, 10, 10]}
         self.assertEqual(epc.status_bar_rects("duo", size, 1.0, override), [("only", (0, 0, 10, 10))])
+
+    def test_drift_uses_the_tighter_noise_floor_by_default(self) -> None:
+        small = ((10, 100, 20, 105), (200, 40, 40))  # 50 px of 24000: 0.21%, under the 1.0% gate, over the 0.15% noise floor
+        record = epc.judge(self.spec(ref2=(small,)), self.dir, args())
+        self.assertEqual(record["verdict"], "drift")
+        self.assertAlmostEqual(record["drift"]["changedPercent"], 0.2083, places=3)
+        self.assertEqual(epc.judge(self.spec(ref2=(small,)), self.dir, args(drift_max_percent=1.0))["verdict"], "pass")
+        self.assertEqual(epc.DRIFT_MAX_PERCENT, 0.15)
+
+    def test_a_missing_second_reference_ax_tree_fails_instead_of_skipping(self) -> None:
+        row = {"role": "Button", "label": "A", "value": "", "enabled": True, "selected": False}
+        files = {"reference": ax_file(self.dir / "a.json", [row]), "candidate": ax_file(self.dir / "b.json", [row])}
+        record = epc.judge(self.spec(ax_files=files), self.dir, args(require_ax=True))
+        self.assertEqual(record["verdict"], "fail")
+        self.assertIn("AX tree not recorded on reference2", record["failures"])
+        files["reference2"] = self.dir / "does-not-exist.json"
+        self.assertEqual(epc.judge(self.spec(ax_files=files), self.dir, args(require_ax=True))["verdict"], "fail")
+
+    def test_masks_covering_too_much_of_the_image_refuse_the_pair(self) -> None:
+        wide = self.dir / "wide.json"
+        wide.write_text(json.dumps([{"label": "everything", "x": 0, "y": 60, "width": 120, "height": 100, "unit": "px"}]))  # 50%
+        record = epc.judge(self.spec(mask_files=[wide]), self.dir, args())
+        self.assertEqual(record["verdict"], "refused")
+        self.assertIn("masks cover 50.0% of the image", record["failures"][0])
+        self.assertEqual(record["maskedPercent"], 50.0)
+        self.assertNotIn("changedPixels", record)
+
+    def test_masked_percent_is_the_union_and_is_recorded_under_the_cap(self) -> None:
+        overlapping = [{"x": 0, "y": 100, "width": 60, "height": 20, "unit": "px"}, {"x": 30, "y": 100, "width": 60, "height": 20, "unit": "px"}]
+        self.assertEqual(epc.masked_percent((120, 200), 1.0, overlapping), 100.0 * 90 * 20 / 24000)
+        small = self.dir / "small.json"
+        small.write_text(json.dumps(overlapping))
+        record = epc.judge(self.spec(mask_files=[small]), self.dir, args())
+        self.assertEqual((record["verdict"], record["maskedPercent"]), ("pass", 7.5))
+        self.assertEqual(epc.MAX_MASK_PERCENT, 15.0)
 
     def test_skipped_entry_and_exit_codes(self) -> None:
         manifest = {"pairs": [{"id": "s", "reference_png": "", "candidate_png": "", "skipped": "writes_on_reach and no deep link"}]}

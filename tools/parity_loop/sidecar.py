@@ -86,7 +86,7 @@ def app_facts(runner: Runner, udid: str, bundle_id: str = BUNDLE_ID) -> Dict[str
 
 def collect(udid: str, side: str, *, png: Optional[Path] = None, scale: int = 3, appearance: Optional[str] = None,
             pose: str = "folded", source: str = "fixture", launch_args: Sequence[str] = (), env_names: Sequence[str] = (),
-            house: bool = False, bundle_hash: Optional[str] = None, runner: Runner = run, now: Optional[datetime] = None,
+            house: bool = False, status_bar_normalized: bool = True, bundle_hash: Optional[str] = None, runner: Runner = run, now: Optional[datetime] = None,
             tool_sha: str = "", extra: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """A sidecar for one capture. ``bundle_hash`` (already measured this run) skips re-hashing the bundle."""
     sidecar: Dict[str, Any] = {"schema": SCHEMA, "side": side}
@@ -101,7 +101,7 @@ def collect(udid: str, side: str, *, png: Optional[Path] = None, scale: int = 3,
     shown = appearance if appearance is not None else _simctl(runner, "ui", udid, "appearance").out.strip()
     sidecar["appearance"] = shown
     listing = _simctl(runner, "status_bar", udid, "list")
-    sidecar["statusBarNormalized"] = True
+    sidecar["statusBarNormalized"] = bool(status_bar_normalized)
     sidecar["statusBarOverride"] = re.sub(r"\s+", " ", listing.out).strip() if listing.code == 0 else "unknown"
     sidecar.update(pose=pose, source=source, house=house, launchArguments=list(launch_args),
                    launchEnvNames=sorted(env_names), toolSha=tool_sha)

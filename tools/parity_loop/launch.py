@@ -3,9 +3,9 @@
 
     launch.py gallery --side reference|candidate --agent CMD --udid UDID [--page NAME] [--publication DIR]
     launch.py live    --side reference|candidate --udid UDID --proxy-url URL
-    launch.py proxy   --log FILE [--listen HOST:PORT]
+    launch.py proxy   --log FILE [--listen HOST:PORT]     (FILE must be git-ignored)
 
-**Gallery mode** relaunches the app through the bound ``agent-device``: the reference with ``--gallery-fixture`` on the named
+Every launch needs a ``tools/devcap.py`` simulator hold (``DEVCAP_HELD``). **Gallery mode** relaunches the app through the bound ``agent-device``: the reference with ``--gallery-fixture`` on the named
 gallery page, the candidate with ``--server-ui-preview`` (after :func:`feed_preview` copied a publication in).
 
 **Live mode** refuses unless ``PARITY_LIVE_GO=1`` is set. It signs the reference into Home Assistant with a token launch
@@ -25,7 +25,7 @@ import shlex
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from parity_loop.capture import Agent  # noqa: E402
@@ -33,6 +33,13 @@ from parity_loop.common import APPS, BUNDLE_ID, CANDIDATE, REFERENCE, REPO, Runn
 
 GO_VARIABLE = "PARITY_LIVE_GO"
 GALLERY_ARGS = {REFERENCE: ["--gallery-fixture"], CANDIDATE: ["--server-ui-preview"]}
+HELD_VARIABLE = "DEVCAP_HELD"
+#: What each live half is launched with, for the sidecar: ``(launch arguments, environment variable NAMES)``. Names only, never
+#: values. The reference's server variable points at the guard proxy; the candidate gets its server from ``bootstrap.json``.
+LIVE_LAUNCH = {
+    REFERENCE: ([], ["FENTON_HASS_TOKEN", "FENTON_HASS_SERVER", "FENTON_SYSTEM_SETTINGS", "FENTON_SKIP_INTRO"]),
+    CANDIDATE: (["--server-ui-preview"], ["FENTON_PREVIEW_HA_TOKEN", "FENTON_SYSTEM_SETTINGS", "FENTON_SKIP_INTRO"]),
+}
 FIXTURE_SUBPATH = "Library/Application Support/GalleryFixture"
 PREVIEW_SUBPATH = "Library/Application Support/ServerUIPreview"
 
@@ -45,6 +52,25 @@ def require_go(env: Mapping[str, str]) -> None:
     """Live mode needs the owner's go, recorded as ``PARITY_LIVE_GO=1`` in the environment."""
     if env.get(GO_VARIABLE) != "1":
         raise Refused(f"live mode refused: {GO_VARIABLE}=1 is not set (the owner's go for read-only live captures)")
+
+
+def require_hold(env: Mapping[str, str]) -> None:
+    """Launching an app on a simulator needs a ``tools/devcap.py`` simulator hold (``DEVCAP_HELD`` names the gates held)."""
+    if "simulator" not in env.get(HELD_VARIABLE, "").split(","):
+        raise Refused("launch refused: take a devcap simulator hold first (tools/devcap.py run --sim UDID ...)")
+
+
+def launch_record(mode: str, side: str) -> Tuple[List[str], List[str]]:
+    """The launch arguments and environment variable names a half is launched with in ``mode``, for its sidecar."""
+    if mode == "live":
+        args, names = LIVE_LAUNCH[side]
+        return list(args), sorted(names)
+    return list(GALLERY_ARGS[side]), []
+
+
+def log_is_ignored(path: Path, runner: Runner = run) -> bool:
+    """True when git ignores ``path`` (a proxy log must never sit where it could be committed)."""
+    return runner(["git", "-C", str(REPO), "check-ignore", "-q", str(path)]).code == 0
 
 
 # MARK: - Gallery mode
@@ -139,6 +165,7 @@ def launch_live(side: str, udid: str, proxy_url: Optional[str], runner: Runner =
     """
     child = dict(os.environ if env is None else env)
     require_go(child)
+    require_hold(child)
     if not proxy_url:
         raise Refused("live launches need --proxy-url pointing at the write-guard proxy")
     child["PROXY_URL"] = proxy_url
@@ -159,10 +186,15 @@ def proxy_script(log: Path, listen: str) -> str:
     return f"source {creds}; hass_load_creds || exit 2; hass_require_creds || exit 2; exec " + " ".join(shlex.quote(p) for p in proxy)
 
 
-def run_proxy(log: Path, listen: str, env: Optional[Mapping[str, str]] = None) -> int:
-    """Replace this process with the guard proxy, started with the go and the credentials file's server."""
+def run_proxy(log: Path, listen: str, env: Optional[Mapping[str, str]] = None, runner: Runner = run) -> int:
+    """Replace this process with the guard proxy, started with the go and the credentials file's server.
+
+    The log path must be ignored by git: even a templated log is house traffic and must not be committable.
+    """
     child = dict(os.environ if env is None else env)
     require_go(child)
+    if not log_is_ignored(log, runner):
+        raise Refused("the proxy log must be in a git-ignored folder (for example build/evidence/parity-loop/<run>/)")
     os.execvpe("bash", ["bash", "-c", proxy_script(log, listen)], child)
     return 1  # not reached
 
@@ -188,6 +220,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = ap.parse_args(argv)
     try:
         if args.verb == "gallery":
+            require_hold(dict(os.environ))
             if args.publication and args.side == CANDIDATE:
                 feed_preview(container(run, args.udid, "data"), args.publication)
             launch_gallery(args.side, Agent(args.agent), args.udid, args.page)

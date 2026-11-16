@@ -116,12 +116,12 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
         size = png_size(shot.png)
         if ctx.family["size"] and size and size != ctx.family["size"]:
             problems.append(f"{stem}: screenshot is {size[0]}x{size[1]}, expected {ctx.family['size'][0]}x{ctx.family['size'][1]}")
+        launch_args, env_names = launch_mod.launch_record(ctx.mode, side)
         car = sidecar_mod.collect(
-            half.udid, side, png=shot.png, scale=ctx.family["scale"], appearance=ctx.appearance, pose=ctx.family["pose"],
-            source="live" if ctx.mode == "live" else "fixture", launch_args=launch_mod.GALLERY_ARGS.get(side, []),
-            env_names=["FENTON_HASS_TOKEN", "FENTON_HASS_SERVER"] if ctx.mode == "live" and side == REFERENCE else [],
-            house=ctx.mode == "live", bundle_hash=ctx.bundle_hashes.get(side), runner=ctx.runner, tool_sha=ctx.tool_sha,
-            extra={"surface": sid, "shot": stem, "reachMethod": plan.method})
+            half.udid, side, png=shot.png, scale=ctx.family["scale"], pose=ctx.family["pose"],  # appearance: measured, not requested
+            source="live" if ctx.mode == "live" else "fixture", launch_args=launch_args, env_names=env_names,
+            house=ctx.mode == "live", status_bar_normalized=shot.screenshot_ok, bundle_hash=ctx.bundle_hashes.get(side), runner=ctx.runner,
+            tool_sha=ctx.tool_sha, extra={"surface": sid, "shot": stem, "reachMethod": plan.method})
         write_json(folder / f"{stem}.sidecar.json", car)
         entry[f"{stem}_png"] = f"{sid}/{stem}.png"
         entry[f"{stem}_sidecar"] = f"{sid}/{stem}.sidecar.json"
@@ -162,8 +162,10 @@ def select(document: Mapping[str, Any], ids: Optional[Sequence[str]]) -> List[Di
 def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optional[str] = None,
             env: Optional[Mapping[str, str]] = None, pin_path: Path = DEFAULT_PIN) -> int:
     """Capture every surface, then judge them; the exit status is the compare tool's (0 pass, 1 fail, 2 refused)."""
+    environment = env if env is not None else os.environ
+    launch_mod.require_hold(environment)
     if ctx.mode == "live":
-        launch_mod.require_go(env if env is not None else os.environ)
+        launch_mod.require_go(environment)
         if not ensure_ignored(ctx.run_dir, ctx.runner):
             raise launch_mod.Refused("live captures hold house data: the output folder must be ignored by git")
     ctx.run_dir.mkdir(parents=True, exist_ok=True)
@@ -171,7 +173,8 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
     if error:
         raise launch_mod.Refused(error)
     for half in ctx.halves.values():
-        half.agent.appearance(ctx.appearance)
+        if not half.agent.appearance(ctx.appearance).get("success"):
+            raise launch_mod.Refused(f"could not set the {half.side} simulator to {ctx.appearance} appearance")
     entries = [run_surface(surface, ctx) for surface in surfaces]
     if pin_hash and sidecar_mod.app_facts(ctx.runner, ctx.halves[REFERENCE].udid)["bundleHash"] != pin_hash:
         raise launch_mod.Refused("the reference bundle changed during the run")
