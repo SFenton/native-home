@@ -160,11 +160,6 @@ enum UKServerUIPreflight {
                 for (index, state) in panel.states.enumerated() {
                     try symbol(state.appearance.icon, at: path + "/props/states/\(index)/appearance/icon")
                 }
-            case .doorTile(let tile):
-                try symbol(tile.fallback.icon, at: path + "/props/fallback/icon")
-                for (index, state) in tile.states.enumerated() {
-                    try symbol(state.appearance.icon, at: path + "/props/states/\(index)/appearance/icon")
-                }
             case .climate(let control):
                 let choices = (control.props.choices ?? []).enumerated().map { ($0.element.icon, path + "/props/choices/\($0.offset)/icon") }
                 let modes = (control.props.hub?.modes ?? []).enumerated().map { ($0.element.icon, path + "/props/hub/modes/\($0.offset)/icon") }

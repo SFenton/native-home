@@ -345,7 +345,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
 
         try bindings.validateReplacement(candidate.document.dataSources)
         if candidate.document.navigation != publication.document.navigation,
-           bindings.alarms.values.contains(where: \.hasPendingIntent) || bindings.doors.values.contains(where: \.hasPendingIntent) {
+           bindings.alarms.values.contains(where: \.hasPendingIntent) {
             throw blocked()
         }
         if candidate.document != publication.document,
@@ -464,10 +464,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             let source: String
             switch attachment.component {
             case .alarmPanel(let panel): source = panel.sourceId
-            case .doorTile(let tile): source = tile.sourceId
             default: continue
             }
-            if bindings.alarms[source]?.hasPendingIntent == true || bindings.doors[source]?.hasPendingIntent == true {
+            if bindings.alarms[source]?.hasPendingIntent == true {
                 throw blocked("/document/dataSources")
             }
         }
@@ -493,7 +492,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         func visit(_ components: [D.Component], surfaceID: String) {
             for component in components {
                 switch component {
-                case .alarmPanel, .doorTile:
+                case .alarmPanel:
                     result[component.node.id] = .init(surfaceID: surfaceID, component: component)
                 default: break
                 }
@@ -1699,22 +1698,6 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if let page = modal?.viewControllers.last as? UKServerUIPage {
             modal?.isModalInPresentation = nativeExitGate?.blocksExit(page) == true
         }
-    }
-
-    /// Runs a door tile's reserved action after re-checking the tile against the published document.
-    /// - Parameters:
-    ///   - tile: The authored tile.
-    ///   - expected: The action the tile showed.
-    ///   - page: The page that owns it.
-    ///   - source: The view that was tapped.
-    func activateDoor(_ tile: D.DoorTile, expected: TileActionSpec, from page: UKServerUIPage, source: UIView) {
-        do {
-            guard senderStack(page) != nil, !isBusy, activeAlert == nil,
-                  securityControls(publication.document)[tile.node.id] == SecurityAttachment(surfaceID: page.surfaceID, component: .doorTile(tile)),
-                  let model = bindings.doors[tile.sourceId] else { throw blocked() }
-            try model.execute(model.reserve(expected: expected))
-        } catch let error as UKServerUIRendererError { onError(error) }
-        catch { onError(blocked()) }
     }
 
     /// Runs an alarm panel mode change and reports any failure through ``onError``.

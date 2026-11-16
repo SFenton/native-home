@@ -15,7 +15,8 @@ struct ServerUIDoorLoweringTests {
         let props = try #require(component["props"])
         func appearance(_ json: JSONValue) -> ServerUICompositionDocument.AlarmAppearance {
             .init(icon: .init(name: json["icon"]?["name"]?.string ?? "", rendering: .canonical, unavailable: .reject),
-                  fill: .standard, text: json["text"]?.string ?? "")
+                  fill: .solidRGB(red: Int(json["fill"]?["red"]?.number ?? 0), green: Int(json["fill"]?["green"]?.number ?? 0),
+                                  blue: Int(json["fill"]?["blue"]?.number ?? 0)), text: json["text"]?.string ?? "")
         }
         let kind: ServerUICompositionDocument.DoorKind = props["kind"]?.string == "lock" ? .lock : .garage
         let states = (props["states"]?.array ?? []).map {
@@ -59,6 +60,17 @@ struct ServerUIDoorLoweringTests {
         let stop = read(style, "opening", id, features: StateStyle.coverStopFeature).1
         #expect(stop?.verb == "Stop" && stop?.call?.service == "stop_cover", "a cover that can stop keeps Stop")
         #expect(read(style, "closed", id).1?.call?.service == "open_cover")
+    }
+
+    @Test func theAuthoredFillsAndHiddenWordsLiveInTheStyle() throws {
+        let (style, _) = try lowered("demo-garage-control")
+        let id = "cover.demo_unit"
+        func fill(_ state: String) -> UInt32? { read(style, state, id).0.fill }
+        #expect(fill("closed") == 0x43A047 && fill("open") == 0xE53935 && fill("opening") == 0x1E88E5 && fill("closing") == 0x1E88E5)
+        #expect(fill("unavailable") == 0x546E7A && fill("stopped") == 0x546E7A, "the unknown rule and the fallback take the door's fallback fill")
+        #expect(style.hiddenWords == "Hidden")
+        #expect(style.keepsDiscWhenUnknown, "the dimmed disc the door drew while unavailable stays")
+        #expect(StateStyle.garageDoor.rules.allSatisfy { $0.fill == nil } && StateStyle.garageDoor.hiddenWords == nil, "built-ins carry none")
     }
 
     @Test func theLockReadsAsTheDoorDid() throws {

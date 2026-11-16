@@ -65,52 +65,5 @@ enum UKServerUISecurityViews {
             view.ukRemeasureContainers()
         }
     }
-
-    static func bind(_ tile: D.DoorTile, view: UKGlassTileView, bag: UKObservationBag,
-                     page: UKServerUIPage, renderer: UKServerUIRenderer) {
-        var first = true
-        bag.observe { [weak view, weak page, weak renderer] in
-            guard let view, let page, let renderer, let source = renderer.bindings.doors[tile.sourceId] else { return }
-            let hidden = ScreenshotPrivacy.isRedacting
-            let loading = page.context.valuesPending
-            let unavailable = page.context.store.entity(source.entityID).state?.isUnavailable != false
-            let state = tile.states.first { $0.state == source.state }
-            let appearance = hidden || loading || unavailable ? tile.fallback : state?.appearance ?? tile.fallback
-            let phase = source.garage?.phase ?? .idle
-            let text = hidden ? tile.hiddenText : loading ? tile.loadingText : unavailable ? tile.unavailableText
-                : source.failed ? tile.errorText
-                : phase == .sending ? (source.garage?.opens == true ? tile.sendingOpenText : tile.sendingCloseText) : appearance.text
-            let expected = source.spec
-            var spec = expected
-            spec.verb = tile.kind == .lock
-                ? (spec.call?.service == "lock" ? tile.closeLabel : tile.openLabel)
-                : (source.garage?.liveState == "opening" || source.garage?.liveState == "closing") ? tile.reverseLabel
-                : spec.call?.service == "open_cover" ? tile.openLabel : tile.closeLabel
-            spec.symbol = appearance.icon.drawn
-            var model = UKGlassTileModel(
-                title: tile.node.title, subtitle: text, symbol: appearance.icon.drawn, family: .contact,
-                fillRGB: rgb(appearance.fill), isActive: !hidden && !loading && !unavailable && state?.active == true,
-                isUnavailable: hidden || loading || unavailable, isError: !hidden && (source.failed || state?.error == true),
-                behavior: .perform(spec.id), actions: [spec].items, identifier: tile.node.id)
-            model.stateCandidates = tile.states.map(\.appearance.text) + [tile.fallback.text, tile.loadingText,
-                tile.unavailableText, tile.hiddenText, tile.errorText, tile.sendingOpenText, tile.sendingCloseText]
-            model.reapplyGeneration = page.context.store.reapplyGeneration
-            // The style classes the state; the request decides the rest. The state-styled tile moves its layers one by one.
-            let resolution = source.style.resolve(EntityState(entityId: source.entityID, state: source.state ?? "unavailable"), entityId: source.entityID)
-            let look = UKStateTileLooks.look(
-                resolution, request: .init(isInFlight: expected.phase == .inFlight, failed: !hidden && source.failed,
-                                           isUnknown: hidden || loading || unavailable),
-                icon: appearance.icon.drawn, text: text, isActive: model.isActive)
-            model.look = look
-            model.isWarning = look.stateClass == .warning
-            view.configure(model, environment: UKTileEnvironment(context: page.context), animated: !first,
-                           perform: { [weak page, weak renderer, weak view] _ in
-                guard let page, let renderer, let view else { return }
-                renderer.activateDoor(tile, expected: expected, from: page, source: view)
-            })
-            first = false
-            view.ukRemeasureContainers()
-        }
-    }
 }
 #endif

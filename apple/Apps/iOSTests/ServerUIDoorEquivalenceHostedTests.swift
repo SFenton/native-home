@@ -127,7 +127,13 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
     }
 
     /// Keys where the generic tile reads differently by design, by journey (`*` is every journey): the reviewed departures.
-    private static let differences: [String: Set<String>] = [:]
+    ///
+    /// - A garage door whose request is on its way: the old tile kept the disc's verb and on-state of the state it had left ("Open"),
+    ///   the lowered tile follows the state it asked for ("Reverse", on). The disc is dimmed and spinning in both, so only VoiceOver's
+    ///   label differs, and "Reverse" is the true action once the door moves.
+    private static let differences: [String: Set<String>] = [
+        "demo-garage-control/tap-sends/during": ["disc0"], "demo-garage-control/tap-sends/after": ["disc0"],
+    ]
 
     func testTheLoweredTileDrawsWhatTheDoorAtomDrew() async throws {
         let now = try await journeys()

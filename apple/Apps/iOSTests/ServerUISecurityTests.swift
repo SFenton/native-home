@@ -210,25 +210,24 @@ final class ServerUISecurityHostedTests: XCTestCase {
         XCTAssertTrue(returned)
     }
 
-    func testLockAndGarageUseTheirCanonicalCommandsAndImmutableExecutionTargets() async throws {
+    /// A lock and a garage door are state tiles over the built-in styles (`ServerUIDoorLowering`): a tap sends the style's own command to
+    /// the configured entity and nothing else.
+    func testLockAndGarageSendTheirStyleCommandsToTheConfiguredEntity() async throws {
         let (host, window, caller) = try ServerUISecurityHostedFixture.host()
         defer { window.isHidden = true }
-        let lock = try XCTUnwrap(host.bindings.doors["demo-lock"])
-        let ticket = try lock.reserve(expected: lock.spec)
-        host.pageContext.store.apply([EntityState(entityId: "lock.demo_unit", state: "unlocked")])
-        XCTAssertThrowsError(try lock.execute(ticket))
-        XCTAssertTrue(caller.calls.isEmpty)
-        try lock.execute(lock.reserve(expected: lock.spec))
-        await lock.completion?.value
-        XCTAssertEqual(caller.calls, ["lock.lock"])
+        let page = try ServerUIRendererFixture.root(host)
+        let lock = try XCTUnwrap(page.nodes["demo-lock-control"]?.view as? UKGlassTileView)
+        lock.onPerform?(try XCTUnwrap(lock.model.actions.first?.id))
+        await host.callRunner.waitForCalls()
+        XCTAssertEqual(caller.calls, ["lock.unlock"])
         XCTAssertEqual(caller.data.last?["entity_id"] as? String, "lock.demo_unit")
-        let door = try XCTUnwrap(host.bindings.doors["demo-garage"])
-        try door.execute(door.reserve(expected: door.spec))
-        XCTAssertThrowsError(try door.reserve(expected: door.spec), "No double tap during the sending lockout")
-        await door.garage?.waitForCall()
+        let door = try XCTUnwrap(page.nodes["demo-garage-control"]?.view as? UKGlassTileView)
+        door.onPerform?(try XCTUnwrap(door.model.actions.first?.id))
+        await host.callRunner.waitForCalls()
         XCTAssertEqual(caller.calls.last, "cover.open_cover")
         XCTAssertEqual(caller.data.last?["entity_id"] as? String, "cover.demo_unit")
-        XCTAssertEqual(door.garage?.phase, .pending)
+        let moving = await HostedPage.settle { door.model.actions.first?.phase == .inFlight }
+        XCTAssertTrue(moving, "the tile shows the request while it waits for Home Assistant")
     }
 
     func testPanelModesSendConfiguredTargetAndDisarmStillRequiresConfirmationAfterArming() async throws {
@@ -281,18 +280,6 @@ final class ServerUISecurityHostedTests: XCTestCase {
         caller.finish(failing: true)
         await source.completion?.value
         XCTAssertEqual(source.shownState, "arming", "An old failure must not overwrite live acknowledgement")
-
-        let lock = try XCTUnwrap(bindings.doors["demo-lock"])
-        try lock.execute(lock.reserve(expected: lock.spec))
-        await caller.waitForStart()
-        store.apply([EntityState(entityId: "lock.demo_unit", state: "unlocked")])
-        let retargeted = try ServerUIRendererFixture.changing(ServerUISecurityHostedFixture.json(),
-            path: "/document/dataSources/3/inputs/entityId/value", to: .string("lock.demo_other_demo"))
-        XCTAssertThrowsError(try bindings.validateReplacement(ServerUIRendererFixture.publication(retargeted).document.dataSources))
-        XCTAssertTrue(lock.hasPendingIntent)
-        caller.finish(failing: true)
-        await lock.completion?.value
-        XCTAssertEqual(lock.state, "unlocked")
     }
 
     func testPublicationCannotRemoveOrReconfigureAPendingPanel() async throws {

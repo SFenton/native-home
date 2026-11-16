@@ -35,9 +35,8 @@ struct ServerUIDoorTileProps: Equatable, Sendable {
 /// - **the sending words** become the request's pending words, the error text its error words;
 /// - **the unavailable and fallback appearances** become the unknown rule and the fallback rule.
 ///
-/// What the generic tile does not carry is dropped, and the equivalence test names each: the authored `loadingText` and `hiddenText`
-/// (the tile reads "Unavailable" while values load and while a screenshot hides them) and the authored RGB fills (the tile uses its
-/// family fill, lit while active).
+/// The fills and the hidden words ride on the saved style (`sh.state-style-fills@1`), and the loading words are a subtitle that reads the
+/// door source's `phase` and speaks only while it says `loading`. The one difference left is named in the hosted equivalence test.
 enum ServerUIDoorLowering {
     typealias D = ServerUICompositionDocument
 
