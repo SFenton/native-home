@@ -243,7 +243,8 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
                                                      "item": .string(item), "subtitle": ""])])
         }
         let sources = [settings("household", domain: "household"), settings("profile", domain: "profile"),
-                       settings("preferences", domain: "preferences")]
+                       settings("preferences", domain: "preferences"),
+                       settings("feedback-bug", domain: "feedback")]
         json = try ServerUIRendererFixture.changing(json, path: "/document/dataSources",
             to: .array(try XCTUnwrap(json["document"]?["dataSources"]?.array) + sources))
         let placed = [control("w-toggle", source: "settings-household", kind: "household-toggle", item: "switch.synthetic_toggle"),
