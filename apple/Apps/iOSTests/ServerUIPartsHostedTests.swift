@@ -293,7 +293,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
             XCTAssertEqual(row.row.rowContent.symbol, "clock.arrow.circlepath")
             XCTAssertEqual(row.row.rowContent.subtitle, "Paused")
             XCTAssertEqual(row.row.rowContent.glyph, UIColor(red: 175 / 255, green: 82 / 255, blue: 222 / 255, alpha: 1))
-            XCTAssertEqual(row.row.style, .module)
+            XCTAssertEqual(row.row.rowContent.style, .module)
             XCTAssertTrue(row.isOn)
             XCTAssertEqual(row.accessibilityHint, "Turns automatic cleaning on or off.")
             XCTAssertTrue(row.accessibilityTraits.contains(.toggleButton), "a switch to VoiceOver")
