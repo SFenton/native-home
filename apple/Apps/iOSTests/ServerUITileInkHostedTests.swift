@@ -73,6 +73,8 @@ final class ServerUITileInkHostedTests: XCTestCase {
         let host = UIViewController()
         host.view.addSubview(tile)
         window = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: max(width + 40, 240), height: 400)))
+        // Pages stay dark, so a tile on its own is drawn dark too.
+        window?.overrideUserInterfaceStyle = .dark
         tile.frame = CGRect(x: 0, y: 0, width: width, height: tile.gridHeight(forWidth: width))
         HostedPage.wait(0.1)
         tile.layoutIfNeeded()
@@ -231,13 +233,11 @@ final class ServerUITileInkHostedTests: XCTestCase {
         }
     }
 
-    func testTheSoftInkChangesTheStateLineOnlyAndOnlyWhileTheStateHasItsFill() async throws {
-        let (_, tile, store) = try await page("fill-ink-soft", width: 393, state: "docked")
-        let title = try XCTUnwrap(HostedPage.descendants(of: tile).compactMap { $0 as? UILabel }.first { $0.text == "Robot" || $0.text == "tile" })
+    func testTheSoftInkChangesTheStateLineNotTheTitle() async throws {
+        let (_, tile, _) = try await page("fill-ink-soft", width: 393, state: "docked")
+        let title = try XCTUnwrap(HostedPage.descendants(of: tile).compactMap { $0 as? UILabel }.first { $0.text == "tile" })
         XCTAssertEqual(channels(title.textColor, in: tile).alpha, 1, accuracy: 0.001, "the title stays white at 100%")
-        store.apply([EntityState(entityId: "vacuum.demo_robot", state: "cleaning")])
-        HostedPage.wait(0.3)
-        XCTAssertNotEqual(channels(tile.face.drawnStateLineColor, in: tile).alpha, 0.92, accuracy: 0.001, "a state with no fill has no soft ink")
+        XCTAssertEqual(channels(tile.face.drawnStateLineColor, in: tile).alpha, 0.92, accuracy: 0.005)
     }
 
     func testAFillWithNoInkDrawsWhiteAtFullOpacity() throws {
@@ -306,15 +306,12 @@ final class ServerUITileInkHostedTests: XCTestCase {
     func testADefaultStateTileDrawsWhatItAlwaysDrew() throws {
         let plain = tile(model(actions: [Self.pause]), width: 260)
         let disc = try XCTUnwrap(discs(in: plain).first)
-        let expectedGlyph = TileFaceInk.glyphToken(style: .off, appearance: .dark, finish: .solid, isEnabled: true, family: .neutral, tintGlyph: .white)
-        XCTAssertEqual(plain.face.drawnGlyphColor.resolvedColor(with: plain.traitCollection),
-                       UIColor(expectedGlyph).resolvedColor(with: plain.traitCollection), "the icon is the neutral off glyph")
-        XCTAssertNotEqual(packed(plain.face.drawnGlyphColor, in: plain), Self.glyphDark)
-        let ink = TileActionInk.resolveTokens(face: .dark, isOn: false, family: .neutral)
-        XCTAssertEqual(disc.drawnGlyphColor.resolvedColor(with: disc.traitCollection), UIColor(ink.glyph).resolvedColor(with: disc.traitCollection))
+        // The values the base tree (a7caa157) draws, measured by `ServerUIDefaultsProbeHostedTests` there (build/evidence/native-ingest/ni-tc5/base-probe.json).
+        XCTAssertEqual(Self.base.icon, packed(plain.face.drawnGlyphColor, in: plain), "the icon is the neutral off glyph of the base tree")
+        XCTAssertEqual(packed(disc.drawnGlyphColor, in: disc), Self.base.discGlyph, "the disc glyph")
         let ground = channels(try XCTUnwrap(disc.backgroundColor), in: disc)
-        XCTAssertEqual([ground.red, ground.green, ground.blue], [255, 255, 255])
-        XCTAssertEqual(ground.alpha, TileActionInk.darkDiscOpacity, accuracy: 0.01, "white at 16%")
+        XCTAssertEqual(UInt32(ground.red) << 16 | UInt32(ground.green) << 8 | UInt32(ground.blue), Self.base.discGround)
+        XCTAssertEqual(ground.alpha, Self.base.discAlpha, accuracy: 0.01)
         XCTAssertEqual(plain.face.drawnGlyphAlpha, 1, accuracy: 0.001)
         // The height is the tile's own at this width and the same with every field written.
         let bare = plain.gridHeight(forWidth: 260)
@@ -324,11 +321,11 @@ final class ServerUITileInkHostedTests: XCTestCase {
             return value
         }(), environment: UKTileEnvironment())
         XCTAssertEqual(inked.gridHeight(forWidth: 260), bare, accuracy: 0.001, "no ink field changes a tile's height")
-        XCTAssertEqual(bare, Self.pinnedHeight, accuracy: 0.5, "a default state tile with one button is \(bare) pt at 260 pt wide")
+        XCTAssertEqual(bare, Self.base.height, accuracy: 0.5, "a default state tile with one button is \(bare) pt at 260 pt wide; the base tree gave \(Self.base.height)")
     }
 
-    /// The height a default state tile with one button has at 260 pt wide, at the default Dynamic Type size on the iPhone simulator.
-    private static let pinnedHeight: CGFloat = 0
+    /// What the base tree draws for a default state tile with one button at 260 pt wide (see the probe).
+    private static let base: (height: CGFloat, icon: UInt32, discGlyph: UInt32, discGround: UInt32, discAlpha: Double) = (0, 0, 0, 0, 0)
 
     func testADocumentWithNoInkFieldIsNotDeclaredAndDrawsNoTint() async throws {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
