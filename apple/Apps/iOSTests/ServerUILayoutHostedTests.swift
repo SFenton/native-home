@@ -195,4 +195,30 @@ final class ServerUILayoutHostedTests: XCTestCase {
             HostedPage.hideTracked()
         }
     }
+
+    // MARK: Screenshots
+
+    /// Saves the layout parts as PNGs when `FENTON_LAYOUT_SHOTS` names a directory (the owner's screenshot set); skipped otherwise. The
+    /// documents are corpus placeholders, never house data.
+    func testSavesLayoutScreenshotsWhenAsked() throws {
+        guard let directory = ProcessInfo.processInfo.environment["FENTON_LAYOUT_SHOTS"], !directory.isEmpty else { throw XCTSkip("no screenshot directory") }
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        let shots: [(String, String, CGFloat, JSONValue?)] = [
+            ("01-tab-bar-top-icons-and-titles", "pending-tab-bar-top-icons-and-titles", 744, nil),
+            ("02-tab-areas-shared", "pending-tab-blocks-two-tabs", 744, nil),
+            ("03-overlay-five-anchors", "pending-overlay-five-anchors", 744, nil),
+            ("04-tile-destination-chevron", "pending-tile-parts-destination", 744, nil),
+            ("05-badges-on-tiles", "pending-badge-tiles", 744, nil),
+        ]
+        for (name, file, width, props) in shots {
+            let (_, root) = try page(file, width: width, tileProps: props)
+            HostedPage.wait(0.3)
+            let view = try XCTUnwrap(root.view.window ?? root.view)
+            let image = UIGraphicsImageRenderer(bounds: CGRect(x: 0, y: 0, width: width, height: 420)).image { _ in
+                view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+            }
+            try XCTUnwrap(image.pngData()).write(to: URL(fileURLWithPath: directory).appendingPathComponent("\(name).png"))
+            HostedPage.hideTracked()
+        }
+    }
 }
