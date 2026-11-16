@@ -15,8 +15,12 @@ struct WeatherForecastStoreTests {
         var clock: WeatherTestClock
     }
 
+    /// The request timeout for tests that are not about it. The store's real 20 s timer runs on wall-clock time, so a loaded
+    /// runner that stalled the test past 20 s turned held requests into dropped connections; an hour cannot elapse mid-test.
+    private static let unreachableTimeout: TimeInterval = 3600
+
     private func makeHarness(
-        server: HassServer? = nil, cache: WeatherForecastDiskCache? = nil, timeout: TimeInterval = 20, clock: WeatherTestClock = WeatherTestClock(),
+        server: HassServer? = nil, cache: WeatherForecastDiskCache? = nil, timeout: TimeInterval = unreachableTimeout, clock: WeatherTestClock = WeatherTestClock(),
         entityId: @escaping @MainActor () -> String = { HomeConfig.weatherEntityId }
     ) -> Harness {
         let scheduler = ManualWeatherScheduler()
@@ -548,21 +552,21 @@ struct WeatherForecastStoreTests {
     @Test func keepBriefingCurrentAsksForContextEachCheckUntilCancelled() async {
         let h = makeHarness(server: .example, cache: WeatherFixtures.temporaryCache())
         var asked = 0
-        let task = Task { @MainActor in
-            await h.store.keepBriefingCurrent(every: .milliseconds(5)) {
+        var waits: [Duration] = []
+        // An injected sleep that returns at once and cancels the loop on the third wait: no wall-clock time, no polling.
+        var task: Task<Void, Never>?
+        task = Task { @MainActor in
+            await h.store.keepBriefingCurrent(every: .seconds(30), sleep: { duration in
+                waits.append(duration)
+                if waits.count == 3 { task?.cancel() }
+            }, context: {
                 asked += 1
                 return WeatherBriefingContext(temperatureUnit: "°F", windSpeedUnit: "mph")
-            }
+            })
         }
-        // Wait for the second check (bounded), not a fixed sleep: a loaded runner can starve the loop past any wall-clock guess.
-        let deadline = ContinuousClock.now + .seconds(30)
-        while asked < 2, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
-        task.cancel()
-        await task.value
-        let final = asked
-        #expect(final >= 2)
-        try? await Task.sleep(for: .milliseconds(30))
-        #expect(asked == final, "cancelling stops the polling")
+        await task?.value
+        #expect(asked == 3, "one context per check, and cancelling stops the loop")
+        #expect(waits == Array(repeating: .seconds(30), count: 3))
     }
 
     @Test func discardsAStoredBriefingFromAnOlderVersion() throws {

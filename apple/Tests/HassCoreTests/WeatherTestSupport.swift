@@ -57,6 +57,7 @@ final class FakeWeatherCaller: WeatherForecastCalling {
     private(set) var calls: [WeatherForecastKind] = []
     private(set) var lastData: [String: any Sendable] = [:]
     private(set) var held: [Held] = []
+    private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     var holds = false
     var respond: (WeatherForecastKind) throws -> JSONValue = { _ in WeatherFixtures.response(temperature: 60) }
 
@@ -65,6 +66,9 @@ final class FakeWeatherCaller: WeatherForecastCalling {
         precondition(domain == "weather" && service == "get_forecasts")
         let kind = WeatherForecastKind(rawValue: data["type"] as? String ?? "") ?? .daily
         calls.append(kind)
+        let ready = waiters.filter { calls.count >= $0.count }
+        waiters.removeAll { calls.count >= $0.count }
+        for waiter in ready { waiter.continuation.resume() }
         if holds {
             return try await withCheckedThrowingContinuation { held.append(Held(kind: kind, continuation: $0)) }
         }
@@ -81,9 +85,11 @@ final class FakeWeatherCaller: WeatherForecastCalling {
         held.remove(at: index).continuation.resume(throwing: error)
     }
 
-    /// Lets queued tasks run until `count` calls were made.
+    /// Suspends until `count` calls were made. It resumes the moment the call lands, so it never depends on how many
+    /// times the scheduler happens to run other work first (a bounded `Task.yield()` loop gave up under CPU load).
     func waitForCalls(_ count: Int) async {
-        for _ in 0..<200 where calls.count < count { await Task.yield() }
+        if calls.count >= count { return }
+        await withCheckedContinuation { waiters.append((count, $0)) }
     }
 }
 
