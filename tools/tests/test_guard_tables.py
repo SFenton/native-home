@@ -76,6 +76,29 @@ def merge_base_baseline():
         return None
 
 
+_FIXTURES = {}
+
+
+def studio_fixtures():
+    """``(studio, notstudio)``: two temp directories laid out like a Studio checkout. ``studio`` has a ``.git`` entry, a ``package.json`` named
+    ``native-home-studio``, ``scripts/studio-publish.ts`` and ``node_modules/.bin/tsx``; ``notstudio`` has the same files but another package name
+    and no ``.git``. A guard table uses them as ``{STUDIO}`` and ``{NOTSTUDIO}`` (``studio_guard`` recognises a Studio checkout from disk)."""
+    if not _FIXTURES:
+        holder = tempfile.TemporaryDirectory()
+        _FIXTURES["holder"] = holder
+        for name, package, git in (("studio", "native-home-studio", True), ("notstudio", "something-else", False)):
+            root = Path(holder.name) / name
+            (root / "scripts").mkdir(parents=True)
+            (root / "node_modules" / ".bin").mkdir(parents=True)
+            (root / "scripts" / "studio-publish.ts").write_text("// fixture\n")
+            (root / "node_modules" / ".bin" / "tsx").write_text("#!/bin/sh\n")
+            (root / "package.json").write_text(json.dumps({"name": package}))
+            if git:
+                (root / ".git").write_text("gitdir: /nonexistent\n")
+            _FIXTURES[name] = str(root)
+    return _FIXTURES["studio"], _FIXTURES["notstudio"]
+
+
 def rows(name):
     """The ``(command, expect, why, mode)`` rows of a guard's table; comment and blank lines skipped."""
     out = []
@@ -83,6 +106,9 @@ def rows(name):
         if not line.strip() or line.startswith("#"):
             continue
         command, expect, why, *mode = line.split("\t")
+        if "{STUDIO}" in command or "{NOTSTUDIO}" in command:
+            studio, notstudio = studio_fixtures()
+            command = command.replace("{STUDIO}", studio).replace("{NOTSTUDIO}", notstudio)
         out.append((command.replace("\\n", "\n").replace("{FLAG}", FLAG), expect, why, mode[0] if mode else ""))
     return out
 
@@ -102,6 +128,9 @@ def bash_input(command):
 def tool_payload(command):
     """The tool call a table row stands for. ``@write PATH TEXT`` is a Write of TEXT to PATH (relative to the repository; nothing is
     written, the guard only judges the payload), for a guard that reads file writes (``rules_guard``); any other row is a Bash command."""
+    cwd = re.match(r"@cwd (\S+) (.*)\Z", command, re.S)
+    if cwd:
+        return {**tool_payload(cwd.group(2)), "cwd": cwd.group(1)}
     match = re.match(r"@write (\S+) (.*)\Z", command, re.S)
     if match:
         path = match.group(1)
@@ -111,7 +140,7 @@ def tool_payload(command):
 
 def replay(module, command, agent, home):
     """The exit code of the guard's real ``main`` for the tool call of a row (:func:`tool_payload`), as a main or an agent session."""
-    payload = {**tool_payload(command), "cwd": str(ROOT)}
+    payload = {"cwd": str(ROOT), **tool_payload(command)}
     if agent:
         payload.update({"agent_type": "coder", "agent_id": "a1"})
     env = {"PATH": os.environ.get("PATH", ""), "HOME": home, "LANG": "C"}

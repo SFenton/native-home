@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""PreToolUse hook for Bash, Read, Grep, Glob, Edit, Write, MultiEdit and NotebookEdit: the owner's Studio is reached only through ``tools/studio_publish.py``.
+"""PreToolUse hook for Bash, Read, Grep, Glob, Edit, Write, MultiEdit and NotebookEdit: the owner's Studio is reached only through the Studio's own publish CLI.
 
-Owner decision 2026-11-16: agents may publish a finished change to the Studio draft, but only by ``tools/studio_publish.py``. Port 4801 runs
+Owner decision 2026-11-16: agents may publish a finished change to the Studio draft, but only by the publish CLI that lives in the Studio repository
+(``scripts/studio-publish.ts``, documented in that repository's ``docs/agent-publish.md``). Port 4801 runs
 local-only with no token, so any local process could publish to the house with the Studio's own Home Assistant
 credential; this guard is what stops another agent process. It is a tripwire, not a wall: it reads command text only.
 
@@ -18,9 +19,13 @@ Blocked, in an agent session:
   pattern (a ``git config alias.*`` or ``git -c alias.*`` stays blocked); a word naming a Studio port (``:4800``, ``:4801``, ``:4819``) when the program is a network client or an
   interpreter (curl, wget, httpie, nc, python, node, ...); a word that names ``native-v2`` or ``.studio.lock`` (a bare ``native-v2`` is allowed as
   a search pattern); ``$DATA_DIR`` expanded.
-- **Exempt:** ``python3 [-I] <this checkout>/tools/studio_publish.py <sub> ...`` as the whole simple command. Of its subcommands ``apply``, ``publish``,
+- **Exempt:** two exact forms, each the whole simple command, and only for a real Studio checkout (a directory with ``package.json`` named
+  ``native-home-studio``, a ``.git`` entry and ``scripts/studio-publish.ts``): ``<checkout>/node_modules/.bin/tsx <checkout>/scripts/studio-publish.ts <sub> ...``
+  (absolute, or relative to a cwd inside a checkout; no ``..`` segment, no other tsx option; the script must resolve to ``scripts/studio-publish.ts``
+  of the checkout) and ``npm run studio:publish -- <sub> ...`` with the cwd inside a Studio checkout. Of its subcommands ``apply``, ``publish``,
   ``rollback`` and ``resolve`` run only for ``agent_type`` ``orchestrator`` or ``menial`` (lanes build changes; the dispatched publish step publishes) and never
-  in a headless session; ``status`` and ``check`` run for every agent.
+  in a headless session; ``status`` and ``check`` run for every agent. Any other word naming the CLI (``studio-publish``, ``studio:publish``,
+  ``studio_publish``) in a command that runs code is refused; a test file such as ``tests/studio-publish.test.ts`` is not the CLI.
 
 Prose in a ``git commit -m`` or ``gh --body`` value is not read. Heredocs: when any simple command in the line runs code (an interpreter, shell,
 network client or task runner), every heredoc body is read for routes, ports, the data directory and the tool's name, whichever line opens it
@@ -47,11 +52,13 @@ except Exception:  # noqa: BLE001
     triage_session = None
 
 MESSAGE = (
-    "Blocked: the owner's Studio draft and publication change only through `python3 tools/studio_publish.py` "
+    "Blocked: the owner's Studio draft and publication change only through the Studio's publish CLI "
+    "(`<studio checkout>/node_modules/.bin/tsx <studio checkout>/scripts/studio-publish.ts <command>`, docs/agent-publish.md in the Studio repository) "
     "(status, check, apply, publish, rollback, resolve), run by the dispatched publish step. Do not call the Studio API or touch its data directory "
     "yourself. If the tool cannot do what you need, report `needs_decision`."
 )
-TOOL = "studio_publish.py"
+TOOL = "studio-publish.ts"
+STUDIO_PACKAGE = "native-home-studio"
 PATH_TOOLS = ("Read", "Grep", "Glob", "Edit", "Write", "MultiEdit", "NotebookEdit")
 #: Subcommands that change the draft or the live publication; roles that may run them.
 MUTATING = ("apply", "publish", "rollback", "resolve")
@@ -66,8 +73,9 @@ LOCK = re.compile(r"\.studio\.lock", re.I)
 DATA_DIR_VAR = re.compile(r"\$\{?DATA_DIR(?![A-Za-z0-9_])")
 #: The data folder at the root of a Studio checkout only (``<checkout>/data``): source folders such as ``src/workspace2/data`` stay open.
 STUDIO_DATA = re.compile(r"(?:ha-native-home-app|studio-releases)(?:[/\\][^/\\]+)?[/\\]data(?:[/\\]|$)", re.I)
-#: A word that names the tool (``-m tools.studio_publish``, ``import studio_publish``, ``tools/studio_publish.py``) but not ``test_studio_publish``.
-TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_])studio_publish(?![A-Za-z0-9_])")
+#: A word that names the CLI (``scripts/studio-publish.ts``, ``studio:publish``, ``import studio_publish``) but not ``test_studio_publish`` or a test file
+#: such as ``tests/studio-publish.test.ts``.
+TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_-])studio[_:-]publish(?![A-Za-z0-9_-]|\.test\.)", re.I)
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:\n\s*\2\s*(?:\n|$)|\Z)", re.S)
 #: Programs that run code or other programs: a word naming the tool is refused for them unless it is the exact exempt form.
 RUNNERS = {"uv", "uvx", "pipx", "poetry", "pdm", "hatch", "tox", "pytest", "make", "just", "npm", "pnpm", "yarn"}
@@ -92,24 +100,61 @@ def program_of(base: str) -> str:
     return re.sub(r"(?<=\D)[0-9.]+$", "", base) if base.startswith("python") else base
 
 
-def is_tool_call(words: List[str], project: str) -> Optional[List[str]]:
-    """The tool's arguments (subcommand first) when ``words`` is exactly ``python3 [-I] <this checkout>/tools/studio_publish.py ...``, else ``None``."""
-    if not words or not program_of(os.path.basename(words[0])).startswith("python"):
+def studio_root(path: str) -> str:
+    """The real path of the Studio checkout that holds ``path`` (or that is ``path``), or ``""``.
+
+    A Studio checkout is a git worktree of the Studio repository: a directory with a ``.git`` entry, a ``package.json`` named
+    ``native-home-studio`` and a ``scripts/studio-publish.ts`` file. The walk up stops after 8 levels."""
+    current = os.path.realpath(path or os.getcwd())
+    for _ in range(8):
+        package = os.path.join(current, "package.json")
+        if os.path.exists(os.path.join(current, ".git")) and os.path.isfile(package) and os.path.isfile(os.path.join(current, "scripts", TOOL)):
+            try:
+                with open(package, "r", encoding="utf-8") as handle:
+                    if json.load(handle).get("name") == STUDIO_PACKAGE:
+                        return current
+            except (OSError, ValueError, AttributeError):
+                pass
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    return ""
+
+
+def absolute(word: str, cwd: str) -> Optional[str]:
+    """``word`` as an absolute path against ``cwd`` (``~`` expanded), or ``None`` when it has a ``.`` or ``..`` segment (a traversal trick)."""
+    given = os.path.expanduser(word)
+    if any(part in ("..", ".") for part in given.split("/")[1:]) or given.startswith("../") or given == "..":
         return None
-    rest = [w for i, w in enumerate(words[1:]) if not (i == 0 and w == "-I")]
-    if not rest:
+    return given if os.path.isabs(given) else os.path.join(cwd, given)
+
+
+def is_tool_call(words: List[str], payload: dict, project: str) -> Optional[List[str]]:
+    """The CLI's arguments (subcommand first) when ``words`` is exactly one of the two exempt forms, else ``None``.
+
+    ``<checkout>/node_modules/.bin/tsx <checkout>/scripts/studio-publish.ts ...`` (both paths in a real Studio checkout; the script's real path is
+    ``<checkout>/scripts/studio-publish.ts``) or ``npm run studio:publish -- ...`` with the cwd inside a Studio checkout."""
+    cwd = str(payload.get("cwd") or project or os.getcwd())
+    if len(words) >= 3 and os.path.basename(words[0]) == "tsx" and (words[0] == "node_modules/.bin/tsx" or words[0].endswith("/node_modules/.bin/tsx")):
+        tsx, script = absolute(words[0], cwd), absolute(words[1], cwd)
+        if tsx is None or script is None:
+            return None
+        home = os.path.dirname(os.path.dirname(os.path.dirname(tsx)))  # <checkout>/node_modules/.bin/tsx -> <checkout>, and it must be the root itself
+        if not studio_root(home) or studio_root(home) != os.path.realpath(home):
+            return None
+        real = os.path.realpath(script)
+        root = studio_root(os.path.dirname(os.path.dirname(real)))
+        if root and real == os.path.join(root, "scripts", TOOL):
+            return words[2:]
         return None
-    given = os.path.expanduser(rest[0])
-    script = os.path.realpath(given if os.path.isabs(given) else os.path.join(project or os.getcwd(), given))
-    if os.path.basename(script) != TOOL:
-        return None
-    if project and script != os.path.realpath(os.path.join(project, "tools", TOOL)):
-        return None
-    return rest[1:]
+    if words[:4] == ["npm", "run", "studio:publish", "--"] or words[:3] == ["npm", "run", "studio:publish"]:
+        return words[3:] if studio_root(cwd) else None
+    return None
 
 
 def tool_reason(args: List[str], payload: dict) -> str:
-    """Why a call of the tool is refused: a mutating subcommand outside the publisher roles, or an unknown subcommand."""
+    """Why a call of the CLI is refused: a mutating subcommand outside the publisher roles, or an unknown subcommand."""
     words = [a for a in args if not a.startswith("-")]
     # argparse takes global options (``--log PATH``, and abbreviations of it) before the subcommand: any mutating word is a mutating call.
     sub = next((a for a in words if a in MUTATING), "") or next((a for a in words if a in ("status", "check")), "")
@@ -117,7 +162,7 @@ def tool_reason(args: List[str], payload: dict) -> str:
         if os.environ.get("FENTON_HEADLESS") == "1" or payload.get("agent_type") not in PUBLISHERS:
             return f"`{sub}` runs only in the orchestrator's dispatched publish step"
     elif sub not in ("status", "check"):
-        return "unknown studio_publish subcommand"
+        return "unknown studio-publish subcommand"
     return ""
 
 
@@ -156,17 +201,13 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, 
         return ""
     base = os.path.basename(words[0])
     program = program_of(base)
-    args = is_tool_call(words, project)
+    args = is_tool_call(words, payload, project)
     if args is not None:
         return tool_reason(args, payload)
-    if base == TOOL:  # run directly (``./tools/studio_publish.py``): the same exemption, from this checkout only
-        given = os.path.expanduser(words[0])
-        script = os.path.realpath(given if os.path.isabs(given) else os.path.join(project or os.getcwd(), given))
-        if project and script == os.path.realpath(os.path.join(project, "tools", TOOL)):
-            return tool_reason(words[1:], payload)
-        return "a copy of studio_publish.py outside this checkout"
+    if base == TOOL:  # run directly: the CLI runs only through tsx or npm from a Studio checkout
+        return "studio-publish.ts run directly or outside a Studio checkout"
     if (program in NETWORK or program in RUNNERS or program in SHELLS) and any(TOOL_WORD.search(w) for w in words[1:]):
-        return "studio_publish named other than as `python3 [-I] tools/studio_publish.py <sub>`"
+        return "the publish CLI named other than as the exact tsx or npm form in a Studio checkout"
     if program == "xargs":
         return words_reason(unwrap_xargs(words[1:]), payload, project, depth + 1)
     if program in SHELLS or program == "eval":
