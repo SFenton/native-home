@@ -43,6 +43,8 @@ struct ServerUICompositionCompiler {
     private var optimisticRefs: [(sourceId: String, pointer: String)] = []
     /// Whether `control` operands are valid where the action being compiled sits (a bound control's own calls).
     private var controlContext = false
+    /// The document's saved components, expanded before decoding (`sh.component-ref@1`).
+    private var components = ServerUIComponentExpansion(.null)
 
     static func decode(_ bytes: Data) throws -> ServerUICompositionPublication {
         var parser = try ServerUICompositionJSON(bytes)
@@ -70,7 +72,8 @@ struct ServerUICompositionCompiler {
         if let tabs = json["document"]?["navigation"]?["tabs"]?.array, tabs.count > 5 {
             unsupported.append(Issue(.unsupportedCapability, "/document/navigation/tabs", capability: "sh.extended-tabs@1"))
         }
-        let root = Cursor(json, "")
+        let expansion = ServerUIComponentExpansion(json)
+        let root = Cursor(expansion.expanded, "")
         let capabilities = try root.field("capabilities").array().map { try $0.string() }
         // A declared unknown requirement wins over equality or unsupported-profile diagnostics.
         // Unsupported variants cannot produce a typed first-slice plan.
@@ -79,18 +82,20 @@ struct ServerUICompositionCompiler {
             throw first
         }
         var compiler = Self()
+        compiler.components = expansion
         return try compiler.compile(root, capabilities: capabilities, documentCanonical: documentCanonical)
     }
 
     private mutating func compile(_ root: Cursor, capabilities: [String], documentCanonical: String?) throws -> ServerUICompositionPublication {
         let document = try document(root.field("document"))
+        compileComponents()
         let updatedAt = try root.s("updatedAt"), publishedAt = try root.s("publishedAt")
         let updated = timestamp(updatedAt, at: "/updatedAt")
         let published = timestamp(publishedAt, at: "/publishedAt")
         if let updated, let published, updated > published { add(.invalidValue, "/updatedAt") }
         validateReferences(document)
         validateChromeContexts(document)
-        if let first = ServerUICompositionShape.first(issues) { throw first }
+        if let first = ServerUICompositionShape.first(components.remapped(issues)) { throw first }
         try Self.checkKnownCapabilities(capabilities)
         guard capabilities == requirements.sorted() else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
         let manifest = try root.field("document").field("assets")
@@ -105,6 +110,20 @@ struct ServerUICompositionCompiler {
             capabilities: capabilities, assetManifestSha256: digest, document: document,
             documentSha256: documentDigest
         )
+    }
+
+    /// Saved components (`sh.component-ref@1`): each library body is compiled once at its own pointer (its nodes stay out of the total), and an
+    /// argument that names a page, a sheet or a source must find it.
+    private mutating func compileComponents() {
+        if components.usesComponents { require("component-ref") }
+        issues += components.issues
+        for body in components.bodies {
+            let outside = nodeCount
+            nodeCount = 0
+            do { _ = try component(Cursor(body.value, body.pointer), depth: 1, gridChild: false) } catch let issue as Issue { issues.append(issue) } catch {}
+            nodeCount = outside
+        }
+        for argument in components.argumentReferences where catalogs[argument.catalog]?[argument.id] == nil { add(.invalidReference, argument.pointer) }
     }
 
     /// Throws the first `unsupported_capability` issue, in declaration order, among the declared capabilities, ignoring malformed ones.

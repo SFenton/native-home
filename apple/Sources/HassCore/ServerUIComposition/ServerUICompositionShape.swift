@@ -64,7 +64,8 @@ enum ServerUICompositionShape {
             "liveActivities": array(activityPresentation, 16),
             "bootstrap": .optional(bootstrap),
             "extensions": .optional(extensionPresentation),
-            "stateStyles": .optional(stateStyleLibrary)
+            "stateStyles": .optional(stateStyleLibrary),
+            "componentLibrary": .optional(array(componentEntry, 100))
         ])
     }()
     static let bootstrap: Shape = {
@@ -512,6 +513,7 @@ enum ServerUICompositionShape {
             object(base.merging(["type": fixed(type)]).merging(extra))
         }
         return .variant("type", shellNodes(base: base).merging([
+            "component-ref": componentRef,
             "status-chip": node("status-chip", ["props": object(statusProps), "action": .optional(homeNavigationAction)]),
             "status-rail": node("status-rail", ["props": object([:]), "children": array(.component, 20)]),
             "room-overview-tile": node("room-overview-tile", [
