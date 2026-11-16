@@ -57,11 +57,11 @@ private func wrappers(around leaf: Operand) -> [(name: String, operand: Operand)
     }
 
     @Test func eachViewerFactIsReadOrUnavailableAndNoViewerIsLoading() {
-        let viewer = ServerUIViewer(userId: "u1", isAdmin: true, personEntityId: "person.me")
+        let viewer = ServerUIViewer(userId: "u1", isAdmin: true, personEntityId: "person.demo_person_1")
         let known = House(viewer: viewer)
         #expect(Operand.viewer(.userId).evaluate(known) == .value(.string("u1")))
         #expect(Operand.viewer(.isAdmin).evaluate(known) == .value(.bool(true)))
-        #expect(Operand.viewer(.personEntityId).evaluate(known) == .value(.string("person.me")))
+        #expect(Operand.viewer(.personEntityId).evaluate(known) == .value(.string("person.demo_person_1")))
         let bare = House(viewer: ServerUIViewer())
         for field in Operand.ViewerField.allCases { #expect(Operand.viewer(field).evaluate(bare) == .unavailable) }
         #expect(Operand.viewer(.userId).evaluate(House()) == .loading)
