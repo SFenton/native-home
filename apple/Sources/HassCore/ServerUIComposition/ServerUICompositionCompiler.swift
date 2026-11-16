@@ -5,10 +5,10 @@ import FentonActivityModel
 // MARK: - Pure compilation
 
 struct ServerUICompositionCompiler {
-    private typealias D = ServerUICompositionDocument
-    private typealias Issue = ServerUICompositionError
-    private var issues: [Issue] = []
-    private var requirements: Set<String> = ["sh.composition@1"]
+    typealias D = ServerUICompositionDocument
+    typealias Issue = ServerUICompositionError
+    var issues: [Issue] = []
+    var requirements: Set<String> = ["sh.composition@1"]
     private var catalogs: [String: [String: String]] = [:]
     private var pageRefs: [(String, String)] = []
     private var modalRefs: [(String, String)] = []
@@ -271,11 +271,11 @@ struct ServerUICompositionCompiler {
         return try .downloaded(assetId: c.s("assetId"), recipe: c.e("recipe"), blur: blurPolicy,
                                scrim: scrimPolicy, motion: c.e("motion"), reducedTransparency: c.e("reducedTransparency"))
     }
-    private mutating func symbol(_ c: Cursor) throws -> D.Symbol {
+    mutating func symbol(_ c: Cursor) throws -> D.Symbol {
         require("symbols")
         return try .init(name: c.s("name"), rendering: c.e("rendering"), unavailable: c.e("unavailable"))
     }
-    private func space(_ c: Cursor) throws -> D.Space {
+    func space(_ c: Cursor) throws -> D.Space {
         if try c.s("type") == "points" { return try .points(c.n("value")) }
         return try .token(c.e("name"))
     }
@@ -301,8 +301,10 @@ struct ServerUICompositionCompiler {
             let id = try t.s("id"), pageId = try t.s("pageId")
             register(id, catalog: "tab", at: t.path("id"))
             pageRefs.append((pageId, t.path("pageId")))
-            return try D.Tab(id: id, label: t.s("label"), icon: symbol(t.field("icon")), pageId: pageId, arguments: .init(),
-                             visibleWhen: visibility(t))
+            var tab = try D.Tab(id: id, label: t.s("label"), icon: symbol(t.field("icon")), pageId: pageId, arguments: .init(),
+                                visibleWhen: visibility(t))
+            tab.badgeValue = try badgeValue(in: t)
+            return tab
         }
         let pageId = try c.s("initialPageId")
         pageRefs.append((pageId, c.path("initialPageId")))
@@ -353,11 +355,13 @@ struct ServerUICompositionCompiler {
         if try c.s("type") == "shell-menu" {
             return try .shellMenu(.init(id: id, label: c.s("label"), icon: icon, visibility: c.e("visibility")))
         }
-        return try .button(.init(
+        var button = try D.ChromeButton(
             id: id, label: c.s("label"), menuLabel: c.s("menuLabel"), icon: icon,
             visibility: c.e("visibility"), priority: c.e("priority"), rail: c.e("rail"),
             badge: c.field("badge").e("type"), action: action(c.field("action"))
-        ))
+        )
+        button.badgeValue = try badgeValue(in: c, noneNeedsCapability: false)
+        return .button(button)
     }
     private mutating func toolbar(_ c: Cursor) throws -> D.Toolbar {
         require("chrome")
@@ -842,7 +846,7 @@ struct ServerUICompositionCompiler {
         }
         return .literal(value)
     }
-    private mutating func stringValue(_ c: Cursor) throws -> D.StringValue {
+    mutating func stringValue(_ c: Cursor) throws -> D.StringValue {
         if try c.s("type") == "literal" { return try .literal(c.s("value")) }
         return try .read(read(c, expected: .string))
     }
@@ -936,7 +940,7 @@ struct ServerUICompositionCompiler {
         default: return nil
         }
     }
-    private mutating func action(_ c: Cursor) throws -> D.Action {
+    mutating func action(_ c: Cursor) throws -> D.Action {
         switch try c.s("type") {
         case "set-local":
             require("local-state")
@@ -984,7 +988,7 @@ struct ServerUICompositionCompiler {
         }
     }
 
-    private mutating func predicate(_ c: Cursor) throws -> ServerUIPredicate {
+    mutating func predicate(_ c: Cursor) throws -> ServerUIPredicate {
         var parser = ServerUIExpressionParser()
         let value = parser.predicate(c.value, at: c.pointer)
         try absorb(parser)
@@ -992,7 +996,7 @@ struct ServerUICompositionCompiler {
         return value
     }
 
-    private mutating func operand(_ c: Cursor) throws -> ServerUIOperand {
+    mutating func operand(_ c: Cursor) throws -> ServerUIOperand {
         var parser = ServerUIExpressionParser()
         let value = parser.operand(c.value, at: c.pointer)
         try absorb(parser)
@@ -1023,7 +1027,7 @@ struct ServerUICompositionCompiler {
     }
 
     /// A node's or tab's `visibleWhen` with its `whenUnknown` policy.
-    private mutating func visibility(_ c: Cursor) throws -> ServerUIVisibility? {
+    mutating func visibility(_ c: Cursor) throws -> ServerUIVisibility? {
         guard c.value["visibleWhen"] != nil else {
             if c.value["whenUnknown"] != nil { add(.invalidCombination, c.path("whenUnknown")) }
             return nil
@@ -1121,7 +1125,7 @@ struct ServerUICompositionCompiler {
                                confirmLabel: c.s("confirmLabel"), cancelLabel: c.s("cancelLabel"), destructive: c.b("destructive"))
     }
 
-    private mutating func navigationAction(_ c: Cursor) throws -> D.Action {
+    mutating func navigationAction(_ c: Cursor) throws -> D.Action {
         let intent = try action(c)
         switch intent {
         case .push, .present, .dismissThenPush, .selectTab: break
@@ -1205,7 +1209,7 @@ struct ServerUICompositionCompiler {
 
     // MARK: - Component forest
 
-    private mutating func components(_ c: Cursor, depth: Int, gridChild: Bool) throws -> [D.Component] {
+    mutating func components(_ c: Cursor, depth: Int, gridChild: Bool) throws -> [D.Component] {
         var result: [D.Component] = []
         for child in try c.array() {
             do { result.append(try component(child, depth: depth, gridChild: gridChild)) }
@@ -1233,10 +1237,11 @@ struct ServerUICompositionCompiler {
     private mutating func component(_ c: Cursor, depth: Int, gridChild: Bool) throws -> D.Component {
         nodeCount += 1
         guard nodeCount <= 4_096, depth <= 12 else { throw Issue(.limitExceeded, c.pointer) }
-        let id = try c.s("id"), span = try c.field("layout").i("span")
+        let id = try c.s("id"), span = try layoutSpan(c)
         register(id, catalog: "node", at: c.path("id"))
         if !gridChild, span != 1 { add(.invalidCombination, c.path("layout") + "/span") }
-        let node = try D.Node(id: id, title: c.s("title"), span: span, visibleWhen: visibility(c))
+        var node = try D.Node(id: id, title: c.s("title"), span: span, visibleWhen: visibility(c))
+        try badge(of: c, into: &node)
         let props = try c.field("props")
         if depth > 1, ["form", "pinned-actions"].contains(try c.s("type")) {
             add(.invalidCombination, c.path("type"))
@@ -1305,9 +1310,9 @@ struct ServerUICompositionCompiler {
                 try D.LocalTabs.TabContent(id: tab.s("id"), label: tab.s("label"),
                     children: components(tab.field("children"), depth: depth + 1, gridChild: false),
                     icon: tab.value["icon"] == nil ? nil : symbol(tab.field("icon")),
-                    centerWhenFits: tab.value["centerWhenFits"]?.bool ?? false)
+                    centerWhenFits: tab.value["centerWhenFits"]?.bool ?? false, visibility: tabRule(tab))
             }
-            if pinned && tabs.contains(where: { $0.icon == nil }) { add(.invalidCombination, c.path("tabs")) }
+            if pinned && props.value["tabBar"] == nil && tabs.contains(where: { $0.icon == nil }) { add(.invalidCombination, c.path("tabs")) }
             if Set(tabs.map(\.id)).count != tabs.count { add(.duplicateID, c.path("tabs")) }
             if let field = localFields.first(where: { $0.id == stateId }) {
                 if case .choice(let options) = field.rule {
@@ -1327,10 +1332,14 @@ struct ServerUICompositionCompiler {
                 }
                 if scope != nil { add(.invalidCombination, props.path("automatic")) }
             }
-            return .localTabs(.init(node: node, stateId: stateId, tabs: tabs,
+            var container = D.LocalTabs(node: node, stateId: stateId, tabs: tabs,
                 resetOnPresentation: props.value["resetOnPresentation"]?.bool ?? false, pinned: pinned,
                 scopeProviderId: scope, showsSelector: showsSelector, retainsAutomaticSelection: retainsAutomatic,
-                automatic: automatic))
+                automatic: automatic)
+            try tabLayout(c, props: props, depth: depth, into: &container)
+            return .localTabs(container)
+        case "overlay":
+            return try overlay(c, node: node, props: props, depth: depth)
         case "room-section":
             require("room-section"); require("grid")
             defer { if case .array(let items)? = c.value["children"] { forbidRules(in: items, at: c.path("children")) } }
@@ -1801,7 +1810,9 @@ struct ServerUICompositionCompiler {
             require("tiles"); require("state-style")
             let decoded = ServerUIStateStyles.decodeBinding(try c.field("binding").value, at: c.path("binding"), library: stateLibrary)
             issues.append(contentsOf: decoded.issues)
-            return try .stateTile(.init(node: node, icon: symbol(c.field("icon")), binding: decoded.binding))
+            var tile = try D.StateTile(node: node, icon: symbol(c.field("icon")), binding: decoded.binding)
+            try tileParts(c, props: props, into: &tile)
+            return .stateTile(tile)
         case "action-tile":
             require("tiles"); require("bindings"); require("power-toggle")
             let labels = try props.value["powerLabels"].map { _ in
@@ -2401,9 +2412,9 @@ struct ServerUICompositionCompiler {
 
     // MARK: - Diagnostics and publication metadata
 
-    private mutating func require(_ name: String) { requirements.insert("sh.\(name)@1") }
-    private mutating func add(_ code: Issue.Code, _ pointer: String) { issues.append(Issue(code, pointer)) }
-    private mutating func register(_ id: String, catalog: String, at pointer: String) {
+    mutating func require(_ name: String) { requirements.insert("sh.\(name)@1") }
+    mutating func add(_ code: Issue.Code, _ pointer: String) { issues.append(Issue(code, pointer)) }
+    mutating func register(_ id: String, catalog: String, at pointer: String) {
         if let previous = catalogs[catalog]?[id] {
             add(.duplicateID, min(previous, pointer))
         } else { catalogs[catalog, default: [:]][id] = pointer }
@@ -2425,7 +2436,7 @@ struct ServerUICompositionCompiler {
 
 // MARK: - Checked access after exhaustive shape validation
 
-private struct Cursor {
+struct Cursor {
     let value: JSONValue
     let pointer: String
     init(_ value: JSONValue, _ pointer: String) { self.value = value; self.pointer = pointer }

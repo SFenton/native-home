@@ -194,6 +194,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let arguments: EmptyObject
         /// Shows or hides the tab by a rule; `nil` for a tab that is always there.
         public let visibleWhen: ServerUIVisibility?
+        /// A count or text drawn on the tab (`sh.badges@1`); `nil` for none.
+        public var badgeValue: ServerUIOperand? = nil
     }
     /// The shell chrome: its bar button groups.
     public struct Chrome: Equatable, Sendable { public let groups: [ChromeGroup] }
@@ -213,7 +215,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case horizontalOnly = "horizontal-only"
     }
     /// A chrome item's badge; none is defined.
-    public enum Badge: String, Sendable { case none }
+    public enum Badge: String, Sendable { case none, value }
     /// A group of chrome items with one placement and a horizontal and a vertical grouping policy.
     public struct ChromeGroup: Equatable, Sendable {
         public let id: String
@@ -239,6 +241,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let priority: Priority
         public let rail: Rail
         public let badge: Badge
+        /// The badge's value (`sh.badges@1`), when `badge` says `value` in the document; `nil` for none.
+        public var badgeValue: ServerUIOperand? = nil
         public let action: Action
     }
     /// The canonical Quick Links, Profile and connection-state group, with authored destinations.
@@ -481,6 +485,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let span: Int
         /// Shows or hides the node in place by a rule (`sh.visible-when@1`); `nil` for a node that is always there.
         public let visibleWhen: ServerUIVisibility?
+        /// A count or text drawn on the node's corner (`sh.badges@1`); `nil` for none. A value of 0 or empty draws nothing.
+        public var badgeValue: ServerUIOperand? = nil
 
         init(id: String, title: String, span: Int, visibleWhen: ServerUIVisibility? = nil) {
             self.id = id
@@ -653,6 +659,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case cameraTile(CameraTile), cameraVideo(CameraVideo), cameraControls(CameraControls), cameraViewer(CameraControls)
         case bootstrapMessage(BootstrapMessage)
         case notificationBanner(NotificationBanner)
+        case overlay(ServerUIOverlay)
         public var node: Node {
             switch self {
             case .text(let value): value.node
@@ -699,6 +706,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .cameraViewer(let value): value.node
             case .bootstrapMessage(let value): value.node
             case .notificationBanner(let value): value.node
+            case .overlay(let value): value.node
             }
         }
     }

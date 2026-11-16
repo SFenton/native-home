@@ -70,6 +70,8 @@ struct ServerUIContractCorpusTests {
 
     @Test(arguments: cases)
     func fileDecodesWithTheRecordedOutcome(_ item: Case) throws {
+        // A pending case whose capability a lane has since ingested is checked by that lane's own corpus suite.
+        if item.pending == true, ServerUIIngestedCapabilities.all.contains(item.issue?.capability ?? "") { return }
         let bytes = try Data(contentsOf: Self.directory.appendingPathComponent(item.file))
         let result: Result<ServerUICompositionPublication, any Error> = HouseConfigSource.$scoped.withValue(Self.house(for: item)) {
             Result { try ServerUICompositionPublication.decode(bytes) }

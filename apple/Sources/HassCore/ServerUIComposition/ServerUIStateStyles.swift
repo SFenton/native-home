@@ -78,6 +78,12 @@ extension ServerUICompositionDocument {
         public let node: Node
         public let icon: Symbol
         public let binding: ServerUIStateTileBinding
+        /// The tile's own subtitle, progress and buttons (`sh.tile-parts@1`).
+        public var parts = ServerUITileParts()
+        /// Where a tap on the tile goes (`sh.tile-parts@1`).
+        public var action: Action? = nil
+        /// The conditions that decide the tile's faces (`sh.tile-look@1`).
+        public var look = ServerUITileLook()
     }
 }
 

@@ -144,6 +144,12 @@ extension ServerUICompositionDocument {
         public var retainsAutomaticSelection = false
         /// Rules that choose the panel from entity state, first match first (`sh.selected-when@1`).
         public var automatic: [AutomaticRule] = []
+        /// The tab to open when the one the container would choose cannot show (`sh.tab-fallback@1`); `nil` means the first tab.
+        public var fallbackTabId: String? = nil
+        /// Where the bar sits and what it shows (`sh.tab-bar@1`); `nil` keeps the shipped forms.
+        public var tabBar: ServerUITabBar? = nil
+        /// The areas, in draw order (`sh.tab-blocks@1`); empty for the shipped shape, where each tab holds its own children.
+        public var areas: [ServerUITabArea] = []
         /// A panel the document picks while its predicate holds.
         public struct AutomaticRule: Equatable, Sendable {
             public let tabId: String
@@ -156,6 +162,8 @@ extension ServerUICompositionDocument {
             public let children: [Component]
             public var icon: Symbol? = nil
             public var centerWhenFits = false
+            /// Shows or hides the tab by a rule (`sh.tab-blocks@1`); `nil` for a tab that is always there.
+            public var visibility: ServerUIVisibility? = nil
         }
     }
 
@@ -202,7 +210,8 @@ extension ServerUICompositionDocument.Component {
         case .pinnedActions(let value): value.children
         case .statusRail(let value): value.children
         case .roomSection(let value): value.children
-        case .localTabs(let value): value.tabs.flatMap(\.children)
+        case .localTabs(let value): value.tabs.flatMap(\.children) + value.areas.flatMap(\.children)
+        case .overlay(let value): value.children
         default: []
         }
     }
@@ -239,6 +248,7 @@ extension ServerUICompositionDocument.Component {
             default: return []
             }
         case .cameraTile(let value): return [value.action]
+        case .stateTile(let value): return value.parts.discs.map(\.action) + (value.action.map { [$0] } ?? [])
         default: return []
         }
     }

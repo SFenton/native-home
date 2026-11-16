@@ -15,8 +15,10 @@ struct ServerUIPendingCorpusTests {
         let data = try Data(contentsOf: ServerUIContractCorpusTests.directory.appendingPathComponent("capabilities.pending.json"))
         let pending = try JSONDecoder().decode([String].self, from: data)
         #expect(!pending.isEmpty)
-        #expect(Set(pending).isDisjoint(with: ServerUICompositionPublication.supportedCapabilities), "a shipped capability is still pending")
-        let pendingCases = Self.cases.filter { $0.pending == true }
+        // A capability a lane has ingested leaves the Studio's pending file when the promotion bundle is applied there.
+        let ingested = Set(ServerUIIngestedCapabilities.all)
+        #expect(Set(pending).subtracting(ingested).isDisjoint(with: ServerUICompositionPublication.supportedCapabilities), "a shipped capability is still pending")
+        let pendingCases = Self.cases.filter { $0.pending == true && !ingested.contains($0.issue?.capability ?? "") }
         #expect(!pendingCases.isEmpty)
         for item in pendingCases {
             #expect(item.outcome == "reject", "\(item.file)")
@@ -25,7 +27,7 @@ struct ServerUIPendingCorpusTests {
         }
     }
 
-    @Test(arguments: cases.filter { $0.pending == true })
+    @Test(arguments: cases.filter { $0.pending == true && !ServerUIIngestedCapabilities.all.contains($0.issue?.capability ?? "") })
     func pendingCaseIsRefusedAsUnsupportedCapability(_ item: ServerUIContractCorpusTests.Case) throws {
         let bytes = try Data(contentsOf: ServerUIContractCorpusTests.directory.appendingPathComponent(item.file))
         let result: Result<ServerUICompositionPublication, any Error> = HouseConfigSource.$scoped.withValue(ServerUIContractCorpusTests.house(for: item)) {
