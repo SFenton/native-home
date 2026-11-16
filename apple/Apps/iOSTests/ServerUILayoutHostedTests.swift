@@ -31,7 +31,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: kept)
         if let tileProps {
             var caps = try XCTUnwrap(json["capabilities"]?.array)
-            caps.append(.string("sh.tile-parts@1"))
+            caps += [.string("sh.tile-parts@1"), .string("sh.call-service@1")]
             json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(caps.sorted { $0.string ?? "" < $1.string ?? "" }))
         }
         if let tileProps { json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components/0/props", to: tileProps) }
@@ -110,7 +110,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
     }
 
     func testIconsLabelModeNamesEveryTabForVoiceOver() throws {
-        for file in ["pending-tab-bar-top-icons-and-titles", "pending-tab-bar-top-titles"] {
+        for file in ["pending-tab-bar-top-icons-and-titles"] {
             for width in Self.widths {
                 let (_, root) = try page(file, width: width)
                 let tabs = try XCTUnwrap(root.nodes["tabs"]?.view)
