@@ -58,14 +58,32 @@ class WebSocketFilterTests(unittest.TestCase):
         for value in ("text", 5, None, [], {}, {"type": 7}, {"type": {"type": "get_states"}}, {"type": ["get_states"]}):
             self.assertFalse(gp.ws_decide(value).allowed)
 
-    def test_widening_never_reaches_a_write_type(self) -> None:
-        self.assertTrue(gp.ws_decide({"type": "some/new/read"}, extra_types=["some/new/read"]).allowed)
-        for kind in ("call_service", "frontend/set_user_data", "todo/item/add", "fire_event", "some/thing/update", "x_delete_y"):
-            self.assertTrue(gp.is_write_type(kind), kind)
-            self.assertFalse(gp.ws_decide({"type": kind}, extra_types=[kind]).allowed, kind)
+    def test_widening_takes_only_vetted_types_and_names_are_never_matched(self) -> None:
+        unvetted_writes = ["conversation/process", "auth/long_lived_access_token", "backup/generate", "homeassistant/expose_entity",
+                           "recorder/adjust_sum_statistics", "call_service", "frontend/set_user_data", "todo/item/add", "fire_event"]
+        for kind in unvetted_writes:
+            # refused as --allow-type, at construction and from the command line ...
+            with self.assertRaises(ValueError, msg=kind):
+                gp.GuardProxy(gp.Upstream("127.0.0.1", 1, False), gp.RejectionLog(None), extra_types=[kind])
+            self.assertEqual(gp.main(["--upstream", "http://127.0.0.1:1", "--allow-type", kind]), 2, kind)
+            # ... and on the wire, with or without the widening
+            self.assertFalse(gp.ws_decide({"id": 1, "type": kind}).allowed, kind)
+            self.assertFalse(gp.ws_decide({"id": 1, "type": kind}, extra_types=[kind]).allowed, kind)
+            self.assertIsNone(gp.filter_ws_payload(json.dumps({"id": 1, "type": kind}), [kind])[0], kind)
+        # a harmless-looking name that is not in the vetted set is refused too: there is no name matching
+        for kind in ("some/new/read", "config/entity_registry/list", "person/list"):
             with self.assertRaises(ValueError):
                 gp.GuardProxy(gp.Upstream("127.0.0.1", 1, False), gp.RejectionLog(None), extra_types=[kind])
-        self.assertEqual(gp.main(["--upstream", "http://127.0.0.1:1", "--allow-type", "call_service"]), 2)
+            self.assertFalse(gp.ws_decide({"type": kind}, extra_types=[kind]).allowed, kind)
+
+    def test_the_vetted_set_is_the_defaults_plus_render_template(self) -> None:
+        self.assertEqual(gp.VETTED_EXTRA_TYPES, gp.WS_ALLOWED_TYPES | {"render_template"})
+        self.assertFalse(gp.ws_decide({"type": "render_template", "template": "x"}).allowed)
+        self.assertTrue(gp.ws_decide({"type": "render_template", "template": "x"}, extra_types=["render_template"]).allowed)
+        gp.GuardProxy(gp.Upstream("127.0.0.1", 1, False), gp.RejectionLog(None), extra_types=["render_template", "camera/stream"])
+        for kind in gp.VETTED_EXTRA_TYPES:
+            self.assertFalse(gp.is_write_type(kind), kind)
+        self.assertNotIn("call_service", gp.VETTED_EXTRA_TYPES)
 
     def test_widening_paths_must_be_specific_and_not_never_prefixes(self) -> None:
         for prefix in ("/", "/a", "/api/webhook", "/api/mobile_app", "/api/services"):
@@ -449,6 +467,20 @@ class ProxyEndToEndTests(unittest.TestCase):
             self.assertEqual([r.get("id") for r in replies if not r.get("success", True)], [5])
         h = self.scenario(body)
         self.assertEqual(h.ha.ws_text, ['{"id":6,"type":"get_states"}'])  # one whole frame, re-serialised, bad one absent
+
+    def test_unvetted_write_types_never_reach_the_upstream(self) -> None:
+        kinds = ["conversation/process", "auth/long_lived_access_token", "backup/generate", "homeassistant/expose_entity", "call_service"]
+
+        async def body(h: Harness) -> None:
+            reader, writer = await h.ws()
+            for i, kind in enumerate(kinds):
+                writer.write(gp.encode_frame(1, json.dumps({"id": 10 + i, "type": kind, "text": "turn everything off"}).encode(), True))
+            writer.write(gp.encode_frame(1, b'{"id":99,"type":"ping"}', True))
+            await writer.drain()
+            replies = text(await frames_until_quiet(reader))
+            self.assertEqual(sorted(r["id"] for r in replies if not r.get("success", True)), [10, 11, 12, 13, 14])
+        h = self.scenario(body)
+        self.assertEqual(h.ha.ws_text, ['{"id":99,"type":"ping"}'])
 
     def test_binary_frames_are_refused_whole_or_fragmented(self) -> None:
         async def body(h: Harness) -> None:

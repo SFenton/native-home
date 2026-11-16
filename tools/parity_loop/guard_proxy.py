@@ -47,7 +47,7 @@ from redact import redact_json  # noqa: E402
 
 WS_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #: WebSocket client message types that read or subscribe: the apps' observed set plus what the brief names. Anything else is
-#: refused (an allow-list, never a deny-list). ``--allow-type`` widens it, but never to a write type.
+#: refused (an allow-list, never a deny-list). ``--allow-type`` can only pick from :data:`VETTED_EXTRA_TYPES`.
 WS_ALLOWED_TYPES = frozenset({
     "auth", "ping", "pong", "auth/current_user", "auth/sign_path",
     "get_states", "get_config", "get_services",
@@ -56,12 +56,17 @@ WS_ALLOWED_TYPES = frozenset({
     "fenton_home/house_config/subscribe", "fenton_home/ui_publication/subscribe", "fenton_home/ui_publication/get",
 })
 #: Words that mark a type as a write. A type holding one of these (split on ``/`` and ``_``) can never be allowed, not even by
-#: ``--allow-type``, and ``call_service`` is always refused.
+#: ``--allow-type``, and ``call_service`` is always refused. A second, independent barrier behind the vetted set.
 WRITE_WORDS = frozenset({
     "call", "service", "execute", "script", "fire", "event_fire", "update", "create", "delete", "remove", "add", "set", "save",
     "publish", "rollback", "register", "upload", "push", "reload", "restart", "stop", "start", "trigger", "write", "enable",
     "disable", "toggle", "press", "run", "reset", "clear", "import", "mutate", "revoke", "login", "logout",
 })
+#: The only types ``--allow-type`` may add: a fixed set of vetted reads in code, never matched by name. It is the default set plus
+#: ``render_template`` (the brief's "if needed"). Anything else, however harmless it looks, is refused at start-up; widening this set
+#: takes a reviewed code change. (``conversation/process``, ``auth/long_lived_access_token``, ``backup/generate`` and
+#: ``homeassistant/expose_entity`` are writes whose names hold no write word, which is why name matching is not used.)
+VETTED_EXTRA_TYPES = WS_ALLOWED_TYPES | frozenset({"render_template"})
 #: HTTP path prefixes (matched on ``/`` boundaries) a ``GET`` may reach: the apps' observed reads plus the brief's.
 HTTP_ALLOWED_PREFIXES = (
     "/api/websocket", "/api/fenton_home/ui_assets", "/api/fenton_home/config", "/api/image/serve", "/local",
@@ -117,7 +122,7 @@ def ws_decide(message: Any, extra_types: Iterable[str] = ()) -> Decision:
         return Decision(False, "ws", kind, "type is not on the read allow-list", names or None)
     if kind in WS_ALLOWED_TYPES:
         return Decision(True, "ws", kind)
-    if kind in set(extra_types) and not is_write_type(kind):
+    if kind in VETTED_EXTRA_TYPES and kind in set(extra_types) and not is_write_type(kind):
         return Decision(True, "ws", kind)
     return Decision(False, "ws", kind[:80] if kind.isprintable() else "<unprintable>", "type is not on the read allow-list")
 
@@ -431,9 +436,9 @@ class GuardProxy:
     """Fronts one upstream; see the module docstring. ``extra_types`` and ``extra_paths`` widen the allow-lists explicitly."""
 
     def __init__(self, upstream: Upstream, log: RejectionLog, extra_types: Sequence[str] = (), extra_paths: Sequence[str] = ()) -> None:
-        bad = [t for t in extra_types if is_write_type(t)]
+        bad = [t for t in extra_types if t not in VETTED_EXTRA_TYPES or is_write_type(t)]
         if bad:
-            raise ValueError("a write type cannot be allowed")
+            raise ValueError("--allow-type accepts only the vetted read types")
         if any(len(p.strip("/")) < 3 for p in extra_paths) or any(_under(p.rstrip("/") + "/x", n) for p in extra_paths
                                                                   for n in HTTP_NEVER_PREFIXES):
             raise ValueError("an allowed path must be specific and not a never-allowed prefix")
@@ -625,7 +630,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--log", type=Path, help="rejection log (JSONL)")
     ap.add_argument("--certfile")
     ap.add_argument("--keyfile")
-    ap.add_argument("--allow-type", action="append", default=[], help="widen the WebSocket allow-list with one read type (never a write)")
+    ap.add_argument("--allow-type", action="append", default=[], help="widen the WebSocket allow-list with one vetted read type (a fixed set in code; anything else is refused)")
     ap.add_argument("--allow-path", action="append", default=[], help="widen the HTTP allow-list with one GET path prefix")
     args = ap.parse_args(args_in)
     url = args.upstream or os.environ.get(args.upstream_env, "")

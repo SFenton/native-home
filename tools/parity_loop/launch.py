@@ -179,11 +179,20 @@ def launch_live(side: str, udid: str, proxy_url: Optional[str], runner: Runner =
         raise Refused(f"live launch failed (exit {result.code}); credentials or server missing, staging or simctl failed")
 
 
-def proxy_script(log: Path, listen: str) -> str:
-    """The bash that loads the upstream address from the credentials file and execs the guard proxy (nothing is printed)."""
+#: Credentials the proxy never needs (it forwards the client's own ``auth``); stripped from its environment before it starts.
+PROXY_UNNEEDED_SECRETS = ("FENTON_HASS_TOKEN", "FENTON_HASS_PASSWORD", "FENTON_HASS_USERNAME")
+
+
+def proxy_script(log: Path, listen: str, command: Optional[List[str]] = None) -> str:
+    """The bash that loads the upstream address from the credentials file and execs the guard proxy (nothing is printed).
+
+    The token, password and username are unset before the ``exec``: the long-lived proxy needs only ``FENTON_HASS_SERVER``.
+    ``command`` replaces the proxy program (tests).
+    """
     creds = shlex.quote(str(REPO / "tools" / "hass_creds.sh"))
-    proxy = [sys.executable, str(Path(__file__).with_name("guard_proxy.py")), "--listen", listen, "--log", str(log)]
-    return f"source {creds}; hass_load_creds || exit 2; hass_require_creds || exit 2; exec " + " ".join(shlex.quote(p) for p in proxy)
+    proxy = command or [sys.executable, str(Path(__file__).with_name("guard_proxy.py")), "--listen", listen, "--log", str(log)]
+    return (f"source {creds}; hass_load_creds || exit 2; hass_require_creds || exit 2; unset {' '.join(PROXY_UNNEEDED_SECRETS)}; exec "
+            + " ".join(shlex.quote(p) for p in proxy))
 
 
 def run_proxy(log: Path, listen: str, env: Optional[Mapping[str, str]] = None, runner: Runner = run) -> int:
@@ -191,7 +200,7 @@ def run_proxy(log: Path, listen: str, env: Optional[Mapping[str, str]] = None, r
 
     The log path must be ignored by git: even a templated log is house traffic and must not be committable.
     """
-    child = dict(os.environ if env is None else env)
+    child = {k: v for k, v in dict(os.environ if env is None else env).items() if k not in PROXY_UNNEEDED_SECRETS}
     require_go(child)
     if not log_is_ignored(log, runner):
         raise Refused("the proxy log must be in a git-ignored folder (for example build/evidence/parity-loop/<run>/)")

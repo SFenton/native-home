@@ -253,6 +253,38 @@ class RunTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(launch.main(["gallery", "--side", "reference", "--agent", "x", "--udid", "U"]), 2)
 
+    def test_the_proxy_starts_without_the_token_password_and_username(self) -> None:
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "creds"
+            folder.mkdir(mode=0o700)
+            creds = folder / "env"
+            creds.write_text("FENTON_HASS_TOKEN=tok-fake\nFENTON_HASS_USERNAME=user-fake\nFENTON_HASS_PASSWORD=pw-fake\n"
+                             "FENTON_HASS_SERVER=https://ha.example.invalid\n")
+            creds.chmod(0o600)
+            # the caller's environment holds the secrets too; the script must still start the program without them
+            env = {"PATH": "/usr/bin:/bin", "HOME": tmp, "FENTON_HASS_CREDS_FILE": str(creds), "FENTON_HASS_TOKEN": "caller-token"}
+            script = launch.proxy_script(Path("/x/log.jsonl"), "127.0.0.1:0", command=["/usr/bin/env"])
+            out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        variables = {line.split("=", 1)[0] for line in out.stdout.splitlines() if "=" in line}
+        self.assertIn("FENTON_HASS_SERVER", variables)
+        for name in launch.PROXY_UNNEEDED_SECRETS:
+            self.assertNotIn(name, variables)
+        self.assertNotIn("-fake", out.stdout)
+        self.assertNotIn("caller-token", out.stdout)
+
+    def test_run_proxy_strips_the_secrets_from_the_environment_it_passes_on(self) -> None:
+        runner = lambda argv, env=None, timeout=0: Result(0)  # noqa: E731
+        env = {**LIVE, "FENTON_HASS_TOKEN": "t", "FENTON_HASS_PASSWORD": "p", "FENTON_HASS_USERNAME": "u", "KEEP": "1"}
+        with mock.patch.object(launch.os, "execvpe") as execvpe:
+            launch.run_proxy(Path("/repo/build/evidence/parity-loop/r/rej.jsonl"), "127.0.0.1:0", env=env, runner=runner)
+        passed = execvpe.call_args[0][2]
+        self.assertEqual(sorted(set(env) - set(passed)), sorted(launch.PROXY_UNNEEDED_SECRETS))
+        self.assertEqual(passed["KEEP"], "1")
+        self.assertIn("unset FENTON_HASS_TOKEN FENTON_HASS_PASSWORD FENTON_HASS_USERNAME;", execvpe.call_args[0][1][2])
+
     def test_the_proxy_log_must_be_git_ignored(self) -> None:
         calls = []
 
