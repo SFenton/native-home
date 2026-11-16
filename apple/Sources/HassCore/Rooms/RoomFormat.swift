@@ -46,11 +46,28 @@ public enum RoomFormat {
         }
     }
 
-    /// The state line a contact sensor's tile draws (owner, 2026-10-30): none for Open and Closed, which the glyph and fill already say
-    /// (VoiceOver still reads the state), but Unavailable and Unknown, which they cannot. Every contact tile uses it.
+    /// The state line a contact sensor's tile draws by default (owner, 2026-10-30): none for Open and Closed, which the glyph and fill
+    /// already say (VoiceOver still reads the state), but Unavailable and Unknown, which they cannot. A `room-card` whose composition
+    /// authors a subtitle source or `showState` draws that line instead (``contactCardSubtitle(authored:entity:hasAction:hasPower:hasSubtitleSources:showState:)``).
     public static func contactTileSubtitle(_ entity: EntityState?) -> String {
         let text = contact(entity)
         return text == "Open" || text == "Closed" ? "" : text
+    }
+
+    /// The subtitle a contact room card draws. Native owns the line (``contactTileSubtitle(_:)``) only for a card with no action, no power
+    /// and nothing authored: a subtitle source or `showState` in the composition keeps `authored`.
+    public static func contactCardSubtitle(authored: String?, entity: EntityState?, hasAction: Bool, hasPower: Bool,
+                                           hasSubtitleSources: Bool, showState: Bool) -> String? {
+        guard !hasAction, !hasPower, !hasSubtitleSources, !showState else { return authored }
+        return contactTileSubtitle(entity)
+    }
+
+    /// What VoiceOver reads for a contact room card: always the contact state, plus the drawn line when it adds to it, so a sighted
+    /// and a VoiceOver user get the same information ("Open, 80 %"). A blank line or one equal to the state adds nothing.
+    public static func contactCardSpokenValue(entity: EntityState?, drawn: String?) -> String {
+        let state = contact(entity)
+        guard let drawn, !drawn.isEmpty, drawn != state else { return state }
+        return "\(state), \(drawn)"
     }
 
     /// `isOccupancyActive`.

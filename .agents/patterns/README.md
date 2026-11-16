@@ -27,6 +27,7 @@
 | [floating-actions.md](floating-actions.md) | `HassDesign/FloatingActionBar.swift`, `HassUI/UIKitPort/Design/UKForm.swift` | `src/components/core/FloatingActionButton.tsx`, `src/components/shell/DashboardFloatingAction.tsx` |
 | [image-card.md](image-card.md) | `HassDesign/ImageCard.swift` | `src/components/hass/recipes/RecipeCard.tsx` |
 | [vacuum-sheet.md](vacuum-sheet.md) | `HassUI/UIKitPort/ServerUI/UKServerUIVacuumView.swift` | `src/components/hass/VacuumCard.tsx` |
+| [vacuum-lowering.md](vacuum-lowering.md) | `HassCore/ServerUIComposition/ServerUIVacuumLowering.swift` | `src/components/hass/VacuumCard.tsx` |
 | [valetudo-map.md](valetudo-map.md) | `HassUI/UIKitPort/Features/Vacuums/UKValetudoMapView.swift`, `HassCore/Vacuums/ValetudoMap.swift` | `src/components/hass/ValetudoMapCard.tsx` |
 | [thermostat-dial.md](thermostat-dial.md) | `HassDesign/ThermostatDial/ThermostatDial.swift` | `src/components/hass/CircularControlDial.tsx` |
 | [schedule-date-fields.md](schedule-date-fields.md) | `HassUI/UIKitPort/Design/UKScheduleDateFields.swift` | `NativePickerField` in `ScheduleConfirmationForm` |

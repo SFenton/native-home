@@ -329,11 +329,12 @@ def load_regions(files: List[Any]) -> List[Dict[str, Any]]:
 
 
 #: Status-bar item rectangles per device profile, in points: ``(label, x0, y0, x1, y1)``; a negative ``x`` counts from the right
-#: edge. Only these items are compared (clock, signal and battery), never the page behind the bar. The Duo rectangles follow the
-#: iPhone layout (clock on the left, indicators on the right) and are an approximation to calibrate on a screenshot that
-#: shows the bar; ``--status-bar-rects FILE`` replaces them with ``{"label": [x0, y0, x1, y1]}`` in points.
+#: edge. Only these items are compared (clock, signal and battery), never the page behind the bar. The folded Duo rectangles are
+#: calibrated on a live shot (the items sit in the right-hand rail); the iPhone and iPad ones follow the standard layout.
+#: ``--status-bar-rects FILE`` replaces them with ``{"label": [x0, y0, x1, y1]}`` in points.
 STATUS_BAR_ITEMS: Dict[str, List[Tuple[str, float, float, float, float]]] = {
-    "duo": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
+    # Folded Duo: the status items sit in the right-hand rail.
+    "duo": [("clock", -72, 82, -26, 102), ("indicators", -74, 104, -24, 154)],
     "iphone": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
     "ipad": [("clock", 24, 8, 124, 36), ("indicators", -144, 8, -24, 36)],
 }

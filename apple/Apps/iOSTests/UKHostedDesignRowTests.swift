@@ -402,6 +402,35 @@ final class UKHostedDesignRowTests: XCTestCase {
         XCTAssertFalse(heat == none)
     }
 
+    func testAStateStyleFillWithProgressShadesThePartNotYetReached() {
+        let shaded = UKTilePaint.make(input(.colored(0x7A3FB0), level: 0.55))
+        XCTAssertEqual(shaded.shade?.fraction ?? 0, 0.45, accuracy: 0.001)
+        XCTAssertNil(shaded.band)
+        XCTAssertNil(UKTilePaint.make(input(.colored(0x7A3FB0))).shade, "a solid fill with no progress draws no shade")
+        XCTAssertNil(UKTilePaint.make(input(.colored(0x7A3FB0), level: 0)).shade)
+        XCTAssertTrue(UKTilePaint.make(input(.colored(0x7A3FB0))) == UKTilePaint.make(input(.colored(0x7A3FB0), level: 0)),
+                      "a room or quick-link fill, which never has a level, draws as it did")
+        XCTAssertNil(UKTilePaint.make(input(.off, level: 0.5)).shade, "the other faces draw their level as before: a band, never a shade")
+        XCTAssertNotNil(UKTilePaint.make(input(.off, level: 0.5)).band)
+    }
+
+    /// A grid of state tiles (a door's, say) with the authored equal row heights stretches a short last row to the tallest one. The vacuum
+    /// lowering turns that option off only for its own robot grid, so this must not move.
+    func testAGridOfStateTilesWithEqualRowHeightsStillStretchesTheShortRow() {
+        func tile(_ title: String, discs: Bool) -> UKGlassTileView {
+            let items = discs ? [TileActionItem(id: "a", verb: "Open", symbol: "play.fill"), TileActionItem(id: "b", verb: "Close", symbol: "house.fill")] : []
+            return UKGlassTileView(model: UKGlassTileModel(title: title, subtitle: "Closed", symbol: "door.garage.closed", isActive: false,
+                                                          behavior: .navigate, actions: items), environment: UKTileEnvironment())
+        }
+        let grid = UKDynamicGridView(configuration: UKGridConfiguration(minCellWidth: 150, maxColumns: 2, spacing: 12, equalRowHeights: true))
+        grid.setItems([UKGridItem(tile("A", discs: true)), UKGridItem(tile("B", discs: true)), UKGridItem(tile("C", discs: false))])
+        grid.frame = CGRect(x: 0, y: 0, width: 350, height: 600)
+        grid.layoutIfNeeded()
+        let heights = Set(grid.subviews.map { Int($0.frame.height.rounded()) })
+        XCTAssertEqual(heights.count, 1, "every row is as tall as the tallest")
+        XCTAssertGreaterThan(grid.subviews.count, 2)
+    }
+
     func testARimOnlyFinishStillDrawsAnImage() {
         var paint = UKTilePaint.make(input(.off))
         paint.sheen = .none

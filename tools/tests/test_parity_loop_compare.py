@@ -102,10 +102,11 @@ class CompareTests(unittest.TestCase):
 
     def test_status_bar_difference_beats_the_mask(self) -> None:
         bar = ((0, 0, 120, 20), (255, 255, 255))
-        record = epc.judge(self.spec(cand=(bar,), ref2=()), self.dir, args(status_bar_equal=True))
+        rects = {"clock": [0, 0, 120, 20]}
+        record = epc.judge(self.spec(cand=(bar,), ref2=()), self.dir, args(status_bar_equal=True, status_bar_rects=rects))
         self.assertEqual(record["verdict"], "statusbar")
         self.assertGreater(record["statusBarDifferencePercent"], 0.5)
-        same = epc.judge(self.spec(), self.dir, args(status_bar_equal=True))
+        same = epc.judge(self.spec(), self.dir, args(status_bar_equal=True, status_bar_rects=rects))
         self.assertEqual(same["verdict"], "pass")
 
     def test_status_bar_check_compares_only_the_items_not_the_band(self) -> None:
@@ -115,15 +116,15 @@ class CompareTests(unittest.TestCase):
             return self.spec(reference_png=solid(self.dir / "wr.png", size=size), candidate_png=solid(self.dir / "wc.png", paint=cand_paint, size=size),
                              reference2_png=solid(self.dir / "wr2.png", size=size))
         centre = ((150, 0, 300, 54), (255, 255, 255))  # page background between the clock and the indicators
-        clock = ((30, 15, 60, 35), (255, 255, 255))
-        battery = ((400, 15, 430, 35), (255, 255, 255))
+        clock = ((400, 85, 430, 100), (255, 255, 255))  # the folded Duo's status items sit in the right-hand rail
+        battery = ((400, 110, 430, 140), (255, 255, 255))
         ok = epc.judge(pair((centre,)), self.dir, args(status_bar_equal=True))
         self.assertEqual((ok["verdict"], ok["statusBarDifferencePercent"]), ("pass", 0.0))
         for item in (clock, battery):
             bad = epc.judge(pair((item,)), self.dir, args(status_bar_equal=True))
             self.assertEqual(bad["verdict"], "statusbar")
         self.assertEqual([n for n, _ in epc.status_bar_rects("duo", size, 1.0)], ["clock", "indicators"])
-        self.assertEqual(epc.status_bar_rects("duo", size, 2.0)[1][1][0], 218)  # (466 px / 2 - 124 pt) * 2
+        self.assertEqual(epc.status_bar_rects("duo", size, 2.0)[1][1][0], 318)  # (466 px / 2 - 74 pt) * 2
         override = {"only": [0, 0, 10, 10]}
         self.assertEqual(epc.status_bar_rects("duo", size, 1.0, override), [("only", (0, 0, 10, 10))])
 

@@ -70,7 +70,7 @@ final class UKServerUIVacuumView: UIView, UKGridMeasuring {
                         source?.fail("Locate is unavailable."); return
                     }
                     source.controller?.locate()
-                }, onRoomTap: { [weak source] id, presenter in source?.choose(id, selection: .rooms, from: presenter) })
+                }, onRoomTap: { [weak source] id, presenter in source?.choose(id, from: presenter) })
             install(frame)
             bag.observe { [weak frame] in
                 frame?.setMode(controller.runtimeMode)
@@ -106,19 +106,17 @@ final class UKServerUIVacuumView: UIView, UKGridMeasuring {
                 group?.ukRemeasureContainers()
                 first = false
             }
-        case .choice(let id, let selection):
+        case .choice(let id, .rooms):
             let tile = UKVacuumChoiceTile(tile: .room(title: value.node.title, icon: "", order: nil, editable: false),
                 identifier: value.node.id, environment: environment, perform: {})
             install(tile)
             bag.observe { [weak tile, weak page] in
-                let entry = selection == .rooms ? controller.roomTiles.first(where: { $0.zone.entityId == id })?.tile
-                    : controller.autoCleanTiles.first(where: { $0.room.entityId == id })?.tile
-                guard var entry else { return }
+                guard var entry = controller.roomTiles.first(where: { $0.zone.entityId == id })?.tile else { return }
                 entry.title = value.node.title
                 entry.accessibilityLabel = entry.order.map { "\(value.node.title), cleaning order \($0)" } ?? value.node.title
                 tile?.update(entry) { [weak source, weak page] in
                     guard let page else { return }
-                    source?.choose(id, selection: selection, from: page)
+                    source?.choose(id, from: page)
                 }
             }
         case .status(let metric):
@@ -127,32 +125,11 @@ final class UKServerUIVacuumView: UIView, UKGridMeasuring {
                 status.caption = value.node.title
                 self.replace(UKVacuumStatusTiles(tiles: [status], environment: environment))
             }
+        case .card, .autoClean, .choice(_, .autoClean):
+            // Lowered at compile time onto generic parts (`ServerUIVacuumLowering`): a document never reaches the renderer with these.
+            break
         case .notices:
             install(UKVacuumStatusSummary(controller: controller, mapState: source.mapState, environment: environment, showsTiles: false))
-        case .autoClean:
-            guard let autoClean = source.autoClean, let control = source.descriptor.autoCleanControl?.configuration else {
-                source.fail("The automatic-cleaning provider is unavailable.")
-                install(UKInlineAlertView("Automatic cleaning is unavailable."))
-                break
-            }
-            let glyph = UIColor(ColorFamily.cleaning.glyphToken)
-            let row = UKModuleToggleRow(value.node.title, subtitle: nil, symbol: "clock.arrow.circlepath", glyph: glyph,
-                isOn: false, hint: "Turns automatic cleaning on or off.") { [weak source] in
-                guard !autoClean.hasPendingIntent, !autoClean.display(control).isUnavailable else {
-                    source?.fail("Automatic cleaning is no longer ready."); return
-                }
-                autoClean.toggle(control)
-            }
-            row.accessibilityIdentifier = value.node.id
-            install(row)
-            bag.observe { [weak row, weak source] in
-                let display = autoClean.display(control)
-                row?.row.update(.init(value.node.title, subtitle: display.subtitle, symbol: "clock.arrow.circlepath", glyph: glyph,
-                    glyphOpacity: display.isUnavailable ? 0.4 : 1), accessory: row?.row.accessory)
-                row?.setOn(display.isEnabled)
-                row?.isEnabled = !display.isUnavailable && !autoClean.hasPendingIntent
-                if display.isFailed { source?.fail("Automatic cleaning did not respond.") }
-            }
         case .command(let kind, let icon):
             if kind == .clean || kind == .cleanArea {
                 let button = UKPrimaryButton(value.node.title, systemImage: icon.drawn) { [weak source] in source?.run(kind) }
@@ -182,25 +159,6 @@ final class UKServerUIVacuumView: UIView, UKGridMeasuring {
                     behavior: .perform(spec.id), actions: [TileActionItem(spec)], identifier: value.node.id,
                     spokenValue: action?.detail ?? "This command is not available in the current state.")
                 tile?.configure(model, environment: environment, perform: { [weak source] _ in source?.run(kind) })
-            }
-        case .card(let icon, let commands, let destination):
-            let tile = UKGlassTileView(model: .init(title: value.node.title, symbol: icon.drawn, isActive: false), environment: environment)
-            install(tile)
-            bag.observe { [weak tile, weak page, weak source] in
-                guard let source else { return }
-                let face = VacuumPageFormat.tile(state: source.cardState?.state, battery: controller.batteryLabel.replacingOccurrences(of: "%", with: ""),
-                                                error: controller.status.currentIssue.raw)
-                let specs = source.cardCommands(commands)
-                var model = UKGlassTileModel(title: value.node.title, subtitle: source.cardFailed ? "Didn't Respond" : face.subtitle, symbol: icon.drawn, family: .cleaning,
-                    isActive: face.isActive, isUnavailable: !controller.status.primaryAvailable, isError: face.isError || source.cardFailed,
-                    behavior: .navigate, actions: specs.items, progress: face.progress, identifier: value.node.id)
-                model.stateCandidates = VacuumActions(entityId: source.descriptor.entityId).stateTextCandidates
-                tile?.configure(model, environment: environment, action: { [weak page] in
-                    guard let page else { return }; page.renderer?.activate(destination, from: page)
-                }, perform: { [weak source] id in
-                    guard let kind = D.VacuumCardCommand(rawValue: id) else { return }
-                    source?.runCard(kind)
-                })
             }
         case .target(let mode, let icon, let destination):
             let button = UKVacuumActionTile(title: value.node.title, symbol: icon.drawn, identifier: value.node.id,

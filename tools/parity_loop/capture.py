@@ -11,7 +11,7 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 
 from .common import DEFAULT_DENSITY, Runner, png_size, run, parse_json, write_json
 
@@ -49,6 +49,15 @@ class Agent:
         return self.call("open", url)
 
     def press(self, label: str) -> Dict[str, Any]:
+        """Press the button called ``label``. A bare selector fails when two buttons share a name (the Quick Links button is in the
+        header and the toolbar) or when the label carries a badge ("Chores, 6 overdue"), so resolve the button in the tree first and
+        tap its centre; fall back to the selector when the tree has none."""
+        try:
+            point = button_centre(self.snapshot(), label, badged=label in NAV_LABELS)
+        except AmbiguousLabel as error:
+            return {"success": False, "ambiguous": True, "error": str(error)}
+        if point:
+            return self.call("press", f"{point[0]:g}", f"{point[1]:g}")
         return self.call("press", f'label="{label}"')
 
     def settle(self) -> Dict[str, Any]:
@@ -67,6 +76,31 @@ class Agent:
 
     def screenshot(self, path: Path, density: int = DEFAULT_DENSITY) -> Dict[str, Any]:
         return self.call("screenshot", str(path), "--normalize-status-bar", "--pixel-density", str(density))
+
+
+#: The only labels that may match a button carrying a badge suffix ("Chores, 6 overdue"): the tab bar and the Quick Links
+#: navigation. Every other label needs an exact match, so a room tile ("Master Bedroom, 3 on") is never found by its bare name.
+NAV_LABELS = frozenset({"Home", "Rooms", "Settings", "Quick Links", "Chores", "Security", "Climate", "Vacuums", "Media", "To-Do",
+                        "Food & Recipes", "Vacation", "Sprinklers", "Groceries"})
+
+
+class AmbiguousLabel(Exception):
+    """Several badged buttons match one navigation label; none is pressed."""
+
+
+def button_centre(nodes: Sequence[Mapping[str, Any]], label: str, badged: bool = False) -> Optional[Tuple[float, float]]:
+    """Centre (points) of the button named ``label``: an exact label first; with ``badged`` (navigation labels only), a single
+    button with a badge suffix after a comma. Several badged matches raise :class:`AmbiguousLabel`: never the first."""
+    buttons = [n for n in nodes if _node_role(n).lower() == "button" and _node_rect(n) and _label(n)]
+    exact = [n for n in buttons if _label(n) == label]
+    near = [n for n in buttons if _label(n).startswith(label + ",")] if badged and not exact else []
+    if len(near) > 1:
+        raise AmbiguousLabel(f"{len(near)} badged buttons match {label!r}")
+    for node in exact or near:
+        rect = _node_rect(node)
+        if rect and rect["width"] > 0 and rect["height"] > 0:
+            return rect["x"] + rect["width"] / 2, rect["y"] + rect["height"] / 2
+    return None
 
 
 # MARK: - Reaching a surface
@@ -91,7 +125,19 @@ def _as_press(step: Mapping[str, Any]) -> Mapping[str, Any]:
     return {"press": QUICK_LINKS} if "press" not in step and "Quick Links button" in manual else step
 
 
-def plan_reach(surface: Mapping[str, Any], app: str, mode: str) -> ReachPlan:
+def write_opening_labels(surfaces: Sequence[Mapping[str, Any]]) -> FrozenSet[str]:
+    """Every label whose press opens a ``writes_on_reach`` surface: the last press step of each such surface, in either app.
+    Pressing one on live (a room tile writes a visit) is never allowed, whichever surface the step belongs to."""
+    labels = set()
+    for surface in surfaces:
+        if surface.get("writes_on_reach"):
+            for steps in (surface.get("reach") or {}).values():
+                presses = [str(s["press"]) for s in (_as_press(s) for s in steps or []) if "press" in s]
+                labels.update(presses[-1:])
+    return frozenset(labels)
+
+
+def plan_reach(surface: Mapping[str, Any], app: str, mode: str, guarded: FrozenSet[str] = frozenset()) -> ReachPlan:
     """Choose the reach for ``app`` (``reference`` or ``candidate``) in ``mode`` (``gallery``, ``fixture`` or ``live``).
 
     A ``writes_on_reach`` surface is deep-linked or skipped. Otherwise: the reference in gallery mode opens its gallery page;
@@ -101,10 +147,12 @@ def plan_reach(surface: Mapping[str, Any], app: str, mode: str) -> ReachPlan:
     link = (surface.get("deep_link") or {}).get(app)
     steps = [_as_press(s) for s in (surface.get("reach") or {}).get(app) or []]
     pressable = bool(steps) and all("press" in s for s in steps)
-    if surface.get("writes_on_reach"):
+    # Any guarded step, pressable plan or not, sends the surface to its deep link (or skips it): press steps never run first.
+    if surface.get("writes_on_reach") or guarded.intersection(s["press"] for s in steps if "press" in s):
         if link:
             return ReachPlan("deeplink", url=link)
-        return ReachPlan("skip", reason="writes_on_reach and no deep link")
+        reason = "writes_on_reach and no deep link" if surface.get("writes_on_reach") else "a step opens a writes_on_reach surface and there is no deep link"
+        return ReachPlan("skip", reason=reason)
     if mode == "gallery" and app == "reference":
         page = surface.get("gallery_page")
         return ReachPlan("gallery", page=page) if page else ReachPlan("skip", reason="no reference gallery page")
@@ -119,18 +167,20 @@ def plan_reach(surface: Mapping[str, Any], app: str, mode: str) -> ReachPlan:
     return ReachPlan("skip", reason="reach steps are not automatable and there is no deep link")
 
 
-def perform_reach(agent: Agent, plan: ReachPlan, surface: Mapping[str, Any]) -> bool:
-    """Carry out ``plan``; ``True`` when it ran. A surface that writes on reach is never pressed, whatever the plan says."""
+def perform_reach(agent: Agent, plan: ReachPlan, surface: Mapping[str, Any], guarded: FrozenSet[str] = frozenset()) -> bool:
+    """Carry out ``plan``; ``True`` when it ran. A surface that writes on reach, or a step that opens one (``guarded``), is never
+    pressed, whatever the plan says; an ambiguous badged label stops the reach."""
     if plan.method == "deeplink":
         agent.open_url(plan.url)
         if "Open" in agent.labels():  # the simulator asks before opening an app link; answering it writes nothing
             agent.press("Open")
             agent.settle()
     elif plan.method == "steps":
-        if surface.get("writes_on_reach"):
+        if surface.get("writes_on_reach") or guarded.intersection(plan.steps):
             return False
         for label in plan.steps:
-            agent.press(label)
+            if agent.press(label).get("ambiguous"):
+                return False
             agent.settle()
             if label == QUICK_LINKS and "Rooms" not in agent.labels():  # the first press can miss; never press twice blindly
                 agent.press(label)

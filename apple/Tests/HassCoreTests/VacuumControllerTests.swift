@@ -526,58 +526,6 @@ struct VacuumControllerTests {
     }
 }
 
-/// The page's Auto-Clean tiles.
-@MainActor
-@Suite(.demoHouse)
-struct VacuumAutoCleanControllerTests {
-    @Test func tilesFlipAndConfirm() async {
-        let pause = Vacuums.autoCleanControls[0], music = Vacuums.autoCleanControls[1]
-        let store = makeStore([pause.entityId: "off", music.entityId: "off"])
-        let caller = RecordingCaller()
-        let scheduler = ManualScheduler()
-        let controller = VacuumAutoCleanController(store: store, caller: caller, scheduler: scheduler)
-        #expect(controller.display(pause) == .init(isEnabled: true, isUnavailable: false, subtitle: "Enabled"))
-        #expect(controller.display(music).subtitle == "Paused")
-        #expect(controller.display(Vacuums.autoCleanControls[2]).isUnavailable)
-
-        controller.toggle(pause)
-        #expect(controller.display(pause).subtitle == "Paused")
-        controller.toggle(music)
-        await controller.waitForCalls()
-        #expect(caller.calls == [.init(domain: "switch", service: "turn_on", data: ["entity_id": pause.entityId]),
-                                 .init(domain: "automation", service: "turn_on", data: ["entity_id": music.entityId])])
-        scheduler.fireAll()
-        #expect(controller.display(pause).isEnabled, "unconfirmed changes revert")
-        #expect(controller.display(pause).isFailed, "and say so for 4 s")
-        scheduler.fireAll()
-        #expect(controller.display(pause).subtitle == "Enabled")
-
-        caller.failNext = true
-        controller.toggle(music)
-        await controller.waitForCalls()
-        #expect(!controller.display(music).isEnabled, "a rejected call reverts at once")
-        #expect(controller.display(music).isFailed)
-        #expect(controller.display(music).subtitle == "Didn't Respond")
-        scheduler.fireAll()
-        #expect(controller.display(music).subtitle == "Paused")
-
-        controller.toggle(Vacuums.autoCleanControls[2])
-        await controller.waitForCalls()
-        #expect(caller.calls.count == 3)
-    }
-
-    @Test func liveChangesConfirm() async {
-        let music = Vacuums.autoCleanControls[1]
-        let store = makeStore([music.entityId: "off"])
-        let controller = VacuumAutoCleanController(store: store, caller: RecordingCaller(), scheduler: ManualScheduler())
-        controller.toggle(music)
-        set(store, music.entityId, "on")
-        for _ in 0..<20 where controller.overlay.pending[music.entityId] != nil { await Task.yield() }
-        #expect(controller.overlay.pending[music.entityId] == nil)
-        #expect(controller.display(music).isEnabled)
-    }
-}
-
 /// The map loader with an injected fetch.
 @MainActor
 @Suite(.demoHouse)

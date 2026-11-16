@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 10,
+  "version": 11,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
@@ -43,6 +43,7 @@
     "thermostat-dial": "Thermostat dial: the circular setpoint dial for `climate` entities. (components: ThermostatDial)",
     "ticker": "Ticker label: one line of text that scrolls through its column when it is too wide, instead of truncating. (components: TickerLabel)",
     "vacuum-sheet": "Vacuum sheet: the robot vacuum sheet (map, status, Controls/Rooms/Auto-Clean/Dock/Info tabs, area editor, cleaning report). (components: UKServerUIVacuumView)",
+    "vacuum-lowering": "Vacuum kinds built from generic parts: the vacuum-control kinds the compiler rewrites into generic parts, and the ones that stay native. (components: ServerUIVacuumLowering)",
     "valetudo-map": "Mapped map: decoding and drawing a Mapped map (rooms, walls, robot, dock, paths, areas). (components: UKValetudoMapView, ValetudoMap)",
     "weather": "Weather card and sheet: the Home weather card, its 24-hour carousel and the Weather sheet, plus the logic under them. (components: UKWeatherCarouselView)",
     "scroll-frame-rate": "Scroll frame rate: no app refresh-rate request while scrolling (iOS manages it); scroll surfaces report to ScrollActivity. (components: UKScrollRate)",

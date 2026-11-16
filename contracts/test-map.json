@@ -1745,7 +1745,6 @@
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/",
    "swift": [
-    "VacuumAutoClean",
     "Vacuum"
    ],
    "journeys": []
@@ -2540,6 +2539,17 @@
    ],
    "hosted": [
     "ServerUIDoorEquivalenceHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassCore/ServerUIComposition/ServerUIVacuumLowering",
+   "swift": [
+    "ServerUIVacuum",
+    "VacuumLoweringSymbolTests"
+   ],
+   "hosted": [
+    "ServerUIConfiguredVacuumTests"
    ],
    "journeys": []
   },

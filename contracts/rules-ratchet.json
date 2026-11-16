@@ -1062,7 +1062,7 @@
   },
   ".agents/patterns/vacuum-sheet.md": {
    "long_lines": 9,
-   "over_words": 92
+   "over_words": 90
   },
   ".agents/patterns/valetudo-map.md": {
    "forbidden": 3,

@@ -68,7 +68,7 @@ public extension ServerUICompositionDocument {
     enum Announcement: String, Sendable { case none, valueChange = "value-change" }
     struct StatusRail: Equatable, Sendable {
         public let node: Node
-        public let children: [Component]
+        public internal(set) var children: [Component]
     }
     struct RoomOverviewTile: Equatable, Sendable {
         public let chip: StatusChip

@@ -85,6 +85,54 @@ class ReachTests(unittest.TestCase):
         self.assertEqual((plan.method, plan.steps), ("steps", ["Home", "Quick Links", "Vacuums"]))
         self.assertEqual(capture.plan_reach(BY_ID["room-kitchen"], "reference", "live").method, "deeplink")
 
+    def test_bedroom_sheets_never_reach_by_pressing_a_room_tile(self) -> None:
+        guarded = capture.write_opening_labels(SURFACES["surfaces"])
+        tile = BY_ID["room-master-bedroom"]["reach"]["candidate"][-1]["press"]
+        self.assertIn(tile, guarded)
+        sheets = [x for x in SURFACES["surfaces"] if not x.get("writes_on_reach") and any(
+            st.get("press") == tile for st in (x.get("reach") or {}).get("candidate", []))]
+        self.assertTrue(sheets)
+        world = FakeWorld(Path(tempfile.mkdtemp()))
+        agent = capture.Agent("fake-agent candidate", world)
+        for sheet in sheets:
+            plan = capture.plan_reach(sheet, "candidate", "live", guarded)
+            self.assertIn(plan.method, ("deeplink", "skip"), sheet["id"])
+            self.assertNotEqual(plan.method, "steps")
+            capture.perform_reach(agent, capture.ReachPlan("steps", steps=["Rooms", tile]), sheet, guarded)
+        self.assertEqual(world.pressed("candidate"), [])
+        skipped = capture.plan_reach({"id": "x", "reach": {"candidate": [{"press": tile}]}}, "candidate", "live", guarded)
+        self.assertEqual(skipped.method, "skip")
+
+    def test_a_badged_room_tile_is_never_matched_but_a_badged_tab_is(self) -> None:
+        def button(label, x):
+            return {"type": "Button", "label": label, "rect": {"x": x, "y": 10, "width": 20, "height": 10}}
+        nodes = [button("Demo Room, 3 on", 0), button("Chores, 6 overdue", 100)]
+        world = FakeWorld(Path(tempfile.mkdtemp()))
+        agent = capture.Agent("fake-agent candidate", world)
+        world.nodes["candidate"] = nodes
+        agent.press("Demo Room")
+        self.assertEqual(world.pressed("candidate"), ['label="Demo Room"'])  # the bare selector, never the badged tile's centre
+        agent.press("Chores")
+        self.assertIn("Chores", capture.NAV_LABELS)
+        self.assertEqual(world.pressed("candidate")[-1], "110")  # the badged tab's centre
+
+    def test_several_badged_buttons_fail_instead_of_taking_the_first(self) -> None:
+        def button(label, x):
+            return {"type": "Button", "label": label, "rect": {"x": x, "y": 10, "width": 20, "height": 10}}
+        nodes = [button("Chores, 6 overdue", 0), button("Chores, 2 due", 100)]
+        with self.assertRaises(capture.AmbiguousLabel):
+            capture.button_centre(nodes, "Chores", badged=True)
+        self.assertIsNone(capture.button_centre(nodes, "Chores"))
+
+    def test_button_centre_prefers_exact_labels_then_badged_ones(self) -> None:
+        def button(label, x):
+            return {"type": "Button", "label": label, "rect": {"x": x, "y": 10, "width": 20, "height": 10}}
+        nodes = [button("Security, Armed Home", 0), button("Security", 100), button("Chores, 6 overdue", 200)]
+        self.assertEqual(capture.button_centre(nodes, "Security"), (110.0, 15.0))
+        self.assertEqual(capture.button_centre(nodes, "Chores", badged=True), (210.0, 15.0))
+        self.assertIsNone(capture.button_centre(nodes, "Chores"))
+        self.assertIsNone(capture.button_centre(nodes, "Climate"))
+
     def test_ax_normalisation_drops_status_bar_and_masks_dynamic_text(self) -> None:
         rules = [build_surfaces.CLOCK_MASK, build_surfaces.RELATIVE_TIME_MASK]
         rows = capture.normalize_ax([
@@ -117,6 +165,20 @@ class RunTests(unittest.TestCase):
         status = plrun.run_all(ctx, plrun.select(SURFACES, ids), self.pin, pin_path=self.pin_path, **kw)
         return ctx, status
 
+    def test_selecting_only_a_bedroom_sheet_still_guards_the_room_tile(self) -> None:
+        tile = BY_ID["room-master-bedroom"]["reach"]["candidate"][-1]["press"]
+        sheet = next(x for x in SURFACES["surfaces"] if not x.get("writes_on_reach") and any(
+            st.get("press") == tile for st in (x.get("reach") or {}).get("candidate", [])))
+        ctx, _ = self.run_surfaces([sheet["id"]], mode="live", env=LIVE)
+        self.assertEqual(self.world.pressed("candidate"), [])
+        self.assertEqual(self.world.pressed("reference"), [])
+        self.assertIn(tile, ctx.guarded)
+
+    def test_selecting_a_single_safe_page_presses_as_before(self) -> None:
+        ctx, _ = self.run_surfaces(["chores"], mode="fixture")
+        self.assertEqual(self.world.pressed("candidate"), ["30"])
+        self.assertNotIn("30", ctx.guarded)
+
     def test_a_gallery_pair_is_captured_ref_cand_ref_and_passes(self) -> None:
         ctx, status = self.run_surfaces(["chores"])
         folder = ctx.run_dir / "chores"
@@ -130,7 +192,7 @@ class RunTests(unittest.TestCase):
         opens = [c for c in self.world.calls["reference"] if c[0] == "open"]
         self.assertEqual(len(opens), 2)
         self.assertIn("--launch-args=--gallery-fixture", opens[0])
-        self.assertEqual(self.world.pressed("candidate"), ['label="Chores"'])
+        self.assertEqual(self.world.pressed("candidate"), ["30"])  # the centre of the Chores button in the fake tree
         bootstrap = json.loads((self.world.root / "reference" / "data" / "Library" / "Application Support" / "GalleryFixture" / "bootstrap.json").read_text())
         self.assertEqual(bootstrap["variables"]["FENTON_GALLERY"], "chores")
         car = read_json(folder / "candidate.sidecar.json")

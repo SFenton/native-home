@@ -55,7 +55,7 @@ public struct ServerUITabArea: Equatable, Sendable {
     public let scope: Scope
     /// Shows or hides the area by a rule; `nil` for an area that is always there.
     public let visibility: ServerUIVisibility?
-    public let children: [ServerUICompositionDocument.Component]
+    public internal(set) var children: [ServerUICompositionDocument.Component]
 }
 
 /// A node that draws small controls over a base (`sh.overlay@1`): the first child is the base, the rest sit at five anchors.
@@ -79,7 +79,7 @@ public struct ServerUIOverlay: Equatable, Sendable {
     public let node: ServerUICompositionDocument.Node
     public let anchors: [Placement]
     /// The base first, then up to four controls on top.
-    public let children: [ServerUICompositionDocument.Component]
+    public internal(set) var children: [ServerUICompositionDocument.Component]
 
     /// The most controls that sit on top of the base.
     public static let maximumOnTop = 4

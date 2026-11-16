@@ -242,8 +242,6 @@ struct HouseConfigFlipDTests {
         HouseConfigSource.$scoped.withValue(source) {
             #expect(MediaRemotes.MusicRoom.Source.all.filter { $0 == console }.count == 1, "Each source appears once")
             #expect(MediaRemotes.MusicRoom.sourceLabels(active: console)[console] == "On")
-            let controller = VacuumAutoCleanController(store: makeStore([:]), caller: RecordingCaller(), scheduler: ManualScheduler())
-            #expect(controller.display(controls[0]).isUnavailable)
         }
     }
 

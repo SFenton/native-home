@@ -13,8 +13,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public let name: String
     public let theme: Theme
     public let navigation: Navigation
-    public let pages: [Page]
-    public let modals: [Modal]
+    public internal(set) var pages: [Page]
+    public internal(set) var modals: [Modal]
     public internal(set) var dataSources: [Source]
     public let variables: EmptyObject
     public let assets: [Asset]
@@ -276,12 +276,12 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let parameters: EmptyObject
         public let layout: BodyLayout
         public let toolbar: Toolbar
-        public let components: [Component]
+        public internal(set) var components: [Component]
         public var titleSourceId: String? = nil
     }
     /// A page: a surface the shell navigates to, with its navigation style.
     public struct Page: Equatable, Sendable {
-        public let surface: Surface
+        public internal(set) var surface: Surface
         public let navigation: RouteLayout
         public var columnPlaceholder: String? = nil
         public var standaloneColumns = false
@@ -290,7 +290,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     }
     /// A modal: a surface presented as a sheet.
     public struct Modal: Equatable, Sendable {
-        public let surface: Surface
+        public internal(set) var surface: Surface
         public let presentation: Sheet
         public var id: String { surface.id }
     }
@@ -559,7 +559,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let equalRowHeights: Bool
         public let shortRow: ShortRow
         public let fold: Fold
-        public let children: [Component]
+        public internal(set) var children: [Component]
         /// The grid keeps at least this many columns, and no tile's own minimum width takes more than its share of them
         /// (`sh.grid-min-columns@1`); `nil` leaves the columns to the width.
         public var minimumColumns: Int? = nil
