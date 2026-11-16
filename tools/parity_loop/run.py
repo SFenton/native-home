@@ -70,7 +70,8 @@ class Context:
     bundle_hashes: Dict[str, str] = field(default_factory=dict)
     launcher: Optional[Callable[[Half, Mapping[str, Any], ReachPlan, "Context"], None]] = None
     status_bar_rects: Optional[Path] = None
-    #: Labels whose press opens a ``writes_on_reach`` surface; set from the whole inventory by :func:`run_all`.
+    #: Labels whose press opens a ``writes_on_reach`` surface; :func:`run_all` always derives them from the full inventory, never
+    #: from the surfaces selected for the run.
     guarded: FrozenSet[str] = frozenset()
 
     @property
@@ -162,15 +163,20 @@ def select(document: Mapping[str, Any], ids: Optional[Sequence[str]]) -> List[Di
 
 
 def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optional[str] = None,
-            env: Optional[Mapping[str, str]] = None, pin_path: Path = DEFAULT_PIN) -> int:
-    """Capture every surface, then judge them; the exit status is the compare tool's (0 pass, 1 fail, 2 refused)."""
+            env: Optional[Mapping[str, str]] = None, pin_path: Path = DEFAULT_PIN,
+            inventory: Optional[Sequence[Mapping[str, Any]]] = None) -> int:
+    """Capture every surface, then judge them; the exit status is the compare tool's (0 pass, 1 fail, 2 refused).
+
+    ``inventory`` is the full surface list the write guard is built from (default: the shipped ``surfaces.json``), whatever
+    subset ``surfaces`` selects, so a selected bedroom sheet still knows which label opens a write surface.
+    """
     environment = env if env is not None else os.environ
     launch_mod.require_hold(environment)
     if ctx.mode == "live":
         launch_mod.require_go(environment)
         if not ensure_ignored(ctx.run_dir, ctx.runner):
             raise launch_mod.Refused("live captures hold house data: the output folder must be ignored by git")
-    ctx.guarded = ctx.guarded | write_opening_labels(surfaces)
+    ctx.guarded = ctx.guarded | write_opening_labels(read_json(SURFACES_FILE)["surfaces"] if inventory is None else inventory)
     ctx.run_dir.mkdir(parents=True, exist_ok=True)
     error = verify_pin(ctx, pin_hash)
     if error:
@@ -217,10 +223,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                   status_bar_rects=args.status_bar_rects)
     try:
         pin = None if str(args.reference_pin) == "none" else read_json(args.reference_pin)["bundleSHA256"]
-        surfaces = select(read_json(args.surfaces_file), args.surfaces.split(",") if args.surfaces else None)
+        document = read_json(args.surfaces_file)
+        surfaces = select(document, args.surfaces.split(",") if args.surfaces else None)
         if args.publication:
             launch_mod.feed_preview(launch_mod.container(run, args.candidate_udid, "data"), args.publication)
-        return run_all(ctx, surfaces, pin, pin_path=args.reference_pin)
+        return run_all(ctx, surfaces, pin, pin_path=args.reference_pin, inventory=document["surfaces"])
     except (launch_mod.Refused, ValueError, OSError, KeyError) as error:
         print(f"run: {error}", file=sys.stderr)
         return 2

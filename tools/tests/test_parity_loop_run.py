@@ -165,6 +165,20 @@ class RunTests(unittest.TestCase):
         status = plrun.run_all(ctx, plrun.select(SURFACES, ids), self.pin, pin_path=self.pin_path, **kw)
         return ctx, status
 
+    def test_selecting_only_a_bedroom_sheet_still_guards_the_room_tile(self) -> None:
+        tile = BY_ID["room-master-bedroom"]["reach"]["candidate"][-1]["press"]
+        sheet = next(x for x in SURFACES["surfaces"] if not x.get("writes_on_reach") and any(
+            st.get("press") == tile for st in (x.get("reach") or {}).get("candidate", [])))
+        ctx, _ = self.run_surfaces([sheet["id"]], mode="live", env=LIVE)
+        self.assertEqual(self.world.pressed("candidate"), [])
+        self.assertEqual(self.world.pressed("reference"), [])
+        self.assertIn(tile, ctx.guarded)
+
+    def test_selecting_a_single_safe_page_presses_as_before(self) -> None:
+        ctx, _ = self.run_surfaces(["chores"], mode="fixture")
+        self.assertEqual(self.world.pressed("candidate"), ["30"])
+        self.assertNotIn("30", ctx.guarded)
+
     def test_a_gallery_pair_is_captured_ref_cand_ref_and_passes(self) -> None:
         ctx, status = self.run_surfaces(["chores"])
         folder = ctx.run_dir / "chores"

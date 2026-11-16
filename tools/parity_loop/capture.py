@@ -147,7 +147,8 @@ def plan_reach(surface: Mapping[str, Any], app: str, mode: str, guarded: FrozenS
     link = (surface.get("deep_link") or {}).get(app)
     steps = [_as_press(s) for s in (surface.get("reach") or {}).get(app) or []]
     pressable = bool(steps) and all("press" in s for s in steps)
-    if surface.get("writes_on_reach") or (pressable and guarded.intersection(s["press"] for s in steps)):
+    # Any guarded step, pressable plan or not, sends the surface to its deep link (or skips it): press steps never run first.
+    if surface.get("writes_on_reach") or guarded.intersection(s["press"] for s in steps if "press" in s):
         if link:
             return ReachPlan("deeplink", url=link)
         reason = "writes_on_reach and no deep link" if surface.get("writes_on_reach") else "a step opens a writes_on_reach surface and there is no deep link"
