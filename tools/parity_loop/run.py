@@ -182,7 +182,7 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
         launch_mod.require_go(environment)
         if not ensure_ignored(ctx.run_dir, ctx.runner):
             raise launch_mod.Refused("live captures hold house data: the output folder must be ignored by git")
-        for side in APPS:  # each half is asked as its own session, so a half signed in as another user is caught
+        for side in APPS:  # each half is asked as its own request, but both halves use one shared token, so the two hashes always match: this records the user, it cannot catch a half signed in as someone else
             if side not in ctx.user_id_hashes:
                 ctx.user_id_hashes[side] = launch_mod.resolve_identity(ctx.proxy_url, ctx.proxy_cert, ctx.runner, environment, side)
     ctx.guarded = ctx.guarded | write_opening_labels(read_json(SURFACES_FILE)["surfaces"] if inventory is None else inventory)

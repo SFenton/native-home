@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stage a live publication into the candidate's simulator container, read-only, through the guard proxy.
 
-    stage.py --proxy https://127.0.0.1:PORT --container DATA_DIR [--chain PROXY_CHAIN] [--account NAME] [--capabilities FILE]
+    stage.py --proxy https://127.0.0.1:PORT --container DATA_DIR [--chain PROXY_CHAIN] [--account NAME] [--capabilities FILE] [--publication FILE]
 
 Runs as a child of ``launch.py`` (see :func:`parity_loop.launch.candidate_live_script`), which loads ``FENTON_HASS_TOKEN`` into
 this process's environment from ``tools/hass_creds.sh``. The token lives only in this process's memory: it is never written,
@@ -16,6 +16,10 @@ Steps, all reads that the guard proxy allows:
 2. ``GET /api/fenton_home/ui_assets/{sha256}`` for every asset the document lists, each checked against its hash;
 3. write ``bootstrap.json``, ``publication.json`` (the raw envelope, integer revision, at most 2162688 bytes) and
    ``assets/<lowercase sha256>`` straight into ``<container>/Library/Application Support/ServerUIPreview/``.
+
+With ``--publication FILE`` (a local envelope, such as a draft made by ``draft.py``) step 1 is skipped: the file is staged in place of the
+live one, and only the assets it lists are still fetched through the proxy (a file that lists none fetches nothing; the token must still be set).
+The file is house data: keep it under a git-ignored folder such as ``build/parity-loop-draft/``.
 
 Nothing is written under the repository. The files exist only inside the simulator container.
 """
@@ -247,9 +251,22 @@ def fetch_asset(host: str, port: int, token: str, digest: str, timeout: float = 
     return body
 
 
+def load_local_event(path: Path) -> Dict[str, Any]:
+    """A ``published`` event built around the envelope in the local file ``path`` (what ``--publication`` stages)."""
+    try:
+        envelope = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise StageError("the local publication file cannot be read as JSON") from None
+    if not isinstance(envelope, dict):
+        raise StageError("the local publication file is not an envelope object")
+    return {"state": "published", "envelope": envelope}
+
+
 async def stage(proxy_url: str, container: Path, token: str, account: str, capabilities: Sequence[str],
-                chain: Optional[Path] = None) -> Dict[str, Any]:
+                chain: Optional[Path] = None, publication: Optional[Path] = None) -> Dict[str, Any]:
     """Fetch the publication and its assets through ``proxy_url`` and write them into ``container``; return counts only.
+
+    With ``publication`` the envelope comes from that local file instead of the subscription; assets are still fetched.
 
     The bootstrap names ``proxy_url``'s origin, so the candidate reads through the guard proxy exactly as the reference does.
     """
@@ -257,7 +274,7 @@ async def stage(proxy_url: str, container: Path, token: str, account: str, capab
     parts = urlsplit(proxy_url)
     host, port = parts.hostname or "127.0.0.1", parts.port or 443
     context = client_context(parts.scheme, chain)
-    event = await fetch_event(host, port, token, capabilities, context=context)
+    event = load_local_event(publication) if publication else await fetch_event(host, port, token, capabilities, context=context)
     envelope = envelope_bytes(event)
     loop = asyncio.get_running_loop()
     assets: Dict[str, bytes] = {}
@@ -274,13 +291,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--container", type=Path, required=True, help="the candidate's data container")
     ap.add_argument("--account", default="parity-loop")
     ap.add_argument("--capabilities", type=Path, default=DEFAULT_CAPABILITIES)
+    ap.add_argument("--publication", type=Path, help="stage this local envelope instead of the live one (assets still come through the proxy)")
     args = ap.parse_args(argv)
     token = os.environ.get("FENTON_HASS_TOKEN", "")
     if not token:
         print("stage: the token is not set", file=sys.stderr)
         return 2
     try:
-        summary = asyncio.run(stage(args.proxy, args.container, token, args.account, load_capabilities(args.capabilities), args.chain))
+        summary = asyncio.run(stage(args.proxy, args.container, token, args.account, load_capabilities(args.capabilities), args.chain, args.publication))
     except (StageError, OSError, ValueError) as error:
         print(f"stage: {error if isinstance(error, StageError) else type(error).__name__}", file=sys.stderr)
         return 1

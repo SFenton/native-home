@@ -157,7 +157,7 @@ def candidate_live_script(udid: str, bundle: str = BUNDLE_ID) -> str:
         "hass_load_creds || exit 2",
         "hass_require_creds || exit 2",
         '[[ -n "${PROXY_URL:-}" && -n "${PROXY_CHAIN:-}" && -n "${CONTAINER_DATA:-}" ]] || { echo "no proxy url, certificate or container" >&2; exit 2; }',
-        f'{stage} --proxy "$PROXY_URL" --chain "$PROXY_CHAIN" --container "$CONTAINER_DATA"',
+        f'{stage} --proxy "$PROXY_URL" --chain "$PROXY_CHAIN" --container "$CONTAINER_DATA" ${{STAGE_PUBLICATION:+--publication "$STAGE_PUBLICATION"}}',
         f"xcrun simctl terminate {shlex.quote(udid)} {shlex.quote(bundle)} >/dev/null 2>&1 || true",
         'SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN="$FENTON_HASS_TOKEN" '
         "SIMCTL_CHILD_FENTON_SYSTEM_SETTINGS=none SIMCTL_CHILD_FENTON_SKIP_INTRO=1 "
@@ -188,8 +188,9 @@ def trust_certificate(udid: str, certfile: Path, runner: Runner = run) -> None:
 
 
 def launch_live(side: str, udid: str, proxy_url: Optional[str], runner: Runner = run,
-                env: Optional[Mapping[str, str]] = None, proxy_cert: Optional[Path] = None) -> None:
-    """Launch ``side`` live. Refuses without the go, a hold, or the TLS proxy and its certificate.
+                env: Optional[Mapping[str, str]] = None, proxy_cert: Optional[Path] = None,
+                publication: Optional[Path] = None) -> None:
+    """Launch ``side`` live. ``publication`` (candidate only) stages that local envelope instead of the live one (``stage.py --publication``). Refuses without the go, a hold, or the TLS proxy and its certificate.
 
     The simulator first trusts the proxy's certificate. The reference is token-launched with the proxy as its server. The candidate
     has its publication staged through the proxy (read-only; the proxy origin is written into its bootstrap), then launches in
@@ -198,14 +199,21 @@ def launch_live(side: str, udid: str, proxy_url: Optional[str], runner: Runner =
     child = dict(os.environ if env is None else env)
     require_go(child)
     require_hold(child)
+    if publication and side == REFERENCE:
+        raise Refused("--publication stages the candidate only; the reference reads the live layout")
     require_tls_proxy(proxy_url, proxy_cert)
     trust_certificate(udid, Path(str(proxy_cert)), runner)
     child["PROXY_URL"] = str(proxy_url)
     child["PROXY_CHAIN"] = str(Path(str(proxy_cert)).with_name(tls.CHAIN_NAME))  # the leaf the helpers pin, beside the CA to trust
+    child.pop("STAGE_PUBLICATION", None)  # never inherited: a stale draft must not stand in for the live publication
     if side == REFERENCE:
         script = live_script(udid)
     else:
         child["CONTAINER_DATA"] = str(container(runner, udid, "data"))
+        if publication:
+            if not Path(publication).is_file():
+                raise Refused("--publication names no file")
+            child["STAGE_PUBLICATION"] = str(publication)
         script = candidate_live_script(udid)
     result = runner(["bash", "-c", script], child, 300.0)
     if result.code != 0:
@@ -311,6 +319,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     lv.add_argument("--udid", required=True)
     lv.add_argument("--proxy-url")
     lv.add_argument("--proxy-cert", type=Path, help="the certificate the proxy printed at start")
+    lv.add_argument("--publication", type=Path, help="candidate only: stage this local envelope (a draft) instead of the live one")
     idn = sub.add_parser("identity")
     idn.add_argument("--side", choices=APPS, default=REFERENCE)
     idn.add_argument("--proxy-url", required=True)
@@ -326,7 +335,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 feed_preview(container(run, args.udid, "data"), args.publication)
             launch_gallery(args.side, Agent(args.agent), args.udid, args.page)
         elif args.verb == "live":
-            launch_live(args.side, args.udid, args.proxy_url, proxy_cert=args.proxy_cert)
+            launch_live(args.side, args.udid, args.proxy_url, proxy_cert=args.proxy_cert, publication=args.publication)
         elif args.verb == "identity":
             print(resolve_identity(args.proxy_url, args.proxy_cert, side=args.side))
         else:

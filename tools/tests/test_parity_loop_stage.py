@@ -84,7 +84,7 @@ class StageTests(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
 
-    def run_stage(self, published: dict, assets: dict, token: str = TOKEN):
+    def run_stage(self, published: dict, assets: dict, token: str = TOKEN, publication=None):
         out = {}
         bundle = tls.make_certificate(self.dir / "tls")
 
@@ -97,7 +97,7 @@ class StageTests(unittest.TestCase):
             url = f"https://127.0.0.1:{server_.sockets[0].getsockname()[1]}"
             out["ha"], out["log"], out["origin"] = ha, log, url
             try:
-                out["summary"] = await stage.stage(url, self.dir / "container", token, "parity-loop", ["sh.page@1"], bundle.chain)
+                out["summary"] = await stage.stage(url, self.dir / "container", token, "parity-loop", ["sh.page@1"], bundle.chain, publication)
             finally:
                 await asyncio.sleep(0.05)
                 server_.close()
@@ -122,6 +122,29 @@ class StageTests(unittest.TestCase):
         self.assertEqual(sorted(out["ha"].http_paths), sorted([stage.ASSET_PATH + SHA_A, stage.ASSET_PATH + SHA_B]))
         self.assertEqual(out["log"].counts, {})  # nothing was refused: staging is all reads
         self.assertEqual(out["log"].allowed["ws"], {"auth": 1, stage.SUBSCRIBE_COMMAND: 1, "unsubscribe_events": 1})
+
+    def test_a_local_publication_replaces_the_live_one_but_assets_still_come_through_the_proxy(self) -> None:
+        local = self.dir / "draft.json"
+        draft = event(revision=9, assets=(SHA_A,))["envelope"]
+        draft["document"]["id"] = "demo_draft"
+        local.write_text(json.dumps(draft))
+        out = self.run_stage(event(revision=7), {SHA_A: ASSET_A}, publication=local)
+        folder = self.dir / "container" / stage.PREVIEW_SUBPATH
+        staged = json.loads((folder / "publication.json").read_text())
+        self.assertEqual((staged["revision"], staged["document"]["id"]), (9, "demo_draft"))
+        self.assertEqual((folder / "assets" / SHA_A).read_bytes(), ASSET_A)
+        self.assertEqual(out["ha"].ws_types, [])  # the live subscription was never opened
+        self.assertEqual(out["ha"].http_paths, [stage.ASSET_PATH + SHA_A])
+        self.assertEqual(json.loads((folder / "bootstrap.json").read_text())["live"]["server"], out["origin"])
+
+    def test_a_local_publication_that_is_not_an_envelope_fails(self) -> None:
+        bad = self.dir / "bad.json"
+        for text in ("not json", "[1]", json.dumps({"revision": "1", "document": {}})):
+            bad.write_text(text)
+            with self.assertRaises(stage.StageError):
+                self.run_stage(event(), {}, publication=bad)
+        with self.assertRaises(stage.StageError):
+            self.run_stage(event(), {}, publication=self.dir / "missing.json")
 
     def test_no_file_holds_the_token(self) -> None:
         self.run_stage(event(), {SHA_A: ASSET_A, SHA_B: ASSET_B})
@@ -198,6 +221,35 @@ class ProxyAllowsTheStagingReadsTests(unittest.TestCase):
 
 
 class CandidateLaunchTests(unittest.TestCase):
+    def test_the_script_passes_a_local_publication_only_when_one_is_named(self) -> None:
+        self.assertIn('${STAGE_PUBLICATION:+--publication "$STAGE_PUBLICATION"}', launch.candidate_live_script("UDID-1"))
+
+    def test_launch_live_candidate_hands_the_draft_to_the_stage(self) -> None:
+        seen = []
+
+        def runner(argv, env=None, timeout=0):
+            seen.append(env)
+            return Result(0, "/sim/data\n") if argv[:3] == ["xcrun", "simctl", "get_app_container"] else Result(0)
+        launch.launch_live("candidate", "UDID-1", "https://127.0.0.1:9", runner, LIVE, proxy_cert=CERT, publication=Path(__file__))
+        self.assertEqual(seen[-1]["STAGE_PUBLICATION"], str(Path(__file__)))
+        with self.assertRaises(launch.Refused):
+            launch.launch_live("candidate", "UDID-1", "https://127.0.0.1:9", runner, LIVE, proxy_cert=CERT, publication=Path("/nope.json"))
+
+    def test_a_draft_is_refused_for_the_reference_and_never_inherited(self) -> None:
+        seen = []
+
+        def runner(argv, env=None, timeout=0):
+            seen.append(env)
+            return Result(0, "/sim/data\n") if argv[:3] == ["xcrun", "simctl", "get_app_container"] else Result(0)
+        with self.assertRaises(launch.Refused):
+            launch.launch_live("reference", "UDID-1", "https://127.0.0.1:9", runner, LIVE, proxy_cert=CERT, publication=Path(__file__))
+        self.assertEqual(seen, [])
+        stale = dict(LIVE, STAGE_PUBLICATION="/stale/draft.json")
+        launch.launch_live("candidate", "UDID-1", "https://127.0.0.1:9", runner, stale, proxy_cert=CERT)
+        self.assertNotIn("STAGE_PUBLICATION", seen[-1])
+        launch.launch_live("reference", "UDID-1", "https://127.0.0.1:9", runner, stale, proxy_cert=CERT)
+        self.assertNotIn("STAGE_PUBLICATION", seen[-1])
+
     def test_the_script_stages_then_launches_the_preview_with_the_token_in_env_only(self) -> None:
         script = launch.candidate_live_script("UDID-1")
         self.assertLess(script.index("stage.py"), script.index("simctl launch"))
