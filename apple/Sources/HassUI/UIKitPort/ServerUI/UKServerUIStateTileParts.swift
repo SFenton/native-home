@@ -27,9 +27,10 @@ enum UKServerUIStateTileParts {
     ///   - subtitle: The subtitle's text once resolved, or `nil` to keep the style's words.
     ///   - unknown: Whether the entity cannot be read now (hidden, loading or unavailable): the faces and discs then stand down.
     ///   - busy: Whether a call from this tile is in flight.
-    ///   - memory: What the tile's discs last showed, for `whenUnknown: keep`.
+    ///   - read: Reads a typed value for a disc's label that is a text slot.
+    ///   - memory: What the tile's discs last showed: for `whenUnknown: keep`, and the symbol and words of a rule that is still loading.
     static func apply(_ tile: D.StateTile, to model: inout UKGlassTileModel, reader: some ServerUIReading, subtitle: String?, unknown: Bool,
-                      busy: Bool, memory: inout [String: Bool]) {
+                      busy: Bool, read: (D.Read) -> ServerUIReadResult = { _ in .unavailable }, memory: inout UKServerUILayoutMemory) {
         if let subtitle {
             model.subtitle = subtitle.isEmpty ? nil : subtitle
             model.stateCandidates.append(subtitle)
@@ -37,7 +38,7 @@ enum UKServerUIStateTileParts {
         if tile.parts.progress != nil { model.progress = ServerUILayoutRules.progress(tile.parts.progress, in: reader) }
         var shown: [String: Bool] = [:]
         let discs = tile.parts.discs.filter { disc in
-            let visible = disc.visibility?.isShown(reader, previous: memory[disc.id]) ?? true
+            let visible = disc.visibility?.isShown(reader, previous: memory.discs[disc.id]) ?? true
             shown[disc.id] = visible
             return visible
         }
@@ -45,15 +46,21 @@ enum UKServerUIStateTileParts {
         var allowed: [String: Bool] = [:]
         for disc in discs {
             let key = "enabled:" + disc.id
-            let answer = ServerUIEnabledRule.allows(disc.enabledWhen, previous: memory[key], in: reader)
+            let answer = ServerUIEnabledRule.allows(disc.enabledWhen, previous: memory.discs[key], in: reader)
             allowed[disc.id] = answer
             shown[key] = answer
         }
-        memory = shown
+        memory.discs = shown
         model.actions += discs.map { disc in
-            TileActionItem(id: itemID(disc), verb: disc.label, symbol: ServerUISymbolFallback.resolve(disc.icon.name),
-                           phase: unknown || allowed[disc.id] == false ? .unavailable : busy ? .inFlight : .ready, feedback: .momentary,
-                           label: disc.label)
+            // A rule that is still loading keeps what the disc last showed; one that cannot answer shows its `otherwise` (the authored words).
+            let symbol = disc.resolvedIcon(in: reader, keeping: memory.discSymbols[disc.id])
+            let words = disc.resolvedLabel(read: read, in: reader, keeping: memory.discLabels[disc.id])
+            memory.discSymbols[disc.id] = symbol
+            memory.discLabels[disc.id] = words
+            return TileActionItem(id: itemID(disc), verb: words, symbol: ServerUISymbolFallback.resolve(symbol.name),
+                                  phase: unknown || allowed[disc.id] == false ? .unavailable : busy ? .inFlight : .ready, feedback: .momentary,
+                                  // The tile's own title follows the words ("Start Main Floor"); otherwise the words are the whole label.
+                                  label: disc.namesTile ? nil : words)
         }
         if tile.action != nil {
             model.behavior = .navigate

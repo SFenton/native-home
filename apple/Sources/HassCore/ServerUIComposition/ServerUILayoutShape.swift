@@ -45,11 +45,15 @@ extension ServerUICompositionShape {
     static let tileParts: Shape = {
         object(["subtitle": .optional(textValue(.text(2_000, blank: true))),
                 "progress": .optional(operand),
-                "discs": .optional(array(object(["id": id, "icon": symbol, "label": label, "action": action,
+                "discs": .optional(array(object(["id": id, "icon": symbolSlot, "label": discLabel, "namesTile": .optional(.bool),
+                                                 "action": action,
                                                  "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown),
                                                  "enabledWhen": .optional(enabledWhen)]),
                                          ServerUITileParts.maximumDiscs))])
     }()
+
+    /// A tile button's label: plain words, or a text slot that follows a rule or an expression (`sh.tile-disc-rules@1`).
+    static let discLabel: Shape = .either(text: label, object: textValue(.text(80, blank: false)))
 
     /// The fields a state tile carries beyond its binding: a destination, the three face conditions and a badge.
     static let stateTileFields: [String: Shape] = [

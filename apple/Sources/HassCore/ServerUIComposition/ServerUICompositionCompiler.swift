@@ -43,10 +43,10 @@ struct ServerUICompositionCompiler {
     private var loweredStyles: [ServerUIStateStyleLibrary.Entry] = []
     private var localActions: [(String, D.LocalValue, String)] = []
     /// Expressions' source references, checked once every source is known.
-    private var expressionRefs: [ServerUIExpressionParser.Reference] = []
+    var expressionRefs: [ServerUIExpressionParser.Reference] = []
     private var optimisticRefs: [(sourceId: String, pointer: String)] = []
     /// Whether `control` operands are valid where the action being compiled sits (a bound control's own calls).
-    private var controlContext = false
+    var controlContext = false
     /// The document's saved components, expanded before decoding (`sh.component-ref@1`).
     private var components = ServerUIComponentExpansion(.null)
 
@@ -894,7 +894,7 @@ struct ServerUICompositionCompiler {
     }
 
     /// Folds a rule decoder's diagnostics, source references and capability needs into this compile.
-    private mutating func absorb(_ rules: ServerUIRuleDecoder) throws {
+    mutating func absorb(_ rules: ServerUIRuleDecoder) throws {
         issues += rules.issues
         for need in rules.needs { require(need) }
         try absorb(rules.parserFacts)
@@ -1093,7 +1093,7 @@ struct ServerUICompositionCompiler {
         return value
     }
 
-    private mutating func callService(_ c: Cursor) throws -> ServerUICallService {
+    mutating func callService(_ c: Cursor) throws -> ServerUICallService {
         require("call-service")
         var parser = ServerUIExpressionParser(allowControl: controlContext)
         let value = parser.callService(c.value, at: c.pointer)
@@ -1181,10 +1181,15 @@ struct ServerUICompositionCompiler {
             }
             if Set(options.map(\.id)).count != options.count { add(.duplicateID, props.path("options")) }
         }
-        return try D.BoundControl(
+        let optionsFrom = try optionsFrom(props, kind: kind)
+        let rowParts = try rowParts(c, props: props, kind: kind, surface: surface)
+        var control = try D.BoundControl(
             node: node, icon: c.value["icon"] == nil ? nil : symbol(c.field("icon")), kind: kind, surface: surface,
             isOn: isOn, value: value, range: range, valueFormat: format, options: options,
             onAction: onAction, offAction: offAction, action: action, unavailableText: props.s("unavailableText"))
+        control.optionsFrom = optionsFrom
+        control.row = rowParts
+        return control
     }
 
 
@@ -1457,7 +1462,8 @@ struct ServerUICompositionCompiler {
                 node: node, minimum: props.e("minimum"), maxColumns: props.i("maxColumns"),
                 spacing: space(props.field("spacing")), equalRowHeights: props.b("equalRowHeights"),
                 shortRow: props.e("shortRow"), fold: props.e("fold"),
-                children: components(c.field("children"), depth: depth + 1, gridChild: true)
+                children: components(c.field("children"), depth: depth + 1, gridChild: true),
+                minimumColumns: minimumColumns(props)
             ))
         default: return nil
         }

@@ -56,10 +56,14 @@ extension ServerUICompositionDocument {
         public let action: ServerUICallService?
         /// Said while the value cannot be read.
         public let unavailableText: String
+        /// A choice's options read from an entity's list, the authored ``options`` standing as the fallback (`sh.bound-options-read@1`).
+        public var optionsFrom: ServerUIOptionsRead? = nil
+        /// A toggle row's own parts and face (`sh.bound-row-parts@1`, `sh.check-face@1`).
+        public var row = ServerUIRowParts()
 
         /// Every call the control can send.
         public var actions: [ServerUICallService] {
-            [onAction, offAction, action].compactMap { $0 } + options.map(\.action)
+            [onAction, offAction, action].compactMap { $0 } + options.map(\.action) + [optionsFrom?.action].compactMap { $0 }
         }
 
         /// The source ids the shown value depends on (what an observation of the control tracks).
@@ -67,6 +71,8 @@ extension ServerUICompositionDocument {
             var ids = isOn?.sourceIds ?? []
             ids.formUnion(value?.sourceIds ?? [])
             for option in options { ids.formUnion(option.selectedWhen.sourceIds) }
+            if let optionsFrom { ids.formUnion(optionsFrom.sourceIds) }
+            ids.formUnion(row.sourceIds)
             return ids
         }
     }

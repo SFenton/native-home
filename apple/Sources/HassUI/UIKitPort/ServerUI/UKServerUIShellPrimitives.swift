@@ -224,6 +224,8 @@ final class UKServerUILocalControl: UKServerUIFittingView {
     private var sliderWork: Task<Void, Never>?
     private var lastSent: D.LocalValue?
     private var ruleDisabled = false
+    /// A bound toggle's own row or check row (`sh.bound-row-parts@1`, `sh.check-face@1`), when it has parts or an icon.
+    private var rowToggle: UKServerUIRowToggle?
 
     init() { super.init(frame: .zero) }
 
@@ -260,11 +262,13 @@ final class UKServerUILocalControl: UKServerUIFittingView {
         }
         if self.spec != spec {
             content?.removeFromSuperview()
+            rowToggle = nil
             self.spec = spec
             build(spec, surface: surface, send: send)
         }
         (content as? UKSurfaceStyled)?.surface = surface
         let value = binding.value()
+        rowToggle?.update(binding.rowDetails())
         setAvailable(value != nil, spec: spec)
         if let value { show(value) }
         setEnabledByRule(enabled, spec: spec)
@@ -273,6 +277,12 @@ final class UKServerUILocalControl: UKServerUIFittingView {
     /// `enabledWhen`: while it says no the control cannot be touched and reads as dimmed and not enabled; when it says yes again the
     /// control goes back to whatever availability alone gave it.
     private func setEnabledByRule(_ enabled: Bool, spec: UKServerUIControlSpec) {
+        if let rowToggle {
+            // The row dims its own glyph and says "not enabled"; the title keeps its contrast.
+            rowToggle.setRuleEnabled(enabled)
+            ruleDisabled = !enabled
+            return
+        }
         if !enabled {
             ruleDisabled = true
             control?.isUserInteractionEnabled = false
@@ -303,6 +313,10 @@ final class UKServerUILocalControl: UKServerUIFittingView {
 
     private func setAvailable(_ available: Bool, spec: UKServerUIControlSpec) {
         guard spec.unavailableText != nil else { return }
+        if let rowToggle {
+            rowToggle.setAvailable(available)
+            return
+        }
         control?.isUserInteractionEnabled = available
         control?.alpha = available ? 1 : 0.5
         if let row, !(row is UKPercentSliderRow) {
@@ -318,6 +332,18 @@ final class UKServerUILocalControl: UKServerUIFittingView {
         enable = { _ in }
         var host: UIView = row
         switch spec.face {
+        case .toggle where spec.row != nil:
+            // A toggle with its own parts or icon is the module row (or check row) the vacuum and climate atoms drew.
+            let toggle = UKServerUIRowToggle(spec: spec, row: spec.row ?? .init(), surface: surface) { send(.boolean($0)) }
+            rowToggle = toggle
+            control = toggle.control
+            show = { if case .boolean(let value) = $0 { toggle.show(value) } }
+            enable = { _ in }
+            self.row = nil
+            content = toggle.view
+            addSubview(toggle.view)
+            toggle.view.ukPin(to: self)
+            return
         case .toggle:
             let toggle = UKControllerToggle(isOn: false) { send(.boolean($0)) }
             toggle.accessibilityLabel = spec.title

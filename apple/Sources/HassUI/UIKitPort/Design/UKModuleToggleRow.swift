@@ -15,7 +15,8 @@ import UIKit
 /// ```
 final class UKModuleToggleRow: UKRowButton {
     private let switchView = UISwitch()
-    private let hint: String?
+    /// What VoiceOver reads after the label; a caller changes it when the row cannot be used (the unavailable text).
+    var hint: String?
 
     init(_ title: String, subtitle: String? = nil, symbol: String? = nil, glyph: UIColor? = nil, glyphOpacity: CGFloat = 1,
          isOn: Bool, hint: String? = nil, surface: TileSurface = .page, action: @escaping () -> Void) {

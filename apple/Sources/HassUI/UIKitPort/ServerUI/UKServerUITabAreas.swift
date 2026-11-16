@@ -87,6 +87,9 @@ struct UKServerUILayoutMemory {
     var tabs: [String: Bool] = [:]
     var areas: [String: Bool] = [:]
     var discs: [String: Bool] = [:]
+    /// The symbol and the words each rule-following disc last showed, kept while its rule is still loading (`sh.tile-disc-rules@1`).
+    var discSymbols: [String: ServerUICompositionDocument.Symbol] = [:]
+    var discLabels: [String: String] = [:]
 }
 
 /// The tabs, the tab on show and the areas on show for one pass of a tab container.

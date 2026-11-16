@@ -268,14 +268,7 @@ final class UKServerUIBindings {
     /// A text slot's value: a literal, a typed read, or an operand (`sh.rules@1`), each with the fallback it carries
     /// (``ServerUIStringResolver``). Evaluated inside the caller's observation, so it follows exactly the entities it reads.
     func string(_ value: D.StringValue) -> UKServerUIValue<String> {
-        let readValue: (D.Read) -> ServerUIReadResult = { read in
-            switch self.read(read) {
-            case .loading: .loading
-            case .unavailable: .unavailable
-            case .ready(.string(let text)): .value(.string(text))
-            case .ready: .unavailable
-            }
-        }
+        let readValue: (D.Read) -> ServerUIReadResult = { self.textResult($0) }
         let result: ServerUIReadResult
         if let environment = readerProvider?() {
             result = ServerUIStringResolver.resolve(value, read: readValue, in: environment)
@@ -288,6 +281,16 @@ final class UKServerUIBindings {
         case .value(.string(let text)): return .ready(text)
         case .loading: return .loading
         case .value, .unavailable: return .unavailable
+        }
+    }
+
+    /// A typed read as text for a text slot: a value that is not text is unavailable.
+    func textResult(_ read: D.Read) -> ServerUIReadResult {
+        switch self.read(read) {
+        case .loading: .loading
+        case .unavailable: .unavailable
+        case .ready(.string(let text)): .value(.string(text))
+        case .ready: .unavailable
         }
     }
 
