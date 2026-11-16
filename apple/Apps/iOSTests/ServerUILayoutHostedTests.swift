@@ -29,9 +29,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: moved)
         let kept = try XCTUnwrap(pages[0]["components"])
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: kept)
-        return try HouseConfigSource.$scoped.withValue(HouseConfigSource.demo) {
-            try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
-        }
+        return try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
     }
 
     private func page(_ file: String, width: CGFloat) throws -> (UKServerUIRenderer, UKServerUIPage) {
@@ -85,7 +83,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
                 root.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
                 root.view.layoutIfNeeded()
                 let tabs = try XCTUnwrap(root.nodes["tabs"]?.view, "\(file) \(width)")
-                let bar = try XCTUnwrap(find(UKModalTabBar.self, in: tabs) ?? tabs.subviews.first, "\(file) \(width)")
+                let bar = try XCTUnwrap(tabs.subviews.first, "\(file) \(width)")
                 XCTAssertGreaterThanOrEqual(bar.bounds.height, 44, "\(file) \(width)")
                 for control in all(UIControl.self, in: tabs) where control.isAccessibilityElement && control.bounds.width > 0 {
                     XCTAssertGreaterThanOrEqual(control.bounds.height, 44, "\(file) \(width)")
