@@ -78,7 +78,7 @@ extension ServerUICompositionDocument {
         public let density: Density
         public let hasGlyphs: Bool
         public let spacing: Space
-        public let children: [Component]
+        public internal(set) var children: [Component]
         public var presentationProviderId: String? = nil
         /// The authored style choices.
         public enum Style: String, Sendable { case plain, moduleList = "module-list" }
@@ -116,7 +116,7 @@ extension ServerUICompositionDocument {
         public let perPage: Int
         public let pageLabel: String
         public let showsIndicator: Bool
-        public let children: [Component]
+        public internal(set) var children: [Component]
     }
 
     /// The canonical row's slots. There is deliberately no feature/page discriminator.
@@ -161,7 +161,7 @@ extension ServerUICompositionDocument {
         public struct TabContent: Equatable, Sendable {
             public let id: String
             public let label: String
-            public let children: [Component]
+            public internal(set) var children: [Component]
             public var icon: Symbol? = nil
             public var centerWhenFits = false
             /// Shows or hides the tab by a rule (`sh.tab-blocks@1`); `nil` for a tab that is always there.

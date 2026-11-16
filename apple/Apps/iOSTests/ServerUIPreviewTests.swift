@@ -382,7 +382,7 @@ final class ServerUIPreviewTests: XCTestCase {
         for index in 1...3 {
             do {
                 if index == 2 { _ = try await live.caller.callServiceWithResponse("script", "run", data: [:]) }
-                else { try await live.caller.callService("light", "turn_on", data: ["entity_id": "light.x"]) }
+                else { try await live.caller.callService("light", "turn_on", data: ["entity_id": "light.demo_x"]) }
                 XCTFail("A live service call was accepted")
             } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled) }
             XCTAssertEqual(live.caller.blockedCommands, index)

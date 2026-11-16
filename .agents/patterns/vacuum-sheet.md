@@ -12,7 +12,7 @@ Web source: `ha-sfenton-react-dash@9ac2a46:src/components/hass/VacuumCard.tsx`, 
 | Status contract, runtime mode, tabs | `HassCore/Vacuums/VacuumStatus.swift` |
 | While-away report parsing and reconciliation | `HassCore/Vacuums/VacuumOutcomes.swift` |
 | Commands, rooms, settings, queued clean | `HassCore/Vacuums/VacuumController.swift` |
-| Auto-Clean switches (Vacuums page) | `HassCore/Vacuums/VacuumAutoCleanController.swift` |
+| Lowered kinds | [vacuum-lowering](vacuum-lowering.md) |
 | Sheet, tabs, layout, navigation | `HassUI/UIKitPort/ServerUI/UKServerUIVacuumView.swift`, `HassCore/Vacuums/VacuumSheetModel.swift` |
 | Section bar symbols | `HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift` |
 | Map panel, status summary, report | `HassUI/UIKitPort/Features/Vacuums/UKVacuumMapPanel.swift` |

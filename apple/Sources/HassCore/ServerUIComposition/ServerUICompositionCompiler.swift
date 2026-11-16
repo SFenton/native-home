@@ -106,6 +106,8 @@ struct ServerUICompositionCompiler {
         validateChromeContexts(document)
         if let first = ServerUICompositionShape.first(components.remapped(issues)) { throw first }
         document.dataSources = components.published(document.dataSources)
+        // The vacuum kinds the generic parts can draw become those parts here, after the document was checked as written.
+        document = ServerUIVacuumLowering.lower(document)
         try Self.checkKnownCapabilities(capabilities)
         guard capabilities == requirements.sorted() else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
         let manifest = try root.field("document").field("assets")

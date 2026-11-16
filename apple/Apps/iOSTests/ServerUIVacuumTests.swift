@@ -120,7 +120,8 @@ final class ServerUIConfiguredVacuumTests: XCTestCase {
         try await super.tearDown()
     }
 
-    func testAuthoredAutoCleanToggleMeasuresAndRetainsLiveBindingAcrossFamilyWidths() throws {
+    /// The Auto-Clean switch is lowered at compile time to a bound toggle: the page draws a generic row with a switch, not the vacuum view.
+    func testLoweredAutoCleanToggleMeasuresAndRetainsLiveBindingAcrossFamilyWidths() throws {
         for width: CGFloat in [355, 390, 768, 1024] {
             let store = ConfiguredVacuumFixture.store(try ConfiguredVacuumFixture.descriptor())
             let publication = try ConfiguredVacuumFixture.publication(#"{"kind":"auto-clean"}"#, autoClean: true)
@@ -132,54 +133,57 @@ final class ServerUIConfiguredVacuumTests: XCTestCase {
             let page = try ServerUIRendererFixture.root(host)
             page.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
             HostedPage.layoutTracked()
-            let view = try XCTUnwrap(page.nodes["robot-control"]?.view as? UKServerUIVacuumView)
-            let toggle = try XCTUnwrap(HostedPage.descendants(of: view).compactMap { $0 as? UISwitch }.first)
-            XCTAssertGreaterThanOrEqual(view.gridHeight(forWidth: width - 32), 44)
+            let view = try XCTUnwrap(page.nodes["robot-control"]?.view)
+            XCTAssertFalse(view is UKServerUIVacuumView, "a lowered kind carries no vacuum view (width \(width))")
+            let control = try XCTUnwrap(view as? UKServerUILocalControl, "width \(width)")
+            let toggle = try XCTUnwrap(control.drawnControl as? UKModuleToggleRow, "the row with its glyph and subtitle is the module toggle row (width \(width))")
+            XCTAssertEqual(toggle.row.rowContent.symbol, "clock.arrow.circlepath")
+            XCTAssertEqual(toggle.row.rowContent.subtitle, "Paused", "the pause switch is on: width \(width)")
+            XCTAssertGreaterThanOrEqual(view.systemLayoutSizeFitting(CGSize(width: width - 32, height: UIView.layoutFittingCompressedSize.height),
+                withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height, 44)
             XCTAssertFalse(toggle.isOn)
             store.apply([.init(entityId: "switch.demo_pause", state: "off")])
             XCTAssertTrue(HostedPage.until { toggle.isOn })
+            XCTAssertEqual(toggle.row.rowContent.subtitle, "Enabled")
             try host.apply(publication: ConfiguredVacuumFixture.publication(#"{"kind":"auto-clean"}"#, autoClean: true, revision: 2),
                            backdrop: ServerUIRendererFixture.backdrop())
             XCTAssertTrue(page.nodes["robot-control"]?.view === view)
         }
     }
 
-    func testCardUsesCanonicalStartAndPinsActualTransportAfterLiveAcknowledgement() async throws {
-        let caller = ConfiguredVacuumCaller()
-        caller.hold = true
-        defer { caller.complete() }
-        let source = try ConfiguredVacuumFixture.source(caller: caller)
-        source.runCard(.startPause)
-        XCTAssertTrue(source.isPinned)
-        await caller.waitForStart()
-        XCTAssertEqual(caller.calls, ["vacuum.start"], "The page card must not invoke the sheet's clean script.")
-        XCTAssertEqual(caller.targets, [source.descriptor.entityId])
-        source.controller?.store.apply([EntityState(entityId: source.descriptor.entityId, state: "cleaning")])
-        await FeatureHost.settleAsync()
-        XCTAssertTrue(source.isPinned, "Live acknowledgement does not finish a held service call.")
-        caller.complete()
-        let completed = await FeatureHost.settleAsync(until: { source.cardCallCount == 0 })
-        XCTAssertTrue(completed)
-        XCTAssertFalse(source.isPinned)
-    }
-
-    func testMissingServiceDisablesCardAndRejectedServiceRollsBackExplicitly() async throws {
-        let caller = ConfiguredVacuumCaller(), source = try ConfiguredVacuumFixture.source(caller: caller)
-        source.controller?.services = []
-        source.runCard(.startPause)
-        XCTAssertTrue(caller.calls.isEmpty)
-        XCTAssertNotNil(source.failure)
-        source.controller?.services = ConfiguredVacuumFixture.services
-        caller.hold = true
-        defer { caller.complete() }
-        source.runCard(.startPause)
-        await caller.waitForStart()
-        caller.complete(failing: true)
-        let completed = await FeatureHost.settleAsync(until: { source.cardCallCount == 0 })
-        XCTAssertTrue(completed)
-        XCTAssertEqual(source.cardState?.state, "docked")
-        XCTAssertTrue(source.cardFailed)
-        XCTAssertNotNil(source.failure)
+    /// The card is lowered to a state tile: it draws the robot's state and battery and carries the Start or pause disc.
+    func testLoweredCardDrawsTheRobotTileAtEveryFamilyWidth() async throws {
+        let primitive = #"{"kind":"card","icon":{"type":"sf-symbol","name":"fan","rendering":"canonical","unavailable":"reject"},"commands":["start_pause","dock"],"destination":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"}}"#
+        for width: CGFloat in [393, 466, 834] {
+            let store = ConfiguredVacuumFixture.store(try ConfiguredVacuumFixture.descriptor())
+            let host = try UKServerUIRenderer(publication: ConfiguredVacuumFixture.publication(primitive),
+                context: UKContext(store: store, caller: ConfiguredVacuumCaller()), backdrop: ServerUIRendererFixture.backdrop(),
+                vacuums: .init(loader: { _ in ConfiguredVacuumFixture.loader() }, services: ConfiguredVacuumFixture.services))
+            let window = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 852)))
+            defer { window.isHidden = true }
+            let page = try ServerUIRendererFixture.root(host)
+            await HostedPage.settle { page.nodes["robot-control"]?.view is UKGlassTileView }
+            let tile = try XCTUnwrap(page.nodes["robot-control"]?.view as? UKGlassTileView, "width \(width)")
+            XCTAssertEqual(tile.model.title, "Demo Control")
+            XCTAssertEqual(tile.model.look?.text, "Docked", "width \(width)")
+            XCTAssertEqual(tile.model.subtitle, "Docked \u{2022} 90%", "width \(width)")
+            XCTAssertFalse(tile.model.actions.isEmpty, "the Start or pause and Dock discs are on the tile")
+            XCTAssertNil(tile.model.fillRGB, "a docked robot keeps the neutral face (width \(width))")
+            let start = try XCTUnwrap(tile.model.actions.first { $0.id == "disc:start_pause" }, "width \(width)")
+            XCTAssertEqual(start.verb, "Start")
+            XCTAssertEqual(start.symbol, "play.fill")
+            store.apply([EntityState(entityId: "vacuum.demo_robot", state: "cleaning")])
+            let purple = await HostedPage.settle { tile.model.fillRGB == 0x7A3FB0 }
+            XCTAssertTrue(purple, "a working robot draws the cleaning purple (width \(width))")
+            let pause = try XCTUnwrap(tile.model.actions.first { $0.id == "disc:start_pause" })
+            XCTAssertEqual(pause.verb, "Pause")
+            XCTAssertEqual(pause.symbol, "pause.fill")
+            store.apply([EntityState(entityId: "vacuum.demo_robot", state: "docked")])
+            store.apply([EntityState(entityId: "vacuum.demo_robot", state: "unavailable")])
+            let landed = await HostedPage.settle { tile.model.look?.stateClass == .unknown }
+            XCTAssertTrue(landed, "an unreachable robot draws the unknown face (width \(width))")
+            HostedPage.hideTracked()
+        }
     }
 
     func testDraftIsLocalDiscardRestoresAndUseRevalidatesLiveReadiness() throws {

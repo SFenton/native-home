@@ -103,7 +103,7 @@ extension ServerUICompositionDocument {
         public let layout: RoomSectionArrangement
         public let leadJoinsAtRegularWidth: Bool
         public let visibility: RoomVisibility?
-        public let children: [Component]
+        public internal(set) var children: [Component]
     }
 
     /// The authored room section arrangement choices.

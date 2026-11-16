@@ -353,7 +353,8 @@ final class UKServerUILocalControl: UKServerUIFittingView {
         control?.isUserInteractionEnabled = available
         control?.alpha = available ? 1 : 0.5
         if let row, !(row is UKPercentSliderRow) {
-            row.update(UKRowContent(spec.title, subtitle: available ? nil : spec.unavailableText))
+            // Keep the accessory (the switch or picker): `update` drops a row's accessory unless it is passed again.
+            row.update(UKRowContent(spec.title, subtitle: available ? nil : spec.unavailableText), accessory: row.accessory)
         }
         enable(available)
         control?.accessibilityValue = available ? control?.accessibilityValue : spec.unavailableText
