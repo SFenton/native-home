@@ -84,7 +84,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         throw XCTSkip("the document has no flow \(id)")
     }
 
-    private func environment() -> (clock: ServerUIClock?, viewer: ServerUIViewer?, locale: Locale?) { (Self.clock, ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), Locale(identifier: "en_US")) }
+    private func environment() -> (viewer: ServerUIViewer?, locale: Locale?) { (ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), Locale(identifier: "en_US")) }
 
     /// Opens the publication at `width`, the list being filled by `session`'s collection.
     private func open(_ publication: ServerUICompositionPublication, id: String, session: ServerUIFlowSession, width: CGFloat)
@@ -141,7 +141,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
                 .object(["uid": "a", "summary": "Water the plants", "status": "needs_action", "due": "2026-11-17"]),
                 .object(["uid": "b", "summary": "Pay the rates", "status": "needs_action", "due": "2026-11-20"]),
             ])])]))
-            let host = ServerUIFlowHost(call: { _, _, _, _ in calls += 1; return try answer.get() }, environment: { self.environment() })
+            let host = ServerUIFlowHost(call: { _, _, _, _, _ in calls += 1; return try answer.get() }, environment: { self.environment() }, clock: { Self.clock })
             let session = ServerUIFlowSession(flow: flow, collection: ServerUIRowCollection(), host: host)
             let (renderer, root, list) = try open(publication, id: "upcoming", session: session, width: width)
             session.start()
@@ -178,9 +178,14 @@ final class ServerUIFlowListHostedTests: XCTestCase {
             // The flow runs again on a pull, and a failed call keeps the rows.
             let asked = calls
             answer = .failure(Dropped())
-            await session.refresh()
+            // The pull is the page's own refresh control: its action runs the list's refresh and ends the spinner.
+            let refresh = try XCTUnwrap(root.pageScroll?.refreshControl, "width \(width): a list that refreshes puts a refresh control on the page")
+            refresh.beginRefreshing()
+            refresh.sendActions(for: .valueChanged)
+            await HostedPage.settle { !refresh.isRefreshing }
             await HostedPage.pump(passes: 5)
-            XCTAssertEqual(calls, asked + 1, "width \(width)")
+            XCTAssertFalse(refresh.isRefreshing, "width \(width): the pull ended")
+            XCTAssertEqual(calls, asked + 1, "width \(width): one pull, one call")
             XCTAssertEqual(session.collection.phase, .stale)
             XCTAssertEqual(list.rows.count, 2, "width \(width): the rows stay when the call fails")
             XCTAssertTrue(spoken(list).contains("Out of date"), "width \(width)")
@@ -188,7 +193,8 @@ final class ServerUIFlowListHostedTests: XCTestCase {
 
             // An empty answer says so, and its line under the title.
             answer = .success(.object([:]))
-            await session.refresh()
+            refresh.sendActions(for: .valueChanged)
+            await HostedPage.settle { session.collection.phase == .ready && list.rows.isEmpty }
             await HostedPage.pump(passes: 5)
             XCTAssertEqual(session.collection.phase, .ready)
             XCTAssertTrue(list.rows.isEmpty, "width \(width)")
@@ -203,9 +209,11 @@ final class ServerUIFlowListHostedTests: XCTestCase {
 
     // MARK: Resubscribe
 
-    /// A dropped feed keeps the rows (the same row views, not new ones), says they are out of date, and the one subscription's next push
-    /// replaces them: nothing blanks, nothing subscribes twice.
-    func testAFeedThatDropsAndComesBackKeepsTheLastGoodRowsAtEveryFamilyWidth() throws {
+    /// A reconnect keeps the rows the way HAKit does it. Nothing reaches the session when the socket drops (HAKit only clears the
+    /// subscription's identifier), so the rows, the phase and the row views stay as they are; after the resend the server pushes the whole
+    /// list and it replaces the rows in place. A subscription the server refuses is a failure: the rows stay and read as out of date until the
+    /// next push. Either way there is one subscription, never a second.
+    func testAReconnectAndARefusedSubscriptionKeepTheLastGoodRowsAtEveryFamilyWidth() throws {
         let publication = try subscriptionPublication()
         let flow = try self.flow("overdue", in: publication)
         func push(_ items: [(String, String, String)]) -> JSONValue {
@@ -213,7 +221,8 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         }
         for width in Self.widths {
             let feed = ManualFeed()
-            let session = ServerUIFlowSession(flow: flow, collection: ServerUIRowCollection(), host: ServerUIFlowHost(feed: feed, environment: { self.environment() }))
+            let session = ServerUIFlowSession(flow: flow, collection: ServerUIRowCollection(),
+                                              host: ServerUIFlowHost(feed: feed, environment: { self.environment() }, clock: { Self.clock }))
             let (_, root, list) = try open(publication, id: "overdue", session: session, width: width)
             session.start()
             XCTAssertEqual(session.collection.phase, .loading)
@@ -227,20 +236,32 @@ final class ServerUIFlowListHostedTests: XCTestCase {
             XCTAssertTrue(spoken(list).contains { $0.contains("Take the bins out") && $0.contains("6 days overdue") }, "width \(width)")
             shoot(root.view, "04-feed-ready", width: width)
 
+            // The socket drops and comes back: HAKit sends the one subscription again, and nothing reaches the session until the server's
+            // full list does. The page shows what it had, unchanged, the whole time.
+            HostedPage.wait(0.2)
+            XCTAssertEqual(session.collection.phase, .ready, "width \(width): a reconnect is not a failure")
+            XCTAssertTrue(list.rows["a"] === first, "width \(width): the row view is kept")
+            XCTAssertEqual(list.rows.count, 2, "width \(width): the rows stay through the reconnect")
+            XCTAssertFalse(spoken(list).contains("Out of date"), "width \(width)")
+            feed.push(push([("a", "Take the bins out", "2026-11-10"), ("b", "Wash the dishes", "2026-11-12"), ("c", "Mow the lawn", "2026-11-13")]))
+            settle { list.rows.count == 3 }
+            HostedPage.wait(0.1)
+            XCTAssertEqual(session.collection.phase, .ready, "width \(width)")
+            XCTAssertTrue(list.rows["a"] === first, "width \(width): the same row view after the full list")
+            shoot(root.view, "05-feed-reconnected", width: width)
+
+            // A subscription the server refuses keeps the rows and says so; the next push recovers.
             feed.drop()
             settle { session.collection.phase == .stale }
             HostedPage.wait(0.1)
             XCTAssertEqual(session.collection.phase, .stale, "width \(width)")
             XCTAssertTrue(list.rows["a"] === first, "width \(width): the row view is kept, nothing reloads")
-            XCTAssertEqual(list.rows.count, 2, "width \(width): the last good rows stay")
+            XCTAssertEqual(list.rows.count, 3, "width \(width): the last good rows stay")
             XCTAssertTrue(spoken(list).contains("Out of date"), "width \(width)")
-            shoot(root.view, "05-feed-dropped", width: width)
-
-            feed.push(push([("a", "Take the bins out", "2026-11-10"), ("b", "Wash the dishes", "2026-11-12"), ("c", "Mow the lawn", "2026-11-13")]))
-            settle { list.rows.count == 3 }
-            HostedPage.wait(0.1)
+            shoot(root.view, "06-feed-refused", width: width)
+            feed.push(push([("a", "Take the bins out", "2026-11-10")]))
+            settle { list.rows.count == 1 }
             XCTAssertEqual(session.collection.phase, .ready, "width \(width)")
-            XCTAssertTrue(list.rows["a"] === first, "width \(width): the same row view after the next push")
             XCTAssertFalse(spoken(list).contains("Out of date"), "width \(width)")
             XCTAssertEqual(feed.subscriptions.count, 1, "width \(width): one subscription, never a second")
             session.stop()

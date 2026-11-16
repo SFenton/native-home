@@ -12,9 +12,13 @@ import Foundation
 public struct ServerUIFlow: Equatable, Sendable {
     /// The limits of a flow.
     public enum Limits {
+        /// The most flows a document holds, entities and entity attributes a request lists, parameters, steps and sort keys a flow has.
         public static let flows = 128, entities = 64, entityAttributes = 8, parameters = 8, steps = 32, sortKeys = 4
+        /// The most rows an output gives, the largest `limit` step, fields in a `map` step, ids in a refresh and segments in a path.
         public static let rows = 100, limit = 1_000, mapFields = 32, entityIds = 8, path = 8
+        /// The most nodes an operand and a predicate hold.
         public static let operandNodes = 64, whereNodes = 32
+        /// The seconds a service call may take, and the seconds a result may be old before it counts as stale.
         public static let timeout = 1...30, stale = 30...86_400
     }
 
@@ -37,8 +41,11 @@ public struct ServerUIFlow: Equatable, Sendable {
 
     /// A declared parameter: a name, the kind its value is read as and the operand that gives it.
     public struct Parameter: Equatable, Sendable {
+        /// The name steps use to read it.
         public let name: String
+        /// The kind its value is read as.
         public let kind: ServerUICompositionDocument.ScalarKind
+        /// The operand that gives the value.
         public let value: ServerUIOperand
     }
 
@@ -84,7 +91,9 @@ public struct ServerUIFlow: Equatable, Sendable {
 
     /// One step of a flow.
     public struct Step: Equatable, Sendable {
+        /// The step's id, unique in the flow.
         public let id: String
+        /// What the step does.
         public let operation: Operation
         /// The operation's name as a document writes it (`op`).
         public var name: String { operation.name }
@@ -128,10 +137,15 @@ public struct ServerUIFlow: Equatable, Sendable {
 
     /// One key of a `sort` step.
     public struct SortKey: Equatable, Sendable {
+        /// Which way the key orders.
         public enum Direction: String, Sendable { case ascending, descending }
+        /// How the key's values compare.
         public enum Kind: String, Sendable { case text, number, date }
+        /// The value of the key, read for each item.
         public let value: ServerUIOperand
+        /// Which way it orders.
         public let direction: Direction
+        /// How its values compare.
         public let kind: Kind
     }
 
@@ -202,6 +216,13 @@ public struct ServerUIFlow: Equatable, Sendable {
         operands.reduce(into: Set<String>()) { $0.formUnion($1.sourceIds) }.union(predicates.reduce(into: Set<String>()) { $0.formUnion($1.sourceIds) })
     }
 
+    /// How long a service call may take: the request's own `timeoutSeconds` (the schema holds it to 1 through 30; the Studio sets no other
+    /// default). `nil` for a request that makes no call.
+    public var timeout: Duration? {
+        guard case .serviceResponse(_, _, _, _, let seconds, _) = request else { return nil }
+        return .seconds(min(30, max(1, seconds)))
+    }
+
     /// Whether the flow's data is the entities the app holds (an `entities` or `entity-attribute` request), so it has none before the first states arrive.
     public var readsHeldEntities: Bool {
         switch request {
@@ -220,7 +241,8 @@ public struct ServerUIFlow: Equatable, Sendable {
         }
     }
 
-    /// Whether the flow reads the viewer or the clock anywhere, so a viewer change or a clock tick runs it again.
+    /// Whether the flow reads the viewer anywhere, so a viewer change runs it again.
     public var readsViewer: Bool { operands.contains { $0.readsViewer } || predicates.contains { $0.readsViewer } }
+    /// Whether the flow reads the clock anywhere, so a minute that passes runs it again (on the answer it already has).
     public var readsClock: Bool { operands.contains { $0.readsClock } || predicates.contains { $0.readsClock } }
 }

@@ -38,12 +38,17 @@ public indirect enum ServerUIFlowShape: Equatable, Sendable {
 
     /// Limits shared by inference, the schema and the compiler.
     public enum Limits {
+        /// The deepest nesting, the most fields in an object, values in an enum, characters in an enum value and members in a union.
         public static let depth = 6, fields = 64, enumValues = 8, enumLength = 64, unionMembers = 6
     }
 
+    /// A whole number.
     public static let integer = ServerUIFlowShape.number(integer: true)
+    /// Any number.
     public static let float = ServerUIFlowShape.number(integer: false)
+    /// Any text.
     public static let text = ServerUIFlowShape.string(format: nil, values: nil)
+    /// Text in one of the recognised formats.
     public static func text(_ format: Format) -> Self { .string(format: format, values: nil) }
 
     /// An object whose fields are all required, unless named in `optional`.

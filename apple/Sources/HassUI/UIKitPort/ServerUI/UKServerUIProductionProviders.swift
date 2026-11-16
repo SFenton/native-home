@@ -297,9 +297,11 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
     }
 
     func presentationCollections(_ settings: [String: any UKServerUISettingsProvider], for publication: ServerUICompositionPublication,
-                                 sceneID: UUID? = nil) throws -> [String: ServerUIRowCollection] {
+                                 sceneID: UUID? = nil, appState: UKServerUIAppStateSource? = nil) throws -> [String: ServerUIRowCollection] {
         let window = sceneID ?? validationSceneID
-        var result = flows.collections(for: publication.document, window: window, start: sceneID != nil, host: { flowHost(for: publication.document) })
+        let entities = Self.entitySources(of: publication.document)
+        var result = flows.collections(for: publication.document, window: window, start: sceneID != nil, hostKey: entities,
+                                       host: { flowHost(entitySources: entities, appState: appState) })
         for case let provider as UKServerUIPerformanceProvider in settings.values {
             for (key, collection) in provider.collections {
                 let id = "performance-" + key
@@ -313,17 +315,14 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
     }
 
     /// What a Data Flow reads and calls: the one connection's feed and calls, the entity store and the signed-in person.
-    private func flowHost(for document: ServerUICompositionDocument) -> ServerUIFlowHost {
+    private func flowHost(entitySources: [String: String], appState: UKServerUIAppStateSource?) -> ServerUIFlowHost {
         let store = connection.store
         let connection = connection
-        var entitySources: [String: String] = [:]
-        for case .haEntity(let id, let entityId) in document.dataSources {
-            if case .literal(let literal) = entityId { entitySources[id] = literal }
-        }
+        let viewer = FlowViewer()
         return ServerUIFlowHost(
             feed: HassFlowFeed(connection: connection),
-            call: { domain, service, target, data in
-                try await connection.callServiceForFlow(domain, service, target: target, data: data)
+            call: { domain, service, target, data, timeout in
+                try await connection.callServiceForFlow(domain, service, target: target, data: data, timeout: timeout)
             },
             held: { id in store.entity(id).state.map { .init(state: $0.state, attributes: $0.attributes) } },
             read: { sourceId, path in
@@ -335,13 +334,34 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
                 return value
             },
             statesReady: { store.hasReceivedFirstState },
-            environment: { [weak self] in
-                let viewer = self?.user.map { user in
-                    ServerUIViewer(userId: user.id, isAdmin: user.isAdmin,
-                                   personEntityId: AvatarSyncPlan.personID(forUser: user.id, in: store.allValues.values))
-                }
-                return (ServerUIAppState.clock(at: Date()), viewer, .autoupdatingCurrent)
-            })
+            environment: { [weak self] in (viewer.viewer(of: self?.user, in: store), .autoupdatingCurrent) },
+            // The window's one ticking clock (a minute tick that runs only while something reads it), not a second timer.
+            clock: { appState?.clockForReading() })
+    }
+
+    /// The literal entity each `ha-entity` source of the document names.
+    private static func entitySources(of document: ServerUICompositionDocument) -> [String: String] {
+        var result: [String: String] = [:]
+        for case .haEntity(let id, let entityId) in document.dataSources {
+            if case .literal(let literal) = entityId { result[id] = literal }
+        }
+        return result
+    }
+
+    /// The viewer a flow sees. The person entity is looked up in the house once for a user and again only when the person list changes
+    /// (`peopleRevision`), not on every run.
+    @MainActor private final class FlowViewer {
+        private var cached: (userId: String, revision: Int, viewer: ServerUIViewer)?
+
+        func viewer(of user: HassUser?, in store: EntityStore) -> ServerUIViewer? {
+            guard let user else { return nil }
+            let revision = store.peopleRevision
+            if let cached, cached.userId == user.id, cached.revision == revision, cached.viewer.isAdmin == user.isAdmin { return cached.viewer }
+            let viewer = ServerUIViewer(userId: user.id, isAdmin: user.isAdmin,
+                                        personEntityId: AvatarSyncPlan.personID(forUser: user.id, in: store.allValues.values))
+            cached = (user.id, revision, viewer)
+            return viewer
+        }
     }
 
     /// Never seeds Summary permissions from the legacy remembered viewer preference.

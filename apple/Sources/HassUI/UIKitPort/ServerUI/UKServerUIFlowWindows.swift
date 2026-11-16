@@ -12,38 +12,50 @@ import HassCore
 final class UKServerUIFlowWindows {
     typealias D = ServerUICompositionDocument
 
-    private var windows: [UUID: [String: ServerUIFlowSession]] = [:]
+    private struct Kept {
+        let session: ServerUIFlowSession
+        /// What the session's host reads besides the flow (see ``collections(for:window:start:hostKey:host:)``).
+        let hostKey: [String: String]
+    }
+
+    private var windows: [UUID: [String: Kept]] = [:]
 
     /// The collections of the document's row flows for `window`, keyed by source id, with their sessions started when `start`.
-    func collections(for document: D, window: UUID, start: Bool, host: () -> ServerUIFlowHost) -> [String: ServerUIRowCollection] {
+    ///
+    /// `hostKey` stands for what the host reads besides the flow (the entities its `ha-entity` sources name): a session built for another key is
+    /// replaced, so a republish that moves a source to another entity never leaves a flow reading the old one.
+    func collections(for document: D, window: UUID, start: Bool, hostKey: [String: String] = [:],
+                     host: () -> ServerUIFlowHost) -> [String: ServerUIRowCollection] {
         var current = windows[window] ?? [:]
-        var kept: [String: ServerUIFlowSession] = [:]
+        var kept: [String: Kept] = [:]
         for source in document.dataSources {
             guard case .pipeline(let id, let flow) = source, flow.givesRows else { continue }
-            if let existing = current.removeValue(forKey: id), existing.flow == flow {
+            let existing = current.removeValue(forKey: id)
+            if let existing, existing.session.flow == flow, existing.hostKey == hostKey {
                 kept[id] = existing
             } else {
-                current[id]?.stop()
-                kept[id] = ServerUIFlowSession(flow: flow, collection: ServerUIRowCollection(), host: host())
+                // A flow that changed (or reads other entities now) ends its session before the next one begins.
+                existing?.session.stop()
+                kept[id] = Kept(session: ServerUIFlowSession(flow: flow, collection: ServerUIRowCollection(), host: host()), hostKey: hostKey)
             }
         }
-        for stale in current.values { stale.stop() }
+        for stale in current.values { stale.session.stop() }
         windows[window] = kept
-        if start { for session in kept.values { session.start() } }
-        return kept.mapValues(\.collection)
+        if start { for entry in kept.values { entry.session.start() } }
+        return kept.mapValues(\.session.collection)
     }
 
     /// The session of a flow, for a pull to refresh.
-    func session(_ id: String, window: UUID) -> ServerUIFlowSession? { windows[window]?[id] }
+    func session(_ id: String, window: UUID) -> ServerUIFlowSession? { windows[window]?[id]?.session }
 
     /// Stops a window's flows.
     func detach(_ window: UUID) {
-        for session in windows.removeValue(forKey: window)?.values ?? [:].values { session.stop() }
+        for entry in windows.removeValue(forKey: window)?.values ?? [:].values { entry.session.stop() }
     }
 
     /// Stops every flow (the session ended).
     func endSession() {
-        for session in windows.values.flatMap(\.values) { session.stop() }
+        for entry in windows.values.flatMap(\.values) { entry.session.stop() }
         windows.removeAll()
     }
 }

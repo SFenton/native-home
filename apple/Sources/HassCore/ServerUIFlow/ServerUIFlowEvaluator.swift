@@ -27,13 +27,17 @@ public struct ServerUIFlowContext: Sendable {
 public struct ServerUIFlowRun: Equatable, Sendable {
     /// One step's trace: how many items it left (`nil` when it holds one value).
     public struct Trace: Equatable, Sendable {
+        /// The step's id.
         public let id: String
+        /// The step's operation name.
         public let operation: String
+        /// How many items the step left; `nil` when it holds one value.
         public let size: Int?
     }
     /// Whether the run finished or ran out of budget.
     public enum Status: Equatable, Sendable { case ok, overBudget }
 
+    /// Whether the run finished.
     public let status: Status
     /// What the output asks for: rows as `{ id, title, subtitle?, value? }` objects, a record or one value. `null` over budget.
     public let output: JSONValue
@@ -43,6 +47,7 @@ public struct ServerUIFlowRun: Equatable, Sendable {
     public let visits: Int
     /// The step that ran out of budget, if any.
     public let stepId: String?
+    /// What each step left, in order.
     public let trace: [Trace]
 
     /// The rows an output of kind `rows` gave.

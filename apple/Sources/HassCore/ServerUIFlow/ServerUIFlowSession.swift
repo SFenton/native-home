@@ -8,30 +8,40 @@ import Observation
 public struct ServerUIFlowHost {
     /// The live feed, for a `ha-subscription` request.
     public var feed: (any ServerUIFlowFeed)?
-    /// Calls a service with `return_response` and gives its response.
-    public var call: (_ domain: String, _ service: String, _ target: [String: JSONValue], _ data: [String: JSONValue]) async throws -> JSONValue
+    /// Calls a service with `return_response` and gives its response. `timeout` is the flow's own `timeoutSeconds`; the session ends the wait
+    /// at that time whether or not the call has answered, so a call may use it to release what it holds.
+    public var call: (_ domain: String, _ service: String, _ target: [String: JSONValue], _ data: [String: JSONValue], _ timeout: Duration) async throws -> JSONValue
     /// What the app holds about an entity. Read inside an observation, so a change to the entity runs the flow again.
     public var held: (_ entityId: String) -> ServerUIFlowSources.HeldEntity?
     /// The value of a declared source's field (a parameter's `read`), as the app's operand evaluator reads it.
     public var read: (_ sourceId: String, _ path: [String]) -> JSONValue?
     /// Whether the app has received its first entity states. Until it has, a flow over held entities waits instead of drawing them unavailable.
     public var statesReady: () -> Bool
-    /// The clock, the viewer and the locale. Read inside an observation.
-    public var environment: () -> (clock: ServerUIClock?, viewer: ServerUIViewer?, locale: Locale?)
+    /// The viewer and the locale. Read inside an observation.
+    public var environment: () -> (viewer: ServerUIViewer?, locale: Locale?)
+    /// The app's ticking clock. Read only by a flow that reads `clock`, inside an observation of its own, so a minute that passes runs the flow
+    /// again on the answer it already has. Reading it is what keeps the app's tick alive.
+    public var clock: () -> ServerUIClock?
+    /// Waits for `duration`; the session's timeout for a service call. A test passes one it finishes by hand.
+    public var sleep: @MainActor (Duration) async throws -> Void
 
     /// Creates a host.
     public init(feed: (any ServerUIFlowFeed)? = nil,
-                call: @escaping (String, String, [String: JSONValue], [String: JSONValue]) async throws -> JSONValue = { _, _, _, _ in .null },
+                call: @escaping (String, String, [String: JSONValue], [String: JSONValue], Duration) async throws -> JSONValue = { _, _, _, _, _ in .null },
                 held: @escaping (String) -> ServerUIFlowSources.HeldEntity? = { _ in nil },
                 read: @escaping (String, [String]) -> JSONValue? = { _, _ in nil },
                 statesReady: @escaping () -> Bool = { true },
-                environment: @escaping () -> (clock: ServerUIClock?, viewer: ServerUIViewer?, locale: Locale?) = { (nil, nil, nil) }) {
+                environment: @escaping () -> (viewer: ServerUIViewer?, locale: Locale?) = { (nil, nil) },
+                clock: @escaping () -> ServerUIClock? = { nil },
+                sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.feed = feed
         self.call = call
         self.held = held
         self.read = read
         self.statesReady = statesReady
         self.environment = environment
+        self.clock = clock
+        self.sleep = sleep
     }
 }
 
@@ -96,8 +106,14 @@ public final class ServerUIFlowSession {
     private var lastPush: JSONValue?
     private var cancelFeed: (@Sendable () -> Void)?
     private var feedTask: Task<Void, Never>?
+    private var feedEnd: (() -> Void)?
     private var runTask: Task<Void, Never>?
     private var started = false
+    /// The last answer of a service call, so a minute that passes runs the flow again without calling the service again.
+    private var lastServiceResponse: JSONValue?
+    private var lastContext: ServerUIFlowContext?
+    private var inFlight = false
+    private var clockWatch = 0
 
     /// Creates a session. Nothing runs until ``start()``.
     public init(flow: ServerUIFlow, collection: ServerUIRowCollection, host: ServerUIFlowHost) {
@@ -109,6 +125,8 @@ public final class ServerUIFlowSession {
 
     deinit {
         cancelFeed?()
+        feedTask?.cancel()
+        runTask?.cancel()
     }
 
     // MARK: Lifecycle
@@ -124,6 +142,7 @@ public final class ServerUIFlowSession {
         if let subscription = flow.subscription {
             guard let feed = host.feed else { fail(); return }
             let (stream, continuation) = AsyncStream<Result<JSONValue, Error>>.makeStream()
+            feedEnd = { continuation.finish() }
             cancelFeed = feed.subscribe(subscription) { continuation.yield($0) }
             feedTask = Task { @MainActor [weak self] in
                 for await result in stream {
@@ -137,6 +156,7 @@ public final class ServerUIFlowSession {
         } else {
             evaluate()
         }
+        watchClock()
     }
 
     /// Ends the session: no run publishes after this.
@@ -145,6 +165,9 @@ public final class ServerUIFlowSession {
         generation += 1
         cancelFeed?()
         cancelFeed = nil
+        clockWatch += 1
+        feedEnd?()
+        feedEnd = nil
         feedTask?.cancel()
         runTask?.cancel()
     }
@@ -173,7 +196,7 @@ public final class ServerUIFlowSession {
     }
 
     /// Everything the run reads on the main actor, as plain values. Called inside an observation.
-    private func snapshot() -> (context: ServerUIFlowContext, response: JSONValue?, waiting: Bool) {
+    private func snapshot(clock: ServerUIClock?) -> (context: ServerUIFlowContext, response: JSONValue?, waiting: Bool) {
         let ready = host.statesReady()
         let environment = host.environment()
         var values: [ReadKey: JSONValue] = [:]
@@ -181,7 +204,7 @@ public final class ServerUIFlowSession {
             if let value = host.read(key.sourceId, key.path) { values[key] = value }
         }
         let held = values
-        let context = ServerUIFlowContext(clock: environment.clock, viewer: environment.viewer, locale: environment.locale) { id, path in
+        let context = ServerUIFlowContext(clock: clock, viewer: environment.viewer, locale: environment.locale) { id, path in
             held[.init(sourceId: id, path: path)]
         }
         let waiting = !ready && flow.readsHeldEntities
@@ -200,25 +223,102 @@ public final class ServerUIFlowSession {
         generation += 1
         let mine = generation
         runTask?.cancel()
-        let taken = withObservationTracking({ snapshot() }, onChange: { [weak self] in
+        // The clock is watched on its own (``watchClock()``): a tick must not call the service again.
+        let clock = flow.readsClock ? host.clock() : nil
+        let taken = withObservationTracking({ snapshot(clock: clock) }, onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, self.started, self.generation == mine else { return }
                 self.evaluate()
             }
         })
+        inFlight = !taken.waiting
         if taken.waiting { return }
-        let flow = flow, host = host
+        lastContext = taken.context
+        let flow = flow
         runTask = Task { @MainActor [weak self] in
+            defer { if let self, self.generation == mine { self.inFlight = false } }
             var response = taken.response
             if response == nil {
-                guard let call = ServerUIFlowEvaluator.serviceCall(flow, context: taken.context) else { self?.fail(mine); return }
-                do { response = try await host.call(call.domain, call.service, call.target, call.data) } catch { self?.fail(mine); return }
+                guard let call = ServerUIFlowEvaluator.serviceCall(flow, context: taken.context), let timeout = flow.timeout else {
+                    self?.fail(mine); return
+                }
+                guard let self else { return }
+                do { response = try await self.callService(call, timeout: timeout) } catch { self.fail(mine); return }
+                guard self.generation == mine, !Task.isCancelled else { return }
+                self.lastServiceResponse = response
             }
             guard let self, let response, self.generation == mine, !Task.isCancelled else { return }
-            let run = await self.runner.run(flow, response: response, context: taken.context)
-            guard self.generation == mine, !Task.isCancelled else { return }
-            self.publish(run)
+            await self.run(response, context: taken.context, mine: mine)
         }
+    }
+
+    private func run(_ response: JSONValue, context: ServerUIFlowContext, mine: Int) async {
+        let run = await runner.run(flow, response: response, context: context)
+        guard generation == mine, !Task.isCancelled else { return }
+        publish(run)
+    }
+
+    // MARK: Service calls
+
+    /// Why a service call did not answer in time.
+    struct CallTimeout: Error, Equatable {}
+
+    /// Calls the service and gives up after `timeout`: HAKit drops a command that was in flight when the socket closed without answering it,
+    /// so a call must never wait for ever (a first open would stay on "Loading", and a pull would never end).
+    private func callService(_ call: (domain: String, service: String, target: [String: JSONValue], data: [String: JSONValue]),
+                             timeout: Duration) async throws -> JSONValue {
+        let host = host
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<JSONValue, Error>) in
+            let once = SingleUse()
+            let waiter = Task { @MainActor in
+                try? await host.sleep(timeout)
+                guard !Task.isCancelled, once.claim() else { return }
+                continuation.resume(throwing: CallTimeout())
+            }
+            let calling = Task { @MainActor in
+                do {
+                    let answer = try await host.call(call.domain, call.service, call.target, call.data, timeout)
+                    if once.claim() { waiter.cancel(); continuation.resume(returning: answer) }
+                } catch {
+                    if once.claim() { waiter.cancel(); continuation.resume(throwing: error) }
+                }
+            }
+            // A pull that ends this run (or a stop) ends the wait too.
+            Task { @MainActor in
+                _ = await waiter.result
+                calling.cancel()
+            }
+        }
+    }
+
+    // MARK: The clock
+
+    /// Watches the app's clock for a flow that reads it: when the minute moves, the flow runs again on what it last got. Re-armed on each change;
+    /// reading the clock here is what keeps the app's tick running.
+    private func watchClock() {
+        guard flow.readsClock, started else { return }
+        let watch = clockWatch
+        withObservationTracking({ _ = host.clock() }, onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.started, self.clockWatch == watch else { return }
+                self.clockMoved()
+                self.watchClock()
+            }
+        })
+    }
+
+    /// The clock moved: runs the flow again without asking for its data again.
+    private func clockMoved() {
+        guard flow.givesRows else { return }
+        guard case .serviceResponse = flow.request else { evaluate(); return }
+        // A call in flight reads the clock when it runs; with no answer yet there is nothing to run on.
+        guard !inFlight, let cached = lastServiceResponse, var context = lastContext else { return }
+        context.clock = host.clock()
+        lastContext = context
+        generation += 1
+        let mine = generation
+        runTask?.cancel()
+        runTask = Task { @MainActor [weak self] in await self?.run(cached, context: context, mine: mine) }
     }
 
     private func publish(_ run: ServerUIFlowRun) {

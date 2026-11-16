@@ -66,7 +66,7 @@ so shipping an id is: update `capabilities.json` and `capabilities.pending.json`
 
 The `parts-*` files (60: 19 accepts, `accept/parts-*`, and 41 plain refusals, `reject/parts-*`; the five TC3 ids shipped with native-ingest ni-parts, so none is pending any more) cover the five TC3 ids in five families: options, disc, columns, row and check. They are written by `scripts/generate-parts-corpus.ts`; do not edit them by hand.
 
-The `pipeline-*` files (16 compile, 93 refused; a compiled case is `reject/pending-pipeline-*`, except one that uses no pending capability) cover `sh.pipeline@1` and `sh.pipeline-operands@1`, the Data Flow data source: its
+The `pipeline-*` files (16 compile, 93 refused; a compiled case is `accept/pipeline-*`: the ids are promoted, so nothing is pending) cover `sh.pipeline@1` and `sh.pipeline-operands@1`, the Data Flow data source: its
 three request kinds (a service with a response, an entity attribute, a live subscription from the closed list `todo-items` and
 `weather-forecast`), refresh, parameters, the closed step list, the output, the authored `schema` the steps must produce, and the reads
 and nodes that name a flow. The accepted files rebuild Overdue Chores (live), Upcoming Chores and Expired Food with demo entity ids.

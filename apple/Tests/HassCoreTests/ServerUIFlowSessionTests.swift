@@ -92,7 +92,7 @@ struct ServerUIFlowSessionTests {
         #expect(session.publications == 2)
     }
 
-    @Test func aFailureKeepsTheLastGoodRowsAndTheNextPushRecovers() async throws {
+    @Test func aRefusedSubscriptionKeepsTheLastGoodRowsAndTheNextPushRecovers() async throws {
         let feed = FakeFlowFeed()
         let collection = ServerUIRowCollection()
         let session = ServerUIFlowSession(flow: try Self.todoFlow(), collection: collection, host: .init(feed: feed))
@@ -159,7 +159,7 @@ struct ServerUIFlowSessionTests {
             .success(.array([.object(["id": .string("a"), "title": .string("One")]), .object(["id": .string("b"), "title": .string("Two")])])),
         ]
         let collection = ServerUIRowCollection()
-        let host = ServerUIFlowHost(call: { domain, service, _, _ in
+        let host = ServerUIFlowHost(call: { domain, service, _, _, _ in
             #expect(domain == "todo" && service == "get_items")
             return try answers.removeFirst().get()
         })
@@ -198,9 +198,9 @@ struct ServerUIFlowSessionTests {
             .object(["uid": "a", "summary": "Water", "status": "needs_action", "due": "2026-11-17"]),
         ])])])
         let collection = ServerUIRowCollection()
-        let host = ServerUIFlowHost(call: { _, _, _, _ in response },
-                                    environment: { (ServerUIClock(now: "2026-11-16T09:00:00", utcOffsetMinutes: 0),
-                                                    ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), nil) })
+        let host = ServerUIFlowHost(call: { _, _, _, _, _ in response },
+                                    environment: { (ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), nil) },
+                                    clock: { ServerUIClock(now: "2026-11-16T09:00:00", utcOffsetMinutes: 0) })
         let session = ServerUIFlowSession(flow: flow, collection: collection, host: host)
         session.start()
         #expect(await eventually { collection.phase != .loading })
@@ -235,8 +235,13 @@ struct ServerUIFlowSessionTests {
         #expect(subscription.request.data["entity_id"] as? String == "weather.demo_home")
         #expect(subscription.request.data["forecast_type"] as? String == "hourly")
 
-        subscription.handler(subscription.cancellable, HAData(value: ["type": "hourly", "forecast": []]))
-        subscription.initiated(.failure(.external(.init(code: "unknown", message: "no"))))
+        // HAKit calls both on its callback queue, never on the main actor.
+        nonisolated(unsafe) let pending = subscription
+        mock.callbackQueue.async {
+            pending.handler(pending.cancellable, HAData(value: ["type": "hourly", "forecast": []]))
+            pending.initiated(.failure(.external(.init(code: "unknown", message: "no"))))
+        }
+        mock.waitForCallbackQueue()
         #expect(received.withLock { $0.count } == 2)
         #expect(received.withLock { try? $0[0].get()["type"] } == .string("hourly"))
         cancel()
@@ -248,7 +253,24 @@ struct ServerUIFlowSessionTests {
         #expect(ServerUIFlowSubscriptionCommand.data(.todoItems(entityId: "todo.demo_chores")) == ["entity_id": "todo.demo_chores"])
     }
 
-    @Test func aResubscribeAfterAReconnectKeepsTheLastGoodRows() async throws {
+    /// Watches a collection and keeps every state it passes through.
+    @MainActor final class History {
+        private(set) var seen: [(rows: [String], phase: ServerUIRowCollection.Phase)] = []
+        private let collection: ServerUIRowCollection
+        init(_ collection: ServerUIRowCollection) {
+            self.collection = collection
+            track()
+        }
+        private func track() {
+            withObservationTracking({ seen.append((collection.rows.map(\.title), collection.phase)) }, onChange: { [weak self] in
+                Task { @MainActor [weak self] in self?.track() }
+            })
+        }
+    }
+
+    /// The reconnect HAKit really makes: the connection leaves `ready` and comes back, and HAKit sends the one subscription again (its
+    /// `initiated` answers a second time) after which the server pushes the whole list. Nothing in this reaches the session as a failure.
+    @Test func aReconnectKeepsTheLastGoodRowsAndResubscribesOnce() async throws {
         let mock = HAMockConnection()
         let snapshot = EntitySnapshotCache(fileURL: FileManager.default.temporaryDirectory.appending(path: "snap-\(UUID()).json"))
         let connection = HassConnection(server: .example, store: EntityStore(), snapshotCache: snapshot, connection: mock)
@@ -256,17 +278,157 @@ struct ServerUIFlowSessionTests {
         let session = ServerUIFlowSession(flow: try Self.todoFlow(), collection: collection,
                                           host: .init(feed: HassFlowFeed(connection: connection)))
         session.start()
+        mock.setState(.ready(version: "1.0-mock"))
         let subscription = try #require(mock.pendingSubscriptions.first)
-        subscription.initiated(.success(.empty))
-        subscription.handler(subscription.cancellable, HAData(value: ["items": [["uid": "1", "summary": "Bins", "status": "needs_action"]]]))
+        nonisolated(unsafe) let sent = subscription
+        func deliver(_ body: @escaping @Sendable () -> Void) async {
+            mock.callbackQueue.async(execute: body)
+            mock.waitForCallbackQueue()
+            await Task.yield()
+        }
+        await deliver {
+            sent.initiated(.success(.empty))
+            sent.handler(sent.cancellable, HAData(value: ["items": [["uid": "1", "summary": "Bins", "status": "needs_action"]]]))
+        }
         #expect(await eventually { collection.rows.map(\.title) == ["Bins"] })
+        let history = History(collection)
+        let published = session.publications
 
-        // The socket drops: the rows stay, and the one subscription HAKit sends again answers with the new state.
-        subscription.initiated(.failure(.internal(debugDescription: "socket closed")))
-        #expect(await eventually { collection.phase == .stale })
+        // The socket drops and the connection goes round again.
+        mock.setState(.disconnected(reason: .waitingToReconnect(lastError: nil, atLatest: Date().addingTimeInterval(5), retryCount: 1)))
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(collection.phase == .ready, "a reconnect is not a failure")
         #expect(collection.rows.map(\.title) == ["Bins"])
-        #expect(mock.pendingSubscriptions.count == 1)
-        subscription.handler(subscription.cancellable, HAData(value: ["items": [["uid": "1", "summary": "Bins"], ["uid": "2", "summary": "Dishes"]]]))
-        #expect(await eventually { collection.phase == .ready && collection.rows.count == 2 })
+        #expect(session.publications == published, "nothing runs while the socket is down")
+        mock.setState(.connecting)
+        mock.setState(.authenticating)
+        mock.setState(.ready(version: "1.0-mock"))
+
+        // HAKit resends the subscription on the new socket; the server answers with the full list.
+        await deliver {
+            sent.initiated(.success(.empty))
+            sent.handler(sent.cancellable, HAData(value: ["items": [["uid": "1", "summary": "Bins"], ["uid": "2", "summary": "Dishes"]]]))
+        }
+        #expect(await eventually { collection.rows.map(\.title) == ["Bins", "Dishes"] })
+        #expect(collection.phase == .ready)
+        #expect(mock.pendingSubscriptions.count == 1, "one subscription, never a second")
+        #expect(mock.cancelledSubscriptions.isEmpty, "the session did not cancel and subscribe again")
+        #expect(session.publications == published + 1, "one run for the one push")
+        #expect(history.seen.allSatisfy { !$0.rows.isEmpty && $0.phase == .ready }, "the list never blanked or went stale: \(history.seen)")
+        #expect(!history.seen.isEmpty)
+    }
+
+    // MARK: Timeout
+
+    /// A service flow with `timeoutSeconds` 10 whose call never answers (HAKit dropped it across a socket reset).
+    @Test func aCallThatNeverAnswersEndsAtTheFlowsTimeout() async throws {
+        let sleeper = ManualSleeper()
+        var asked: [Duration] = []
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(call: { _, _, _, _, timeout in
+            asked.append(timeout)
+            return try await withCheckedThrowingContinuation { (_: CheckedContinuation<JSONValue, Error>) in }
+        }, sleep: { await sleeper.sleep(for: $0) })
+        let session = ServerUIFlowSession(flow: try Self.serviceFlow(), collection: collection, host: host)
+        session.start()
+        #expect(await eventually { !sleeper.waiting.isEmpty })
+        #expect(asked == [.seconds(10)], "the call is told the flow's own timeout")
+        #expect(sleeper.waiting.map(\.duration) == [.seconds(10)], "the wait is the flow's timeoutSeconds")
+        #expect(collection.phase == .loading)
+
+        // The pull is waiting too: it ends with the timeout.
+        let pull = Task { @MainActor in await session.refresh() }
+        #expect(await eventually { sleeper.waiting.count == 2 })
+        sleeper.fire(duration: .seconds(10))
+        await pull.value
+        #expect(collection.phase == .failed, "the list stops saying Loading")
+        #expect(collection.rows.isEmpty)
+    }
+
+    @Test func aTimedOutRefreshKeepsTheLastGoodRowsAsStaleAndTheNextPullRecovers() async throws {
+        let sleeper = ManualSleeper()
+        var step = 0
+        let one: JSONValue = .array([.object(["id": .string("a"), "title": .string("One")])])
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(call: { _, _, _, _, _ in
+            step += 1
+            if step == 2 { _ = try await withCheckedThrowingContinuation { (_: CheckedContinuation<JSONValue, Error>) in } }
+            return one
+        }, sleep: { await sleeper.sleep(for: $0) })
+        let session = ServerUIFlowSession(flow: try Self.serviceFlow(), collection: collection, host: host)
+        session.start()
+        #expect(await eventually { collection.phase == .ready })
+
+        let pull = Task { @MainActor in await session.refresh() }
+        #expect(await eventually { step == 2 && !sleeper.waiting.isEmpty })
+        sleeper.fire(duration: .seconds(10))
+        await pull.value
+        #expect(collection.phase == .stale)
+        #expect(collection.rows.map(\.title) == ["One"])
+
+        await session.refresh()
+        #expect(collection.phase == .ready)
+        #expect(step == 3)
+    }
+
+    @Test func aFlowsTimeoutIsItsOwnClampedToTheSchemaRange() throws {
+        #expect(try Self.serviceFlow().timeout == .seconds(10))
+        #expect(try Self.todoFlow().timeout == nil)
+    }
+
+    // MARK: The clock
+
+    @Observable final class Ticking {
+        var clock = ServerUIClock(now: "2026-11-16T23:59:00", utcOffsetMinutes: 0)
+        @ObservationIgnored var reads = 0
+        func read() -> ServerUIClock { reads += 1; return clock }
+    }
+
+    /// A flow that reads `clock` runs again when the app's clock moves a minute, on the answer it already has: the service is called once.
+    @Test func aFlowThatReadsTheClockRunsAgainWhenTheMinuteMovesWithoutCallingTheServiceAgain() async throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "ContractCorpus/accept/list-parts-row-action.json")
+        let publication = try ServerUICompositionPublication.decode(Data(contentsOf: url))
+        var found: ServerUIFlow?
+        for case .pipeline("upcoming", let flow) in publication.document.dataSources { found = flow }
+        let flow = try #require(found)
+        #expect(flow.readsClock)
+        let response: JSONValue = .object(["todo.demo_chores": .object(["items": .array([
+            .object(["uid": "a", "summary": "Water", "status": "needs_action", "due": "2026-11-17"]),
+        ])])])
+        let ticking = Ticking()
+        var calls = 0
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(call: { _, _, _, _, _ in calls += 1; return response },
+                                    environment: { (ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), nil) },
+                                    clock: { ticking.read() })
+        let session = ServerUIFlowSession(flow: flow, collection: collection, host: host)
+        session.start()
+        #expect(await eventually { collection.rows.first?.subtitle == "Due tomorrow" })
+        #expect(calls == 1)
+
+        // Midnight: the app's clock publishes the new minute.
+        ticking.clock = ServerUIClock(now: "2026-11-17T00:00:00", utcOffsetMinutes: 0)
+        #expect(await eventually { collection.rows.first?.subtitle != "Due tomorrow" && collection.rows.first?.subtitle != nil })
+        #expect(collection.rows.first?.subtitle == "Due today")
+        #expect(calls == 1, "a tick never calls the service")
+
+        // And it keeps watching: the next minute runs it again, and a stopped session does not.
+        let published = session.publications
+        ticking.clock = ServerUIClock(now: "2026-11-17T00:01:00", utcOffsetMinutes: 0)
+        #expect(await eventually { session.publications == published + 1 })
+        session.stop()
+        ticking.clock = ServerUIClock(now: "2026-11-17T00:02:00", utcOffsetMinutes: 0)
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(session.publications == published + 1)
+        #expect(calls == 1)
+    }
+
+    @Test func aFlowThatDoesNotReadTheClockNeverReadsIt() async throws {
+        let ticking = Ticking()
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(call: { _, _, _, _, _ in .array([]) }, clock: { ticking.read() })
+        ServerUIFlowSession(flow: try Self.serviceFlow(), collection: collection, host: host).start()
+        #expect(await eventually { collection.phase == .ready })
+        #expect(ticking.reads == 0, "no read, so the app's tick has nothing to keep alive")
     }
 }

@@ -9,14 +9,6 @@ import Foundation
 public enum ServerUIFlowSources {
     typealias Shape = ServerUIFlowShape
 
-    /// The websocket command each subscription kind sends.
-    public static func command(_ subscription: ServerUIFlow.Subscription) -> String {
-        switch subscription {
-        case .todoItems: "todo/item/subscribe"
-        case .weatherForecast: "weather/subscribe_forecast"
-        }
-    }
-
     /// The entity domain each subscription kind takes.
     public static func domain(_ subscription: ServerUIFlow.Subscription) -> String {
         switch subscription {

@@ -24,6 +24,8 @@ final class UKServerUIProductionHost: UIViewController {
     private let environment: UKShellEnvironment
     private let bag = UKObservationBag()
     private(set) var renderer: UKServerUIRenderer?
+    /// The window's `app-state@1` values. The page binds to it, and the window's Data Flows read its one ticking clock.
+    private lazy var appState = UKServerUIAppStateSource(push: session.push)
     private var recovery: UIView?
     private var setupPresenter: UKSetupPresenter?
     private var lastConnected = false
@@ -218,7 +220,7 @@ final class UKServerUIProductionHost: UIViewController {
         let preparedBlurPercent = backdrop.blur.percent
         let records = try runtime.providers.records(for: publication, sceneID: sceneID)
         let settings = try runtime.providers.settings(for: publication, sceneID: sceneID, blur: backdrop.blur)
-        let collections = try runtime.providers.presentationCollections(settings, for: publication, sceneID: sceneID)
+        let collections = try runtime.providers.presentationCollections(settings, for: publication, sceneID: sceneID, appState: appState)
         let (bedrooms, remotes) = runtime.providers.supplementalProviders(for: publication)
         let canEditBedroom = runtime.providers.canEditBedroom
         if let renderer {
@@ -234,6 +236,7 @@ final class UKServerUIProductionHost: UIViewController {
             context.connection = connection
             context.session = session
             context.push = session.push
+            context.appState = appState
             context.location = session.location
             context.motion = session.motion
             context.shell = environment
