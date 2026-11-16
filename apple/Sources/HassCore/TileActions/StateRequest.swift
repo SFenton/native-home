@@ -48,12 +48,4 @@ public struct StateRequest: Equatable, Sendable {
         self.script = script
         self.errorTimer = errorTimer
     }
-
-    /// Two requests are equal when they agree on everything an author can set: ``pendingStates`` is the app's own feedback, absent from
-    /// the library shape, so a saved style that decodes to the built-in's settings still equals the built-in.
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.lockout == rhs.lockout && lhs.ackTimeout == rhs.ackTimeout && lhs.settleTimeout == rhs.settleTimeout
-            && lhs.errorHold == rhs.errorHold && lhs.onTimeout == rhs.onTimeout && lhs.pendingWords == rhs.pendingWords
-            && lhs.errorWords == rhs.errorWords && lhs.script == rhs.script && lhs.errorTimer == rhs.errorTimer
-    }
 }

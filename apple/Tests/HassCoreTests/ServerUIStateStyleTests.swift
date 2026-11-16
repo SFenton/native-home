@@ -38,7 +38,10 @@ struct ServerUIStateStyleTests {
         #expect(decoded.issues.isEmpty, "the built-in data raises no issue")
         #expect(decoded.library.entries.map(\.style.id) == StateStyle.builtIn.map(\.id))
         for (entry, builtIn) in zip(decoded.library.entries, StateStyle.builtIn) {
-            #expect(entry.style == builtIn, "\(builtIn.id) differs from the fixture")
+            // `pendingStates` is the app's own optimistic feedback; the shared fixture and the library shape carry none.
+            var withoutFeedback = builtIn
+            withoutFeedback.request?.pendingStates = [:]
+            #expect(entry.style == withoutFeedback, "\(builtIn.id) differs from the fixture")
         }
     }
 
