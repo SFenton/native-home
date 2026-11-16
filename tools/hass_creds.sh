@@ -21,8 +21,10 @@ _HASS_CREDS_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 # Prints the owner uid and the octal mode of a file (macOS and Linux stat differ).
 _hass_stat() {
-  if stat -f '%u %Lp' "$1" 2>/dev/null; then return 0; fi
-  stat -c '%u %a' "$1"
+  # GNU first: on Linux `stat -f` means filesystem status, accepts any format and exits 0 with text that is not
+  # "uid mode", so trying the BSD form first made every file look foreign there. BSD stat rejects `-c`.
+  if stat -c '%u %a' "$1" 2>/dev/null; then return 0; fi
+  stat -f '%u %Lp' "$1"
 }
 
 # True when the real path of $1 is under this repository or inside any git work tree.

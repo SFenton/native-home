@@ -1,6 +1,6 @@
 {
   "id": "research.release_impact",
-  "version": 7,
+  "version": 8,
   "type": "noul-set",
   "mode": "shadow",
   "description": "Which parts of our surface (HA domains and services, HAKit APIs, imported frameworks) does a release note or changelog entry affect? One noul per generated entry.",
@@ -63,6 +63,7 @@
     "service:number.toggle": "the Home Assistant service `number.toggle` (its fields, behavior, name or availability)",
     "service:script.demo_run": "the Home Assistant service `script.demo_run` (its fields, behavior, name or availability)",
     "service:script.demo_unknown": "the Home Assistant service `script.demo_unknown` (its fields, behavior, name or availability)",
+    "service:script.run": "the Home Assistant service `script.run` (its fields, behavior, name or availability)",
     "service:script.turn_on": "the Home Assistant service `script.turn_on` (its fields, behavior, name or availability)",
     "service:select.select_option": "the Home Assistant service `select.select_option` (its fields, behavior, name or availability)",
     "service:switch.turn_off": "the Home Assistant service `switch.turn_off` (its fields, behavior, name or availability)",
