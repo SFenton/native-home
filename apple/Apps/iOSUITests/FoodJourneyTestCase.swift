@@ -59,10 +59,12 @@ class FoodJourneyTestCase: XCTestCase {
 
     /// The accessibility audit, unless `TEST_RUNNER_FENTON_SKIP_AUDIT=1` (screenshot-only passes, so a failing
     /// audit cannot stop a journey before its later pages are captured).
-    func audit(_ app: XCUIApplication, presenter: XCUIElement? = nil, ax5Page: (() throws -> XCUIApplication)? = nil) throws {
+    func audit(_ app: XCUIApplication, presenter: XCUIElement? = nil, ax5Page: (() throws -> XCUIApplication)? = nil,
+               defaultPage: (() throws -> XCUIApplication)? = nil) throws {
         guard ProcessInfo.processInfo.environment["FENTON_SKIP_AUDIT"] != "1" else { return }
         // The recipe cards reflow into a compact thumbnail row at AX5 and can be shorter than the photo card.
-        try FentonHomeApp.audit(app, ax5Page: ax5Page, presenter: presenter, reflowing: ["recipes.card.", "food.suggestion."])
+        try FentonHomeApp.audit(app, ax5Page: ax5Page, defaultPage: defaultPage, presenter: presenter,
+                                reflowing: ["recipes.card.", "food.suggestion."])
     }
 
     func element(_ id: String, in app: XCUIApplication) -> XCUIElement {
