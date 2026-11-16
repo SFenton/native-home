@@ -44,7 +44,7 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
         let sources = try XCTUnwrap(root["document"]?["dataSources"]?.array)
         root = try ServerUIRendererFixture.changing(root, path: "/document/dataSources",
             to: .array(sources + [try XCTUnwrap(camera["source"]), away]))
-        var tileFields = try XCTUnwrap(camera["tile"]?.object)
+        guard case .object(var tileFields)? = camera["tile"] else { throw NSError(domain: "PlaceholderFixture", code: 1) }
         tileFields["action"] = nil
         let tile: JSONValue = .object(tileFields)
         let symbol: JSONValue = .object(["type": "sf-symbol", "name": "checkmark.circle", "rendering": "canonical", "unavailable": "reject"])
