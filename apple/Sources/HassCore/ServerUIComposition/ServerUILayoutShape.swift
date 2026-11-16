@@ -43,10 +43,11 @@ extension ServerUICompositionShape {
 
     /// A state tile's own parts (`sh.tile-parts@1`) in `props`.
     static let tileParts: Shape = {
-        object(["subtitle": .optional(value(literal: .text(2_000, blank: true))),
+        object(["subtitle": .optional(textValue(.text(2_000, blank: true))),
                 "progress": .optional(operand),
                 "discs": .optional(array(object(["id": id, "icon": symbol, "label": label, "action": action,
-                                                 "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown)]),
+                                                 "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown),
+                                                 "enabledWhen": .optional(enabledWhen)]),
                                          ServerUITileParts.maximumDiscs))])
     }()
 

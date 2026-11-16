@@ -47,11 +47,13 @@ public struct ServerUICallService: Equatable, Sendable {
     public let confirmation: ServerUICompositionDocument.Confirmation
     /// Users who skip the confirmation (Home Assistant's `exemptions`).
     public let exemptUserIds: [String]
+    /// Ask only while this holds (`sh.confirm-when@1`); `nil` always asks. A condition that cannot be answered asks.
+    public let confirmWhen: ServerUIPredicate?
 
     /// Creates a call.
     public init(domain: String, service: String, target: [String: ServerUIOperand] = [:], data: [String: ServerUIOperand] = [:],
                 optimistic: [Optimistic] = [], confirmation: ServerUICompositionDocument.Confirmation = .policy,
-                exemptUserIds: [String] = []) {
+                exemptUserIds: [String] = [], confirmWhen: ServerUIPredicate? = nil) {
         self.domain = domain
         self.service = service
         self.target = target
@@ -59,19 +61,21 @@ public struct ServerUICallService: Equatable, Sendable {
         self.optimistic = optimistic
         self.confirmation = confirmation
         self.exemptUserIds = exemptUserIds
+        self.confirmWhen = confirmWhen
     }
 
     /// Every source id the call reads or shows optimistically.
     public var sourceIds: Set<String> {
         let operands = Array(target.values) + Array(data.values)
-        return operands.reduce(into: Set(optimistic.map(\.sourceId))) { $0.formUnion($1.sourceIds) }
+        return operands.reduce(into: Set(optimistic.map(\.sourceId)).union(confirmWhen?.sourceIds ?? [])) { $0.formUnion($1.sourceIds) }
     }
 
-    /// Whether the confirmation is asked of `viewer`.
-    public func asksConfirmation(of viewer: ServerUIViewer?) -> Bool {
+    /// Whether the confirmation is asked of `viewer`, from what the house says now: an `additional` question is asked unless the viewer
+    /// is exempt or the `confirmWhen` rule answers no (``ServerUIControlRules/asksFirst(_:in:)``).
+    public func asksConfirmation(of viewer: ServerUIViewer?, in environment: some ServerUIReading) -> Bool {
         guard case .additional = confirmation else { return false }
         if let id = viewer?.userId, exemptUserIds.contains(id) { return false }
-        return true
+        return ServerUIControlRules.asksFirst(confirmWhen, in: environment)
     }
 
     /// Evaluates the target and data now (at gesture time) and returns the call, or `nil` when anything it needs is not available.

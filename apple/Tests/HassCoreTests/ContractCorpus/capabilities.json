@@ -1,4 +1,5 @@
 [
+  "sh.action-rules@1",
   "sh.actions.navigation@1",
   "sh.activity-presentation@1",
   "sh.adaptive-presentation@1",
@@ -66,7 +67,9 @@
   "sh.component-ref@1",
   "sh.composition@1",
   "sh.conditions@1",
+  "sh.confirm-when@1",
   "sh.custom-lights@1",
+  "sh.enabled-when@1",
   "sh.form@1",
   "sh.full-screen-modal@1",
   "sh.grid-dynamic-type@1",
@@ -126,6 +129,7 @@
   "sh.route-links@1",
   "sh.row-collection@1",
   "sh.rows@1",
+  "sh.rules@1",
   "sh.schedule-date-fields@1",
   "sh.section-grid@1",
   "sh.section-title@1",

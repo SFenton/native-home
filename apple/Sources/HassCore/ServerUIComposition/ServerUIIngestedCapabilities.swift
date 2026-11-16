@@ -19,7 +19,9 @@ public enum ServerUIIngestedCapabilities {
         "sh.tab-blocks@1", "sh.tab-bar@1", "sh.tab-fallback@1", "sh.overlay@1", "sh.tile-parts@1", "sh.tile-look@1", "sh.badges@1"
     ]
     /// Rules: action rules, confirm and enabled conditions (lane L1b).
-    public static let rules: [String] = []
+    public static let rules: [String] = [
+        "sh.rules@1", "sh.enabled-when@1", "sh.confirm-when@1", "sh.action-rules@1",
+    ]
     /// Flow: pipelines, pipeline operands and app state (lane L4).
     public static let flow: [String] = []
 

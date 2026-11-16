@@ -210,6 +210,7 @@ extension ServerUICompositionDocument.Action {
         case .back, .dismiss, .dismissThenPush, .selectTab: true
         case .present(_, _, let policy): policy == .replace
         case .push, .domain, .setLocal, .callService: false
+        case .conditional(let rule): rule.actions.contains(where: \.leavesForm)
         }
     }
 }

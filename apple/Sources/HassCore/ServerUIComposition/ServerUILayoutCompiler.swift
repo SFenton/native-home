@@ -157,7 +157,7 @@ extension ServerUICompositionCompiler {
                 if try action.s("type") == "domain" { add(.invalidCombination, action.path("type")) }
                 let compiled = try self.action(action)
                 try parts.discs.append(.init(id: id, icon: symbol(disc.field("icon")), label: disc.s("label"), action: compiled,
-                                             visibility: visibility(disc)))
+                                             visibility: visibility(disc), enabledWhen: enabled(disc)))
             }
         }
         if props.value["subtitle"] != nil || props.value["progress"] != nil || props.value["discs"] != nil || c.value["action"] != nil {

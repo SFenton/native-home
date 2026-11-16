@@ -37,12 +37,12 @@ extension ServerUICompositionShape {
                 "children": array(.component, 100)
             ]),
             "row": node("row", [
-                "props": object(["primary": value(literal: .text(2_000, blank: false)),
-                                 "secondary": value(literal: .text(2_000, blank: true)),
-                                 "value": value(literal: .text(2_000, blank: true)),
+                "props": object(["primary": textValue(.text(2_000, blank: false)),
+                                 "secondary": textValue(.text(2_000, blank: true)),
+                                 "value": textValue(.text(2_000, blank: true)),
                                  "icon": .optional(symbol), "accessory": .choice(["none", "disclosure"]),
                                  "loadingText": title, "unavailableText": title]),
-                "action": .optional(action)
+                "action": .optional(ruledAction), "enabledWhen": .optional(enabledWhen)
             ]),
             "local-tabs": node("local-tabs", [
                 "props": object(["stateId": id, "transition": fixed("canonical-swap@1"), "resetOnPresentation": .optional(.bool), "pinned": .optional(.bool),
@@ -72,9 +72,11 @@ extension ServerUICompositionShape {
                                                         "action": callService]), 12)),
                     "unavailableText": title
                 ]),
-                "onAction": .optional(callService), "offAction": .optional(callService), "action": .optional(callService)
+                "onAction": .optional(callService), "offAction": .optional(callService), "action": .optional(callService),
+                "enabledWhen": .optional(enabledWhen)
             ]),
-            "primary-button": node("primary-button", ["props": object([:]), "icon": .optional(symbol), "action": action]),
+            "primary-button": node("primary-button", ["props": object([:]), "icon": .optional(symbol), "action": ruledAction,
+                                                       "enabledWhen": .optional(enabledWhen)]),
             "row-collection": node("row-collection", [
                 "props": object(["providerId": id, "loadingText": title, "emptyText": title,
                                  "unavailableText": title, "errorText": title, "staleText": title])

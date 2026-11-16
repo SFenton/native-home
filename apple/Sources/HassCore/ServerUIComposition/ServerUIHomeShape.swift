@@ -47,9 +47,15 @@ extension ServerUICompositionShape {
                 "inputs": object(["entityId": literalEntity, "memberEntityIds": .optional(array(literalEntity, 64))])])
     }()
     static let statusAppearance: Shape = {
-        object(["icon": symbol, "glyph": .optional(solidFill), "fill": .variant("type", [
-            "standard": object(["type": fixed("standard")]), "solid-rgb": solidFill
-        ])])
+        object(["icon": symbolSlot, "glyph": .optional(solidSlot), "fill": fillSlot])
+    }()
+    /// A home navigation action, or one chosen by rule (`sh.action-rules@1`).
+    static let ruledHomeNavigationAction: Shape = {
+        guard case .variant(let key, let variants) = homeNavigationAction else { return homeNavigationAction }
+        let choice = Shape.variant(key, variants.merging(["none": object(["type": fixed("none")])]) { $1 })
+        return .variant(key, variants.merging(["conditional": object([
+            "type": fixed("conditional"), "cases": array(object(["when": predicate, "then": homeNavigationAction]), 16, minimum: 1),
+            "otherwise": choice])]) { $1 })
     }()
     static let statusProps: [String: Shape] = {
         [

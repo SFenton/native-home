@@ -100,7 +100,8 @@ public struct ServerUITileParts: Equatable, Sendable {
         public let label: String
         public let action: ServerUICompositionDocument.Action
         public let visibility: ServerUIVisibility?
-        // TODO(L1b): `enabledWhen` (`sh.enabled-when@1`) arrives with L1b's rule grammar; a disc is always enabled until then.
+        /// Dims the button and stops its tap while a rule says no (`sh.enabled-when@1`); `nil` for a button that is always enabled.
+        public let enabledWhen: ServerUIEnabledRule?
     }
 
     /// The text under the title, drawn instead of the style's state words.

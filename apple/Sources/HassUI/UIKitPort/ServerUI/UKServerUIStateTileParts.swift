@@ -41,11 +41,19 @@ enum UKServerUIStateTileParts {
             shown[disc.id] = visible
             return visible
         }
+        // A disc's `enabledWhen` (`sh.enabled-when@1`) dims it and stops its tap; `keep` repeats the answer remembered here.
+        var allowed: [String: Bool] = [:]
+        for disc in discs {
+            let key = "enabled:" + disc.id
+            let answer = ServerUIEnabledRule.allows(disc.enabledWhen, previous: memory[key], in: reader)
+            allowed[disc.id] = answer
+            shown[key] = answer
+        }
         memory = shown
-        // TODO(L1b): a disc's `enabledWhen` (`sh.enabled-when@1`) dims it and stops its tap; until L1b it is always enabled.
         model.actions += discs.map { disc in
             TileActionItem(id: itemID(disc), verb: disc.label, symbol: ServerUISymbolFallback.resolve(disc.icon.name),
-                           phase: unknown ? .unavailable : busy ? .inFlight : .ready, feedback: .momentary, label: disc.label)
+                           phase: unknown || allowed[disc.id] == false ? .unavailable : busy ? .inFlight : .ready, feedback: .momentary,
+                           label: disc.label)
         }
         if tile.action != nil {
             model.behavior = .navigate

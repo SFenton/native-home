@@ -274,16 +274,33 @@ final class UKServerUIBindings {
         }).sorted()
     }
 
+    /// Gives expressions the environment they are evaluated in (entity boxes, the optimistic overlay, the viewer, app state). The
+    /// renderer sets it once it exists; without one an expression sees an empty house and is unavailable.
+    var readerProvider: (() -> UKServerUIReader)?
+
+    /// A text slot's value: a literal, a typed read, or an operand (`sh.rules@1`), each with the fallback it carries
+    /// (``ServerUIStringResolver``). Evaluated inside the caller's observation, so it follows exactly the entities it reads.
     func string(_ value: D.StringValue) -> UKServerUIValue<String> {
-        switch value {
-        case .literal(let text): return .ready(text)
-        case .read(let read):
+        let readValue: (D.Read) -> ServerUIReadResult = { read in
             switch self.read(read) {
-            case .loading: return .loading
-            case .unavailable: return .unavailable
-            case .ready(.string(let text)): return .ready(text)
-            case .ready: return .unavailable
+            case .loading: .loading
+            case .unavailable: .unavailable
+            case .ready(.string(let text)): .value(.string(text))
+            case .ready: .unavailable
             }
+        }
+        let result: ServerUIReadResult
+        if let environment = readerProvider?() {
+            result = ServerUIStringResolver.resolve(value, read: readValue, in: environment)
+        } else if case .expression = value {
+            return .unavailable
+        } else {
+            result = ServerUIStringResolver.resolve(value, read: readValue, in: UKEmptyReading())
+        }
+        switch result {
+        case .value(.string(let text)): return .ready(text)
+        case .loading: return .loading
+        case .value, .unavailable: return .unavailable
         }
     }
 

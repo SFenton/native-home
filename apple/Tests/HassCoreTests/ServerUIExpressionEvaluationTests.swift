@@ -213,11 +213,11 @@ private func read(_ id: String, _ path: [String] = ["state"], as kind: ServerUIC
         let ask = ServerUICompositionDocument.Confirmation.additional(
             style: .alert, title: "Sure?", message: nil, confirmLabel: "Yes", cancelLabel: "Cancel", destructive: true)
         let plain = call()
-        #expect(!plain.asksConfirmation(of: ServerUIViewer(userId: "u1")))
+        #expect(!plain.asksConfirmation(of: ServerUIViewer(userId: "u1"), in: Reader()))
         let guarded = call(confirmation: ask, exempt: ["owner"])
-        #expect(guarded.asksConfirmation(of: ServerUIViewer(userId: "u1")))
-        #expect(guarded.asksConfirmation(of: nil))
-        #expect(!guarded.asksConfirmation(of: ServerUIViewer(userId: "owner")))
+        #expect(guarded.asksConfirmation(of: ServerUIViewer(userId: "u1"), in: Reader()))
+        #expect(guarded.asksConfirmation(of: nil, in: Reader()))
+        #expect(!guarded.asksConfirmation(of: ServerUIViewer(userId: "owner"), in: Reader()))
     }
 
     @Test func listsEveryReadAndOptimisticSource() {

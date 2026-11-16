@@ -78,6 +78,12 @@ enum UKServerUIStateTileViews {
             var face = face(for: tile, library: renderer.publication.document.stateStyles, capability: renderer.stateStylesEnabled, state: state,
                             request: .init(isInFlight: busy, failed: !hidden && failed, isUnknown: hidden || loading || unavailable))
             face.model.reapplyGeneration = page.context.store.reapplyGeneration
+            // `enabledWhen`: while it says no, the action's disc dims in place and the taps do nothing.
+            let allowed = renderer.isEnabled(node: tile.node)
+            if !allowed, let spec = face.spec {
+                face.spec = spec.with(phase: .unavailable)
+                face.model.actions = face.spec.map { [$0].items } ?? []
+            }
             var subtitle: String?
             if let value = tile.parts.subtitle, case .ready(let text) = renderer.bindings.string(value) { subtitle = text }
             var discMemory = node?.layoutMemory.discs ?? [:]
@@ -90,7 +96,7 @@ enum UKServerUIStateTileViews {
                                renderer?.activate(destination, from: page, source: view)
                            } },
                            perform: { [weak page, weak renderer, weak view] id in
-                guard let page, let renderer else { return }
+                guard let page, let renderer, allowed else { return }
                 if let disc = tile.parts.discs.first(where: { UKServerUIStateTileParts.itemID($0) == id }) {
                     renderer.activate(disc.action, from: page, source: view)
                     return
