@@ -6,6 +6,7 @@
     tools/studio_publish.py apply    CHANGE_DIR --reason TEXT [--publish] [--rebase-identical]
     tools/studio_publish.py publish  CHANGE_DIR --reason TEXT
     tools/studio_publish.py rollback CHANGE_DIR --reason TEXT [--live-only | --draft-only]
+    tools/studio_publish.py resolve  CHANGE_DIR --reason TEXT [--owner-action]
 
 A sibling of ``tools/ha_change.py`` with the same guardrails (log, redact, ``--reason``, security flag, rollback, fail closed). A Studio
 publish is a live Home Assistant change by effect: phones follow it at once. The tool speaks only to the Studio server's own API
@@ -537,6 +538,7 @@ class Publisher:
         expected = _read_json(directory / "evidence.json", "evidence.json").get("storedSha256")
         if not (doc_sha256(stored) == expected if expected else jeq(stored, change["document"])):
             record["draftWritten"] = True
+            record["readBackSha256"] = doc_sha256(stored)
             record["afterDraftRevision"] = after.get("revision")
             self.finish_record(directory, record, "refused")
             raise Refusal("store_mismatch", "the draft the Studio stored differs from the candidate; run rollback --draft-only")
@@ -596,6 +598,38 @@ class Publisher:
         self.say(json.dumps(info, sort_keys=True) if as_json else f"published {change['id']}: live r{revision}; the owner's open Studio tab needs a reload")
         return 0
 
+    def resolve(self, given: str, base: Optional[str], reason: str, owner_action: bool, as_json: bool) -> int:
+        """Mark a record final so a stale one stops showing in ``status``. ``resolved`` after read-only checks that nothing of this change is left
+        (the draft no longer equals the candidate, the live publication is not this tool's); ``--owner-action`` marks it ``owner_action`` without
+        checks and logs it so the owner sees it. A final record never blocks a later apply of the same change."""
+        directory = self.change_dir(given)
+        record = self.load_record(directory)
+        if not record:
+            raise Refusal("not_applied", "no record for this change")
+        change = self.load_change(directory)
+        if record.get("state") in ("resolved", "owner_action", "rolled_back"):
+            self.say(f"already final: {change['id']} ({record['state']})")
+            return 0
+        if owner_action:
+            self.finish_record(directory, record, "owner_action")
+            self.log("resolve", reason, change["id"], "owner_action_needed", security=record.get("security"))
+            self.say(f"{change['id']}: marked owner_action; the owner must finish it by hand")
+            return 0
+        self.client(change, base)
+        draft = self.get("/native/api/draft", "studio_unreachable")
+        publication = self.get("/native/api/ha/publication", "ha_unreachable")
+        if jeq(draft.get("document"), change["document"]):
+            raise Refusal("still_ours", "the draft still holds this change: run rollback --draft-only")
+        current, _ = self.live_of(publication)
+        ours = record.get("publishedRevision")
+        if (ours is not None and current == ours) or (record.get("publishAttempted") and ours is None and current != record["liveBefore"]["revision"]
+                                                       and not record.get("liveRolledBack")):
+            raise Refusal("still_ours", "the live publication may still hold this change: run rollback --live-only, or resolve --owner-action")
+        self.finish_record(directory, record, "resolved")
+        self.log("resolve", reason, change["id"], "resolved", security=record.get("security"))
+        self.say(f"resolved {change['id']}")
+        return 0
+
     def rollback(self, given: str, base: Optional[str], reason: str, live_only: bool, draft_only: bool, as_json: bool) -> int:
         """Put the live publication and the draft back. The live side first (``ha/rollback``, else republish the prior document), then the draft
         (only while it still sits at the revision this tool left). Works from any record that wrote or tried to write: ``recorded``, ``applied``,
@@ -617,7 +651,7 @@ class Publisher:
             if want_live:
                 fallback = not self.rollback_live(record, outcome)
             if want_draft or fallback:
-                self.rollback_draft(record, prior, outcome, publish_after=fallback)
+                self.rollback_draft(record, prior, change["document"], outcome, publish_after=fallback)
         except Refusal as err:
             self.finish_record(directory, record, "rollback_failed")
             self.log("rollback", reason, change["id"], "rollback_failed:" + err.code)
@@ -661,8 +695,11 @@ class Publisher:
         outcome.update({"liveRevision": revision, "envelopeSha256": sha, "live": "rolled_back"})
         return True
 
-    def rollback_draft(self, record: Dict[str, Any], prior: Dict[str, Any], outcome: Dict[str, Any], publish_after: bool) -> None:
+    def rollback_draft(self, record: Dict[str, Any], prior: Dict[str, Any], candidate: Dict[str, Any], outcome: Dict[str, Any], publish_after: bool) -> None:
         """``PUT`` the saved prior document while the draft still sits at the revision this tool left; otherwise report ``draft_moved``.
+
+        The restore needs proof that this tool's write is what sits there: the draft must equal the candidate document (or the read-back hash recorded
+        by a store mismatch) at that revision. A revision number alone is not proof (an autosave of the owner can take the same number).
 
         With ``publish_after`` (the live entry aged out) the restored draft is then published to put the live side back. Before that publish the
         draft must equal the saved prior document and the live revision must still be this tool's, so the owner's edits are never published."""
@@ -674,7 +711,8 @@ class Publisher:
             if revision == record.get("priorRevision") and jeq(draft.get("document"), prior["document"]):
                 record["draftRolledBack"] = True  # the write never landed
                 outcome["draft"] = "unchanged"
-            elif revision != left:
+            elif revision != left or not (jeq(draft.get("document"), candidate) or (
+                    record.get("readBackSha256") and doc_sha256(draft.get("document")) == record["readBackSha256"])):
                 outcome["draft"] = "draft_moved"
                 if publish_after:
                     raise Refusal("rollback_failed", "the live entry aged out and the draft moved: nothing safe to republish; report to the owner")
@@ -733,6 +771,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("change_dir")
     p.add_argument("--reason", required=True)
     common(p)
+    p = sub.add_parser("resolve")
+    p.add_argument("change_dir")
+    p.add_argument("--reason", required=True)
+    p.add_argument("--owner-action", action="store_true", help="mark it for the owner without checks")
+    common(p)
     p = sub.add_parser("rollback")
     p.add_argument("change_dir")
     p.add_argument("--reason", required=True)
@@ -759,6 +802,8 @@ def main(argv: Optional[Sequence[str]] = None, root: Optional[Path] = None, env:
             return tool.apply(args.change_dir, args.base, reason, args.publish, args.rebase_identical, args.json)
         if args.command == "publish":
             return tool.publish(args.change_dir, args.base, reason, args.json)
+        if args.command == "resolve":
+            return tool.resolve(args.change_dir, args.base, reason, args.owner_action, args.json)
         return tool.rollback(args.change_dir, args.base, reason, args.live_only, args.draft_only, args.json)
     except Refusal as err:
         change = ""

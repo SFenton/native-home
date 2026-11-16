@@ -2,7 +2,7 @@
 """PreToolUse hook for Bash, Read, Grep, Glob, Edit, Write, MultiEdit and NotebookEdit: the owner's Studio is reached only through ``tools/studio_publish.py``.
 
 Owner decision 2026-11-16: agents may publish a finished change to the Studio draft, but only by ``tools/studio_publish.py``. Port 4801 runs
-local-only with no token (owner choice, 2026-11-16), so any local process could publish to the house with the Studio's own Home Assistant
+local-only with no token, so any local process could publish to the house with the Studio's own Home Assistant
 credential; this guard is what stops another agent process. It is a tripwire, not a wall: it reads command text only.
 
 Acts on **agent sessions** (``FENTON_HEADLESS=1``, or a payload with ``agent_type`` or ``agent_id``); the owner's plain terminal is never blocked.
@@ -14,14 +14,17 @@ Blocked, in an agent session:
   the house layout, and the server keeps the draft in memory, so a file edit is overwritten or corrupts the next start.
 - **Bash**, per simple command (quote-aware; ``bash -c`` and ``eval`` strings, ``xargs`` and wrappers unwrapped), any word that names the Studio's
   write or publish routes (``/native/api/draft``, ``ha/publish``, ``ha/rollback``, ``ha/restore-draft``, ``ha/start-from-published``,
-  ``/native/api``), whatever the program; a word naming a Studio port (``:4800``, ``:4801``, ``:4819``) when the program is a network client or an
+  ``/native/api``), whatever the program, except that ``grep``, ``rg``, ``ag``, ``ack`` and ``git log|grep|show|diff`` may name a route as a search
+  pattern (a ``git config alias.*`` or ``git -c alias.*`` stays blocked); a word naming a Studio port (``:4800``, ``:4801``, ``:4819``) when the program is a network client or an
   interpreter (curl, wget, httpie, nc, python, node, ...); a word that names ``native-v2`` or ``.studio.lock`` (a bare ``native-v2`` is allowed as
   a search pattern); ``$DATA_DIR`` expanded.
-- **Exempt:** ``python3 [-I] <this checkout>/tools/studio_publish.py <sub> ...`` as the whole simple command. Of its subcommands ``apply``, ``publish``
-  and ``rollback`` run only for ``agent_type`` ``orchestrator`` or ``menial`` (lanes build changes; the dispatched publish step publishes) and never
+- **Exempt:** ``python3 [-I] <this checkout>/tools/studio_publish.py <sub> ...`` as the whole simple command. Of its subcommands ``apply``, ``publish``,
+  ``rollback`` and ``resolve`` run only for ``agent_type`` ``orchestrator`` or ``menial`` (lanes build changes; the dispatched publish step publishes) and never
   in a headless session; ``status`` and ``check`` run for every agent.
 
-Prose in a ``git commit -m`` or ``gh --body`` value, and the text of a heredoc, is not read. Same limits as ``signing_guard``: a path or URL built at run
+Prose in a ``git commit -m`` or ``gh --body`` value is not read, and neither is a heredoc body unless the line that opens it runs code (an
+interpreter, shell, network client or task runner: ``python3 - <<EOF``, ``cat <<EOF | node``), when the body is read for routes, ports, the data
+directory and the tool's name. A command that is piped into or out of code counts as part of it; separate commands (``a && python3 x.py``) do not. Same limits as ``signing_guard``: a path or URL built at run
 time, a script file that opens the URL, and a Write whose content runs later are not seen. Exit 2 sends the message back.
 """
 
@@ -49,7 +52,7 @@ MESSAGE = (
 TOOL = "studio_publish.py"
 PATH_TOOLS = ("Read", "Grep", "Glob", "Edit", "Write", "MultiEdit", "NotebookEdit")
 #: Subcommands that change the draft or the live publication; roles that may run them.
-MUTATING = ("apply", "publish", "rollback")
+MUTATING = ("apply", "publish", "rollback", "resolve")
 PUBLISHERS = ("orchestrator", "menial")
 
 ROUTE = re.compile(r"/?native/api(?![A-Za-z0-9_-])|(?<![A-Za-z0-9_])ha/(?:publish|rollback|restore-draft|start-from-published)(?![A-Za-z0-9_-])", re.I)
@@ -67,7 +70,9 @@ HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:\n\s*\2\s*(?:\n|$)|
 #: Programs that run code or other programs: a word naming the tool is refused for them unless it is the exact exempt form.
 RUNNERS = {"uv", "uvx", "pipx", "poetry", "pdm", "hatch", "tox", "pytest", "make", "just", "npm", "pnpm", "yarn"}
 #: Searchers and git read text; a route named as their pattern is not a call.
-SEARCH_ONLY = {"grep", "egrep", "fgrep", "rg", "ag", "ack", "git"}
+SEARCH_ONLY = {"grep", "egrep", "fgrep", "rg", "ag", "ack"}
+#: ``git`` subcommands that only read; ``git config alias.x "!curl ..."`` and ``git -c alias.x=...`` are not among them.
+GIT_READS = {"log", "grep", "show", "diff"}
 NETWORK = {"curl", "wget", "http", "https", "xh", "httpie", "nc", "ncat", "netcat", "telnet", "socat", "ssh", "node", "nodejs", "deno",
            "bun", "ruby", "perl", "php", "npx", "tsx", "ts-node", "pwsh", "osascript", "python", "python2", "python3", "lua", "go"}
 SEARCHERS = {"grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk"}
@@ -114,6 +119,22 @@ def tool_reason(args: List[str], payload: dict) -> str:
     return ""
 
 
+def git_reads(words: List[str]) -> bool:
+    """Is this ``git`` call a read (``log``, ``grep``, ``show``, ``diff``) with no ``-c alias.*`` or ``-c core.*`` override?"""
+    rest = words[1:]
+    while rest and rest[0].startswith("-"):
+        option = rest[0]
+        if option in ("-c", "-C", "--git-dir", "--work-tree") and len(rest) > 1:
+            if option == "-c" and re.match(r"(?:alias|core|pager|include)", rest[1], re.I):
+                return False
+            rest = rest[2:]
+        elif option.startswith("-c") and len(option) > 2:
+            return False
+        else:
+            rest = rest[1:]
+    return bool(rest) and rest[0] in GIT_READS
+
+
 def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, interp: bool = False) -> str:
     """Why one simple command is refused (empty when it passes)."""
     words = strip_prefixes(words)
@@ -147,7 +168,7 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, 
                 if why:
                     return why
     searcher = program in SEARCHERS
-    reads_text = program in SEARCH_ONLY
+    reads_text = program in SEARCH_ONLY or (program == "git" and git_reads(words))
     prose = False
     network = program in NETWORK
     for i, word in enumerate(words[1:], 1):
@@ -185,13 +206,18 @@ def command_reason(command: str, payload: dict, project: str) -> str:
     A heredoc body is code when the command runs an interpreter (``python3 - <<EOF``, ``node``): its text is read for routes, ports, the data
     directory and the tool's name. A port named in a command line that also runs code (``echo '...:4801...' | python3 -``) counts too."""
     segments = tokenize(command)
-    interp = any(runs_code(words) for _op, words in segments)
-    for _op, words in segments:
-        why = words_reason(words, payload, project, interp=interp)
+    code = [runs_code(words) for _op, words in segments]
+    for i, (_op, words) in enumerate(segments):
+        # a command that feeds, or is fed by, code through a pipe counts as part of that code's input
+        piped = (i > 0 and segments[i][0].startswith("|") and code[i - 1]) or (i + 1 < len(segments) and segments[i + 1][0].startswith("|") and code[i + 1])
+        why = words_reason(words, payload, project, interp=bool(piped))
         if why:
             return why
-    if interp:
-        for match in HEREDOC.finditer(command):
+    for match in HEREDOC.finditer(command):
+        start = command.rfind("\n", 0, match.start()) + 1
+        end = command.find("\n", match.start())
+        line = command[start:end if end >= 0 else len(command)]
+        if any(runs_code(words) for _op, words in tokenize(line)):
             body = match.group(3)
             if ROUTE.search(body) or PORT.search(body) or NATIVE_V2.search(body) or LOCK.search(body) or TOOL_WORD.search(body) or DATA_DIR_VAR.search(body):
                 return "a heredoc fed to an interpreter names the Studio"

@@ -526,6 +526,70 @@ class RollbackRound2Tests(Base):
         self.assertIn("bad_bundle", self.output)
 
 
+class Round3Tests(Base):
+    def lost_put(self):
+        """Run an apply whose PUT never reaches the Studio (no answer), leaving the record `recorded`."""
+        real = sp.Studio.request
+
+        def request(inner, method, path, body=None):
+            if method == "PUT":
+                raise sp.Refusal("studio_unreachable", "no answer")
+            return real(inner, method, path, body)
+        with mock.patch.object(sp.Studio, "request", request):
+            self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 1)
+        self.assertEqual(self.record()["state"], "recorded")
+
+    def test_n1_lost_put_then_owner_save_is_not_overwritten(self):
+        """Fails if: rollback --draft-only restores the prior document over an owner save that took the revision number the agent's PUT would have had."""
+        self.lost_put()
+        self.stub.owner_saves({**BASE_DOC, "ownerEdit": 1})  # revision 6 = pendingDraftRevision
+        self.assertEqual(self.record()["pendingDraftRevision"], 6)
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only"), 0, self.output)
+        self.assertIn("draft_moved", self.output)
+        self.assertEqual(self.stub.draft["document"]["ownerEdit"], 1)
+        self.assertEqual(sum(1 for c in self.stub.calls if c[0] == "PUT"), 0)  # neither the lost write nor a restore reached the Studio
+
+    def test_n1_landed_write_is_still_restored(self):
+        """Fails if: the proof requirement stops a write that did land from being restored."""
+        self.stub.fail_get_after_put = 1
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 1)
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only"), 0, self.output)
+        self.assertEqual(self.stub.draft["document"], BASE_DOC)
+
+    def test_n5_resolve_refuses_while_the_change_is_still_there(self):
+        """Fails if: resolve marks a record final while the draft still holds the change."""
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 0)
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t"), 1)
+        self.assertIn("still_ours", self.output)
+        self.assertEqual(self.record()["state"], "applied")
+
+    def test_n5_resolve_after_draft_moved_clears_status(self):
+        """Fails if: a draft_moved partial can never leave openChanges."""
+        self.lost_put()
+        self.stub.owner_saves({**BASE_DOC, "ownerEdit": 1})
+        self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only")
+        self.assertEqual(self.run_cli("status", "--json"), 0)
+        self.assertEqual(len(json.loads(self.output)["openChanges"]), 1)
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t"), 0, self.output)
+        self.assertEqual(self.record()["state"], "resolved")
+        self.assertEqual(self.run_cli("status", "--json"), 0)
+        self.assertEqual(json.loads(self.output)["openChanges"], [])
+
+    def test_n5_owner_action_marks_final_and_logs(self):
+        """Fails if: --owner-action leaves the record open, skips the log, or needs the Studio."""
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 0)
+        self.stub.age_out = True
+        self.stub.fail_publish = 5
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 1)
+        self.assertEqual(self.record()["state"], "rollback_failed")
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t"), 1)
+        self.assertIn("still_ours", self.output)
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "needs the owner", "--owner-action"), 0, self.output)
+        self.assertEqual(self.record()["state"], "owner_action")
+        self.assertIn("owner_action_needed", self.log_text())
+        self.assertEqual(json.loads((self.run_cli("status", "--json"), self.output)[1])["openChanges"], [])
+
+
 class SecretsAndFilesTests(Base):
     def test_no_token_or_document_text_in_output_log_or_status(self):
         """Fails if: the Studio token or a document value appears in stdout, stderr, the log or status --json."""
@@ -602,6 +666,8 @@ class GuardRoleTests(unittest.TestCase):
 
     def test_role_gate_cannot_be_bypassed_by_other_forms(self):
         """Fails if: any form other than the exact exempt one runs for the orchestrator, or a global option hides a mutating subcommand from a coder."""
+        self.assertEqual(self.verdict("python3 tools/studio_publish.py resolve c --reason x", "coder"), 2)
+        self.assertEqual(self.verdict("python3 tools/studio_publish.py resolve c --reason x", "menial"), 0)
         for command in ("python3 -m tools.studio_publish apply c --reason x", "uv run tools/studio_publish.py apply c --reason x",
                         "python3 -c \"import studio_publish\"", "python3 -B tools/studio_publish.py apply c --reason x"):
             self.assertEqual(self.verdict(command, "orchestrator"), 2, command)
