@@ -256,12 +256,66 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         return try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
     }
 
-    func testEveryWriteDrivenThroughTheBuiltProvidersIsRefusedCountedAndLeavesNoTraceOutsideThePreview() async throws {
+    /// One preview drawn at one family's size from the preview's own providers, and the helpers that drive it.
+    private struct Rig {
+        let family: String
+        let live: UKServerUIPreviewLiveData
+        let providers: UKServerUIPreviewLiveProviders
+        let supply: UKServerUIPreviewLiveProviders.Supply
+        let renderer: UKServerUIRenderer
+        let page: UKServerUIPage
+        let defaultsName: String
+
+        /// Taps the row or tile the document placed under `id`, the way a touch does.
+        @MainActor func tap(_ id: String) throws {
+            let node = try XCTUnwrap(page.nodes[id]?.view, "\(family): \(id)")
+            func control(in view: UIView) -> UIControl? {
+                if view is UKRowButton || view is UKGlassTileView, let found = view as? UIControl { return found }
+                for sub in view.subviews { if let found = control(in: sub) { return found } }
+                return nil
+            }
+            let found = try XCTUnwrap(control(in: node), "\(family): \(id) control")
+            if let row = found as? UKRowButton { try XCTUnwrap(row.onTap, "\(family): \(id) tap")() }
+            else { found.sendActions(for: .touchUpInside) }
+        }
+
+        /// Answers whatever alert is up, by the action the alert itself offers (its cancel action, else its last), until none is.
+        @MainActor func dismissAlerts() async {
+            for _ in 0..<4 {
+                _ = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer) != nil }, timeout: 1.5)
+                guard let alert = FeatureHost.alert(on: renderer) else { return }
+                let action = alert.actions.first { $0.style == .cancel } ?? alert.actions.last
+                _ = FeatureHost.answer(alert, action?.title)
+                await FeatureHost.settleAsync(0.1)
+            }
+        }
+
+        /// Answers a confirmation by its own affirmative (non-cancel) action.
+        @MainActor func confirmAlert() async throws {
+            let shown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer) != nil })
+            let alert = try XCTUnwrap(shown ? FeatureHost.alert(on: renderer) : nil, "\(family): confirmation")
+            let action = try XCTUnwrap(alert.actions.first { $0.style != .cancel }, family)
+            _ = FeatureHost.answer(alert, action.title)
+        }
+
+        /// Whether `count` writes have been refused and counted, and the refusal is all there was: the connection never left
+        /// `disconnected`, so no request reached it.
+        @MainActor func assertRefused(_ count: Int, _ what: String) async {
+            let reached = await FeatureHost.settleAsync(until: { live.caller.blockedCommands >= count })
+            XCTAssertTrue(reached, "\(family): \(what) was not counted (\(live.caller.blockedCommands))")
+            XCTAssertEqual(live.caller.blockedCommands, count, "\(family): \(what)")
+            assertNoRequest(what)
+        }
+
+        @MainActor func assertNoRequest(_ what: String) {
+            XCTAssertEqual(live.connection.status, .disconnected, "\(family): \(what) reached the connection")
+        }
+    }
+
+    /// Draws the writes fixture at each family's size and runs `body` on it.
+    private func drive(_ body: (Rig) async throws -> Void) async throws {
         let publication = try writingPublication()
         let assets = try await stagedAssets(publication)
-        let standardBlur = UserDefaults.standard.object(forKey: BackdropBlur.defaultsKey) as? Int
-        let group = UserDefaults(suiteName: ActivityAppIconStore.appGroup)
-        let groupIcon = group?.string(forKey: ActivityAppIconStore.key)
         for (family, size) in [("iPhone", CGSize(width: 390, height: 844)), ("Duo", CGSize(width: 466, height: 678)),
                                ("iPad", CGSize(width: 820, height: 1180))] {
             let (live, providers, _) = try make()
@@ -277,87 +331,107 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             defer { window.isHidden = true }
             HostedPage.layoutTracked()
             let page = try XCTUnwrap(renderer.stacks[.initial]?.viewControllers.first as? UKServerUIPage, family)
-            func tap(_ id: String) throws {
-                let node = try XCTUnwrap(page.nodes[id]?.view, "\(family): \(id)")
-                func control(in view: UIView) -> UIControl? {
-                    if view is UKRowButton || view is UKGlassTileView, let found = view as? UIControl { return found }
-                    for sub in view.subviews { if let found = control(in: sub) { return found } }
-                    return nil
-                }
-                let found = try XCTUnwrap(control(in: node), "\(family): \(id) control \(node.subviews)")
-                if let row = found as? UKRowButton { try XCTUnwrap(row.onTap, "\(family): \(id) tap")() }
-                else { found.sendActions(for: .touchUpInside) }
-            }
-            func blocked(_ count: Int, _ what: String) async {
-                let reached = await FeatureHost.settleAsync(until: { live.caller.blockedCommands >= count })
-                XCTAssertTrue(reached, "\(family): \(what) was not refused and counted (\(live.caller.blockedCommands))")
-                XCTAssertEqual(live.caller.blockedCommands, count, "\(family): \(what)")
-            }
+            try await body(Rig(family: family, live: live, providers: providers, supply: supply, renderer: renderer, page: page,
+                               defaultsName: defaultsName))
+        }
+    }
 
-            // A household toggle through the household provider.
-            try tap("w-toggle")
-            await blocked(1, "household toggle")
+    func testAHouseholdToggleIsRefusedCountedAndSendsNothing() async throws {
+        try await drive { rig in
+            let household = try XCTUnwrap(rig.supply.settings["household"] as? UKServerUIHouseholdProvider)
+            try rig.tap("w-toggle")
+            await rig.assertRefused(1, "household toggle")
+            await rig.dismissAlerts()
+            XCTAssertFalse(household.protectsPublication, "\(rig.family): the toggle's pending flag clears")
+            XCTAssertEqual(rig.live.context.store.value("switch.synthetic_toggle")?.state, "off", "\(rig.family): the state is untouched")
+        }
+    }
 
-            // Sign-out through the profile provider: confirm, then the closure is refused and the failure alert offers Cancel.
-            try tap("w-signout")
-            let confirm = try XCTUnwrap(FeatureHost.alert(on: renderer), "\(family): sign-out confirmation")
-            XCTAssertTrue(FeatureHost.answer(confirm, AlertCopy.signOut.confirm.title))
-            await blocked(2, "sign-out")
-            let failureTitle = AlertCopy.signOutFailed(device: .current).title
-            let failureShown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer)?.title == failureTitle })
-            XCTAssertTrue(failureShown, "\(family): the refused sign-out says so")
-            if let failed = FeatureHost.alert(on: renderer) { _ = FeatureHost.answer(failed, "Cancel") }
-            let cleared = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer) == nil })
-            XCTAssertTrue(cleared, family)
+    func testSignOutIsRefusedCountedAndSendsNothing() async throws {
+        try await drive { rig in
+            let profile = try XCTUnwrap(rig.supply.settings["profile"] as? UKServerUIProfileProvider)
+            try rig.tap("w-signout")
+            try await rig.confirmAlert()
+            await rig.assertRefused(1, "sign-out")
+            await rig.dismissAlerts()
+            XCTAssertFalse(profile.protectsPublication, "\(rig.family): the signing-out flag clears")
+        }
+    }
 
-            // The Home Assistant web page action: refused at the action with the preview's own notice, no request.
-            try tap("w-haweb")
-            let noticeShown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer)?.title == "Unavailable in Preview" })
-            XCTAssertTrue(noticeShown, "\(family): web page notice")
-            if let notice = FeatureHost.alert(on: renderer) { _ = FeatureHost.answer(notice, "OK") }
-            XCTAssertEqual(live.caller.blockedCommands, 2, "\(family): the web action sends nothing")
+    func testTheHomeAssistantWebPageActionSendsNothing() async throws {
+        try await drive { rig in
+            try rig.tap("w-haweb")
+            let shown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: rig.renderer) != nil })
+            XCTAssertTrue(shown, "\(rig.family): the action answers with a notice instead of opening a page")
+            await rig.dismissAlerts()
+            XCTAssertEqual(rig.live.caller.blockedCommands, 0, "\(rig.family): it is refused at the action, not as a command")
+            rig.assertNoRequest("web page")
+        }
+    }
 
-            // The app icon: held in the preview's model only.
-            let preferences = try XCTUnwrap(supply.settings["preferences"] as? UKServerUIPreferencesProvider)
-            try tap("w-icon")
-            let chosen = await FeatureHost.settleAsync(until: { preferences.icons.selected == .midnightGold })
-            XCTAssertTrue(chosen, "\(family): the choice shows in the preview's own model")
-            XCTAssertNil(UIApplication.shared.alternateIconName, "\(family): the system icon is untouched")
-            XCTAssertEqual(group?.string(forKey: ActivityAppIconStore.key), groupIcon, "\(family): the app group is untouched")
-
-            // A preferences write lands in the isolated suite only.
-            try preferences.setBlur(55)
-            let isolated = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
-            XCTAssertEqual(isolated.object(forKey: BackdropBlur.defaultsKey) as? Int, 55, family)
-            XCTAssertEqual(UserDefaults.standard.object(forKey: BackdropBlur.defaultsKey) as? Int, standardBlur,
-                           "\(family): standard defaults are untouched")
-
-            // Feedback filing never files.
-            let feedback = try XCTUnwrap(supply.settings["feedback-bug"] as? UKServerUIFeedbackProvider)
+    func testFeedbackFilingNeverFilesAndSendsNothing() async throws {
+        try await drive { rig in
+            let feedback = try XCTUnwrap(rig.supply.settings["feedback-bug"] as? UKServerUIFeedbackProvider)
             feedback.model.title = "Synthetic"
             feedback.model.descriptionText = "Synthetic report"
             await feedback.model.checkAvailability()
             feedback.model.submit(platform: .ios, diagnostics: {
                 FeedbackDiagnostics(app: "T", system: "iOS", device: "T", window: "T", homeAssistant: "T", accessibility: "T", locale: "en")
             })
-            await FeatureHost.settleAsync(0.3)
-            if case .finished = feedback.model.phase { XCTFail("\(family): a report was filed") }
+            let settled = await FeatureHost.settleAsync(until: { !feedback.model.isSending })
+            XCTAssertTrue(settled, "\(rig.family): the sending flag clears")
+            if case .finished = feedback.model.phase { XCTFail("\(rig.family): a report was filed") }
+            rig.assertNoRequest("feedback")
+        }
+    }
 
-            // The admin to-do upload, through the same services the records were built over.
+    func testTheAdminTodoUploadIsRefusedCountedAndSendsNothing() async throws {
+        try await drive { rig in
             let todo = ServerUITodoProvider(configuration: try .init(entityId: "todo.synthetic", canAdd: true, allowsAttachments: true),
-                store: TodoStore(service: providers.services), service: providers.services)
+                store: TodoStore(service: rig.providers.services), service: rig.providers.services)
             let image = AdminTodoUpload.Image(data: Data([1, 2, 3]), filename: "a.png", mimeType: "image/png")
-            do { try await todo.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(family): an upload went out") }
-            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, family) }
-            XCTAssertEqual(live.caller.blockedCommands, 3, "\(family): upload")
+            do { try await todo.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(rig.family): an upload went out") }
+            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
+            await rig.assertRefused(1, "admin to-do upload")
+            XCTAssertFalse(todo.hasPendingIntent, "\(rig.family): the pending flag clears")
+        }
+    }
 
-            // A data flow's call through the host the flows run on.
+    func testADataFlowCallIsRefusedCountedAndSendsNothing() async throws {
+        try await drive { rig in
             do {
-                _ = try await providers.flowHost(entitySources: [:]).call("light", "turn_on", [:], [:], .seconds(1))
-                XCTFail("\(family): a flow call went out")
-            } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, family) }
-            XCTAssertEqual(live.caller.blockedCommands, 4, "\(family): flow call")
-            XCTAssertEqual(live.connection.status, .disconnected, "\(family): nothing reached the connection")
+                _ = try await rig.providers.flowHost(entitySources: [:]).call("light", "turn_on", [:], [:], .seconds(1))
+                XCTFail("\(rig.family): a flow call went out")
+            } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
+            await rig.assertRefused(1, "flow call")
+        }
+    }
+
+    func testAPreferencesWriteLandsOnlyInTheIsolatedSuite() async throws {
+        let standardBlur = UserDefaults.standard.object(forKey: BackdropBlur.defaultsKey) as? Int
+        try await drive { rig in
+            let preferences = try XCTUnwrap(rig.supply.settings["preferences"] as? UKServerUIPreferencesProvider)
+            try preferences.setBlur(55)
+            let isolated = try XCTUnwrap(UserDefaults(suiteName: rig.defaultsName))
+            XCTAssertEqual(isolated.object(forKey: BackdropBlur.defaultsKey) as? Int, 55, rig.family)
+            XCTAssertEqual(UserDefaults.standard.object(forKey: BackdropBlur.defaultsKey) as? Int, standardBlur,
+                           "\(rig.family): standard defaults are untouched")
+            rig.assertNoRequest("preferences")
+        }
+    }
+
+    func testTheAppIconChoiceStaysInMemory() async throws {
+        let group = UserDefaults(suiteName: ActivityAppIconStore.appGroup)
+        let groupIcon = group?.string(forKey: ActivityAppIconStore.key)
+        try await drive { rig in
+            let preferences = try XCTUnwrap(rig.supply.settings["preferences"] as? UKServerUIPreferencesProvider)
+            try rig.tap("w-icon")
+            let chosen = await FeatureHost.settleAsync(until: { preferences.icons.selected == .midnightGold && !preferences.icons.isChanging })
+            XCTAssertTrue(chosen, "\(rig.family): the choice shows in the preview's own model and the change flag clears")
+            await rig.dismissAlerts()
+            XCTAssertNil(UIApplication.shared.alternateIconName, "\(rig.family): the system icon is untouched")
+            XCTAssertEqual(group?.string(forKey: ActivityAppIconStore.key), groupIcon, "\(rig.family): the app group is untouched")
+            rig.assertNoRequest("app icon")
         }
     }
 
