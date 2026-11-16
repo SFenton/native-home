@@ -331,7 +331,9 @@
         "apple/Sources/HassDesign/HassRGB.swift",
         "apple/Sources/HassDesign/HassRGB+Color.swift",
         "apple/Sources/HassDesign/HassRGB+UIKit.swift",
-        "apple/Sources/HassDesign/HassTokensRGB.swift"
+        "apple/Sources/HassDesign/HassTokensRGB.swift",
+        "apple/Sources/HassDesign/AppearanceFill.swift",
+        "apple/Sources/HassDesign/AuthoredTileInk.swift"
       ],
       "guards": [],
       "related": {
