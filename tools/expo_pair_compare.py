@@ -26,10 +26,13 @@ Parity-loop checks (manifest entries from ``tools/parity_loop/run.py``; each is 
 
 * ``--require-sidecar``: every capture needs a sidecar, and the halves must agree on device, runtime, scale, appearance and
   status-bar setting and must hold different apps (``tools/parity_loop/sidecar.py``); otherwise the pair is ``refused`` (exit 2);
-* ``--drift``: ``reference2_png`` is a second reference shot; reference against reference must stay inside the same gate, or the
-  pair is ``drift`` (and the candidate must also be inside the gate of the second reference shot);
-* ``--require-ax``: both halves need a recorded AX tree (``*_ax_file``) and the normalised sequences must be equal;
-* mask files (``mask_files``: JSON lists of live regions) are added to ``live_regions``;
+* ``--drift``: ``reference2_png`` is a second reference shot; reference against reference must stay under
+  ``--drift-max-percent`` (default 0.15%, the measured noise floor) and the block limit, or the pair is ``drift`` (the candidate
+  must also be inside the gate of the second reference shot). No retry or ``unstable`` verdict yet;
+* ``--require-ax``: both halves (and, with ``--drift``, the second reference shot) need a recorded AX tree (``*_ax_file``) and the
+  normalised sequences must be equal;
+* mask files (``mask_files``: JSON lists of live regions) are added to ``live_regions``; the pair records ``maskedPercent`` and is
+  ``refused`` when the masks cover more than ``--max-mask-percent`` (default 15%);
 * ``--status-bar-equal``: the status-bar items (clock, signal, battery; rectangles per device profile, not the whole band or the
   page behind it) must match between the halves, else the pair is ``statusbar``.
 
@@ -53,11 +56,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import png_raster  # noqa: E402
 from png_raster import Raster  # noqa: E402
 from parity_loop import sidecar as sidecar_mod  # noqa: E402
+from parity_loop.common import png_size  # noqa: E402
 
 #: Default gate numbers (``build/decisions/native-ingest.md`` default 2).
 TOLERANCE = 8
 MAX_DIFF_PERCENT = 1.0
 MAX_BLOCK_PERCENT = 0.25
+#: Reference-against-reference drift limit in percent of pixels: the measured same-tree noise floor
+#: (``build/research/parity-loop.md`` Q3, drift check), tighter than the pair gate.
+DRIFT_MAX_PERCENT = 0.15
+#: A pair is refused when its mask files and live regions cover more than this share of the image (percent): a mask must never
+#: hide enough of a screen to let a different page pass the gate.
+MAX_MASK_PERCENT = 15.0
 #: Default status-bar band height in points (clock, signal, battery). Declared, not inferred.
 STATUS_BAR_PT = 54.0
 #: Default home-indicator band height in points, at the bottom edge. System chrome, like the status bar.
@@ -345,6 +355,17 @@ def status_bar_rects(profile: str, size: Tuple[int, int], density: float,
     return rects
 
 
+def masked_percent(size: Tuple[int, int], density: float, regions: List[Dict[str, Any]]) -> float:
+    """Percent of the image the live ``regions`` cover (their union; the status-bar and home-indicator bands are not counted)."""
+    width, height = size
+    covered = bytearray(width * height)
+    for region in regions:
+        x0, y0, x1, y1 = _rect(region, density, size)
+        for y in range(y0, y1):
+            covered[y * width + x0:y * width + x1] = b"\x01" * max(0, x1 - x0)
+    return 100.0 * covered.count(1) / max(1, width * height)
+
+
 def status_bar_difference(ref_path: Path, cand_path: Path, density: float, profile: str, tolerance: int,
                           override: Optional[Dict[str, List[float]]] = None) -> Optional[float]:
     """Percent of the status-bar *item* pixels (clock, signal, battery) that differ between two shots, or ``None`` on a size mismatch."""
@@ -471,6 +492,12 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
     status_pt = args.status_bar_pt if status is None else status
     regions = list(spec["live_regions"]) + load_regions(spec.get("mask_files", []))
     verdict_hint = ""
+    if not failures and regions:
+        size = png_size(Path(ref_png))
+        record["maskedPercent"] = round(masked_percent(tuple(size), spec["density"], regions), 3) if size else None
+        limit = getattr(args, "max_mask_percent", MAX_MASK_PERCENT)
+        if record["maskedPercent"] is not None and record["maskedPercent"] > limit:
+            return _refuse(record, [f"masks cover {record['maskedPercent']:.1f}% of the image (limit {limit:g}%)"], out_dir, spec)
     if not failures:
         options = dict(density=spec["density"], status_bar_pt=status_pt, live_regions=regions, home_indicator_pt=args.home_indicator_pt,
                        tolerance=args.tolerance, max_diff_percent=args.max_diff_percent, max_block_percent=args.max_block_percent)
@@ -478,7 +505,8 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
         record.update(pixel)
         failures.extend(pixel["failures"])
         if want_drift:
-            drift = compare_images(Path(ref_png), Path(ref2_png), out_dir / f"{spec['id']}-drift.png", **options)
+            drift = compare_images(Path(ref_png), Path(ref2_png), out_dir / f"{spec['id']}-drift.png",
+                                   **{**options, "max_diff_percent": getattr(args, "drift_max_percent", DRIFT_MAX_PERCENT)})
             record["drift"] = {k: drift.get(k) for k in ("changedPixels", "changedPercent", "largestBlockPercent", "differenceBounds")}
             record["maskProposals"] = [drift["differenceBounds"]] if drift.get("differenceBounds") else []
             against_second = compare_images(Path(cand_png), Path(ref2_png), out_dir / f"{spec['id']}-diff2.png", **options)
@@ -505,9 +533,11 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
             ax_failures = [] if equal else [
                 f"AX sequences differ at row {record['axDiff']['firstDifference']} "
                 f"({record['axDiff']['onlyFirst']} only in reference, {record['axDiff']['onlySecond']} only in candidate)"]
-        if want_drift and ax_files.get("reference2"):
-            again = ax_sequence(ax_files["reference2"])
-            if again is not None and first is not None and compare_ax_sequences(first, again)[0] is False:
+        if want_drift:
+            again = ax_sequence(ax_files.get("reference2"))
+            if again is None:
+                ax_failures.append("AX tree not recorded on reference2")
+            elif first is not None and compare_ax_sequences(first, again)[0] is False:
                 verdict_hint = verdict_hint or "drift"
                 ax_failures.append("drift: the reference AX tree changed between its two shots")
     record["allAXNodesEqual"] = equal
@@ -552,7 +582,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--status-bar-pt", type=float, default=STATUS_BAR_PT, help="status-bar band height in points (0 disables)")
     ap.add_argument("--home-indicator-pt", type=float, default=HOME_INDICATOR_PT, help="home-indicator band height in points (0 disables)")
     ap.add_argument("--require-sidecar", action="store_true", help="refuse a pair whose sidecars are missing or disagree")
-    ap.add_argument("--drift", action="store_true", help="compare reference against reference2; above the gate the pair is drift")
+    ap.add_argument("--drift", action="store_true", help="compare reference against reference2; above --drift-max-percent the pair is drift")
+    ap.add_argument("--drift-max-percent", type=float, default=DRIFT_MAX_PERCENT, help="reference-against-reference limit (default: the 0.15 noise floor)")
+    ap.add_argument("--max-mask-percent", type=float, default=MAX_MASK_PERCENT, help="refuse a pair whose masks cover more of the image than this")
     ap.add_argument("--require-ax", action="store_true", help="fail a pair with no recorded AX tree or unequal AX sequences")
     ap.add_argument("--status-bar-equal", action="store_true", help="the status-bar band must match between the halves before masking")
     ap.add_argument("--status-bar-max-percent", type=float, default=0.5, help="status-bar band pixels allowed to differ (percent)")

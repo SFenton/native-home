@@ -3,7 +3,7 @@
 
     stage.py --proxy http://127.0.0.1:PORT --container DATA_DIR [--account NAME] [--capabilities FILE]
 
-Runs as a child of ``launch.py`` (see :func:`parity_loop.launch.stage_script`), which loads ``FENTON_HASS_TOKEN`` and
+Runs as a child of ``launch.py`` (see :func:`parity_loop.launch.candidate_live_script`), which loads ``FENTON_HASS_TOKEN`` and
 ``FENTON_HASS_SERVER`` into this process's environment from ``tools/hass_creds.sh``. Both live only in this process's memory:
 the token is never written, printed or logged, and the server origin is written to exactly one file, the container's
 ``bootstrap.json`` (server and account only, never a token).

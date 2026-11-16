@@ -12,8 +12,7 @@ public enum ServerUIIngestedCapabilities {
     /// then the five generic parts (lane `ni-parts`): options read from an entity, tile button rules, a grid's least columns, a toggle
     /// row's parts and the check face.
     ///
-    /// `sh.pipeline-operands@1` is not listed here: the fixed-digit and title-case formats of `ni-grammar2` are decoded and evaluated, but a
-    /// document that uses them is refused as `unsupported_capability` until the flow lane lists that id.
+    /// `sh.pipeline-operands@1` is listed with the flow lane (``flow``): the fixed-digit and title-case formats of `ni-grammar2` need it.
     public static let grammar: [String] = [
         "sh.conditions@1", "sh.app-state@1", "sh.home-status-counts@1", "sh.list-read@1", "sh.raw-state@1",
         "sh.bound-options-read@1", "sh.tile-disc-rules@1", "sh.grid-min-columns@1", "sh.bound-row-parts@1", "sh.check-face@1",
@@ -28,8 +27,8 @@ public enum ServerUIIngestedCapabilities {
     public static let rules: [String] = [
         "sh.rules@1", "sh.enabled-when@1", "sh.confirm-when@1", "sh.action-rules@1",
     ]
-    /// Flow: pipelines, pipeline operands and app state (lane L4).
-    public static let flow: [String] = []
+    /// Flow: pipelines, the operands only a flow has, and the parts of a list a flow feeds (lane L4).
+    public static let flow: [String] = ["sh.pipeline@1", "sh.pipeline-operands@1", "sh.list-parts@1"]
 
     /// The words text case and the light and dark colour pair (lane `ni-tc4`).
     ///

@@ -53,6 +53,18 @@
    }
   },
   {
+   "name": "AppearanceFill",
+   "kind": "struct",
+   "file": "apple/Sources/HassDesign/AppearanceFill.swift",
+   "pattern": "design-tokens",
+   "tests": {
+    "swift": [
+     "HassDesignTests"
+    ],
+    "journeys": []
+   }
+  },
+  {
    "name": "ArcProgressViewStyle",
    "kind": "struct",
    "file": "apple/Sources/HassDesign/ArcProgressViewStyle.swift",
@@ -72,6 +84,19 @@
    "tests": {
     "swift": [
      "ArcSpinner"
+    ],
+    "journeys": []
+   }
+  },
+  {
+   "name": "AuthoredTileInk",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/AuthoredTileInk.swift",
+   "pattern": "design-tokens",
+   "tests": {
+    "swift": [
+     "AuthoredTileInkTests",
+     "TileAction"
     ],
     "journeys": []
    }

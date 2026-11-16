@@ -315,7 +315,7 @@ struct ServerUIExpressionParser {
             let pointer = at + "/number"
             guard let number = fields(body, pointer, ["maximumFractionDigits"], ["minimumFractionDigits"]),
                   let most = fractionDigits(number["maximumFractionDigits"], pointer + "/maximumFractionDigits") else { return nil }
-            var least = 0
+            var least: Int?
             if let raw = number["minimumFractionDigits"] {
                 // A fixed count of fraction digits needs `sh.pipeline-operands@1`, and it cannot exceed the most the number may have.
                 needs.insert("pipeline-operands")
@@ -387,7 +387,8 @@ struct ServerUIExpressionParser {
         }
         let otherwise = operand(object["otherwise"] ?? .null, pointer + "/otherwise", depth: depth + 1)
         // The branches of a rule give one kind: a mismatch is reported at the second branch that disagrees.
-        let kinds = cases.enumerated().map { (Self.kind($0.element.then), pointer + "/cases/\($0.offset)/then") }
+        // A flow is typed by ``ServerUIFlowCompiler``, which knows the shape of an `item` and a parameter, so it does not judge kinds here.
+        let kinds = flow ? [] : cases.enumerated().map { (Self.kind($0.element.then), pointer + "/cases/\($0.offset)/then") }
             + [(otherwise.flatMap(Self.kind), pointer + "/otherwise")]
         if let first = kinds.first(where: { $0.0 != nil })?.0,
            let clash = kinds.first(where: { $0.0 != nil && $0.0 != first }) { add(.bindingType, clash.1) }
@@ -523,7 +524,9 @@ struct ServerUIExpressionParser {
             // `above` and `below` take numbers; `before` and `after` take date text.
             let want: Kind? = op == .above || op == .below ? .number : op == .before || op == .after ? .string : nil
             let (a, b) = (Self.kind(left), Self.kind(right))
-            if let want, (a != nil && a != want) || (b != nil && b != want) {
+            if flow {
+                // A flow is typed by ``ServerUIFlowCompiler``.
+            } else if let want, (a != nil && a != want) || (b != nil && b != want) {
                 add(.bindingType, pointer + (a != nil && a != want ? "/left" : "/right"))
             } else if want == nil, let a, let b, a != b, a != .structure, b != .structure {
                 add(.bindingType, pointer + "/right")

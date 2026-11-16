@@ -113,7 +113,8 @@ def plan_reach(surface: Mapping[str, Any], app: str, mode: str) -> ReachPlan:
     """Choose the reach for ``app`` (``reference`` or ``candidate``) in ``mode`` (``gallery``, ``fixture`` or ``live``).
 
     A ``writes_on_reach`` surface is deep-linked or skipped. Otherwise: the reference in gallery mode opens its gallery page;
-    live mode prefers a deep link; everything else prefers fully automatable press steps, then a deep link.
+    fully automatable press steps come next (in every mode, live included; a lone Quick Links step starts from Home); a deep
+    link is the fallback when the steps cannot be pressed; a surface with neither is skipped.
     """
     link = (surface.get("deep_link") or {}).get(app)
     steps = [_as_press(s) for s in (surface.get("reach") or {}).get(app) or []]
@@ -225,6 +226,8 @@ class Shot:
     masks: Path
     ok: bool
     problem: str = ""
+    #: The screenshot itself was taken (so the status bar was normalised); independent of the AX snapshot.
+    screenshot_ok: bool = True
 
 
 def capture_shot(agent: Agent, out_dir: Path, name: str, mask_rules: Sequence[Mapping[str, str]] = (),
@@ -238,8 +241,9 @@ def capture_shot(agent: Agent, out_dir: Path, name: str, mask_rules: Sequence[Ma
     write_json(ax, {"labels": [_label(n) for n in nodes if _label(n)], "nodes": nodes, "normalized": normalize_ax(nodes, mask_rules)})
     write_json(masks, resolve_masks(nodes, mask_rules))
     problem = ""
-    if not shot.get("success") or not png.is_file() or png_size(png) is None:
+    taken = bool(shot.get("success")) and png.is_file() and png_size(png) is not None
+    if not taken:
         problem = "screenshot failed"
     elif not nodes:
         problem = "empty AX snapshot"
-    return Shot(png, ax, masks, not problem, problem)
+    return Shot(png, ax, masks, not problem, problem, taken)

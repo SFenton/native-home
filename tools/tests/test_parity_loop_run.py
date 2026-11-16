@@ -20,6 +20,8 @@ from parity_loop_fakes import FakeWorld  # noqa: E402
 SURFACES = read_json(Path(plrun.SURFACES_FILE))
 BY_ID = {s["id"]: s for s in SURFACES["surfaces"]}
 BIG = ((10, 100, 110, 190), (200, 40, 40))
+HOLD = {"DEVCAP_HELD": "simulator"}  # what a tools/devcap.py hold gives its children
+LIVE = {**HOLD, "PARITY_LIVE_GO": "1"}
 plrun.DEVICES["test"] = {"scale": 1, "pose": "folded", "size": [120, 200]}
 
 
@@ -118,6 +120,7 @@ class RunTests(unittest.TestCase):
         return plrun.Context(self.dir / "run", mode, "test", halves, runner=self.world, tool_sha="abc1234")
 
     def run_surfaces(self, ids, **kw):
+        kw.setdefault("env", HOLD)
         ctx = self.context(kw.pop("mode", "gallery"))
         status = plrun.run_all(ctx, plrun.select(SURFACES, ids), self.pin, pin_path=self.pin_path, **kw)
         return ctx, status
@@ -147,7 +150,7 @@ class RunTests(unittest.TestCase):
         ctx = self.context()
         ctx.status_bar_rects = rects
         with mock.patch.object(plrun.expo_pair_compare, "main", return_value=0) as compare:
-            plrun.run_all(ctx, plrun.select(SURFACES, ["chores"]), self.pin, pin_path=self.pin_path)
+            plrun.run_all(ctx, plrun.select(SURFACES, ["chores"]), self.pin, pin_path=self.pin_path, env=HOLD)
         flags = compare.call_args[0][0]
         self.assertEqual(flags[flags.index("--status-bar-rects") + 1], str(rects))
 
@@ -191,7 +194,7 @@ class RunTests(unittest.TestCase):
         self.assertTrue(any("runtimeBuild" in f for f in row["failures"]))
 
     def test_a_write_surface_is_deep_linked_never_tapped(self) -> None:
-        ctx, _ = self.run_surfaces(["room-kitchen"], mode="live", env={"PARITY_LIVE_GO": "1"})
+        ctx, _ = self.run_surfaces(["room-kitchen"], mode="live", env=LIVE)
         self.assertEqual(self.world.pressed("reference"), [])
         self.assertEqual(self.world.pressed("candidate"), [])
         opened = [c for c in self.world.calls["candidate"] if c[0] == "open" and c[1].startswith("fentonhome://")]
@@ -207,7 +210,101 @@ class RunTests(unittest.TestCase):
 
     def test_the_reference_must_match_its_pin(self) -> None:
         with self.assertRaises(launch.Refused):
-            plrun.run_all(self.context(), plrun.select(SURFACES, ["chores"]), "0" * 64)
+            plrun.run_all(self.context(), plrun.select(SURFACES, ["chores"]), "0" * 64, env=HOLD)
+
+    def test_the_sidecar_measures_the_appearance_so_a_light_half_is_refused(self) -> None:
+        self.world.appearance["candidate"] = "light"
+        ctx, status = self.run_surfaces(["chores"])
+        row = json.loads((ctx.run_dir / "results.json").read_text())[0]
+        self.assertEqual((row["verdict"], status), ("refused", 2))
+        self.assertTrue(any("appearance differs: 'dark' vs 'light'" in f for f in row["failures"]))
+        self.assertEqual(read_json(ctx.run_dir / "chores" / "candidate.sidecar.json")["appearance"], "light")
+
+    def test_a_failed_appearance_change_stops_the_run(self) -> None:
+        self.world.appearance_works = False
+        with self.assertRaises(launch.Refused) as caught:
+            self.run_surfaces(["chores"])
+        self.assertIn("appearance", str(caught.exception))
+        self.assertFalse((self.dir / "run" / "chores").exists())
+
+    def test_sidecars_record_launch_arguments_and_env_names_for_each_mode_and_side(self) -> None:
+        ctx, _ = self.run_surfaces(["chores"])
+        reference = read_json(ctx.run_dir / "chores" / "reference.sidecar.json")
+        candidate = read_json(ctx.run_dir / "chores" / "candidate.sidecar.json")
+        self.assertEqual((reference["launchArguments"], reference["launchEnvNames"]), (["--gallery-fixture"], []))
+        self.assertEqual((candidate["launchArguments"], candidate["launchEnvNames"]), (["--server-ui-preview"], []))
+        self.assertTrue(reference["statusBarNormalized"])
+
+    def test_live_sidecars_record_names_only(self) -> None:
+        ctx, _ = self.run_surfaces(["room-kitchen"], mode="live", env=LIVE)
+        reference = read_json(ctx.run_dir / "room-kitchen" / "reference.sidecar.json")
+        candidate = read_json(ctx.run_dir / "room-kitchen" / "candidate.sidecar.json")
+        self.assertEqual(reference["launchArguments"], [])
+        self.assertIn("FENTON_HASS_TOKEN", reference["launchEnvNames"])
+        self.assertEqual(candidate["launchArguments"], ["--server-ui-preview"])
+        self.assertIn("FENTON_PREVIEW_HA_TOKEN", candidate["launchEnvNames"])
+        for car in (reference, candidate):
+            self.assertTrue(all(name.isupper() and "=" not in name for name in car["launchEnvNames"]))
+        self.assertEqual(launch.launch_record("gallery", "candidate"), (["--server-ui-preview"], []))
+        self.assertEqual(launch.launch_record("fixture", "reference"), (["--gallery-fixture"], []))
+
+    def test_runs_and_launches_need_a_devcap_simulator_hold(self) -> None:
+        with self.assertRaises(launch.Refused):
+            plrun.run_all(self.context(), plrun.select(SURFACES, ["chores"]), self.pin, pin_path=self.pin_path, env={})
+        with self.assertRaises(launch.Refused):
+            plrun.run_all(self.context(), plrun.select(SURFACES, ["chores"]), self.pin, pin_path=self.pin_path, env={"DEVCAP_HELD": "build"})
+        self.assertEqual(self.world.calls, {"reference": [], "candidate": []})
+        runner = lambda argv, env=None, timeout=0: Result(0, "/sim/data\n")  # noqa: E731
+        for side in ("reference", "candidate"):
+            with self.assertRaises(launch.Refused):
+                launch.launch_live(side, "UDID", "http://127.0.0.1:9", runner, {"PARITY_LIVE_GO": "1"})
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(launch.main(["gallery", "--side", "reference", "--agent", "x", "--udid", "U"]), 2)
+
+    def test_the_proxy_starts_without_the_token_password_and_username(self) -> None:
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "creds"
+            folder.mkdir(mode=0o700)
+            creds = folder / "env"
+            creds.write_text("FENTON_HASS_TOKEN=tok-fake\nFENTON_HASS_USERNAME=user-fake\nFENTON_HASS_PASSWORD=pw-fake\n"
+                             "FENTON_HASS_SERVER=https://ha.example.invalid\n")
+            creds.chmod(0o600)
+            # the caller's environment holds the secrets too; the script must still start the program without them
+            env = {"PATH": "/usr/bin:/bin", "HOME": tmp, "FENTON_HASS_CREDS_FILE": str(creds), "FENTON_HASS_TOKEN": "caller-token"}
+            script = launch.proxy_script(Path("/x/log.jsonl"), "127.0.0.1:0", command=["/usr/bin/env"])
+            out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        variables = {line.split("=", 1)[0] for line in out.stdout.splitlines() if "=" in line}
+        self.assertIn("FENTON_HASS_SERVER", variables)
+        for name in launch.PROXY_UNNEEDED_SECRETS:
+            self.assertNotIn(name, variables)
+        self.assertNotIn("-fake", out.stdout)
+        self.assertNotIn("caller-token", out.stdout)
+
+    def test_run_proxy_strips_the_secrets_from_the_environment_it_passes_on(self) -> None:
+        runner = lambda argv, env=None, timeout=0: Result(0)  # noqa: E731
+        env = {**LIVE, "FENTON_HASS_TOKEN": "t", "FENTON_HASS_PASSWORD": "p", "FENTON_HASS_USERNAME": "u", "KEEP": "1"}
+        with mock.patch.object(launch.os, "execvpe") as execvpe:
+            launch.run_proxy(Path("/repo/build/evidence/parity-loop/r/rej.jsonl"), "127.0.0.1:0", env=env, runner=runner)
+        passed = execvpe.call_args[0][2]
+        self.assertEqual(sorted(set(env) - set(passed)), sorted(launch.PROXY_UNNEEDED_SECRETS))
+        self.assertEqual(passed["KEEP"], "1")
+        self.assertIn("unset FENTON_HASS_TOKEN FENTON_HASS_PASSWORD FENTON_HASS_USERNAME;", execvpe.call_args[0][1][2])
+
+    def test_the_proxy_log_must_be_git_ignored(self) -> None:
+        calls = []
+
+        def runner(argv, env=None, timeout=0):
+            calls.append(argv)
+            return Result(1 if "tracked-folder" in argv[-1] else 0)
+        with self.assertRaises(launch.Refused):
+            launch.run_proxy(Path("/repo/tracked-folder/rej.jsonl"), "127.0.0.1:0", env=LIVE, runner=runner)
+        with mock.patch.object(launch.os, "execvpe") as execvpe:
+            launch.run_proxy(Path("/repo/build/evidence/parity-loop/r/rej.jsonl"), "127.0.0.1:0", env=LIVE, runner=runner)
+        self.assertEqual(execvpe.call_count, 1)
+        self.assertEqual(calls[0][:2], ["git", "-C"])
 
     def test_unknown_surface_ids_are_rejected(self) -> None:
         with self.assertRaises(ValueError):
@@ -219,7 +316,7 @@ class LaunchTests(unittest.TestCase):
         calls = []
         runner = lambda argv, env=None, timeout=0: calls.append(argv) or Result(0)  # noqa: E731
         for value in (None, "", "0", "true", "yes"):
-            env = {} if value is None else {"PARITY_LIVE_GO": value}
+            env = dict(HOLD) if value is None else {**HOLD, "PARITY_LIVE_GO": value}
             with self.assertRaises(launch.Refused):
                 launch.launch_live("reference", "UDID", "http://127.0.0.1:1", runner, env)
         self.assertEqual(calls, [])
@@ -230,7 +327,7 @@ class LaunchTests(unittest.TestCase):
             halves = {s: plrun.Half(s, world.udid[s], capture.Agent(f"fake-agent {s}", world)) for s in ("reference", "candidate")}
             ctx = plrun.Context(Path(tmp) / "run", "live", "test", halves, runner=world)
             with self.assertRaises(launch.Refused):
-                plrun.run_all(ctx, [], None, env={})
+                plrun.run_all(ctx, [], None, env=HOLD)
             self.assertEqual(world.calls, {"reference": [], "candidate": []})
             self.assertFalse((Path(tmp) / "run").exists())
 
@@ -243,7 +340,7 @@ class LaunchTests(unittest.TestCase):
         runner = lambda argv, env=None, timeout=0: Result(0)  # noqa: E731
         for side in ("reference", "candidate"):
             with self.assertRaises(launch.Refused):
-                launch.launch_live(side, "UDID", None, runner, {"PARITY_LIVE_GO": "1"})
+                launch.launch_live(side, "UDID", None, runner, LIVE)
 
     def test_live_launch_points_the_reference_at_the_proxy_and_carries_no_secret(self) -> None:
         seen = []
@@ -251,7 +348,7 @@ class LaunchTests(unittest.TestCase):
         def runner(argv, env=None, timeout=0):
             seen.append((argv, env))
             return Result(0)
-        launch.launch_live("reference", "UDID", "http://127.0.0.1:9", runner, {"PARITY_LIVE_GO": "1"})
+        launch.launch_live("reference", "UDID", "http://127.0.0.1:9", runner, LIVE)
         argv, env = seen[0]
         script = argv[2]
         self.assertEqual(env["PROXY_URL"], "http://127.0.0.1:9")

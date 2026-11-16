@@ -415,7 +415,13 @@ it does not add another WebView or redirect by page ID.
 The debug-only `--server-ui-preview` launch path reads `Application Support/ServerUIPreview/bootstrap.json` (exactly one of
 synthetic `entities` or `live: {server, accountID}`) and `publication.json` beside it, the published envelope; assets come
 from `assets/<sha256>`. The envelope reaches the app's store as if the integration had sent a `published` event: there is
-no publisher HTTP endpoint. The `ha-credential` file (live only) is consumed once and its bearer stays in memory only.
+no publisher HTTP endpoint. A live preview takes its bearer from the launch environment variable
+`FENTON_PREVIEW_HA_TOKEN` (`simctl launch` sets it as `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`): taken and removed with `unsetenv` in `UKServerUIPreview.init`, before any step that can fail, so a failed bootstrap or fixtures
+mode cannot leave it in the environment; a launch without the flag removes it at start (`UKGalleryRouter.requested()`). It is
+kept in memory only, used on the live path alone, and never logged or written. There is no file source: a stray `ha-credential`
+file is never read. A live preview also needs
+`bootstrap.json` with `live: {server, accountID}` and a `publication.json` (plus `assets/<sha256>`) staged in the
+simulator container; the app does not fetch the publication from Home Assistant.
 Live design uses the existing `HassConnection`, `EntityStore` and `ConnectionLifecycle`. Normal account restoration, push
 registration, location and Live Activities stay disabled. Canonical controls remain visible, but their caller rejects
 commands without changing live entity state; action-success comparisons run with fixtures. The receipt distinguishes

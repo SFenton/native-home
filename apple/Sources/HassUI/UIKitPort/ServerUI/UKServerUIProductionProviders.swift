@@ -41,6 +41,8 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
     private var settingsHouseholdControls: [UUID: [ServerUISettingsControl]] = [:]
     private var presentationRecords: [UUID: (base: UUID, settings: [String: ObjectIdentifier], records: UKServerUIRecords)] = [:]
     private var visiblePreferenceWindows: Set<UUID> = []
+    /// The Data Flows of each window (`sh.pipeline@1`).
+    let flows = UKServerUIFlowWindows()
     var canEditBedroom: Bool { user?.isAdmin == true && session?.isCurrentConnection(connection) == true }
 
     init(session: AppSession, connection: HassConnection,
@@ -136,7 +138,7 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         let prepared = try UKServerUIDeviceProviders(sources: publication.document.dataSources,
             context: UKContext(store: connection.store, caller: caller), responder: caller,
             canEditBedroom: canEditBedroom, bedrooms: supplied.bedrooms, remotes: supplied.remotes,
-            collections: try presentationCollections(settings), retaining: nil)
+            collections: try presentationCollections(settings, for: publication), retaining: nil)
         try UKServerUIRenderer.preflight(publication, collections: prepared.collections,
             records: prepared.bedroomRegistry.addingCollections(to: records(for: publication)),
             remoteProviders: prepared.remotes, store: connection.store, accountProvider: self, settingsProviders: settings,
@@ -294,8 +296,12 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         visiblePreferenceWindows.insert(sceneID)
     }
 
-    func presentationCollections(_ settings: [String: any UKServerUISettingsProvider]) throws -> [String: ServerUIRowCollection] {
-        var result: [String: ServerUIRowCollection] = [:]
+    func presentationCollections(_ settings: [String: any UKServerUISettingsProvider], for publication: ServerUICompositionPublication,
+                                 sceneID: UUID? = nil, appState: UKServerUIAppStateSource? = nil) throws -> [String: ServerUIRowCollection] {
+        let window = sceneID ?? validationSceneID
+        let entities = Self.entitySources(of: publication.document)
+        var result = flows.collections(for: publication.document, window: window, start: sceneID != nil, hostKey: entities,
+                                       host: { flowHost(entitySources: entities, appState: appState) })
         for case let provider as UKServerUIPerformanceProvider in settings.values {
             for (key, collection) in provider.collections {
                 let id = "performance-" + key
@@ -306,6 +312,56 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
             }
         }
         return result
+    }
+
+    /// What a Data Flow reads and calls: the one connection's feed and calls, the entity store and the signed-in person.
+    private func flowHost(entitySources: [String: String], appState: UKServerUIAppStateSource?) -> ServerUIFlowHost {
+        let store = connection.store
+        let connection = connection
+        let viewer = FlowViewer()
+        return ServerUIFlowHost(
+            feed: HassFlowFeed(connection: connection),
+            call: { domain, service, target, data, timeout in
+                try await connection.callServiceForFlow(domain, service, target: target, data: data, timeout: timeout)
+            },
+            held: { id in store.entity(id).state.map { .init(state: $0.state, attributes: $0.attributes) } },
+            read: { sourceId, path in
+                guard let entityId = entitySources[sourceId], let state = store.entity(entityId).state, !state.isUnavailable else { return nil }
+                if path == ["state"] { return .string(state.state) }
+                guard path.first == "attributes" else { return nil }
+                var value: JSONValue? = .object(state.attributes)
+                for segment in path.dropFirst() { value = value?[segment] }
+                return value
+            },
+            statesReady: { store.hasReceivedFirstState },
+            environment: { [weak self] in (viewer.viewer(of: self?.user, in: store), .autoupdatingCurrent) },
+            // The window's one ticking clock (a minute tick that runs only while something reads it), not a second timer.
+            clock: { appState?.clockForReading() })
+    }
+
+    /// The literal entity each `ha-entity` source of the document names.
+    private static func entitySources(of document: ServerUICompositionDocument) -> [String: String] {
+        var result: [String: String] = [:]
+        for case .haEntity(let id, let entityId) in document.dataSources {
+            if case .literal(let literal) = entityId { result[id] = literal }
+        }
+        return result
+    }
+
+    /// The viewer a flow sees. The person entity is looked up in the house once for a user and again only when the person list changes
+    /// (`peopleRevision`), not on every run.
+    @MainActor private final class FlowViewer {
+        private var cached: (userId: String, revision: Int, viewer: ServerUIViewer)?
+
+        func viewer(of user: HassUser?, in store: EntityStore) -> ServerUIViewer? {
+            guard let user else { return nil }
+            let revision = store.peopleRevision
+            if let cached, cached.userId == user.id, cached.revision == revision, cached.viewer.isAdmin == user.isAdmin { return cached.viewer }
+            let viewer = ServerUIViewer(userId: user.id, isAdmin: user.isAdmin,
+                                        personEntityId: AvatarSyncPlan.personID(forUser: user.id, in: store.allValues.values))
+            cached = (user.id, revision, viewer)
+            return viewer
+        }
     }
 
     /// Never seeds Summary permissions from the legacy remembered viewer preference.
@@ -366,6 +422,7 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
 
     func detachRecordWindow(_ id: UUID) {
         recordWindows[id] = nil
+        flows.detach(id)
         settingsWindows[id] = nil
         settingsConfigurations[id] = nil
         settingsHouseholdControls[id] = nil
@@ -375,6 +432,7 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
 
     func endSession() {
         recordWindows.removeAll()
+        flows.endSession()
         settingsWindows.removeAll()
         settingsConfigurations.removeAll()
         settingsHouseholdControls.removeAll()

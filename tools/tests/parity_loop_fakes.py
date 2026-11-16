@@ -47,6 +47,8 @@ class FakeWorld:
         self.nodes = {"reference": list(NODES), "candidate": list(NODES)}
         self.reference2_paint: Any = None  # painted on the second reference shot only
         self.shots = {"reference": 0, "candidate": 0}
+        self.appearance = {"reference": "dark", "candidate": "dark"}  # what the simulators report
+        self.appearance_works = True
         self.simctl_calls: List[List[str]] = []
         for side, text in (("reference", "ref-binary"), ("candidate", "cand-binary")):
             app = self.root / side / "App.app"
@@ -74,7 +76,7 @@ class FakeWorld:
             side = self.side_of(argv[3])
             return Result(0, str(self.root / side / ("App.app" if argv[5] == "app" else "data")) + "\n")
         if argv[:3] == ["xcrun", "simctl", "ui"]:
-            return Result(0, "dark\n")
+            return Result(0, self.appearance[self.side_of(argv[3])] + "\n")
         if argv[:3] == ["xcrun", "simctl", "status_bar"]:
             return Result(0, "Current Status Bar Overrides:\n  none\n")
         if argv[0] == "git":
@@ -87,6 +89,8 @@ class FakeWorld:
         data: Dict[str, Any] = {}
         if verb == "snapshot":
             data = {"nodes": self.nodes[side]}
+        elif verb == "settings":
+            return Result(0, json.dumps({"success": self.appearance_works}))
         elif verb == "screenshot":
             self.shots[side] += 1
             paint = self.shot_paint[side]

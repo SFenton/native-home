@@ -175,9 +175,9 @@ struct ServerUIAppearanceTests {
         #expect(ServerUIAppearanceScan.holdsPair(try Self.json(#"{"type":"literal","x":1,"y":{"type":"solid-appearance"}}"#)) == false)
     }
 
-    @Test func theIdsAreShippedOnceAndTheIdOfTheFlowLaneIsNotListed() {
+    @Test func theIdsAreShippedOnceAndTheIdsOfTheFlowLaneAreListed() {
         #expect(ServerUIIngestedCapabilities.appearance == ["sh.text-case-words@1", "sh.solid-appearance@1"])
         #expect(Set(ServerUIIngestedCapabilities.all).count == ServerUIIngestedCapabilities.all.count)
-        #expect(!ServerUIIngestedCapabilities.all.contains("sh.pipeline-operands@1"))
+        #expect(ServerUIIngestedCapabilities.all.filter { $0 == "sh.pipeline-operands@1" }.count == 1)
     }
 }

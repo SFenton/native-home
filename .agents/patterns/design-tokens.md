@@ -11,7 +11,7 @@
 - **Timer ink** (`HassDesign/TimerInk.swift`) is the web's `--color-timer` orange on a dark sheet and a deeper orange on a light one.
 - **Not covered.** The weather scene backdrops and the Mapped map draw their own palettes from data; they are listed as known debt below, not a licence to add more literals.
 
-- **Owned files** (also in `contracts/patterns.json`): `UKGlass.swift`, `HassRGB.swift`, `HassRGB+Color.swift`, `HassRGB+UIKit.swift`, `HassTokensRGB.swift`.
+- **Owned files** (also in `contracts/patterns.json`): `UKGlass.swift`, `HassRGB.swift`, `HassRGB+Color.swift`, `HassRGB+UIKit.swift`, `HassTokensRGB.swift`, `AppearanceFill.swift` (an authored light and dark solid, `sh.solid-appearance@1`), `AuthoredTileInk.swift` (the ink a document gives a state tile, `sh.tile-ink@1`).
 
 ## Guards
 

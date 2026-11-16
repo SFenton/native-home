@@ -395,6 +395,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case camera(id: String, configuration: ServerUICameraDescriptor)
         /// Facts about the app and its window that no entity holds (`sh.app-state@1`), one source per topic.
         case appState(id: String, topic: ServerUIAppState.Topic)
+        /// A Data Flow: a request, a closed list of steps and what it gives (`sh.pipeline@1`).
+        case pipeline(id: String, flow: ServerUIFlow)
         public var id: String {
             switch self {
             case .haEntity(let id, _), .powerToggle(let id, _),
@@ -404,7 +406,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
                  .roomNavigation(let id, _), .roomDevice(let id, _), .deviceProvider(let id, _), .bedroom(let id, _, _),
                  .mediaRemote(let id, _), .sprinklerState(let id, _), .vacuum(let id, _),
                  .inventoryList(let id, _), .todoCollection(let id, _), .householdAwayStatus(let id, _),
-                 .profileAccount(let id), .camera(let id, _), .settingsProvider(let id, _), .appState(let id, _): id
+                 .profileAccount(let id), .camera(let id, _), .settingsProvider(let id, _), .appState(let id, _), .pipeline(let id, _): id
             }
         }
         public var entityId: EntityValue? {
@@ -413,7 +415,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .alarmMode(_, let value), .securityDoor(_, let value, _),
                  .householdAwayStatus(_, let value): .literal(value)
             case .inventorySummary, .todoCounts, .roomNavigation, .roomDevice, .deviceProvider, .bedroom,
-                 .mediaRemote, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .settingsProvider, .appState: nil
+                 .mediaRemote, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .settingsProvider, .appState, .pipeline: nil
             case .homeStatus, .homeWeather: nil
             case .homeLight(_, let value, _): .literal(value)
             case .climate(_, let configuration): .literal(configuration.entityId)

@@ -18,6 +18,7 @@ from parity_loop import guard_proxy as gp  # noqa: E402
 from parity_loop import launch, stage  # noqa: E402
 from parity_loop.common import Result  # noqa: E402
 
+LIVE = {"DEVCAP_HELD": "simulator", "PARITY_LIVE_GO": "1"}
 TOKEN = "FAKE-TOKEN-VALUE-1234"
 SERVER = "https://ha.example.invalid"
 ASSET_A, ASSET_B = b"asset-a-bytes", b"asset-b-bytes"
@@ -205,7 +206,7 @@ class CandidateLaunchTests(unittest.TestCase):
             if argv[:3] == ["xcrun", "simctl", "get_app_container"]:
                 return Result(0, "/sim/data\n")
             return Result(0)
-        launch.launch_live("candidate", "UDID-1", "http://127.0.0.1:9", runner, {"PARITY_LIVE_GO": "1"})
+        launch.launch_live("candidate", "UDID-1", "http://127.0.0.1:9", runner, LIVE)
         argv, env = seen[-1]
         self.assertEqual(argv[:2], ["bash", "-c"])
         self.assertEqual((env["PROXY_URL"], env["CONTAINER_DATA"]), ("http://127.0.0.1:9", "/sim/data"))
@@ -222,7 +223,7 @@ class CandidateLaunchTests(unittest.TestCase):
         def runner(argv, env=None, timeout=0):
             return Result(0, "/sim/data\n") if argv[1:3] == ["simctl", "get_app_container"] else Result(1, "", "boom")
         with self.assertRaises(launch.Refused) as caught:
-            launch.launch_live("candidate", "UDID", "http://127.0.0.1:9", runner, {"PARITY_LIVE_GO": "1"})
+            launch.launch_live("candidate", "UDID", "http://127.0.0.1:9", runner, LIVE)
         self.assertNotIn("boom", str(caught.exception))
 
 
