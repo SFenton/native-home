@@ -85,6 +85,8 @@ public struct VacuumConfig: Sendable, Identifiable, Hashable, Codable {
     public var mapFocus: MapFocus?
     public var mapRoomSelection: Bool
     public var mapRotationDegrees: Double
+    /// How the picture is mirrored after its rotation (`sh.surface-orientation@1`); `nil` draws it as the source gives it.
+    public var mapOrientation: MapOrientation?
     public var mapScale: Double
     public var modeEntityId: String?
     public var modeTextEntityId: String?

@@ -8,6 +8,8 @@ struct ValetudoMapScene {
     let map: ValetudoMap
     let provenance: ValetudoMapProvenance
     let rotation: Double
+    /// The flips after the rotation, in screen space (`sh.surface-orientation@1`); every drawing of this map follows them.
+    let flip: MapOrientation
     let focus: ValetudoMapFocus
     /// Drawing geometry (the focus view when focused).
     let geometry: MapStageGeometry
@@ -31,6 +33,7 @@ struct ValetudoMapScene {
         self.map = map
         self.provenance = provenance
         rotation = vacuum.mapRotationDegrees
+        flip = vacuum.mapOrientation ?? .none
         focus = ValetudoMapFocus.resolve(map, policy: vacuum.mapFocus)
         let focused = focus.mode == .focused
         geometry = MapStageGeometry(map: map, mapScale: vacuum.mapScale, bounds: focused ? focus.viewBounds : nil)
@@ -50,7 +53,7 @@ struct ValetudoMapScene {
 
     /// The local → frame transform.
     func matrix(size: CGSize, viewport: MapViewport) -> Affine {
-        MapGeometry.matrix(geometry, frame: size, viewport: viewport, rotation: rotation)
+        MapGeometry.matrix(geometry, frame: size, viewport: viewport, rotation: rotation, flip: flip)
     }
 
     /// The room under a frame point.

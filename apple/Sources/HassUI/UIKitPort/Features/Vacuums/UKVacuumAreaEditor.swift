@@ -356,7 +356,8 @@ final class UKVacuumAreaEditorContent: UIView, UIGestureRecognizerDelegate {
             for nudge in MapAreaEdit.Nudge.allCases {
                 actions.append(UIAccessibilityCustomAction(name: nudge.title) { [weak self] _ in
                     guard let self else { return false }
-                    self.setSelection(MapAreaEdit.nudge(rect, nudge, interaction: scene.interactionGeometry, minimum: self.minimumCells))
+                    self.setSelection(MapAreaEdit.nudge(rect, nudge, interaction: scene.interactionGeometry, minimum: self.minimumCells,
+                                                       screen: scene.matrix(size: size, viewport: self.viewport)))
                     return true
                 })
             }

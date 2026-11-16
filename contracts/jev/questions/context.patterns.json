@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 10,
+  "version": 11,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
@@ -52,7 +52,8 @@
     "page-base": "Page base: the one way a page, a pane or a tab hosts its scrolling body, spaces it, pins a bar under it and gets its ground. (components: UKPageScrollView, UKPageViewController)",
     "rows": "Rows: the one list row: slots for a leading glyph, check or avatar, the text and a trailing accessory or chevron. (components: UKRowView)",
     "routes": "Routes: the one way the app opens an authored place: a plain path resolved by the accepted publication, for push links, Live Activity links, Spotlight and Siri or Shortcuts. (components: RouteRequest, RouteTarget, RouteCatalog)",
-    "copy": "Copy: how the app words itself: voice, terms, case, length, string ids, and which text the house can override. (components: WeatherCopy, PluralCopy)"
+    "copy": "Copy: how the app words itself: voice, terms, case, length, string ids, and which text the house can override. (components: WeatherCopy, PluralCopy)",
+    "map-controls": "Map controls: the buttons over a map card (corner groups, fit rule, More menu) and the map orientation. (components: UKMapControlsView, MapControlFit)"
   },
   "state": {
     "fields": [

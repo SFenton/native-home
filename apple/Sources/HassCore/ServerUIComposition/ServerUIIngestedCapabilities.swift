@@ -42,6 +42,9 @@ public enum ServerUIIngestedCapabilities {
     /// A state tile's icon and button icon colours, its fit in a taller cell, and the ink of a state line on a fill (lane `ni-tc5`).
     public static let tileInk: [String] = ["sh.tile-ink@1"]
 
+    /// A picture's orientation and the corner button groups on it (lane `ni-mapctl`): a flip, then up to four groups of 44 pt buttons.
+    public static let surface: [String] = ["sh.surface-orientation@1", "sh.surface-controls@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface }
 }

@@ -49,7 +49,7 @@ extension ValetudoMapScene {
             start: gridPoint(start, size: size, viewport: viewport), location: start, drawMode: drawMode, area: area,
             corner: area.flatMap { corner(near: start, of: $0, size: size, viewport: viewport) }, viewport: viewport)
         let step = MapAreaEdit.update(job, current: gridPoint(location, size: size, viewport: viewport), location: location,
-                                      stage: geometry, interaction: interactionGeometry, frame: size, rotation: rotation, minimum: minimum)
+                                      stage: geometry, interaction: interactionGeometry, frame: size, rotation: rotation, flip: flip, minimum: minimum)
         return (job, step)
     }
 
@@ -61,6 +61,6 @@ extension ValetudoMapScene {
 
     /// The viewport after magnifying from `start`, keeping the pinched point under the fingers.
     func pinched(_ start: PinchStart, magnification: Double, size: CGSize) -> MapViewport {
-        MapGeometry.viewport(geometry, frame: size, anchor: start.anchor, at: start.at, zoom: start.zoom * magnification, rotation: rotation)
+        MapGeometry.viewport(geometry, frame: size, anchor: start.anchor, at: start.at, zoom: start.zoom * magnification, rotation: rotation, flip: flip)
     }
 }

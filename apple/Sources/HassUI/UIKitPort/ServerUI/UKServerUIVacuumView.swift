@@ -15,6 +15,8 @@ final class UKServerUIVacuumView: UIView, UKGridMeasuring {
     private var definition: D.VacuumControl?
     private var source: UKServerUIVacuumSource?
     private var content: UIView?
+    /// The resolver of the map's buttons, kept alive with the map.
+    private var mapControls: UKServerUIMapControls?
     private var tracksMap = false
     private var tracksReport = false
     private var wasVisible = false
@@ -58,19 +60,19 @@ final class UKServerUIVacuumView: UIView, UKGridMeasuring {
             column.addArrangedSubview(measured)
         }
         switch value.primitive {
-        case let .map(overlay, height, runtimeHeight, label, loading, unavailable, locate):
+        case let .map(overlay, height, runtimeHeight, label, loading, unavailable, locate, controls):
             tracksMap = true
             let state = UKVacuumSheetState(tab: overlay == .autoClean ? .autoClean : .controls, controller: controller)
+            let groups = ServerUIMapControls.effective(locate: locate, controls: controls)
+            let resolver = UKServerUIMapControls(source: source, page: page, owner: value.node.id)
+            self.mapControls = resolver
             let frame = UKVacuumMapFrame(controller: controller, mapState: source.mapState, state: state,
                 presentation: .init(height: height, runtimeHeight: runtimeHeight, label: label, loadingText: loading,
-                    unavailableText: unavailable, showsLocate: locate, autoCleanOverlay: overlay == .autoClean),
-                onLocate: { [weak source] in
-                    guard let source, source.controller?.status.primaryAvailable == true,
-                          source.controller?.services?.contains("vacuum.locate") == true else {
-                        source?.fail("Locate is unavailable."); return
-                    }
-                    source.controller?.locate()
-                }, onRoomTap: { [weak source] id, presenter in source?.choose(id, from: presenter) })
+                    unavailableText: unavailable, groups: groups, authored: controls != nil, autoCleanOverlay: overlay == .autoClean),
+                controlItem: { [weak resolver] in resolver?.item($0) },
+                onControl: { [weak resolver] in resolver?.press($0) },
+                onRoomTap: { [weak source] id, presenter in source?.choose(id, from: presenter) })
+            resolver.sender = frame
             install(frame)
             bag.observe { [weak frame] in
                 frame?.setMode(controller.runtimeMode)

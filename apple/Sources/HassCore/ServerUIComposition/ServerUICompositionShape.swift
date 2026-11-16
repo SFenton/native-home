@@ -16,6 +16,8 @@ enum ServerUICompositionShape {
         case number(Double, Double, integer: Bool)
         case choice([String])
         case variant(String, [String: Shape])
+        /// As ``variant``, but a tag no variant takes is refused at the value itself (the whole choice is the wrong one), as a union is.
+        case closedVariant(String, [String: Shape])
         case emptyObject(String, Int)
         case unsupported(String?)
         /// A text or an object, each checked by its own shape (a tone that is one word or a rule).
@@ -843,6 +845,13 @@ enum ServerUICompositionShape {
             } else {
                 walk(value, shape: variant, pointer: pointer, issues: &issues, unsupported: &unsupported)
             }
+        case .closedVariant(let key, let variants):
+            guard case .object(let object) = value else { issue(.invalidValue); return }
+            let path = ServerUICompositionJSON.pointer(pointer, key)
+            guard let tag = object[key] else { issue(.missingRequired, path); return }
+            guard case .string(let text) = tag else { issue(.invalidValue, path); return }
+            guard let variant = variants[text] else { issue(.unknownVariant); return }
+            walk(value, shape: variant, pointer: pointer, issues: &issues, unsupported: &unsupported)
         case .emptyObject(let capability, let maximum):
             guard case .object(let object) = value else { issue(.invalidValue); return }
             if object.count > maximum { issue(.limitExceeded) }

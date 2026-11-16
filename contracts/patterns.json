@@ -2317,6 +2317,50 @@
       },
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "map-controls",
+      "title": "Map controls",
+      "status": "current",
+      "doc": ".agents/patterns/map-controls.md",
+      "summary": "the buttons over a map card (corner groups, fit rule, More menu) and the map orientation.",
+      "keywords": [
+        "map controls",
+        "locate",
+        "corner",
+        "flip",
+        "orientation",
+        "more menu",
+        "surface-controls"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKMapControlsView.swift",
+            "symbol": "UKMapControlsView"
+          },
+          {
+            "path": "apple/Sources/HassCore/Vacuums/MapControlFit.swift",
+            "symbol": "MapControlFit"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/Vacuums/MapControlFit.swift",
+        "apple/Sources/HassCore/Vacuums/MapOrientation.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIMapControls*.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKMapControlsView.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIMapControls.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "valetudo-map"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

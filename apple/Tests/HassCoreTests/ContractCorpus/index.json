@@ -5798,6 +5798,327 @@
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/props/value/value/path"
       }
+    },
+    {
+      "file": "accept/surface-orientation-flip-horizontal.json",
+      "outcome": "accept",
+      "note": "A vacuum map mirrored left to right."
+    },
+    {
+      "file": "accept/surface-orientation-flip-vertical.json",
+      "outcome": "accept",
+      "note": "A vacuum map mirrored top to bottom."
+    },
+    {
+      "file": "accept/surface-orientation-both.json",
+      "outcome": "accept",
+      "note": "Both flips: the owner's \"invert\"."
+    },
+    {
+      "file": "accept/surface-orientation-both-off.json",
+      "outcome": "accept",
+      "note": "An orientation object with both flips off still declares the id: it is authored."
+    },
+    {
+      "file": "accept/surface-orientation-with-rotation.json",
+      "outcome": "accept",
+      "note": "A flip beside a rotation: the flip mirrors the rotated picture on screen."
+    },
+    {
+      "file": "reject/surface-orientation-missing-vertical.json",
+      "outcome": "reject",
+      "note": "Both flips are written.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/dataSources/5/inputs/orientation/flipVertical"
+      }
+    },
+    {
+      "file": "reject/surface-orientation-not-boolean.json",
+      "outcome": "reject",
+      "note": "A flip is true or false, never text.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/dataSources/5/inputs/orientation/flipHorizontal"
+      }
+    },
+    {
+      "file": "reject/surface-orientation-extra-field.json",
+      "outcome": "reject",
+      "note": "The orientation has two flips: a rotation belongs to the source's own mapRotationDegrees.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/5/inputs/orientation/rotation"
+      }
+    },
+    {
+      "file": "accept/surface-controls-locate-explicit.json",
+      "outcome": "accept",
+      "note": "Locate authored in its own corner: `locate` is true because a Locate button exists."
+    },
+    {
+      "file": "accept/surface-controls-row-of-three-top-trailing.json",
+      "outcome": "accept",
+      "note": "A row of three at top trailing: Locate, a light and a page."
+    },
+    {
+      "file": "accept/surface-controls-column-of-two-bottom-leading.json",
+      "outcome": "accept",
+      "note": "A column of two at bottom leading, and no Locate: `locate` is false."
+    },
+    {
+      "file": "accept/surface-controls-each-corner.json",
+      "outcome": "accept",
+      "note": "One group in each of the four corners, rows and columns."
+    },
+    {
+      "file": "accept/surface-controls-mixed-actions.json",
+      "outcome": "accept",
+      "note": "A map action, a source command, a service call and a page in one corner: the source command also needs the vacuum controls id."
+    },
+    {
+      "file": "accept/surface-controls-more-sized.json",
+      "outcome": "accept",
+      "note": "Eight buttons in one row, the most a group holds: the app puts what does not fit behind More."
+    },
+    {
+      "file": "accept/surface-controls-rules.json",
+      "outcome": "accept",
+      "note": "A service button whose symbol and label follow a rule, shown and enabled by a condition (`sh.tile-disc-rules@1`, `sh.visible-when@1`, `sh.enabled-when@1`)."
+    },
+    {
+      "file": "reject/surface-controls-two-groups-one-corner.json",
+      "outcome": "reject",
+      "note": "One group for each corner.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/1/corner"
+      }
+    },
+    {
+      "file": "reject/surface-controls-empty-group.json",
+      "outcome": "reject",
+      "note": "A group holds at least one button.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons"
+      }
+    },
+    {
+      "file": "reject/surface-controls-nine-buttons.json",
+      "outcome": "reject",
+      "note": "A group holds at most eight buttons.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons"
+      }
+    },
+    {
+      "file": "reject/surface-controls-five-groups.json",
+      "outcome": "reject",
+      "note": "There are four corners: more than four groups is refused.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls"
+      }
+    },
+    {
+      "file": "reject/surface-controls-duplicate-id.json",
+      "outcome": "reject",
+      "note": "Ids are unique across the whole surface, not only in one group.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/1/buttons/0/id"
+      }
+    },
+    {
+      "file": "reject/surface-controls-missing-label.json",
+      "outcome": "reject",
+      "note": "A button has a label: VoiceOver and Voice Control read it.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/label"
+      }
+    },
+    {
+      "file": "reject/surface-controls-blank-label.json",
+      "outcome": "reject",
+      "note": "A blank label is no label.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/label"
+      }
+    },
+    {
+      "file": "reject/surface-controls-missing-icon.json",
+      "outcome": "reject",
+      "note": "A button has a symbol.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/icon"
+      }
+    },
+    {
+      "file": "reject/surface-controls-unknown-corner.json",
+      "outcome": "reject",
+      "note": "The corners are the four named ones: there is no centre.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/corner"
+      }
+    },
+    {
+      "file": "reject/surface-controls-unknown-axis.json",
+      "outcome": "reject",
+      "note": "A group is a row or a column.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/axis"
+      }
+    },
+    {
+      "file": "reject/surface-controls-extra-button-field.json",
+      "outcome": "reject",
+      "note": "A button has no tint: it is the primary ink on glass.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/tint"
+      }
+    },
+    {
+      "file": "reject/surface-controls-locate-twice.json",
+      "outcome": "reject",
+      "note": "Locate is on the map once.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/1/action"
+      }
+    },
+    {
+      "file": "reject/surface-controls-locate-flag-false-with-locate-button.json",
+      "outcome": "reject",
+      "note": "`locate` states whether a Locate button is authored: false beside one is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/locate"
+      }
+    },
+    {
+      "file": "reject/surface-controls-locate-flag-true-without-locate-button.json",
+      "outcome": "reject",
+      "note": "`locate` true with controls that hold no Locate button is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/locate"
+      }
+    },
+    {
+      "file": "reject/surface-controls-unknown-map-command.json",
+      "outcome": "reject",
+      "note": "A map action is one the surface supports: Locate.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/action/command"
+      }
+    },
+    {
+      "file": "reject/surface-controls-unknown-source-command.json",
+      "outcome": "reject",
+      "note": "A source command is one of the vacuum's commands.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/action/command"
+      }
+    },
+    {
+      "file": "reject/surface-controls-clean-area-without-area-cleaning.json",
+      "outcome": "reject",
+      "note": "Clean Area needs the vacuum's area cleaning script.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/action/command"
+      }
+    },
+    {
+      "file": "reject/surface-controls-source-command-visible-when.json",
+      "outcome": "reject",
+      "note": "A source command is shown by the vacuum's own state rules: `visibleWhen` is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/surface-controls-source-command-enabled-when.json",
+      "outcome": "reject",
+      "note": "A source command is enabled by the vacuum's own state rules: `enabledWhen` is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/enabledWhen"
+      }
+    },
+    {
+      "file": "reject/surface-controls-locate-visible-when.json",
+      "outcome": "reject",
+      "note": "Locate hides while the robot is unavailable, by itself: `visibleWhen` is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/surface-controls-when-unknown-without-visible-when.json",
+      "outcome": "reject",
+      "note": "A policy for an unknown condition means nothing without the condition.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/whenUnknown"
+      }
+    },
+    {
+      "file": "reject/surface-controls-present-replace.json",
+      "outcome": "reject",
+      "note": "A presented sheet is rejected when already shown, never replaced.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/action"
+      }
+    },
+    {
+      "file": "reject/surface-controls-power-toggle-action.json",
+      "outcome": "reject",
+      "note": "A button takes a map action, a source command, a service call or navigation: not a power toggle.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/action"
+      }
+    },
+    {
+      "file": "reject/surface-controls-set-local-action.json",
+      "outcome": "reject",
+      "note": "A button does not set local state.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/action"
+      }
+    },
+    {
+      "file": "reject/surface-controls-unknown-page.json",
+      "outcome": "reject",
+      "note": "A page a button opens exists.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/primitive/controls/0/buttons/0/action/pageId"
+      }
+    },
+    {
+      "file": "reject/surface-controls-locate-on-a-non-vacuum-source.json",
+      "outcome": "reject",
+      "note": "A map action needs a vacuum source: a map over any other source is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/sourceId"
+      }
     }
   ]
 }

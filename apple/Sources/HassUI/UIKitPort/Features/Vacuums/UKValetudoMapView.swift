@@ -300,18 +300,46 @@ final class UKValetudoMapView: UIView {
     }
 
     /// 45 degree stripes over a room, clipped to its cells by the layer's mask.
+    ///
+    /// The stripes keep their on-screen direction under a flip (`sh.surface-orientation@1`): with exactly one flip on, the stage is mirrored, so
+    /// the pattern is mirrored back through the linear part of `A⁻¹ · B` (A the matrix with the flip, B without), and the stripes look as they did.
     private func applyHatchGeometry(_ hatch: CAShapeLayer, rect: CGRect) {
         let scale = max(appliedScale, 0.01)
         let step = 7 / scale
         let path = CGMutablePath()
-        var offset = -rect.height
-        while offset < rect.width {
-            path.move(to: CGPoint(x: offset, y: rect.height))
-            path.addLine(to: CGPoint(x: offset + rect.height, y: 0))
-            offset += step
+        if let mirror = hatchMirror() {
+            // Stripes on the lines x + y = k about the rectangle's centre, long enough to cross it after any mirror, mapped through `mirror`.
+            let centre = CGPoint(x: rect.width / 2, y: rect.height / 2)
+            let reach = hypot(rect.width, rect.height)
+            let extent = (rect.width + rect.height) / 2
+            func mapped(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: centre.x + mirror.a * x + mirror.c * y, y: centre.y + mirror.b * x + mirror.d * y)
+            }
+            var k = -extent
+            while k < extent {
+                path.move(to: mapped(k / 2 - reach, k / 2 + reach))
+                path.addLine(to: mapped(k / 2 + reach, k / 2 - reach))
+                k += step
+            }
+        } else {
+            var offset = -rect.height
+            while offset < rect.width {
+                path.move(to: CGPoint(x: offset, y: rect.height))
+                path.addLine(to: CGPoint(x: offset + rect.height, y: 0))
+                offset += step
+            }
         }
         hatch.path = path
         hatch.lineWidth = 2.4 / scale
+    }
+
+    /// The linear map that mirrors the stripes back when exactly one flip is on; `nil` when no flip or both flips are on (a half turn leaves
+    /// 45 degree stripes as they were).
+    private func hatchMirror() -> Affine? {
+        guard let scene, scene.flip.flipHorizontal != scene.flip.flipVertical, bounds.width > 0 else { return nil }
+        let flipped = scene.matrix(size: bounds.size, viewport: .initial)
+        let plain = MapGeometry.matrix(scene.geometry, frame: bounds.size, viewport: .initial, rotation: scene.rotation)
+        return flipped.inverted.then(plain)
     }
 
     // MARK: Viewport

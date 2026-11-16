@@ -597,6 +597,7 @@ struct ServerUICompositionCompiler {
         if model == "vacuum@1" {
             require("vacuum")
             let inputs = try c.field("inputs")
+            if inputs.value["orientation"] != nil { require("surface-orientation") }
             let descriptor: ServerUIVacuumDescriptor
             do {
                 descriptor = try JSONDecoder().decode(ServerUIVacuumDescriptor.self,
@@ -1729,7 +1730,8 @@ struct ServerUICompositionCompiler {
             case "map":
                 require("vacuum-map")
                 primitive = try .map(overlay: p.e("overlay"), height: p.n("height"), runtimeHeight: p.n("runtimeHeight"),
-                                     label: p.s("label"), loading: p.s("loadingText"), unavailable: p.s("unavailableText"), locate: p.b("locate"))
+                                     label: p.s("label"), loading: p.s("loadingText"), unavailable: p.s("unavailableText"), locate: p.b("locate"),
+                                     controls: mapControls(p, locate: p.b("locate")))
             case "status":
                 require("vacuum-controls")
                 primitive = try .status(metric: p.e("metric"))
@@ -2274,6 +2276,9 @@ struct ServerUICompositionCompiler {
             default: valid = true
             }
             if !valid { add(.invalidCombination, pointer + "/primitive") }
+            if case .map(_, _, _, _, _, _, _, let groups?) = control.primitive {
+                issues += Self.mapControlIssues(groups, descriptor: descriptor, at: pointer + "/primitive")
+            }
         }
         for (id, pointer) in profileRefs {
             guard let source = sources[id] else { add(.invalidReference, pointer); continue }

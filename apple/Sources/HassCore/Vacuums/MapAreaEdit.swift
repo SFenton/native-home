@@ -51,9 +51,11 @@ public enum MapAreaEdit {
     ///   - interaction: The editable geometry (for area limits).
     ///   - frame: The map frame's size.
     ///   - rotation: The map's rotation in degrees.
+    ///   - flip: The map's flips, which follow the rotation (`sh.surface-orientation@1`).
     ///   - minimum: The smallest side in cells.
     public static func update(_ gesture: Gesture, current: MapPoint, location: CGPoint, stage: MapStageGeometry,
-                              interaction: MapStageGeometry, frame: CGSize, rotation: Double, minimum: Double) -> Step {
+                              interaction: MapStageGeometry, frame: CGSize, rotation: Double, flip: MapOrientation = .none,
+                              minimum: Double) -> Step {
         switch gesture {
         case let .draw(anchor):
             return Step(draft: MapGeometry.rect(interaction, from: anchor, to: current, minimum: minimum))
@@ -65,7 +67,7 @@ public enum MapAreaEdit {
             var next = origin
             next.panX += location.x - start.x
             next.panY += location.y - start.y
-            return Step(viewport: MapGeometry.clamp(stage, frame: frame, viewport: next, rotation: rotation))
+            return Step(viewport: MapGeometry.clamp(stage, frame: frame, viewport: next, rotation: rotation, flip: flip))
         }
     }
 
@@ -89,13 +91,20 @@ public enum MapAreaEdit {
     }
 
     /// Moves or resizes `rect` by half the minimum side (at least 2 cells), kept inside the map.
-    public static func nudge(_ rect: MapGridRect, _ nudge: Nudge, interaction: MapStageGeometry, minimum: Double) -> MapGridRect {
+    ///
+    /// A move means the direction as seen: with `screen` (the map's matrix) the step goes through the inverse of its linear part, so a flipped or
+    /// rotated map still moves "left" to the left of the screen. Without it the step is in grid directions. Larger and smaller grow the grid corner.
+    public static func nudge(_ rect: MapGridRect, _ nudge: Nudge, interaction: MapStageGeometry, minimum: Double,
+                             screen: Affine = .identity) -> MapGridRect {
         let step = max(2, minimum / 2)
+        func move(_ x: Double, _ y: Double) -> MapGridRect {
+            MapGeometry.translate(interaction, rect, by: MapGeometry.gridStep(matrix: screen, screen: .init(x: x, y: y)))
+        }
         switch nudge {
-        case .left: return MapGeometry.translate(interaction, rect, by: .init(x: -step, y: 0))
-        case .right: return MapGeometry.translate(interaction, rect, by: .init(x: step, y: 0))
-        case .up: return MapGeometry.translate(interaction, rect, by: .init(x: 0, y: -step))
-        case .down: return MapGeometry.translate(interaction, rect, by: .init(x: 0, y: step))
+        case .left: return move(-step, 0)
+        case .right: return move(step, 0)
+        case .up: return move(0, -step)
+        case .down: return move(0, step)
         case .larger: return MapGeometry.resize(interaction, rect, corner: .c, to: .init(x: rect.x1 + step, y: rect.y1 + step), minimum: minimum)
         case .smaller: return MapGeometry.resize(interaction, rect, corner: .c, to: .init(x: rect.x1 - step, y: rect.y1 - step), minimum: minimum)
         }
