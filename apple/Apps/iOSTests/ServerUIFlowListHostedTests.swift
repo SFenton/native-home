@@ -223,13 +223,13 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         let window = UUID()
         var calls = 0
         let host = { ServerUIFlowHost(call: { _, _, _, _, _ in calls += 1; return .object([:]) }) }
-        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.a"], host: host)
+        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.demo_a"], host: host)
         let first = try XCTUnwrap(windows.session("upcoming", window: window))
         await HostedPage.settle { calls == 1 }
-        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.a"], host: host)
+        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.demo_a"], host: host)
         XCTAssertTrue(windows.session("upcoming", window: window) === first, "nothing changed: the session is kept")
 
-        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.b"], host: host)
+        _ = windows.collections(for: publication.document, window: window, start: true, hostKey: ["lamp": "switch.demo_b"], host: host)
         let second = try XCTUnwrap(windows.session("upcoming", window: window))
         XCTAssertFalse(second === first, "the host reads another entity now: a new session")
         await HostedPage.settle { calls == 2 }
