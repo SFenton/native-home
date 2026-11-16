@@ -23,13 +23,13 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import expo_pair_compare  # noqa: E402
 from parity_loop import launch as launch_mod  # noqa: E402
 from parity_loop import sidecar as sidecar_mod  # noqa: E402
-from parity_loop.capture import Agent, ReachPlan, capture_shot, perform_reach, plan_reach  # noqa: E402
+from parity_loop.capture import Agent, ReachPlan, capture_shot, perform_reach, plan_reach, write_opening_labels  # noqa: E402
 from parity_loop.common import APPS, BUNDLE_ID, CANDIDATE, REFERENCE, REPO, Runner, png_size, read_json, run, write_json  # noqa: E402
 
 SURFACES_FILE = Path(__file__).resolve().parent / "surfaces.json"
@@ -70,6 +70,8 @@ class Context:
     bundle_hashes: Dict[str, str] = field(default_factory=dict)
     launcher: Optional[Callable[[Half, Mapping[str, Any], ReachPlan, "Context"], None]] = None
     status_bar_rects: Optional[Path] = None
+    #: Labels whose press opens a ``writes_on_reach`` surface; set from the whole inventory by :func:`run_all`.
+    guarded: FrozenSet[str] = frozenset()
 
     @property
     def family(self) -> Dict[str, Any]:
@@ -96,7 +98,7 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
     folder = ctx.run_dir / sid
     entry: Dict[str, Any] = {"id": sid, "capture": sid, "state": ",".join(surface.get("state_tags") or []), "surface": sid,
                              "density": ctx.family["scale"], "pose": ctx.family["pose"], "device": ctx.device}
-    plans = {side: plan_reach(surface, side, ctx.mode) for side in APPS}
+    plans = {side: plan_reach(surface, side, ctx.mode, ctx.guarded) for side in APPS}
     skipped = [f"{side}: {p.reason}" for side, p in plans.items() if p.method == "skip"]
     if skipped:
         entry["skipped"] = "; ".join(skipped)
@@ -108,7 +110,7 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
     for stem, side in SEQUENCE:
         half, plan = ctx.halves[side], plans[side]
         launcher(half, surface, plan, ctx)
-        if not perform_reach(half.agent, plan, surface):
+        if not perform_reach(half.agent, plan, surface, ctx.guarded):
             problems.append(f"{stem}: reach did not run")
         shot = capture_shot(half.agent, folder, stem, mask_rules(surface), ctx.family["scale"])
         if not shot.ok:
@@ -168,6 +170,7 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
         launch_mod.require_go(environment)
         if not ensure_ignored(ctx.run_dir, ctx.runner):
             raise launch_mod.Refused("live captures hold house data: the output folder must be ignored by git")
+    ctx.guarded = ctx.guarded | write_opening_labels(surfaces)
     ctx.run_dir.mkdir(parents=True, exist_ok=True)
     error = verify_pin(ctx, pin_hash)
     if error:

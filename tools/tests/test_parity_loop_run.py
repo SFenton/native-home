@@ -85,12 +85,52 @@ class ReachTests(unittest.TestCase):
         self.assertEqual((plan.method, plan.steps), ("steps", ["Home", "Quick Links", "Vacuums"]))
         self.assertEqual(capture.plan_reach(BY_ID["room-kitchen"], "reference", "live").method, "deeplink")
 
+    def test_bedroom_sheets_never_reach_by_pressing_a_room_tile(self) -> None:
+        guarded = capture.write_opening_labels(SURFACES["surfaces"])
+        tile = BY_ID["room-master-bedroom"]["reach"]["candidate"][-1]["press"]
+        self.assertIn(tile, guarded)
+        sheets = [x for x in SURFACES["surfaces"] if not x.get("writes_on_reach") and any(
+            st.get("press") == tile for st in (x.get("reach") or {}).get("candidate", []))]
+        self.assertTrue(sheets)
+        world = FakeWorld(Path(tempfile.mkdtemp()))
+        agent = capture.Agent("fake-agent candidate", world)
+        for sheet in sheets:
+            plan = capture.plan_reach(sheet, "candidate", "live", guarded)
+            self.assertIn(plan.method, ("deeplink", "skip"), sheet["id"])
+            self.assertNotEqual(plan.method, "steps")
+            capture.perform_reach(agent, capture.ReachPlan("steps", steps=["Rooms", tile]), sheet, guarded)
+        self.assertEqual(world.pressed("candidate"), [])
+        skipped = capture.plan_reach({"id": "x", "reach": {"candidate": [{"press": tile}]}}, "candidate", "live", guarded)
+        self.assertEqual(skipped.method, "skip")
+
+    def test_a_badged_room_tile_is_never_matched_but_a_badged_tab_is(self) -> None:
+        def button(label, x):
+            return {"type": "Button", "label": label, "rect": {"x": x, "y": 10, "width": 20, "height": 10}}
+        nodes = [button("Demo Room, 3 on", 0), button("Chores, 6 overdue", 100)]
+        world = FakeWorld(Path(tempfile.mkdtemp()))
+        agent = capture.Agent("fake-agent candidate", world)
+        world.nodes["candidate"] = nodes
+        agent.press("Demo Room")
+        self.assertEqual(world.pressed("candidate"), ['label="Demo Room"'])  # the bare selector, never the badged tile's centre
+        agent.press("Chores")
+        self.assertIn("Chores", capture.NAV_LABELS)
+        self.assertEqual(world.pressed("candidate")[-1], "110")  # the badged tab's centre
+
+    def test_several_badged_buttons_fail_instead_of_taking_the_first(self) -> None:
+        def button(label, x):
+            return {"type": "Button", "label": label, "rect": {"x": x, "y": 10, "width": 20, "height": 10}}
+        nodes = [button("Chores, 6 overdue", 0), button("Chores, 2 due", 100)]
+        with self.assertRaises(capture.AmbiguousLabel):
+            capture.button_centre(nodes, "Chores", badged=True)
+        self.assertIsNone(capture.button_centre(nodes, "Chores"))
+
     def test_button_centre_prefers_exact_labels_then_badged_ones(self) -> None:
         def button(label, x):
             return {"type": "Button", "label": label, "rect": {"x": x, "y": 10, "width": 20, "height": 10}}
         nodes = [button("Security, Armed Home", 0), button("Security", 100), button("Chores, 6 overdue", 200)]
         self.assertEqual(capture.button_centre(nodes, "Security"), (110.0, 15.0))
-        self.assertEqual(capture.button_centre(nodes, "Chores"), (210.0, 15.0))
+        self.assertEqual(capture.button_centre(nodes, "Chores", badged=True), (210.0, 15.0))
+        self.assertIsNone(capture.button_centre(nodes, "Chores"))
         self.assertIsNone(capture.button_centre(nodes, "Climate"))
 
     def test_ax_normalisation_drops_status_bar_and_masks_dynamic_text(self) -> None:
