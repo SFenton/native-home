@@ -60,6 +60,14 @@ struct UKServerUIReader: ServerUIReading {
         MainActor.assumeIsolated { viewerSource.viewer(in: bindings.context.store) }
     }
 
+    /// The wall clock. Reading it starts the minute tick, and the tick stops once nothing reads it (``UKServerUIAppStateSource``).
+    var clock: ServerUIClock? { MainActor.assumeIsolated { bindings.appState.clockForReading() } }
+
+    /// Dates are drawn in the phone's language and region.
+    var locale: Locale? { .autoupdatingCurrent }
+
+    func drawsSymbol(_ name: String) -> Bool { UIImage(systemName: name) != nil }
+
     func viewerPersonState() -> ServerUIReadResult {
         MainActor.assumeIsolated {
             guard let viewer = viewerSource.viewer(in: bindings.context.store) else { return .loading }
@@ -72,7 +80,15 @@ struct UKServerUIReader: ServerUIReading {
 
     func read(sourceId: String, path: [String]) -> ServerUIReadResult {
         MainActor.assumeIsolated {
-            guard case .haEntity = bindings.definitions[sourceId] else { return .unavailable }
+            guard let source = bindings.definitions[sourceId] else { return .unavailable }
+            guard case .haEntity = source else {
+                // Any model that has read fields reads through the one vocabulary a slot read uses (`ServerUIModelReads`).
+                switch bindings.read(.init(sourceId: sourceId, path: path, kind: .string)) {
+                case .ready(let value): return .value(value)
+                case .loading: return .loading
+                case .unavailable: return .unavailable
+                }
+            }
             let entity = bindings.entityID(for: sourceId)
             guard case .ready(let id) = entity else {
                 if case .loading = entity { return .loading }

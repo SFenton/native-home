@@ -12,11 +12,35 @@ public enum ServerUIHomeStatus {
         public let active: Bool
         public let unavailable: Bool
         public let color: RoomColor?
+        /// How many members are active (lit, occupied, open); `nil` when that cannot be said (loading, redacted, every member
+        /// missing, or a projection with no notion of active). Read as `count` (`sh.home-status-counts@1`).
+        public var count: Int?
+        /// How many members the status names. Read as `total`.
+        public var total = 0
+        /// How many members are unavailable or missing. Read as `unavailableCount`.
+        public var unavailableCount = 0
     }
 
-    /// Projects the authored status onto the current entity values.
+    /// Projects the authored status onto the current entity values, with the counts of its members.
     public static func project(_ configuration: ServerUICompositionDocument.HomeStatus, pending: Bool = false,
                                redacted: Bool = false, read: @escaping (String) -> EntityState?) -> Value {
+        var value = projectState(configuration, pending: pending, redacted: redacted, read: read)
+        let entities = configuration.entityIds.map(read)
+        value.total = entities.count
+        value.unavailableCount = entities.count { $0?.isUnavailable ?? true }
+        guard !["loading", "hidden", "unavailable"].contains(value.state) else { return value }
+        let isMember: ((EntityState) -> Bool)? = switch configuration.projection {
+        case .lights: { RoomFormat.isActive($0) }
+        case .occupancy: { RoomFormat.isOccupied($0) }
+        case .contacts: { RoomFormat.isOpen($0) }
+        default: nil
+        }
+        if let isMember { value.count = entities.compactMap { $0 }.count(where: isMember) }
+        return value
+    }
+
+    private static func projectState(_ configuration: ServerUICompositionDocument.HomeStatus, pending: Bool,
+                                     redacted: Bool, read: @escaping (String) -> EntityState?) -> Value {
         let c = configuration
         func value(_ state: String, _ text: String, active: Bool = false, unavailable: Bool = false,
                    spoken: String? = nil) -> Value {

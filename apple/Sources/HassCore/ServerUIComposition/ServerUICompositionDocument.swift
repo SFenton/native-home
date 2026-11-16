@@ -343,6 +343,13 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let sourceId: String
         public let path: [String]
         public let kind: ScalarKind
+
+        /// Creates a read.
+        public init(sourceId: String, path: [String], kind: ScalarKind) {
+            self.sourceId = sourceId
+            self.path = path
+            self.kind = kind
+        }
     }
     /// A string given literally or read from a source.
     public enum StringValue: Equatable, Sendable { case literal(String), read(Read) }
@@ -375,6 +382,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case profileAccount(id: String)
         case settingsProvider(id: String, configuration: ServerUISettingsSource)
         case camera(id: String, configuration: ServerUICameraDescriptor)
+        /// Facts about the app and its window that no entity holds (`sh.app-state@1`), one source per topic.
+        case appState(id: String, topic: ServerUIAppState.Topic)
         public var id: String {
             switch self {
             case .haEntity(let id, _), .powerToggle(let id, _),
@@ -384,7 +393,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
                  .roomNavigation(let id, _), .roomDevice(let id, _), .deviceProvider(let id, _), .bedroom(let id, _, _),
                  .mediaRemote(let id, _), .sprinklerState(let id, _), .vacuum(let id, _),
                  .inventoryList(let id, _), .todoCollection(let id, _), .householdAwayStatus(let id, _),
-                 .profileAccount(let id), .camera(let id, _), .settingsProvider(let id, _): id
+                 .profileAccount(let id), .camera(let id, _), .settingsProvider(let id, _), .appState(let id, _): id
             }
         }
         public var entityId: EntityValue? {
@@ -393,7 +402,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .alarmMode(_, let value), .securityDoor(_, let value, _),
                  .householdAwayStatus(_, let value): .literal(value)
             case .inventorySummary, .todoCounts, .roomNavigation, .roomDevice, .deviceProvider, .bedroom,
-                 .mediaRemote, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .settingsProvider: nil
+                 .mediaRemote, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .settingsProvider, .appState: nil
             case .homeStatus, .homeWeather: nil
             case .homeLight(_, let value, _): .literal(value)
             case .climate(_, let configuration): .literal(configuration.entityId)

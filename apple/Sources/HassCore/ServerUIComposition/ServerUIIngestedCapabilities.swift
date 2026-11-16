@@ -9,7 +9,9 @@ import Foundation
 /// into `capabilities.json` (`FENTON_REGEN_CAPABILITIES=1 swift test --filter ServerUIContractCorpusTests`).
 public enum ServerUIIngestedCapabilities {
     /// Generic grammar: conditions, operands, overlays and tile look (lane L1a).
-    public static let grammar: [String] = []
+    public static let grammar: [String] = [
+        "sh.conditions@1", "sh.app-state@1", "sh.home-status-counts@1",
+    ]
     /// Components: tab bar, badges, list and tile parts (lane L2).
     public static let components: [String] = []
     /// Layout: tab blocks, fallbacks and status counts (lane L3).

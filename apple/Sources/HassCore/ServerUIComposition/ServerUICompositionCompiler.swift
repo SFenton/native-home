@@ -577,6 +577,10 @@ struct ServerUICompositionCompiler {
             return try .settingsProvider(id: id, configuration: .init(providerId: inputs.s("providerId"),
                                                                       domain: inputs.e("domain")))
         }
+        if model == "app-state@1" {
+            require("app-state")
+            return try .appState(id: id, topic: c.field("inputs").e("topic"))
+        }
         if model == "camera-stream@1" {
             require("camera-stream")
             let inputs = try c.field("inputs"), labels = try c.field("labels"), recording = try inputs.field("recording")
@@ -2191,7 +2195,16 @@ struct ServerUICompositionCompiler {
         for ref in expressionRefs {
             let sourcePointer = ref.pointer + (ref.kind == nil ? "/sourceId" : "/from/sourceId")
             guard let source = sources[ref.sourceId] else { add(.invalidReference, sourcePointer); continue }
-            guard case .haEntity = source else { add(.bindingType, sourcePointer); continue }
+            guard case .haEntity = source else {
+                // Any model that has read fields can be read by an operand or a condition, through the slot-read vocabulary.
+                switch ServerUIModelReads.check(source, path: ref.path, kind: ref.kind) {
+                case .notReadable?: add(.bindingType, sourcePointer)
+                case .issue(let code, let suffix)?: add(code, ref.pointer + suffix)
+                case .needs(let capability)?: require(capability)
+                case nil: break
+                }
+                continue
+            }
             if ref.path == ["state"] {
                 if ref.kind == .boolean { add(.bindingType, ref.pointer + "/as") }
             } else if ref.path.count < 2 || ref.path.first != "attributes" {
@@ -2265,10 +2278,12 @@ struct ServerUICompositionCompiler {
                 } else if read.kind != .string {
                     add(.bindingType, pointer + "/as")
                 }
-            case .homeStatus:
-                let fields: [String: D.ScalarKind] = ["stateText": .string, "phase": .string, "state": .string, "isActive": .boolean]
-                if read.path.count != 1 || fields[read.path[0]] == nil { add(.invalidReference, pointer + "/from/path") }
-                else if fields[read.path[0]] != read.kind { add(.bindingType, pointer + "/as") }
+            case .homeStatus, .appState:
+                switch ServerUIModelReads.check(source, path: read.path, kind: read.kind) {
+                case .issue(let code, let suffix)?: add(code, pointer + suffix)
+                case .needs(let capability)?: require(capability)
+                default: break
+                }
             case .homeWeather, .homeLight:
                 add(.invalidReference, pointer + "/from/path")
             case .mediaRemote:

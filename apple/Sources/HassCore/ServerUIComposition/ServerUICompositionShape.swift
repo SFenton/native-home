@@ -290,6 +290,10 @@ enum ServerUICompositionShape {
                     "id": id, "kind": fixed("model"), "model": fixed("vacuum@1"), "inputs": vacuumDescriptor
                 ]),
                 "camera-stream@1": cameraSource,
+                "app-state@1": object([
+                    "id": id, "kind": fixed("model"), "model": fixed("app-state@1"),
+                    "inputs": object(["topic": .choice(ServerUIAppState.Topic.allCases.map(\.rawValue))])
+                ]),
                 "power-toggle@1": object([
                     "id": id, "kind": fixed("model"), "model": fixed("power-toggle@1"),
                     "inputs": object(["entityId": value(literal: .text(160, blank: false))])

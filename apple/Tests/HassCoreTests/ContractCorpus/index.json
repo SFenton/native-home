@@ -3876,26 +3876,14 @@
       }
     },
     {
-      "file": "reject/pending-conditions-compare.json",
-      "outcome": "reject",
-      "note": "A node shown when one value is above another: compare reads, with no state or numeric leaf.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-compare.json",
+      "outcome": "accept",
+      "note": "A node shown when one value is above another: compare reads, with no state or numeric leaf."
     },
     {
-      "file": "reject/pending-conditions-in-exists.json",
-      "outcome": "reject",
-      "note": "in and exists leaves, combined with the old leaves and not.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-in-exists.json",
+      "outcome": "accept",
+      "note": "in and exists leaves, combined with the old leaves and not."
     },
     {
       "file": "reject/pending-conditions-compare-dates.json",
@@ -3904,31 +3892,19 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.pipeline-operands@1"
       }
     },
     {
-      "file": "reject/pending-conditions-model-read-operand.json",
-      "outcome": "reject",
-      "note": "An operand can read a model source: a call built from a home status field.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-model-read-operand.json",
+      "outcome": "accept",
+      "note": "An operand can read a model source: a call built from a home status field."
     },
     {
-      "file": "reject/pending-conditions-model-read-predicate.json",
-      "outcome": "reject",
-      "note": "A condition can read a model source: shown while a home status is active.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/conditions-model-read-predicate.json",
+      "outcome": "accept",
+      "note": "A condition can read a model source: shown while a home status is active."
     },
     {
       "file": "reject/pending-rules-choose-text.json",
@@ -3937,8 +3913,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -3948,8 +3924,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -3959,20 +3935,14 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
-      "file": "reject/pending-app-state-window.json",
-      "outcome": "reject",
-      "note": "A text slot reads the window topic of the app state: widthClass.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-window.json",
+      "outcome": "accept",
+      "note": "A text slot reads the window topic of the app state: widthClass."
     },
     {
       "file": "reject/pending-app-state-clock.json",
@@ -3981,8 +3951,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -3992,20 +3962,14 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
-      "file": "reject/pending-app-state-notifications.json",
-      "outcome": "reject",
-      "note": "A text slot reads the notifications topic of the app state: permission.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-notifications.json",
+      "outcome": "accept",
+      "note": "A text slot reads the notifications topic of the app state: permission."
     },
     {
       "file": "reject/pending-app-state-preferences.json",
@@ -4014,31 +3978,19 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
-      "file": "reject/pending-app-state-condition.json",
-      "outcome": "reject",
-      "note": "A node shown only in a regular-width window, by comparing the window width class.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-condition.json",
+      "outcome": "accept",
+      "note": "A node shown only in a regular-width window, by comparing the window width class."
     },
     {
-      "file": "reject/pending-app-state-phase.json",
-      "outcome": "reject",
-      "note": "A condition reads the phase of a topic, so it can wait for the first answer.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      }
+      "file": "accept/app-state-phase.json",
+      "outcome": "accept",
+      "note": "A condition reads the phase of a topic, so it can wait for the first answer."
     },
     {
       "file": "reject/pending-home-status-counts.json",
@@ -4047,21 +3999,15 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/14",
+        "capability": "sh.rules@1"
       }
     },
     {
       "file": "reject/conditions-compare-above-text.json",
       "outcome": "reject",
       "note": "above needs numbers: a text literal is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left"
       }
@@ -4070,13 +4016,7 @@
       "file": "reject/conditions-compare-before-number.json",
       "outcome": "reject",
       "note": "before and after need date text.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left"
       }
@@ -4085,13 +4025,7 @@
       "file": "reject/conditions-compare-eq-mixed-kinds.json",
       "outcome": "reject",
       "note": "eq compares values of one kind: a number and text are refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/right"
       }
@@ -4100,13 +4034,7 @@
       "file": "reject/conditions-in-empty.json",
       "outcome": "reject",
       "note": "in lists at least one option.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/visibleWhen/in"
       }
@@ -4115,13 +4043,7 @@
       "file": "reject/conditions-in-over-16.json",
       "outcome": "reject",
       "note": "in lists at most 16 options.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/visibleWhen/in"
       }
@@ -4130,13 +4052,7 @@
       "file": "reject/conditions-unknown-leaf.json",
       "outcome": "reject",
       "note": "A condition leaf is a known kind.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/visibleWhen/type"
       }
@@ -4148,8 +4064,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/9",
+        "capability": "sh.pipeline-operands@1"
       },
       "studioIssue": {
         "code": "invalid_combination",
@@ -4163,8 +4079,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/9",
+        "capability": "sh.pipeline-operands@1"
       },
       "studioIssue": {
         "code": "invalid_combination",
@@ -4175,13 +4091,7 @@
       "file": "reject/conditions-read-unknown-field.json",
       "outcome": "reject",
       "note": "A read of a model names a field the model has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/from/path"
       }
@@ -4190,13 +4100,7 @@
       "file": "reject/conditions-read-wrong-kind.json",
       "outcome": "reject",
       "note": "A read of a text field as a number is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/as"
       }
@@ -4208,8 +4112,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "missing_required",
@@ -4223,8 +4127,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "limit_exceeded",
@@ -4253,8 +4157,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "binding_type",
@@ -4283,8 +4187,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -4294,8 +4198,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "missing_required",
@@ -4309,8 +4213,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "missing_required",
@@ -4324,8 +4228,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "unknown_variant",
@@ -4339,8 +4243,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "limit_exceeded",
@@ -4351,13 +4255,7 @@
       "file": "reject/app-state-unknown-topic.json",
       "outcome": "reject",
       "note": "The topic is one of window, clock, os, notifications or preferences.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/10/inputs/topic"
       }
@@ -4366,13 +4264,7 @@
       "file": "reject/app-state-device-topic.json",
       "outcome": "reject",
       "note": "There is no device topic: layout follows window geometry, and device chrome stays in the renderers.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/10/inputs/topic"
       }
@@ -4381,13 +4273,7 @@
       "file": "reject/app-state-extra-input.json",
       "outcome": "reject",
       "note": "The source takes no input besides its topic.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/dataSources/10/inputs/zone"
       }
@@ -4396,13 +4282,7 @@
       "file": "reject/app-state-field-not-in-topic.json",
       "outcome": "reject",
       "note": "A read names a field its topic has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/from/path"
       }
@@ -4411,13 +4291,7 @@
       "file": "reject/app-state-wrong-kind.json",
       "outcome": "reject",
       "note": "A read of a number field as text is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/as"
       }
@@ -4426,13 +4300,7 @@
       "file": "reject/home-status-counts-wrong-kind.json",
       "outcome": "reject",
       "note": "The count of a home status is a number.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/visibleWhen/left/as"
       }
@@ -4444,8 +4312,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4455,8 +4323,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4466,8 +4334,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/1",
-        "capability": "sh.app-state@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4477,8 +4345,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -4563,8 +4431,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/17",
+        "capability": "sh.tile-look@1"
       }
     },
     {
@@ -4626,8 +4494,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -4637,8 +4505,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/13",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -4693,8 +4561,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "unknown_variant",
@@ -5129,8 +4997,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/8",
+        "capability": "sh.confirm-when@1"
       }
     },
     {
@@ -5140,8 +5008,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/7",
+        "capability": "sh.confirm-when@1"
       }
     },
     {
@@ -5887,8 +5755,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/8",
+        "capability": "sh.enabled-when@1"
       }
     },
     {
@@ -5931,8 +5799,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/11",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -6002,8 +5870,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/11",
+        "capability": "sh.rules@1"
       }
     },
     {
@@ -6013,8 +5881,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.conditions@1"
+        "pointer": "/capabilities/12",
+        "capability": "sh.rules@1"
       },
       "studioIssue": {
         "code": "unknown_variant",
