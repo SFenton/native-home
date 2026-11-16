@@ -168,8 +168,10 @@ public enum ServerUIRooms {
         card.climateActionTone = definition.climateActionTone
         card.stateColors = Dictionary(uniqueKeysWithValues: definition.stateColors.compactMap { item -> (String, RoomColor)? in
             let fill = environment.map { item.resolvedFill(in: $0) } ?? item.fill
-            guard case .solidRGB(let red, let green, let blue) = fill else { return nil }
-            return (item.state, RoomColor(Double(red), Double(green), Double(blue)))
+            guard let (light, dark) = fill.appearances else { return nil }
+            var color = RoomColor(Double(light.red), Double(light.green), Double(light.blue))
+            if dark != light { color.dark = .init(Double(dark.red), Double(dark.green), Double(dark.blue)) }
+            return (item.state, color)
         })
         return card
     }

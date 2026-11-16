@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-words-case-underscores",
+  "note": "An underscore ends a word too: \"heat_cool\" is \"Heat Cool\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "heat_cool"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Heat Cool"
+  }
+}

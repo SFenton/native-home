@@ -147,11 +147,16 @@ enum UKServerUIRooms {
                 if let color = RoomFormat.background(card, entity, presence: nil) {
                     model.fillRGB = UInt32((color.red * 255).rounded()) << 16
                         | UInt32((color.green * 255).rounded()) << 8 | UInt32((color.blue * 255).rounded())
+                    // A state colour authored for light and dark draws its dark member while the interface is dark.
+                    model.fillDarkRGB = color.dark.map {
+                        UInt32(($0.red * 255).rounded()) << 16 | UInt32(($0.green * 255).rounded()) << 8 | UInt32(($0.blue * 255).rounded())
+                    }
                 }
                 if definition.kind == .occupancy, ScreenshotPrivacy.isRedacting {
                     model.subtitle = "Hidden"
                     model.isActive = false
                     model.fillRGB = nil
+                    model.fillDarkRGB = nil
                 }
                 if definition.kind == .contact, body == nil, definition.power == nil {
                     model.symbol = RoomOverviewStyle.contactSymbol(window: definition.icon.drawn.contains("window"), open: RoomFormat.isOpen(entity))

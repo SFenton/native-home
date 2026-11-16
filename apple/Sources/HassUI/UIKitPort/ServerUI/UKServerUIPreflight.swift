@@ -258,12 +258,15 @@ enum UKServerUIPreflight {
     private static func status(_ chip: D.StatusChip, at pointer: String) throws {
         func appearance(_ value: D.StatusAppearance, _ path: String) throws {
             try symbol(value.icon, at: path + "/icon")
-            if let rgb = UKServerUIHomeViews.rgb(value.fill) {
-                let glyph = value.glyph.flatMap { UKServerUIHomeViews.rgb($0) } ?? 0xFFFFFF
-                let tint = ChipTint(fill: rgb, glyph: glyph)
-                if ChipTint.contrast(0xFFFFFF, tint.liftedFill) < ChipTint.textContrast { try reject(path + "/fill") }
-                if min(ChipTint.contrast(glyph, rgb), ChipTint.contrast(glyph, tint.liftedFill)) < ChipTint.glyphContrast {
-                    try reject(path + "/glyph")
+            // Both members of a light and dark pair must read, so each is checked as the chip would draw it in that appearance.
+            if let fill = UKServerUIHomeViews.pair(value.fill) {
+                let glyphs = value.glyph.flatMap { UKServerUIHomeViews.pair($0) } ?? AppearanceFill(0xFFFFFF)
+                for (rgb, glyph) in [(fill.light, glyphs.light), (fill.dark, glyphs.dark)] {
+                    let tint = ChipTint(fill: rgb, glyph: glyph)
+                    if ChipTint.contrast(0xFFFFFF, tint.liftedFill) < ChipTint.textContrast { try reject(path + "/fill") }
+                    if min(ChipTint.contrast(glyph, rgb), ChipTint.contrast(glyph, tint.liftedFill)) < ChipTint.glyphContrast {
+                        try reject(path + "/glyph")
+                    }
                 }
             }
         }

@@ -143,8 +143,9 @@ struct UKServerUIBoundBinding: UKServerUIControlBinding {
             case .unavailable: break
             }
         }
-        if let fill = control.row.resolvedGlyph(in: reader), case .solidRGB(let red, let green, let blue) = fill {
-            details.glyph = UIColor(red: CGFloat(red) / 255, green: CGFloat(green) / 255, blue: CGFloat(blue) / 255, alpha: 1)
+        // A glyph authored for light and dark is a dynamic colour, so a trait change redraws it with no reload (`sh.solid-appearance@1`).
+        if let fill = control.row.resolvedGlyph(in: reader), let pair = UKServerUIHomeViews.pair(fill) {
+            details.glyph = UIColor(pair.token)
         }
         return details
     }

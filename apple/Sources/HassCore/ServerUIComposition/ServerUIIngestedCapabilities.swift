@@ -31,9 +31,15 @@ public enum ServerUIIngestedCapabilities {
     /// Flow: pipelines, pipeline operands and app state (lane L4).
     public static let flow: [String] = []
 
+    /// The words text case and the light and dark colour pair (lane `ni-tc4`).
+    ///
+    /// `words` needs only `sh.text-case-words@1`, so it decodes whether or not `sh.pipeline-operands@1` is listed; a `words` format inside a
+    /// flow also needs this id, which the flow lane keeps when it takes the flow.
+    public static let appearance: [String] = ["sh.text-case-words@1", "sh.solid-appearance@1"]
+
     /// Per-state fills and hidden words on state styles (lane L5a).
     public static let styleFills: [String] = ["sh.state-style-fills@1"]
 
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance }
 }

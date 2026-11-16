@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "format-words-case-beside-title-case",
+  "note": "Both cases in one pattern: title leaves the space, words capitalizes after it.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{a}|{b}",
+      "args": {
+        "a": {
+          "type": "literal",
+          "value": "wheel stuck"
+        },
+        "b": {
+          "type": "literal",
+          "value": "wheel stuck"
+        }
+      },
+      "formats": {
+        "a": {
+          "text": {
+            "case": "title"
+          }
+        },
+        "b": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Wheel stuck|Wheel Stuck"
+  }
+}

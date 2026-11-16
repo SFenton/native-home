@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-words-case-lower-with-spaces",
+  "note": "Lower case words: \"main brush jammed\" is \"Main Brush Jammed\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "main brush jammed"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Main Brush Jammed"
+  }
+}

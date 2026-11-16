@@ -398,7 +398,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                             case .entity: .neutral
                             }
                         } else { hiddenSubtitle = false; family = .neutral }
-                        let fill = UKServerUIHomeViews.rgb(appearance.fill)
+                        let fillPair = UKServerUIHomeViews.pair(appearance.fill)
+                        let fill = fillPair?.light
                         let tint = family == .air ? value.color.map { UIColor.ukRGB($0.rgb) } : nil
                         let previousLabel = view.accessibilityLabel
                         let previousValue = view.accessibilityValue
@@ -407,6 +408,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                                      isActive: value.active || fill != nil || tint != nil,
                                                      isUnavailable: value.unavailable, kind: tile.chip.action == nil ? .state : .navigate,
                                                      identifier: tile.chip.node.id, spokenValue: value.spoken)
+                        model.fillDarkRGB = fillPair.flatMap { $0.isFixed ? nil : $0.dark }
                         model.stateCandidates = [text]
                         let power = tile.powerSourceId.flatMap { renderer.bindings.lights[$0] }
                         let powerSpec = power?.roomPower(title: tile.chip.node.title)
@@ -785,14 +787,16 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         }
                         var environment = UKTileEnvironment(context: self.context)
                         var fillRGB: UInt32?
+                        var fillDarkRGB: UInt32?
                         if let presentation = tile.presentation {
                             environment.layout = presentation.layout == .anchoredBottom ? .anchoredBottom : .standard
                             environment.titleLines = presentation.titleLines
                             // A fill that follows a rule or an entity's color is read here, inside this observation.
                             let fill = presentation.resolvedFill(in: renderer.reader(), keeping: shownFill)
                             shownFill = fill
-                            if case .solidRGB(let red, let green, let blue) = fill {
-                                fillRGB = UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
+                            if let pair = UKServerUIHomeViews.pair(fill) {
+                                fillRGB = pair.light
+                                fillDarkRGB = pair.isFixed ? nil : pair.dark
                             }
                         }
                         let title = tile.titleProviderId.flatMap { renderer.recordCollection($0)?.navigationTitle }.flatMap { $0.isEmpty ? nil : $0 } ?? tile.node.title
@@ -800,6 +804,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                                      family: UKServerUIPreflight.family(tile.family), fillRGB: fillRGB,
                                                      isActive: tile.selected == .navigationPath && renderer.isSelected(tile.action, from: self),
                                                      kind: .navigate, identifier: tile.node.id)
+                        model.fillDarkRGB = fillDarkRGB
                         model.bodyHint = tile.presentation?.bodyHint
                         var alarmSpec: TileActionSpec?
                         if let alarm = tile.alarm, let provider = renderer.bindings.alarms[alarm.sourceId] {

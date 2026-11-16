@@ -467,6 +467,13 @@ enum ServerUICompositionShape {
                 "green": .number(0, 255, integer: true), "blue": .number(0, 255, integer: true)])
     }()
     static let standardFill = object(["type": fixed("standard")])
+    /// A colour that differs by appearance (`sh.solid-appearance@1`): an exact colour for each of light and dark, both required. A member is a
+    /// `solid-rgb`, so a standard member or a nested pair is refused at the member's first missing channel.
+    static let solidAppearance: Shape = {
+        object(["type": fixed("solid-appearance"), "light": solidFill, "dark": solidFill])
+    }()
+    /// An exact colour a slot may hold: one colour, or one for each appearance.
+    static let exactSolid: Shape = .variant("type", ["solid-rgb": solidFill, "solid-appearance": solidAppearance])
 
     // MARK: Rules (`sh.rules@1`, `sh.enabled-when@1`)
 
@@ -481,13 +488,14 @@ enum ServerUICompositionShape {
     }
     /// A fill that may follow a rule or an entity's color: standard or exact, a `conditional`, or a `bound-color`.
     static let fillSlot: Shape = {
-        let both = Shape.variant("type", ["standard": standardFill, "solid-rgb": solidFill])
-        return .variant("type", ["standard": standardFill, "solid-rgb": solidFill,
+        let both = Shape.variant("type", ["standard": standardFill, "solid-rgb": solidFill, "solid-appearance": solidAppearance])
+        return .variant("type", ["standard": standardFill, "solid-rgb": solidFill, "solid-appearance": solidAppearance,
                                  "conditional": conditional(both), "bound-color": boundColor(both)])
     }()
     /// The same for a slot with no standard look: an exact color, a `conditional` of exact colors, or a `bound-color` with an exact fallback.
     static let solidSlot: Shape = {
-        .variant("type", ["solid-rgb": solidFill, "conditional": conditional(solidFill), "bound-color": boundColor(solidFill)])
+        .variant("type", ["solid-rgb": solidFill, "solid-appearance": solidAppearance,
+                          "conditional": conditional(exactSolid), "bound-color": boundColor(exactSolid)])
     }()
     /// A symbol that may follow a rule or an entity's text: exact, a `conditional`, or a `bound-symbol` with a fallback symbol.
     static let symbolSlot: Shape = {
@@ -894,7 +902,7 @@ extension ServerUICompositionShape {
         "icon": .optional(word), "text": .optional(word),
         "indicator": .optional(.choice(StateIndicator.allCases.map(\.rawValue))),
         "colour": .optional(.choice(StateColour.allCases.map(\.rawValue))),
-        "action": .optional(stateAction), "fill": .optional(solidFill)
+        "action": .optional(stateAction), "fill": .optional(exactSolid)
     ]
     private static let stateRequest: Shape = {
         object([

@@ -111,8 +111,17 @@ struct ServerUIRuleDecoder {
         case "solid-rgb":
             guard let red = json["red"]?.number, let green = json["green"]?.number, let blue = json["blue"]?.number else { return nil }
             return .solidRGB(red: Int(red), green: Int(green), blue: Int(blue))
+        case "solid-appearance":
+            guard let light = json["light"].flatMap(Self.channels), let dark = json["dark"].flatMap(Self.channels) else { return nil }
+            return .solidAppearance(light: light, dark: dark)
         default: return nil
         }
+    }
+
+    /// A `solid-rgb` member of an appearance pair.
+    static func channels(_ json: JSONValue) -> ServerUIRGB? {
+        guard let red = json["red"]?.number, let green = json["green"]?.number, let blue = json["blue"]?.number else { return nil }
+        return ServerUIRGB(red: Int(red), green: Int(green), blue: Int(blue))
     }
 
     private static func exactSymbol(_ json: JSONValue) -> D.Symbol? {

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-words-case-non-ascii-is-left",
+  "note": "Only an ASCII letter changes, so JavaScript and Swift cannot disagree: \"élan vital\" is \"élan Vital\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "élan vital"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "élan Vital"
+  }
+}

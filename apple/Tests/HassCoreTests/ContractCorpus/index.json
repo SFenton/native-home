@@ -1028,8 +1028,8 @@
       "outcome": "reject",
       "note": "A state style has no standard fill: absent means the class face.",
       "issue": {
-        "code": "missing_required",
-        "pointer": "/document/stateStyles/styles/0/rules/1/fill/blue"
+        "code": "unknown_variant",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill/type"
       }
     },
     {
@@ -2421,6 +2421,650 @@
       }
     },
     {
+      "file": "accept/grammar-call-service-button.json",
+      "outcome": "accept",
+      "note": "A button calls any domain and service with a literal target and optimistic state."
+    },
+    {
+      "file": "accept/grammar-call-service-script-and-lock.json",
+      "outcome": "accept",
+      "note": "Any script name and a lock service with an authored confirmation are accepted; the app keeps no allow list."
+    },
+    {
+      "file": "accept/grammar-call-service-operands.json",
+      "outcome": "accept",
+      "note": "Call data and target built from every operand kind: read, viewer, format, map, math, list and object."
+    },
+    {
+      "file": "accept/grammar-bound-toggle-tile.json",
+      "outcome": "accept",
+      "note": "A bound toggle on a glass tile with on and off calls."
+    },
+    {
+      "file": "accept/grammar-bound-toggle-row-in-module-list.json",
+      "outcome": "accept",
+      "note": "A bound toggle row is allowed in a module list; a bound control without a visibleWhen rule."
+    },
+    {
+      "file": "accept/grammar-bound-slider.json",
+      "outcome": "accept",
+      "note": "A bound slider reads a number attribute and sends the control value."
+    },
+    {
+      "file": "accept/grammar-bound-stepper.json",
+      "outcome": "accept",
+      "note": "A bound stepper with a range, a value format and a clamped control value."
+    },
+    {
+      "file": "accept/grammar-bound-choice.json",
+      "outcome": "accept",
+      "note": "A bound choice: each option has its own selectedWhen predicate and call."
+    },
+    {
+      "file": "accept/grammar-bound-button.json",
+      "outcome": "accept",
+      "note": "A bound button with a confirmation and no control value."
+    },
+    {
+      "file": "accept/grammar-visible-when-node.json",
+      "outcome": "accept",
+      "note": "A node shown by a combined predicate (state, viewer, viewer-person, numeric, not) with an explicit unknown policy."
+    },
+    {
+      "file": "accept/grammar-visible-when-default-unknown.json",
+      "outcome": "accept",
+      "note": "A rule with no whenUnknown keeps the node as it was (the default) and uses any/state only."
+    },
+    {
+      "file": "accept/grammar-visible-when-in-grid-and-plain-section.json",
+      "outcome": "accept",
+      "note": "A rule hides a child in place in a tile grid and in a plain section."
+    },
+    {
+      "file": "accept/grammar-visible-when-tab.json",
+      "outcome": "accept",
+      "note": "A navigation tab hidden by a rule."
+    },
+    {
+      "file": "accept/grammar-selected-when-local-tabs.json",
+      "outcome": "accept",
+      "note": "Local tabs choose their panel from entity state (selectedWhen, first match)."
+    },
+    {
+      "file": "reject/grammar-call-domain-uppercase.json",
+      "outcome": "reject",
+      "note": "A domain must match ^[a-z][a-z0-9_]{0,63}$.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/domain"
+      }
+    },
+    {
+      "file": "reject/grammar-call-service-with-space.json",
+      "outcome": "reject",
+      "note": "A service must match ^[a-z][a-z0-9_]{0,63}$.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/service"
+      }
+    },
+    {
+      "file": "reject/grammar-call-target-unknown-key.json",
+      "outcome": "reject",
+      "note": "A target key must be entity_id, device_id, area_id, floor_id or label_id.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/action/target/entityid"
+      }
+    },
+    {
+      "file": "reject/grammar-call-target-literal-not-text.json",
+      "outcome": "reject",
+      "note": "A literal target must be text or a list of text.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/target/entity_id/value"
+      }
+    },
+    {
+      "file": "reject/grammar-call-target-key-also-in-data.json",
+      "outcome": "reject",
+      "note": "A target key cannot also be a data field.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/target/entity_id"
+      }
+    },
+    {
+      "file": "reject/grammar-call-optimistic-unknown-source.json",
+      "outcome": "reject",
+      "note": "An optimistic value names a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/optimistic/0/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-call-optimistic-not-ha-entity.json",
+      "outcome": "reject",
+      "note": "An optimistic value needs an ha-entity source, not a model source.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/action/optimistic/0/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-call-control-outside-bound-control.json",
+      "outcome": "reject",
+      "note": "The control value exists only on a bound control's own call.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v"
+      }
+    },
+    {
+      "file": "reject/grammar-call-unknown-field.json",
+      "outcome": "reject",
+      "note": "A call carries no fields beyond the grammar.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/action/extra"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-unknown-source.json",
+      "outcome": "reject",
+      "note": "A read names a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-path-not-state-or-attributes.json",
+      "outcome": "reject",
+      "note": "An ha-entity read path is [\"state\"] or [\"attributes\", ...].",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/path"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-path-proto.json",
+      "outcome": "reject",
+      "note": "A path segment cannot be a prototype name.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/path/0"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-read-state-as-boolean.json",
+      "outcome": "reject",
+      "note": "The state is text, so it cannot be read as a boolean.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/as"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-depth-over-eight.json",
+      "outcome": "reject",
+      "note": "Expressions nest at most eight levels.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/args/0/args/0/args/0/args/0/args/0/args/0/args/0"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-list-over-64.json",
+      "outcome": "reject",
+      "note": "A list holds at most 64 items.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/items"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-literal-text-over-2000.json",
+      "outcome": "reject",
+      "note": "A literal text is at most 2,000 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/value"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-math-arity.json",
+      "outcome": "reject",
+      "note": "divide takes exactly two arguments.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/args"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-format-missing-argument.json",
+      "outcome": "reject",
+      "note": "Every {hole} of a format pattern needs an argument.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/pattern"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-template.json",
+      "outcome": "reject",
+      "note": "There is no template operand and no client-side Jinja.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/type"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-viewer-field.json",
+      "outcome": "reject",
+      "note": "A viewer fact is userId, isAdmin or personEntityId.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/field"
+      }
+    },
+    {
+      "file": "reject/grammar-operand-literal-null.json",
+      "outcome": "reject",
+      "note": "A literal cannot be null.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v/value"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-unknown-source.json",
+      "outcome": "reject",
+      "note": "A predicate names a declared source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/visibleWhen/sourceId"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-empty-in.json",
+      "outcome": "reject",
+      "note": "A state predicate lists at least one state.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/visibleWhen/in"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-numeric-without-bound.json",
+      "outcome": "reject",
+      "note": "A numeric predicate needs above or below.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-viewer-empty.json",
+      "outcome": "reject",
+      "note": "A viewer predicate needs isAdmin or userIds.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-all-empty.json",
+      "outcome": "reject",
+      "note": "all needs at least one predicate.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/visibleWhen/of"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-time.json",
+      "outcome": "reject",
+      "note": "There is no time predicate yet.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/visibleWhen/type"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-control-operand.json",
+      "outcome": "reject",
+      "note": "A predicate operand cannot use the control value.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/visibleWhen/above"
+      }
+    },
+    {
+      "file": "reject/grammar-predicate-depth-over-eight.json",
+      "outcome": "reject",
+      "note": "Predicates nest at most eight levels.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/visibleWhen/of/of/of/of/of/of/of/of"
+      }
+    },
+    {
+      "file": "reject/grammar-when-unknown-without-rule.json",
+      "outcome": "reject",
+      "note": "whenUnknown means nothing without a visibleWhen.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/whenUnknown"
+      }
+    },
+    {
+      "file": "reject/grammar-visible-when-in-module-list.json",
+      "outcome": "reject",
+      "note": "A module list lets no child go: a visibleWhen on one of its rows is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-visible-when-in-paged-row.json",
+      "outcome": "reject",
+      "note": "A paged row lets no child go.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-visible-when-in-room-section.json",
+      "outcome": "reject",
+      "note": "A room section lets no child go.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/grammar-selected-when-unknown-tab.json",
+      "outcome": "reject",
+      "note": "An automatic rule names one of the local tabs.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/automatic/0/tabId"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-toggle-missing-off-action.json",
+      "outcome": "reject",
+      "note": "A bound toggle needs onAction and offAction.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/offAction"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-toggle-extra-action.json",
+      "outcome": "reject",
+      "note": "A toggle sends through onAction and offAction only.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-toggle-missing-is-on.json",
+      "outcome": "reject",
+      "note": "A bound toggle reads isOn.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/isOn"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-button-with-surface.json",
+      "outcome": "reject",
+      "note": "Only a toggle has a surface.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/surface"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-stepper-step-does-not-divide.json",
+      "outcome": "reject",
+      "note": "A stepper's range must be reachable in whole steps.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/range"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-stepper-format-without-hole.json",
+      "outcome": "reject",
+      "note": "A stepper format carries a {value} hole.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/format"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-slider-with-range.json",
+      "outcome": "reject",
+      "note": "A slider is the canonical 0 to 100 row and takes no range.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/range"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-button-control-value.json",
+      "outcome": "reject",
+      "note": "A button has no control value.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/action/data/fields/v"
+      }
+    },
+    {
+      "file": "reject/grammar-bound-button-in-module-list.json",
+      "outcome": "reject",
+      "note": "Only a bound toggle row, stepper, slider or choice fits a module list.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/type"
+      }
+    },
+    {
+      "file": "accept/todo-collection-task-page.json",
+      "outcome": "accept",
+      "note": "A task page with a resident variant and a list only some users see, shown by a todo collection node."
+    },
+    {
+      "file": "accept/todo-collection-grocery-page.json",
+      "outcome": "accept",
+      "note": "A grocery page: Add creates an item on one of its own lists."
+    },
+    {
+      "file": "accept/todo-collection-admin-page.json",
+      "outcome": "accept",
+      "note": "An admin to-do page whose Add action is the admin form; hidden while Vacation Mode is on."
+    },
+    {
+      "file": "accept/todo-collection-source-without-collection.json",
+      "outcome": "accept",
+      "note": "A defined todo collection no node uses is accepted; it costs nothing."
+    },
+    {
+      "file": "accept/todo-collection-collection-without-source.json",
+      "outcome": "accept",
+      "note": "A todo collection node whose provider no source defines still compiles: the app shows nothing for it and reads no house configuration."
+    },
+    {
+      "file": "reject/todo-collection-duplicate-list.json",
+      "outcome": "reject",
+      "note": "A page lists each entity once.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/1/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-not-a-todo.json",
+      "outcome": "reject",
+      "note": "A list is a todo entity.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-bad-entity.json",
+      "outcome": "reject",
+      "note": "An entity id has the form domain.object.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/dataSources/2/inputs/lists/0/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-no-lists.json",
+      "outcome": "reject",
+      "note": "A page has at least one list.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/dataSources/2/inputs/lists"
+      }
+    },
+    {
+      "file": "reject/todo-collection-script-not-a-script.json",
+      "outcome": "reject",
+      "note": "A completion script is a script entity.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/completionScript/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-grocery-entity-not-listed.json",
+      "outcome": "reject",
+      "note": "The grocery Add action names one of the page's own lists.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/dataSources/2/inputs/addAction/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-admin-entity-not-listed.json",
+      "outcome": "reject",
+      "note": "The admin Add action names one of the page's own lists.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/dataSources/2/inputs/addAction/entityId/value"
+      }
+    },
+    {
+      "file": "reject/todo-collection-add-action-unknown-type.json",
+      "outcome": "reject",
+      "note": "Add creates a task, a grocery item or an admin to-do.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/dataSources/2/inputs/addAction/type"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-admin.json",
+      "outcome": "reject",
+      "note": "A list rule names user ids; an administrator rule is not accepted there.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-admin-and-users.json",
+      "outcome": "reject",
+      "note": "A list rule that also asks for an administrator is not accepted.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-reads-an-entity.json",
+      "outcome": "reject",
+      "note": "A list rule cannot read an entity: a list is read where only the user id is known.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/3/inputs/lists/0/visibleWhen"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-rule-unknown-policy.json",
+      "outcome": "reject",
+      "note": "A restricted list stays hidden until the user is known; show and keep are refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/whenUnknown"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-policy-without-rule.json",
+      "outcome": "reject",
+      "note": "whenUnknown means nothing without a visibleWhen.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/2/inputs/lists/0/whenUnknown"
+      }
+    },
+    {
+      "file": "reject/todo-collection-list-missing-flag.json",
+      "outcome": "reject",
+      "note": "A list says whether completed items are hidden.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/dataSources/2/inputs/lists/0/hideCompleted"
+      }
+    },
+    {
+      "file": "reject/todo-collection-personalization-unknown-field.json",
+      "outcome": "reject",
+      "note": "The resident variant has a title for the resident and one for everyone else, and nothing more.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/2/inputs/personalization/tint"
+      }
+    },
+    {
+      "file": "reject/todo-collection-unknown-input.json",
+      "outcome": "reject",
+      "note": "A todo collection takes the fields of its schema and no others.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/2/inputs/colour"
+      }
+    },
+    {
+      "file": "reject/todo-collection-read-from-collection.json",
+      "outcome": "reject",
+      "note": "A todo collection has no values to bind; a text cannot read from it.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/value/from/path"
+      }
+    },
+    {
+      "file": "reject/todo-collection-capability-missing-from-manifest.json",
+      "outcome": "reject",
+      "note": "A document that declares a todo collection must list its capability.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    },
+    {
       "file": "accept/conditions-compare.json",
       "outcome": "accept",
       "note": "A node shown when one value is above another: compare reads, with no state or numeric leaf."
@@ -2879,8 +3523,8 @@
       "outcome": "reject",
       "note": "A glyph has no standard look: its fallback is an exact color.",
       "issue": {
-        "code": "missing_required",
-        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/fallback/blue"
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/fallback/type"
       }
     },
     {
@@ -3513,6 +4157,221 @@
       }
     },
     {
+      "file": "accept/text-format-words-case.json",
+      "outcome": "accept",
+      "note": "A vacuum's issue text drawn with a capital on every word: \"Wheel stuck\" is \"Wheel Stuck\"."
+    },
+    {
+      "file": "reject/pending-text-format-words-case-in-a-sentence.json",
+      "outcome": "reject",
+      "note": "The words case beside plain text and a fixed digits number.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.pipeline-operands@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-text-format-words-and-title-case.json",
+      "outcome": "reject",
+      "note": "One format may use both cases on different arguments: it needs both ids.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.pipeline-operands@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/text-format-words-number-argument.json",
+      "outcome": "reject",
+      "note": "The words case draws text: a number argument is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/t"
+      }
+    },
+    {
+      "file": "reject/text-format-words-unknown-case.json",
+      "outcome": "reject",
+      "note": "The cases are title and words; a differently spelled one is refused.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/m"
+      }
+    },
+    {
+      "file": "reject/text-format-words-extra-field.json",
+      "outcome": "reject",
+      "note": "The text format has only a case.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/m/text/locale"
+      }
+    },
+    {
+      "file": "reject/text-format-words-unknown-argument.json",
+      "outcome": "reject",
+      "note": "A format names an argument the pattern has.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/n"
+      }
+    },
+    {
+      "file": "accept/appearance-glyph.json",
+      "outcome": "accept",
+      "note": "A chip glyph with one colour for Light and another for Dark: the cleaning glyph is 0x9C6DC3 in Light Mode and 0xC88CFA in Dark Mode."
+    },
+    {
+      "file": "accept/appearance-fill.json",
+      "outcome": "accept",
+      "note": "A fill that is a pair: a chip and a navigation tile, each with its own Light and Dark colour."
+    },
+    {
+      "file": "accept/appearance-conditional.json",
+      "outcome": "accept",
+      "note": "A rule whose cases are pairs: the first case that holds gives a Light and Dark colour, and otherwise is a plain colour."
+    },
+    {
+      "file": "accept/appearance-bound-color-fallback.json",
+      "outcome": "accept",
+      "note": "An entity's colour with a fallback that is a pair: used while the entity gives no colour."
+    },
+    {
+      "file": "accept/appearance-room-state-colors.json",
+      "outcome": "accept",
+      "note": "A room card colour for a state, as a pair."
+    },
+    {
+      "file": "accept/appearance-identical-colors.json",
+      "outcome": "accept",
+      "note": "The two colours may be equal: the Studio does not collapse a pair into one colour."
+    },
+    {
+      "file": "accept/appearance-state-style-fill.json",
+      "outcome": "accept",
+      "note": "A state style fill as a pair: the docked tile is one colour in Light Mode and another in Dark Mode. It needs the fills id too."
+    },
+    {
+      "file": "reject/appearance-missing-dark.json",
+      "outcome": "reject",
+      "note": "A pair has both colours: a missing dark is refused.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/dark"
+      }
+    },
+    {
+      "file": "reject/appearance-missing-light.json",
+      "outcome": "reject",
+      "note": "A pair has both colours: a missing light is refused.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/light"
+      }
+    },
+    {
+      "file": "reject/appearance-channel-over-255.json",
+      "outcome": "reject",
+      "note": "A channel of either colour is 0 to 255.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/dark/red"
+      }
+    },
+    {
+      "file": "reject/appearance-channel-fraction.json",
+      "outcome": "reject",
+      "note": "A channel is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/light/red"
+      }
+    },
+    {
+      "file": "reject/appearance-standard-inside.json",
+      "outcome": "reject",
+      "note": "A pair holds exact colours: the standard fill is not one of them.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/light/blue"
+      }
+    },
+    {
+      "file": "reject/appearance-nested-pair.json",
+      "outcome": "reject",
+      "note": "A pair does not nest.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/light/blue"
+      }
+    },
+    {
+      "file": "reject/appearance-extra-field.json",
+      "outcome": "reject",
+      "note": "A pair has only light and dark: a family or an alpha is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/family"
+      }
+    },
+    {
+      "file": "reject/appearance-named-family.json",
+      "outcome": "reject",
+      "note": "There is no named family: a pair names its colours as values.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/dark"
+      }
+    },
+    {
+      "file": "reject/appearance-as-hex-string.json",
+      "outcome": "reject",
+      "note": "A colour is the solid-rgb object, never a string.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/dark"
+      }
+    },
+    {
+      "file": "reject/appearance-on-an-icon.json",
+      "outcome": "reject",
+      "note": "A pair is a colour: a symbol slot does not take one.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/states/0/appearance/icon/type"
+      }
+    },
+    {
+      "file": "reject/appearance-in-a-literal-text.json",
+      "outcome": "reject",
+      "note": "A pair is a look, not a text value.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/type"
+      }
+    },
+    {
+      "file": "reject/appearance-state-style-missing-dark.json",
+      "outcome": "reject",
+      "note": "A state style fill pair has both colours.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/stateStyles/styles/0/rules/0/fill/dark"
+      }
+    },
+    {
+      "file": "reject/appearance-state-style-standard-inside.json",
+      "outcome": "reject",
+      "note": "A state style pair holds exact colours: the standard fill is not one.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/stateStyles/styles/0/rules/0/fill/light/blue"
+      }
+    },
+    {
       "file": "accept/list-read-count.json",
       "outcome": "accept",
       "note": "A node shown only when an entity offers more than one preset: the count of an attribute list."
@@ -3643,463 +4502,6 @@
       "issue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/props/value/value/path"
-      }
-    },
-    {
-      "file": "accept/grammar-call-service-button.json",
-      "outcome": "accept",
-      "note": "A button calls any domain and service with a literal target and optimistic state."
-    },
-    {
-      "file": "accept/grammar-call-service-script-and-lock.json",
-      "outcome": "accept",
-      "note": "Any script name and a lock service with an authored confirmation are accepted; the app keeps no allow list."
-    },
-    {
-      "file": "accept/grammar-call-service-operands.json",
-      "outcome": "accept",
-      "note": "Call data and target built from every operand kind: read, viewer, format, map, math, list and object."
-    },
-    {
-      "file": "accept/grammar-bound-toggle-tile.json",
-      "outcome": "accept",
-      "note": "A bound toggle on a glass tile with on and off calls."
-    },
-    {
-      "file": "accept/grammar-bound-toggle-row-in-module-list.json",
-      "outcome": "accept",
-      "note": "A bound toggle row is allowed in a module list; a bound control without a visibleWhen rule."
-    },
-    {
-      "file": "accept/grammar-bound-slider.json",
-      "outcome": "accept",
-      "note": "A bound slider reads a number attribute and sends the control value."
-    },
-    {
-      "file": "accept/grammar-bound-stepper.json",
-      "outcome": "accept",
-      "note": "A bound stepper with a range, a value format and a clamped control value."
-    },
-    {
-      "file": "accept/grammar-bound-choice.json",
-      "outcome": "accept",
-      "note": "A bound choice: each option has its own selectedWhen predicate and call."
-    },
-    {
-      "file": "accept/grammar-bound-button.json",
-      "outcome": "accept",
-      "note": "A bound button with a confirmation and no control value."
-    },
-    {
-      "file": "accept/grammar-visible-when-node.json",
-      "outcome": "accept",
-      "note": "A node shown by a combined predicate (state, viewer, viewer-person, numeric, not) with an explicit unknown policy."
-    },
-    {
-      "file": "accept/grammar-visible-when-default-unknown.json",
-      "outcome": "accept",
-      "note": "A rule with no whenUnknown keeps the node as it was (the default) and uses any/state only."
-    },
-    {
-      "file": "accept/grammar-visible-when-in-grid-and-plain-section.json",
-      "outcome": "accept",
-      "note": "A rule hides a child in place in a tile grid and in a plain section."
-    },
-    {
-      "file": "accept/grammar-visible-when-tab.json",
-      "outcome": "accept",
-      "note": "A navigation tab hidden by a rule."
-    },
-    {
-      "file": "accept/grammar-selected-when-local-tabs.json",
-      "outcome": "accept",
-      "note": "Local tabs choose their panel from entity state (selectedWhen, first match)."
-    },
-    {
-      "file": "reject/grammar-call-domain-uppercase.json",
-      "outcome": "reject",
-      "note": "A domain must match ^[a-z][a-z0-9_]{0,63}$.",
-      "issue": {
-        "code": "invalid_value",
-        "pointer": "/document/pages/2/components/0/action/domain"
-      }
-    },
-    {
-      "file": "reject/grammar-call-service-with-space.json",
-      "outcome": "reject",
-      "note": "A service must match ^[a-z][a-z0-9_]{0,63}$.",
-      "issue": {
-        "code": "invalid_value",
-        "pointer": "/document/pages/2/components/0/action/service"
-      }
-    },
-    {
-      "file": "reject/grammar-call-target-unknown-key.json",
-      "outcome": "reject",
-      "note": "A target key must be entity_id, device_id, area_id, floor_id or label_id.",
-      "issue": {
-        "code": "unknown_field",
-        "pointer": "/document/pages/2/components/0/action/target/entityid"
-      }
-    },
-    {
-      "file": "reject/grammar-call-target-literal-not-text.json",
-      "outcome": "reject",
-      "note": "A literal target must be text or a list of text.",
-      "issue": {
-        "code": "invalid_value",
-        "pointer": "/document/pages/2/components/0/action/target/entity_id/value"
-      }
-    },
-    {
-      "file": "reject/grammar-call-target-key-also-in-data.json",
-      "outcome": "reject",
-      "note": "A target key cannot also be a data field.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/action/target/entity_id"
-      }
-    },
-    {
-      "file": "reject/grammar-call-optimistic-unknown-source.json",
-      "outcome": "reject",
-      "note": "An optimistic value names a declared source.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/action/optimistic/0/sourceId"
-      }
-    },
-    {
-      "file": "reject/grammar-call-optimistic-not-ha-entity.json",
-      "outcome": "reject",
-      "note": "An optimistic value needs an ha-entity source, not a model source.",
-      "issue": {
-        "code": "binding_type",
-        "pointer": "/document/pages/2/components/0/action/optimistic/0/sourceId"
-      }
-    },
-    {
-      "file": "reject/grammar-call-control-outside-bound-control.json",
-      "outcome": "reject",
-      "note": "The control value exists only on a bound control's own call.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v"
-      }
-    },
-    {
-      "file": "reject/grammar-call-unknown-field.json",
-      "outcome": "reject",
-      "note": "A call carries no fields beyond the grammar.",
-      "issue": {
-        "code": "unknown_field",
-        "pointer": "/document/pages/2/components/0/action/extra"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-read-unknown-source.json",
-      "outcome": "reject",
-      "note": "A read names a declared source.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/sourceId"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-read-path-not-state-or-attributes.json",
-      "outcome": "reject",
-      "note": "An ha-entity read path is [\"state\"] or [\"attributes\", ...].",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/path"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-read-path-proto.json",
-      "outcome": "reject",
-      "note": "A path segment cannot be a prototype name.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/from/path/0"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-read-state-as-boolean.json",
-      "outcome": "reject",
-      "note": "The state is text, so it cannot be read as a boolean.",
-      "issue": {
-        "code": "binding_type",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/as"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-depth-over-eight.json",
-      "outcome": "reject",
-      "note": "Expressions nest at most eight levels.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/args/0/args/0/args/0/args/0/args/0/args/0/args/0"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-list-over-64.json",
-      "outcome": "reject",
-      "note": "A list holds at most 64 items.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/items"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-literal-text-over-2000.json",
-      "outcome": "reject",
-      "note": "A literal text is at most 2,000 characters.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/value"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-math-arity.json",
-      "outcome": "reject",
-      "note": "divide takes exactly two arguments.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/args"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-format-missing-argument.json",
-      "outcome": "reject",
-      "note": "Every {hole} of a format pattern needs an argument.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/pattern"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-template.json",
-      "outcome": "reject",
-      "note": "There is no template operand and no client-side Jinja.",
-      "issue": {
-        "code": "unknown_variant",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/type"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-viewer-field.json",
-      "outcome": "reject",
-      "note": "A viewer fact is userId, isAdmin or personEntityId.",
-      "issue": {
-        "code": "unknown_variant",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/field"
-      }
-    },
-    {
-      "file": "reject/grammar-operand-literal-null.json",
-      "outcome": "reject",
-      "note": "A literal cannot be null.",
-      "issue": {
-        "code": "invalid_value",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v/value"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-unknown-source.json",
-      "outcome": "reject",
-      "note": "A predicate names a declared source.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/visibleWhen/sourceId"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-empty-in.json",
-      "outcome": "reject",
-      "note": "A state predicate lists at least one state.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/visibleWhen/in"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-numeric-without-bound.json",
-      "outcome": "reject",
-      "note": "A numeric predicate needs above or below.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-viewer-empty.json",
-      "outcome": "reject",
-      "note": "A viewer predicate needs isAdmin or userIds.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-all-empty.json",
-      "outcome": "reject",
-      "note": "all needs at least one predicate.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/visibleWhen/of"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-time.json",
-      "outcome": "reject",
-      "note": "There is no time predicate yet.",
-      "issue": {
-        "code": "unknown_variant",
-        "pointer": "/document/pages/2/components/0/visibleWhen/type"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-control-operand.json",
-      "outcome": "reject",
-      "note": "A predicate operand cannot use the control value.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/visibleWhen/above"
-      }
-    },
-    {
-      "file": "reject/grammar-predicate-depth-over-eight.json",
-      "outcome": "reject",
-      "note": "Predicates nest at most eight levels.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/pages/2/components/0/visibleWhen/of/of/of/of/of/of/of/of"
-      }
-    },
-    {
-      "file": "reject/grammar-when-unknown-without-rule.json",
-      "outcome": "reject",
-      "note": "whenUnknown means nothing without a visibleWhen.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/whenUnknown"
-      }
-    },
-    {
-      "file": "reject/grammar-visible-when-in-module-list.json",
-      "outcome": "reject",
-      "note": "A module list lets no child go: a visibleWhen on one of its rows is refused.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/grammar-visible-when-in-paged-row.json",
-      "outcome": "reject",
-      "note": "A paged row lets no child go.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/grammar-visible-when-in-room-section.json",
-      "outcome": "reject",
-      "note": "A room section lets no child go.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/children/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/grammar-selected-when-unknown-tab.json",
-      "outcome": "reject",
-      "note": "An automatic rule names one of the local tabs.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/props/automatic/0/tabId"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-toggle-missing-off-action.json",
-      "outcome": "reject",
-      "note": "A bound toggle needs onAction and offAction.",
-      "issue": {
-        "code": "missing_required",
-        "pointer": "/document/pages/2/components/0/offAction"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-toggle-extra-action.json",
-      "outcome": "reject",
-      "note": "A toggle sends through onAction and offAction only.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/action"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-toggle-missing-is-on.json",
-      "outcome": "reject",
-      "note": "A bound toggle reads isOn.",
-      "issue": {
-        "code": "missing_required",
-        "pointer": "/document/pages/2/components/0/props/isOn"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-button-with-surface.json",
-      "outcome": "reject",
-      "note": "Only a toggle has a surface.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/props/surface"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-stepper-step-does-not-divide.json",
-      "outcome": "reject",
-      "note": "A stepper's range must be reachable in whole steps.",
-      "issue": {
-        "code": "invalid_value",
-        "pointer": "/document/pages/2/components/0/props/range"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-stepper-format-without-hole.json",
-      "outcome": "reject",
-      "note": "A stepper format carries a {value} hole.",
-      "issue": {
-        "code": "invalid_value",
-        "pointer": "/document/pages/2/components/0/props/format"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-slider-with-range.json",
-      "outcome": "reject",
-      "note": "A slider is the canonical 0 to 100 row and takes no range.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/props/range"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-button-control-value.json",
-      "outcome": "reject",
-      "note": "A button has no control value.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/action/data/fields/v"
-      }
-    },
-    {
-      "file": "reject/grammar-bound-button-in-module-list.json",
-      "outcome": "reject",
-      "note": "Only a bound toggle row, stepper, slider or choice fits a module list.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/pages/2/components/0/children/0/type"
       }
     },
     {
@@ -6005,193 +6407,6 @@
       },
       "pending": true,
       "studioIssue": {
-        "code": "capability_manifest_mismatch",
-        "pointer": "/capabilities"
-      }
-    },
-    {
-      "file": "accept/todo-collection-task-page.json",
-      "outcome": "accept",
-      "note": "A task page with a resident variant and a list only some users see, shown by a todo collection node."
-    },
-    {
-      "file": "accept/todo-collection-grocery-page.json",
-      "outcome": "accept",
-      "note": "A grocery page: Add creates an item on one of its own lists."
-    },
-    {
-      "file": "accept/todo-collection-admin-page.json",
-      "outcome": "accept",
-      "note": "An admin to-do page whose Add action is the admin form; hidden while Vacation Mode is on."
-    },
-    {
-      "file": "accept/todo-collection-source-without-collection.json",
-      "outcome": "accept",
-      "note": "A defined todo collection no node uses is accepted; it costs nothing."
-    },
-    {
-      "file": "accept/todo-collection-collection-without-source.json",
-      "outcome": "accept",
-      "note": "A todo collection node whose provider no source defines still compiles: the app shows nothing for it and reads no house configuration."
-    },
-    {
-      "file": "reject/todo-collection-duplicate-list.json",
-      "outcome": "reject",
-      "note": "A page lists each entity once.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/2/inputs/lists/1/entityId/value"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-not-a-todo.json",
-      "outcome": "reject",
-      "note": "A list is a todo entity.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/2/inputs/lists/0/entityId/value"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-bad-entity.json",
-      "outcome": "reject",
-      "note": "An entity id has the form domain.object.",
-      "issue": {
-        "code": "invalid_value",
-        "pointer": "/document/dataSources/2/inputs/lists/0/entityId/value"
-      }
-    },
-    {
-      "file": "reject/todo-collection-no-lists.json",
-      "outcome": "reject",
-      "note": "A page has at least one list.",
-      "issue": {
-        "code": "limit_exceeded",
-        "pointer": "/document/dataSources/2/inputs/lists"
-      }
-    },
-    {
-      "file": "reject/todo-collection-script-not-a-script.json",
-      "outcome": "reject",
-      "note": "A completion script is a script entity.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/2/inputs/lists/0/completionScript/value"
-      }
-    },
-    {
-      "file": "reject/todo-collection-grocery-entity-not-listed.json",
-      "outcome": "reject",
-      "note": "The grocery Add action names one of the page's own lists.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/dataSources/2/inputs/addAction/entityId/value"
-      }
-    },
-    {
-      "file": "reject/todo-collection-admin-entity-not-listed.json",
-      "outcome": "reject",
-      "note": "The admin Add action names one of the page's own lists.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/dataSources/2/inputs/addAction/entityId/value"
-      }
-    },
-    {
-      "file": "reject/todo-collection-add-action-unknown-type.json",
-      "outcome": "reject",
-      "note": "Add creates a task, a grocery item or an admin to-do.",
-      "issue": {
-        "code": "unknown_variant",
-        "pointer": "/document/dataSources/2/inputs/addAction/type"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-rule-admin.json",
-      "outcome": "reject",
-      "note": "A list rule names user ids; an administrator rule is not accepted there.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/2/inputs/lists/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-rule-admin-and-users.json",
-      "outcome": "reject",
-      "note": "A list rule that also asks for an administrator is not accepted.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/2/inputs/lists/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-rule-reads-an-entity.json",
-      "outcome": "reject",
-      "note": "A list rule cannot read an entity: a list is read where only the user id is known.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/3/inputs/lists/0/visibleWhen"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-rule-unknown-policy.json",
-      "outcome": "reject",
-      "note": "A restricted list stays hidden until the user is known; show and keep are refused.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/2/inputs/lists/0/whenUnknown"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-policy-without-rule.json",
-      "outcome": "reject",
-      "note": "whenUnknown means nothing without a visibleWhen.",
-      "issue": {
-        "code": "invalid_combination",
-        "pointer": "/document/dataSources/2/inputs/lists/0/whenUnknown"
-      }
-    },
-    {
-      "file": "reject/todo-collection-list-missing-flag.json",
-      "outcome": "reject",
-      "note": "A list says whether completed items are hidden.",
-      "issue": {
-        "code": "missing_required",
-        "pointer": "/document/dataSources/2/inputs/lists/0/hideCompleted"
-      }
-    },
-    {
-      "file": "reject/todo-collection-personalization-unknown-field.json",
-      "outcome": "reject",
-      "note": "The resident variant has a title for the resident and one for everyone else, and nothing more.",
-      "issue": {
-        "code": "unknown_field",
-        "pointer": "/document/dataSources/2/inputs/personalization/tint"
-      }
-    },
-    {
-      "file": "reject/todo-collection-unknown-input.json",
-      "outcome": "reject",
-      "note": "A todo collection takes the fields of its schema and no others.",
-      "issue": {
-        "code": "unknown_field",
-        "pointer": "/document/dataSources/2/inputs/colour"
-      }
-    },
-    {
-      "file": "reject/todo-collection-read-from-collection.json",
-      "outcome": "reject",
-      "note": "A todo collection has no values to bind; a text cannot read from it.",
-      "issue": {
-        "code": "invalid_reference",
-        "pointer": "/document/pages/2/components/0/props/value/from/path"
-      }
-    },
-    {
-      "file": "reject/todo-collection-capability-missing-from-manifest.json",
-      "outcome": "reject",
-      "note": "A document that declares a todo collection must list its capability.",
-      "issue": {
         "code": "capability_manifest_mismatch",
         "pointer": "/capabilities"
       }

@@ -93,6 +93,7 @@ struct ServerUICompositionCompiler {
     private mutating func compile(_ root: Cursor, capabilities: [String], documentCanonical: String?) throws -> ServerUICompositionPublication {
         doorSources = ServerUIDoorLowering.sources(in: root.value["document"]?["dataSources"])
         var document = try document(root.field("document"))
+        if let held = root.value["document"], ServerUIAppearanceScan.holdsPair(held) { require(ServerUIAppearanceScan.capability) }
         compileComponents()
         let updatedAt = try root.s("updatedAt"), publishedAt = try root.s("publishedAt")
         let updated = timestamp(updatedAt, at: "/updatedAt")
