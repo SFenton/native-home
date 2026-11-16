@@ -76,11 +76,11 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 
 ## Tile ink and cell fit
 
-`sh.tile-ink@1` gives the generic state tile four options so a lowered tile can match the atom it replaces. Each is optional and the default draws what the tile always drew. A pair (`solid-appearance`) resolves with the trait collection, with no clamp.
+`sh.tile-ink@1` adds four optional state tile fields; a pair resolves with the trait collection, with no clamp.
 
-- **`glyphTint`:** the icon colour on a face that is neither filled (`filledWhen` or a style `fill`) nor an error, and not applied while unavailable (the muted grey at 50%, as before). Old: the off glyph of a family face (`TileFaceInk.glyphToken`).
-- **`discGlyphTint`:** the button icons on a dark face, an error face included, while the disc is off. A filled face keeps its black 18% disc and white glyph (`TileActionInk.resolveTokens`).
-- **`fillInk`** (a rule or the fallback, beside a `fill`): `soft` is white at 92% for the state line, as the family fill drew; the title stays white.
-- **`cellFit`:** `natural` keeps the tile's own height, top-aligned, in a taller equal-height cell (`UKDynamicGridView.layoutSubviews`); the row is still as tall as its tallest cell.
+- **`glyphTint`:** the icon on a face that is neither filled (`filledWhen` or a style `fill`) nor an error. Not applied while unavailable, which keeps the muted grey at 50%.
+- **`discGlyphTint`:** the button icons of an off disc on a dark face, an error face included. A filled face keeps its black 18% disc and white glyph.
+- **`fillInk`** (rule or fallback, beside a `fill`): `soft` is the state line in white at 92%; the title stays white.
+- **`cellFit`:** `natural` keeps the tile's own height, top-aligned, in a taller equal-height cell.
 
-`AuthoredTileInk` holds where each applies; `ServerUITileInkHostedTests` pins the defaults.
+`AuthoredTileInk` decides where each applies.
