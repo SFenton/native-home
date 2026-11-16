@@ -302,13 +302,18 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let confirm = try XCTUnwrap(FeatureHost.alert(on: renderer), "\(family): sign-out confirmation")
             XCTAssertTrue(FeatureHost.answer(confirm, AlertCopy.signOut.confirm.title))
             await blocked(2, "sign-out")
+            let failureTitle = AlertCopy.signOutFailed(device: .current).title
+            let failureShown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer)?.title == failureTitle })
+            XCTAssertTrue(failureShown, "\(family): the refused sign-out says so")
             if let failed = FeatureHost.alert(on: renderer) { _ = FeatureHost.answer(failed, "Cancel") }
+            let cleared = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer) == nil })
+            XCTAssertTrue(cleared, family)
 
             // The Home Assistant web page action: refused at the action with the preview's own notice, no request.
             try tap("w-haweb")
-            let notice = try XCTUnwrap(FeatureHost.alert(on: renderer), "\(family): web page notice")
-            XCTAssertEqual(notice.title, "Unavailable in Preview", family)
-            _ = FeatureHost.answer(notice, "OK")
+            let noticeShown = await FeatureHost.settleAsync(until: { FeatureHost.alert(on: renderer)?.title == "Unavailable in Preview" })
+            XCTAssertTrue(noticeShown, "\(family): web page notice")
+            if let notice = FeatureHost.alert(on: renderer) { _ = FeatureHost.answer(notice, "OK") }
             XCTAssertEqual(live.caller.blockedCommands, 2, "\(family): the web action sends nothing")
 
             // The app icon: held in the preview's model only.
