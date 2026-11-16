@@ -87,7 +87,7 @@ struct ServerUICompositionCompiler {
     }
 
     private mutating func compile(_ root: Cursor, capabilities: [String], documentCanonical: String?) throws -> ServerUICompositionPublication {
-        let document = try document(root.field("document"))
+        var document = try document(root.field("document"))
         compileComponents()
         let updatedAt = try root.s("updatedAt"), publishedAt = try root.s("publishedAt")
         let updated = timestamp(updatedAt, at: "/updatedAt")
@@ -96,6 +96,7 @@ struct ServerUICompositionCompiler {
         validateReferences(document)
         validateChromeContexts(document)
         if let first = ServerUICompositionShape.first(components.remapped(issues)) { throw first }
+        document.dataSources = components.published(document.dataSources)
         try Self.checkKnownCapabilities(capabilities)
         guard capabilities == requirements.sorted() else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
         let manifest = try root.field("document").field("assets")

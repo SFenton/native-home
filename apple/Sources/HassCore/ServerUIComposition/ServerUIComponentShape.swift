@@ -5,7 +5,7 @@ import Foundation
 extension ServerUICompositionShape {
     /// The most a library entry and a use of it may hold (the Studio's `COMPONENT_LIMITS`).
     enum ComponentLimits {
-        static let parameters = 16, bindings = 128, arguments = 16
+        static let parameters = 16, bindings = 128, arguments = 16, sources = 8
     }
     /// The kinds a parameter may have, as the Studio's `ComponentParamKind`.
     static let componentParameterKinds = ["source-id", "page-id", "modal-id", "entity-id", "state-id", "text", "symbol"]
@@ -20,8 +20,13 @@ extension ServerUICompositionShape {
         ])
     }()
 
-    /// One saved component: its name, where it came from, the parameters it declares, which field of which body node each one fills, and
-    /// the body. `origin` and each parameter's `label` are read and ignored: they serve the Studio's editing forms.
+    /// A data source a component owns: a Home Assistant entity, as a literal.
+    static let componentSource: Shape = {
+        object(["id": id, "kind": fixed("ha-entity"), "entityId": object(["type": fixed("literal"), "value": .text(160, blank: false)])])
+    }()
+
+    /// One saved component: its name, where it came from, the parameters it declares, the data sources it owns, which field of which body node or source each
+    /// parameter fills, and the body. `origin` and each parameter's `label` are read and ignored: they serve the Studio's editing forms.
     static let componentEntry: Shape = {
         object([
             "id": id, "name": label,
@@ -29,7 +34,10 @@ extension ServerUICompositionShape {
             "params": .optional(array(object([
                 "name": id, "kind": .choice(componentParameterKinds), "label": .optional(label)
             ]), ComponentLimits.parameters)),
-            "bindings": .optional(array(object(["param": id, "nodeId": id, "field": .text(160, blank: false)]), ComponentLimits.bindings)),
+            "sources": .optional(array(componentSource, ComponentLimits.sources)),
+            "bindings": .optional(array(object([
+                "param": id, "nodeId": .optional(id), "sourceId": .optional(id), "field": .text(160, blank: false)
+            ]), ComponentLimits.bindings)),
             "node": .component
         ])
     }()

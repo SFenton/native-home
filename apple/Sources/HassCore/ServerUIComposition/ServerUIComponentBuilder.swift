@@ -10,7 +10,12 @@ extension ServerUIComponentExpansion {
         /// The body, each nested reference replaced by a placeholder.
         let node: JSONValue
         let parameters: [(name: String, kind: String)]
-        let bindings: [(parameter: String, nodeId: String, field: String)]
+        /// The data sources the entry owns, as authored.
+        let sources: [JSONValue]
+        /// The names the sources take in the copies that stand in for them while the body is checked.
+        let checkNames: [String]
+        /// A binding fills a field of one body node or of one owned source.
+        let bindings: [(parameter: String, nodeId: String?, sourceId: String?, field: String)]
     }
 
     /// Reads the library, checks it, and expands every reference of the pages and sheets.
@@ -20,6 +25,15 @@ extension ServerUIComponentExpansion {
         var argumentReferences: [ArgumentReference] = []
         var regions: [Region] = []
         var refusedArguments: Set<String> = []
+        /// The data sources added to the document, after its own.
+        var appended: [AppendedSource] = []
+        /// How many data sources the document itself holds.
+        private(set) var ownSourceCount = 0
+        /// How many data sources the uses walked so far have added (they count toward the document's limit).
+        private var addedSources = 0
+        /// The ids of the document's own data sources, which a fresh source id may not equal, and the fresh ids handed out so far.
+        var takenSourceIds: Set<String> = []
+        var sourceCounter = 0
         private var entries: [String: Entry] = [:]
         private var sawReference = false
 
@@ -27,6 +41,9 @@ extension ServerUIComponentExpansion {
 
         /// Replaces the references of `document` in place; true when it has a library or a reference.
         mutating func run(_ document: inout [String: JSONValue]) -> Bool {
+            let own = document["dataSources"]?.array ?? []
+            ownSourceCount = own.count
+            takenSourceIds = Set(own.compactMap { $0["id"]?.string })
             readLibrary(document["componentLibrary"]?.array ?? [])
             for kind in ["pages", "modals"] {
                 guard let surfaces = document[kind]?.array else { continue }
@@ -38,6 +55,7 @@ extension ServerUIComponentExpansion {
                 })
             }
             let uses = document["componentLibrary"] != nil || sawReference
+            if !appended.isEmpty { document["dataSources"] = .array(own + appended.map(\.source)) }
             document["componentLibrary"] = nil
             return uses
         }
@@ -62,14 +80,19 @@ extension ServerUIComponentExpansion {
                     }
                 }
                 let body = sanitize(item["node"] ?? .null, at: at + "/node")
+                let sources = item["sources"]?.array ?? []
                 let entry = Entry(
                     index: index, id: id, node: body,
                     parameters: (item["params"]?.array ?? []).map { ($0["name"]?.string ?? "", $0["kind"]?.string ?? "") },
+                    sources: sources, checkNames: freshSourceIds(for: sources),
                     bindings: (item["bindings"]?.array ?? []).map {
-                        ($0["param"]?.string ?? "", $0["nodeId"]?.string ?? "", $0["field"]?.string ?? "")
+                        ($0["param"]?.string ?? "", $0["nodeId"]?.string, $0["sourceId"]?.string, $0["field"]?.string ?? "")
                     })
+                checkSources(entry, at: at)
                 checkParameters(entry, at: at)
-                bodies.append(Body(pointer: at + "/node", value: body))
+                // The body is checked with its own sources standing as copies of them (see ``appendCheckCopies(of:names:)``).
+                bodies.append(Body(pointer: at + "/node", value: Self.renamingSources(body, Self.privateNames(sources, entry.checkNames))))
+                appendCheckCopies(of: entry, names: entry.checkNames)
                 if entries[id] == nil { entries[id] = entry }
             }
         }
@@ -99,8 +122,13 @@ extension ServerUIComponentExpansion {
                 let at = "\(pointer)/bindings/\(index)"
                 let parameter = entry.parameters.first { $0.name == binding.parameter }
                 if parameter == nil { issues.append(Issue(.invalidReference, at + "/param")) }
-                guard let target = Self.find(binding.nodeId, in: entry.node) else {
-                    issues.append(Issue(.invalidReference, at + "/nodeId"))
+                if binding.nodeId == nil, binding.sourceId == nil { issues.append(Issue(.missingRequired, at + "/nodeId")); continue }
+                if binding.nodeId != nil, binding.sourceId != nil { issues.append(Issue(.invalidCombination, at + "/sourceId")); continue }
+                let target: JSONValue?
+                if let nodeId = binding.nodeId { target = Self.find(nodeId, in: entry.node) }
+                else { target = entry.sources.first { $0["id"]?.string == binding.sourceId } }
+                guard let target else {
+                    issues.append(Issue(.invalidReference, at + (binding.nodeId != nil ? "/nodeId" : "/sourceId")))
                     continue
                 }
                 guard Self.read(target, field: binding.field) != nil else {
@@ -108,7 +136,8 @@ extension ServerUIComponentExpansion {
                     continue
                 }
                 if let parameter, Self.kind(of: binding.field, in: target) != parameter.kind { issues.append(Issue(.bindingType, at + "/field")) }
-                if !bound.insert("\(binding.nodeId)\u{0}\(binding.field)").inserted { issues.append(Issue(.invalidCombination, at + "/field")) }
+                let key = "\(binding.nodeId != nil ? "node" : "source")\u{0}\(binding.nodeId ?? binding.sourceId ?? "")\u{0}\(binding.field)"
+                if !bound.insert(key).inserted { issues.append(Issue(.invalidCombination, at + "/field")) }
             }
         }
 
@@ -124,9 +153,20 @@ extension ServerUIComponentExpansion {
             if case .object(let given)? = reference["args"] {
                 for (name, value) in given { arguments[name] = value.string ?? "" }
             }
+            if !entry.sources.isEmpty {
+                // The copies each use adds count toward the document's limit.
+                if ownSourceCount + addedSources + entry.sources.count > ServerUIComponentExpansion.maximumSources {
+                    issues.append(Issue(.limitExceeded, pointer + "/componentId"))
+                }
+                addedSources += entry.sources.count
+            }
             checkArguments(arguments, of: entry, at: pointer + "/args")
             var written: [String: String] = [:]
-            let body = rename(entry.node, entry: entry, arguments: arguments, reference: reference, relative: "", written: &written)
+            // A source key naming an owned source is rewritten first, so an argument that happens to equal one is not.
+            let useNames = freshSourceIds(for: entry.sources)
+            let body = rename(Self.renamingSources(entry.node, Self.privateNames(entry.sources, useNames)), entry: entry, arguments: arguments,
+                              reference: reference, relative: "", written: &written)
+            appendUseCopies(of: entry, names: useNames, pointer: pointer, arguments: arguments)
             regions.append(Region(pointer: pointer, entry: entry.index, bound: written))
             return body
         }
@@ -164,7 +204,7 @@ extension ServerUIComponentExpansion {
                             relative: String, written: inout [String: String]) -> JSONValue {
             let root = relative.isEmpty
             var next = node
-            for binding in entry.bindings where binding.nodeId == node["id"]?.string {
+            for binding in entry.bindings where binding.nodeId != nil && binding.nodeId == node["id"]?.string {
                 guard let value = arguments[binding.parameter], let changed = Self.write(.string(value), to: next, field: binding.field) else { continue }
                 next = changed
                 written[Self.fieldPointer(binding.field, under: relative)] = binding.parameter

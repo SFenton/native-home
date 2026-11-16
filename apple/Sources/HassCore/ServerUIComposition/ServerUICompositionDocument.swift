@@ -15,7 +15,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public let navigation: Navigation
     public let pages: [Page]
     public let modals: [Modal]
-    public let dataSources: [Source]
+    public internal(set) var dataSources: [Source]
     public let variables: EmptyObject
     public let assets: [Asset]
     public let liveActivities: [ActivityPresentation]
