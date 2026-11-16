@@ -210,6 +210,11 @@ enum UKServerUIPreflight {
                     if let icon = tab.icon { try symbol(icon, at: path + "/tabs/\(index)/icon") }
                     try self.components(tab.children, at: path + "/tabs/\(index)/children", collections: collections)
                 }
+                for (index, area) in tabs.areas.enumerated() {
+                    try self.components(area.children, at: path + "/blocks/\(index)/children", collections: collections)
+                }
+            case .overlay(let overlay):
+                try self.components(overlay.children, at: path + "/children", collections: collections)
             case .row(let row):
                 if let icon = row.icon { try symbol(icon, at: path + "/props/icon") }
             case .statusPill(let pill): try symbol(pill.icon, at: path + "/icon")
@@ -233,7 +238,9 @@ enum UKServerUIPreflight {
                     }
                 }
             case .actionTile(let tile): try symbol(tile.icon, at: path + "/icon")
-            case .stateTile(let tile): try symbol(tile.icon, at: path + "/icon")
+            case .stateTile(let tile):
+                try symbol(tile.icon, at: path + "/icon")
+                for (index, disc) in tile.parts.discs.enumerated() { try symbol(disc.icon, at: path + "/props/discs/\(index)/icon") }
             case .settingsLink(let link): try symbol(link.icon, at: path + "/icon")
             case .remote(let remote):
                 switch remote.control {

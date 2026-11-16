@@ -53,14 +53,21 @@ extension ServerUIComponentExpansion.Builder {
         return steps.isEmpty ? nil : set(node, steps[...])
     }
 
-    /// What a field holds, as far as a binding cares, from where it sits: a page or sheet id, a source or provider id, an SF Symbol name,
-    /// a literal's value or the node's own `title`. Nil for any field a parameter may not fill.
+    /// What a field holds, as far as a binding cares, from where it sits: a page or sheet id, a local state id, an entity id, a source or
+    /// provider id, an SF Symbol name, a literal's value or the node's own `title`. Nil for any field a parameter may not fill. The first
+    /// rule that holds wins, as in the Studio's `fieldKind`.
     static func kind(of field: String, in node: JSONValue) -> String? {
         let steps = steps(field)
         guard let last = steps.last, read(node, field: field)?.string != nil else { return nil }
         let parent = read(node, field: steps.dropLast().joined(separator: "/"))
         if last == "pageId" { return "page-id" }
         if last == "modalId" { return "modal-id" }
+        if last == "stateId" { return "state-id" }
+        // A `copySourceId` names an entity, not a data source, so it is taken here before the source rule.
+        if last == "entityId" || last == "copySourceId" || last.hasSuffix("EntityId") { return "entity-id" }
+        if last == "value", parent?["type"]?.string == "literal", steps.count > 1, ["entityId", "entity_id"].contains(steps[steps.count - 2]) {
+            return "entity-id"
+        }
         if last.range(of: "(source|provider)Id$", options: [.regularExpression, .caseInsensitive]) != nil { return "source-id" }
         if last == "name", parent?["type"]?.string == "sf-symbol" { return "symbol" }
         if last == "value", parent?["type"]?.string == "literal" { return "text" }

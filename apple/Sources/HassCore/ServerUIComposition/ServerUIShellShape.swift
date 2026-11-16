@@ -47,10 +47,13 @@ extension ServerUICompositionShape {
             "local-tabs": node("local-tabs", [
                 "props": object(["stateId": id, "transition": fixed("canonical-swap@1"), "resetOnPresentation": .optional(.bool), "pinned": .optional(.bool),
                                  "scopeProviderId": .optional(id), "showsSelector": .optional(.bool), "retainsAutomaticSelection": .optional(.bool),
-                                 "automatic": .optional(array(object(["tabId": id, "selectedWhen": predicate]), 5))]),
+                                 "automatic": .optional(array(object(["tabId": id, "selectedWhen": predicate]), 5)),
+                                 "fallbackTabId": .optional(id), "tabBar": .optional(tabBar)]),
                 "tabs": array(object(["id": id, "label": label, "children": array(.component, 100),
-                                     "icon": .optional(symbol), "centerWhenFits": .optional(.bool)]), 5, minimum: 2)
+                                     "icon": .optional(symbol), "centerWhenFits": .optional(.bool)].merging(tabRule) { _, rhs in rhs }), 5, minimum: 2),
+                "blocks": .optional(array(tabBlock, 40))
             ]),
+            "overlay": node("overlay", overlayFields),
             "local-control": node("local-control", [
                 "props": object(["stateId": id, "kind": .choice(["toggle", "stepper", "choice", "text-field", "segmented-choice"]),
                                  "placeholder": .text(240, blank: true)])

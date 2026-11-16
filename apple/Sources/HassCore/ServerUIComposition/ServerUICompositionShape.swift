@@ -26,6 +26,8 @@ enum ServerUICompositionShape {
         case component
         /// An authored operand, predicate or `call-service` action, checked by ``ServerUIExpressionParser``.
         case operand, predicate, callService
+        /// The text `all`, or a list of one to `maximum` identifiers (`sh.tab-blocks@1`).
+        case allOrIdentifiers(Int)
     }
 
     typealias Issue = ServerUICompositionError
@@ -160,7 +162,7 @@ enum ServerUICompositionShape {
         object([
             "initialPageId": id, "initialTabId": .nullableID, "initialArguments": arguments,
             "tabs": array(object(["id": id, "label": label, "icon": symbol, "pageId": id, "arguments": arguments,
-                                  "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown)]), 8),
+                                  "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown), "badge": .optional(badge)]), 8),
             "policy": object([
                 "type": fixed("canonical-shell@1"), "tabSwitch": fixed("preserve-cut@1"),
                 "reselect": fixed("pop-root-then-scroll@1"), "stackMotion": fixed("canonical-stack@1"),
@@ -188,7 +190,8 @@ enum ServerUICompositionShape {
                 "visibility": .choice(["always", "root-only"]), "priority": .choice(["required", "normal", "low"]),
                 "rail": .choice(["eligible", "horizontal-only"]),
                 "badge": .variant("type", ["none": object(["type": fixed("none")]),
-                                          "count": .unsupported("sh.profile-count@1")]),
+                                          "count": .unsupported("sh.profile-count@1"),
+                                          "value": object(["type": fixed("value"), "value": operand])]),
                 "action": ruledAction
             ]),
             "shell-header": object([
@@ -571,7 +574,7 @@ enum ServerUICompositionShape {
     static let ruledNavigationAction: Shape = ruledAction
     static let component: Shape = {
         let base: [String: Shape] = [
-            "id": id, "title": title, "layout": object(["span": .number(1, 4, integer: true)]),
+            "id": id, "title": title, "layout": layoutSpan,
             "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown)
         ]
         func node(_ type: String, _ extra: [String: Shape]) -> Shape {
@@ -579,11 +582,11 @@ enum ServerUICompositionShape {
         }
         return .variant("type", shellNodes(base: base).merging([
             "component-ref": componentRef,
-            "status-chip": node("status-chip", ["props": object(statusProps), "action": .optional(ruledHomeNavigationAction)]),
+            "status-chip": node("status-chip", ["props": object(statusProps), "action": .optional(ruledHomeNavigationAction), "badge": .optional(badge)]),
             "status-rail": node("status-rail", ["props": object([:]), "children": array(.component, 20)]),
             "room-overview-tile": node("room-overview-tile", [
                 "props": object(statusProps.merging(["hidesContactSubtitle": .bool, "powerSourceId": .optional(id)])),
-                "action": .optional(ruledHomeNavigationAction)
+                "action": .optional(ruledHomeNavigationAction), "badge": .optional(badge)
             ]),
             "light-group-tile": node("light-group-tile", ["props": object(["sourceId": id])]),
             "weather-panel": node("weather-panel", ["props": weatherProps, "action": .optional(homeNavigationAction)]),
@@ -675,7 +678,7 @@ enum ServerUICompositionShape {
                         "bodyHint": .optional(.text(240, blank: false))
                     ]))
                 ]),
-                "action": ruledNavigationAction
+                "action": ruledNavigationAction, "badge": .optional(badge)
             ]),
             "bootstrap-message": node("bootstrap-message", [
                 "icon": symbol, "props": object(["message": .text(2_000, blank: true)])
@@ -683,8 +686,8 @@ enum ServerUICompositionShape {
             "notification-permission-banner": node("notification-permission-banner", [
                 "props": object(["message": .text(2_000, blank: false), "enableLabel": label, "dismissLabel": label])
             ]),
-            "state-tile": node("state-tile", ["icon": symbol, "props": object([:]), "binding": stateTileBinding,
-                                              "enabledWhen": .optional(enabledWhen)]),
+            "state-tile": node("state-tile", ["icon": symbol, "props": tileParts, "binding": stateTileBinding,
+                                              "enabledWhen": .optional(enabledWhen)].merging(stateTileFields)),
             "action-tile": node("action-tile", [
                 "icon": symbol, "binding": object(["sourceId": id, "projection": fixed("power-tile@1")]),
                 "props": object([
@@ -861,6 +864,9 @@ enum ServerUICompositionShape {
             var parser = ServerUIExpressionParser(allowControl: true)
             _ = parser.callService(value, at: pointer)
             issues += parser.issues
+        case .allOrIdentifiers(let maximum):
+            if value == .string("all") { return }
+            walk(value, shape: .array(.identifier, 1, maximum), pointer: pointer, issues: &issues, unsupported: &unsupported)
         }
     }
 }

@@ -3575,7 +3575,7 @@
     {
       "file": "reject/component-params-too-many.json",
       "outcome": "reject",
-      "note": "An entry declares at most 8 parameters.",
+      "note": "An entry declares at most 16 parameters.",
       "issue": {
         "code": "limit_exceeded",
         "pointer": "/document/componentLibrary/0/params"
@@ -5222,6 +5222,452 @@
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/tone"
       }
+    },
+    {
+      "file": "accept/component-args-entity-id.json",
+      "outcome": "accept",
+      "note": "An entity parameter bound to a service call's target: each use sends its own entity id."
+    },
+    {
+      "file": "accept/component-args-entity-id-state-tile.json",
+      "outcome": "accept",
+      "note": "An entity parameter bound to a state tile's entity (`binding/entityId`)."
+    },
+    {
+      "file": "accept/component-args-state-id.json",
+      "outcome": "accept",
+      "note": "A tab container whose selected-tab state is a parameter: two uses keep two selections."
+    },
+    {
+      "file": "accept/component-args-labels.json",
+      "outcome": "accept",
+      "note": "A parameter may carry a label, the words an arguments form shows instead of its name."
+    },
+    {
+      "file": "accept/component-origin.json",
+      "outcome": "accept",
+      "note": "An entry records the kit it was copied from; the app ignores it."
+    },
+    {
+      "file": "accept/component-params-sixteen.json",
+      "outcome": "accept",
+      "note": "An entry declares 16 parameters and a use gives all 16."
+    },
+    {
+      "file": "accept/component-bindings-128.json",
+      "outcome": "accept",
+      "note": "An entry holds 128 bindings: 64 text nodes, each bound twice (its title and its text) to one parameter."
+    },
+    {
+      "file": "reject/component-args-entity-id-malformed.json",
+      "outcome": "reject",
+      "note": "An entity argument has the form domain.object.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/args/fan"
+      }
+    },
+    {
+      "file": "reject/component-args-entity-id-no-domain.json",
+      "outcome": "reject",
+      "note": "An entity argument names a domain: a bare object id is not an entity id.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/args/fan"
+      }
+    },
+    {
+      "file": "reject/component-args-entity-id-wrong-domain.json",
+      "outcome": "reject",
+      "note": "An entity argument is checked as the field it fills: a state tile with a vacuum style takes a vacuum.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/args/robot"
+      }
+    },
+    {
+      "file": "reject/component-binding-entity-id-on-text-field.json",
+      "outcome": "reject",
+      "note": "An entity parameter cannot fill a text field.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-binding-text-on-entity-field.json",
+      "outcome": "reject",
+      "note": "A text parameter cannot fill a service target: the literal under entity_id is an entity id, not text.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-binding-source-id-on-entity-field.json",
+      "outcome": "reject",
+      "note": "A source parameter cannot fill an entity field.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-args-state-id-missing-field.json",
+      "outcome": "reject",
+      "note": "A state argument names a local state field the document lacks.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/args/tabs"
+      }
+    },
+    {
+      "file": "reject/component-args-state-id-wrong-field.json",
+      "outcome": "reject",
+      "note": "A state argument is checked as the field it fills: tabs need a choice field whose options are the tab ids.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/args/tabs"
+      }
+    },
+    {
+      "file": "reject/component-args-state-id-not-an-identifier.json",
+      "outcome": "reject",
+      "note": "A state argument is an identifier.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/args/tabs"
+      }
+    },
+    {
+      "file": "reject/component-binding-state-id-on-page-field.json",
+      "outcome": "reject",
+      "note": "A state parameter cannot fill a page field.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-binding-page-id-on-state-field.json",
+      "outcome": "reject",
+      "note": "A page parameter cannot fill a state field.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-bindings-too-many.json",
+      "outcome": "reject",
+      "note": "An entry holds at most 128 bindings.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/componentLibrary/0/bindings"
+      }
+    },
+    {
+      "file": "reject/component-param-label-empty.json",
+      "outcome": "reject",
+      "note": "A parameter's label is 1 to 80 characters.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/componentLibrary/0/params/0/label"
+      }
+    },
+    {
+      "file": "reject/component-param-label-too-long.json",
+      "outcome": "reject",
+      "note": "A parameter's label is at most 80 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/componentLibrary/0/params/0/label"
+      }
+    },
+    {
+      "file": "reject/component-param-label-control.json",
+      "outcome": "reject",
+      "note": "A parameter's label has no control or format characters.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/componentLibrary/0/params/0/label"
+      }
+    },
+    {
+      "file": "reject/component-param-unknown-field.json",
+      "outcome": "reject",
+      "note": "A parameter takes a name, a kind and a label and no other field.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/componentLibrary/0/params/0/default"
+      }
+    },
+    {
+      "file": "reject/component-origin-unknown-field.json",
+      "outcome": "reject",
+      "note": "An origin is an id and a version and nothing else.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/componentLibrary/0/origin/name"
+      }
+    },
+    {
+      "file": "reject/component-origin-version-zero.json",
+      "outcome": "reject",
+      "note": "An origin version counts from 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/componentLibrary/0/origin/version"
+      }
+    },
+    {
+      "file": "reject/component-origin-id-not-an-identifier.json",
+      "outcome": "reject",
+      "note": "An origin id is an identifier.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/componentLibrary/0/origin/id"
+      }
+    },
+    {
+      "file": "reject/component-origin-version-missing.json",
+      "outcome": "reject",
+      "note": "An origin names its version.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/componentLibrary/0/origin/version"
+      }
+    },
+    {
+      "file": "accept/component-sources-one-use.json",
+      "outcome": "accept",
+      "note": "An entry owns a data source; each use gets its own copy, named <reference id>~<source id>, and the body's read of it follows."
+    },
+    {
+      "file": "accept/component-sources-two-uses.json",
+      "outcome": "accept",
+      "note": "Two uses of one entry own two sources (lamp-a~state and lamp-b~state), each filled by its own entity argument."
+    },
+    {
+      "file": "accept/component-sources-no-params.json",
+      "outcome": "accept",
+      "note": "An entry may own a source with no parameter: every use reads the same entity, through its own copy."
+    },
+    {
+      "file": "accept/component-sources-one-argument-two-fields.json",
+      "outcome": "accept",
+      "note": "One entity argument fills the private source and a service target, so one choice cannot drift between two fields."
+    },
+    {
+      "file": "accept/component-sources-two-owned.json",
+      "outcome": "accept",
+      "note": "An entry owns two sources; a body node reads each by its own id."
+    },
+    {
+      "file": "accept/component-sources-in-rule.json",
+      "outcome": "accept",
+      "note": "A private source named by a rule on a body node (visibleWhen) is rewritten like any other source id."
+    },
+    {
+      "file": "accept/component-sources-shadow-document-source.json",
+      "outcome": "accept",
+      "note": "A private source whose id equals a document source: inside the body the private source wins, so source-entity still means the document's everywhere else."
+    },
+    {
+      "file": "accept/component-sources-source-id-arg-not-rewritten.json",
+      "outcome": "accept",
+      "note": "A source parameter whose argument equals a private id names the document's source of that id, never the private copy."
+    },
+    {
+      "file": "reject/component-source-binding-both-targets.json",
+      "outcome": "reject",
+      "note": "A binding names a node or a source, not both.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/componentLibrary/0/bindings/0/sourceId"
+      }
+    },
+    {
+      "file": "reject/component-source-binding-no-target.json",
+      "outcome": "reject",
+      "note": "A binding names a node or a source.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/componentLibrary/0/bindings/0/nodeId"
+      }
+    },
+    {
+      "file": "reject/component-source-binding-unknown-source.json",
+      "outcome": "reject",
+      "note": "A binding names a source of the entry.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/componentLibrary/0/bindings/0/sourceId"
+      }
+    },
+    {
+      "file": "reject/component-source-binding-field-missing.json",
+      "outcome": "reject",
+      "note": "A binding names a field the source has.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-source-binding-kind-mismatch.json",
+      "outcome": "reject",
+      "note": "A text parameter cannot fill a source's entity id.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-source-binding-not-an-entity-field.json",
+      "outcome": "reject",
+      "note": "Only a source's entity id may be a parameter: its id is not.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/component-source-binding-field-twice.json",
+      "outcome": "reject",
+      "note": "A source's field is bound once.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/componentLibrary/0/bindings/1/field"
+      }
+    },
+    {
+      "file": "reject/component-source-duplicate-id.json",
+      "outcome": "reject",
+      "note": "An entry names each private source once.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/componentLibrary/0/sources/0/id"
+      }
+    },
+    {
+      "file": "reject/component-source-bad-default-entity.json",
+      "outcome": "reject",
+      "note": "A private source's own entity id has the form domain.object, argument or not.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/componentLibrary/0/sources/0/entityId/value"
+      }
+    },
+    {
+      "file": "reject/component-source-unknown-field.json",
+      "outcome": "reject",
+      "note": "A private source takes the fields of an entity source and no others.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/componentLibrary/0/sources/0/name"
+      }
+    },
+    {
+      "file": "reject/component-source-not-an-entity-source.json",
+      "outcome": "reject",
+      "note": "A private source is an entity source: a model source stays in the document.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/componentLibrary/0/sources/0/entityId"
+      }
+    },
+    {
+      "file": "reject/component-source-entity-not-literal.json",
+      "outcome": "reject",
+      "note": "A private source's entity is a literal: it reads nothing.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/componentLibrary/0/sources/0/entityId/as"
+      }
+    },
+    {
+      "file": "reject/component-sources-too-many.json",
+      "outcome": "reject",
+      "note": "An entry owns at most 8 sources.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/componentLibrary/0/sources"
+      }
+    },
+    {
+      "file": "reject/component-source-id-not-an-identifier.json",
+      "outcome": "reject",
+      "note": "A private source's id is an identifier.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/componentLibrary/0/sources/0/id"
+      }
+    },
+    {
+      "file": "reject/component-source-unknown-in-body.json",
+      "outcome": "reject",
+      "note": "A body names a source that is neither the document's nor one the entry owns.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/componentLibrary/0/node/props/value/from/sourceId"
+      }
+    },
+    {
+      "file": "reject/component-source-arg-entity-malformed.json",
+      "outcome": "reject",
+      "note": "An entity argument that only fills a source is still checked as an entity id.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/args/lamp"
+      }
+    },
+    {
+      "file": "reject/component-source-arg-missing.json",
+      "outcome": "reject",
+      "note": "A parameter that fills a source needs its argument like any other.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/args/lamp"
+      }
+    },
+    {
+      "file": "reject/component-source-arg-private-id.json",
+      "outcome": "reject",
+      "note": "A source parameter cannot name a private source: the arguments are the document's names.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/args/other"
+      }
+    },
+    {
+      "file": "reject/component-sources-over-document-limit.json",
+      "outcome": "reject",
+      "note": "Every use adds its sources to the document's 1,000: 126 uses of an entry that owns 8 do not fit.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/modals/0/components/27/componentId"
+      }
+    },
+    {
+      "file": "accept/component-example-humidifier-sheet.json",
+      "outcome": "accept",
+      "note": "Humidifier sheet (research 5.1): a tab body of room-device controls, one source parameter and one tab-state parameter; two sheets keep two tab selections."
+    },
+    {
+      "file": "accept/component-example-light-button.json",
+      "outcome": "accept",
+      "note": "Light button (research 5.1): one entity argument fills the private state source and both service targets; a use is one reference with three arguments."
+    },
+    {
+      "file": "accept/component-example-vent-tile.json",
+      "outcome": "accept",
+      "note": "Vent tile (research 5.1): the blind face with a subtitle and a rule over one private source; the same entity fills the source and the tile's binding."
+    },
+    {
+      "file": "accept/component-example-bed-sheet.json",
+      "outcome": "accept",
+      "note": "Bed sheet (research 5.1): three tabs of bedroom controls over a bed source and a wake-light source, seven alarm-day pages and a tab state; 11 parameters and 22 bindings."
     }
   ]
 }

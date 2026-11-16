@@ -1,4 +1,5 @@
 #if os(iOS)
+import HassCore
 import HassDesign
 import UIKit
 
@@ -312,6 +313,7 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
     public let identifier: String
     private let hasSymbols: Bool
     private let hasBadges: Bool
+    private let labels: ServerUITabBar.Labels
     private let onSelect: (Item) -> Void
     private var badged: UKBadgedTabSegments<Item>?
     private var segmented: UISegmentedControl?
@@ -324,8 +326,10 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
         }
     }
 
+    /// - Parameter labels: What each segment shows when the document asks (`sh.tab-bar@1`); by default the size decides.
     public init(tabs: [Item], label: String, title: (Item) -> String, symbol: ((Item) -> String)? = nil, badge: ((Item) -> Int)? = nil,
-                selection: Item, identifier: String, onSelect: @escaping (Item) -> Void) {
+                labels: ServerUITabBar.Labels = .bySize, selection: Item, identifier: String, onSelect: @escaping (Item) -> Void) {
+        self.labels = labels
         segments = tabs.map { ModalTabSegment(item: $0, title: title($0), symbol: symbol?($0), badge: badge?($0) ?? 0) }
         self.label = label
         hasSymbols = symbol != nil
@@ -361,7 +365,7 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
         segmented = nil
         menuButton = nil
         let form = ModalTabBarStyle.form(hasSymbols: hasSymbols, hasBadges: hasBadges, compactWidth: traitCollection.horizontalSizeClass == .compact,
-                                         accessibilitySize: traitCollection.preferredContentSizeCategory.isAccessibilityCategory)
+                                         accessibilitySize: traitCollection.preferredContentSizeCategory.isAccessibilityCategory, labels: labels)
         let glass = UKNavigationGlassView(shape: .capsule)
         addSubview(glass)
         glass.ukPin(to: self)
@@ -391,7 +395,9 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
             syncNative()
         case .badged, .badgedWithTitles:
             // A system segmented control draws a title or an image, never a badge: draw our own segments on the same capsule.
-            let segmentsView = UKBadgedTabSegments(segments: segments, showsTitles: form == .badgedWithTitles, selection: selection, identifier: identifier, label: label)
+            // Titles alone: the segments drop their icons, and keep their counts in the spoken name.
+            let drawn = labels == .titles ? segments.map { ModalTabSegment(item: $0.item, title: $0.title, symbol: nil, badge: $0.badge) } : segments
+            let segmentsView = UKBadgedTabSegments(segments: drawn, showsTitles: form == .badgedWithTitles, selection: selection, identifier: identifier, label: label)
             segmentsView.onSelect = { [weak self] item in self?.choose(item) }
             badged = segmentsView
             inner.addSubview(segmentsView)

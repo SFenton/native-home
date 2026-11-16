@@ -15,7 +15,9 @@ public enum ServerUIIngestedCapabilities {
     /// Components: tab bar, badges, list and tile parts (lane L2).
     public static let components: [String] = ["sh.component-ref@1"]
     /// Layout: tab blocks, fallbacks and status counts (lane L3).
-    public static let layout: [String] = []
+    public static let layout: [String] = [
+        "sh.tab-blocks@1", "sh.tab-bar@1", "sh.tab-fallback@1", "sh.overlay@1", "sh.tile-parts@1", "sh.tile-look@1", "sh.badges@1"
+    ]
     /// Rules: action rules, confirm and enabled conditions (lane L1b).
     public static let rules: [String] = [
         "sh.rules@1", "sh.enabled-when@1", "sh.confirm-when@1", "sh.action-rules@1",

@@ -453,7 +453,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .stateTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
-                    UKServerUIStateTileViews.bind(tile, view: view, bag: entry.bag, page: self, renderer: renderer)
+                    UKServerUIStateTileViews.bind(tile, view: view, bag: entry.bag, page: self, renderer: renderer, node: entry)
                 }
             case .climate(let control):
                 if let view = entry.view as? UKServerUIClimateControl,
@@ -657,13 +657,30 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         }
                     }
                 }
+            case .overlay(let overlay):
+                if let view = entry.view as? UKServerUIOverlayView {
+                    let children = overlay.children.map { ($0, node($0)) }
+                    let reparent = view.needsReparent(children.filter { renderer.componentVisible($0.0) }.map(\.1))
+                    containerChanges.append(({ if reparent { view.clear() } }, {
+                        entry.bag.observe { [weak view, weak renderer, weak self] in
+                            guard let view, let renderer else { return }
+                            let shown = children.filter { renderer.componentVisible($0.0) }
+                            // The first child is the base; the rest are the controls on top.
+                            let base = shown.first.flatMap { $0.0.node.id == overlay.children.first?.node.id ? $0.1 : nil }
+                            view.apply(overlay, base: base, controls: shown.filter { $0.0.node.id != overlay.children.first?.node.id }
+                                .map { ($0.0.node.id, $0.1) })
+                            self?.body?.contentChanged(animated: false)
+                        }
+                    }))
+                }
             case .localTabs(let tabs):
                 if let view = entry.view as? UKServerUILocalTabs {
                     let scope = tabs.scopeProviderId.flatMap { renderer.records.tabScopes[$0] }
                     var tabs = tabs
                     if let scope { tabs.tabs = tabs.tabs.filter { scope.allowedTabIDs.contains($0.id) } }
                     let children = tabs.tabs.map { $0.children.map { ($0, node($0)) } }
-                    let reparent = view.needsReparent(tabs, children: children.map { $0.map(\.1) })
+                    let areaChildren = tabs.areas.map { $0.children.map { ($0, node($0)) } }
+                    let reparent = view.needsReparent(tabs, children: children.map { $0.map(\.1) }, areaChildren: areaChildren.map { $0.map(\.1) })
                     containerChanges.append(({ if reparent { view.clear() } }, {
                         if let scope {
                             do { try view.prepareScope(scope, stateID: tabs.stateId, state: renderer.localState) }
@@ -688,8 +705,13 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                             do { resolved = try view.resolveSelection(scope, stored: selection, value: tabs) }
                             catch { renderer.onError(.init(code: .unavailableSource, pointer: "/document/localState")); return }
                             if let title = scope?.title() { self.title = title }
-                            view.apply(tabs, children: children.map { $0.filter { renderer.componentVisible($0.0) }.map(\.1) },
-                                       selection: resolved, page: self, badges: scope?.badges() ?? [:]) { [weak self] value in
+                            // Tabs and areas hidden by their rules, the fallback tab and the areas that draw on the tab on show.
+                            let layout = UKServerUITabLayout.resolve(tabs, requested: resolved, reader: renderer.reader(), memory: &entry.layoutMemory)
+                            view.apply(layout.container, children: layout.keeping(children, parallelTo: tabs.tabs)
+                                           .map { $0.filter { renderer.componentVisible($0.0) }.map(\.1) },
+                                       areaChildren: areaChildren.map { $0.filter { renderer.componentVisible($0.0) }.map(\.1) },
+                                       shownAreas: layout.shownAreas, selection: layout.selection, page: self,
+                                       badges: scope?.badges() ?? [:]) { [weak self] value in
                                 guard let self else { return }
                                 self.view.endEditing(true)
                                 self.renderer?.activate(.setLocal(stateId: tabs.stateId, value: .string(value)), from: self)
@@ -885,6 +907,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             }
             if let rule = component.node.visibleWhen { observeVisibility(of: entry, rule: rule, component: component) }
+            UKServerUIBadgeViews.bind(component, entry: entry, renderer: renderer)
             return entry.view
         }
         let roots = definition.components.map { ($0, node($0)) }
@@ -1027,7 +1050,7 @@ final class UKServerUINode {
         case statusChip, statusRail, roomOverviewTile, homeLightTile, weatherPanel
         case alarmPanel, doorTile, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
         case roomDeviceControl, deviceControl, bedroom, vacuum, cameraTile, cameraVideo, cameraControls, cameraViewer
-        case bootstrapMessage, notificationBanner
+        case bootstrapMessage, notificationBanner, overlay
     }
 
     /// The node's view, built once and kept for the node's lifetime.
@@ -1040,6 +1063,8 @@ final class UKServerUINode {
     var shown: Bool?
     /// The panel an authored `selectedWhen` last picked, so a rule selects once when it newly matches.
     var automaticMatch: String?
+    /// What a tab container's tabs and areas and a state tile's discs last showed, so a rule that cannot be answered keeps its answer.
+    var layoutMemory = UKServerUILayoutMemory()
     private let kind: Kind
     private let weatherKind: ServerUICompositionDocument.WeatherPanel.Panel?
 
@@ -1082,6 +1107,7 @@ final class UKServerUINode {
                 copy: .init(title: banner.node.title, message: banner.message, enable: banner.enableLabel, dismiss: banner.dismissLabel),
                 onEnable: {}, onDismiss: {})
         case .bootstrapMessage: view = UKServerUIBootstrapMessage()
+        case .overlay: view = UKServerUIOverlayView()
         case .text: view = UKServerUIText()
         case .grid: view = UKDynamicGridView()
         case .section: view = UKServerUISection()
@@ -1135,6 +1161,7 @@ final class UKServerUINode {
         case .bedroom: .bedroom
         case .vacuum: .vacuum
         case .notificationBanner: .notificationBanner
+        case .overlay: .overlay
         case .bootstrapMessage: .bootstrapMessage
         case .text: .text
         case .grid: .grid

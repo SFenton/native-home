@@ -396,6 +396,9 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
     private let column = UKColumnView(spacing: HassTokens.Spacing.m)
     private var panels: [String: UKColumnView] = [:]
     private var swap: UKSmoothContentSwapView<String>?
+    /// The areas of a container drawn from `blocks` (`sh.tab-blocks@1`); one stack for the container's life.
+    private let areaStack = UKServerUIAreaStack()
+    private var lastSelection: String?
     private var choice: UKSegmentedChoice<String>?
     private var definition: D.LocalTabs?
     private var tabBar: UKModalTabBar<TabID>?
@@ -417,15 +420,17 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func needsReparent(_ value: D.LocalTabs, children: [[UIView]]) -> Bool {
+    func needsReparent(_ value: D.LocalTabs, children: [[UIView]], areaChildren: [[UIView]] = []) -> Bool {
         zip(value.tabs, children).contains { panels[$0.0.id]?.views != $0.1 }
             || panels.keys.contains { id in !value.tabs.contains { $0.id == id } }
+            || areaStack.needsReparent(areas: value.areas, children: areaChildren)
     }
 
     func clear() {
         for panel in panels.values {
             panel.setViews([])
         }
+        areaStack.clear()
     }
 
     func prepareScope(_ scope: UKServerUITabScope, stateID: String, state: ServerUILocalState) throws {
@@ -454,8 +459,8 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
         if let scopedInitial { automatic.departed(initial: scopedInitial, retainsEngaged: definition?.retainsAutomaticSelection == true) }
     }
 
-    func apply(_ value: D.LocalTabs, children: [[UIView]], selection: String, page: UKServerUIPage,
-               badges: [String: Int] = [:], send: @escaping (String) -> Void) {
+    func apply(_ value: D.LocalTabs, children: [[UIView]], areaChildren: [[UIView]] = [], shownAreas: [String] = [],
+               selection: String, page: UKServerUIPage, badges: [String: Int] = [:], send: @escaping (String) -> Void) {
         self.page = page
         centerWhenFits = value.tabs.first(where: { $0.id == selection })?.centerWhenFits == true
         for (tab, views) in zip(value.tabs, children) {
@@ -466,32 +471,48 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
             panels[tab.id] = panel
         }
         panels = panels.filter { entry in value.tabs.contains { $0.id == entry.key } }
+        if !value.areas.isEmpty {
+            areaStack.apply(areas: value.areas, children: areaChildren, showing: shownAreas, animated: lastSelection != nil && lastSelection != selection)
+        }
+        lastSelection = selection
         if definition != value {
             detach()
             column.setViews([])
             let names = Dictionary(value.tabs.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
             let choice = UKSegmentedChoice(label: value.node.title, options: value.tabs.map(\.id), title: { names[$0] ?? $0 },
                                            selection: selection, identifier: value.node.id + ".tabs", select: send)
-            let swap = UKSmoothContentSwapView(initial: selection) { [weak self] key in
+            // A container drawn from areas keeps one stack for its life; the shipped shape swaps whole panels.
+            let swap = value.areas.isEmpty ? UKSmoothContentSwapView(initial: selection) { [weak self] key in
                 guard let panel = self?.panels[key] else { return UIView() }
                 return panel
-            }
-            swap.didSwap = { [weak self] _ in self?.ukRemeasureContainers(includingSelf: true) }
-            let displayed = UKServerUISwapMeasurement(swap) { [weak self, weak swap] width in
-                guard let self, let swap, let panel = self.panels[swap.displayed] else { return 0 }
-                return panel.gridHeight(forWidth: width)
+            } : nil
+            swap?.didSwap = { [weak self] _ in self?.ukRemeasureContainers(includingSelf: true) }
+            let displayed: UIView = swap.map { swap in
+                UKServerUISwapMeasurement(swap) { [weak self, weak swap] width in
+                    guard let self, let swap, let panel = self.panels[swap.displayed] else { return 0 }
+                    return panel.gridHeight(forWidth: width)
+                }
+            } ?? areaStack
+            let icons = Dictionary(value.tabs.compactMap { tab in tab.icon.map { (tab.id, $0.drawn) } }, uniquingKeysWith: { first, _ in first })
+            func makeBar() -> UKModalTabBar<TabID> {
+                UKModalTabBar(tabs: value.tabs.map { TabID(id: $0.id) }, label: value.node.title,
+                    title: { names[$0.id] ?? $0.id }, symbol: { icons[$0.id] ?? "circle" },
+                    badge: value.scopeProviderId == nil ? nil : { badges[$0.id] ?? 0 }, labels: value.tabBar?.labels ?? .bySize,
+                    selection: TabID(id: selection), identifier: value.node.id + ".tabs", onSelect: { send($0.id) })
             }
             if value.pinned {
-                let icons = Dictionary(value.tabs.compactMap { tab in tab.icon.map { (tab.id, $0.drawn) } }, uniquingKeysWith: { first, _ in first })
-                let bar = UKModalTabBar(tabs: value.tabs.map { TabID(id: $0.id) }, label: value.node.title,
-                    title: { names[$0.id] ?? $0.id }, symbol: { icons[$0.id] ?? "circle" },
-                    badge: value.scopeProviderId == nil ? nil : { badges[$0.id] ?? 0 }, selection: TabID(id: selection),
-                    identifier: value.node.id + ".tabs", onSelect: { send($0.id) })
+                let bar = makeBar()
                 let host = bar.inset()
                 let pinned = UKPagePinnedBar(bar: host, scrollView: page.body)
                 pinned.install(in: page)
                 tabBar = bar; pinnedBar = pinned; barHost = host
                 column.setViews([displayed])
+                self.choice = nil
+            } else if value.showsSelector, let setting = value.tabBar, setting.labels != .bySize {
+                // A top bar that asks for icons, titles or both draws the section bar's own forms at the head of the container.
+                let bar = makeBar()
+                tabBar = bar
+                column.setViews([UKServerUIFittingView.wrapping(bar), displayed])
                 self.choice = nil
             } else {
                 column.setViews(value.showsSelector ? [UKServerUIFittingView.wrapping(choice), displayed] : [displayed])
