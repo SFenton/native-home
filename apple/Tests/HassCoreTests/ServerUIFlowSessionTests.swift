@@ -242,8 +242,7 @@ struct ServerUIFlowSessionTests {
             pending.handler(pending.cancellable, HAData(value: ["type": "hourly", "forecast": []]))
             pending.initiated(.failure(.external(.init(code: "unknown", message: "no"))))
         }
-        mock.waitForCallbackQueue()
-        #expect(received.withLock { $0.count } == 2)
+        #expect(await eventually { received.withLock { $0.count } == 2 })
         #expect(received.withLock { try? $0[0].get()["type"] } == .string("hourly"))
         cancel()
         #expect(subscription.cancellable.wasCancelled)
@@ -279,13 +278,12 @@ struct ServerUIFlowSessionTests {
         let session = ServerUIFlowSession(flow: try Self.todoFlow(), collection: collection,
                                           host: .init(feed: HassFlowFeed(connection: connection)))
         session.start()
-        mock.setState(.ready(version: "1.0-mock"))
+        mock.setState(.ready(version: "1.0-mock"), waitForQueue: false)
         let subscription = try #require(mock.pendingSubscriptions.first)
         nonisolated(unsafe) let sent = subscription
         func deliver(_ body: @escaping @Sendable () -> Void) async {
             mock.callbackQueue.async(execute: body)
-            mock.waitForCallbackQueue()
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(50))
         }
         await deliver {
             sent.initiated(.success(.empty))
@@ -296,14 +294,14 @@ struct ServerUIFlowSessionTests {
         let published = session.publications
 
         // The socket drops and the connection goes round again.
-        mock.setState(.disconnected(reason: .waitingToReconnect(lastError: nil, atLatest: Date().addingTimeInterval(5), retryCount: 1)))
+        mock.setState(.disconnected(reason: .waitingToReconnect(lastError: nil, atLatest: Date().addingTimeInterval(5), retryCount: 1)), waitForQueue: false)
         try? await Task.sleep(for: .milliseconds(100))
         #expect(collection.phase == .ready, "a reconnect is not a failure")
         #expect(collection.rows.map(\.title) == ["Bins"])
         #expect(session.publications == published, "nothing runs while the socket is down")
-        mock.setState(.connecting)
-        mock.setState(.authenticating)
-        mock.setState(.ready(version: "1.0-mock"))
+        mock.setState(.connecting, waitForQueue: false)
+        mock.setState(.authenticating, waitForQueue: false)
+        mock.setState(.ready(version: "1.0-mock"), waitForQueue: false)
 
         // HAKit resends the subscription on the new socket; the server answers with the full list.
         await deliver {
