@@ -257,7 +257,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     }
 
     /// One preview drawn at one family's size from the preview's own providers, and the helpers that drive it.
-    private struct Rig {
+    @MainActor private struct Rig {
         let family: String
         let live: UKServerUIPreviewLiveData
         let providers: UKServerUIPreviewLiveProviders
@@ -313,7 +313,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     }
 
     /// Draws the writes fixture at each family's size and runs `body` on it.
-    private func drive(_ body: (Rig) async throws -> Void) async throws {
+    private func drive(_ body: @MainActor (Rig) async throws -> Void) async throws {
         let publication = try writingPublication()
         let assets = try await stagedAssets(publication)
         for (family, size) in [("iPhone", CGSize(width: 390, height: 844)), ("Duo", CGSize(width: 466, height: 678)),
