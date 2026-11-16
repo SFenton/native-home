@@ -62,3 +62,14 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 - New maps class alarm `pending`, lock `open` and vacuum `paused` as warning.
 - The preview shows the tile at iPhone, iPhone Duo and iPad widths; picking a state plays the app's transition and prints the VoiceOver value.
 - For a Home Assistant lifecycle the Studio asks for the script and the error timer, checks that both exist and warns when one is missing. It installs nothing.
+
+## Doors lowered to the state tile
+
+`door-tile` (`sh.security-door@1`) is a decodable alias: the compiler rewrites each node into a `state-tile` over the built-in `garage-door` or `lock` style, plus a saved style named `<node id>.door` in the document's library (`ServerUIDoorLowering`, `docs` pattern: [action-tiles](../patterns/action-tiles.md)). Nothing else draws a door.
+
+- **Per state:** the authored icon, words, fill and `active` and `error` flags become that state's rule; a state the door did not author reads as its fallback appearance and is not lit.
+- **Words and verbs:** the open, close and reverse labels are the disc's verbs; the sending texts are `pendingWords`; `errorText` is `errorWords`; `hiddenText` is the style's `hiddenWords` (`sh.state-style-fills@1`).
+- **Loading:** `loadingText` is an `expr` subtitle that reads the door source's `phase` and speaks only while it says `loading`. The source needs no Swift of its own: its `phase` is `loading`, `ready` or `unavailable` from the entity.
+- **Request:** a tap shows the state it asked for (`opening`, `closing`, `locking`, `unlocking`) from the style's `pendingStates`, which are the app's own feedback and never authored.
+- **Kept:** a dimmed disc while the entity cannot be read (`keepsDiscWhenUnknown`) and a disc on-state that differs from the tile's lit face (`StateRule.discOn`), neither authorable.
+- **Proof:** `ServerUIDoorEquivalenceHostedTests` compares every state and request phase with the golden the bespoke atom drew (`apple/Apps/iOSTests/Fixtures/ServerUIDoorGolden.json`); `ServerUIDoorLoweringTests` holds the tables.
