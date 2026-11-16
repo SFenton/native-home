@@ -64,7 +64,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
     private func subscriptionPublication() throws -> ServerUICompositionPublication {
         var json = try corpus("pipeline-overdue-chores")
         let list: JSONValue = .object([
-            "id": "rows", "title": "rows", "type": "row-collection", "layout": .object(["span": 1]),
+            "id": "rows", "title": "rows", "type": "row-collection", "layout": .object(["span": .number(1)]),
             "props": .object(["providerId": "overdue", "loadingText": "Loading", "emptyText": "Nothing here",
                               "unavailableText": "Unavailable", "errorText": "Could not update", "staleText": "Out of date"]),
         ])
