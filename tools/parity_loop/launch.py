@@ -2,7 +2,7 @@
 """Launching each app on its own simulator, in gallery (fixture) mode or live mode.
 
     launch.py gallery --side reference|candidate --agent CMD --udid UDID [--page NAME] [--publication DIR]
-    launch.py live    --side reference --udid UDID --proxy-url URL
+    launch.py live    --side reference|candidate --udid UDID --proxy-url URL
     launch.py proxy   --log FILE [--listen HOST:PORT]
 
 **Gallery mode** relaunches the app through the bound ``agent-device``: the reference with ``--gallery-fixture`` on the named
@@ -11,8 +11,9 @@ gallery page, the candidate with ``--server-ui-preview`` (after :func:`feed_prev
 **Live mode** refuses unless ``PARITY_LIVE_GO=1`` is set. It signs the reference into Home Assistant with a token launch
 (``simctl launch`` with ``SIMCTL_CHILD_*`` variables) built in a bash child that sources ``tools/hass_creds.sh``; the token
 exists only in that child, never in this process, its arguments, its output or a file. The reference is only ever pointed at
-``--proxy-url``, the write-guard proxy, never at the real server. The candidate's read-only live preview needs a one-time
-credential *file* in the simulator container, which would write the token to disk; it is refused until the owner allows that.
+``--proxy-url``, the write-guard proxy, never at the real server. The candidate is staged first (``stage.py``: the publication and
+its assets fetched read-only through the proxy and written into its container), then launched with ``--server-ui-preview`` and the
+token in ``SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`` only.
 """
 
 from __future__ import annotations
@@ -105,19 +106,50 @@ def live_script(udid: str, bundle: str = BUNDLE_ID) -> str:
     ])
 
 
+def candidate_live_script(udid: str, bundle: str = BUNDLE_ID) -> str:
+    """The bash that stages the live publication and launches the candidate's read-only preview.
+
+    ``stage.py`` (a child that inherits the credentials ``hass_creds.sh`` loaded) fetches the publication and assets through the
+    guard proxy and writes them into the container at ``$CONTAINER_DATA``. The launch then hands the token to the preview only as
+    ``SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN``; the server address reaches the app through the container's ``bootstrap.json``.
+    No secret is in this text.
+    """
+    creds = shlex.quote(str(REPO / "tools" / "hass_creds.sh"))
+    stage = " ".join(shlex.quote(p) for p in (sys.executable, str(Path(__file__).with_name("stage.py"))))
+    return "\n".join([
+        "set -euo pipefail",
+        f"source {creds}",
+        "hass_load_creds || exit 2",
+        "hass_require_creds || exit 2",
+        '[[ -n "${PROXY_URL:-}" && -n "${CONTAINER_DATA:-}" ]] || { echo "no proxy url or container" >&2; exit 2; }',
+        f'{stage} --proxy "$PROXY_URL" --container "$CONTAINER_DATA"',
+        f"xcrun simctl terminate {shlex.quote(udid)} {shlex.quote(bundle)} >/dev/null 2>&1 || true",
+        'SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN="$FENTON_HASS_TOKEN" '
+        "SIMCTL_CHILD_FENTON_SYSTEM_SETTINGS=none SIMCTL_CHILD_FENTON_SKIP_INTRO=1 "
+        f"exec xcrun simctl launch {shlex.quote(udid)} {shlex.quote(bundle)} --server-ui-preview >/dev/null",
+    ])
+
+
 def launch_live(side: str, udid: str, proxy_url: Optional[str], runner: Runner = run,
                 env: Optional[Mapping[str, str]] = None) -> None:
-    """Token-launch the reference through the guard proxy. Refuses without the go, without a proxy, or for the candidate."""
+    """Launch ``side`` live. Refuses without the go or without a proxy.
+
+    The reference is token-launched with the proxy as its server. The candidate first has its publication staged through the
+    proxy (read-only), then launches in preview mode with the token in its environment only.
+    """
     child = dict(os.environ if env is None else env)
     require_go(child)
-    if side != REFERENCE:
-        raise Refused("the candidate's live preview needs a one-time credential file, which would write the token to disk; not allowed")
     if not proxy_url:
-        raise Refused("the reference may only be launched live with --proxy-url pointing at the write-guard proxy")
+        raise Refused("live launches need --proxy-url pointing at the write-guard proxy")
     child["PROXY_URL"] = proxy_url
-    result = runner(["bash", "-c", live_script(udid)], child, 120.0)
+    if side == REFERENCE:
+        script = live_script(udid)
+    else:
+        child["CONTAINER_DATA"] = str(container(runner, udid, "data"))
+        script = candidate_live_script(udid)
+    result = runner(["bash", "-c", script], child, 300.0)
     if result.code != 0:
-        raise Refused(f"live launch failed (exit {result.code}); credentials or server missing, or simctl failed")
+        raise Refused(f"live launch failed (exit {result.code}); credentials or server missing, staging or simctl failed")
 
 
 def proxy_script(log: Path, listen: str) -> str:

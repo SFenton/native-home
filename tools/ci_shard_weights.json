@@ -58,6 +58,7 @@
  "test_parity_loop_proxy": 0.5,
  "test_parity_loop_run": 1,
  "test_parity_loop_sidecar": 0.3,
+ "test_parity_loop_stage": 0.6,
  "test_pattern_guard": 2.69,
  "test_phase_cost": 0.0,
  "test_pr_land": 1.46,

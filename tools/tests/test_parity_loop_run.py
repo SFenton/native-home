@@ -216,12 +216,11 @@ class LaunchTests(unittest.TestCase):
             code = launch.main(["live", "--side", "reference", "--udid", "U", "--proxy-url", "http://127.0.0.1:1"])
         self.assertEqual(code, 2)
 
-    def test_live_reference_needs_the_proxy_and_the_candidate_is_refused(self) -> None:
+    def test_live_launches_need_the_proxy(self) -> None:
         runner = lambda argv, env=None, timeout=0: Result(0)  # noqa: E731
-        with self.assertRaises(launch.Refused):
-            launch.launch_live("reference", "UDID", None, runner, {"PARITY_LIVE_GO": "1"})
-        with self.assertRaises(launch.Refused):
-            launch.launch_live("candidate", "UDID", "http://127.0.0.1:1", runner, {"PARITY_LIVE_GO": "1"})
+        for side in ("reference", "candidate"):
+            with self.assertRaises(launch.Refused):
+                launch.launch_live(side, "UDID", None, runner, {"PARITY_LIVE_GO": "1"})
 
     def test_live_launch_points_the_reference_at_the_proxy_and_carries_no_secret(self) -> None:
         seen = []
