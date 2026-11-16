@@ -241,6 +241,18 @@ struct ServerUIPartsTests {
         #expect(plain.subtitle == nil && plain.hint == nil && plain.metrics == nil && plain.failureText == nil && plain.glyph == nil)
         #expect(plain.face == .switch && plain.checkTint == nil && !plain.isCheck && plain.sourceIds.isEmpty)
         #expect(plain.resolvedGlyph(in: Reader()) == nil)
+        #expect(!plain.isAuthored && !plain.drawsIcon, "a toggle with no part is the plain switch row, with no glyph column")
+    }
+
+    @Test func theNodeIconDrawsOnlyWithAnAuthoredGlyph() throws {
+        let withGlyph = try boundControl("parts-row-auto-clean-row").row
+        #expect(withGlyph.isAuthored && withGlyph.drawsIcon)
+        var subtitleOnly = ServerUIRowParts()
+        subtitleOnly.hint = "Turns it on."
+        #expect(subtitleOnly.isAuthored && !subtitleOnly.drawsIcon, "a part with no glyph leaves the icon undrawn, as before")
+        var check = ServerUIRowParts()
+        check.face = .check
+        #expect(check.isAuthored && !check.drawsIcon)
     }
 
     // MARK: Refusals

@@ -23,7 +23,7 @@ struct UKServerUIRowDetails: Equatable {
 extension UKServerUIControlSpec {
     /// The parts of a bound toggle drawn as a row (`sh.bound-row-parts@1`, `sh.check-face@1`); a toggle with none is the plain switch row.
     struct Row: Equatable {
-        /// The node's `icon`, in the glyph column (a switch face only).
+        /// The node's `icon`, in the glyph column; set only when a glyph is authored (a switch face only).
         var symbol: String?
         /// Unset keeps the module row.
         var metrics: ServerUIRowParts.Metrics?
@@ -98,6 +98,7 @@ final class UKServerUIRowToggle {
         view.axis = .vertical
         caption.numberOfLines = 0
         caption.isAccessibilityElement = true
+        caption.accessibilityIdentifier = spec.identifier + ".failure"
         caption.accessibilityTraits = .staticText
         caption.translatesAutoresizingMaskIntoConstraints = false
         captionHolder.addSubview(caption)
@@ -190,6 +191,8 @@ final class UKServerUIRowToggle {
             view.setNeedsLayout()
         }
         caption.text = words
+        // Said by its text; set outright so the words are read even where UIKit has not derived a default label.
+        caption.accessibilityLabel = words
         // VoiceOver hears the failure once, when it first appears.
         if let words, !announcedFailure { UIAccessibility.post(notification: .announcement, argument: words) }
         announcedFailure = showing

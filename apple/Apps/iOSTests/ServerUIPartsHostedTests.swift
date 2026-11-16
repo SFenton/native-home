@@ -245,10 +245,12 @@ final class ServerUIPartsHostedTests: XCTestCase {
         XCTAssertEqual(caller.data.first?["option"] as? String, "max_power", "the call carries the item as the entity holds it")
         // A new list arrives: the control follows it, in place.
         store.apply([speed("quiet", options: .array([.string("low"), .string("high")]))])
-        XCTAssertTrue(HostedPage.until(2) {
+        // An async test suspends to let the observation's main-actor hop land; a spinning wait would starve it.
+        let followed = await HostedPage.settle {
             guard let again = self.find(UKSegmentedChoice<String>.self, in: node) else { return false }
             return again.options == ["low", "high"]
-        })
+        }
+        XCTAssertTrue(followed, "the control follows the entity's new list")
     }
 
     func testAListWithFewerThanTwoUsableItemsKeepsTheAuthoredOptions() throws {
@@ -349,7 +351,17 @@ final class ServerUIPartsHostedTests: XCTestCase {
         await host.callRunner.waitForCalls()
         let node = try XCTUnwrap(root.nodes["auto-clean-row"]?.view)
         let landed = await HostedPage.settle { self.spoken(node).contains("Automatic cleaning did not respond.") }
-        XCTAssertTrue(landed, "the failure words show: \(spoken(node))")
+        let captions = all(UILabel.self, in: node).compactMap(\.text)
+        XCTAssertTrue(landed, "the failure words show: \(spoken(node)); labels \(captions); calls \(caller.calls); failed \(host.callRunner.isFailed(node: "auto-clean-row"))")
+        XCTAssertTrue(captions.contains("Automatic cleaning did not respond."), "the caption is drawn under the row")
+    }
+
+    /// A toggle that carries the node icon and no row part is the plain switch row it always was: no glyph column, no module row.
+    func testAToggleWithAnIconAndNoPartKeepsThePlainSwitchRow() throws {
+        let (_, root) = try page("parts-check-explicit-switch-face", width: 390, entities: [autoClean("on")])
+        let node = try XCTUnwrap(root.nodes["auto-clean-row"]?.view as? UKServerUILocalControl)
+        XCTAssertNil(find(UKModuleToggleRow.self, in: node), "no module row")
+        XCTAssertNotNil(find(UISwitch.self, in: node), "the plain switch row")
     }
 
     func testTheGlyphTintFollowsARuleAndFormMetricsDrawTheFormRow() throws {
@@ -425,7 +437,8 @@ final class ServerUIPartsHostedTests: XCTestCase {
         await host.callRunner.waitForCalls()
         XCTAssertEqual(caller.calls, ["homeassistant.toggle"])
         store.apply([room("on")])
-        XCTAssertTrue(HostedPage.until(2) { check.rowContent.check?.isChecked == true })
+        let checked = await HostedPage.settle { check.rowContent.check?.isChecked == true }
+        XCTAssertTrue(checked, "the entity going on checks the row")
     }
 
     func testAnUnavailableCheckRowReadsNotEnabledWithTheUnavailableWordsAsItsHint() throws {

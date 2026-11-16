@@ -116,6 +116,15 @@ public struct ServerUIRowParts: Equatable, Sendable {
     /// Whether the row draws a check mark instead of a switch.
     public var isCheck: Bool { face == .check }
 
+    /// Whether any part is authored: a toggle with none is the plain switch row it always was.
+    public var isAuthored: Bool {
+        subtitle != nil || hint != nil || metrics != nil || failureText != nil || glyph != nil || face != .switch || checkTint != nil
+    }
+
+    /// Whether the node's `icon` is drawn in the row's glyph column: only with an authored glyph, so a toggle that carries an icon and
+    /// no glyph keeps the row it always drew.
+    public var drawsIcon: Bool { glyph != nil }
+
     /// The tint of the glyph now; `previous` is what it showed, kept while a bound color is loading.
     public func resolvedGlyph(in environment: some ServerUIReading, keeping previous: ServerUICompositionDocument.TileFill? = nil)
         -> ServerUICompositionDocument.TileFill? {

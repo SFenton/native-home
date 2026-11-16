@@ -120,16 +120,17 @@ struct UKServerUIBoundBinding: UKServerUIControlBinding {
         return control.options.map { D.LocalField.Option(id: $0.id, label: $0.label) }
     }
 
-    /// The row's structure, for a toggle drawn as a row that has an icon or any part; `nil` is the plain switch row.
+    /// The row's structure, for a toggle drawn as a row that has any authored part; `nil` is the plain switch row.
+    ///
+    /// The node's `icon` is drawn only with an authored glyph (`sh.bound-row-parts@1`): a bound toggle that carries an icon and no part
+    /// keeps the plain switch row it always drew, with no glyph column.
     private var row: UKServerUIControlSpec.Row? {
         guard control.kind == .toggle, control.surface == .row else { return nil }
         let parts = control.row
-        let hasParts = parts.subtitle != nil || parts.hint != nil || parts.metrics != nil || parts.failureText != nil
-            || parts.glyph != nil || parts.face != .switch || parts.checkTint != nil
-        guard control.icon != nil || hasParts else { return nil }
-        return UKServerUIControlSpec.Row(symbol: control.icon?.drawn, metrics: parts.metrics, isCheck: parts.isCheck,
-                                         checkTint: parts.checkTint, hint: parts.hint, failureText: parts.failureText,
-                                         hasSubtitle: parts.subtitle != nil)
+        guard parts.isAuthored else { return nil }
+        return UKServerUIControlSpec.Row(symbol: parts.drawsIcon ? control.icon?.drawn : nil, metrics: parts.metrics,
+                                         isCheck: parts.isCheck, checkTint: parts.checkTint, hint: parts.hint,
+                                         failureText: parts.failureText, hasSubtitle: parts.subtitle != nil)
     }
 
     func rowDetails() -> UKServerUIRowDetails? {
