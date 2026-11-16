@@ -425,7 +425,7 @@ struct ServerUIFlowSessionTests {
     @Test func aFlowThatDoesNotReadTheClockNeverReadsIt() async throws {
         let ticking = Ticking()
         let collection = ServerUIRowCollection()
-        let host = ServerUIFlowHost(call: { _, _, _, _, _ in .array([]) }, clock: { ticking.read() })
+        let host = ServerUIFlowHost(call: { _, _, _, _, _ in .array([.object(["id": .string("a"), "title": .string("One")])]) }, clock: { ticking.read() })
         ServerUIFlowSession(flow: try Self.serviceFlow(), collection: collection, host: host).start()
         #expect(await eventually { collection.phase == .ready })
         #expect(ticking.reads == 0, "no read, so the app's tick has nothing to keep alive")
