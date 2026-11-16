@@ -11,6 +11,10 @@ struct ServerUIExpressionParser {
     static let maximumDepth = 8
     static let maximumNodes = 64
     static let maximumCallNodes = 128
+    /// Nodes in one rule's or flow's condition, and how deep it nests (a document predicate keeps the operand limits).
+    static let maximumConditionNodes = 32
+    static let maximumConditionDepth = 6
+    static let maximumRuleCases = 16
 
     /// A place an expression names a source, for the compiler's reference checks.
     struct Reference: Equatable {
@@ -29,23 +33,40 @@ struct ServerUIExpressionParser {
     private(set) var usesControl = false
     /// Whether any operand (not only a predicate) was parsed, which needs `sh.operands@1`.
     private(set) var usedOperands = false
+    /// The capabilities (without `sh.` and `@1`) the walk found beyond the base grammar: `pipeline-operands`, `conditions`, `rules`.
+    private(set) var needs: Set<String> = []
     private var budget = 0
+    /// Nodes left for the condition being walked; `nil` for a document predicate, whose limits are the operand ones.
+    private var conditionBudget: Int?
     private let allowControl: Bool
+    /// True inside a Data Flow, where `item` and `param` may stand and `control` may not.
+    private let flow: Bool
 
-    init(allowControl: Bool = false) { self.allowControl = allowControl }
+    /// Builds the typed form without the compiler's judgement on where an expression may stand and what kinds it combines: no
+    /// `binding_type` or `invalid_combination` issue, and a `null` literal is allowed. Evaluation is total, so the evaluation corpus
+    /// holds subjects the compiler would refuse (a `null`, an `item` outside a flow) to pin what they evaluate to.
+    private let evaluationOnly: Bool
+
+    init(allowControl: Bool = false, flow: Bool = false, evaluationOnly: Bool = false) {
+        self.allowControl = allowControl
+        self.flow = flow
+        self.evaluationOnly = evaluationOnly
+    }
 
     // MARK: Entry points
 
     /// Parses one operand.
     mutating func operand(_ json: JSONValue, at pointer: String) -> ServerUIOperand? {
         budget = Self.maximumNodes
+        conditionBudget = nil
         return operand(json, pointer, depth: 1)
     }
 
     /// Parses one predicate.
     mutating func predicate(_ json: JSONValue, at pointer: String) -> ServerUIPredicate? {
         budget = Self.maximumNodes
-        return predicate(json, pointer, depth: 1)
+        conditionBudget = flow ? Self.maximumConditionNodes : nil
+        return predicate(json, pointer, depth: 1, conditionDepth: 1)
     }
 
     /// Parses a `call-service` action (the whole object, `type` included).
@@ -120,7 +141,7 @@ struct ServerUIExpressionParser {
             return .read(sourceId: sourceId, path: path, as: kind)
         case "control":
             guard fields(json, pointer, ["type"]) != nil else { return nil }
-            if !allowControl { add(.invalidCombination, pointer) }
+            if !allowControl || flow { add(.invalidCombination, pointer) }
             usesControl = true
             return .control
         case "viewer":
@@ -132,6 +153,48 @@ struct ServerUIExpressionParser {
             return .viewer(field)
         case "format": return format(json, pointer, depth: depth)
         case "map": return map(json, pointer, depth: depth)
+        case "choose": return choose(json, pointer, depth: depth)
+        case "item":
+            needs.insert("pipeline-operands")
+            guard let object = fields(json, pointer, ["type", "path"]) else { return nil }
+            if !flow { add(.invalidCombination, pointer) }
+            guard case .array(let items)? = object["path"] else { add(.invalidValue, pointer + "/path"); return nil }
+            if items.count > 8 { add(.limitExceeded, pointer + "/path") }
+            var path: [String] = []
+            for (index, item) in items.enumerated() {
+                guard case .string(let segment) = item else { add(.invalidValue, pointer + "/path/\(index)"); continue }
+                if segment.utf8.count > 160 || ["__proto__", "prototype", "constructor"].contains(segment)
+                    || !ServerUICompositionShape.matches(segment, "^[A-Za-z0-9_-]+$") || segment.allSatisfy(\.isNumber) {
+                    add(.invalidReference, pointer + "/path/\(index)")
+                }
+                path.append(segment)
+            }
+            return path.count == items.count && items.count <= 8 ? .item(path: path) : nil
+        case "param":
+            needs.insert("pipeline-operands")
+            guard let object = fields(json, pointer, ["type", "name"]) else { return nil }
+            if !flow { add(.invalidCombination, pointer) }
+            guard case .string(let name)? = object["name"], ServerUICompositionShape.matches(name, "^[A-Za-z_][A-Za-z0-9_]{0,31}$") else {
+                add(object["name"] == nil ? .missingRequired : .invalidValue, pointer + "/name")
+                return nil
+            }
+            return .param(name: name)
+        case "clock":
+            needs.insert("pipeline-operands")
+            guard let object = fields(json, pointer, ["type", "part"]) else { return nil }
+            guard case .string(let raw)? = object["part"], let part = ServerUIOperand.ClockPart(rawValue: raw) else {
+                add(object["part"] == nil ? .missingRequired : .unknownVariant, pointer + "/part")
+                return nil
+            }
+            return .clock(part)
+        case "date":
+            needs.insert("pipeline-operands")
+            guard let object = fields(json, pointer, ["type", "op", "from", "to"]) else { return nil }
+            if object["op"] != .string("days-between") { add(.unknownVariant, pointer + "/op") }
+            let from = operand(object["from"] ?? .null, pointer + "/from", depth: depth + 1)
+            let to = operand(object["to"] ?? .null, pointer + "/to", depth: depth + 1)
+            guard let from, let to, object["op"] == .string("days-between") else { return nil }
+            return .date(from: from, to: to)
         case "math":
             guard let object = fields(json, pointer, ["type", "op", "args"]) else { return nil }
             guard case .string(let raw)? = object["op"], let op = ServerUIOperand.MathOp(rawValue: raw) else {
@@ -186,12 +249,25 @@ struct ServerUIExpressionParser {
             if rawArgs[name] == nil { add(.invalidReference, pointer + "/pattern") }
             rest = rest[rest.index(after: close)...]
         }
-        var formats: [String: ServerUINumberFormat] = [:]
+        var formats: [String: ServerUIFormatSpec] = [:]
         if let raw = object["formats"] {
             guard case .object(let items) = raw else { add(.invalidValue, pointer + "/formats"); return nil }
             for (key, item) in items.sorted(by: { $0.key < $1.key }) {
                 let at = ServerUICompositionJSON.pointer(pointer + "/formats", key)
                 if rawArgs[key] == nil { add(.invalidReference, at) }
+                guard case .object(let spec) = item else { add(.invalidValue, at); continue }
+                if spec["date"] != nil, spec.count == 1 {
+                    needs.insert("pipeline-operands")
+                    guard let wrapper = fields(spec["date"] ?? .null, at + "/date", ["style"]),
+                          case .string(let raw)? = wrapper["style"], let style = ServerUIDateStyle(rawValue: raw) else {
+                        if issues.last?.pointer.hasPrefix(at) != true { add(.unknownVariant, at + "/date/style") }
+                        continue
+                    }
+                    // A date style draws a date or a date and time: text. A kind that is known and is not text cannot be one.
+                    if let kind = args[key].flatMap(Self.kind), kind != .string { add(.bindingType, at) }
+                    formats[key] = .date(style)
+                    continue
+                }
                 guard let wrapper = fields(item, at, ["number"]), let number = fields(wrapper["number"] ?? .null, at + "/number",
                                                                                        ["maximumFractionDigits"]),
                       case .number(let digits)? = number["maximumFractionDigits"], digits.rounded() == digits, (0...6).contains(digits)
@@ -199,7 +275,7 @@ struct ServerUIExpressionParser {
                     if issues.last?.pointer.hasPrefix(at) != true { add(.invalidValue, at + "/number/maximumFractionDigits") }
                     continue
                 }
-                formats[key] = ServerUINumberFormat(maximumFractionDigits: Int(digits))
+                formats[key] = .number(ServerUINumberFormat(maximumFractionDigits: Int(digits)))
             }
         }
         return args.count == rawArgs.count ? .format(pattern: pattern, args: args, formats: formats) : nil
@@ -227,6 +303,58 @@ struct ServerUIExpressionParser {
         return .map(of: subject, cases: cases, otherwise: otherwise)
     }
 
+    private mutating func choose(_ json: JSONValue, _ pointer: String, depth: Int) -> ServerUIOperand? {
+        needs.insert("rules")
+        guard let object = fields(json, pointer, ["type", "cases", "otherwise"]) else { return nil }
+        guard case .array(let items)? = object["cases"] else { add(.invalidValue, pointer + "/cases"); return nil }
+        if items.isEmpty || items.count > Self.maximumRuleCases { add(.limitExceeded, pointer + "/cases") }
+        var cases: [ServerUIOperand.ChooseCase] = []
+        for (index, item) in items.enumerated() {
+            let at = pointer + "/cases/\(index)"
+            guard let entry = fields(item, at, ["when", "then"]) else { continue }
+            conditionBudget = Self.maximumConditionNodes
+            let when = predicate(entry["when"] ?? .null, at + "/when", depth: depth + 1, conditionDepth: 1)
+            let then = operand(entry["then"] ?? .null, at + "/then", depth: depth + 1)
+            if let when, let then { cases.append(.init(when: when, then: then)) }
+        }
+        let otherwise = operand(object["otherwise"] ?? .null, pointer + "/otherwise", depth: depth + 1)
+        // The branches of a rule give one kind: a mismatch is reported at the second branch that disagrees.
+        let kinds = cases.enumerated().map { (Self.kind($0.element.then), pointer + "/cases/\($0.offset)/then") }
+            + [(otherwise.flatMap(Self.kind), pointer + "/otherwise")]
+        if let first = kinds.first(where: { $0.0 != nil })?.0,
+           let clash = kinds.first(where: { $0.0 != nil && $0.0 != first }) { add(.bindingType, clash.1) }
+        guard let otherwise, cases.count == items.count, !cases.isEmpty, items.count <= Self.maximumRuleCases else { return nil }
+        return .choose(cases: cases, otherwise: otherwise)
+    }
+
+    /// The kind an operand gives when it can be told without typing; `nil` when it cannot. Used for the rule and comparison checks.
+    enum Kind { case string, number, boolean, structure }
+
+    static func kind(_ operand: ServerUIOperand) -> Kind? {
+        switch operand {
+        case .literal(let value):
+            switch value {
+            case .string: .string
+            case .number: .number
+            case .bool: .boolean
+            case .null: nil
+            case .array, .object: .structure
+            }
+        case .read(_, _, let kind):
+            switch kind {
+            case .string, .entityID: .string
+            case .number: .number
+            case .boolean: .boolean
+            }
+        case .viewer(let field): field == .isAdmin ? .boolean : .string
+        case .format, .clock: .string
+        case .math, .date: .number
+        case .object, .list: .structure
+        case .map(_, _, let otherwise), .choose(_, let otherwise): kind(otherwise)
+        case .control, .item, .param: nil
+        }
+    }
+
     /// A literal JSON value: bounded text, finite numbers, shallow nesting.
     private mutating func literal(_ value: JSONValue, _ pointer: String, depth: Int) -> Bool {
         switch value {
@@ -235,7 +363,10 @@ struct ServerUIExpressionParser {
         case .number(let number):
             if !number.isFinite { add(.invalidValue, pointer); return false }
         case .bool: break
-        case .null: add(.invalidValue, pointer); return false
+        case .null:
+            if evaluationOnly { return true }
+            add(.invalidValue, pointer)
+            return false
         case .array(let items):
             guard depth <= 4, items.count <= 64 else { add(.limitExceeded, pointer); return false }
             var ok = true
@@ -253,9 +384,13 @@ struct ServerUIExpressionParser {
 
     // MARK: Predicates
 
-    private mutating func predicate(_ json: JSONValue, _ pointer: String, depth: Int) -> ServerUIPredicate? {
+    private mutating func predicate(_ json: JSONValue, _ pointer: String, depth: Int, conditionDepth: Int) -> ServerUIPredicate? {
         guard depth <= Self.maximumDepth, budget > 0 else { add(.limitExceeded, pointer); return nil }
         budget -= 1
+        if let remaining = conditionBudget {
+            guard conditionDepth <= Self.maximumConditionDepth, remaining > 0 else { add(.limitExceeded, pointer); return nil }
+            conditionBudget = remaining - 1
+        }
         guard case .object(let object) = json else { add(.invalidValue, pointer); return nil }
         guard let tag = object["type"] else { add(.missingRequired, pointer + "/type"); return nil }
         guard case .string(let type) = tag else { add(.invalidValue, pointer + "/type"); return nil }
@@ -297,13 +432,48 @@ struct ServerUIExpressionParser {
             guard let object = fields(json, pointer, ["type", "of"]) else { return nil }
             guard case .array(let items)? = object["of"] else { add(.invalidValue, pointer + "/of"); return nil }
             if items.isEmpty || items.count > 16 { add(.limitExceeded, pointer + "/of") }
-            let parts = items.enumerated().compactMap { predicate($0.element, pointer + "/of/\($0.offset)", depth: depth + 1) }
+            let parts = items.enumerated().compactMap {
+                predicate($0.element, pointer + "/of/\($0.offset)", depth: depth + 1, conditionDepth: conditionDepth + 1)
+            }
             guard parts.count == items.count, !parts.isEmpty, items.count <= 16 else { return nil }
             return type == "all" ? .all(parts) : .any(parts)
         case "not":
             guard let object = fields(json, pointer, ["type", "of"]),
-                  let part = predicate(object["of"] ?? .null, pointer + "/of", depth: depth + 1) else { return nil }
+                  let part = predicate(object["of"] ?? .null, pointer + "/of", depth: depth + 1, conditionDepth: conditionDepth + 1)
+            else { return nil }
             return .not(part)
+        case "compare":
+            needs.insert("conditions")
+            guard let object = fields(json, pointer, ["type", "op", "left", "right"]) else { return nil }
+            let op: ServerUIPredicate.CompareOp?
+            if case .string(let raw)? = object["op"], let known = ServerUIPredicate.CompareOp(rawValue: raw) { op = known }
+            else { add(.unknownVariant, pointer + "/op"); op = nil }
+            let left = operand(object["left"] ?? .null, pointer + "/left", depth: depth + 1)
+            let right = operand(object["right"] ?? .null, pointer + "/right", depth: depth + 1)
+            guard let op, let left, let right else { return nil }
+            // `above` and `below` take numbers; `before` and `after` take date text.
+            let want: Kind? = op == .above || op == .below ? .number : op == .before || op == .after ? .string : nil
+            let (a, b) = (Self.kind(left), Self.kind(right))
+            if let want, (a != nil && a != want) || (b != nil && b != want) {
+                add(.bindingType, pointer + (a != nil && a != want ? "/left" : "/right"))
+            } else if want == nil, let a, let b, a != b, a != .structure, b != .structure {
+                add(.bindingType, pointer + "/right")
+            }
+            return .compare(op, left: left, right: right)
+        case "in":
+            needs.insert("conditions")
+            guard let object = fields(json, pointer, ["type", "value", "in"]) else { return nil }
+            let value = operand(object["value"] ?? .null, pointer + "/value", depth: depth + 1)
+            guard case .array(let items)? = object["in"] else { add(.invalidValue, pointer + "/in"); return nil }
+            if items.isEmpty || items.count > 16 { add(.limitExceeded, pointer + "/in") }
+            let options = items.enumerated().compactMap { operand($0.element, pointer + "/in/\($0.offset)", depth: depth + 1) }
+            guard let value, options.count == items.count, !options.isEmpty, items.count <= 16 else { return nil }
+            return .in(value: value, options: options)
+        case "exists":
+            needs.insert("conditions")
+            guard let object = fields(json, pointer, ["type", "value"]),
+                  let value = operand(object["value"] ?? .null, pointer + "/value", depth: depth + 1) else { return nil }
+            return .exists(value)
         default:
             add(.unknownVariant, pointer + "/type")
             return nil
@@ -426,7 +596,10 @@ struct ServerUIExpressionParser {
         return ok ? object : nil
     }
 
-    private mutating func add(_ code: Issue.Code, _ pointer: String) { issues.append(Issue(code, pointer)) }
+    private mutating func add(_ code: Issue.Code, _ pointer: String) {
+        if evaluationOnly, code == .bindingType || code == .invalidCombination { return }
+        issues.append(Issue(code, pointer))
+    }
 
     private static func isIdentifier(_ value: JSONValue) -> Bool {
         switch value {

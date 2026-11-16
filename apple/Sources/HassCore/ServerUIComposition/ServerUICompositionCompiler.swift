@@ -977,6 +977,7 @@ struct ServerUICompositionCompiler {
         expressionRefs += parser.references
         optimisticRefs += parser.optimisticReferences
         if parser.usedOperands { require("operands") }
+        for need in parser.needs { require(need) }
         if !parser.references.isEmpty || !parser.optimisticReferences.isEmpty { require("bindings") }
         if let first = parser.issues.first {
             issues += parser.issues
