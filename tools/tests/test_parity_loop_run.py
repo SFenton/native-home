@@ -135,7 +135,7 @@ class RunTests(unittest.TestCase):
         opens = [c for c in self.world.calls["reference"] if c[0] == "open"]
         self.assertEqual(len(opens), 2)
         self.assertIn("--launch-args=--gallery-fixture", opens[0])
-        self.assertEqual(self.world.pressed("candidate"), ['label="Chores"'])
+        self.assertEqual(self.world.pressed("candidate"), ["30"])  # the centre of the Chores button in the fake tree
         bootstrap = json.loads((self.world.root / "reference" / "data" / "Library" / "Application Support" / "GalleryFixture" / "bootstrap.json").read_text())
         self.assertEqual(bootstrap["variables"]["FENTON_GALLERY"], "chores")
         car = read_json(folder / "candidate.sidecar.json")
