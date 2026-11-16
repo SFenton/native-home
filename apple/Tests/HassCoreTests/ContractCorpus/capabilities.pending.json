@@ -2,7 +2,6 @@
   "sh.action-rules@1",
   "sh.app-state@1",
   "sh.badges@1",
-  "sh.component-ref@1",
   "sh.conditions@1",
   "sh.confirm-when@1",
   "sh.enabled-when@1",
