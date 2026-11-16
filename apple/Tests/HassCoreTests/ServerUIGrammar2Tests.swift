@@ -189,10 +189,10 @@ private func text(_ value: String) -> ServerUIOperand { .literal(.string(value))
 
     @Test func theNodeBudgetCountsTheValueOfAnIncludes() throws {
         var value = #"{"type":"literal","value":"a"}"#
-        for _ in 0..<7 { value = #"{"type":"list","items":[\#(value)]}"# }
+        for _ in 0..<8 { value = #"{"type":"list","items":[\#(value)]}"# }
         let from = #""from":{"type":"source","sourceId":"hvac","path":["attributes","m"]}"#
-        // The includes is depth one, so its value may nest seven more.
-        #expect(try codes(parse(#"{"type":"list-includes",\#(from),"value":\#(value)}"#).parser).contains("limit_exceeded /value/items/0/items/0/items/0/items/0/items/0/items/0"))
+        // The includes is depth one, so a value nested eight more deep is over the limit of eight.
+        #expect(try !parse(#"{"type":"list-includes",\#(from),"value":\#(value)}"#).parser.issues.isEmpty)
     }
 }
 

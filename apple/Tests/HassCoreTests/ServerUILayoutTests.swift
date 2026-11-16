@@ -34,7 +34,7 @@ struct ServerUILayoutTests {
     // MARK: Decode
 
     @Test func tabAreasKeepDocumentOrderAndScope() throws {
-        guard case .localTabs(let tabs) = try component("reject/pending-tab-blocks-shared-tab-shared-tab.json") else { Issue.record("not tabs"); return }
+        guard case .localTabs(let tabs) = try component("accept/tab-blocks-shared-tab-shared-tab.json") else { Issue.record("not tabs"); return }
         #expect(tabs.areas.count == 5)
         #expect(tabs.areas.first?.scope == .all)
         #expect(tabs.areas.map(\.scope).contains { if case .tabs(let ids) = $0 { ids.count == 1 } else { false } })
@@ -42,7 +42,7 @@ struct ServerUILayoutTests {
     }
 
     @Test func anAreaForTwoTabsShowsOnBothAndOnNoOther() throws {
-        guard case .localTabs(let tabs) = try component("reject/pending-tab-blocks-two-tabs.json") else { Issue.record("not tabs"); return }
+        guard case .localTabs(let tabs) = try component("accept/tab-blocks-two-tabs.json") else { Issue.record("not tabs"); return }
         let shared = try #require(tabs.areas.first { if case .tabs(let ids) = $0.scope { ids.count == 2 } else { false } })
         let shown = tabs.tabs.map(\.id).filter { shared.scope.shows(on: $0) }
         #expect(shown.count == 2)
@@ -53,19 +53,19 @@ struct ServerUILayoutTests {
 
     @Test(arguments: [("top", "titles"), ("bottom", "icons")])
     func tabBarSettingsDecode(placement: String, labels: String) throws {
-        guard case .localTabs(let tabs) = try component("reject/pending-tab-bar-\(placement)-\(labels).json") else { Issue.record("not tabs"); return }
+        guard case .localTabs(let tabs) = try component("accept/tab-bar-\(placement)-\(labels).json") else { Issue.record("not tabs"); return }
         #expect(tabs.tabBar?.placement.rawValue == placement)
         #expect(tabs.tabBar?.labels.rawValue == labels)
         #expect(tabs.pinned == (placement == "bottom"))
     }
 
     @Test func fallbackTabDecodes() throws {
-        guard case .localTabs(let tabs) = try component("reject/pending-tab-fallback-second-tab.json") else { Issue.record("not tabs"); return }
+        guard case .localTabs(let tabs) = try component("accept/tab-fallback-second-tab.json") else { Issue.record("not tabs"); return }
         #expect(tabs.fallbackTabId == "two")
     }
 
     @Test func overlayKeepsTheBaseFirstAndEveryAnchor() throws {
-        guard case .overlay(let overlay) = try component("reject/pending-overlay-five-anchors.json") else { Issue.record("not an overlay"); return }
+        guard case .overlay(let overlay) = try component("accept/overlay-five-anchors.json") else { Issue.record("not an overlay"); return }
         #expect(overlay.children.count == 5)
         #expect(overlay.anchors.map(\.anchor) == [.topLeading, .topTrailing, .bottomLeading, .bottomTrailing])
         #expect(overlay.placement(of: overlay.children[0].node.id) == nil)
@@ -73,21 +73,21 @@ struct ServerUILayoutTests {
     }
 
     @Test func tilePartsDecodeTheProgressAndTheDestination() throws {
-        guard case .stateTile(let tile) = try component("reject/pending-tile-parts-progress-math.json") else { Issue.record("not a tile"); return }
+        guard case .stateTile(let tile) = try component("accept/tile-parts-progress-math.json") else { Issue.record("not a tile"); return }
         #expect(tile.parts.progress != nil)
-        guard case .stateTile(let linked) = try component("reject/pending-tile-parts-destination.json") else { Issue.record("not a tile"); return }
+        guard case .stateTile(let linked) = try component("accept/tile-parts-destination.json") else { Issue.record("not a tile"); return }
         #expect(linked.action != nil)
     }
 
     @Test func aBadgeOnATileDecodesAndNoneDrawsNothing() throws {
-        guard case .navigationTile(let tile) = try component("reject/pending-badge-tiles.json", at: 0),
-              case .stateTile(let plain) = try component("reject/pending-badge-tiles.json", at: 1) else { Issue.record("wrong nodes"); return }
+        guard case .navigationTile(let tile) = try component("accept/badge-tiles.json", at: 0),
+              case .stateTile(let plain) = try component("accept/badge-tiles.json", at: 1) else { Issue.record("wrong nodes"); return }
         #expect(tile.node.badgeValue == .literal(.string("New")))
         #expect(plain.node.badgeValue == nil)
     }
 
     @Test func anUnsetSpanReadsAsOneColumnAndTheGridDecides() throws {
-        let url = ServerUIContractCorpusTests.directory.appendingPathComponent("reject/pending-overlay-five-anchors.json")
+        let url = ServerUIContractCorpusTests.directory.appendingPathComponent("accept/overlay-five-anchors.json")
         var object = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         func strip(_ value: Any) -> Any {
             if var dictionary = value as? [String: Any] {
