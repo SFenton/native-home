@@ -31,7 +31,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: kept)
         if let tileProps {
             var caps = try XCTUnwrap(json["capabilities"]?.array)
-            caps = Array(Set(caps + [.string("sh.call-service@1")]))
+            caps = Array(Set(caps + [.string("sh.call-service@1"), .string("sh.operands@1")]))
             json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(caps.sorted { $0.string ?? "" < $1.string ?? "" }))
         }
         if let tileProps { json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components/0/props", to: tileProps) }
