@@ -221,7 +221,7 @@ struct ServerUIFlowSessionTests {
 
     // MARK: The connection feed
 
-    @Test func theConnectionFeedSubscribesWithRetryAndDeliversPushes() throws {
+    @Test func theConnectionFeedSubscribesWithRetryAndDeliversPushes() async throws {
         let mock = HAMockConnection()
         let snapshot = EntitySnapshotCache(fileURL: FileManager.default.temporaryDirectory.appending(path: "snap-\(UUID()).json"))
         let connection = HassConnection(server: .example, store: EntityStore(), snapshotCache: snapshot, connection: mock)
