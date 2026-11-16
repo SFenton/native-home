@@ -3613,37 +3613,19 @@
       "note": "A condition can read a model source: shown while a home status is active."
     },
     {
-      "file": "reject/pending-rules-choose-text.json",
-      "outcome": "reject",
-      "note": "An authored string made by a rule: the first case that holds gives the text.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/13",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/rules-choose-text.json",
+      "outcome": "accept",
+      "note": "An authored string made by a rule: the first case that holds gives the text."
     },
     {
-      "file": "reject/pending-rules-expr-format.json",
-      "outcome": "reject",
-      "note": "An authored string that formats a number read from an entity.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/rules-expr-format.json",
+      "outcome": "accept",
+      "note": "An authored string that formats a number read from an entity."
     },
     {
-      "file": "reject/pending-rules-conditional-look.json",
-      "outcome": "reject",
-      "note": "A chip whose icon, glyph and fill follow a condition, each case an exact literal.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/13",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/rules-conditional-look.json",
+      "outcome": "accept",
+      "note": "A chip whose icon, glyph and fill follow a condition, each case an exact literal."
     },
     {
       "file": "accept/app-state-window.json",
@@ -3651,26 +3633,14 @@
       "note": "A text slot reads the window topic of the app state: widthClass."
     },
     {
-      "file": "reject/pending-app-state-clock.json",
-      "outcome": "reject",
-      "note": "A text slot reads the clock topic of the app state: minuteOfDay.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/app-state-clock.json",
+      "outcome": "accept",
+      "note": "A text slot reads the clock topic of the app state: minuteOfDay."
     },
     {
-      "file": "reject/pending-app-state-os.json",
-      "outcome": "reject",
-      "note": "A text slot reads the os topic of the app state: reduceMotion.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/app-state-os.json",
+      "outcome": "accept",
+      "note": "A text slot reads the os topic of the app state: reduceMotion."
     },
     {
       "file": "accept/app-state-notifications.json",
@@ -3678,15 +3648,9 @@
       "note": "A text slot reads the notifications topic of the app state: permission."
     },
     {
-      "file": "reject/pending-app-state-preferences.json",
-      "outcome": "reject",
-      "note": "A text slot reads the preferences topic of the app state: showCountOnIcon.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/app-state-preferences.json",
+      "outcome": "accept",
+      "note": "A text slot reads the preferences topic of the app state: showCountOnIcon."
     },
     {
       "file": "accept/app-state-condition.json",
@@ -3699,15 +3663,9 @@
       "note": "A condition reads the phase of a topic, so it can wait for the first answer."
     },
     {
-      "file": "reject/pending-home-status-counts.json",
-      "outcome": "reject",
-      "note": "A home status gives its count, total and unavailable count; a chip text shows the count and a node hides at zero.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/14",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/home-status-counts.json",
+      "outcome": "accept",
+      "note": "A home status gives its count, total and unavailable count; a chip text shows the count and a node hides at zero."
     },
     {
       "file": "reject/conditions-compare-above-text.json",
@@ -3815,13 +3773,7 @@
       "file": "reject/rules-choose-no-otherwise.json",
       "outcome": "reject",
       "note": "A rule always has an otherwise: never an implicit look.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/value/value/otherwise"
       }
@@ -3830,13 +3782,7 @@
       "file": "reject/rules-choose-over-16-cases.json",
       "outcome": "reject",
       "note": "A rule has at most 16 cases.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/props/value/value/cases"
       }
@@ -3845,13 +3791,7 @@
       "file": "reject/rules-choose-empty.json",
       "outcome": "reject",
       "note": "A rule has at least one case.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/props/value/value/cases"
       }
@@ -3860,13 +3800,7 @@
       "file": "reject/rules-choose-mixed-kinds.json",
       "outcome": "reject",
       "note": "The branches of a rule give one kind: text and a number are refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/value/value/otherwise"
       }
@@ -3875,39 +3809,21 @@
       "file": "reject/rules-expr-structure.json",
       "outcome": "reject",
       "note": "An authored string is text, a number or a boolean, never a list or an object.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/value/value"
       }
     },
     {
-      "file": "reject/pending-rules-conditional-navigation-fill.json",
-      "outcome": "reject",
-      "note": "A navigation tile fill that follows a condition: a case is an exact fill, never clamped.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/13",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/rules-conditional-navigation-fill.json",
+      "outcome": "accept",
+      "note": "A navigation tile fill that follows a condition: a case is an exact fill, never clamped."
     },
     {
       "file": "reject/rules-conditional-alarm-fill.json",
       "outcome": "reject",
       "note": "An alarm appearance is a keyed state table and stays literal: a conditional fill is refused there.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/alarm/states/0/appearance/fill/blue"
       }
@@ -3916,13 +3832,7 @@
       "file": "reject/rules-conditional-no-otherwise.json",
       "outcome": "reject",
       "note": "A conditional look has an otherwise.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/fill/otherwise"
       }
@@ -3931,13 +3841,7 @@
       "file": "reject/rules-conditional-bad-case-look.json",
       "outcome": "reject",
       "note": "A conditional fill case holds a literal fill: a read is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/fill/cases/0/then/type"
       }
@@ -3946,13 +3850,7 @@
       "file": "reject/rules-conditional-over-16-cases.json",
       "outcome": "reject",
       "note": "A conditional look has at most 16 cases.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/fill/cases"
       }
@@ -4012,60 +3910,30 @@
       }
     },
     {
-      "file": "reject/pending-enabled-when-row.json",
-      "outcome": "reject",
-      "note": "A row with an action is enabled only while a condition holds; while it cannot be answered it stays disabled.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.enabled-when@1"
-      }
+      "file": "accept/enabled-when-row.json",
+      "outcome": "accept",
+      "note": "A row with an action is enabled only while a condition holds; while it cannot be answered it stays disabled."
     },
     {
-      "file": "reject/pending-enabled-when-button.json",
-      "outcome": "reject",
-      "note": "A button keeps what it was while the condition cannot be answered.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.enabled-when@1"
-      }
+      "file": "accept/enabled-when-button.json",
+      "outcome": "accept",
+      "note": "A button keeps what it was while the condition cannot be answered."
     },
     {
-      "file": "reject/pending-enabled-when-bound-control.json",
-      "outcome": "reject",
-      "note": "A bound control is enabled by a condition over an app state topic.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.enabled-when@1"
-      }
+      "file": "accept/enabled-when-bound-control.json",
+      "outcome": "accept",
+      "note": "A bound control is enabled by a condition over an app state topic."
     },
     {
-      "file": "reject/pending-enabled-when-state-tile.json",
-      "outcome": "reject",
-      "note": "A state tile is enabled by a condition.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.enabled-when@1"
-      }
+      "file": "accept/enabled-when-state-tile.json",
+      "outcome": "accept",
+      "note": "A state tile is enabled by a condition."
     },
     {
       "file": "reject/enabled-when-row-without-action.json",
       "outcome": "reject",
       "note": "enabledWhen needs an action to enable: a row with none is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.enabled-when@1"
-      },
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/enabledWhen"
       }
@@ -4074,13 +3942,7 @@
       "file": "reject/enabled-when-missing-policy.json",
       "outcome": "reject",
       "note": "enabledWhen always says what to do while the condition cannot be answered.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.enabled-when@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/enabledWhen/whenUnknown"
       }
@@ -4089,13 +3951,7 @@
       "file": "reject/enabled-when-visibility-policy.json",
       "outcome": "reject",
       "note": "The policies are enabled, disabled and keep; show and hide belong to visibleWhen.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.enabled-when@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/enabledWhen/whenUnknown"
       }
@@ -4104,13 +3960,7 @@
       "file": "reject/enabled-when-on-text.json",
       "outcome": "reject",
       "note": "A text node has nothing to enable.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.enabled-when@1"
-      },
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/enabledWhen"
       }
@@ -4119,13 +3969,7 @@
       "file": "reject/enabled-when-unknown-reference.json",
       "outcome": "reject",
       "note": "The condition reads a source the document has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.enabled-when@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/enabledWhen/condition/left/from/sourceId"
       }
@@ -4172,60 +4016,30 @@
       }
     },
     {
-      "file": "reject/pending-bound-color-chip.json",
-      "outcome": "reject",
-      "note": "A chip whose fill and glyph come from an entity color; each has an exact fallback.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/bound-color-chip.json",
+      "outcome": "accept",
+      "note": "A chip whose fill and glyph come from an entity color; each has an exact fallback."
     },
     {
-      "file": "reject/pending-bound-color-navigation-tile.json",
-      "outcome": "reject",
-      "note": "A navigation tile fill from an entity color.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/bound-color-navigation-tile.json",
+      "outcome": "accept",
+      "note": "A navigation tile fill from an entity color."
     },
     {
-      "file": "reject/pending-bound-color-navigation-tile-conditional.json",
-      "outcome": "reject",
-      "note": "A navigation tile fill that follows a rule: a case is an exact color.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/bound-color-navigation-tile-conditional.json",
+      "outcome": "accept",
+      "note": "A navigation tile fill that follows a rule: a case is an exact color."
     },
     {
-      "file": "reject/pending-bound-color-room-card-state-colors.json",
-      "outcome": "reject",
-      "note": "A room card color for one state, from an entity color.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/13",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/bound-color-room-card-state-colors.json",
+      "outcome": "accept",
+      "note": "A room card color for one state, from an entity color."
     },
     {
       "file": "reject/bound-color-no-fallback.json",
       "outcome": "reject",
       "note": "A bound color always has a fallback: never an implicit look.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/fill/fallback"
       }
@@ -4234,13 +4048,7 @@
       "file": "reject/bound-color-number-value.json",
       "outcome": "reject",
       "note": "A color is text: a number read is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/fill/value"
       }
@@ -4249,13 +4057,7 @@
       "file": "reject/bound-color-glyph-standard-fallback.json",
       "outcome": "reject",
       "note": "A glyph has no standard look: its fallback is an exact color.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/fallback/blue"
       }
@@ -4264,13 +4066,7 @@
       "file": "reject/bound-color-inside-conditional.json",
       "outcome": "reject",
       "note": "A conditional case holds an exact color, never a bound one.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/fill/cases/0/then/type"
       }
@@ -4279,13 +4075,7 @@
       "file": "reject/bound-color-bad-reference.json",
       "outcome": "reject",
       "note": "The value reads a source the document has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/fill/value/from/sourceId"
       }
@@ -4294,39 +4084,21 @@
       "file": "reject/bound-color-on-alarm-fill.json",
       "outcome": "reject",
       "note": "A keyed state table stays literal: an alarm appearance takes no bound color.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/alarm/states/0/appearance/fill/blue"
       }
     },
     {
-      "file": "reject/pending-bound-symbol-chip.json",
-      "outcome": "reject",
-      "note": "A chip icon named by an entity, with a required fallback symbol.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/bound-symbol-chip.json",
+      "outcome": "accept",
+      "note": "A chip icon named by an entity, with a required fallback symbol."
     },
     {
       "file": "reject/bound-symbol-no-fallback.json",
       "outcome": "reject",
       "note": "A bound symbol always has a fallback.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/icon/fallback"
       }
@@ -4335,13 +4107,7 @@
       "file": "reject/bound-symbol-number-value.json",
       "outcome": "reject",
       "note": "A symbol name is text: a number read is refused.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/icon/value"
       }
@@ -4350,50 +4116,26 @@
       "file": "reject/bound-symbol-on-glyph.json",
       "outcome": "reject",
       "note": "A bound symbol stands only where a symbol does: not in a color slot.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/states/0/appearance/glyph/type"
       }
     },
     {
-      "file": "reject/pending-text-fallback-expr.json",
-      "outcome": "reject",
-      "note": "An authored string with the text to show while its value is unavailable.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/text-fallback-expr.json",
+      "outcome": "accept",
+      "note": "An authored string with the text to show while its value is unavailable."
     },
     {
-      "file": "reject/pending-text-fallback-read.json",
-      "outcome": "reject",
-      "note": "A read slot with a fallback text.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/text-fallback-read.json",
+      "outcome": "accept",
+      "note": "A read slot with a fallback text."
     },
     {
       "file": "reject/text-fallback-on-literal.json",
       "outcome": "reject",
       "note": "A literal has nothing to fall back from.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/props/value/fallback"
       }
@@ -4402,13 +4144,7 @@
       "file": "reject/text-fallback-blank-primary.json",
       "outcome": "reject",
       "note": "A row title is never blank, so neither is its fallback.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/pages/2/components/0/props/primary/fallback"
       }
@@ -4417,13 +4153,7 @@
       "file": "reject/text-fallback-too-long.json",
       "outcome": "reject",
       "note": "A fallback keeps the slot's own length limit.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/props/value/fallback"
       }
@@ -4548,37 +4278,19 @@
       }
     },
     {
-      "file": "reject/pending-action-rules-row.json",
-      "outcome": "reject",
-      "note": "A row that opens one page when hot and another otherwise.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      }
+      "file": "accept/action-rules-row.json",
+      "outcome": "accept",
+      "note": "A row that opens one page when hot and another otherwise."
     },
     {
-      "file": "reject/pending-action-rules-do-nothing.json",
-      "outcome": "reject",
-      "note": "A button whose otherwise is do nothing, and a rule that runs a service.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      }
+      "file": "accept/action-rules-do-nothing.json",
+      "outcome": "accept",
+      "note": "A button whose otherwise is do nothing, and a rule that runs a service."
     },
     {
-      "file": "reject/pending-action-rules-navigation-tile.json",
-      "outcome": "reject",
-      "note": "A navigation tile that opens a page chosen by rule.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      }
+      "file": "accept/action-rules-navigation-tile.json",
+      "outcome": "accept",
+      "note": "A navigation tile that opens a page chosen by rule."
     },
     {
       "file": "reject/pending-action-rules-list-row.json",
@@ -4587,21 +4299,15 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
+        "pointer": "/capabilities/10",
+        "capability": "sh.list-parts@1"
       }
     },
     {
       "file": "reject/action-rules-nested.json",
       "outcome": "reject",
       "note": "One level only: a case holds a plain action, never another rule.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/action"
       }
@@ -4610,13 +4316,7 @@
       "file": "reject/action-rules-no-otherwise.json",
       "outcome": "reject",
       "note": "A rule always says what to do when no case holds.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/action"
       }
@@ -4625,13 +4325,7 @@
       "file": "reject/action-rules-no-cases.json",
       "outcome": "reject",
       "note": "A rule has at least one case.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/action/cases"
       }
@@ -4640,13 +4334,7 @@
       "file": "reject/action-rules-over-16-cases.json",
       "outcome": "reject",
       "note": "A rule has at most 16 cases.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/action"
       }
@@ -4655,13 +4343,7 @@
       "file": "reject/action-rules-on-action-tile.json",
       "outcome": "reject",
       "note": "A power tile takes its own power action only.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/action/cases"
       }
@@ -4670,13 +4352,7 @@
       "file": "reject/action-rules-domain-on-row.json",
       "outcome": "reject",
       "note": "A power action stays off a row, also inside a rule.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      },
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/action/cases/0/then/type"
       }
@@ -4685,50 +4361,26 @@
       "file": "reject/action-rules-bad-page.json",
       "outcome": "reject",
       "note": "A case names a page the document has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/0",
-        "capability": "sh.action-rules@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/action/cases/0/then/pageId"
       }
     },
     {
-      "file": "reject/pending-confirm-when-call.json",
-      "outcome": "reject",
-      "note": "A service call that asks first only while a condition holds.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.confirm-when@1"
-      }
+      "file": "accept/confirm-when-call.json",
+      "outcome": "accept",
+      "note": "A service call that asks first only while a condition holds."
     },
     {
-      "file": "reject/pending-confirm-when-domain.json",
-      "outcome": "reject",
-      "note": "A power tile that asks first only while a condition holds.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.confirm-when@1"
-      }
+      "file": "accept/confirm-when-domain.json",
+      "outcome": "accept",
+      "note": "A power tile that asks first only while a condition holds."
     },
     {
       "file": "reject/confirm-when-on-policy.json",
       "outcome": "reject",
       "note": "The app's own policy takes no condition.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.confirm-when@1"
-      },
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/action/confirmation/when"
       }
@@ -4737,13 +4389,7 @@
       "file": "reject/confirm-when-unknown-reference.json",
       "outcome": "reject",
       "note": "The condition reads a source the document has.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.confirm-when@1"
-      },
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/action/confirmation/when/left/from/sourceId"
       }
@@ -4752,13 +4398,7 @@
       "file": "reject/confirm-when-over-limit.json",
       "outcome": "reject",
       "note": "The condition keeps the 32-node limit of a rule.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.confirm-when@1"
-      },
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/action/confirmation/when/of/10/of/0"
       }
@@ -5461,8 +5101,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.enabled-when@1"
+        "pointer": "/capabilities/18",
+        "capability": "sh.tile-parts@1"
       }
     },
     {
@@ -5505,8 +5145,8 @@
       "pending": true,
       "issue": {
         "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.rules@1"
+        "pointer": "/capabilities/17",
+        "capability": "sh.tile-parts@1"
       }
     },
     {
@@ -5570,27 +5210,15 @@
       }
     },
     {
-      "file": "reject/pending-readout-tone-conditional.json",
-      "outcome": "reject",
-      "note": "A readout whose tone follows a condition: each case a literal tone.",
-      "pending": true,
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/11",
-        "capability": "sh.rules@1"
-      }
+      "file": "accept/readout-tone-conditional.json",
+      "outcome": "accept",
+      "note": "A readout whose tone follows a condition: each case a literal tone."
     },
     {
       "file": "reject/readout-tone-outside-enum.json",
       "outcome": "reject",
       "note": "A conditional tone holds one of the six tones.",
-      "pending": true,
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.rules@1"
-      },
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/tone"
       }

@@ -104,6 +104,8 @@ extension ServerUICompositionDocument {
         public let detail: StringValue
         public let tone: Tone
         public let unavailableText: String
+        /// The cases that choose the tone by rule (`sh.rules@1`); ``tone`` is then the `otherwise`.
+        public var toneCases: [ServerUIConditional<Tone>.Case] = []
         /// The authored tone choices.
         public enum Tone: String, Sendable { case neutral, ok, active, warning, danger, unavailable }
     }
@@ -207,7 +209,11 @@ extension ServerUICompositionDocument.Component {
         }
     }
 
-    public var ownActions: [ServerUICompositionDocument.Action] {
+    /// The plain actions the component can run: an action chosen by rule counts as each action it can pick.
+    public var ownActions: [ServerUICompositionDocument.Action] { declaredActions.flatMap(\.plainActions) }
+
+    /// The actions as authored, a rule counting as one.
+    private var declaredActions: [ServerUICompositionDocument.Action] {
         switch self {
         case .navigationTile(let value): return [value.action]
         case .actionTile(let value): return [.domain(value.action)]

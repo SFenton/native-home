@@ -47,6 +47,10 @@ public extension ServerUICompositionDocument {
         public let icon: Symbol
         public let fill: TileFill
         public let glyph: TileFill?
+        /// How each slot follows a rule or an entity (`sh.rules@1`); the slot's own value is then its `otherwise` or fallback.
+        public var iconRule: ServerUIDynamicLook<Symbol>? = nil
+        public var fillRule: ServerUIDynamicLook<TileFill>? = nil
+        public var glyphRule: ServerUIDynamicLook<TileFill>? = nil
     }
     struct StatusState: Equatable, Sendable {
         public let state: String

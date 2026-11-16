@@ -351,8 +351,15 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             self.kind = kind
         }
     }
-    /// A string given literally or read from a source.
-    public enum StringValue: Equatable, Sendable { case literal(String), read(Read) }
+    /// A string given literally, read from a source, or made by an operand (`sh.rules@1`).
+    ///
+    /// A `read` and an `expression` may carry the text to draw while the value is unavailable (never while it is loading: the slot keeps
+    /// what it showed). ``ServerUIStringResolver`` is the one place that turns one into text.
+    public enum StringValue: Equatable, Sendable {
+        case literal(String)
+        case read(Read, fallback: String? = nil)
+        case expression(ServerUIOperand, fallback: String?)
+    }
     /// An entity id given literally or read from a source.
     public enum EntityValue: Equatable, Sendable { case literal(String), read(Read) }
     /// Reads supply typed descriptors, not ready runtime data. The power adapter must validate
@@ -456,6 +463,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let intent: PowerIntent
         public let feedback: Policy
         public let confirmation: Confirmation
+        /// Ask only while this holds (`sh.confirm-when@1`); `nil` always asks. A condition that cannot be answered asks.
+        public var confirmWhen: ServerUIPredicate? = nil
     }
     /// What a power action does; toggle is the one intent.
     public enum PowerIntent: String, Sendable { case toggle = "power.toggle" }
@@ -479,6 +488,9 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case setLocal(stateId: String, value: LocalValue)
         /// Calls any Home Assistant service on a user gesture (`sh.call-service@1`).
         case callService(ServerUICallService)
+        /// An action chosen by rule: the first case whose condition holds, else `otherwise` or nothing (`sh.action-rules@1`).
+        /// ``ServerUIActionRule/resolve(_:)`` gives the plain action to run, at gesture time.
+        indirect case conditional(ServerUIActionRule)
     }
 
     // MARK: - Closed component variants
@@ -490,12 +502,15 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let span: Int
         /// Shows or hides the node in place by a rule (`sh.visible-when@1`); `nil` for a node that is always there.
         public let visibleWhen: ServerUIVisibility?
+        /// Enables the node's action only while a rule holds (`sh.enabled-when@1`); `nil` for a node that is always enabled.
+        public let enabledWhen: ServerUIEnabledRule?
 
-        init(id: String, title: String, span: Int, visibleWhen: ServerUIVisibility? = nil) {
+        init(id: String, title: String, span: Int, visibleWhen: ServerUIVisibility? = nil, enabledWhen: ServerUIEnabledRule? = nil) {
             self.id = id
             self.title = title
             self.span = span
             self.visibleWhen = visibleWhen
+            self.enabledWhen = enabledWhen
         }
     }
     /// The text styles a document may name.
@@ -554,6 +569,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let titleLines: Int
         public let fill: TileFill
         public let bodyHint: String?
+        /// How the fill follows a rule or an entity's color (`sh.rules@1`); ``fill`` is then its `otherwise` or fallback.
+        public var fillRule: ServerUIDynamicLook<TileFill>? = nil
     }
     /// How a tile lays its text out.
     public enum TileLayout: String, Sendable {

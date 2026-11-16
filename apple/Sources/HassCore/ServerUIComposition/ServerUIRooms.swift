@@ -88,6 +88,8 @@ extension ServerUICompositionDocument {
     public struct RoomStateColor: Equatable, Sendable {
         public let state: String
         public let fill: TileFill
+        /// How the fill follows a rule or an entity's color (`sh.rules@1`); ``fill`` is then its `otherwise` or fallback.
+        public var fillRule: ServerUIDynamicLook<TileFill>? = nil
     }
     /// The authored room state label.
     public struct RoomStateLabel: Equatable, Sendable {

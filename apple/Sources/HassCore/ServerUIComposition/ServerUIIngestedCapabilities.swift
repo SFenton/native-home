@@ -17,7 +17,9 @@ public enum ServerUIIngestedCapabilities {
     /// Layout: tab blocks, fallbacks and status counts (lane L3).
     public static let layout: [String] = []
     /// Rules: action rules, confirm and enabled conditions (lane L1b).
-    public static let rules: [String] = []
+    public static let rules: [String] = [
+        "sh.rules@1", "sh.enabled-when@1", "sh.confirm-when@1", "sh.action-rules@1",
+    ]
     /// Flow: pipelines, pipeline operands and app state (lane L4).
     public static let flow: [String] = []
 

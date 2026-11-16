@@ -866,8 +866,63 @@ struct ServerUICompositionCompiler {
         return .literal(value)
     }
     private mutating func stringValue(_ c: Cursor) throws -> D.StringValue {
-        if try c.s("type") == "literal" { return try .literal(c.s("value")) }
-        return try .read(read(c, expected: .string))
+        switch try c.s("type") {
+        case "literal": return try .literal(c.s("value"))
+        case "expr":
+            var rules = ServerUIRuleDecoder()
+            let value = rules.expression(c.value, at: c.pointer)
+            try absorb(rules)
+            guard let value else { throw Issue(.invalidValue, c.pointer) }
+            return value
+        default:
+            let fallback = try c.optionalString("fallback")
+            if fallback != nil { require("rules") }
+            return try .read(read(c, expected: .string), fallback: fallback)
+        }
+    }
+
+    /// Folds a rule decoder's diagnostics, source references and capability needs into this compile.
+    private mutating func absorb(_ rules: ServerUIRuleDecoder) throws {
+        issues += rules.issues
+        for need in rules.needs { require(need) }
+        try absorb(rules.parserFacts)
+    }
+
+    /// A node's `enabledWhen` (`sh.enabled-when@1`).
+    private mutating func enabled(_ c: Cursor) throws -> ServerUIEnabledRule? {
+        guard c.value["enabledWhen"] != nil else { return nil }
+        require("enabled-when")
+        let rule = try c.field("enabledWhen")
+        return try ServerUIEnabledRule(condition: predicate(rule.field("condition")), whenUnknown: rule.e("whenUnknown"))
+    }
+
+    /// The `when` of a power action's authored question (`sh.confirm-when@1`).
+    private mutating func confirmWhen(_ c: Cursor) throws -> ServerUIPredicate? {
+        guard c.value["when"] != nil else { return nil }
+        require("confirm-when")
+        return try predicate(c.field("when"))
+    }
+
+    /// An action chosen by rule (`sh.action-rules@1`): one level, each case a plain action checked like any other, else an action or none.
+    private mutating func conditionalAction(_ c: Cursor) throws -> D.Action {
+        require("action-rules")
+        let cases = try c.field("cases").array().map { item in
+            try ServerUIActionRule.Case(when: predicate(item.field("when")), then: action(item.field("then")))
+        }
+        let otherwise = try c.field("otherwise")
+        return try .conditional(ServerUIActionRule(cases: cases, otherwise: otherwise.s("type") == "none" ? nil : action(otherwise)))
+    }
+
+    /// Checks each plain action a slot can run against `allowed`, blaming the `type` of the case that fails.
+    private mutating func check(_ intent: D.Action, at pointer: String, allowed: (D.Action) -> Bool) {
+        if case .conditional(let rule) = intent {
+            for (index, item) in rule.cases.enumerated() where !allowed(item.then) {
+                add(.invalidCombination, pointer + "/cases/\(index)/then/type")
+            }
+            if let other = rule.otherwise, !allowed(other) { add(.invalidCombination, pointer + "/otherwise/type") }
+        } else if !allowed(intent) {
+            add(.invalidCombination, pointer + "/type")
+        }
     }
     private mutating func read(_ c: Cursor, expected: D.ScalarKind) throws -> D.Read {
         require("bindings")
@@ -971,7 +1026,9 @@ struct ServerUICompositionCompiler {
             let sourceId = try c.s("sourceId")
             powerRefs.append((sourceId, c.path("sourceId"), .invalidCombination))
             return try .domain(.init(sourceId: sourceId, intent: c.e("intent"), feedback: c.e("feedback"),
-                                      confirmation: confirmation(c.field("confirmation"))))
+                                      confirmation: confirmation(c.field("confirmation")),
+                                      confirmWhen: confirmWhen(c.field("confirmation"))))
+        case "conditional": return try conditionalAction(c)
         case "call-service": return try .callService(callService(c))
         case "push": require("actions.navigation"); return try .push(push(c))
         case "select-tab":
@@ -1147,11 +1204,16 @@ struct ServerUICompositionCompiler {
 
     private mutating func navigationAction(_ c: Cursor) throws -> D.Action {
         let intent = try action(c)
-        switch intent {
-        case .push, .present, .dismissThenPush, .selectTab: break
-        default: add(.invalidCombination, c.path("type"))
-        }
+        check(intent, at: c.pointer) { Self.navigates($0) }
         return intent
+    }
+
+    /// Whether an action navigates: a push, a presentation, a tab switch or a dismiss-then-push.
+    private static func navigates(_ intent: D.Action) -> Bool {
+        switch intent {
+        case .push, .present, .dismissThenPush, .selectTab: true
+        default: false
+        }
     }
 
     private mutating func roomVisibility(_ c: Cursor, key: String) throws -> D.RoomVisibility? {
@@ -1215,7 +1277,11 @@ struct ServerUICompositionCompiler {
             try props.field("stateColors").array().map { item -> D.RoomStateColor in
                 let state = try item.s("state")
                 if !colorStates.insert(state).inserted { add(.invalidCombination, item.path("state")) }
-                return try .init(state: state, fill: solidFill(item.field("fill")))
+                var rules = ServerUIRuleDecoder()
+                let slot = try rules.fill(item.field("fill").value, at: item.path("fill"))
+                try absorb(rules)
+                guard let slot else { throw Issue(.invalidValue, item.path("fill")) }
+                return .init(state: state, fill: slot.0, fillRule: slot.1)
             }
         } ?? []
         return try .init(node: node, icon: symbol(c.field("icon")), sourceId: sourceId, kind: props.e("kind"),
@@ -1260,7 +1326,7 @@ struct ServerUICompositionCompiler {
         let id = try c.s("id"), span = try c.field("layout").i("span")
         register(id, catalog: "node", at: c.path("id"))
         if !gridChild, span != 1 { add(.invalidCombination, c.path("layout") + "/span") }
-        let node = try D.Node(id: id, title: c.s("title"), span: span, visibleWhen: visibility(c))
+        let node = try D.Node(id: id, title: c.s("title"), span: span, visibleWhen: visibility(c), enabledWhen: enabled(c))
         let props = try c.field("props")
         if depth > 1, ["form", "pinned-actions"].contains(try c.s("type")) {
             add(.invalidCombination, c.path("type"))
@@ -1462,12 +1528,18 @@ struct ServerUICompositionCompiler {
                                       unavailableText: props.s("unavailableText")))
         case "status-pill":
             require("status-pill")
+            var rules = ServerUIRuleDecoder()
+            let tone = try rules.tone(props.field("tone").value, at: props.path("tone"))
+            try absorb(rules)
+            guard let tone else { throw Issue(.invalidValue, props.path("tone")) }
             return try .statusPill(.init(node: node, icon: symbol(c.field("icon")), value: stringValue(props.field("value")),
-                detail: stringValue(props.field("detail")), tone: props.e("tone"), unavailableText: props.s("unavailableText")))
+                detail: stringValue(props.field("detail")), tone: tone.0, unavailableText: props.s("unavailableText"),
+                toneCases: tone.1))
         case "row":
             require("rows")
             let intent = try c.value["action"] == nil ? nil : action(c.field("action"))
-            if let intent, case .domain = intent { add(.invalidCombination, c.path("action") + "/type") }
+            if let intent { check(intent, at: c.path("action")) { if case .domain = $0 { false } else { true } } }
+            if node.enabledWhen != nil, intent == nil { add(.invalidCombination, c.path("enabledWhen")) }
             let accessory: D.Row.Accessory = try props.e("accessory")
             if accessory == .disclosure, intent == nil { add(.invalidCombination, props.path("accessory")) }
             return try .row(.init(node: node, primary: stringValue(props.field("primary")),
@@ -1494,7 +1566,7 @@ struct ServerUICompositionCompiler {
         case "primary-button":
             require("primary-button")
             let intent = try action(c.field("action"))
-            if case .domain = intent { add(.invalidCombination, c.path("action") + "/type") }
+            check(intent, at: c.path("action")) { if case .domain = $0 { false } else { true } }
             return try .button(.init(node: node, icon: c.value["icon"] == nil ? nil : symbol(c.field("icon")),
                                       action: intent))
         case "row-collection":
@@ -1770,25 +1842,21 @@ struct ServerUICompositionCompiler {
                 require("collection-navigation")
             }
             let intent = try action(c.field("action"))
-            switch intent {
-            case .push, .present, .dismissThenPush, .selectTab: break
-            default: add(.invalidCombination, c.path("action") + "/type")
-            }
+            check(intent, at: c.path("action")) { Self.navigates($0) }
             let selected: D.Policy = try props.e("selected")
             if selected == .none { require("tile-presentation") }
             let presentation: D.TilePresentation?
             if props.value["presentation"] != nil {
                 require("tile-presentation")
                 let p = try props.field("presentation"), fill = try p.field("fill")
-                let tileFill: D.TileFill
-                if try fill.s("type") == "standard" {
-                    tileFill = .standard
-                } else {
-                    tileFill = try .solidRGB(red: fill.i("red"), green: fill.i("green"), blue: fill.i("blue"))
-                    if try props.s("family") != "neutral" { add(.invalidCombination, props.path("family")) }
-                }
+                var rules = ServerUIRuleDecoder()
+                let slot = rules.fill(fill.value, at: fill.pointer)
+                try absorb(rules)
+                guard let slot else { throw Issue(.invalidValue, fill.pointer) }
+                // A custom fill (exact, by rule or from an entity) belongs to a neutral tile.
+                if slot.0 != .standard || slot.1 != nil, try props.s("family") != "neutral" { add(.invalidCombination, props.path("family")) }
                 presentation = try .init(layout: p.e("layout"), titleLines: p.i("titleLines"),
-                                         fill: tileFill, bodyHint: p.optionalString("bodyHint"))
+                                         fill: slot.0, bodyHint: p.optionalString("bodyHint"), fillRule: slot.1)
             } else {
                 presentation = nil
             }
@@ -1799,7 +1867,7 @@ struct ServerUICompositionCompiler {
                 alarmRefs.append((sourceId, a.path("sourceId")))
                 if try props.s("family") != "neutral" { add(.invalidCombination, props.path("family")) }
                 if selected != .none { add(.invalidCombination, props.path("selected")) }
-                if let presentation, presentation.fill != .standard {
+                if let presentation, presentation.fill != .standard || presentation.fillRule != nil {
                     add(.invalidCombination, props.path("presentation") + "/fill")
                 }
                 let subtitle = try props.field("subtitle")
@@ -1930,23 +1998,18 @@ struct ServerUICompositionCompiler {
         }
     }
     private mutating func statusAppearance(_ c: Cursor) throws -> D.StatusAppearance {
-        let fill = try c.field("fill")
-        let color: D.TileFill = try fill.s("type") == "standard" ? .standard
-            : .solidRGB(red: fill.i("red"), green: fill.i("green"), blue: fill.i("blue"))
-        let glyph: D.TileFill?
-        if c.value["glyph"] != nil {
-            let value = try c.field("glyph")
-            glyph = try .solidRGB(red: value.i("red"), green: value.i("green"), blue: value.i("blue"))
-        } else { glyph = nil }
-        return try .init(icon: symbol(c.field("icon")), fill: color, glyph: glyph)
+        var rules = ServerUIRuleDecoder()
+        let icon = try rules.symbol(c.field("icon").value, at: c.path("icon"))
+        let fill = try rules.fill(c.field("fill").value, at: c.path("fill"))
+        let glyph = c.value["glyph"].flatMap { rules.fill($0, at: c.path("glyph")) }
+        try absorb(rules)
+        guard let icon, let fill, glyph != nil || c.value["glyph"] == nil else { throw Issue(.invalidValue, c.pointer) }
+        return .init(icon: icon.0, fill: fill.0, glyph: glyph?.0, iconRule: icon.1, fillRule: fill.1, glyphRule: glyph?.1)
     }
     private mutating func optionalHomeAction(_ c: Cursor) throws -> D.Action? {
         guard c.value["action"] != nil else { return nil }
         let intent = try action(c.field("action"))
-        switch intent {
-        case .push, .present, .selectTab, .dismissThenPush: break
-        default: add(.invalidCombination, c.path("action") + "/type")
-        }
+        check(intent, at: c.path("action")) { Self.navigates($0) }
         return intent
     }
 
@@ -2364,7 +2427,7 @@ struct ServerUICompositionCompiler {
         func chromeActions(_ groups: [D.ChromeGroup], root: Bool) -> [D.Action] {
             groups.flatMap(\.items).flatMap { item -> [D.Action] in
                 switch item {
-                case .button(let button) where root || button.visibility == .always: [button.action]
+                case .button(let button) where root || button.visibility == .always: button.action.plainActions
                 case .shellHeader(let header) where root || header.visibility == .always: [header.quickLinksAction, header.profileAction]
                 default: []
                 }

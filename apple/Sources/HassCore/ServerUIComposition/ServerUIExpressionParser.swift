@@ -108,10 +108,11 @@ struct ServerUIExpressionParser {
         }
         var confirmation = ServerUICompositionDocument.Confirmation.policy
         var exempt: [String] = []
-        if let raw = object["confirmation"] { (confirmation, exempt) = confirmationValue(raw, pointer + "/confirmation") }
+        var confirmWhen: ServerUIPredicate?
+        if let raw = object["confirmation"] { (confirmation, exempt, confirmWhen) = confirmationValue(raw, pointer + "/confirmation") }
         guard let domain, let service else { return nil }
         return ServerUICallService(domain: domain, service: service, target: target, data: data, optimistic: optimistic,
-                                   confirmation: confirmation, exemptUserIds: exempt)
+                                   confirmation: confirmation, exemptUserIds: exempt, confirmWhen: confirmWhen)
     }
 
     // MARK: Operands
@@ -497,22 +498,22 @@ struct ServerUIExpressionParser {
     }
 
     private mutating func confirmationValue(_ json: JSONValue, _ pointer: String)
-        -> (ServerUICompositionDocument.Confirmation, [String]) {
+        -> (ServerUICompositionDocument.Confirmation, [String], ServerUIPredicate?) {
         guard case .object(let object) = json, case .string(let type)? = object["type"] else {
             add(.invalidValue, pointer)
-            return (.policy, [])
+            return (.policy, [], nil)
         }
         switch type {
         case "policy":
             _ = fields(json, pointer, ["type"])
-            return (.policy, [])
+            return (.policy, [], nil)
         case "additional":
             guard let object = fields(json, pointer, ["type", "style", "title", "confirmLabel", "cancelLabel", "destructive"],
-                                      ["message", "exemptUserIds"]) else { return (.policy, []) }
+                                      ["message", "exemptUserIds", "when"]) else { return (.policy, [], nil) }
             guard case .string(let rawStyle)? = object["style"],
                   let style = ServerUICompositionDocument.ConfirmationStyle(rawValue: rawStyle) else {
                 add(.unknownVariant, pointer + "/style")
-                return (.policy, [])
+                return (.policy, [], nil)
             }
             let title = text(object["title"], pointer + "/title", maximum: 240, blank: false)
             let message = object["message"].flatMap { text($0, pointer + "/message", maximum: 2_000, blank: true) }
@@ -521,12 +522,21 @@ struct ServerUIExpressionParser {
             var destructive = false
             if case .bool(let flag)? = object["destructive"] { destructive = flag } else { add(.invalidValue, pointer + "/destructive") }
             let exempt = object["exemptUserIds"].flatMap { textList($0, pointer + "/exemptUserIds", maximum: 32) } ?? []
-            guard let title, let confirm else { return (.policy, []) }
+            // Ask only while a condition holds (`sh.confirm-when@1`): a rule's condition, with a rule's limits, inside the call's own budget.
+            var when: ServerUIPredicate?
+            if let raw = object["when"] {
+                needs.insert("confirm-when")
+                let outer = conditionBudget
+                conditionBudget = Self.maximumConditionNodes
+                when = predicate(raw, pointer + "/when", depth: 1, conditionDepth: 1)
+                conditionBudget = outer
+            }
+            guard let title, let confirm else { return (.policy, [], nil) }
             return (.additional(style: style, title: title, message: message, confirmLabel: confirm,
-                                cancelLabel: "Cancel", destructive: destructive), exempt)
+                                cancelLabel: "Cancel", destructive: destructive), exempt, when)
         default:
             add(.unknownVariant, pointer + "/type")
-            return (.policy, [])
+            return (.policy, [], nil)
         }
     }
 
