@@ -16,7 +16,7 @@ Decision: [action-navigation-tiles](../design/action-navigation-tiles.md) (owner
 
 Configured security uses these primitives: `UKAlarmPanelControl` and `UKAlarmModeButton.Value` are value and closure presentation.
 `UKServerUIAlarmSource` owns the confirmation tickets and network lifetime.
-A lock or garage door is a `state-tile` over the built-in `lock` or `garage-door` style ([state-styles](../design/state-styles.md#doors-lowered-to-the-state-tile)), never generic power: the `door-tile` node stays decodable and the compiler lowers it (`ServerUIDoorLowering`), so there is no door view or door source. A tap sends the style's own command through the renderer's one call path and shows the state it asked for (`StateRequest.pendingStates`) until Home Assistant answers.
+A door is a lowered `state-tile` ([state-styles](../design/state-styles.md#doors-lowered-to-the-state-tile)), never generic power.
 The source and its authored control stay pinned during a pending command.
 Mode order, copy and appearance are authored; service selection and the Disarm confirmation are native policy.
 

@@ -6,4 +6,4 @@
 - Motion: fill and glyph swap (state 0.6 s), error face (hold 8 s), pending pulse (1.4 s)
 - Devices: iPhone and iPad size classes (swatches, no device frame)
 - Open notes: SecurityConfig.Tone colours are unused by any view (tests only); garage doors open with no confirmation by spec
-- Change log: 2026-11-16 the door atom is deleted: a door is a state tile over the lock or garage-door style, same faces. 2026-10-27 action tiles (claude/action-nav-tiles). each tile reads text . disc (SC.doorTile uses the kit GlassTile behavior/actions); lock isOn = unlocked, jammed offers Lock, garage disc morphs (no Stop: our doors do not support it), car drops its car glyph for the lock disc.
+- Change log: the door atom is deleted; a door is a lowered state tile, same faces. 2026-10-27 action tiles (claude/action-nav-tiles). each tile reads text . disc (SC.doorTile uses the kit GlassTile behavior/actions); lock isOn = unlocked, jammed offers Lock, garage disc morphs (no Stop: our doors do not support it), car drops its car glyph for the lock disc.
