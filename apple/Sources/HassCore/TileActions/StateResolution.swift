@@ -33,4 +33,6 @@ public struct StateResolution: Equatable, Sendable {
     public var hasGlyph: Bool = false
     /// The colour layer's palette token when the rule names one; nil is the face the class and ``isActive`` pick.
     public var colour: StateColour? = nil
+    /// The face fill of the state's rule (`red << 16 | green << 8 | blue`); nil is the face the class picks.
+    public var fill: UInt32? = nil
 }

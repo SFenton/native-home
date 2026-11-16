@@ -165,6 +165,7 @@ struct ServerUICompositionCompiler {
             }
             issues.append(contentsOf: decoded.issues)
             stateLibrary = decoded.library
+            if decoded.library.usesFills { require("state-style-fills") }
         }
         if c.value["localState"] != nil {
             require("local-state")

@@ -25,6 +25,9 @@ public enum ServerUIIngestedCapabilities {
     /// Flow: pipelines, pipeline operands and app state (lane L4).
     public static let flow: [String] = []
 
+    /// Per-state fills and hidden words on state styles (lane L5a).
+    public static let styleFills: [String] = ["sh.state-style-fills@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills }
 }

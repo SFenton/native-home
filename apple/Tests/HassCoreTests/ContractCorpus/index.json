@@ -1602,6 +1602,144 @@
       }
     },
     {
+      "file": "accept/state-style-fills-every-state.json",
+      "outcome": "accept",
+      "note": "A garage style with a fill on every state, the pending states (opening, closing) included, the unknown rule and the fallback, and hidden words."
+    },
+    {
+      "file": "accept/state-style-fills-fill-on-fallback-only.json",
+      "outcome": "accept",
+      "note": "A fill on the fallback alone is enough to need the capability; no rule carries one."
+    },
+    {
+      "file": "accept/state-style-fills-hidden-words-only.json",
+      "outcome": "accept",
+      "note": "Hidden words alone, with no fill, need the capability."
+    },
+    {
+      "file": "accept/state-style-fills-fill-extremes.json",
+      "outcome": "accept",
+      "note": "The channel limits are 0 and 255 on each side."
+    },
+    {
+      "file": "accept/state-style-fills-fill-on-error-and-warning.json",
+      "outcome": "accept",
+      "note": "A fill is a value, not a token: a warning or an error state may carry one (a colour token may not)."
+    },
+    {
+      "file": "accept/state-style-fills-subtitle-from-phase.json",
+      "outcome": "accept",
+      "note": "A state-tile with the loading words as an expr subtitle on its source's phase read, over a styled garage door."
+    },
+    {
+      "file": "reject/state-style-fills-fill-channel-over-255.json",
+      "outcome": "reject",
+      "note": "A channel is 0 to 255.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill/red"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-fill-channel-negative.json",
+      "outcome": "reject",
+      "note": "A channel is never negative.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill/green"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-fill-channel-fraction.json",
+      "outcome": "reject",
+      "note": "A channel is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill/blue"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-fill-as-hex-string.json",
+      "outcome": "reject",
+      "note": "A fill is the solid-rgb object, never a string.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-fill-standard.json",
+      "outcome": "reject",
+      "note": "A state style has no standard fill: absent means the class face.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill/blue"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-fill-missing-channel.json",
+      "outcome": "reject",
+      "note": "A fill names all three channels.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill/blue"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-fill-with-alpha.json",
+      "outcome": "reject",
+      "note": "A fill has no alpha channel.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/stateStyles/styles/0/rules/1/fill/alpha"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-fill-on-unknown-state-not-unknown-class.json",
+      "outcome": "reject",
+      "note": "A fill does not change that unavailable and unknown are the unknown class: a resting rule that names them is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/4/class"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-override-fill.json",
+      "outcome": "reject",
+      "note": "A tile override has no fill: the fill belongs to the style.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/binding/overrides/0/fill"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-hidden-words-blank.json",
+      "outcome": "reject",
+      "note": "Hidden words are not blank.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/stateStyles/styles/0/hiddenWords"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-hidden-words-too-long.json",
+      "outcome": "reject",
+      "note": "Hidden words are at most 80 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/stateStyles/styles/0/hiddenWords"
+      }
+    },
+    {
+      "file": "reject/state-style-fills-hidden-words-not-text.json",
+      "outcome": "reject",
+      "note": "Hidden words are text.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/stateStyles/styles/0/hiddenWords"
+      }
+    },
+    {
       "file": "reject/pending-pipeline-overdue-chores.json",
       "outcome": "reject",
       "note": "Overdue Chores over a live to-do subscription: no refresh, rows with a days-late subtitle, shown by a collection with the rows template.",

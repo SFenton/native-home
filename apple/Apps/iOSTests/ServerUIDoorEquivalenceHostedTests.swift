@@ -101,6 +101,8 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
                 let disc = try XCTUnwrap(view.model.actions.first?.id)
                 let name = "\(door.tile)/tap-\(failing ? "fails" : "sends")"
                 view.onPerform?(disc)
+                // The tile redraws one turn after the tap: wait for what the request does to it, not for a time.
+                await HostedPage.settle { failing ? view.model.isError : view.model.actions.first?.phase == .inFlight }
                 all["\(name)/during"] = Self.snapshot(view)
                 await HostedPage.settle { !caller.calls.isEmpty }
                 await HostedPage.pump(passes: 10)
@@ -109,6 +111,8 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
                 if !failing {
                     let moving = door.tile == "demo-lock-control" ? "unlocking" : "opening"
                     await show(moving, of: door, in: host, view)
+                    // The optimistic value clears one turn after the real state lands; the lock's disc stays in flight while it moves.
+                    if door.tile == "demo-garage-control" { await HostedPage.settle { view.model.actions.first?.phase != .inFlight } }
                     all["\(name)/confirmed"] = Self.snapshot(view)
                 }
             }
