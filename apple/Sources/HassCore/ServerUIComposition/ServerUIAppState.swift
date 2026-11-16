@@ -198,3 +198,38 @@ public struct ServerUIAppState: Equatable, Sendable {
         return (time.seconds / 3_600, time.seconds / 60 % 60, weekday, today)
     }
 }
+
+// MARK: - The minute tick
+
+/// When the app's minute tick runs: from the first read of the clock until a tick finds that nothing has read it since the last one.
+///
+/// The clock topic costs nothing in a document that has no clock reader: no read, no tick. A reader that re-runs when the minute
+/// moves (every observation does) reads again and keeps the tick alive; a page that went away stops it on the next tick, and the next
+/// read starts it again.
+public struct ServerUIMinuteTick: Equatable, Sendable {
+    /// Whether a tick is scheduled.
+    public private(set) var isRunning = false
+    private var readSinceTick = false
+
+    /// Creates a tick that is not running.
+    public init() {}
+
+    /// Records a read of the clock. Returns `true` when the caller must start a tick.
+    public mutating func noteRead() -> Bool {
+        readSinceTick = true
+        guard !isRunning else { return false }
+        isRunning = true
+        return true
+    }
+
+    /// A tick fired. Returns `true` to publish the new minute and keep ticking, `false` when nothing read the clock since the last tick:
+    /// the tick has stopped.
+    public mutating func fire() -> Bool {
+        guard readSinceTick else {
+            isRunning = false
+            return false
+        }
+        readSinceTick = false
+        return true
+    }
+}

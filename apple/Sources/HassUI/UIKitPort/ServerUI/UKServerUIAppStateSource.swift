@@ -33,7 +33,7 @@ final class UKServerUIAppStateSource {
     @ObservationIgnored private weak var push: PushCoordinator?
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var ticker: Task<Void, Never>?
-    @ObservationIgnored private var readSinceTick = false
+    @ObservationIgnored private var tick = ServerUIMinuteTick()
     @ObservationIgnored private var tokens: [NSObjectProtocol] = []
 
     init(push: PushCoordinator?, defaults: UserDefaults = .standard) {
@@ -105,11 +105,11 @@ final class UKServerUIAppStateSource {
     // MARK: Clock
 
     private func noteClockRead() {
-        readSinceTick = true
+        let starts = tick.noteRead()
         // Gather before the property is read, so the read that starts the tick already has a value. While the tick runs it keeps the
         // value current, so a read costs nothing.
-        if clock == nil || ticker == nil { publishClock() }
-        startTicking()
+        if clock == nil || starts { publishClock() }
+        if starts { startTicking() }
     }
 
     /// Publishes the clock when the minute has moved: one write a minute, never more.
@@ -120,14 +120,12 @@ final class UKServerUIAppStateSource {
     }
 
     private func startTicking() {
-        guard ticker == nil else { return }
         ticker = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(ServerUIAppState.secondsToNextMinute(from: Date()) + 0.05))
                 guard let self, !Task.isCancelled else { return }
                 // Nobody read the clock since the last tick: stop. The next read starts it again.
-                guard self.readSinceTick else { self.ticker = nil; return }
-                self.readSinceTick = false
+                guard self.tick.fire() else { self.ticker = nil; return }
                 self.publishClock()
             }
         }
