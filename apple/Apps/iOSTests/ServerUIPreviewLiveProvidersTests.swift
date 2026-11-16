@@ -372,20 +372,28 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
 
     /// The wake light and household away status entities under the document's own ids, each reporting `command_available`,
     /// so a command passes its controller's guard and reaches the caller the preview supplied.
-    private func commandableSnapshots() -> [EntityState] {
+    private func commandableSnapshots(adminLists: [ChoresConfig.TodoList]) -> [EntityState] {
         let wake = BedroomFixtures.wakeLight(.waking, now: Date())
-        let adminLists = house.chores.pages.filter(\.editsAdminTodo).flatMap(\.lists).map {
-            EntityState(entityId: $0.entityId, state: "1")
-        }
-        return adminLists + [EntityState(entityId: house.bedroom.wakeLight.statusEntityId, state: wake.state, attributes: wake.attributes),
-                EntityState(entityId: house.bedroom.householdAwayEntityId, state: "idle", attributes: VacationFixtures.idleAttributes)]
+        return adminLists.map { EntityState(entityId: $0.entityId, state: "1") } + [
+            EntityState(entityId: house.bedroom.wakeLight.statusEntityId, state: wake.state, attributes: wake.attributes),
+            EntityState(entityId: house.bedroom.householdAwayEntityId, state: "idle", attributes: VacationFixtures.idleAttributes)]
+    }
+
+    /// The admin to-do page the publication itself defines, so the fixture's viewer and list states satisfy that page's own rules.
+    private func publishedAdminPage(_ publication: ServerUICompositionPublication) throws -> ChoresConfig.Page {
+        let definition = UKServerUIRecordProviders.Definition(people: house.chores.people, document: publication.document)
+        return try XCTUnwrap(definition.collections.map { $0.page.page(id: $0.id) }.first { $0.editsAdminTodo }, "admin to-do page")
     }
 
     /// Draws the writes fixture at each family's size and runs `body` on it, as a person who sees the admin to-do.
     private func drive(_ body: @MainActor (Rig) async throws -> Void) async throws {
         let publication = try writingPublication()
         let assets = try await stagedAssets(publication)
-        let person = try XCTUnwrap(house.chores.people.first { $0.seesAdminTodo })
+        let adminPage = try publishedAdminPage(publication)
+        let restricted = adminPage.lists.map(\.userIds).filter { !$0.isEmpty }
+        let person = try XCTUnwrap(house.chores.people.first { person in
+            person.seesAdminTodo && restricted.allSatisfy { $0.contains(person.haUserId) }
+        } ?? house.chores.people.first { $0.seesAdminTodo }, "a viewer who sees the admin to-do")
         let item = try XCTUnwrap(house.vacation.checklist.first)
         for (family, size) in [("iPhone", CGSize(width: 390, height: 844)), ("Duo", CGSize(width: 466, height: 678)),
                                ("iPad", CGSize(width: 820, height: 1180))] {
@@ -393,7 +401,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let mock = lastMock!
             providers.user = HassUser(id: person.haUserId, name: person.name, isOwner: false, isAdmin: true)
             live.context.store.apply([EntityState(entityId: "switch.synthetic_toggle", state: "off"),
-                                      EntityState(entityId: item.entityId, state: "off")] + BedroomFixtures.states(.waking) + self.commandableSnapshots())
+                                      EntityState(entityId: item.entityId, state: "off")] + BedroomFixtures.states(.waking) + self.commandableSnapshots(adminLists: adminPage.lists))
             let backdrop = try ServerUIRendererFixture.backdrop()
             let supply = try providers.supply(for: publication, blur: backdrop.blur)
             let prepared = try UKServerUIPreview.Prepared(publication: publication, context: live.context, assets: assets,
