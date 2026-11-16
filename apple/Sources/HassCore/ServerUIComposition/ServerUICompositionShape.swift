@@ -28,6 +28,10 @@ enum ServerUICompositionShape {
         case operand, predicate, callService
         /// The text `all`, or a list of one to `maximum` identifiers (`sh.tab-blocks@1`).
         case allOrIdentifiers(Int)
+        /// An operand or a condition inside a Data Flow, where `item` and `param` may stand (`sh.pipeline@1`); the flow compiler types them.
+        case flowOperand, flowPredicate
+        /// A shape of the flow shape language (`sh.pipeline@1`).
+        case flowShape
     }
 
     typealias Issue = ServerUICompositionError
@@ -385,7 +389,8 @@ enum ServerUICompositionShape {
                     "id": id, "kind": fixed("model"), "model": fixed("inventory-list@1"),
                     "inputs": object(["space": .choice(["all-food", "pantry", "fridge", "freezer", "spice-rack", "cabinet"])])
                 ]),
-                "todo-collection@1": todoCollectionSource
+                "todo-collection@1": todoCollectionSource,
+                "pipeline@1": pipelineSource
             ])
         ])
     }()
@@ -864,6 +869,16 @@ enum ServerUICompositionShape {
             var parser = ServerUIExpressionParser(allowControl: true)
             _ = parser.callService(value, at: pointer)
             issues += parser.issues
+        case .flowOperand:
+            var parser = ServerUIExpressionParser(flow: true)
+            _ = parser.operand(value, at: pointer)
+            issues += parser.issues
+        case .flowPredicate:
+            var parser = ServerUIExpressionParser(flow: true)
+            _ = parser.predicate(value, at: pointer)
+            issues += parser.issues
+        case .flowShape:
+            issues += ServerUIFlowShape.issues(in: value, at: pointer)
         case .allOrIdentifiers(let maximum):
             if value == .string("all") { return }
             walk(value, shape: .array(.identifier, 1, maximum), pointer: pointer, issues: &issues, unsupported: &unsupported)
