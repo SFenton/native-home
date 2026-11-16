@@ -23,7 +23,7 @@ from parity_loop.common import CANDIDATE, REFERENCE, read_json, write_json  # no
 
 SCHEMA = "parity-loop-surfaces/1"
 APP_KEYS = {"expo": REFERENCE, "native": CANDIDATE}
-#: A value shaped like an entity id: ``light.kitchen_main``. Route names such as ``bootstrap.setup`` are not in the kept keys.
+#: A value shaped like an entity id: ``light.demo_kitchen_main``. Route names such as ``bootstrap.setup`` are not in the kept keys.
 ENTITY_ID = re.compile(r"\b(?:light|switch|sensor|binary_sensor|climate|camera|lock|cover|fan|media_player|vacuum|weather|"
                        r"alarm_control_panel|input_boolean|input_select|input_number|input_text|todo|person|script|scene|"
                        r"automation|humidifier|water_heater|device_tracker)\.[a-z0-9_]+\b")

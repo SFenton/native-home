@@ -39,7 +39,7 @@ class SurfacesTests(unittest.TestCase):
         self.assertIn("room-kitchen", marked)
 
     def test_convert_rejects_an_entity_id(self) -> None:
-        source = {"surfaces": [{"id": "a", "kind": "page", "title": "light.kitchen_main", "area": "x", "presence": "both", "in_scope": True,
+        source = {"surfaces": [{"id": "a", "kind": "page", "title": "light.demo_kitchen_main", "area": "x", "presence": "both", "in_scope": True,
                                 "capture_class": "static", "native_reachable": True, "live_write_risk": False}]}
         with self.assertRaises(ValueError):
             build_surfaces.convert(source)

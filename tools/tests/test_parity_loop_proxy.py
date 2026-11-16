@@ -63,15 +63,15 @@ class WebSocketFilterTests(unittest.TestCase):
 
 class HttpFilterTests(unittest.TestCase):
     def test_only_get_to_listed_paths_passes(self) -> None:
-        for path in ("/api/", "/api/config", "/api/states", "/api/states/light.x", "/api/fenton_home/ui_assets/abc",
-                     "/api/camera_proxy/camera.x?token=1", "/api/image_proxy/a", "/api/history/period/2026-01-01", "/static/a.js", "/api/websocket"):
+        for path in ("/api/", "/api/config", "/api/states", "/api/states/light.demo_x", "/api/fenton_home/ui_assets/abc",
+                     "/api/camera_proxy/camera.demo_x?token=1", "/api/image_proxy/a", "/api/history/period/2026-01-01", "/static/a.js", "/api/websocket"):
             self.assertTrue(gp.http_decide("GET", path).allowed, path)
 
     def test_every_other_method_is_refused_even_on_a_listed_path(self) -> None:
         for method in ("POST", "PUT", "DELETE", "PATCH", "post", "OPTIONS", "HEAD"):
-            self.assertFalse(gp.http_decide(method, "/api/states/light.x").allowed, method)
+            self.assertFalse(gp.http_decide(method, "/api/states/light.demo_x").allowed, method)
         for path in ("/api/mobile_app/registrations", "/api/webhook/abc", "/api/services/light/turn_on", "/api/history/period/x",
-                     "/api/camera_proxy/camera.x", "/api/events/foo"):
+                     "/api/camera_proxy/camera.demo_x", "/api/events/foo"):
             self.assertFalse(gp.http_decide("POST", path).allowed, path)
 
     def test_never_paths_are_refused_even_for_get(self) -> None:
@@ -204,12 +204,12 @@ class ProxyEndToEndTests(unittest.TestCase):
 class FixRoundTests(unittest.TestCase):
     def test_camera_and_sign_path_reads_pass_but_writes_stay_refused(self) -> None:
         for kind in ("camera/stream", "auth/sign_path"):
-            self.assertTrue(gp.ws_decide({"id": 1, "type": kind, "entity_id": "camera.x"}).allowed, kind)
+            self.assertTrue(gp.ws_decide({"id": 1, "type": kind, "entity_id": "camera.demo_x"}).allowed, kind)
         for kind in ("call_service", "camera/webrtc/offer", "camera/update", "auth/delete_token"):
             self.assertFalse(gp.ws_decide({"id": 1, "type": kind}).allowed, kind)
 
     def test_image_serve_and_camera_proxy_paths_are_get_only_reads(self) -> None:
-        for path in ("/api/image/serve/abc123/512x512", "/api/camera_proxy/camera.x", "/api/camera_proxy_stream/camera.x?token=1",
+        for path in ("/api/image/serve/abc123/512x512", "/api/camera_proxy/camera.demo_x", "/api/camera_proxy_stream/camera.demo_x?token=1",
                      "/api/camera_proxy"):
             self.assertTrue(gp.http_decide("GET", path).allowed, path)
             for method in ("POST", "PUT", "DELETE", "PATCH"):
@@ -241,12 +241,12 @@ class FixRoundTests(unittest.TestCase):
             for label in gp.allowed_labels(forward):
                 log.record_allowed("ws", label)
             log.record_allowed("ws", "get_states")
-            log.record_allowed("http", gp.http_bucket("/api/states/light.secret?x=1"))
+            log.record_allowed("http", gp.http_bucket("/api/states/light.demo_secret?x=1"))
             text = (Path(tmp) / "run" / "allowed-summary.json").read_text()
         summary = json.loads(text)
         self.assertEqual(summary["ws"], {"fenton_home/house_config/subscribe": 1, "get_states": 2})
         self.assertEqual(summary["http"], {"/api/states": 1})
-        self.assertNotIn("light.secret", text)
+        self.assertNotIn("light.demo_secret", text)
 
     def test_proxy_end_to_end_writes_the_summary_and_the_service_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
