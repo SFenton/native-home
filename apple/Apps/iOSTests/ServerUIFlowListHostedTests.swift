@@ -154,7 +154,13 @@ final class ServerUIFlowListHostedTests: XCTestCase {
             for button in buttons {
                 XCTAssertTrue(button.isAccessibilityElement, "width \(width)")
                 XCTAssertTrue(button.accessibilityTraits.contains(.button), "width \(width)")
-                XCTAssertGreaterThanOrEqual(button.bounds.height, 44, "width \(width): the row is a 44 pt target")
+                // The tappable element is the row the button wraps (the button itself is a wrapper the list does not size): measure its
+                // frame in the page's coordinates, and check that a touch at its centre reaches the button.
+                root.view.layoutIfNeeded()
+                let frame = button.row.convert(button.row.bounds, to: root.view)
+                XCTAssertGreaterThanOrEqual(frame.height, 44, "width \(width): the row is a 44 pt target")
+                let hit = root.view.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil)
+                XCTAssertTrue(hit.map { $0 === button || $0.isDescendant(of: button) } ?? false, "width \(width): a touch on the row reaches its button, got \(String(describing: hit))")
             }
             let names = buttons.compactMap(\.accessibilityLabel)
             XCTAssertTrue(names.contains { $0.contains("Water the plants") && $0.contains("Due tomorrow") }, "width \(width): \(names)")
