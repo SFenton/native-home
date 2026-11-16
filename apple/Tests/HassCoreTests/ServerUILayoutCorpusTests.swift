@@ -34,7 +34,7 @@ struct ServerUILayoutCorpusTests {
 
     /// Cases whose condition uses the `compare` predicate of `sh.conditions@1` (lane L1a), which the parser does not read yet. Remove the
     /// entry when L1a merges; the case then reports the Studio's `invalid_reference`.
-    nonisolated static let waitingOnConditions: Set<String> = ["reject/tile-look-unknown-source.json"]
+    nonisolated static let waitingOnConditions: Set<String> = []
 
     @Test(arguments: cases)
     func caseDecodesAsTheStudioCompilesIt(_ item: Case) throws {
