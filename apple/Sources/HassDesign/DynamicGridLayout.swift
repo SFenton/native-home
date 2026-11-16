@@ -96,6 +96,22 @@ public struct DynamicGridMetrics: Equatable, Sendable {
         sideColumns = nil
     }
 
+    /// The cell minimum a grid uses when it keeps at least `minimumColumns` columns (`sh.grid-min-columns@1`): the authored `minCellWidth`,
+    /// or the width each cell has when `minimumColumns` of them share `width`, whichever is smaller. With no floor, no measured width, or
+    /// a width too narrow to hold the gutters, the authored minimum stands.
+    public static func floorMinimum(width: CGFloat, minCellWidth: CGFloat, minimumColumns: Int?, spacing: CGFloat) -> CGFloat {
+        guard let least = minimumColumns, least >= 2, width.isFinite, width > 0 else { return minCellWidth }
+        let share = (width - CGFloat(least - 1) * spacing) / CGFloat(least)
+        return share > 0 ? min(minCellWidth, share) : minCellWidth
+    }
+
+    /// The most tracks a tile takes by its content when the grid keeps `minimumColumns` columns: its share of the `columns`, so that many
+    /// tiles still sit in a row. Without a floor a tile may take the whole row.
+    public static func shareOfTracks(columns: Int, minimumColumns: Int?) -> Int {
+        guard let least = minimumColumns, least >= 2 else { return max(columns, 1) }
+        return max(columns / least, 1)
+    }
+
     /// The count rounded down to an even number, never below two: 5 becomes 4, 3 becomes 2. One track (a window
     /// too narrow for two) stays one. Hinge-aware grids use it (`.agents/patterns/dynamic-grid.md`).
     public static func evenRounded(_ columns: Int) -> Int {

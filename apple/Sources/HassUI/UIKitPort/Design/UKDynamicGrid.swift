@@ -17,6 +17,18 @@ struct UKGridConfiguration: Equatable {
     var hingeBand: ClosedRange<CGFloat>?
     /// How a row that leaves tracks unused is filled (duo-widths rule 1, `.agents/design/duo-widths.md`).
     var fill = UKGridFill.share
+    /// The grid keeps at least this many columns (`sh.grid-min-columns@1`), however wide a tile's own minimum is, and a tile that widens to
+    /// its content takes at most `floor(columns / minimumColumns)` tracks, so that many tiles still sit in a row. `nil` leaves the columns
+    /// to the width. Authored spans are kept. Its owner turns it off at accessibility text sizes, where one column reads best.
+    var minimumColumns: Int?
+}
+
+extension UKGridConfiguration {
+    /// The cell minimum the grid uses at `width`: the authored one, or the width each cell has when `minimumColumns` of them share
+    /// `width`, whichever is smaller. With no floor or no measured width the authored minimum stands (the Studio's `floorMinimum`).
+    func effectiveMinCellWidth(at width: CGFloat) -> CGFloat {
+        DynamicGridMetrics.floorMinimum(width: width, minCellWidth: minCellWidth, minimumColumns: minimumColumns, spacing: spacing)
+    }
 }
 
 /// How a grid fills a row whose items leave tracks unused (a lone tile, a short last row).
@@ -55,14 +67,18 @@ enum UKGridSolver {
         // Unbounded: the ideal width, as `sizeThatFits` does for an unspecified proposal.
         let width = width.isFinite ? width
             : configuration.minCellWidth * CGFloat(DynamicGridMetrics.effectiveMaxColumns(configuration.maxColumns, minCellWidth: configuration.minCellWidth))
-        let metrics = DynamicGridMetrics(width: width, minCellWidth: configuration.minCellWidth, maxColumns: configuration.maxColumns,
-                                         spacing: configuration.spacing, evenColumns: configuration.evenColumns, band: configuration.hingeBand)
+        let metrics = DynamicGridMetrics(width: width, minCellWidth: configuration.effectiveMinCellWidth(at: width),
+                                         maxColumns: configuration.maxColumns, spacing: configuration.spacing,
+                                         evenColumns: configuration.evenColumns, band: configuration.hingeBand)
         // Owner, 2026-11-01: a tile that declared a minimum takes the tracks its content needs (Quick Links' Security System, the Air
         // Purifier); every other tile keeps its explicit span. A tile is full row when its span is the cap.
         let content = metrics.spans(minimums: minimums.count == spans.count ? minimums : spans.map { _ in 0 }, spacing: configuration.spacing)
+        // With a floor on the columns, content widens a tile only up to its share of the tracks (`sh.grid-min-columns@1`).
+        let share = configuration.minimumColumns == nil ? Int.max
+            : DynamicGridMetrics.shareOfTracks(columns: metrics.spanCap, minimumColumns: configuration.minimumColumns)
         let wanted = spans.indices.map { index -> Int in
             let minimum = index < minimums.count ? minimums[index] : 0
-            return minimum > 0 && !headers[index] ? max(spans[index], content[index].span) : spans[index]
+            return minimum > 0 && !headers[index] ? max(spans[index], min(content[index].span, share)) : spans[index]
         }
         // Grids of small controls never fill (duo-widths rule 4).
         let fill = configuration.minCellWidth < DynamicGridMetrics.controlMaxWidth ? UKGridFill.none : configuration.fill
@@ -257,6 +273,8 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         var configuration = configuration
         let crossing = (hinge != nil || foldIsPresent) && UKHinge.crossesFold(convert(bounds, to: nil), in: window)
         configuration.evenColumns = configuration.evenColumns || crossing
+        // At accessibility text sizes the floor yields: one column reads best, as every other grid does there.
+        if traitCollection.ukIsAccessibilitySize { configuration.minimumColumns = nil }
         if let hinge, window != nil {
             let frame = convert(bounds, to: nil)
             // Position and width only: the height follows the tracks and must not feed back.
@@ -264,7 +282,7 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         }
         let visible = items.indices.filter { !items[$0].view.isHidden }
         let minimums = visible.map { ukMinimum(items[$0].view) }
-        let key = [width, configuration.evenColumns ? 1 : 0, configuration.hingeBand?.lowerBound ?? -1, configuration.hingeBand?.upperBound ?? -1, minimumsKey(minimums),
+        let key = [width, CGFloat(configuration.minimumColumns ?? 0), configuration.evenColumns ? 1 : 0, configuration.hingeBand?.lowerBound ?? -1, configuration.hingeBand?.upperBound ?? -1, minimumsKey(minimums),
                    configuration.fill == .share ? 0 : 1] + visible.map { CGFloat($0) }
         if let cache, cache.key == key { return (cache.visible, cache.solution) }
         let solution = UKGridSolver.solve(width: width, configuration: configuration, spans: visible.map { items[$0].span },

@@ -99,10 +99,11 @@ enum UKServerUIStateTileViews {
             }
             var subtitle: String?
             if let value = tile.parts.subtitle, case .ready(let text) = renderer.bindings.string(value) { subtitle = text }
-            var discMemory = node?.layoutMemory.discs ?? [:]
+            var discMemory = node?.layoutMemory ?? UKServerUILayoutMemory()
             UKServerUIStateTileParts.apply(tile, to: &face.model, reader: renderer.reader(), subtitle: subtitle,
-                                           unknown: hidden || loading || unavailable, busy: busy, memory: &discMemory)
-            node?.layoutMemory.discs = discMemory
+                                           unknown: hidden || loading || unavailable, busy: busy,
+                                           read: { renderer.bindings.textResult($0) }, memory: &discMemory)
+            node?.layoutMemory = discMemory
             view.configure(face.model, environment: UKTileEnvironment(context: page.context), animated: !first,
                            action: tile.action.map { destination in { [weak page, weak renderer, weak view] in
                                guard let page else { return }

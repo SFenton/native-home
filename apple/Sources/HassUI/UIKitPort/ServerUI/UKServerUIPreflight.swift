@@ -281,7 +281,7 @@ enum UKServerUIPreflight {
             : DynamicGridMetrics.tileMinWidth
         return UKGridConfiguration(minCellWidth: minimum, maxColumns: value.maxColumns,
                                    spacing: value.spacing.points, equalRowHeights: value.equalRowHeights,
-                                   fill: value.shortRow == .share ? .share : .none)
+                                   fill: value.shortRow == .share ? .share : .none, minimumColumns: value.minimumColumns)
     }
 
     static func padding(_ value: D.Insets, rightToLeft: Bool) -> UIEdgeInsets {
