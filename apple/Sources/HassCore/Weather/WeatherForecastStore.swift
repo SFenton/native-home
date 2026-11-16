@@ -185,11 +185,17 @@ public final class WeatherForecastStore {
     }
 
     /// Writes the briefing when it is due and checks again every `interval` until cancelled (web `useWeatherDayBriefing`).
-    /// - Parameter context: Builds the entity-derived context on each check, so the card holds no polling loop.
-    public func keepBriefingCurrent(every interval: Duration = .seconds(30), context: @MainActor () -> WeatherBriefingContext) async {
+    /// - Parameters:
+    ///   - interval: The wait between checks.
+    ///   - sleep: Waits for `interval`. Tests pass their own so the loop never depends on wall-clock time.
+    ///   - context: Builds the entity-derived context on each check, so the card holds no polling loop.
+    public func keepBriefingCurrent(
+        every interval: Duration = .seconds(30), sleep: @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        context: @MainActor () -> WeatherBriefingContext
+    ) async {
         while !Task.isCancelled {
             updateBriefing(context())
-            try? await Task.sleep(for: interval)
+            try? await sleep(interval)
         }
     }
 

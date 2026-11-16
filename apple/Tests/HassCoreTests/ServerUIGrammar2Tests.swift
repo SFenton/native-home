@@ -223,7 +223,7 @@ private func text(_ value: String) -> ServerUIOperand { .literal(.string(value))
     }
 
     @Test func rawStateOfAnEntityBoxIsAValueWhateverItsState() {
-        func entity(_ state: String) -> EntityState { EntityState(entityId: "sensor.x", state: state) }
+        func entity(_ state: String) -> EntityState { EntityState(entityId: "sensor.demo_sensor_1", state: state) }
         #expect(ServerUIReadResult.rawState(of: entity("unknown"), statesLoaded: true) == .value(.string("unknown")))
         #expect(ServerUIReadResult.rawState(of: entity("unavailable"), statesLoaded: true) == .value(.string("unavailable")))
         #expect(ServerUIReadResult.rawState(of: entity("72.5"), statesLoaded: true) == .value(.string("72.5")))
