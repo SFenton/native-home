@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "format-words-case-empty-parts",
+  "note": "Empty parts stay: \"a  b\" is \"A  B\" (two spaces), \"_x\" is \" X\" and a trailing space stays.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{a}|{b}|{c}",
+      "args": {
+        "a": {
+          "type": "literal",
+          "value": "a  b"
+        },
+        "b": {
+          "type": "literal",
+          "value": "_x"
+        },
+        "c": {
+          "type": "literal",
+          "value": "x "
+        }
+      },
+      "formats": {
+        "a": {
+          "text": {
+            "case": "words"
+          }
+        },
+        "b": {
+          "text": {
+            "case": "words"
+          }
+        },
+        "c": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "A  B| X|X "
+  }
+}

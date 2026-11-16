@@ -13,6 +13,8 @@ struct UKGlassTileModel {
     var family: ColorFamily?
     /// A solid fill the caller owns (a room's colour): white ink and a filled glyph on it, on or off.
     var fillRGB: UInt32?
+    /// What ``fillRGB`` is while the interface is dark, when the authored fill differs by appearance (`sh.solid-appearance@1`); nil keeps it.
+    var fillDarkRGB: UInt32?
     var isActive: Bool
     var isUnavailable = false
     /// The error face: a red glyph and red state on a dense ground.
@@ -118,7 +120,7 @@ struct UKGlassTileModel {
     /// The face's content with the accessory's room reserved.
     func faceContent(trailingInset: CGFloat, bottomInset: CGFloat, hidesGlyph: Bool = false, textFit: TileTextFit = .natural) -> UKTileFaceContent {
         UKTileFaceContent(
-            title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, isActive: isActive,
+            title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB, isActive: isActive,
             isUnavailable: isUnavailable && !isInert, isError: isError, isWarning: isWarning,
             showsArc: look?.showsArc == true && !usesItems, showsChevron: behavior == .navigate, level: progress,
             levelTint: progressTint, wash: wash, trailingInset: trailingInset, bottomInset: bottomInset, hidesGlyph: hidesGlyph, isFlat: isInert,
@@ -444,7 +446,8 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// The ground the discs sit on, from the same face the tile draws.
     private var actionFace: TileActionFace {
         switch TileFaceStyle.resolve(family: model.family, isActive: model.isActive, isError: model.isError, isWarning: model.isWarning,
-                                     isUnavailable: model.isUnavailable && !isInert, solidFill: model.fillRGB) {
+                                     isUnavailable: model.isUnavailable && !isInert,
+                                     solidFill: model.fillRGB.map { model.fillDarkRGB.flatMap { dark in traitCollection.userInterfaceStyle == .dark ? dark : nil } ?? $0 }) {
         case .lit: .lit
         case .filled, .colored: .filled
         case .off, .tinted, .error, .warning: .dark
@@ -474,7 +477,8 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// The face's primary ink, the title's colour: what the arc standing in for a disc is drawn in, never the warning or error ink.
     private var arcTint: UIColor {
         let style = TileFaceStyle.resolve(family: model.family, isActive: model.isActive, isError: model.isError, isWarning: model.isWarning,
-                                          isUnavailable: model.isUnavailable && !isInert, solidFill: model.fillRGB)
+                                          isUnavailable: model.isUnavailable && !isInert,
+                                          solidFill: model.fillRGB.map { model.fillDarkRGB.flatMap { dark in traitCollection.userInterfaceStyle == .dark ? dark : nil } ?? $0 })
         return UIColor(TileFaceInk.primaryToken(style: style, appearance: UKDesign.tileAppearance(surface: environment.surface, traits: traitCollection)))
     }
 

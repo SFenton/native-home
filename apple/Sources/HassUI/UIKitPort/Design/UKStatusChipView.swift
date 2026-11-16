@@ -23,6 +23,8 @@ final class UKStatusChipView: UIControl {
     private let summaryLabel = UILabel()
     private var symbol = ""
     private var fill: ChipTint?
+    /// The colours while the interface is dark, when the authored fill or glyph differs by appearance (`sh.solid-appearance@1`).
+    private var darkFill: ChipTint?
     private var idleGlyph: UIColor?
     private var title = ""
     private var summary = ""
@@ -61,6 +63,7 @@ final class UKStatusChipView: UIControl {
             invalidateIntrinsicContentSize()
             ukRemeasureContainers(ifSizeChangedFrom: &measured)
         }
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: UKStatusChipView, _) in view.applyColors(animated: false) }
         NotificationCenter.default.addObserver(self, selector: #selector(transparencyChanged),
                                                name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
     }
@@ -79,17 +82,20 @@ final class UKStatusChipView: UIControl {
     ///   - family: The colour family; nil draws neutral.
     ///   - isActive: Whether the family fill applies.
     ///   - tint: A computed look that wins over `family`.
+    ///   - darkTint: What `tint` is while the interface is dark, when it differs; nil keeps `tint` in both.
     ///   - idleGlyph: An authored glyph colour on the neutral face; nil preserves the canonical ink.
     ///   - action: What a tap does; nil draws an inert chip.
     func configure(title: String, summary: String, symbol: String, family: ColorFamily?, isActive: Bool, tint: ChipTint?,
-                   idleGlyph: UIColor? = nil, animated: Bool = true, action: (() -> Void)? = nil) {
+                   darkTint: ChipTint? = nil, idleGlyph: UIColor? = nil, animated: Bool = true, action: (() -> Void)? = nil) {
         let newFill = StatusChipStyle.fillTint(family, isActive: isActive, tint: tint)
-        let colorsChanged = newFill != fill || idleGlyph != self.idleGlyph
+        let newDark = tint == nil ? nil : darkTint
+        let colorsChanged = newFill != fill || newDark != darkFill || idleGlyph != self.idleGlyph
         let textChanged = title != self.title || summary != self.summary || symbol != self.symbol || (newFill != nil) != (fill != nil)
         self.title = title
         self.summary = summary
         self.symbol = symbol
         fill = newFill
+        darkFill = newDark
         self.idleGlyph = idleGlyph
         onTap = action
         hasAction = action != nil
@@ -107,8 +113,12 @@ final class UKStatusChipView: UIControl {
         ukRemeasureContainers(ifSizeChangedFrom: &measured)
     }
 
+    /// The fill for the current appearance: the dark one while the interface is dark and the chip has one.
+    private var shownFill: ChipTint? { traitCollection.userInterfaceStyle == .dark ? darkFill ?? fill : fill }
+
     private func applyColors(animated: Bool) {
         let ink = UIColor(HassTokens.RGB.Surface.secondaryOnModule)
+        let fill = shownFill
         let groundColor = fill.map { UIColor(rgb: $0.fill) } ?? UKInk.module(.thin, reduceTransparency: UIAccessibility.isReduceTransparencyEnabled)
         UKMotion.stateFade("StatusChip", animated: animated) {
             ground.backgroundColor = groundColor.cgColor

@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "format-words-case-unavailable",
+  "note": "An unavailable argument makes the format unavailable.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "robot",
+            "path": [
+              "attributes",
+              "issue"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

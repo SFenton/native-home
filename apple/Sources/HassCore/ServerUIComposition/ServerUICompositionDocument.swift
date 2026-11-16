@@ -585,10 +585,26 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public enum TileLayout: String, Sendable {
         case standard, anchoredBottom = "anchored-bottom"
     }
-    /// A tile's fill: the standard one or an authored solid colour.
+    /// A tile's fill: the standard one, an authored solid colour, or one solid colour for each appearance (`sh.solid-appearance@1`).
     public enum TileFill: Equatable, Sendable {
         case standard
         case solidRGB(red: Int, green: Int, blue: Int)
+        case solidAppearance(light: ServerUIRGB, dark: ServerUIRGB)
+
+        /// The exact colour for one appearance, or `nil` for the standard fill. A fixed colour is the same in both; a pair gives its member.
+        public func rgb(isDark: Bool) -> ServerUIRGB? {
+            switch self {
+            case .standard: nil
+            case .solidRGB(let red, let green, let blue): ServerUIRGB(red: red, green: green, blue: blue)
+            case .solidAppearance(let light, let dark): isDark ? dark : light
+            }
+        }
+
+        /// The exact colour in light and in dark, or `nil` for the standard fill.
+        public var appearances: (light: ServerUIRGB, dark: ServerUIRGB)? {
+            guard let light = rgb(isDark: false), let dark = rgb(isDark: true) else { return nil }
+            return (light, dark)
+        }
     }
     /// A tile that navigates: its symbol, family, subtitle, optional alarm disc and the action it runs.
     public struct NavigationTile: Equatable, Sendable {

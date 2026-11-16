@@ -12,6 +12,8 @@ struct UKTileFaceContent: Equatable {
     var family: ColorFamily?
     /// A solid fill the caller owns (a room's colour); wins over the family.
     var fillRGB: UInt32?
+    /// What ``fillRGB`` is while the interface is dark, when it differs (`sh.solid-appearance@1`); nil keeps ``fillRGB``.
+    var fillDarkRGB: UInt32?
     var isActive: Bool
     var isUnavailable: Bool
     /// The red error face.
@@ -41,7 +43,7 @@ struct UKTileFaceContent: Equatable {
     var probeIdentifier: String?
 
     init(title: String, subtitle: String? = nil, symbol: String, tint: UIColor? = nil, family: ColorFamily? = nil, fillRGB: UInt32? = nil,
-         isActive: Bool, isUnavailable: Bool = false, isError: Bool = false, isWarning: Bool = false, showsArc: Bool = false,
+         fillDarkRGB: UInt32? = nil, isActive: Bool, isUnavailable: Bool = false, isError: Bool = false, isWarning: Bool = false, showsArc: Bool = false,
          showsChevron: Bool = false, level: Double? = nil, levelTint: UIColor? = nil, wash: UIColor? = nil, trailingInset: CGFloat = 0, bottomInset: CGFloat = 0, hidesGlyph: Bool = false,
          isFlat: Bool = false, textFit: TileTextFit = .natural, probeIdentifier: String? = nil) {
         self.title = title
@@ -50,6 +52,7 @@ struct UKTileFaceContent: Equatable {
         self.tint = tint ?? family.map { UIColor($0.glyphToken) } ?? UIColor.tintColor
         self.family = family
         self.fillRGB = fillRGB
+        self.fillDarkRGB = fillDarkRGB
         self.isActive = isActive
         self.isUnavailable = isUnavailable
         self.isError = isError
@@ -76,6 +79,7 @@ struct UKTileFaceContent: Equatable {
         var isUnavailable: Bool
         var family: ColorFamily?
         var fillRGB: UInt32?
+        var fillDarkRGB: UInt32?
         var wash: UIColor?
         var tint: UIColor
         var levelTint: UIColor?
@@ -83,7 +87,7 @@ struct UKTileFaceContent: Equatable {
     }
 
     var colorKey: ColorKey {
-        ColorKey(isActive: isActive, isError: isError, isWarning: isWarning, isUnavailable: isUnavailable, family: family, fillRGB: fillRGB, wash: wash,
+        ColorKey(isActive: isActive, isError: isError, isWarning: isWarning, isUnavailable: isUnavailable, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB, wash: wash,
                  tint: tint, levelTint: levelTint, hasLevel: (level ?? 0) > 0)
     }
 }
@@ -243,7 +247,7 @@ final class UKGlassTileFaceView: UIView {
     private var style: TileFaceStyle {
         .resolve(family: content.family, isActive: content.isActive, isError: content.isError, isWarning: content.isWarning,
                  isUnavailable: content.isUnavailable,
-                 solidFill: content.fillRGB)
+                 solidFill: content.fillRGB.map { content.fillDarkRGB.flatMap { dark in traits.userInterfaceStyle == .dark ? dark : nil } ?? $0 })
     }
     private var layoutKind: TileLayout { environment.layout.resolved(accessibilitySize: traits.ukIsAccessibilitySize) }
 

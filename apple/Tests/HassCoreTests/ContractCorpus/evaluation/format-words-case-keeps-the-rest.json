@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "format-words-case-keeps-the-rest",
+  "note": "Only the first character of a word changes: \"AUTO mode\" is \"AUTO Mode\" and \"iPhone\" is \"IPhone\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{a}|{b}",
+      "args": {
+        "a": {
+          "type": "literal",
+          "value": "AUTO mode"
+        },
+        "b": {
+          "type": "literal",
+          "value": "iPhone"
+        }
+      },
+      "formats": {
+        "a": {
+          "text": {
+            "case": "words"
+          }
+        },
+        "b": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "AUTO Mode|IPhone"
+  }
+}

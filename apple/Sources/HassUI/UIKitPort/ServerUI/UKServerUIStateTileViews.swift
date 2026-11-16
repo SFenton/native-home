@@ -68,6 +68,7 @@ enum UKServerUIStateTileViews {
             : UKGlassTileModel(title: tile.node.title, subtitle: words, symbol: glyph, family: .neutral, isActive: resolution.isActive,
                                isUnavailable: request.isUnknown, isError: look.stateClass == .error, kind: .state, identifier: tile.node.id)
         model.fillRGB = resolution.fill
+        model.fillDarkRGB = resolution.fillDark
         model.stateCandidates = style.rules.compactMap(\.words) + style.rules.flatMap(\.states).map { StateStyle.title($0) }
             + (style.request.map { Array($0.pendingWords.values) + [$0.errorWords] } ?? []) + ["Unavailable"]
         model.look = look

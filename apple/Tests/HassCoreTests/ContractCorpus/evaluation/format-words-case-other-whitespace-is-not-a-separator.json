@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-words-case-other-whitespace-is-not-a-separator",
+  "note": "Only U+0020 separates: a tab or a newline stays inside its word, so \"a\tb\nc d\" is \"A\tb\nc D\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "a\tb\nc d"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "A\tb\nc D"
+  }
+}

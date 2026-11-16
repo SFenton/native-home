@@ -44,7 +44,11 @@ extension RoomColor {
     var color: Color { Color(token) }
 
     /// The colour as raw sRGB, alpha included.
-    var token: HassRGB { HassRGB(red: red, green: green, blue: blue, alpha: opacity) }
+    var token: HassRGB {
+        let light = HassRGB.Components(red: red, green: green, blue: blue, alpha: opacity)
+        guard let dark else { return HassRGB(light) }
+        return HassRGB(light: light, dark: .init(red: dark.red, green: dark.green, blue: dark.blue, alpha: opacity))
+    }
 }
 
 // MARK: - Colour families

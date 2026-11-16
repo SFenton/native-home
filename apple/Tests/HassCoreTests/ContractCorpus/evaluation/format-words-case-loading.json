@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "format-words-case-loading",
+  "note": "A loading argument makes the format loading.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "robot",
+            "path": [
+              "attributes",
+              "issue"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "robot/attributes/issue": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

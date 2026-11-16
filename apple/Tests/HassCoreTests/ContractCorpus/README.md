@@ -62,9 +62,9 @@ reads `file`, `outcome`, `issue` and ignores the other keys). The Studio test ho
 `issue` points at the first id the app does not list. The generators decide this from `capabilities.json` through `scripts/corpus-handshake.ts`,
 so shipping an id is: update `capabilities.json` and `capabilities.pending.json`, move the id from `pending.ts` into the explicit list in
 `compiler.ts`, and rerun the generators. Shipped through native-ingest L0 to L3, NT1 and L1b: every capability but `sh.pipeline@1`,
-`sh.pipeline-operands@1`, `sh.list-parts@1`, `sh.list-read@1` and `sh.raw-state@1`, and `sh.state-style-fills@1` (added by the Studio after: lane TC2), and the five TC3 ids `sh.bound-options-read@1`, `sh.bound-row-parts@1`, `sh.check-face@1`, `sh.grid-min-columns@1` and `sh.tile-disc-rules@1`.
+`sh.pipeline-operands@1` and `sh.list-parts@1` (`sh.list-read@1`, `sh.raw-state@1` and `sh.state-style-fills@1` shipped after, native-ingest ni-grammar2 and ni-door), and the five TC3 ids `sh.bound-options-read@1`, `sh.bound-row-parts@1`, `sh.check-face@1`, `sh.grid-min-columns@1` and `sh.tile-disc-rules@1`.
 
-The `parts-*` files (60: 19 compiled, the rest refused; a compiled case is `reject/pending-parts-*`) cover the five TC3 ids in five families: options, disc, columns, row and check. They are written by `scripts/generate-parts-corpus.ts`; do not edit them by hand.
+The `parts-*` files (60: 19 accepts, `accept/parts-*`, and 41 plain refusals, `reject/parts-*`; the five TC3 ids shipped with native-ingest ni-parts, so none is pending any more) cover the five TC3 ids in five families: options, disc, columns, row and check. They are written by `scripts/generate-parts-corpus.ts`; do not edit them by hand.
 
 The `pipeline-*` files (16 compile, 93 refused; a compiled case is `reject/pending-pipeline-*`, except one that uses no pending capability) cover `sh.pipeline@1` and `sh.pipeline-operands@1`, the Data Flow data source: its
 three request kinds (a service with a response, an entity attribute, a live subscription from the closed list `todo-items` and
@@ -83,6 +83,11 @@ The `number-format-`, `text-format-`, `list-read-` and `raw-state-` files (and t
 (`minimumFractionDigits` and the title-case format under `sh.pipeline-operands@1`, the list reads `sh.list-read@1`, the raw state read `sh.raw-state@1`). They are written
 by `scripts/grammar2-corpus.ts` through the same generator. Their evaluation cases add one environment key: `env.raw` maps a source id to what the host's raw state read
 gives (`{status: 'value', value: 'unknown'}`); a source not listed has no entity and is unavailable. `env.reads` may hold arrays for a list attribute.
+
+The `text-format-words-` files and the `format-words-case-*` evaluation cases (and their `pending-` twins) cover the `words` text case under the pending `sh.text-case-words@1`: `{ text: { case: "words" } }`
+splits at `_` and at a space, capitalizes an ASCII first letter, keeps empty parts and joins with one space. The `appearance-` files (and their `pending-` twins) cover the light and dark colour pair
+`solid-appearance { light, dark }` under the pending `sh.solid-appearance@1`, in a glyph, a fill, a rule case, a bound colour's fallback, a room card colour and a state style fill. Both are written
+by `scripts/grammar2-corpus.ts` through the same generator. Two older refusals (`bound-color-glyph-standard-fallback`, `state-style-fills-fill-standard`) stay plain rejects but were re-pinned: widening a slot to take a pair changed their first issue from `missing_required` at `.../blue` to `unknown_variant` at `.../type` (a native promotion item).
 
 `evaluation/*.json` is the expression **evaluation** corpus: an operand or a condition, an environment (`reads` keyed `<source>/<path>`, a
 viewer, a clock, an item, parameters, and `flow` for flow mode) and the exact answer (`yes`, `no` or `unknown` for a condition; `value`, `loading`

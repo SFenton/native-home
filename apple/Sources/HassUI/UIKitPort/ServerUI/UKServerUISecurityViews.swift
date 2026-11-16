@@ -12,6 +12,8 @@ enum UKServerUISecurityViews {
     static func rgb(_ fill: D.TileFill) -> UInt32 {
         switch fill {
         case .solidRGB(let red, let green, let blue): UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
+        // An alarm fill is never a pair (its slot takes `solid-rgb` only); the light member keeps the switch total.
+        case .solidAppearance(let light, _): UInt32(light.red) << 16 | UInt32(light.green) << 8 | UInt32(light.blue)
         case .standard: 0
         }
     }

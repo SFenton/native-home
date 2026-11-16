@@ -35,4 +35,6 @@ public struct StateResolution: Equatable, Sendable {
     public var colour: StateColour? = nil
     /// The face fill of the state's rule (`red << 16 | green << 8 | blue`); nil is the face the class picks.
     public var fill: UInt32? = nil
+    /// The face fill while the screen is dark, when the rule's fill is a light and dark pair; nil is ``fill`` in both.
+    public var fillDark: UInt32? = nil
 }

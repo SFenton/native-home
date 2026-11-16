@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-words-case-issue-text",
+  "note": "A vacuum issue as words: \"Wheel stuck\" is \"Wheel Stuck\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "Wheel stuck"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Wheel Stuck"
+  }
+}

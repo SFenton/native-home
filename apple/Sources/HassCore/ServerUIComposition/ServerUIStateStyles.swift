@@ -199,18 +199,29 @@ enum ServerUIStateStyles {
     }
 
     private static func decodeRule(_ rule: JSONValue) -> StateRule {
-        StateRule((rule["states"]?.array ?? []).compactMap(\.string),
+        let fill = rule["fill"].flatMap(decodeFill)
+        var decoded = StateRule((rule["states"]?.array ?? []).compactMap(\.string),
                   rule["class"]?.string.flatMap(StateClass.init(rawValue:)) ?? .unknown,
                   active: rule["active"]?.bool ?? false, glyph: rule["icon"]?.string, words: rule["text"]?.string,
                   indicator: rule["indicator"]?.string.flatMap(StateIndicator.init(rawValue:)),
                   action: rule["action"].map(decodeAction),
-                  colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)), fill: rule["fill"].flatMap(decodeFill))
+                  colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)), fill: fill?.light)
+        decoded.fillDark = fill?.dark
+        return decoded
     }
 
-    /// A `solid-rgb` fill as `red << 16 | green << 8 | blue`; the shape check has already made it exact.
-    private static func decodeFill(_ fill: JSONValue) -> UInt32? {
-        guard let red = fill["red"]?.number, let green = fill["green"]?.number, let blue = fill["blue"]?.number else { return nil }
-        return UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
+    /// A `solid-rgb` fill as `red << 16 | green << 8 | blue`, or a `solid-appearance` as its light and its dark member; the shape check has
+    /// already made it exact. `dark` is nil for a single colour.
+    private static func decodeFill(_ fill: JSONValue) -> (light: UInt32, dark: UInt32?)? {
+        func packed(_ value: JSONValue) -> UInt32? {
+            guard let red = value["red"]?.number, let green = value["green"]?.number, let blue = value["blue"]?.number else { return nil }
+            return UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
+        }
+        if fill["type"]?.string == "solid-appearance" {
+            guard let light = fill["light"].flatMap(packed), let dark = fill["dark"].flatMap(packed) else { return nil }
+            return (light, dark)
+        }
+        return packed(fill).map { ($0, nil) }
     }
 
     private static func decodeAction(_ action: JSONValue) -> StateAction {

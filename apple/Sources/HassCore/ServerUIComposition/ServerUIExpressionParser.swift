@@ -303,12 +303,12 @@ struct ServerUIExpressionParser {
             if let kind, kind != .string { add(.bindingType, at) }
             return .date(style)
         case "text":
-            needs.insert("pipeline-operands")
             guard let wrapper = fields(body, at + "/text", ["case"]) else { return nil }
             guard case .string(let raw)? = wrapper["case"], let letterCase = ServerUITextCase(rawValue: raw) else {
                 add(.unknownVariant, at)
                 return nil
             }
+            needs.insert(letterCase.capability)
             if let kind, kind != .string { add(.bindingType, at) }
             return .text(letterCase)
         default:

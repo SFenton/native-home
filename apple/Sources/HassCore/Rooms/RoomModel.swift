@@ -35,6 +35,23 @@ public struct RoomColor: Hashable, Sendable, Codable {
     public var green: Double
     public var blue: Double
     public var opacity: Double
+    /// The color to draw while the screen is dark, when an authored colour differs by appearance (`sh.solid-appearance@1`); nil draws
+    /// this color in both appearances.
+    public var dark: Dark?
+
+    /// The dark member of a color that differs by appearance, as 0...1 channels.
+    public struct Dark: Hashable, Sendable, Codable {
+        public var red: Double
+        public var green: Double
+        public var blue: Double
+
+        /// Creates a color from 0–255 channels.
+        public init(_ red: Double, _ green: Double, _ blue: Double) {
+            self.red = red / 255
+            self.green = green / 255
+            self.blue = blue / 255
+        }
+    }
 
     /// Creates a color from 0–255 channels, like the web's `rgba()`.
     public init(_ red: Double, _ green: Double, _ blue: Double, opacity: Double = 1) {
