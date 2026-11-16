@@ -20,7 +20,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
     }
 
     /// The corpus case `file`, with the components of its third page moved onto the page the renderer opens first.
-    private func publication(_ file: String) throws -> ServerUICompositionPublication {
+    private func publication(_ file: String, tileProps: JSONValue? = nil) throws -> ServerUICompositionPublication {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let url = apple.appendingPathComponent("Tests/HassCoreTests/ContractCorpus/reject/\(file).json")
         var json = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
@@ -29,13 +29,14 @@ final class ServerUILayoutHostedTests: XCTestCase {
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: moved)
         let kept = try XCTUnwrap(pages[0]["components"])
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: kept)
+        if let tileProps { json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components/0/props", to: tileProps) }
         return try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
     }
 
-    private func page(_ file: String, width: CGFloat) throws -> (UKServerUIRenderer, UKServerUIPage) {
+    private func page(_ file: String, width: CGFloat, tileProps: JSONValue? = nil) throws -> (UKServerUIRenderer, UKServerUIPage) {
         let store = EntityStore()
         store.replaceAll([EntityState(entityId: "lock.demo_door", state: "locked")])
-        let host = try UKServerUIRenderer(publication: publication(file), context: UKContext(store: store, caller: HostedCaller()),
+        let host = try UKServerUIRenderer(publication: publication(file, tileProps: tileProps), context: UKContext(store: store, caller: HostedCaller()),
                                           backdrop: ServerUIRendererFixture.backdrop())
         _ = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180)))
         HostedPage.wait(0.1)
@@ -47,6 +48,16 @@ final class ServerUILayoutHostedTests: XCTestCase {
     private func find<T: UIView>(_ type: T.Type, in view: UIView) -> T? {
         if let match = view as? T { return match }
         return view.subviews.lazy.compactMap { self.find(type, in: $0) }.first
+    }
+
+    /// Every accessibility label the view and its accessibility elements expose, including elements a container hands out itself.
+    private func spoken(_ view: UIView) -> [String] {
+        var labels = [view.accessibilityLabel].compactMap { $0 }
+        for element in view.accessibilityElements ?? [] {
+            if let child = element as? UIView { labels += spoken(child) } else if let label = (element as? NSObject)?.accessibilityLabel { labels.append(label) }
+        }
+        for child in view.subviews { labels += spoken(child) }
+        return labels
     }
 
     private func all<T: UIView>(_ type: T.Type, in view: UIView) -> [T] {
@@ -97,7 +108,7 @@ final class ServerUILayoutHostedTests: XCTestCase {
         for width in Self.widths {
             let (_, root) = try page("pending-tab-bar-top-icons", width: width)
             let tabs = try XCTUnwrap(root.nodes["tabs"]?.view)
-            let labels = all(UIView.self, in: tabs).compactMap(\.accessibilityLabel)
+            let labels = spoken(tabs)
             for name in ["Controls", "Rooms", "Dock"] { XCTAssertTrue(labels.contains(name), "\(name) at \(width): \(labels)") }
             HostedPage.hideTracked()
         }
@@ -141,7 +152,11 @@ final class ServerUILayoutHostedTests: XCTestCase {
 
     func testTilePartsDrawDiscsWithNamesAtEveryFamilyWidth() throws {
         for width in Self.widths {
-            let (_, root) = try page("pending-tile-parts-two-discs-enabled-when", width: width)
+            let call: JSONValue = .object(["type": .string("call-service"), "domain": .string("vacuum"), "service": .string("locate"),
+                                           "target": .object(["entity_id": .object(["type": .string("literal"), "value": .string("vacuum.example_robot")])])])
+            let disc: JSONValue = .object(["id": .string("lock"), "icon": .object(["type": .string("sf-symbol"), "name": .string("lock"),
+                "rendering": .string("canonical"), "unavailable": .string("fallback")]), "label": .string("Lock"), "action": call])
+            let (_, root) = try page("pending-tile-parts-destination", width: width, tileProps: .object(["discs": .array([disc])]))
             let tile = try XCTUnwrap(root.nodes["door"]?.view as? UKGlassTileView, "width \(width)")
             XCTAssertFalse(tile.model.actions.isEmpty, "width \(width)")
             XCTAssertEqual(tile.model.actions.first?.label, "Lock")

@@ -69,9 +69,28 @@ final class UKServerUIOverlayView: UIView, UKGridMeasuring {
     }
 
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        guard let base else { return 0 }
-        if let measuring = base as? UKGridMeasuring { return measuring.gridHeight(forWidth: width) }
-        return ceil(base.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+        guard let base else { return needed }
+        let natural: CGFloat
+        if let measuring = base as? UKGridMeasuring { natural = measuring.gridHeight(forWidth: width) }
+        else { natural = ceil(base.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height) }
+        return max(natural, needed)
+    }
+
+    /// The height the controls need so that none leaves the overlay: the top row, the bottom row and the center control never overlap
+    /// the edge, each at its 44 pt minimum plus its inset.
+    private var needed: CGFloat {
+        guard let definition else { return 0 }
+        var top: CGFloat = 0, bottom: CGFloat = 0, center: CGFloat = 0
+        for (id, _) in controls {
+            guard let place = definition.placement(of: id) else { continue }
+            let rise = CGFloat(place.inset.points) + ServerUIOverlay.minimumTarget
+            switch place.anchor {
+            case .topLeading, .topTrailing: top = max(top, rise)
+            case .bottomLeading, .bottomTrailing: bottom = max(bottom, rise)
+            case .center: center = max(center, ServerUIOverlay.minimumTarget)
+            }
+        }
+        return max(top + bottom, center)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
