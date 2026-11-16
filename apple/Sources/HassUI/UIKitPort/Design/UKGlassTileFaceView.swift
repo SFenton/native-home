@@ -244,10 +244,16 @@ final class UKGlassTileFaceView: UIView {
 
     private var appearance: TileAppearance { UKDesign.tileAppearance(surface: environment.surface, traits: traits) }
     private var finish: TileFinish { UKDesign.effectiveFinish(environment.finish, traits: traits) }
+    /// The solid fill for the traits the face draws for: the dark member of an authored light and dark pair while the interface is dark
+    /// (`sh.solid-appearance@1`), else ``UKTileFaceContent/fillRGB``. Nil when the face has no solid fill.
+    var drawnFillRGB: UInt32? {
+        guard let light = content.fillRGB else { return nil }
+        return traits.userInterfaceStyle == .dark ? content.fillDarkRGB ?? light : light
+    }
     private var style: TileFaceStyle {
         .resolve(family: content.family, isActive: content.isActive, isError: content.isError, isWarning: content.isWarning,
                  isUnavailable: content.isUnavailable,
-                 solidFill: content.fillRGB.map { content.fillDarkRGB.flatMap { dark in traits.userInterfaceStyle == .dark ? dark : nil } ?? $0 })
+                 solidFill: drawnFillRGB)
     }
     private var layoutKind: TileLayout { environment.layout.resolved(accessibilitySize: traits.ukIsAccessibilitySize) }
 
