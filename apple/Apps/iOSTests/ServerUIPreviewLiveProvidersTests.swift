@@ -370,6 +370,14 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         }
     }
 
+    /// The wake light and household away status entities under the document's own ids, each reporting `command_available`,
+    /// so a command passes its controller's guard and reaches the caller the preview supplied.
+    private func commandableSnapshots() -> [EntityState] {
+        let wake = BedroomFixtures.wakeLight(.waking, now: Date())
+        return [EntityState(entityId: house.bedroom.wakeLight.statusEntityId, state: wake.state, attributes: wake.attributes),
+                EntityState(entityId: house.bedroom.householdAwayEntityId, state: "idle", attributes: VacationFixtures.idleAttributes)]
+    }
+
     /// Draws the writes fixture at each family's size and runs `body` on it, as a person who sees the admin to-do.
     private func drive(_ body: @MainActor (Rig) async throws -> Void) async throws {
         let publication = try writingPublication()
@@ -382,7 +390,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let mock = lastMock!
             providers.user = HassUser(id: person.haUserId, name: person.name, isOwner: false, isAdmin: true)
             live.context.store.apply([EntityState(entityId: "switch.synthetic_toggle", state: "off"),
-                                      EntityState(entityId: item.entityId, state: "off")] + BedroomFixtures.states(.waking))
+                                      EntityState(entityId: item.entityId, state: "off")] + BedroomFixtures.states(.waking) + self.commandableSnapshots())
             let backdrop = try ServerUIRendererFixture.backdrop()
             let supply = try providers.supply(for: publication, blur: backdrop.blur)
             let prepared = try UKServerUIPreview.Prepared(publication: publication, context: live.context, assets: assets,
@@ -548,8 +556,8 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let room = self.house.bedroom
             guard case .wake(let wake)? = rig.supply.bedrooms[room.wakeLight.id] else { return XCTFail("\(rig.family): wake light") }
             let accepted = await wake.delete(alarmId: "synthetic")
-            XCTAssertFalse(accepted, "\(rig.family): the wake light command is not accepted")
-            await rig.assertNoWrite("wake light command")
+            XCTAssertFalse(accepted, "\(rig.family): the wake light command is refused")
+            await rig.assertRefused(1, "wake light command")
             let bedID = try XCTUnwrap(room.beds.first).id
             guard case .bed(let bed)? = rig.supply.bedrooms[bedID] else { return XCTFail("\(rig.family): bed side") }
             bed.setPower(on: true)
@@ -577,7 +585,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             await rig.assertRefused(1, "vacation check")
             let outcome = await away.solo.household.endNow()
             if case .rejected = outcome {} else { XCTFail("\(rig.family): the household away command was accepted") }
-            await rig.assertNoWrite("household away command")
+            await rig.assertRefused(2, "household away command")
             XCTAssertFalse(away.protectsPublication, "\(rig.family): the away provider's pending flag clears")
         }
     }
