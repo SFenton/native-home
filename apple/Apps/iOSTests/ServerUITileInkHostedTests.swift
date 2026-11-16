@@ -132,7 +132,7 @@ final class ServerUITileInkHostedTests: XCTestCase {
         let (root, tile, _) = try await page("glyph-tint", width: 393, state: "idle")
         for style in [UIUserInterfaceStyle.light, .dark] {
             setStyle(style, root)
-            XCTAssertEqual(packed(tile.face.drawnGlyphColor, in: tile), Self.glyphLight, style.rawValue)
+            XCTAssertEqual(packed(tile.face.drawnGlyphColor, in: tile), Self.glyphLight, "\(style.rawValue)")
         }
     }
 
@@ -289,8 +289,8 @@ final class ServerUITileInkHostedTests: XCTestCase {
     func testTheDocumentsCellFitReachesTheTile() async throws {
         let (_, natural, _) = try await page("cell-fit-natural", width: 393, state: "docked", tile: "a")
         XCTAssertTrue(natural.keepsNaturalHeight)
-        let fill = try XCTUnwrap(window?.rootViewController.flatMap { HostedPage.descendants(of: $0.view) }.compactMap { $0 as? UKGlassTileView }
-            .first { $0.model.identifier == "b" })
+        let all = try XCTUnwrap(window).rootViewController.map { HostedPage.descendants(of: $0.view) } ?? []
+        let fill = try XCTUnwrap(all.compactMap { $0 as? UKGlassTileView }.first { $0.model.identifier == "b" })
         XCTAssertFalse(fill.keepsNaturalHeight, "cellFit fill is the default")
     }
 
@@ -379,7 +379,8 @@ final class ServerUITileInkHostedTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(ChipTint.contrast(Self.glyphLight, 0xFFFFFF), 3)
         // White at 92% on the fill the lowering uses keeps the 4.5:1 of the family fill's own supporting text.
         let fill: UInt32 = 0x785AA0
-        let soft = ColorFamily.mix(0xFFFFFF, fill, 0.92)
+        func blend(_ shift: UInt32) -> UInt32 { UInt32((255 * 0.92 + Double((fill >> shift) & 0xFF) * 0.08).rounded()) }
+        let soft = blend(16) << 16 | blend(8) << 8 | blend(0)
         XCTAssertGreaterThanOrEqual(ChipTint.contrast(soft, fill), 4.5)
     }
 

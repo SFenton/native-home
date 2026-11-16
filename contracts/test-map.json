@@ -2564,6 +2564,48 @@
     "ServerUISecurityHostedTests"
    ],
    "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassCore/ServerUIComposition/ServerUITileInk",
+   "swift": [
+    "ServerUITileInkTests",
+    "ServerUIContractCorpusTests"
+   ],
+   "hosted": [
+    "ServerUITileInkHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassCore/TileActions/StateFillInk",
+   "swift": [
+    "ServerUITileInkTests",
+    "StateStyle"
+   ],
+   "hosted": [
+    "ServerUITileInkHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/AuthoredTileInk",
+   "swift": [
+    "AuthoredTileInkTests",
+    "TileAction"
+   ],
+   "hosted": [
+    "ServerUITileInkHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITileInk",
+   "swift": [],
+   "hosted": [
+    "ServerUITileInkHostedTests",
+    "ServerUIStateStyleHostedTests"
+   ],
+   "journeys": []
   }
  ],
  "changedEnvironment": {
