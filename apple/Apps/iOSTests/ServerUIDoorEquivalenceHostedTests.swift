@@ -63,7 +63,7 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
             "look.class": model.look?.stateClass.rawValue ?? "", "look.icon": model.look?.icon ?? "",
             "look.text": model.look?.text ?? "", "look.indicator": model.look?.indicator.rawValue ?? "",
             "ax.label": view.accessibilityLabel ?? "", "ax.value": view.accessibilityValue ?? "",
-            "discs": "\(model.actions.count)",
+            "discs": "\(model.actions.count)", "fill": model.fillRGB.map { String($0, radix: 16) } ?? "-",
         ]
         for (index, action) in model.actions.enumerated() {
             result["disc\(index)"] = "\(action.id)|\(action.verb)|\(action.symbol)|\(action.phase)|\(action.isOn.map(String.init) ?? "-")|\(action.isError)"
@@ -87,6 +87,13 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
                 await show(state, of: door, in: host, view)
                 all["\(door.tile)/\(state)"] = Self.snapshot(view)
             }
+        }
+        // A cold launch or a reconnect: the store has no state for the door yet.
+        for door in Self.doors {
+            let (host, window, _) = try ServerUISecurityHostedFixture.host(omitting: [door.entity])
+            defer { window.isHidden = true }
+            await HostedPage.pump(passes: 20)
+            all["\(door.tile)/no-state"] = Self.snapshot(try tile(host, door.tile))
         }
         for failing in [false, true] {
             for door in Self.doors {

@@ -16,6 +16,8 @@ final class ServerUIDoorPixelsHostedTests: XCTestCase {
         let entity: String
         let state: String
         let words: String
+        /// An entity the store has no state for, so the still shows a door that has not loaded.
+        var omitted: String?
     }
 
     private static let scenarios: [Scenario] = {
@@ -31,6 +33,7 @@ final class ServerUIDoorPixelsHostedTests: XCTestCase {
             Scenario(name: "garage-opening", tile: garage.0, entity: garage.1, state: "opening", words: "Opening"),
             Scenario(name: "garage-closing", tile: garage.0, entity: garage.1, state: "closing", words: "Closing"),
             Scenario(name: "garage-unavailable", tile: garage.0, entity: garage.1, state: "unavailable", words: "Unavailable"),
+            Scenario(name: "lock-locked-garage-stateless", tile: lock.0, entity: lock.1, state: "locked", words: "Locked", omitted: garage.1),
         ]
     }()
 
@@ -58,22 +61,30 @@ final class ServerUIDoorPixelsHostedTests: XCTestCase {
         // The folded Duo is 1398 x 2034 px at 3x.
         let size = CGSize(width: 466, height: 678)
 
-        func capture(_ name: String, _ view: UKGlassTileView, _ window: UIWindow) async throws {
+        func capture(_ name: String, _ view: UKGlassTileView, _ window: UIWindow, tiles: [String: UKGlassTileView] = [:]) async throws {
             await HostedPage.pump(passes: 40)
             try still(window, to: directory.appendingPathComponent(name + ".png"))
             ax[name] = [view.accessibilityLabel ?? "", view.accessibilityValue ?? ""]
+            for (id, tile) in tiles {
+                let model = tile.model
+                ax[name + "#" + id] = ["\(model.isUnavailable)", model.fillRGB.map { String($0, radix: 16) } ?? "-", "\(model.isActive)", model.subtitle ?? ""]
+            }
         }
 
         for scenario in Self.scenarios {
-            let (host, window, _) = try ServerUISecurityHostedFixture.host(size: size)
+            let (host, window, _) = try ServerUISecurityHostedFixture.host(size: size, omitting: Set([scenario.omitted].compactMap { $0 }))
             defer { window.isHidden = true }
             let view = try XCTUnwrap(ServerUIRendererFixture.root(host).nodes[scenario.tile]?.view as? UKGlassTileView)
             // The other door sits at rest, so the still differs from the pair's other half only in the door under test.
             let others = [EntityState(entityId: "lock.demo_unit", state: "locked"), EntityState(entityId: "cover.demo_unit", state: "closed")]
-            host.pageContext.store.apply(others.filter { $0.entityId != scenario.entity } + [EntityState(entityId: scenario.entity, state: scenario.state)])
+            host.pageContext.store.apply(others.filter { $0.entityId != scenario.entity && $0.entityId != scenario.omitted } + [EntityState(entityId: scenario.entity, state: scenario.state)])
             let landed = await HostedPage.settle { (view.accessibilityValue ?? "").hasPrefix(scenario.words) }
             XCTAssertTrue(landed, "\(scenario.name) read \(view.accessibilityValue ?? "nil")")
-            try await capture(scenario.name, view, window)
+            var tiles: [String: UKGlassTileView] = [:]
+            for id in ["demo-lock-control", "demo-garage-control"] {
+                tiles[id] = try ServerUIRendererFixture.root(host).nodes[id]?.view as? UKGlassTileView
+            }
+            try await capture(scenario.name, view, window, tiles: tiles)
         }
         for failing in [false, true] {
             let caller = HostedCaller()

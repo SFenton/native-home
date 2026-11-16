@@ -66,19 +66,21 @@ enum ServerUISecurityHostedFixture {
                 .sorted().map(JSONValue.string)))
     }
 
-    static func host(size: CGSize = CGSize(width: 393, height: 852)) throws -> (UKServerUIRenderer, UIWindow, HostedCaller) {
+    static func host(size: CGSize = CGSize(width: 393, height: 852), omitting: Set<String> = []) throws -> (UKServerUIRenderer, UIWindow, HostedCaller) {
         let caller = HostedCaller()
-        let (host, window) = try host(caller: caller, size: size)
+        let (host, window) = try host(caller: caller, size: size, omitting: omitting)
         return (host, window, caller)
     }
 
-    static func host(caller: any HassServiceCalling, size: CGSize = CGSize(width: 393, height: 852)) throws -> (UKServerUIRenderer, UIWindow) {
+    /// - Parameter omitting: Entities the store has no state for yet, the window a cold launch or a reconnect leaves.
+    static func host(caller: any HassServiceCalling, size: CGSize = CGSize(width: 393, height: 852),
+                     omitting: Set<String> = []) throws -> (UKServerUIRenderer, UIWindow) {
         let store = EntityStore()
         store.replaceAll([
             EntityState(entityId: "alarm_control_panel.demo_unit", state: "armed_home"),
             EntityState(entityId: "lock.demo_unit", state: "locked"),
             EntityState(entityId: "cover.demo_unit", state: "closed"),
-        ])
+        ].filter { !omitting.contains($0.entityId) })
         let host = try UKServerUIRenderer(publication: ServerUIRendererFixture.publication(json()),
                                          context: UKContext(store: store, caller: caller), backdrop: ServerUIRendererFixture.backdrop())
         let window = HostedPage.show(host, size: HostedPage.inScene(size))
